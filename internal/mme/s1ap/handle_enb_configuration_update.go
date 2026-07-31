@@ -5,7 +5,6 @@ package s1ap
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -25,8 +24,6 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 
 		return
 	}
-
-	reportDiagnostics(m, radio.Conn, s1ap.ProcENBConfigurationUpdate, req.Diagnostics())
 
 	operator, err := m.Operator(ctx)
 	if err != nil {
@@ -72,27 +69,13 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 }
 
 // rejectENBConfigurationUpdate answers an undecodable update with ENB
-// CONFIGURATION UPDATE FAILURE. TS 36.413 §10.3.4.2, §10.3.5 and §10.3.6 all
-// reject using the procedure's unsuccessful outcome, which is always
-// constructible here, so the Error Indication fallback does not apply.
+// CONFIGURATION UPDATE FAILURE, falling back to the Error Indication procedure
+// where the outcome cannot be built (TS 36.413 §10.3.5).
 func rejectENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Radio, err error) {
-	fail := &s1ap.ENBConfigurationUpdateFailure{
-		Cause: new(s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError}),
-	}
-
-	if ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err); ok {
-		diag := ase.OutcomeDiagnostics()
-		fail.Cause, fail.CriticalityDiagnostics = &ase.Cause, &diag
-	}
-
-	out, err := fail.Marshal()
-	if err != nil {
-		logger.From(ctx, radio.Log).Error("failed to marshal ENB Configuration Update Failure", zap.Error(err))
-
-		return
-	}
-
-	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureENBConfigUpdateFailure, out)
+	rejectWithFailure(m, ctx, radio.Conn, s1ap.ProcENBConfigurationUpdate, err,
+		func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
+			return (&s1ap.ENBConfigurationUpdateFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
+		}, mme.S1APProcedureENBConfigUpdateFailure)
 }
 
 // enbConfigUpdateOutcomeFor returns an Acknowledge when any updated supported TAs
@@ -116,7 +99,17 @@ func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.Plm
 		}
 	}
 
-	out, err = (&s1ap.ENBConfigurationUpdateAcknowledge{}).Marshal()
+	ack := &s1ap.ENBConfigurationUpdateAcknowledge{}
+
+	// §10.3.4.2 reports in the response message of the procedure where it has one.
+	if diag := req.Diagnostics(); diag.ReportRequired() {
+		ack.CriticalityDiagnostics = &s1ap.CriticalityDiagnostics{
+			ProcedureCriticality:      s1ap.Ptr(s1ap.ProcedureCriticality(s1ap.ProcENBConfigurationUpdate)),
+			IEsCriticalityDiagnostics: diag.Report(),
+		}
+	}
+
+	out, err = ack.Marshal()
 	if err != nil {
 		return nil, false, fmt.Errorf("mme: marshal ENB Configuration Update Acknowledge: %w", err)
 	}

@@ -262,3 +262,56 @@ func TestOversizedIECountRejected(t *testing.T) {
 		t.Fatalf("error = %v, want *TransferSyntaxError", err)
 	}
 }
+
+// PATH SWITCH REQUEST carries the source MME-UE-S1AP-ID instead of the plain
+// one, and the rejection still has to name the association (TS 36.413 §8.7.2.2).
+func TestUEIDsFromPathSwitchRequest(t *testing.T) {
+	value := container(t,
+		ieField{id: idENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
+		ieField{id: idSourceMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
+	)
+
+	_, err := ParsePathSwitchRequest(value)
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
+	}
+
+	mmeID, enbID := ase.UEIDs()
+	if mmeID == nil || *mmeID != 7 || enbID == nil || *enbID != 9 {
+		t.Fatalf("UEIDs() = (%v, %v), want (7, 9)", mmeID, enbID)
+	}
+}
+
+// A notify entry must survive the diagnostics bound, or the report required by
+// TS 36.413 §10.3.4.2 would carry no IE.
+func TestNotifySurvivesTruncation(t *testing.T) {
+	fields := uplinkNASFields()
+	for i := range maxDiagnosticIEs + 10 {
+		fields = append(fields, ieField{
+			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+		})
+	}
+
+	fields = append(fields, ieField{id: ProtocolIEID(50000), crit: CriticalityNotify, raw: []byte{0x00}})
+
+	msg, err := ParseUplinkNASTransport(container(t, fields...))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	diag := msg.Diagnostics()
+	if !diag.ReportRequired() {
+		t.Fatal("ReportRequired() = false, want true")
+	}
+
+	report := diag.Report()
+	if len(report) != 1 || report[0].IEID != 50000 {
+		t.Fatalf("Report() = %+v, want the notify IE", report)
+	}
+
+	if len(diag.IEs) > maxDiagnosticIEs {
+		t.Errorf("recorded %d diagnostics, want at most %d", len(diag.IEs), maxDiagnosticIEs)
+	}
+}

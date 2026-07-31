@@ -30,8 +30,6 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcERABModificationIndication, msg.Diagnostics())
-
 	ue, ok := m.LookupUe(msg.MMEUES1APID)
 	if !ok {
 		// The procedure has no failure message; an unresolvable UE is dropped.
@@ -40,6 +38,8 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 
 		return
 	}
+
+	reportDiagnostics(m, radio.Conn, s1ap.ProcERABModificationIndication, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ue, msg.UserLocationInformation)

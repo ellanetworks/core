@@ -27,6 +27,8 @@ func handleUplinkLPPaTransport(m *mme.MME, ctx context.Context, radio *mme.Radio
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcUplinkUEAssociatedLPPaTransport, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	ue.SetLPPaMessage([]byte(msg.LPPaPDU))
 
 	logger.From(ctx, radio.Log).Debug("stored uplink LPPa PDU",

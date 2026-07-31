@@ -113,7 +113,9 @@ func (e *AbstractSyntaxError) UEIDs() (*MMEUES1APID, *ENBUES1APID) {
 
 	for _, ie := range e.decoded {
 		switch ie.ID {
-		case idMMEUES1APID:
+		// PATH SWITCH REQUEST identifies the association by the source MME id
+		// (TS 36.413 §9.1.5.8); no message carries both.
+		case idMMEUES1APID, idSourceMMEUES1APID:
 			var v MMEUES1APID
 			if perIEDecode(ie.Value, &v) == nil {
 				mmeID = &v
@@ -185,17 +187,33 @@ func (d Diagnostics) Report() []CriticalityDiagnosticsIEItem {
 }
 
 func (d *Diagnostics) record(id ProtocolIEID, crit Criticality, kind TypeOfError) {
+	entry := DiagnosticIE{ID: id, Criticality: crit, TypeOfError: kind}
+
 	if crit == CriticalityNotify {
 		d.notify = true
 	}
 
-	if len(d.IEs) >= maxDiagnosticIEs {
-		d.Truncated = true
+	if len(d.IEs) < maxDiagnosticIEs {
+		d.IEs = append(d.IEs, entry)
 
 		return
 	}
 
-	d.IEs = append(d.IEs, DiagnosticIE{ID: id, Criticality: crit, TypeOfError: kind})
+	d.Truncated = true
+
+	// TS 36.413 §10.3.4.2 wants an entry per reported IE, so a notify entry
+	// displaces a silent one instead of being dropped behind the bound.
+	if crit != CriticalityNotify {
+		return
+	}
+
+	for i, ie := range d.IEs {
+		if ie.Criticality != CriticalityNotify {
+			d.IEs[i] = entry
+
+			return
+		}
+	}
 }
 
 func (t TypeOfError) String() string {

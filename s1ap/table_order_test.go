@@ -7,8 +7,9 @@ import (
 	"testing"
 )
 
-// TestTableOrderMatchesASN1 pins each table to the IE order of its
-// S1AP-PROTOCOL-IES container (TS 36.413 §9.3.3); encode emits in table order.
+// TestTableOrderMatchesASN1 pins the IEs each table models to their relative
+// order in the message's S1AP-PROTOCOL-IES container (TS 36.413 §9.3.3), which
+// is the order encode emits them in. IEs a table does not model are not pinned.
 func TestTableOrderMatchesASN1(t *testing.T) {
 	tests := []struct {
 		name string
@@ -20,7 +21,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"ENBConfigurationUpdate", tableIDs(eNBConfigurationUpdateIEs), []ProtocolIEID{idENBname, idSupportedTAs, idDefaultPagingDRX}},
 		{"ENBConfigurationUpdateAcknowledge", tableIDs(eNBConfigurationUpdateAcknowledgeIEs), []ProtocolIEID{idCriticalityDiagnostics}},
 		{"ENBConfigurationUpdateFailure", tableIDs(eNBConfigurationUpdateFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
-		{"ERABModificationConfirm", tableIDs(erabModificationConfirmIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABModifyListBearerModConf}},
+		{"ERABModificationConfirm", tableIDs(erabModificationConfirmIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABModifyListBearerModConf, idCriticalityDiagnostics}},
 		{"ERABModificationIndication", tableIDs(eRABModificationIndicationIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABToBeModifiedListBearerModInd, idERABNotToBeModifiedListBearerModInd, idUserLocationInformation}},
 		{"ERABModifyRequest", tableIDs(eRABModifyRequestIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idUEAggregateMaximumBitrate, idERABToBeModifiedListBearerModReq}},
 		{"ERABModifyResponse", tableIDs(eRABModifyResponseIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idERABModifyListBearerModRes, idERABFailedToModifyList, idCriticalityDiagnostics, idUserLocationInformation}},

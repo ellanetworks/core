@@ -20,6 +20,8 @@ func handleERABModifyResponse(m *mme.MME, radio *mme.Radio, value []byte) {
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcERABModify, nodeLevel(), resp.Diagnostics())
+
 	if resp.MMEUES1APID == nil {
 		logger.MmeLog.Warn("E-RAB Modify Response without an MME-UE-S1AP-ID")
 		sendErrorIndication(m, radio.Conn, nil, resp.ENBUES1APID, causeMissingUES1APID)

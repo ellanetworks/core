@@ -22,14 +22,12 @@ func handleReset(m *mme.MME, radio *mme.Radio, value []byte) {
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcReset, req.Diagnostics())
-
 	if req.ResetType.All {
 		affected := m.ConnsOnConn(radio.Conn)
 		m.ReclaimConns(affected, "S1 reset")
 
 		radio.Log.Info("S1 Reset (whole interface)", zap.Int("connections", len(affected)))
-		sendResetAcknowledge(m, radio.Conn, nil)
+		sendResetAcknowledge(m, radio.Conn, nil, req.Diagnostics())
 
 		return
 	}
@@ -42,13 +40,21 @@ func handleReset(m *mme.MME, radio *mme.Radio, value []byte) {
 
 	// TS 36.413 §8.7.1.2.1: the acknowledge echoes the UE-associated logical
 	// S1-connections that were reset.
-	sendResetAcknowledge(m, radio.Conn, req.ResetType.Part)
+	sendResetAcknowledge(m, radio.Conn, req.ResetType.Part, req.Diagnostics())
 }
 
 // sendResetAcknowledge answers a RESET with RESET ACKNOWLEDGE (TS 36.413
 // §9.1.2.7). connectionList is non-nil only for a part-of-interface reset.
-func sendResetAcknowledge(m *mme.MME, conn mme.S1APWriter, connectionList []s1ap.UEAssociatedLogicalS1ConnectionItem) {
+func sendResetAcknowledge(m *mme.MME, conn mme.S1APWriter, connectionList []s1ap.UEAssociatedLogicalS1ConnectionItem, diag s1ap.Diagnostics) {
 	ack := &s1ap.ResetAcknowledge{ConnectionList: connectionList}
+
+	// §10.3.4.2 reports in the response message of the procedure where it has one.
+	if diag.ReportRequired() {
+		ack.CriticalityDiagnostics = &s1ap.CriticalityDiagnostics{
+			ProcedureCriticality:      s1ap.Ptr(s1ap.ProcedureCriticality(s1ap.ProcReset)),
+			IEsCriticalityDiagnostics: diag.Report(),
+		}
+	}
 
 	b, err := ack.Marshal()
 	if err != nil {

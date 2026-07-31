@@ -24,6 +24,8 @@ func HandleERABReleaseResponse(m *mme.MME, radio *mme.Radio, value []byte) {
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcERABRelease, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	ue.TouchLastSeen()
 	captureUserLocation(ue, msg.UserLocationInformation)
 

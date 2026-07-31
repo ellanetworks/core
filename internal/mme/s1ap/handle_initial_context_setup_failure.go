@@ -25,6 +25,8 @@ func handleInitialContextSetupFailure(m *mme.MME, radio *mme.Radio, value []byte
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcInitialContextSetup, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	ue.TouchLastSeen()
 
 	fields := []zap.Field{zap.Uint32("mme-ue-id", uint32(*msg.MMEUES1APID))}

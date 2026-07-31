@@ -49,8 +49,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 
 	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, m.RelativeCapacity)
 	if err != nil {
-		var ase *s1ap.AbstractSyntaxError
-		if errors.As(err, &ase) {
+		if ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err); ok {
 			sendS1SetupFailure(m, ctx, conn, ase)
 			return
 		}

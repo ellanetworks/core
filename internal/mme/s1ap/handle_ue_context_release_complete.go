@@ -42,6 +42,8 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcUEContextRelease, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	captureUserLocation(ue, msg.UserLocationInformation)
 
 	ue.TouchLastSeen()

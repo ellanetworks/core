@@ -168,7 +168,7 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}, nil},
 		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}, nil},
 		// Default Paging DRX is mandatory-ignore (§9.1.8.4), so its absence is
-		// reported rather than fatal.
+		// reported and delivered.
 		{"missing only PagingDRX", true, true, false, nil, []ProtocolIEID{idDefaultPagingDRX}},
 		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{idGlobalENBID}, nil},
 	}

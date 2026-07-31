@@ -29,6 +29,8 @@ func handleNASNonDeliveryIndication(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
+	reportDiagnostics(m, radio.Conn, s1ap.ProcNASNonDeliveryIndication, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	ue.TouchLastSeen()
 
 	fields := []zap.Field{

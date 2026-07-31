@@ -134,9 +134,10 @@ type erabModifyItemBearerModConf struct {
 
 // TS 36.413 §9.1.3.9.
 type ERABModificationConfirm struct {
-	MMEUES1APID   *MMEUES1APID
-	ENBUES1APID   *ENBUES1APID
-	ModifiedERABs []ERABID
+	MMEUES1APID            *MMEUES1APID
+	ENBUES1APID            *ENBUES1APID
+	ModifiedERABs          []ERABID
+	CriticalityDiagnostics *CriticalityDiagnostics
 
 	messageMeta
 }
@@ -212,6 +213,27 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABModifyItemBearerModConf, CriticalityIgnore, items)
 			}), true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABModificationConfirm, raw []byte, enc per.Encoding) error {
+			var v CriticalityDiagnostics
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.CriticalityDiagnostics = &v
+
+			return nil
+		},
+		encode: func(m *ERABModificationConfirm) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
 		},
 	},
 }
