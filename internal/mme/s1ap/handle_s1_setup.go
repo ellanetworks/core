@@ -144,6 +144,14 @@ func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGr
 		return req, nil, false, "", err
 	}
 
+	// §10.3.4.2 reports in the response message of the procedure where it has one.
+	if diag := req.Diagnostics(); diag.ReportRequired() {
+		resp.CriticalityDiagnostics = &s1ap.CriticalityDiagnostics{
+			ProcedureCriticality:      s1ap.Ptr(s1ap.ProcedureCriticality(s1ap.ProcS1Setup)),
+			IEsCriticalityDiagnostics: diag.Report(),
+		}
+	}
+
 	out, err = resp.Marshal()
 	if err != nil {
 		return req, nil, false, "", fmt.Errorf("mme: marshal S1 Setup Response: %w", err)

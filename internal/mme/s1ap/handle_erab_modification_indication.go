@@ -39,7 +39,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcERABModificationIndication, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModificationIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ue, msg.UserLocationInformation)

@@ -263,7 +263,7 @@ func TestInitialContextSetupFailureAbortsUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleInitialContextSetupFailure(m, mme.NewRadioForTest(cc), pdu.(*s1ap.UnsuccessfulOutcome).Value)
+	handleInitialContextSetupFailure(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.UnsuccessfulOutcome).Value)
 
 	if cc.count() != 0 {
 		t.Fatalf("expected no S1AP command on Initial Context Setup Failure (local release), got %d", cc.count())

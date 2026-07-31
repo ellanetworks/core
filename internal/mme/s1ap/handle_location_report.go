@@ -39,7 +39,7 @@ func handleLocationReport(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcLocationReport, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcLocationReport, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	if msg.EUTRANCGI != nil && msg.TAI != nil {
 		ue.Conn().UpdateLocation(*msg.EUTRANCGI, *msg.TAI)

@@ -28,7 +28,7 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcERABSetup, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ue, msg.UserLocationInformation)

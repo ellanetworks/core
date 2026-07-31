@@ -23,7 +23,7 @@ func handleENBConfigurationTransfer(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcENBConfigurationTransfer, nodeLevel(), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcENBConfigurationTransfer, s1ap.TriggeringInitiatingMessage, nodeLevel(), msg.Diagnostics())
 
 	if msg.SONConfigurationTransfer == nil {
 		return

@@ -28,7 +28,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcHandoverNotification, ueAssociated(notify.MMEUES1APID, notify.ENBUES1APID), notify.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverNotification, s1ap.TriggeringInitiatingMessage, ueAssociated(notify.MMEUES1APID, notify.ENBUES1APID), notify.Diagnostics())
 
 	admitted, releaseEBIs, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {

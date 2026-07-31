@@ -4,6 +4,8 @@
 package s1ap
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
@@ -13,14 +15,14 @@ import (
 // handleERABModifyResponse records the eNB's E-RAB Modify outcome. The procedure
 // completes on the NAS Modify Accept, so a failed-to-modify list is logged but
 // does not itself abort the modification (TS 36.413 §8.2.2).
-func handleERABModifyResponse(m *mme.MME, radio *mme.Radio, value []byte) {
+func handleERABModifyResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	resp, err := s1ap.ParseERABModifyResponse(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode E-RAB Modify Response", zap.Error(err))
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcERABModify, nodeLevel(), resp.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, nodeLevel(), resp.Diagnostics())
 
 	if resp.MMEUES1APID == nil {
 		logger.MmeLog.Warn("E-RAB Modify Response without an MME-UE-S1AP-ID")

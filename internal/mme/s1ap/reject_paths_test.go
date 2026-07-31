@@ -6,6 +6,7 @@ package s1ap
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
@@ -124,5 +125,56 @@ func TestENBConfigurationUpdateRejectionAnswers(t *testing.T) {
 	}
 	if fail.Cause == nil || *fail.Cause != want {
 		t.Errorf("cause = %v, want falsely-constructed-message", fail.Cause)
+	}
+}
+
+// TS 36.413 §9.2.1.21: Criticality Diagnostics reports which message carried
+// the error, so a successful outcome must not be labelled an initiating
+// message.
+func TestReportOnResponseNamesTheOutcome(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	mmeID := uint16(ue.Conn().MMEUES1APID)
+	enbID := uint16(ue.Conn().ENBUES1APID)
+
+	// The two UE IDs, then an IE this version does not model marked notify,
+	// which §10.3.4.2 obliges the receiver to report.
+	body, err := hex.DecodeString(fmt.Sprintf("000003"+"00004002%04x"+"00084002%04x"+"ea608001"+"00", mmeID, enbID))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handleInitialContextSetupResponse(m, context.Background(), mme.NewRadioForTest(cc), body)
+
+	var ind *s1ap.ErrorIndication
+
+	for _, sent := range cc.sent {
+		pdu, err := s1ap.Unmarshal(sent)
+		if err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+
+		im, ok := pdu.(*s1ap.InitiatingMessage)
+		if !ok || im.ProcedureCode != s1ap.ProcErrorIndication {
+			continue
+		}
+
+		if ind, err = s1ap.ParseErrorIndication(im.Value); err != nil {
+			t.Fatalf("parse Error Indication: %v", err)
+		}
+	}
+
+	if ind == nil {
+		t.Fatal("no ERROR INDICATION sent for the notify IE")
+	}
+
+	cd := ind.CriticalityDiagnostics
+	if cd == nil || cd.TriggeringMessage == nil {
+		t.Fatalf("Criticality Diagnostics = %+v, want a Triggering Message", cd)
+	}
+
+	if *cd.TriggeringMessage != s1ap.TriggeringSuccessfulOutcome {
+		t.Errorf("triggering message = %v, want successful-outcome", *cd.TriggeringMessage)
 	}
 }

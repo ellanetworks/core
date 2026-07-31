@@ -4,6 +4,8 @@
 package s1ap
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
@@ -13,7 +15,7 @@ import (
 // handleInitialContextSetupFailure releases the UE locally without a UE Context
 // Release Command: the eNB reported it could not set up the context and has already
 // released its side (TS 36.413 §8.3.1.3).
-func handleInitialContextSetupFailure(m *mme.MME, radio *mme.Radio, value []byte) {
+func handleInitialContextSetupFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupFailure(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Initial Context Setup Failure", zap.Error(err))
@@ -25,7 +27,7 @@ func handleInitialContextSetupFailure(m *mme.MME, radio *mme.Radio, value []byte
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcInitialContextSetup, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringUnsuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 

@@ -1041,7 +1041,7 @@ func TestHandoverTargetResetAborts(t *testing.T) {
 	targetMME, _ := driveToPrepared(t, m, ue, source, target)
 
 	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(m, mme.NewRadioForTest(target), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
+	handleReset(m, context.Background(), mme.NewRadioForTest(target), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
 
 	if ue.HasHandoverForTest() {
 		t.Fatal("handover not aborted by a reset on the target eNB")

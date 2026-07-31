@@ -23,7 +23,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcHandoverResourceAllocation, nodeLevel(), ack.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverResourceAllocation, s1ap.TriggeringSuccessfulOutcome, nodeLevel(), ack.Diagnostics())
 
 	if ack.MMEUES1APID == nil || ack.ENBUES1APID == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge without both UE S1AP IDs")

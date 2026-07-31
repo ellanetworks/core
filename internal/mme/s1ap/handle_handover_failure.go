@@ -22,7 +22,7 @@ func handleHandoverFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcHandoverResourceAllocation, nodeLevel(), fail.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverResourceAllocation, s1ap.TriggeringUnsuccessfulOutcome, nodeLevel(), fail.Diagnostics())
 
 	if fail.MMEUES1APID == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Failure without an MME-UE-S1AP-ID")

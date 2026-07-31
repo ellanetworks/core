@@ -39,7 +39,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcPathSwitchRequest, ueAssociated(req.SourceMMEUES1APID, req.ENBUES1APID), req.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcPathSwitchRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(req.SourceMMEUES1APID, req.ENBUES1APID), req.Diagnostics())
 
 	// TS 36.413: a to-be-switched list repeating an E-RAB ID is an
 	// abnormal condition the MME rejects.

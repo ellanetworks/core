@@ -243,8 +243,8 @@ func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (int, ieSpec[M], bo
 }
 
 // modeledIEs keeps the first occurrence of each IE the table names, which is
-// what addressing an unsuccessful outcome needs and bounds the result by the
-// table length rather than by what the peer chose to send.
+// what addressing an unsuccessful outcome needs, and bounds the result by the
+// table length, so the peer does not choose its size.
 func modeledIEs[M any](table []ieSpec[M], fields []rawIE) []RawIE {
 	var out []RawIE
 

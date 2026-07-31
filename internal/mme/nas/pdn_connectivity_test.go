@@ -199,7 +199,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mmes1ap.HandleERABReleaseResponse(m, mme.NewRadioForTest(cc), rrpdu.(*s1ap.SuccessfulOutcome).Value)
+	mmes1ap.HandleERABReleaseResponse(m, context.Background(), mme.NewRadioForTest(cc), rrpdu.(*s1ap.SuccessfulOutcome).Value)
 
 	da := &eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: 6, PTI: 3}
 

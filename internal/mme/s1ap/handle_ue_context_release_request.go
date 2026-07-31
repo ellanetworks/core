@@ -45,7 +45,7 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcUEContextReleaseRequest, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 

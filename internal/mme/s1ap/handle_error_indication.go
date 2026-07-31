@@ -136,15 +136,16 @@ func sendParseErrorIndication(m *mme.MME, ctx context.Context, conn mme.S1APWrit
 // survived. TS 36.413 §10.3.4.2 requires reporting a not-comprehended IE
 // marked notify; ignore-criticality entries are carried silently and
 // §9.2.1.21 forbids naming them.
-func reportDiagnostics(m *mme.MME, conn mme.S1APWriter, proc s1ap.ProcedureCode, ids ueIDs, diag s1ap.Diagnostics) {
+func reportDiagnostics(m *mme.MME, ctx context.Context, conn mme.S1APWriter, proc s1ap.ProcedureCode,
+	trigger s1ap.TriggeringMessage, ids ueIDs, diag s1ap.Diagnostics,
+) {
 	if !diag.ReportRequired() {
 		return
 	}
 
 	crit := s1ap.ProcedureCriticality(proc)
-	trigger := s1ap.TriggeringInitiatingMessage
 
-	emitErrorIndication(m, context.Background(), conn, &s1ap.ErrorIndication{
+	emitErrorIndication(m, ctx, conn, &s1ap.ErrorIndication{
 		MMEUES1APID: ids.mme,
 		ENBUES1APID: ids.enb,
 		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},

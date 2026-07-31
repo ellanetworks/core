@@ -4,6 +4,8 @@
 package s1ap
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -12,7 +14,7 @@ import (
 // handleUECapabilityInfoIndication stores the UE Radio Capability reported by the
 // eNB (TS 36.413), replayed in later INITIAL CONTEXT SETUP REQUEST messages so the
 // eNB need not re-fetch it from the UE (TS 23.401).
-func handleUECapabilityInfoIndication(m *mme.MME, radio *mme.Radio, value []byte) {
+func handleUECapabilityInfoIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUECapabilityInfoIndication(value)
 	if err != nil {
 		handleParseError(m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, err)
@@ -24,7 +26,7 @@ func handleUECapabilityInfoIndication(m *mme.MME, radio *mme.Radio, value []byte
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcUECapabilityInfoIndication, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 

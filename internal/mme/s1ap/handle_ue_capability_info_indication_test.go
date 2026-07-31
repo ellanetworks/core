@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestUECapabilityInfoIndicationStoresRadioCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleUECapabilityInfoIndication(m, mme.NewRadioForTest(cc), initiatingValue(t, b))
+	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, b))
 
 	if !bytes.Equal(ue.RadioCapability, radioCap) {
 		t.Fatalf("radio capability = %x, want %x", ue.RadioCapability, radioCap)
@@ -57,7 +58,7 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 	}
 
 	// Must not panic or create a context for an unknown MME-UE-S1AP-ID.
-	handleUECapabilityInfoIndication(m, mme.NewRadioForTest(&captureConn{}), initiatingValue(t, b))
+	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(&captureConn{}), initiatingValue(t, b))
 
 	if _, ok := m.LookupUe(999); ok {
 		t.Fatal("unexpected UE context for unknown MME-UE-S1AP-ID")
@@ -65,8 +66,7 @@ func TestUECapabilityInfoIndicationUnknownUE(t *testing.T) {
 }
 
 // TS 36.413 §10.3.5: UE Radio Capability is mandatory/ignore, so a message
-// omitting it is delivered — and must leave the stored capability standing
-// rather than clearing it.
+// omitting it is delivered, and must leave the stored capability standing.
 func TestUECapabilityInfoIndicationAbsentCapabilityKeepsStored(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
@@ -91,7 +91,7 @@ func TestUECapabilityInfoIndicationAbsentCapabilityKeepsStored(t *testing.T) {
 		t.Fatalf("UERadioCapability = %x, want absent", msg.UERadioCapability)
 	}
 
-	handleUECapabilityInfoIndication(m, mme.NewRadioForTest(cc), body)
+	handleUECapabilityInfoIndication(m, context.Background(), mme.NewRadioForTest(cc), body)
 
 	if !bytes.Equal(ue.RadioCapability, stored) {
 		t.Fatalf("radio capability = %x, want the stored %x", ue.RadioCapability, stored)

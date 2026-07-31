@@ -29,7 +29,7 @@ func handleNASNonDeliveryIndication(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	reportDiagnostics(m, radio.Conn, s1ap.ProcNASNonDeliveryIndication, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcNASNonDeliveryIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 
