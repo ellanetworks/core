@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -87,12 +86,12 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 
 	// N3 side: the UPF's N3 address and a neighbor for the gNB, so a
 	// re-encapsulated downlink packet routes out toward the gNB.
-	addAddr(t, t2N3Dev, addrCIDR(testUPFN3IP, 24))
+	addAddr(t, t2N3Dev, addrCIDR(testUPFN3IP))
 	addNeigh(t, t2N3Dev, testGNBIP, "02:00:00:00:00:aa")
 
 	// N6 side: the source-NAT egress address, a route to the server, and a
 	// neighbor, so an uplink packet routes out with src = natPublicIP.
-	addAddr(t, t2N6Dev, addrCIDR(natPublicIP, 24))
+	addAddr(t, t2N6Dev, addrCIDR(natPublicIP))
 	addRoute(t, "198.51.100.0/24", t2N6Dev, natPublicIP)
 	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
 
@@ -275,7 +274,7 @@ func ifByName(t *testing.T, name string) *net.Interface {
 
 func ip4String(a [4]byte) string { return net.IP(a[:]).String() }
 
-func addrCIDR(a [4]byte, prefix int) string { return ip4String(a) + "/" + strconv.Itoa(prefix) }
+func addrCIDR(a [4]byte) string { return ip4String(a) + "/24" }
 
 // TestDownlinkStatisticsAttached checks that downlink byte accounting lands in
 // downlink_statistics on a real attach. It is the N6-side counterpart to

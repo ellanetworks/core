@@ -35,7 +35,7 @@ func TestVethRAEncapsulation(t *testing.T) {
 
 	injPeer, n3Peer, vobj := setupVethRA(t)
 
-	addAddr(t, vethN3Dev, addrCIDR(testUPFN3IP, 24))
+	addAddr(t, vethN3Dev, addrCIDR(testUPFN3IP))
 	addNeigh(t, vethN3Dev, testGNBIP, "02:00:00:00:00:aa")
 
 	ueDst := netip.MustParseAddr("fe80::1")

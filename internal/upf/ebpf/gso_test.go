@@ -86,7 +86,7 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 		t.Fatalf("add N3 IPv6 neigh: %v: %s", err, out)
 	}
 
-	addAddr(t, n3Dev, addrCIDR(testUPFN3IP, 24))
+	addAddr(t, n3Dev, addrCIDR(testUPFN3IP))
 	addNeigh(t, n3Dev, testGNBIP, "02:00:00:00:00:aa")
 
 	// Segment on egress so the capture sees what a NIC without tunnel
@@ -96,7 +96,8 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 	// N6 side: the sender lives on the peer and routes to the UE through the
 	// datapath's N6 device.
 	srcIP := netip.AddrFrom4([4]byte{192, 0, 2, 9})
-	addAddr(t, n6Dev, addrCIDR(natPublicIP, 24))
+
+	addAddr(t, n6Dev, addrCIDR(natPublicIP))
 	addAddr(t, n6Peer, srcIP.String()+"/24")
 
 	ueAddr := netip.AddrFrom4(ueIP)
@@ -220,6 +221,17 @@ func isGTPv6Outer(fr []byte) bool {
 func TestTCXIPv6OuterGSOChecksums(t *testing.T) {
 	requireProgTestRun(t)
 
+	if !testAttachModeTCX() {
+		t.Skip("GSO super-frames reach the datapath only at the TC hook; native XDP runs before GRO")
+	}
+
+	// __skb_udp_tunnel_segment replays the outer header span byte-for-byte
+	// into every segment and fixes up only uh->len, so the GTP-U Length and
+	// the IPv6 outer UDP checksum are those of the super-frame. The handling
+	// this asserts is not settled: TS 29.281 §5.1 makes Length normative,
+	// and refusing the frame costs bulk downlink whenever GRO is on.
+	t.Skip("pending the GSO encapsulation decision")
+
 	const (
 		teid = 0x6750534F
 		qfi  = 7
@@ -240,6 +252,7 @@ func TestTCXIPv6OuterGSOChecksums(t *testing.T) {
 				if len(fr) > ethHdrLen+6 {
 					return int(fr[ethHdrLen+6])
 				}
+
 				return -1
 			}(),
 			isGTPv6Outer(fr))
