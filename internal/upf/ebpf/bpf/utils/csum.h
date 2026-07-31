@@ -110,7 +110,7 @@ static __always_inline void recompute_ipv4_csum(struct iphdr *ip)
 	for (int i = 0; i < (int)sizeof(*ip) >> 1; i++) {
 		csum += *word++;
 	}
-	ip->check = ~((csum & 0xffff) + (csum >> 16));
+	ip->check = csum_fold_helper(csum);
 }
 
 static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
@@ -121,7 +121,7 @@ static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
 	for (int i = 0; i < len >> 1; i++) {
 		csum += *word++;
 	}
-	icmp->checksum = ~((csum & 0xffff) + (csum >> 16));
+	icmp->checksum = csum_fold_helper(csum);
 }
 
 /*

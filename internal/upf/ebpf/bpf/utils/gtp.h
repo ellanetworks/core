@@ -214,9 +214,19 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 	 * tag. Resizing first lets every rewrite below use a fixed offset from
 	 * the new packet start, which the verifier can bound even though the
 	 * stripped GTP header length varies. */
+	/* The inner version nibble has to be read before the resize moves it;
+	 * guess_eth_protocol below re-derives it for the Ethernet type. */
+	const __u8 *inner_peek = (const __u8 *)ctx->gtp + ctx->gtp_hdr_len;
+	if ((const void *)(inner_peek + 1) > data_end) {
+		upf_printk("upf: remove_gtp_header: can't read inner header");
+		return -1;
+	}
+	__u8 inner_is_ipv6 = (*inner_peek >> 4) == 6;
+
 	long result = ctx_decap(
 		ctx->ctx_buff,
-		(__s32)(in_vlan_size + gtp_encap_size_no_vlan - out_vlan_size));
+		(__s32)(in_vlan_size + gtp_encap_size_no_vlan - out_vlan_size),
+		inner_is_ipv6);
 	if (result)
 		return result;
 

@@ -76,7 +76,8 @@
  * the call (saved before, rewritten after): XDP shrinks at the frame front,
  * TC shrinks between the L2 and L3 headers, and the caller's rewrite is
  * correct for both. */
-#define ctx_decap(ctx, bytes) bpf_xdp_adjust_head(ctx, bytes)
+#define ctx_decap(ctx, bytes, inner_is_ipv6) \
+	((void)(inner_is_ipv6), bpf_xdp_adjust_head(ctx, bytes))
 
 /* Open `bytes` of room for encapsulation headers. XDP grows at the frame
  * front, TC between the L2 and L3 headers; ctx_encap_saved_eth resolves the

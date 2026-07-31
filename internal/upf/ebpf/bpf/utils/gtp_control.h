@@ -257,8 +257,8 @@ send_error_indication_ipv4(struct packet_context *ctx)
 
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
 	long trim = ctx_tail_excess(ctx->ctx_buff, ctx->data_end, p, 24);
-	if (trim > 0)
-		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
+	if (trim > 0 && ctx_adjust_tail(ctx->ctx_buff, (int)-trim) < 0)
+		return CTX_ACT_DROP;
 
 	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
 }
@@ -333,8 +333,8 @@ send_error_indication_ipv6(struct packet_context *ctx)
 
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
 	long trim = ctx_tail_excess(ctx->ctx_buff, ctx->data_end, p, 36);
-	if (trim > 0)
-		ctx_adjust_tail(ctx->ctx_buff, (int)-trim);
+	if (trim > 0 && ctx_adjust_tail(ctx->ctx_buff, (int)-trim) < 0)
+		return CTX_ACT_DROP;
 
 	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
 }

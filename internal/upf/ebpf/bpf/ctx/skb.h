@@ -128,16 +128,28 @@ static __always_inline long ctx_pull(struct __ctx_buff *ctx, __u32 len)
  * L2 save/rewrite around the call finds the header already in place and
  * rewrites it with identical bytes.
  *
- * The skb_postpull_rcsum in the shrink path — whose CHECKSUM_PARTIAL →
- * CHECKSUM_NONE downgrade GTP-U decap needs for correct checksums on veth
- * traffic — runs unconditionally (net/core/filter.c, bpf_skb_generic_pop).
+ * The skb_postpull_rcsum in the shrink path downgrades CHECKSUM_PARTIAL to
+ * CHECKSUM_NONE only once skb_checksum_start_offset drops below zero
+ * (include/linux/skbuff.h, __skb_postpull_rcsum), which GTP-U decap needs for
+ * correct checksums on veth traffic. Decap always strips the outer L3+UDP+GTP
+ * span, which exceeds the offset of the outer UDP header by 8 + gtp_hdr_len
+ * minus the 14-byte L2 header, so the downgrade fires for every valid header.
  * BPF_F_ADJ_ROOM_NO_CSUM_RESET would only preserve CHECKSUM_UNNECESSARY
  * validation state, which nothing after decap consumes: the packet leaves via
  * redirect, where only CHECKSUM_PARTIAL matters at transmit. */
-static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes)
+static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes,
+				      __u8 inner_is_ipv6)
 {
-	long ret = bpf_skb_adjust_room(ctx, -bytes, BPF_ADJ_ROOM_MAC,
-				       BPF_F_ADJ_ROOM_FIXED_GSO);
+	/* Without a DECAP_L3 flag bpf_skb_net_shrink leaves skb->protocol at the
+	 * outer family (net/core/filter.c), so the stack delivers a decapsulated
+	 * frame to the wrong packet_type and egress picks offloads off the wrong
+	 * protocol. The grow side sets it from ENCAP_L3_*, which is why encap
+	 * needs no equivalent. */
+	long ret = bpf_skb_adjust_room(
+		ctx, -bytes, BPF_ADJ_ROOM_MAC,
+		BPF_F_ADJ_ROOM_FIXED_GSO |
+			(inner_is_ipv6 ? BPF_F_ADJ_ROOM_DECAP_L3_IPV6 :
+					 BPF_F_ADJ_ROOM_DECAP_L3_IPV4));
 	if (ret)
 		return ret;
 

@@ -27,34 +27,52 @@ static __always_inline int vlan_to_insert(struct packet_context *ctx)
 	return egress_vlan_reflected(ctx);
 }
 
+/* Source address for a self-generated reply: the preferred source the FIB would
+ * pick for the destination. BPF_FIB_LOOKUP_SRC is what writes ipv4_src
+ * (net/core/filter.c, fib_result_prefsrc); without it the field is returned
+ * unchanged. tot_len stays 0 so the MTU check does not abort the lookup before
+ * the source is written. The seed is the address the trigger was sent to, which
+ * is what remains if the lookup does not reach that point. */
 static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET;
-	fib_params.tos = ctx->ip4->tos;
 	fib_params.l4_protocol = ctx->ip4->protocol;
-	fib_params.sport = 0;
-	fib_params.dport = 0;
-	fib_params.tot_len = bpf_ntohs(ctx->ip4->tot_len);
+	fib_params.tot_len = 0;
 	fib_params.ipv4_src = ctx->ip4->daddr;
 	fib_params.ipv4_dst = ctx->ip4->saddr;
 	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
 
-	__u64 flags = BPF_FIB_LOOKUP_DIRECT;
-	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params), flags);
+	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
+		       BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_SRC);
 	return fib_params.ipv4_src;
+}
+
+/* IPv6 counterpart. RFC 4443 §2.2 requires the source to be an address of the
+ * node; the UE address the trigger was sent to is neither ours nor routable
+ * back through N6 under BCP38. */
+static __always_inline void get_src_ip6_addr(struct packet_context *ctx,
+					     struct in6_addr *out)
+{
+	struct bpf_fib_lookup fib_params = {};
+	fib_params.family = AF_INET6;
+	fib_params.l4_protocol = ctx->ip6->nexthdr;
+	fib_params.tot_len = 0;
+	__builtin_memcpy(fib_params.ipv6_src, &ctx->ip6->daddr,
+			 sizeof(fib_params.ipv6_src));
+	__builtin_memcpy(fib_params.ipv6_dst, &ctx->ip6->saddr,
+			 sizeof(fib_params.ipv6_dst));
+	fib_params.ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
+
+	bpf_fib_lookup(ctx->ctx_buff, &fib_params, sizeof(fib_params),
+		       BPF_FIB_LOOKUP_DIRECT | BPF_FIB_LOOKUP_SRC);
+	__builtin_memcpy(out, fib_params.ipv6_src, sizeof(*out));
 }
 
 static __always_inline enum ctx_action
 frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 {
 	upf_printk("upf: preparing fragmention needed error");
-	if (ctx->ip4->protocol < 0) {
-		upf_printk("upf: packet was not IPv4");
-		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
-					     EUPF_MAX_XDP_ACTION_MASK] += 1;
-		return CTX_ACT_ABORTED;
-	}
 	ctx->statistics->packet_counters.rx++;
 	if ((ctx->ip4->frag_off & bpf_htons(0x4000)) == 0) {
 		// Don't Fragment is not set, drop the packet
@@ -163,14 +181,20 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		}
 	}
 
-	__builtin_memcpy(new_ip, ctx->ip4, sizeof(*new_ip));
-	new_ip->daddr = ctx->ip4->saddr;
-	new_ip->saddr = ctx->ip4->daddr;
+	/* Built field by field: copying the trigger inherits its ihl, tos (ECN
+	 * included), id and frag_off, and an ihl claiming options this header
+	 * does not carry makes the receiver parse the ICMP inside the payload. */
+	__builtin_memset(new_ip, 0, sizeof(*new_ip));
+	new_ip->version = 4;
+	new_ip->ihl = sizeof(struct iphdr) >> 2;
+	new_ip->tos = IPTOS_PREC_INTERNETCONTROL;
+	new_ip->frag_off = 0;
 	new_ip->protocol = IPPROTO_ICMP;
 	new_ip->ttl = 64;
 	new_ip->tot_len =
 		bpf_htons(sizeof(struct iphdr) + sizeof(struct icmphdr) +
 			  sizeof(struct iphdr) + 8);
+	new_ip->daddr = ctx->ip4->saddr;
 	new_ip->saddr = get_src_ip_addr(ctx);
 	recompute_ipv4_csum(new_ip);
 
@@ -189,6 +213,9 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	new_icmp->un.frag.__unused = 0;
 
 	int pkt_size = (int)ctx_len_from(ctx->ctx_buff, data_end, data);
+	if (pkt_size <= 0)
+		return CTX_ACT_ABORTED;
+
 	int icmp_pkt_size = sizeof(struct ethhdr) + sizeof(struct iphdr) +
 			    sizeof(struct icmphdr) + sizeof(struct iphdr) + 8;
 	if (incoming_vlan) {
@@ -341,8 +368,7 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	new_ip6->payload_len = bpf_htons(icmp6_msg_len);
 	new_ip6->nexthdr = IPPROTO_ICMPV6;
 	new_ip6->hop_limit = 64;
-	__builtin_memcpy(&new_ip6->saddr, &orig_ip6->daddr,
-			 sizeof(struct in6_addr));
+	get_src_ip6_addr(ctx, &new_ip6->saddr);
 	__builtin_memcpy(&new_ip6->daddr, &orig_ip6->saddr,
 			 sizeof(struct in6_addr));
 
@@ -376,6 +402,9 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 	int icmp_pkt_size =
 		eth_hdr_len + (int)sizeof(struct ipv6hdr) + icmp6_msg_len;
 	int pkt_size = (int)ctx_len_from(ctx->ctx_buff, data_end, data);
+	if (pkt_size <= 0)
+		return CTX_ACT_ABORTED;
+
 	if (pkt_size != icmp_pkt_size) {
 		if (ctx_adjust_tail(ctx->ctx_buff, icmp_pkt_size - pkt_size) <
 		    0) {

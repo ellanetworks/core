@@ -303,6 +303,7 @@ static __always_inline void context_reset(struct packet_context *ctx,
 	ctx->tcp = NULL;
 	ctx->gtp = NULL;
 	ctx->icmp = NULL;
+	ctx->gtp_hdr_len = 0;
 }
 
 /* Make the headers linear and writable for the paths that rewrite them, and
