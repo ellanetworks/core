@@ -199,8 +199,8 @@ func (e *ENB) sendERABReleaseResponse(cmd *s1ap.ERABReleaseCommand, enbUEID int6
 	}
 
 	resp := &s1ap.ERABReleaseResponse{
-		MMEUES1APID:  cmd.MMEUES1APID,
-		ENBUES1APID:  s1ap.ENBUES1APID(enbUEID),
+		MMEUES1APID:  s1ap.Ptr(cmd.MMEUES1APID),
+		ENBUES1APID:  s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
 		ERABReleased: released,
 	}
 
@@ -221,8 +221,8 @@ func (e *ENB) sendERABSetupResponse(req *s1ap.ERABSetupRequest, enbUEID int64, d
 	}
 
 	resp := &s1ap.ERABSetupResponse{
-		MMEUES1APID: req.MMEUES1APID,
-		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
+		MMEUES1APID: s1ap.Ptr(req.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
 		ERABSetup: []s1ap.ERABSetupItemBearerSURes{{
 			ERABID:                req.ERABToBeSetup[0].ERABID,
 			TransportLayerAddress: s1ap.TransportLayerAddress(addr),

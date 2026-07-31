@@ -7,22 +7,22 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 func TestCriticalityDiagnosticsEmpty(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := (CriticalityDiagnostics{}).encode(&w); err != nil {
+	if err := (CriticalityDiagnostics{}).MarshalPER(w, per.Aligned); err != nil {
 		t.Fatal(err)
 	}
 
 	// ext bit 0 + five absent presence bits = 6 zero bits -> 0x00.
-	if want := []byte{0x00}; !bytes.Equal(w.Bytes(), want) {
-		t.Fatalf("empty = % x, want % x", w.Bytes(), want)
+	if want := []byte{0x00}; !bytes.Equal(perBytes(w), want) {
+		t.Fatalf("empty = % x, want % x", perBytes(w), want)
 	}
 
-	d, err := decodeCriticalityDiagnostics(aper.NewReader(w.Bytes()))
+	d, err := unmarshalPERValue[CriticalityDiagnostics](perBytes(w))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,12 +48,12 @@ func TestCriticalityDiagnosticsRoundTrip(t *testing.T) {
 		},
 	}
 
-	var w aper.Writer
-	if err := in.encode(&w); err != nil {
+	w := per.NewWriter()
+	if err := in.MarshalPER(w, per.Aligned); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := decodeCriticalityDiagnostics(aper.NewReader(w.Bytes()))
+	out, err := unmarshalPERValue[CriticalityDiagnostics](perBytes(w))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,45 +82,46 @@ func TestCriticalityDiagnosticsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestCriticalityDiagnosticsSkipsExtensions hand-builds a message carrying both
-// an iE-Extensions ProtocolExtensionContainer and a SEQUENCE extension
-// addition, as a future/peer encoder might. The decoder must step over both and
-// still succeed.
+// A peer may send both an iE-Extensions container and a SEQUENCE extension
+// addition; the decoder must step over both.
 func TestCriticalityDiagnosticsSkipsExtensions(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
 	// Preamble: extensible, extension additions present, only iE-Extensions set.
-	w.WriteSequencePreamble(true, true, []bool{false, false, false, false, true})
+	for _, bit := range []bool{true, false, false, false, false, true} {
+		w.WriteBit(bit)
+	}
 
 	// iE-Extensions: ProtocolExtensionContainer with one field.
-	if err := w.WriteConstrainedLength(1, 1, maxProtocolExtensions); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxProtocolExtensions, 1); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := w.WriteConstrainedInt(100, 0, maxProtocolIEs); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, 100); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := w.WriteEnum(int(CriticalityIgnore), criticalityRootCount, false, false); err != nil {
+	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(int(CriticalityIgnore))); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := w.WriteOpenType([]byte{0xaa}); err != nil {
+	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0xaa}); err != nil {
 		t.Fatal(err)
 	}
 
 	// One SEQUENCE extension addition, present.
-	if err := w.WriteNSLength(1); err != nil {
+	if err := per.EncodeNormallySmallLength(w, per.Aligned, 1, func(int64) error {
+		w.WriteBit(true)
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
 
-	w.WriteBool(true)
-
-	if err := w.WriteOpenType([]byte{0xbb, 0xcc}); err != nil {
+	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0xbb, 0xcc}); err != nil {
 		t.Fatal(err)
 	}
 
-	d, err := decodeCriticalityDiagnostics(aper.NewReader(w.Bytes()))
+	d, err := unmarshalPERValue[CriticalityDiagnostics](perBytes(w))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -134,12 +135,12 @@ func TestCriticalityDiagnosticsPartial(t *testing.T) {
 	// Only procedureCode set; exercises a sparse presence bitmap.
 	pc := ProcErrorIndication
 
-	var w aper.Writer
-	if err := (CriticalityDiagnostics{ProcedureCode: &pc}).encode(&w); err != nil {
+	w := per.NewWriter()
+	if err := (CriticalityDiagnostics{ProcedureCode: &pc}).MarshalPER(w, per.Aligned); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := decodeCriticalityDiagnostics(aper.NewReader(w.Bytes()))
+	out, err := unmarshalPERValue[CriticalityDiagnostics](perBytes(w))
 	if err != nil {
 		t.Fatal(err)
 	}

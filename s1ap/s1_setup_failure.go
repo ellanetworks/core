@@ -4,9 +4,7 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // TimeToWait ::= ENUMERATED { v1s, v2s, v5s, v10s, v20s, v60s, ... } (extensible).
@@ -23,59 +21,108 @@ const (
 	timeToWaitRootCount = 6
 )
 
-func (t TimeToWait) encode(w *aper.Writer) error {
-	return w.WriteEnum(int(t), timeToWaitRootCount, true, false)
+func (t TimeToWait) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeEnumerated(w, enc, timeToWaitRootCount, true, int64(t))
 }
 
-func decodeTimeToWait(r *aper.Reader) (TimeToWait, error) {
-	idx, _, err := r.ReadEnum(timeToWaitRootCount, true)
+func (t *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := per.DecodeEnumerated(r, enc, timeToWaitRootCount, true)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	return TimeToWait(idx), nil
+	*t = TimeToWait(idx)
+
+	return nil
 }
 
-// S1SetupFailure is the S1 SETUP FAILURE message (TS 36.413). TimeToWait
-// and CriticalityDiagnostics are optional (nil = absent).
+// TS 36.413 §9.1.8.6.
 type S1SetupFailure struct {
-	Cause                  Cause
+	Cause                  *Cause
 	TimeToWait             *TimeToWait
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *S1SetupFailure) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
+	{
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+			var v Cause
 
-	fields := []ieField{
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	if m.TimeToWait != nil {
-		ttw := *m.TimeToWait
-		fields = append(fields, ieField{id: idTimeToWait, crit: CriticalityIgnore, enc: ttw.encode})
-	}
+			m.Cause = &v
 
-	if m.CriticalityDiagnostics != nil {
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: m.CriticalityDiagnostics.encode})
-	}
+			return nil
+		},
+		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return m.Cause, true
+		},
+	},
+	{
+		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				ttw TimeToWait
+			)
 
-	return encodeIEContainer(w, fields)
+			err = perIEDecode(raw, &ttw)
+			m.TimeToWait = &ttw
+
+			return err
+		},
+		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+			if m.TimeToWait == nil {
+				return nil, false
+			}
+
+			return m.TimeToWait, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *S1SetupFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcS1Setup, s1SetupFailureIEs, m)
+}
+
 func (m *S1SetupFailure) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&UnsuccessfulOutcome{
 		ProcedureCode: ProcS1Setup,
@@ -84,60 +131,6 @@ func (m *S1SetupFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseS1SetupFailure decodes an S1SetupFailure from the open-type payload of an
-// unsuccessfulOutcome.
 func ParseS1SetupFailure(value []byte) (*S1SetupFailure, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: S1SetupFailure preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &S1SetupFailure{}
-
-	var seenCause bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idCause:
-			m.Cause, err = decodeCause(sub)
-			seenCause = true
-		case idTimeToWait:
-			var ttw TimeToWait
-
-			ttw, err = decodeTimeToWait(sub)
-			m.TimeToWait = &ttw
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			cd, err = decodeCriticalityDiagnostics(sub)
-			m.CriticalityDiagnostics = &cd
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: S1SetupFailure IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenCause {
-		return nil, fmt.Errorf("s1ap: S1SetupFailure missing mandatory Cause IE")
-	}
-
-	return m, nil
+	return parseMessageBody[S1SetupFailure](ProcS1Setup, TriggeringUnsuccessfulOutcome, s1SetupFailureIEs, value)
 }

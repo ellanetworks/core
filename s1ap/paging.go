@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 const (
@@ -28,87 +28,193 @@ const (
 	CNDomainCS CNDomain = 1
 )
 
-// Paging is the PAGING message (TS 36.413): a non-UE-associated message
-// the MME sends to eNB(s) to reach an ECM-IDLE UE. Ella Core uses the S-TMSI
-// paging identity and pages the operator's tracking area(s).
-//
-//	Paging ::= SEQUENCE {
-//	    UEIdentityIndexValue   BIT STRING (SIZE(10)),  -- IMSI mod 1024
-//	    UEPagingID             CHOICE { s-TMSI, iMSI, ... },
-//	    CNDomain               ENUMERATED { ps, cs },
-//	    TAIList                SEQUENCE (SIZE(1..256)) OF TAIItem,
-//	    ... }
+// TS 36.413 §9.1.6.
 type Paging struct {
-	UEIdentityIndexValue uint16
-	STMSI                STMSI // UE Paging Identity (s-TMSI alternative)
-	CNDomain             CNDomain
+	UEIdentityIndexValue *uint16
+	STMSI                *STMSI
+	CNDomain             *CNDomain
 	TAIList              []TAI
 	// UERadioCapabilityForPaging is the eNB-reported paging-specific capability
 	// (TS 36.413 §9.1.6.1, optional-ignore); when set, the eNB may use it to apply
 	// specific paging schemes. Empty means the IE is omitted.
 	UERadioCapabilityForPaging []byte
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *Paging) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+// taiItem ::= SEQUENCE { tAI TAI, iE-Extensions OPTIONAL, ... }.
+type taiItem struct {
+	_   [0]struct{} `per:"extseq"`
+	TAI TAI
+	_   ieExtensions `per:",skip"`
+}
 
-	taiEncoders := make([]func(*aper.Writer) error, len(m.TAIList))
-
-	for i := range m.TAIList {
-		tai := m.TAIList[i]
-		taiEncoders[i] = func(w *aper.Writer) error {
-			// TAIItem ::= SEQUENCE { tAI TAI, iE-Extensions OPTIONAL, ... }
-			w.WriteSequencePreamble(true, false, []bool{false})
-
-			return tai.encode(w)
-		}
-	}
-
-	fields := []ieField{
-		{id: idUEIdentityIndexValue, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			b := []byte{byte(m.UEIdentityIndexValue >> 2), byte(m.UEIdentityIndexValue << 6)}
-
-			return w.WriteBitString(b, 10, 10, 10, false)
-		}},
-		{id: idUEPagingID, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			if err := w.WriteChoiceIndex(uePagingIDChoiceSTMSI, uePagingIDRootCount, true, false); err != nil {
+var pagingIEs = []ieSpec[Paging]{
+	{
+		id: idUEIdentityIndexValue, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+			b, nbits, err := per.DecodeBitString(per.NewReader(raw), enc, 10, 10, true, true, false)
+			if err != nil {
 				return err
 			}
 
-			return m.STMSI.encode(w)
-		}},
-		{id: idCNDomain, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return w.WriteEnum(int(m.CNDomain), cnDomainRootCount, false, false)
-		}},
-		{id: idTAIList, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofTAIs, idTAIItem, CriticalityIgnore, taiEncoders)
-		}},
-	}
+			if nbits != 10 || len(b) < 2 {
+				return fmt.Errorf("s1ap: UE identity index value is %d bits", nbits)
+			}
 
-	// UE Radio Capability for Paging follows the List of TAIs in the message order
-	// (TS 36.413 §9.1.6.1); included only when the eNB reported one.
-	if len(m.UERadioCapabilityForPaging) > 0 {
-		fields = append(fields, ieField{id: idUERadioCapabilityForPaging, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return w.WriteOctetString(m.UERadioCapabilityForPaging, 0, aper.Unbounded, false)
-		}})
-	}
+			v := uint16(b[0])<<2 | uint16(b[1])>>6
+			m.UEIdentityIndexValue = &v
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return nil
+		},
+		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.UEIdentityIndexValue == nil {
+				return nil, false
+			}
 
-	return encodeIEContainer(w, fields)
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				b := []byte{byte(*m.UEIdentityIndexValue >> 2), byte(*m.UEIdentityIndexValue << 6)}
+
+				return per.EncodeBitString(w, enc, 10, 10, true, true, false, b, 10)
+			}), true
+		},
+	},
+	{
+		id: idUEPagingID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+			sub := per.NewReader(raw)
+
+			isExt, err := sub.ReadBit()
+			if err != nil {
+				return err
+			}
+
+			if isExt {
+				return fmt.Errorf("s1ap: unsupported UE paging identity extension alternative")
+			}
+
+			index, err := per.DecodeConstrainedWholeNumber(sub, enc, 0, uePagingIDRootCount-1)
+			if err != nil {
+				return err
+			}
+
+			if index != uePagingIDChoiceSTMSI {
+				return fmt.Errorf("s1ap: unsupported UE paging identity choice %d", index)
+			}
+
+			var v STMSI
+			if err := v.UnmarshalPER(sub, enc); err != nil {
+				return err
+			}
+
+			m.STMSI = &v
+
+			return nil
+		},
+		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.STMSI == nil {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				w.WriteBit(false)
+
+				if err := per.EncodeConstrainedWholeNumber(w, enc, 0, uePagingIDRootCount-1, uePagingIDChoiceSTMSI); err != nil {
+					return err
+				}
+
+				return m.STMSI.MarshalPER(w, enc)
+			}), true
+		},
+	},
+	{
+		id: idCNDomain, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+			index, err := per.DecodeEnumerated(per.NewReader(raw), enc, cnDomainRootCount, false)
+			if err != nil {
+				return err
+			}
+
+			v := CNDomain(index)
+			m.CNDomain = &v
+
+			return nil
+		},
+		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.CNDomain == nil {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return per.EncodeEnumerated(w, enc, cnDomainRootCount, false, int64(*m.CNDomain))
+			}), true
+		},
+	},
+	{
+		id: idTAIList, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+			items, err := decodeItemList[taiItem](per.NewReader(raw), enc, maxnoofTAIs)
+			if err != nil {
+				return err
+			}
+
+			m.TAIList = make([]TAI, len(items))
+			for i, it := range items {
+				m.TAIList[i] = it.TAI
+			}
+
+			return nil
+		},
+		encode: func(m *Paging) (per.Marshaler, bool) {
+			if len(m.TAIList) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				items := make([]taiItem, len(m.TAIList))
+				for i, tai := range m.TAIList {
+					items[i] = taiItem{TAI: tai}
+				}
+
+				return encodeSingleContainerList(w, enc, maxnoofTAIs, idTAIItem, CriticalityIgnore, items)
+			}), true
+		},
+	},
+	// UE Radio Capability for Paging follows the List of TAIs in the message
+	// order (§9.1.6.1); included only when the eNB reported one.
+	{
+		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.UERadioCapabilityForPaging, err = per.DecodeOctetString(per.NewReader(raw), enc, 0, 0, true, false, false)
+
+			return err
+		},
+		encode: func(m *Paging) (per.Marshaler, bool) {
+			if len(m.UERadioCapabilityForPaging) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapabilityForPaging)
+			}), true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
-func (m *Paging) Marshal() ([]byte, error) {
-	var w aper.Writer
+func (m *Paging) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcPaging, pagingIEs, m)
+}
 
-	if err := m.encodeBody(&w); err != nil {
+func (m *Paging) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcPaging,
@@ -117,98 +223,6 @@ func (m *Paging) Marshal() ([]byte, error) {
 	})
 }
 
-// ParsePaging decodes a Paging from the open-type payload of an initiatingMessage.
 func ParsePaging(value []byte) (*Paging, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: Paging preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &Paging{}
-
-	var seenIndex, seenPagingID, seenCNDomain, seenTAIList bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idUEIdentityIndexValue:
-			var (
-				b     []byte
-				nbits int
-			)
-
-			b, nbits, err = sub.ReadBitString(10, 10, false)
-			if err == nil && nbits == 10 && len(b) >= 2 {
-				m.UEIdentityIndexValue = uint16(b[0])<<2 | uint16(b[1])>>6
-			}
-
-			seenIndex = true
-		case idUEPagingID:
-			var index int
-
-			index, _, err = sub.ReadChoiceIndex(uePagingIDRootCount, true)
-			if err == nil && index == uePagingIDChoiceSTMSI {
-				m.STMSI, err = decodeSTMSI(sub)
-			} else if err == nil {
-				err = fmt.Errorf("s1ap: unsupported UE paging identity choice %d", index)
-			}
-
-			seenPagingID = true
-		case idCNDomain:
-			var index int
-
-			index, _, err = sub.ReadEnum(cnDomainRootCount, false)
-			m.CNDomain = CNDomain(index)
-			seenCNDomain = true
-		case idTAIList:
-			m.TAIList, err = decodeItemList(sub, maxnoofTAIs, decodeTAIItem)
-			seenTAIList = true
-		case idUERadioCapabilityForPaging:
-			m.UERadioCapabilityForPaging, err = sub.ReadOctetString(0, aper.Unbounded, false)
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: Paging IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenIndex || !seenPagingID || !seenCNDomain || !seenTAIList {
-		return nil, fmt.Errorf("s1ap: Paging missing mandatory IE")
-	}
-
-	return m, nil
-}
-
-func decodeTAIItem(r *aper.Reader) (TAI, error) {
-	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-	if err != nil {
-		return TAI{}, err
-	}
-
-	tai, err := decodeTAI(r)
-	if err != nil {
-		return TAI{}, err
-	}
-
-	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-		return TAI{}, err
-	}
-
-	return tai, nil
+	return parseMessageBody[Paging](ProcPaging, TriggeringInitiatingMessage, pagingIEs, value)
 }

@@ -333,8 +333,8 @@ func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 		NASPDU:                s1ap.NASPDU(pdu),
 		STMSI:                 &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
 		TAI:                   s1ap.TAI{PLMNIdentity: plmn, TAC: 1},
-		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1},
-		RRCEstablishmentCause: s1ap.RRCCauseMOSignalling,
+		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1}),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)

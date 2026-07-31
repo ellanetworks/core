@@ -15,13 +15,13 @@ func TestS1APCauseName(t *testing.T) {
 		cause s1ap.Cause
 		want  string
 	}{
-		{"radio user-inactivity", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 20}, "Radio Network: user-inactivity (20)"},
-		{"radio radio-connection-with-ue-lost", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 21}, "Radio Network: radio-connection-with-ue-lost (21)"},
-		{"radio unknown-mme-ue-s1ap-id", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 13}, "Radio Network: unknown-mme-ue-s1ap-id (13)"},
-		{"radio extension n26", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 4, Extended: true}, "Radio Network: n26-interface-not-available (40)"},
-		{"nas detach", s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: 2}, "NAS: detach (2)"},
-		{"misc unknown-PLMN", s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 5}, "Misc: unknown-PLMN (5)"},
-		{"radio out of range", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 99}, "Radio Network: unknown (99)"},
+		{"radio user-inactivity", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 20}, "radioNetwork: user-inactivity (20)"},
+		{"radio radio-connection-with-ue-lost", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 21}, "radioNetwork: radio-connection-with-ue-lost (21)"},
+		{"radio unknown-mme-ue-s1ap-id", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 13}, "radioNetwork: unknown-mme-ue-s1ap-id (13)"},
+		{"radio extension n26", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 4, Extended: true}, "radioNetwork: n26-interface-not-available (40)"},
+		{"nas detach", s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: 2}, "nas: detach (2)"},
+		{"misc unknown-PLMN", s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 5}, "misc: unknown-PLMN (5)"},
+		{"radio out of range", s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 99}, "radioNetwork: unknown (99)"},
 	}
 
 	for _, tt := range tests {

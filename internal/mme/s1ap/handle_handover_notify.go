@@ -28,6 +28,8 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverNotification, s1ap.TriggeringInitiatingMessage, ueAssociated(notify.MMEUES1APID, notify.ENBUES1APID), notify.Diagnostics())
+
 	admitted, releaseEBIs, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		// A pair that still resolves to the UE's active connection is a stale notify for a
@@ -81,7 +83,10 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	}
 
 	ue.TouchLastSeen()
-	ue.Conn().UpdateLocation(notify.EUTRANCGI, notify.TAI)
+
+	if notify.EUTRANCGI != nil && notify.TAI != nil {
+		ue.Conn().UpdateLocation(*notify.EUTRANCGI, *notify.TAI)
+	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Notify",
 		zap.Uint32("target-mme-ue-id", uint32(targetMMEID)),

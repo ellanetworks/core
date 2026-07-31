@@ -27,6 +27,8 @@ func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), st.Diagnostics())
+
 	ue.TouchLastSeen()
 
 	targetConn, targetMMEID, targetENBID, ok := m.HandoverStatusTarget(ue)

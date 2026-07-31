@@ -17,7 +17,15 @@ import (
 func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	req, err := s1ap.ParseHandoverRequired(value)
 	if err != nil {
-		handleParseError(m, radio.Conn, s1ap.ProcHandoverPreparation, err)
+		rejectWithFailure(m, ctx, radio.Conn, s1ap.ProcHandoverPreparation, err,
+			func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
+				mmeID, enbID := rejectedUEIDs(err)
+
+				return (&s1ap.HandoverPreparationFailure{
+					MMEUES1APID: mmeID, ENBUES1APID: enbID, Cause: &cause, CriticalityDiagnostics: diag,
+				}).Marshal()
+			}, mme.S1APProcedureHandoverPreparationFailure)
+
 		return
 	}
 
@@ -25,6 +33,8 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	if !ok {
 		return
 	}
+
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverPreparation, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), req.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -73,10 +83,17 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
+	// Relay the source's Cause to the target. Cause is mandatory in a HANDOVER REQUEST,
+	// so an omitted one is replaced here (TS 36.413 §9.1.5.5).
+	cause := req.Cause
+	if cause == nil {
+		cause = s1ap.Ptr(causeHandoverPrepUnspecific)
+	}
+
 	hoReq := &s1ap.HandoverRequest{
 		MMEUES1APID:            targetMMEID,
 		HandoverType:           s1ap.HandoverTypeIntraLTE,
-		Cause:                  req.Cause,
+		Cause:                  cause,
 		UEAMBR:                 handoverUEAMBR(ue),
 		ERABToBeSetup:          bearers,
 		SourceToTarget:         req.SourceToTarget,

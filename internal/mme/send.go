@@ -207,7 +207,7 @@ func (c *UeConn) SendPathSwitchAcknowledge(ctx context.Context, ack *s1ap.PathSw
 		return nil
 	}
 
-	ack.MMEUES1APID, ack.ENBUES1APID = c.MMEUES1APID, c.ENBUES1APID
+	ack.MMEUES1APID, ack.ENBUES1APID = s1ap.Ptr(c.MMEUES1APID), s1ap.Ptr(c.ENBUES1APID)
 
 	b, err := ack.Marshal()
 	if err != nil {

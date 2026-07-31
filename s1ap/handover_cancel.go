@@ -4,44 +4,68 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// HandoverCancel is the HANDOVER CANCEL message (TS 36.413), sent by
-// the source eNB to cancel an ongoing or prepared handover (TS 23.401).
+// TS 36.413 §9.1.5.11.
 type HandoverCancel struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
-	Cause       Cause
+	Cause       *Cause
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *HandoverCancel) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var handoverCancelIEs = []ieSpec[HandoverCancel]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
+			var v Cause
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.Cause = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *HandoverCancel) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *HandoverCancel) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcHandoverCancel, handoverCancelIEs, m)
+}
+
 func (m *HandoverCancel) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcHandoverCancel,
@@ -50,92 +74,75 @@ func (m *HandoverCancel) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverCancel decodes the message from an initiatingMessage open-type
-// payload.
 func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: HandoverCancel preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &HandoverCancel{}
-
-	var seenMME, seenENB, seenCause bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idCause:
-			m.Cause, err = decodeCause(sub)
-			seenCause = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: HandoverCancel IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: HandoverCancel missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[HandoverCancel](ProcHandoverCancel, TriggeringInitiatingMessage, handoverCancelIEs, value)
 }
 
-// HandoverCancelAcknowledge is the HANDOVER CANCEL ACKNOWLEDGE message (TS 36.413),
-// the successful outcome the MME returns to confirm the handover has
-// been cancelled and target resources released.
+// TS 36.413 §9.1.5.12.
 type HandoverCancelAcknowledge struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
+	MMEUES1APID *MMEUES1APID
+	ENBUES1APID *ENBUES1APID
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *HandoverCancelAcknowledge) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityIgnore, enc: m.ENBUES1APID.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.MMEUES1APID = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
+			var v ENBUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
+		},
+		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *HandoverCancelAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcHandoverCancel, handoverCancelAcknowledgeIEs, m)
+}
+
 func (m *HandoverCancelAcknowledge) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcHandoverCancel,
@@ -144,53 +151,6 @@ func (m *HandoverCancelAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseHandoverCancelAcknowledge decodes the message from a successfulOutcome
-// open-type payload.
 func ParseHandoverCancelAcknowledge(value []byte) (*HandoverCancelAcknowledge, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: HandoverCancelAcknowledge preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &HandoverCancelAcknowledge{}
-
-	var seenMME, seenENB bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: HandoverCancelAcknowledge IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: HandoverCancelAcknowledge missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[HandoverCancelAcknowledge](ProcHandoverCancel, TriggeringSuccessfulOutcome, handoverCancelAcknowledgeIEs, value)
 }

@@ -70,8 +70,8 @@ func TestERABSetupResponseRoundTrips(t *testing.T) {
 	tla := TransportLayerAddress{10, 45, 0, 9}
 
 	in := &ERABSetupResponse{
-		MMEUES1APID: 42,
-		ENBUES1APID: 1,
+		MMEUES1APID: Ptr(MMEUES1APID(42)),
+		ENBUES1APID: Ptr(ENBUES1APID(1)),
 		ERABSetup:   []ERABSetupItemBearerSURes{{ERABID: 6, TransportLayerAddress: tla, GTPTEID: 0xdeadbeef}},
 	}
 
@@ -95,7 +95,7 @@ func TestERABSetupResponseRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.MMEUES1APID != 42 || out.ENBUES1APID != 1 || len(out.ERABSetup) != 1 ||
+	if deref(out.MMEUES1APID) != 42 || deref(out.ENBUES1APID) != 1 || len(out.ERABSetup) != 1 ||
 		out.ERABSetup[0].ERABID != 6 || out.ERABSetup[0].GTPTEID != 0xdeadbeef ||
 		!bytes.Equal(out.ERABSetup[0].TransportLayerAddress, tla) {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)

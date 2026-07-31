@@ -8,13 +8,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// Golden vectors are the aligned-PER encoding of TS 36.455 IE values produced by
-// an independent encoder (asn1tools, from the spec-verbatim ASN.1), not by this
-// codec. They pin the wire bytes so a symmetric encode+decode defect cannot pass
-// unnoticed the way a round-trip test would.
+// Golden vectors produced by asn1tools from the spec-verbatim ASN.1, not by
+// this codec, so a symmetric encode+decode defect cannot pass unnoticed the way
+// it would in a round-trip test.
 const (
 	goldenAPPosition        = "2035a27880290e30000064283c785430"
 	goldenECGI              = "0000f1100abcde10"
@@ -55,27 +54,27 @@ func sampleResult() *ECIDResult {
 	}
 }
 
-func encodeHex(t *testing.T, enc func(*aper.Writer) error) string {
+func encodeHex(t *testing.T, enc func(*per.Writer) error) string {
 	t.Helper()
 
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := enc(&w); err != nil {
+	if err := enc(w); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
 
-	return hex.EncodeToString(w.Bytes())
+	return hex.EncodeToString(perAlignedBytes(w))
 }
 
 func TestGoldenAPPosition(t *testing.T) {
-	got := encodeHex(t, func(w *aper.Writer) error { return encAPPosition(w, sampleAPPosition()) })
+	got := encodeHex(t, func(w *per.Writer) error { return encAPPosition(w, sampleAPPosition()) })
 	if got != goldenAPPosition {
 		t.Fatalf("E-UTRANAccessPointPosition\n got=%s\nwant=%s", got, goldenAPPosition)
 	}
 }
 
 func TestGoldenECGI(t *testing.T) {
-	got := encodeHex(t, func(w *aper.Writer) error { return encECGI(w, sampleECGI()) })
+	got := encodeHex(t, func(w *per.Writer) error { return encECGI(w, sampleECGI()) })
 	if got != goldenECGI {
 		t.Fatalf("ECGI\n got=%s\nwant=%s", got, goldenECGI)
 	}
@@ -88,15 +87,15 @@ func TestGoldenMeasurementResult(t *testing.T) {
 	}
 }
 
-// TestDecodeGoldenMeasurementResult decodes the independent reference bytes, so
-// the decoder is validated against the same external oracle as the encoder.
+// TestDecodeGoldenMeasurementResult holds the decoder to the same external
+// oracle as the encoder.
 func TestDecodeGoldenMeasurementResult(t *testing.T) {
 	raw, err := hex.DecodeString(goldenMeasurementResult)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	res, err := decodeMeasurementResult(aper.NewReader(raw))
+	res, err := decodeMeasurementResult(per.NewReader(raw))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -122,15 +121,15 @@ func TestDecodeGoldenMeasurementResult(t *testing.T) {
 	}
 }
 
-// TestAPPositionDegrees checks the TS 23.032 decimal-degree conversion against a
-// hand-computed value (37.71°N, -122.26°E ≈ San Francisco).
+// TestAPPositionDegrees checks the TS 23.032 conversion against hand-computed
+// degrees (37.71°N, -122.26°E).
 func TestAPPositionDegrees(t *testing.T) {
 	raw, err := hex.DecodeString(goldenAPPosition)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ap, err := decodeAPPosition(aper.NewReader(raw))
+	ap, err := decodeAPPosition(per.NewReader(raw))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -196,13 +195,13 @@ func TestParseUnknownProcedure(t *testing.T) {
 	}
 }
 
-// TestForwardCompatUnknownIE decodes a Response carrying an IE this codec does
-// not model; it must be skipped and the message parse successfully.
+// TestForwardCompatUnknownIE requires an unmodeled IE to be skipped rather than
+// to fail the parse.
 func TestForwardCompatUnknownIE(t *testing.T) {
 	fields := []ieField{
 		{id: idESMLCUEMeasurementID, crit: CriticalityReject, enc: encMeasurementID(7)},
 		{id: idENBUEMeasurementID, crit: CriticalityReject, enc: encMeasurementID(5)},
-		{id: 999, crit: CriticalityIgnore, enc: func(w *aper.Writer) error { w.WriteOctets([]byte{0xde, 0xad}); return nil }},
+		{id: 999, crit: CriticalityIgnore, enc: func(w *per.Writer) error { _ = w.WriteOctets([]byte{0xde, 0xad}); return nil }},
 	}
 
 	body, err := encodeMessageBody(fields)
@@ -281,7 +280,6 @@ func TestBoundaryValuesRoundTrip(t *testing.T) {
 	}
 }
 
-// TestResultWithECGIPerItem exercises the optional per-item eCGI in a RSRP item.
 func TestResultWithECGIPerItem(t *testing.T) {
 	ecgi := sampleECGI()
 	res := &ECIDResult{

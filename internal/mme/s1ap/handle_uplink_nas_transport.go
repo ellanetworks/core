@@ -24,12 +24,20 @@ func handleUplinkNASTransport(m *mme.MME, ctx context.Context, radio *mme.Radio,
 		return
 	}
 
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUplinkNASTransport, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	ue.TouchLastSeen()
 
 	// Track the UE's current serving-cell TAI so a later TAU is gated on where the UE
-	// now is (TS 36.413: UPLINK NAS TRANSPORT carries the current TAI).
-	ue.Conn().ServingTAI = msg.TAI
-	ue.Conn().UpdateLocation(msg.EUTRANCGI, msg.TAI)
+	// now is (TS 36.413: UPLINK NAS TRANSPORT carries the current TAI). An omitted TAI
+	// leaves the last known one standing (§10.3.5).
+	if msg.TAI != nil {
+		ue.Conn().ServingTAI = *msg.TAI
+
+		if msg.EUTRANCGI != nil {
+			ue.Conn().UpdateLocation(*msg.EUTRANCGI, *msg.TAI)
+		}
+	}
 
 	// resolveUE guarantees the UE is connected on this association, so ue.Conn() is
 	// the connection the message arrived on.

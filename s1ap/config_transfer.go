@@ -6,111 +6,100 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// SONConfigurationTransfer holds the SON Configuration Transfer IE
-// (TS 36.413 §9.2.3.26) as raw open-type bytes: the MME relays it verbatim and
-// decodes only the leading Target eNB-ID to route it.
+// SONConfigurationTransfer is held as raw open-type bytes: it is relayed
+// verbatim, and only the leading Target eNB-ID is decoded (TS 36.413 §9.2.3.26).
 type SONConfigurationTransfer []byte
 
-func (c SONConfigurationTransfer) field(id ProtocolIEID) ieField {
-	return ieField{id: id, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-		w.WriteOctets(c)
-		return nil
-	}}
+func (c SONConfigurationTransfer) MarshalPER(w *per.Writer, _ per.Encoding) error {
+	return w.WriteOctets(c)
 }
 
-// TargetENBID decodes the leading Target eNB-ID, which names the destination eNB
-// (TS 36.413 §9.2.3.26). The remaining fields (source eNB-ID, SON Information) are
-// relayed as opaque bytes.
+// TargetENBID decodes the destination eNB from the leading field (TS 36.413 §9.2.3.26).
 func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
-	r := aper.NewReader(c)
+	r := per.NewReader(c)
 
-	if _, _, err := r.ReadSequencePreamble(true, 1); err != nil {
-		return TargeteNBID{}, fmt.Errorf("s1ap: SONConfigurationTransfer preamble: %w", err)
+	for range 2 { // extension bit + iE-Extensions presence bit
+		if _, err := r.ReadBit(); err != nil {
+			return TargeteNBID{}, fmt.Errorf("s1ap: SONConfigurationTransfer preamble: %w", err)
+		}
 	}
 
-	return decodeTargeteNBID(r)
+	var t TargeteNBID
+	if err := t.UnmarshalPER(r, per.Aligned); err != nil {
+		return TargeteNBID{}, err
+	}
+
+	return t, nil
 }
 
-// ENBConfigurationTransfer is the ENB CONFIGURATION TRANSFER message
-// (TS 36.413 §8.15), sent by an eNB to convey SON configuration for another eNB.
-// SONConfigurationTransfer is nil when the optional IE is absent. Only the base
-// variant is modelled; EN-DC and inter-system SON transfers round-trip as unknown IEs.
+// TS 36.413 §9.1.16.
 type ENBConfigurationTransfer struct {
 	SONConfigurationTransfer SONConfigurationTransfer
 
-	unmodeledIEs
+	messageMeta
 }
 
-// ParseENBConfigurationTransfer decodes the message from an initiatingMessage
-// open-type payload.
+var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
+	{
+		id: idSONConfigurationTransferECT, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationTransfer, raw []byte, enc per.Encoding) error {
+			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
+			return nil
+		},
+		encode: func(m *ENBConfigurationTransfer) (per.Marshaler, bool) {
+			if m.SONConfigurationTransfer == nil {
+				return nil, false
+			}
+
+			return m.SONConfigurationTransfer, true
+		},
+	},
+}
+
 func ParseENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ENBConfigurationTransfer preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ENBConfigurationTransfer{}
-
-	for _, f := range fields {
-		switch f.id {
-		case idSONConfigurationTransferECT:
-			m.SONConfigurationTransfer = SONConfigurationTransfer(f.value)
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-	}
-
-	return m, nil
+	return parseMessageBody[ENBConfigurationTransfer](ProcENBConfigurationTransfer, TriggeringInitiatingMessage, eNBConfigurationTransferIEs, value)
 }
 
-// MMEConfigurationTransfer is the MME CONFIGURATION TRANSFER message
-// (TS 36.413 §8.16), sent by the MME to relay a SON Configuration Transfer IE to
-// the target eNB.
+// TS 36.413 §9.1.17.
 type MMEConfigurationTransfer struct {
 	SONConfigurationTransfer SONConfigurationTransfer
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *MMEConfigurationTransfer) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+// IE is optional, so an empty container is a valid message.
+var mMEConfigurationTransferIEs = []ieSpec[MMEConfigurationTransfer]{
+	{
+		id: idSONConfigurationTransferMCT, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *MMEConfigurationTransfer, raw []byte, enc per.Encoding) error {
+			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
+			return nil
+		},
+		encode: func(m *MMEConfigurationTransfer) (per.Marshaler, bool) {
+			if m.SONConfigurationTransfer == nil {
+				return nil, false
+			}
 
-	var fields []ieField
-
-	if m.SONConfigurationTransfer != nil {
-		fields = append(fields, m.SONConfigurationTransfer.field(idSONConfigurationTransferMCT))
-	}
-
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, fields)
+			return m.SONConfigurationTransfer, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *MMEConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcMMEConfigurationTransfer, mMEConfigurationTransferIEs, m)
+}
+
 func (m *MMEConfigurationTransfer) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcMMEConfigurationTransfer,

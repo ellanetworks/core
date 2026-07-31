@@ -9,7 +9,7 @@ func TestENBConfigurationUpdateRoundTrips(t *testing.T) {
 	drx := PagingDRX(2)
 
 	in := &ENBConfigurationUpdate{
-		ENBName: "enb-updated",
+		ENBName: Ptr("enb-updated"),
 		SupportedTAs: SupportedTAs{{
 			TAC:            7,
 			BroadcastPLMNs: []PLMNIdentity{{0x00, 0xf1, 0x10}},
@@ -37,7 +37,7 @@ func TestENBConfigurationUpdateRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.ENBName != "enb-updated" || len(out.SupportedTAs) != 1 || out.SupportedTAs[0].TAC != 7 {
+	if deref(out.ENBName) != "enb-updated" || len(out.SupportedTAs) != 1 || out.SupportedTAs[0].TAC != 7 {
 		t.Fatalf("mismatch: %+v", out)
 	}
 
@@ -68,7 +68,7 @@ func TestENBConfigurationUpdateAcknowledgeRoundTrips(t *testing.T) {
 }
 
 func TestENBConfigurationUpdateFailureRoundTrips(t *testing.T) {
-	in := &ENBConfigurationUpdateFailure{Cause: Cause{Group: CauseGroupMisc, Value: 5}}
+	in := &ENBConfigurationUpdateFailure{Cause: Ptr(Cause{Group: CauseGroupMisc, Value: 5})}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -90,7 +90,7 @@ func TestENBConfigurationUpdateFailureRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.Cause != in.Cause {
+	if deref(out.Cause) != deref(in.Cause) {
 		t.Fatalf("cause mismatch: %+v", out.Cause)
 	}
 }

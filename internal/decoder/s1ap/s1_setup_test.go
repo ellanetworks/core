@@ -65,7 +65,7 @@ func TestDecodeS1SetupResponse(t *testing.T) {
 func TestDecodeS1SetupFailure(t *testing.T) {
 	ttw := s1ap.TimeToWaitV10s
 	fail := &s1ap.S1SetupFailure{
-		Cause:      s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 3},
+		Cause:      &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 3},
 		TimeToWait: &ttw,
 	}
 

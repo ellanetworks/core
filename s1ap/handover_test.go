@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 func sampleTargetID() TargetID {
@@ -17,15 +17,12 @@ func sampleTargetID() TargetID {
 	}}
 }
 
-// TestHandoverRequiredRoundTrip covers HANDOVER REQUIRED through the generic
-// Unmarshal envelope, checking every modeled IE survives including the opaque
-// source-to-target container.
 func TestHandoverRequiredRoundTrip(t *testing.T) {
 	in := &HandoverRequired{
 		MMEUES1APID:    0x020000bf,
 		ENBUES1APID:    2,
 		HandoverType:   HandoverTypeIntraLTE,
-		Cause:          Cause{Group: CauseGroupRadioNetwork, Value: 16}, // handover-desirable-for-radio-reasons
+		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}), // handover-desirable-for-radio-reasons
 		TargetID:       sampleTargetID(),
 		SourceToTarget: TransparentContainer{0x01, 0x02, 0x03, 0x04},
 	}
@@ -54,7 +51,7 @@ func TestHandoverRequiredRoundTrip(t *testing.T) {
 		t.Fatalf("ids/type: mme=%#x enb=%d type=%d", out.MMEUES1APID, out.ENBUES1APID, out.HandoverType)
 	}
 
-	if out.Cause != in.Cause {
+	if deref(out.Cause) != deref(in.Cause) {
 		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
 	}
 
@@ -67,16 +64,14 @@ func TestHandoverRequiredRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverTypeRootValuesRoundTrip checks every root HandoverType decodes
-// faithfully; restricting handover to intralte is an MME-layer policy, not a
-// codec concern (TS 36.413).
+// Restricting handover to intralte is MME policy, not a codec concern.
 func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 	for ht := HandoverTypeIntraLTE; ht <= HandoverTypeGERANtoLTE; ht++ {
 		in := &HandoverRequired{
 			MMEUES1APID:    1,
 			ENBUES1APID:    2,
 			HandoverType:   ht,
-			Cause:          Cause{Group: CauseGroupRadioNetwork, Value: 16},
+			Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
 			TargetID:       sampleTargetID(),
 			SourceToTarget: TransparentContainer{0x01},
 		}
@@ -102,23 +97,22 @@ func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 	}
 }
 
-// TestTargetIDNonENBAlternativeRejected checks the parser rejects a TargetID
-// CHOICE arm other than targeteNB-ID, which is out of scope (TS 36.413).
 func TestTargetIDNonENBAlternativeRejected(t *testing.T) {
-	var w aper.Writer
+	w := per.NewWriter()
 
 	// Encode TargetID with root choice index 1 (targetRNC-ID), unmodeled.
-	if err := w.WriteChoiceIndex(1, targetIDRootCount, true, false); err != nil {
+	if err := func() error {
+		w.WriteBit(false)
+		return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, targetIDRootCount-1, 1)
+	}(); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := decodeTargetID(aper.NewReader(w.Bytes())); err == nil {
+	if _, err := unmarshalPERValue[TargetID](perBytes(w)); err == nil {
 		t.Fatal("expected decodeTargetID to reject a non-targeteNB-ID alternative")
 	}
 }
 
-// TestHandoverRequestRoundTrip covers HANDOVER REQUEST with its E-RABs To Be
-// Setup list, AMBR, security context, and opaque container.
 func TestHandoverRequestRoundTrip(t *testing.T) {
 	var nh SecurityKey
 	for i := range nh {
@@ -128,7 +122,7 @@ func TestHandoverRequestRoundTrip(t *testing.T) {
 	in := &HandoverRequest{
 		MMEUES1APID:  0x020000bf,
 		HandoverType: HandoverTypeIntraLTE,
-		Cause:        Cause{Group: CauseGroupRadioNetwork, Value: 16},
+		Cause:        Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
 		UEAMBR:       UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
 			ERABID:                5,
@@ -180,13 +174,10 @@ func TestHandoverRequestRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverRequestAcknowledgeRoundTrip covers HANDOVER REQUEST ACKNOWLEDGE
-// with an admitted E-RAB carrying the target DL endpoint, a failed E-RAB, and the
-// opaque target-to-source container.
 func TestHandoverRequestAcknowledgeRoundTrip(t *testing.T) {
 	in := &HandoverRequestAcknowledge{
-		MMEUES1APID: 0x020000bf,
-		ENBUES1APID: 9,
+		MMEUES1APID: Ptr(MMEUES1APID(0x020000bf)),
+		ENBUES1APID: Ptr(ENBUES1APID(9)),
 		ERABAdmitted: []ERABAdmittedItem{{
 			ERABID:                5,
 			TransportLayerAddress: TransportLayerAddress{10, 9, 9, 9},
@@ -216,8 +207,8 @@ func TestHandoverRequestAcknowledgeRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID {
-		t.Fatalf("ids: mme=%#x enb=%d", out.MMEUES1APID, out.ENBUES1APID)
+	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) {
+		t.Fatalf("ids: mme=%#x enb=%d", deref(out.MMEUES1APID), deref(out.ENBUES1APID))
 	}
 
 	if len(out.ERABAdmitted) != 1 || out.ERABAdmitted[0].GTPTEID != in.ERABAdmitted[0].GTPTEID ||
@@ -234,15 +225,12 @@ func TestHandoverRequestAcknowledgeRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverRequestAcknowledgeForwardingTunnels covers the optional DL/UL
-// data-forwarding F-TEIDs in an admitted E-RAB surviving a round-trip even though
-// the MME ignores them.
 func TestHandoverRequestAcknowledgeForwardingTunnels(t *testing.T) {
 	dlTEID := GTPTEID(0x44556677)
 
 	in := &HandoverRequestAcknowledge{
-		MMEUES1APID: 1,
-		ENBUES1APID: 9,
+		MMEUES1APID: Ptr(MMEUES1APID(1)),
+		ENBUES1APID: Ptr(ENBUES1APID(9)),
 		ERABAdmitted: []ERABAdmittedItem{{
 			ERABID:                5,
 			TransportLayerAddress: TransportLayerAddress{10, 9, 9, 9},
@@ -278,8 +266,6 @@ func TestHandoverRequestAcknowledgeForwardingTunnels(t *testing.T) {
 	}
 }
 
-// TestHandoverCommandRoundTrip covers HANDOVER COMMAND with a bearer-to-release
-// list and the opaque target-to-source container.
 func TestHandoverCommandRoundTrip(t *testing.T) {
 	in := &HandoverCommand{
 		MMEUES1APID:    7,
@@ -322,12 +308,11 @@ func TestHandoverCommandRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverPreparationFailureRoundTrip covers HANDOVER PREPARATION FAILURE.
 func TestHandoverPreparationFailureRoundTrip(t *testing.T) {
 	in := &HandoverPreparationFailure{
-		MMEUES1APID: 7,
-		ENBUES1APID: 2,
-		Cause:       Cause{Group: CauseGroupRadioNetwork, Value: 0},
+		MMEUES1APID: Ptr(MMEUES1APID(7)),
+		ENBUES1APID: Ptr(ENBUES1APID(2)),
+		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
 	}
 
 	b, err := in.Marshal()
@@ -350,16 +335,16 @@ func TestHandoverPreparationFailureRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || out.Cause != in.Cause {
+	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) ||
+		deref(out.Cause) != deref(in.Cause) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
 	}
 }
 
-// TestHandoverFailureRoundTrip covers HANDOVER FAILURE.
 func TestHandoverFailureRoundTrip(t *testing.T) {
 	in := &HandoverFailure{
-		MMEUES1APID: 7,
-		Cause:       Cause{Group: CauseGroupRadioNetwork, Value: 0},
+		MMEUES1APID: Ptr(MMEUES1APID(7)),
+		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
 	}
 
 	b, err := in.Marshal()
@@ -382,18 +367,17 @@ func TestHandoverFailureRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.Cause != in.Cause {
+	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.Cause) != deref(in.Cause) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
 	}
 }
 
-// TestHandoverNotifyRoundTrip covers HANDOVER NOTIFY with the UE's new location.
 func TestHandoverNotifyRoundTrip(t *testing.T) {
 	in := &HandoverNotify{
 		MMEUES1APID: 7,
 		ENBUES1APID: 9,
-		EUTRANCGI:   EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x123c601},
-		TAI:         TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
+		EUTRANCGI:   Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x123c601}),
+		TAI:         Ptr(TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7}),
 	}
 
 	b, err := in.Marshal()
@@ -416,13 +400,12 @@ func TestHandoverNotifyRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || out.EUTRANCGI != in.EUTRANCGI || out.TAI != in.TAI {
+	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID ||
+		deref(out.EUTRANCGI) != deref(in.EUTRANCGI) || deref(out.TAI) != deref(in.TAI) {
 		t.Fatalf("notify = %+v, want %+v", out, in)
 	}
 }
 
-// TestStatusTransferRelayRoundTrip covers ENB STATUS TRANSFER decoding and MME
-// STATUS TRANSFER re-encoding of the same opaque container, the MME's relay path.
 func TestStatusTransferRelayRoundTrip(t *testing.T) {
 	container := StatusTransferContainer{0xde, 0xad, 0xbe, 0xef, 0x01, 0x02}
 
@@ -481,9 +464,8 @@ func TestStatusTransferRelayRoundTrip(t *testing.T) {
 	}
 }
 
-// TestHandoverCancelRoundTrip covers HANDOVER CANCEL and its acknowledge.
 func TestHandoverCancelRoundTrip(t *testing.T) {
-	in := &HandoverCancel{MMEUES1APID: 7, ENBUES1APID: 2, Cause: Cause{Group: CauseGroupRadioNetwork, Value: 5}}
+	in := &HandoverCancel{MMEUES1APID: 7, ENBUES1APID: 2, Cause: Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 5})}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -505,11 +487,11 @@ func TestHandoverCancelRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || out.Cause != in.Cause {
+	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || deref(out.Cause) != deref(in.Cause) {
 		t.Fatalf("cancel = %+v, want %+v", out, in)
 	}
 
-	ack := &HandoverCancelAcknowledge{MMEUES1APID: 7, ENBUES1APID: 2}
+	ack := &HandoverCancelAcknowledge{MMEUES1APID: Ptr(MMEUES1APID(7)), ENBUES1APID: Ptr(ENBUES1APID(2))}
 
 	ab, err := ack.Marshal()
 	if err != nil {
@@ -531,7 +513,7 @@ func TestHandoverCancelRoundTrip(t *testing.T) {
 		t.Fatalf("parse ack: %v", err)
 	}
 
-	if aout.MMEUES1APID != ack.MMEUES1APID || aout.ENBUES1APID != ack.ENBUES1APID {
+	if deref(aout.MMEUES1APID) != deref(ack.MMEUES1APID) || deref(aout.ENBUES1APID) != deref(ack.ENBUES1APID) {
 		t.Fatalf("cancel ack = %+v", aout)
 	}
 }

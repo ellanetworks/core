@@ -29,10 +29,17 @@ func handleNASNonDeliveryIndication(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcNASNonDeliveryIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+
 	ue.TouchLastSeen()
 
-	logger.From(ctx, logger.MmeLog).Debug("NAS Non Delivery Indication",
+	fields := []zap.Field{
 		zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)),
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
-		zap.String("cause", mme.S1apCauseName(&msg.Cause)))
+	}
+	if msg.Cause != nil {
+		fields = append(fields, zap.String("cause", mme.S1apCauseName(msg.Cause)))
+	}
+
+	logger.From(ctx, logger.MmeLog).Debug("NAS Non Delivery Indication", fields...)
 }

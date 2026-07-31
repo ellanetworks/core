@@ -28,12 +28,12 @@ func TestInitialContextSetupResponseGoldenDecode(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if resp.MMEUES1APID != 0x020000bf {
-		t.Fatalf("MME-UE-S1AP-ID = %#x, want 0x020000bf", resp.MMEUES1APID)
+	if deref(resp.MMEUES1APID) != 0x020000bf {
+		t.Fatalf("MME-UE-S1AP-ID = %#x, want 0x020000bf", deref(resp.MMEUES1APID))
 	}
 
-	if resp.ENBUES1APID != 1 {
-		t.Fatalf("eNB-UE-S1AP-ID = %d, want 1", resp.ENBUES1APID)
+	if deref(resp.ENBUES1APID) != 1 {
+		t.Fatalf("eNB-UE-S1AP-ID = %d, want 1", deref(resp.ENBUES1APID))
 	}
 
 	if len(resp.ERABSetup) != 1 {
@@ -60,7 +60,7 @@ func TestInitialContextSetupResponseGoldenDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if resp2.MMEUES1APID != resp.MMEUES1APID || resp2.ENBUES1APID != resp.ENBUES1APID ||
+	if deref(resp2.MMEUES1APID) != deref(resp.MMEUES1APID) || deref(resp2.ENBUES1APID) != deref(resp.ENBUES1APID) ||
 		len(resp2.ERABSetup) != len(resp.ERABSetup) {
 		t.Fatalf("round-trip header mismatch")
 	}
@@ -133,7 +133,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 
 	t.Run("Response", func(t *testing.T) {
 		in := &InitialContextSetupResponse{
-			MMEUES1APID: 42, ENBUES1APID: 1,
+			MMEUES1APID: Ptr(MMEUES1APID(42)), ENBUES1APID: Ptr(ENBUES1APID(1)),
 			ERABSetup: []ERABSetupItemCtxtSURes{{ERABID: 5, TransportLayerAddress: tla, GTPTEID: 0x12345678}},
 		}
 
@@ -149,7 +149,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || len(out.ERABSetup) != 1 ||
+		if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) || len(out.ERABSetup) != 1 ||
 			out.ERABSetup[0].ERABID != 5 || out.ERABSetup[0].GTPTEID != 0x12345678 ||
 			!bytes.Equal(out.ERABSetup[0].TransportLayerAddress, tla) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
@@ -158,8 +158,8 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 
 	t.Run("Failure", func(t *testing.T) {
 		in := &InitialContextSetupFailure{
-			MMEUES1APID: 42, ENBUES1APID: 1,
-			Cause: Cause{Group: CauseGroupRadioNetwork, Value: 0},
+			MMEUES1APID: Ptr(MMEUES1APID(42)), ENBUES1APID: Ptr(ENBUES1APID(1)),
+			Cause: Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
 		}
 
 		b, err := in.Marshal()
@@ -178,7 +178,8 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || out.Cause != in.Cause {
+		if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) ||
+			deref(out.Cause) != deref(in.Cause) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})

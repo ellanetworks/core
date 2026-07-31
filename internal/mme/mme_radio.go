@@ -113,9 +113,14 @@ func (m *MME) addRadio(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 		address = a.String()
 	}
 
+	name := ""
+	if req.ENBName != nil {
+		name = *req.ENBName
+	}
+
 	now := time.Now()
 	m.trackRadio(conn, RadioInfo{
-		Name:        req.ENBName,
+		Name:        name,
 		Address:     address,
 		ConnectedAt: now,
 		LastSeenAt:  now,

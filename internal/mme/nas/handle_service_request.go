@@ -71,7 +71,10 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	c.MarkSecureExchangeEstablished()
 
 	c.ServingTAI = msg.TAI
-	c.UpdateLocation(msg.EUTRANCGI, msg.TAI)
+
+	if msg.EUTRANCGI != nil {
+		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
+	}
 
 	ue.AdvanceULCount()
 

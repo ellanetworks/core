@@ -27,7 +27,7 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 		case s1ap.ProcUEContextReleaseRequest:
 			handleUEContextReleaseRequest(m, ctx, radio, p.Value)
 		case s1ap.ProcUECapabilityInfoIndication:
-			handleUECapabilityInfoIndication(m, radio, p.Value)
+			handleUECapabilityInfoIndication(m, ctx, radio, p.Value)
 		case s1ap.ProcPathSwitchRequest:
 			handlePathSwitchRequest(m, ctx, radio, p.Value)
 		case s1ap.ProcHandoverPreparation:
@@ -41,7 +41,7 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 		case s1ap.ProcErrorIndication:
 			handleErrorIndication(m, ctx, radio, p.Value)
 		case s1ap.ProcReset:
-			handleReset(m, radio, p.Value)
+			handleReset(m, ctx, radio, p.Value)
 		case s1ap.ProcENBConfigurationUpdate:
 			handleENBConfigurationUpdate(m, ctx, radio, p.Value)
 		case s1ap.ProcENBConfigurationTransfer:
@@ -65,9 +65,9 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 		case s1ap.ProcERABSetup:
 			HandleERABSetupResponse(m, ctx, radio, p.Value)
 		case s1ap.ProcERABModify:
-			handleERABModifyResponse(m, p.Value)
+			handleERABModifyResponse(m, ctx, radio, p.Value)
 		case s1ap.ProcERABRelease:
-			HandleERABReleaseResponse(m, radio, p.Value)
+			HandleERABReleaseResponse(m, ctx, radio, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:
 			handleHandoverRequestAcknowledge(m, ctx, radio, p.Value)
 		default:
@@ -76,7 +76,7 @@ func Route(m *mme.MME, ctx context.Context, radio *mme.Radio, pdu any) {
 	case *s1ap.UnsuccessfulOutcome:
 		switch p.ProcedureCode {
 		case s1ap.ProcInitialContextSetup:
-			handleInitialContextSetupFailure(m, radio, p.Value)
+			handleInitialContextSetupFailure(m, ctx, radio, p.Value)
 		case s1ap.ProcHandoverResourceAllocation:
 			handleHandoverFailure(m, ctx, radio, p.Value)
 		default:

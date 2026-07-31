@@ -19,8 +19,14 @@ func buildInitialUEMessage(value []byte) (S1APMessageValue, string) {
 		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
 		ie(idNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
 		ie(idTAIList, s1ap.CriticalityReject, tai(m.TAI)),
-		ie(idEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(m.EUTRANCGI)),
-		ie(idRRCEstablishmentCause, s1ap.CriticalityIgnore, rrcCauseToEnum(m.RRCEstablishmentCause)),
+	}
+
+	if m.EUTRANCGI != nil {
+		ies = append(ies, ie(idEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
+	}
+
+	if m.RRCEstablishmentCause != nil {
+		ies = append(ies, ie(idRRCEstablishmentCause, s1ap.CriticalityIgnore, rrcCauseToEnum(*m.RRCEstablishmentCause)))
 	}
 
 	if m.STMSI != nil {
@@ -46,8 +52,14 @@ func buildUplinkNASTransport(value []byte) (S1APMessageValue, string) {
 		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
 		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
 		ie(idNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
-		ie(idEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(m.EUTRANCGI)),
-		ie(idTAIList, s1ap.CriticalityIgnore, tai(m.TAI)),
+	}
+
+	if m.EUTRANCGI != nil {
+		ies = append(ies, ie(idEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
+	}
+
+	if m.TAI != nil {
+		ies = append(ies, ie(idTAIList, s1ap.CriticalityIgnore, tai(*m.TAI)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

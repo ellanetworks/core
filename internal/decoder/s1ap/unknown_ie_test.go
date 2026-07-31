@@ -41,9 +41,9 @@ func TestAppendUnknownIEs(t *testing.T) {
 // Cause rendered, rather than reported as an unsupported procedure.
 func TestDecodeInitialContextSetupFailure(t *testing.T) {
 	raw, err := (&s1ap.InitialContextSetupFailure{
-		MMEUES1APID: 1,
-		ENBUES1APID: 2,
-		Cause:       s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(1)),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(2)),
+		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)

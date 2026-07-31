@@ -24,6 +24,8 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcInitialUEMessage, s1ap.TriggeringInitiatingMessage, ueIDs{enb: &msg.ENBUES1APID}, msg.Diagnostics())
+
 	nas := []byte(msg.NASPDU)
 	if len(nas) > 0 && nas[0]>>4 == uint8(eps.SHTServiceRequest) {
 		m.NAS.HandleServiceRequest(ctx, radio.Conn, msg)
@@ -40,7 +42,10 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	}
 
 	c.ServingTAI = msg.TAI
-	c.UpdateLocation(msg.EUTRANCGI, msg.TAI)
+
+	if msg.EUTRANCGI != nil {
+		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
+	}
 
 	logger.From(ctx, c.Log).Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),

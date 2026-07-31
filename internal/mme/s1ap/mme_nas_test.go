@@ -24,8 +24,8 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 	testPDN(ue).Apn = "internet"
 
 	resp := &s1ap.InitialContextSetupResponse{
-		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: 7,
+		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
 			TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
@@ -87,8 +87,8 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 			testPDN(ue).Apn = "internet"
 
 			resp := &s1ap.InitialContextSetupResponse{
-				MMEUES1APID: ue.Conn().MMEUES1APID,
-				ENBUES1APID: 7,
+				MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID),
+				ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 				ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 					ERABID:                s1ap.ERABID(mme.DefaultERABID),
 					TransportLayerAddress: s1ap.TransportLayerAddress(tc.tla),
@@ -130,8 +130,8 @@ func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
 	p2.Apn = "ims"
 
 	resp := &s1ap.InitialContextSetupResponse{
-		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: 7,
+		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{
 			{
 				ERABID:                s1ap.ERABID(mme.DefaultERABID),
@@ -186,8 +186,8 @@ func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 	p2.Apn = "ims"
 
 	resp := &s1ap.InitialContextSetupResponse{
-		MMEUES1APID: ue.Conn().MMEUES1APID,
-		ENBUES1APID: 7,
+		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
 			TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
@@ -248,9 +248,9 @@ func TestInitialContextSetupFailureAbortsUE(t *testing.T) {
 	mmeID := ue.Conn().MMEUES1APID
 
 	fail := &s1ap.InitialContextSetupFailure{
-		MMEUES1APID: mmeID,
-		ENBUES1APID: 7,
-		Cause:       s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable},
+		MMEUES1APID: s1ap.Ptr(mmeID),
+		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
+		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}),
 	}
 
 	b, err := fail.Marshal()
@@ -263,7 +263,7 @@ func TestInitialContextSetupFailureAbortsUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleInitialContextSetupFailure(m, mme.NewRadioForTest(cc), pdu.(*s1ap.UnsuccessfulOutcome).Value)
+	handleInitialContextSetupFailure(m, context.Background(), mme.NewRadioForTest(cc), pdu.(*s1ap.UnsuccessfulOutcome).Value)
 
 	if cc.count() != 0 {
 		t.Fatalf("expected no S1AP command on Initial Context Setup Failure (local release), got %d", cc.count())

@@ -50,8 +50,8 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 		t.Fatal("S1 Setup with a served TAI was rejected")
 	}
 
-	if req.ENBName != "JLT-621" {
-		t.Fatalf("eNB name = %q, want JLT-621", req.ENBName)
+	if req.ENBName == nil || *req.ENBName != "JLT-621" {
+		t.Fatalf("eNB name = %q, want JLT-621", enbName(req.ENBName))
 	}
 
 	respPDU, err := s1ap.Unmarshal(respBytes)
@@ -69,7 +69,7 @@ func TestS1SetupOutcomeAccepts(t *testing.T) {
 		t.Fatalf("parse response: %v", err)
 	}
 
-	if resp.MMEName != "ella" ||
+	if (resp.MMEName == nil || *resp.MMEName != "ella") ||
 		len(resp.ServedGUMMEIs) != 1 ||
 		resp.ServedGUMMEIs[0].ServedPLMNs[0] != (s1ap.PLMNIdentity{0x00, 0xf1, 0x10}) {
 		t.Fatalf("response identity mismatch: %+v", resp)
@@ -105,7 +105,7 @@ func TestS1SetupOutcomeRejectsUnknownPLMN(t *testing.T) {
 		t.Fatalf("parse failure: %v", err)
 	}
 
-	if fail.Cause != causeUnknownPLMN {
+	if fail.Cause == nil || *fail.Cause != causeUnknownPLMN {
 		t.Fatalf("cause = %+v, want %+v (Misc/unknown-PLMN)", fail.Cause, causeUnknownPLMN)
 	}
 }
@@ -143,7 +143,7 @@ func TestS1SetupOutcomeRejectsUnknownTAC(t *testing.T) {
 		t.Fatalf("parse failure: %v", err)
 	}
 
-	if fail.Cause != causeNoServedTAC {
+	if fail.Cause == nil || *fail.Cause != causeNoServedTAC {
 		t.Fatalf("cause = %+v, want %+v (Misc/unspecified)", fail.Cause, causeNoServedTAC)
 	}
 }
@@ -158,7 +158,15 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 		ieSupportedTAs s1ap.ProtocolIEID = 64
 	)
 
-	out, err := buildS1SetupFailureMissingIEs([]s1ap.ProtocolIEID{ieGlobalENBID, ieSupportedTAs})
+	out, err := buildS1SetupFailure(&s1ap.AbstractSyntaxError{
+		Procedure: s1ap.ProcS1Setup,
+		Trigger:   s1ap.TriggeringInitiatingMessage,
+		Cause:     s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject},
+		IEs: []s1ap.CriticalityDiagnosticsIEItem{
+			{IECriticality: s1ap.CriticalityReject, IEID: ieGlobalENBID, TypeOfError: s1ap.TypeOfErrorMissing},
+			{IECriticality: s1ap.CriticalityReject, IEID: ieSupportedTAs, TypeOfError: s1ap.TypeOfErrorMissing},
+		},
+	})
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -179,7 +187,7 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 	}
 
 	wantCause := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject}
-	if fail.Cause != wantCause {
+	if fail.Cause == nil || *fail.Cause != wantCause {
 		t.Fatalf("cause = %+v, want abstract-syntax-error-reject", fail.Cause)
 	}
 
@@ -188,8 +196,10 @@ func TestS1SetupFailureNamesMissingIEs(t *testing.T) {
 		t.Fatal("failure carries no Criticality Diagnostics")
 	}
 
-	if cd.ProcedureCode == nil || *cd.ProcedureCode != s1ap.ProcS1Setup ||
-		cd.TriggeringMessage == nil || *cd.TriggeringMessage != s1ap.TriggeringInitiatingMessage ||
+	// TS 36.413 §9.2.1.21 keeps the Procedure Code out of a response to the
+	// procedure that caused the error, and the Triggering Message out of
+	// anything but an ERROR INDICATION.
+	if cd.ProcedureCode != nil || cd.TriggeringMessage != nil ||
 		cd.ProcedureCriticality == nil || *cd.ProcedureCriticality != s1ap.CriticalityReject {
 		t.Fatalf("Criticality Diagnostics header mismatch: %+v", cd)
 	}

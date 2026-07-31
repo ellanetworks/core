@@ -45,8 +45,6 @@ func TestUECapabilityInfoIndicationRoundTrips(t *testing.T) {
 	}
 }
 
-// TestUECapabilityInfoIndicationPaging checks the optional UE Radio Capability
-// for Paging IE (TS 36.413) round-trips when present.
 func TestUECapabilityInfoIndicationPaging(t *testing.T) {
 	in := &UECapabilityInfoIndication{
 		MMEUES1APID:                1,

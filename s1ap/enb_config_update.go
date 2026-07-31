@@ -4,58 +4,89 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// ENBConfigurationUpdate is the ENB CONFIGURATION UPDATE message (TS 36.413),
-// sent by a running eNB to update its configuration without redoing
-// S1 Setup. Every IE is optional; the eNB sends only what changed.
+// TS 36.413 §9.1.8.7.
 type ENBConfigurationUpdate struct {
-	ENBName          string       // "" = absent
-	SupportedTAs     SupportedTAs // nil = absent
-	DefaultPagingDRX *PagingDRX   // nil = absent
+	ENBName          *string
+	SupportedTAs     SupportedTAs
+	DefaultPagingDRX *PagingDRX
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ENBConfigurationUpdate) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
+	{
+		id: idENBname, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				n   Name
+			)
+			if err = perIEDecode(raw, &n); err == nil {
+				name := string(n)
+				m.ENBName = &name
+			}
 
-	var fields []ieField
+			return err
+		},
+		encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
+			if m.ENBName == nil {
+				return nil, false
+			}
 
-	if m.ENBName != "" {
-		name := m.ENBName
+			return Name(*m.ENBName), true
+		},
+	},
+	{
+		id: idSupportedTAs, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.SupportedTAs)
+		},
+		encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.SupportedTAs) == 0 {
+				return nil, false
+			}
 
-		fields = append(fields, ieField{id: idENBname, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeName(w, name)
-		}})
-	}
+			return &m.SupportedTAs, true
+		},
+	},
+	{
+		id: idDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				drx PagingDRX
+			)
 
-	if len(m.SupportedTAs) > 0 {
-		fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, enc: m.SupportedTAs.encode})
-	}
+			err = perIEDecode(raw, &drx)
+			m.DefaultPagingDRX = &drx
 
-	if m.DefaultPagingDRX != nil {
-		drx := *m.DefaultPagingDRX
-		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, enc: drx.encode})
-	}
+			return err
+		},
+		encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
+			if m.DefaultPagingDRX == nil {
+				return nil, false
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, fields)
+			return m.DefaultPagingDRX, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ENBConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcENBConfigurationUpdate, eNBConfigurationUpdateIEs, m)
+}
+
 func (m *ENBConfigurationUpdate) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcENBConfigurationUpdate,
@@ -64,86 +95,53 @@ func (m *ENBConfigurationUpdate) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBConfigurationUpdate decodes the message from an initiatingMessage
-// open-type payload.
 func ParseENBConfigurationUpdate(value []byte) (*ENBConfigurationUpdate, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ENBConfigurationUpdate preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ENBConfigurationUpdate{}
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idENBname:
-			m.ENBName, err = decodeName(sub)
-		case idSupportedTAs:
-			m.SupportedTAs, err = decodeSupportedTAs(sub)
-		case idDefaultPagingDRX:
-			var drx PagingDRX
-
-			drx, err = decodePagingDRX(sub)
-			m.DefaultPagingDRX = &drx
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ENBConfigurationUpdate IE %d: %w", f.id, err)
-		}
-	}
-
-	return m, nil
+	return parseMessageBody[ENBConfigurationUpdate](ProcENBConfigurationUpdate, TriggeringInitiatingMessage, eNBConfigurationUpdateIEs, value)
 }
 
-// ENBConfigurationUpdateAcknowledge is the ENB CONFIGURATION UPDATE ACKNOWLEDGE
-// message (TS 36.413), the MME's success response.
+// TS 36.413 §9.1.8.8.
 type ENBConfigurationUpdateAcknowledge struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ENBConfigurationUpdateAcknowledge) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknowledge]{
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
 
-	var fields []ieField
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
 
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
-	}
+			return err
+		},
+		encode: func(m *ENBConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, fields)
+			return m.CriticalityDiagnostics, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ENBConfigurationUpdateAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcENBConfigurationUpdate, eNBConfigurationUpdateAcknowledgeIEs, m)
+}
+
 func (m *ENBConfigurationUpdateAcknowledge) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcENBConfigurationUpdate,
@@ -152,92 +150,97 @@ func (m *ENBConfigurationUpdateAcknowledge) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBConfigurationUpdateAcknowledge decodes the message from a
-// successfulOutcome open-type payload.
 func ParseENBConfigurationUpdateAcknowledge(value []byte) (*ENBConfigurationUpdateAcknowledge, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ENBConfigurationUpdateAcknowledge preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ENBConfigurationUpdateAcknowledge{}
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			cd, err = decodeCriticalityDiagnostics(sub)
-			m.CriticalityDiagnostics = &cd
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ENBConfigurationUpdateAcknowledge IE %d: %w", f.id, err)
-		}
-	}
-
-	return m, nil
+	return parseMessageBody[ENBConfigurationUpdateAcknowledge](ProcENBConfigurationUpdate, TriggeringSuccessfulOutcome, eNBConfigurationUpdateAcknowledgeIEs, value)
 }
 
-// ENBConfigurationUpdateFailure is the ENB CONFIGURATION UPDATE FAILURE message
-// (TS 36.413), the MME's rejection (e.g. the updated TAs broadcast no
-// served PLMN).
+// TS 36.413 §9.1.8.9.
 type ENBConfigurationUpdateFailure struct {
-	Cause                  Cause
+	Cause                  *Cause
 	TimeToWait             *TimeToWait
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ENBConfigurationUpdateFailure) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
+	{
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+			var v Cause
 
-	fields := []ieField{
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	if m.TimeToWait != nil {
-		ttw := *m.TimeToWait
-		fields = append(fields, ieField{id: idTimeToWait, crit: CriticalityIgnore, enc: ttw.encode})
-	}
+			m.Cause = &v
 
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
-	}
+			return nil
+		},
+		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return m.Cause, true
+		},
+	},
+	{
+		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				ttw TimeToWait
+			)
 
-	return encodeIEContainer(w, fields)
+			err = perIEDecode(raw, &ttw)
+			m.TimeToWait = &ttw
+
+			return err
+		},
+		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
+			if m.TimeToWait == nil {
+				return nil, false
+			}
+
+			return m.TimeToWait, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ENBConfigurationUpdateFailure) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcENBConfigurationUpdate, eNBConfigurationUpdateFailureIEs, m)
+}
+
 func (m *ENBConfigurationUpdateFailure) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&UnsuccessfulOutcome{
 		ProcedureCode: ProcENBConfigurationUpdate,
@@ -246,60 +249,6 @@ func (m *ENBConfigurationUpdateFailure) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseENBConfigurationUpdateFailure decodes the message from an
-// unsuccessfulOutcome open-type payload.
 func ParseENBConfigurationUpdateFailure(value []byte) (*ENBConfigurationUpdateFailure, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ENBConfigurationUpdateFailure preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ENBConfigurationUpdateFailure{}
-
-	var seenCause bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idCause:
-			m.Cause, err = decodeCause(sub)
-			seenCause = true
-		case idTimeToWait:
-			var ttw TimeToWait
-
-			ttw, err = decodeTimeToWait(sub)
-			m.TimeToWait = &ttw
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			cd, err = decodeCriticalityDiagnostics(sub)
-			m.CriticalityDiagnostics = &cd
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: ENBConfigurationUpdateFailure IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenCause {
-		return nil, fmt.Errorf("s1ap: ENBConfigurationUpdateFailure missing mandatory Cause IE")
-	}
-
-	return m, nil
+	return parseMessageBody[ENBConfigurationUpdateFailure](ProcENBConfigurationUpdate, TriggeringUnsuccessfulOutcome, eNBConfigurationUpdateFailureIEs, value)
 }

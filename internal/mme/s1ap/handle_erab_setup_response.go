@@ -23,10 +23,12 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
+
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 	captureUserLocation(ue, msg.UserLocationInformation)

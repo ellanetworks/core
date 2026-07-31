@@ -6,7 +6,7 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 // UES1APIDs is the UE-S1AP-IDs CHOICE (TS 36.413): either the
@@ -18,106 +18,141 @@ type UES1APIDs struct {
 	Pair        bool
 }
 
-const ues1apIDsChoiceRootCount = 2
+func (u UES1APIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
 
-func (u UES1APIDs) encode(w *aper.Writer) error {
 	if !u.Pair {
-		if err := w.WriteChoiceIndex(1, ues1apIDsChoiceRootCount, true, false); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, 1); err != nil {
 			return err
 		}
 
-		return u.MMEUES1APID.encode(w)
+		return u.MMEUES1APID.MarshalPER(w, enc)
 	}
 
-	if err := w.WriteChoiceIndex(0, ues1apIDsChoiceRootCount, true, false); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, 0); err != nil {
 		return err
 	}
 
 	// UE-S1AP-ID-pair ::= SEQUENCE { mME-UE-S1AP-ID, eNB-UE-S1AP-ID,
 	// iE-Extensions OPTIONAL } (extensible).
-	w.WriteSequencePreamble(true, false, []bool{false})
+	w.WriteBit(false)
+	w.WriteBit(false)
 
-	if err := u.MMEUES1APID.encode(w); err != nil {
+	if err := u.MMEUES1APID.MarshalPER(w, enc); err != nil {
 		return err
 	}
 
-	return u.ENBUES1APID.encode(w)
+	return u.ENBUES1APID.MarshalPER(w, enc)
 }
 
-func decodeUES1APIDs(r *aper.Reader) (UES1APIDs, error) {
-	idx, isExt, err := r.ReadChoiceIndex(ues1apIDsChoiceRootCount, true)
+func (u *UES1APIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	isExt, err := r.ReadBit()
 	if err != nil {
-		return UES1APIDs{}, err
+		return err
 	}
 
 	if isExt {
-		return UES1APIDs{}, fmt.Errorf("s1ap: UE-S1AP-IDs extension alternative unsupported")
+		return fmt.Errorf("s1ap: UE-S1AP-IDs extension alternative unsupported")
+	}
+
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, ues1apIDsChoiceRootCount-1)
+	if err != nil {
+		return err
 	}
 
 	switch idx {
 	case 0:
-		extPresent, opt, err := r.ReadSequencePreamble(true, 1)
+		extBit, err := r.ReadBit()
 		if err != nil {
-			return UES1APIDs{}, err
+			return err
 		}
 
-		mme, err := decodeMMEUES1APID(r)
+		extContainer, err := r.ReadBit()
 		if err != nil {
-			return UES1APIDs{}, err
+			return err
 		}
 
-		enb, err := decodeENBUES1APID(r)
-		if err != nil {
-			return UES1APIDs{}, err
+		var mme MMEUES1APID
+		if err := mme.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 
-		if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
-			return UES1APIDs{}, err
+		var enb ENBUES1APID
+		if err := enb.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 
-		return UES1APIDs{MMEUES1APID: mme, ENBUES1APID: enb, Pair: true}, nil
-	case 1:
-		mme, err := decodeMMEUES1APID(r)
-		if err != nil {
-			return UES1APIDs{}, err
+		if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+			return err
 		}
 
-		return UES1APIDs{MMEUES1APID: mme}, nil
+		*u = UES1APIDs{MMEUES1APID: mme, ENBUES1APID: enb, Pair: true}
+
+		return nil
 	default:
-		return UES1APIDs{}, fmt.Errorf("s1ap: unexpected UE-S1AP-IDs choice index %d", idx)
+		var mme MMEUES1APID
+		if err := mme.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+
+		*u = UES1APIDs{MMEUES1APID: mme}
+
+		return nil
 	}
 }
 
-// UEContextReleaseCommand is the UE CONTEXT RELEASE COMMAND message (TS 36.413),
-// sent by the MME to release a UE's S1 context.
+const ues1apIDsChoiceRootCount = 2
+
+// TS 36.413 §9.1.4.6.
 type UEContextReleaseCommand struct {
 	UES1APIDs UES1APIDs
-	Cause     Cause
-	unmodeledIEs
+	Cause     *Cause
+	messageMeta
 }
 
-func (m *UEContextReleaseCommand) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
+	{
+		id: idUES1APIDs, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.UES1APIDs)
+		},
+		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) { return &m.UES1APIDs, true },
+	},
+	{
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
+			var v Cause
 
-	fields := []ieField{
-		{id: idUES1APIDs, crit: CriticalityReject, enc: m.UES1APIDs.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.Cause = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *UEContextReleaseCommand) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcUEContextRelease, uEContextReleaseCommandIEs, m)
+}
+
 func (m *UEContextReleaseCommand) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcUEContextRelease,
@@ -126,100 +161,119 @@ func (m *UEContextReleaseCommand) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUEContextReleaseCommand decodes the message from an initiatingMessage
-// open-type payload.
 func ParseUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseCommand preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &UEContextReleaseCommand{}
-
-	var seenIDs, seenCause bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idUES1APIDs:
-			m.UES1APIDs, err = decodeUES1APIDs(sub)
-			seenIDs = true
-		case idCause:
-			m.Cause, err = decodeCause(sub)
-			seenCause = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: UEContextReleaseCommand IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenIDs || !seenCause {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseCommand missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[UEContextReleaseCommand](ProcUEContextRelease, TriggeringInitiatingMessage, uEContextReleaseCommandIEs, value)
 }
 
-// UEContextReleaseComplete is the UE CONTEXT RELEASE COMPLETE message (TS 36.413),
-// sent by the eNB once the context is released.
+// TS 36.413 §9.1.4.7.
 type UEContextReleaseComplete struct {
-	MMEUES1APID             MMEUES1APID
-	ENBUES1APID             ENBUES1APID
+	MMEUES1APID             *MMEUES1APID
+	ENBUES1APID             *ENBUES1APID
 	CriticalityDiagnostics  *CriticalityDiagnostics
 	UserLocationInformation *UserLocationInformation
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *UEContextReleaseComplete) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityIgnore, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityIgnore, enc: m.ENBUES1APID.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
-	}
+			m.MMEUES1APID = &v
 
-	if m.UserLocationInformation != nil {
-		u := *m.UserLocationInformation
-		fields = append(fields, ieField{id: idUserLocationInformation, crit: CriticalityIgnore, enc: u.encode})
-	}
+			return nil
+		},
+		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+			var v ENBUES1APID
 
-	return encodeIEContainer(w, fields)
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ENBUES1APID = &v
+
+			return nil
+		},
+		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
+
+			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				cd  CriticalityDiagnostics
+			)
+
+			err = perIEDecode(raw, &cd)
+			m.CriticalityDiagnostics = &cd
+
+			return err
+		},
+		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				uli UserLocationInformation
+			)
+
+			err = perIEDecode(raw, &uli)
+			m.UserLocationInformation = &uli
+
+			return err
+		},
+		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+			if m.UserLocationInformation == nil {
+				return nil, false
+			}
+
+			return m.UserLocationInformation, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *UEContextReleaseComplete) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcUEContextRelease, uEContextReleaseCompleteIEs, m)
+}
+
 func (m *UEContextReleaseComplete) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&SuccessfulOutcome{
 		ProcedureCode: ProcUEContextRelease,
@@ -228,101 +282,69 @@ func (m *UEContextReleaseComplete) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUEContextReleaseComplete decodes the message from a successfulOutcome
-// open-type payload.
 func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseComplete preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &UEContextReleaseComplete{}
-
-	var seenMME, seenENB bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idCriticalityDiagnostics:
-			var cd CriticalityDiagnostics
-
-			cd, err = decodeCriticalityDiagnostics(sub)
-			m.CriticalityDiagnostics = &cd
-		case idUserLocationInformation:
-			var uli UserLocationInformation
-
-			uli, err = decodeUserLocationInformation(sub)
-			m.UserLocationInformation = &uli
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: UEContextReleaseComplete IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseComplete missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[UEContextReleaseComplete](ProcUEContextRelease, TriggeringSuccessfulOutcome, uEContextReleaseCompleteIEs, value)
 }
 
-// UEContextReleaseRequest is the UE CONTEXT RELEASE REQUEST message (TS 36.413),
-// sent by the eNB to request release of a UE's S1 context (e.g. on
-// radio-link failure or inactivity).
+// TS 36.413 §9.1.4.5.
 type UEContextReleaseRequest struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
-	Cause       Cause
+	Cause       *Cause
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *UEContextReleaseRequest) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
+	{
+		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.MMEUES1APID)
+		},
+		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+	},
+	{
+		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ENBUES1APID)
+		},
+		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+	},
+	{
+		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+			var v Cause
 
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
-		{id: idCause, crit: CriticalityIgnore, enc: m.Cause.encode},
-	}
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			m.Cause = &v
 
-	return encodeIEContainer(w, fields)
+			return nil
+		},
+		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *UEContextReleaseRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcUEContextReleaseRequest, uEContextReleaseRequestIEs, m)
+}
+
 func (m *UEContextReleaseRequest) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcUEContextReleaseRequest,
@@ -331,56 +353,6 @@ func (m *UEContextReleaseRequest) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUEContextReleaseRequest decodes the message from an initiatingMessage
-// open-type payload.
 func ParseUEContextReleaseRequest(value []byte) (*UEContextReleaseRequest, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseRequest preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &UEContextReleaseRequest{}
-
-	var seenMME, seenENB, seenCause bool
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			m.MMEUES1APID, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			m.ENBUES1APID, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idCause:
-			m.Cause, err = decodeCause(sub)
-			seenCause = true
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: UEContextReleaseRequest IE %d: %w", f.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenCause {
-		return nil, fmt.Errorf("s1ap: UEContextReleaseRequest missing mandatory IE")
-	}
-
-	return m, nil
+	return parseMessageBody[UEContextReleaseRequest](ProcUEContextReleaseRequest, TriggeringInitiatingMessage, uEContextReleaseRequestIEs, value)
 }

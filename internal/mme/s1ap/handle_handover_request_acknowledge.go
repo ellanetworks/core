@@ -23,25 +23,36 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	ue, ok := m.LookupUe(ack.MMEUES1APID)
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverResourceAllocation, s1ap.TriggeringSuccessfulOutcome, nodeLevel(), ack.Diagnostics())
+
+	if ack.MMEUES1APID == nil || ack.ENBUES1APID == nil {
+		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge without both UE S1AP IDs")
+		sendErrorIndication(m, radio.Conn, ack.MMEUES1APID, ack.ENBUES1APID, causeMissingUES1APID)
+
+		return
+	}
+
+	mmeUEID, enbUEID := *ack.MMEUES1APID, *ack.ENBUES1APID
+
+	ue, ok := m.LookupUe(mmeUEID)
 	if !ok {
 		// Unknown local MME-UE-S1AP-ID, e.g. a Handover Cancel freed the target
 		// reservation while this acknowledge was in flight. TS 36.413 §10.6: an Error
 		// Indication makes both nodes locally release the connection, freeing the
 		// target eNB's reserved resources without a UE Context Release.
-		sendErrorIndication(m, radio.Conn, &ack.MMEUES1APID, &ack.ENBUES1APID, causeUnknownMMEUES1APID)
+		sendErrorIndication(m, radio.Conn, &mmeUEID, &enbUEID, causeUnknownMMEUES1APID)
 		return
 	}
 
 	ue.TouchLastSeen()
 
-	if !m.MatchAndSetTargetENB(ue, ack.MMEUES1APID, ack.ENBUES1APID, radio.Conn) {
+	if !m.MatchAndSetTargetENB(ue, mmeUEID, enbUEID, radio.Conn) {
 		// A UE with no matching handover preparation: a duplicate or stale acknowledge,
 		// e.g. for a UE whose association id is its active one. Releasing here would
 		// drop a live UE, so drop the message; TS 36.413 §10.4 (response incompatible
 		// with receiver state) calls for local error handling.
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge with no matching preparation; dropping",
-			zap.Uint32("target-mme-ue-id", uint32(ack.MMEUES1APID)))
+			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)))
 
 		return
 	}
@@ -52,7 +63,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		addr, ok := enbTransportAddress(it.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge E-RAB has an invalid target address; treating as failed",
-				zap.Uint32("target-mme-ue-id", uint32(ack.MMEUES1APID)), zap.Uint8("e-rab-id", uint8(it.ERABID)))
+				zap.Uint32("target-mme-ue-id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(it.ERABID)))
 
 			continue
 		}
@@ -67,14 +78,14 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 	if len(admitted) == 0 {
 		// No default bearer admitted: the handover is rejected (TS 23.401 §5.5.1.2.3).
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge admitted no E-RAB; rejecting handover",
-			zap.Uint32("target-mme-ue-id", uint32(ack.MMEUES1APID)))
-		mme.SendUEContextRelease(ctx, m, radio.Conn, ack.MMEUES1APID, ack.ENBUES1APID, true, causeHOFailureInTarget)
+			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)))
+		mme.SendUEContextRelease(ctx, m, radio.Conn, mmeUEID, enbUEID, true, causeHOFailureInTarget)
 		m.FailHandoverToSource(ctx, ue, causeHOFailureInTarget)
 
 		return
 	}
 
-	sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, ack.MMEUES1APID, radio.Conn, admitted, releaseEBIs)
+	sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted, releaseEBIs)
 	if !ok {
 		return
 	}

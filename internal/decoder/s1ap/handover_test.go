@@ -15,7 +15,7 @@ func TestDecodeHandoverRequired(t *testing.T) {
 		MMEUES1APID:  7,
 		ENBUES1APID:  2,
 		HandoverType: lib.HandoverTypeIntraLTE,
-		Cause:        lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16},
+		Cause:        lib.Ptr(lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16}),
 		TargetID: lib.TargetID{TargeteNBID: lib.TargeteNBID{
 			GlobalENBID: lib.GlobalENBID{PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: lib.ENBID{Kind: lib.ENBIDMacro, Value: 2}},
 			SelectedTAI: lib.TAI{PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
@@ -48,8 +48,8 @@ func TestDecodeHandoverRequired(t *testing.T) {
 
 func TestDecodeHandoverRequestAcknowledge(t *testing.T) {
 	b, err := (&lib.HandoverRequestAcknowledge{
-		MMEUES1APID: 7,
-		ENBUES1APID: 55,
+		MMEUES1APID: lib.Ptr(lib.MMEUES1APID(7)),
+		ENBUES1APID: lib.Ptr(lib.ENBUES1APID(55)),
 		ERABAdmitted: []lib.ERABAdmittedItem{{
 			ERABID:                5,
 			TransportLayerAddress: lib.TransportLayerAddress{10, 4, 0, 2},

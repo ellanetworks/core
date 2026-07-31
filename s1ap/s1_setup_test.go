@@ -10,7 +10,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
 const goldenS1SetupRequest = "0011002d000004003b00090000f1104054f64010003c400903004a4c542d36323100400007000c0e4000f1100089400100"
@@ -50,8 +50,8 @@ func TestS1SetupRequestGoldenDecode(t *testing.T) {
 		t.Fatalf("ENB-ID = %+v", req.GlobalENBID.ENBID)
 	}
 
-	if req.ENBName != "JLT-621" {
-		t.Fatalf("eNBname = %q", req.ENBName)
+	if deref(req.ENBName) != "JLT-621" {
+		t.Fatalf("eNBname = %q", deref(req.ENBName))
 	}
 
 	if len(req.SupportedTAs) != 1 || req.SupportedTAs[0].TAC != 0x3039 {
@@ -63,8 +63,8 @@ func TestS1SetupRequestGoldenDecode(t *testing.T) {
 		t.Fatalf("broadcastPLMNs = %+v", req.SupportedTAs[0].BroadcastPLMNs)
 	}
 
-	if req.DefaultPagingDRX != PagingDRXv32 {
-		t.Fatalf("pagingDRX = %d", req.DefaultPagingDRX)
+	if deref(req.DefaultPagingDRX) != PagingDRXv32 {
+		t.Fatalf("pagingDRX = %d", deref(req.DefaultPagingDRX))
 	}
 }
 
@@ -93,10 +93,10 @@ func TestS1SetupRequestGoldenReencode(t *testing.T) {
 
 func TestS1SetupRequestRoundTrip(t *testing.T) {
 	in := &S1SetupRequest{
-		GlobalENBID:      GlobalENBID{PLMNIdentity{0x00, 0xf1, 0x10}, ENBID{Kind: ENBIDMacro, Value: 0x0abcd}},
-		ENBName:          "eNB-1",
+		GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}},
+		ENBName:          Ptr("eNB-1"),
 		SupportedTAs:     SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
-		DefaultPagingDRX: PagingDRXv128,
+		DefaultPagingDRX: Ptr(PagingDRXv128),
 	}
 
 	b, err := in.Marshal()
@@ -114,88 +114,124 @@ func TestS1SetupRequestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.GlobalENBID != in.GlobalENBID || out.ENBName != in.ENBName ||
-		out.DefaultPagingDRX != in.DefaultPagingDRX || len(out.SupportedTAs) != 1 ||
+	if out.GlobalENBID != in.GlobalENBID || deref(out.ENBName) != deref(in.ENBName) ||
+		deref(out.DefaultPagingDRX) != deref(in.DefaultPagingDRX) ||
+		len(out.SupportedTAs) != 1 ||
 		out.SupportedTAs[0].TAC != in.SupportedTAs[0].TAC {
 		t.Fatalf("round-trip mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
 }
 
-// encodePartialS1Setup builds an S1SetupRequest open-type value containing only the
-// chosen IEs, for exercising missing-mandatory-IE handling (TS 36.413 §9.1.8.4).
+// encodePartialS1Setup omits IEs to exercise §9.1.8.4 mandatory-IE handling.
 func encodePartialS1Setup(t *testing.T, globalENBID, supportedTAs, pagingDRX bool) []byte {
 	t.Helper()
 
-	var w aper.Writer
-	w.WriteSequencePreamble(true, false, nil)
+	w := per.NewWriter()
+	w.WriteBit(false)
 
 	var fields []ieField
 
 	if globalENBID {
-		g := GlobalENBID{PLMNIdentity{0x00, 0xf1, 0x10}, ENBID{Kind: ENBIDMacro, Value: 0x0abcd}}
-		fields = append(fields, ieField{id: idGlobalENBID, crit: CriticalityReject, enc: g.encode})
+		g := GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}}
+		fields = append(fields, ieField{id: idGlobalENBID, crit: CriticalityReject, val: &g})
 	}
 
 	if supportedTAs {
 		s := SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}}
-		fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, enc: s.encode})
+		fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, val: s})
 	}
 
 	if pagingDRX {
 		d := PagingDRXv128
-		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, enc: d.encode})
+		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: d})
 	}
 
-	if err := encodeIEContainer(&w, fields); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
 
-	return w.Bytes()
+	return perBytes(w)
 }
 
-// TS 36.413 §10.3.5: an S1 Setup Request missing a reject-criticality mandatory IE
-// (Global eNB ID or Supported TAs) is reported as a MissingMandatoryIEsError naming
-// the absent IE; a missing Default Paging DRX (ignore-criticality) is tolerated.
 func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 	tests := []struct {
 		name        string
 		globalENBID bool
 		supportedTA bool
 		pagingDRX   bool
-		wantMissing []ProtocolIEID
+		// wantReject lists the absent reject-criticality IEs; nil means the
+		// message is still delivered.
+		wantReject   []ProtocolIEID
+		wantReported []ProtocolIEID
 	}{
-		{"missing GlobalENBID", false, true, true, []ProtocolIEID{idGlobalENBID}},
-		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}},
-		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}},
-		{"missing only PagingDRX is tolerated", true, true, false, nil},
+		{"missing GlobalENBID", false, true, true, []ProtocolIEID{idGlobalENBID}, nil},
+		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}, nil},
+		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}, nil},
+		// Default Paging DRX is mandatory-ignore (§9.1.8.4), so its absence is
+		// reported and delivered.
+		{"missing only PagingDRX", true, true, false, nil, []ProtocolIEID{idDefaultPagingDRX}},
+		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{idGlobalENBID}, nil},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value := encodePartialS1Setup(t, tt.globalENBID, tt.supportedTA, tt.pagingDRX)
 
-			_, err := ParseS1SetupRequest(value)
+			out, err := ParseS1SetupRequest(value)
 
-			if tt.wantMissing == nil {
+			if tt.wantReject == nil {
 				if err != nil {
 					t.Fatalf("parse: unexpected error %v", err)
+				}
+
+				if got := diagnosticIEIDs(out.Diagnostics().IEs); !slices.Equal(got, tt.wantReported) {
+					t.Errorf("diagnostics = %v, want %v", got, tt.wantReported)
 				}
 
 				return
 			}
 
-			var missing *MissingMandatoryIEsError
-			if !errors.As(err, &missing) {
-				t.Fatalf("error = %v, want *MissingMandatoryIEsError", err)
+			var ase *AbstractSyntaxError
+			if !errors.As(err, &ase) {
+				t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 			}
 
-			if missing.Procedure != ProcS1Setup {
-				t.Errorf("procedure = %d, want ProcS1Setup", missing.Procedure)
+			if ase.Procedure != ProcS1Setup {
+				t.Errorf("procedure = %d, want ProcS1Setup", ase.Procedure)
 			}
 
-			if !slices.Equal(missing.IEs, tt.wantMissing) {
-				t.Errorf("missing IEs = %v, want %v", missing.IEs, tt.wantMissing)
+			want := Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject}
+			if ase.Cause != want {
+				t.Errorf("cause = %v, want %v", ase.Cause, want)
+			}
+
+			if got := rejectedIEIDs(ase.IEs); !slices.Equal(got, tt.wantReject) {
+				t.Errorf("rejected IEs = %v, want %v", got, tt.wantReject)
+			}
+
+			for _, ie := range ase.IEs {
+				if ie.TypeOfError != TypeOfErrorMissing {
+					t.Errorf("IE %v type of error = %v, want missing", ie.IEID, ie.TypeOfError)
+				}
 			}
 		})
 	}
+}
+
+func diagnosticIEIDs(items []DiagnosticIE) []ProtocolIEID {
+	ids := make([]ProtocolIEID, len(items))
+	for i, ie := range items {
+		ids[i] = ie.ID
+	}
+
+	return ids
+}
+
+func rejectedIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
+	ids := make([]ProtocolIEID, len(items))
+	for i, ie := range items {
+		ids[i] = ie.IEID
+	}
+
+	return ids
 }

@@ -4,59 +4,118 @@
 package s1ap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// RoutingID ::= INTEGER (0..255) (TS 36.413). Identifies the E-SMLC endpoint the
-// carried LPPa-PDU is routed to or from.
+// RoutingID ::= INTEGER (0..255), naming an E-SMLC endpoint (TS 36.413).
 type RoutingID uint8
 
-func (id RoutingID) encode(w *aper.Writer) error {
-	return w.WriteConstrainedInt(int64(id), 0, 255)
+func (id RoutingID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(id))
 }
 
-func decodeRoutingID(r *aper.Reader) (RoutingID, error) {
-	v, err := r.ReadConstrainedInt(0, 255)
-	return RoutingID(v), err
+func (id *RoutingID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
+	if err != nil {
+		return err
+	}
+
+	*id = RoutingID(v)
+
+	return nil
 }
 
-// LPPaPDU ::= OCTET STRING (unbounded). The S1AP layer carries an LPPa PDU
-// opaquely; the bytes are decoded by the LPPa codec (TS 36.455), not here.
+// LPPaPDU ::= OCTET STRING (unbounded), carried opaquely; the bytes are an
+// LPPa PDU (TS 36.455).
 type LPPaPDU []byte
 
-func (p LPPaPDU) encode(w *aper.Writer) error {
-	return w.WriteOctetString(p, 0, aper.Unbounded, false)
+func (p LPPaPDU) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, p)
 }
 
-func decodeLPPaPDU(r *aper.Reader) (LPPaPDU, error) {
-	b, err := r.ReadOctetString(0, aper.Unbounded, false)
-	return LPPaPDU(b), err
+func (p *LPPaPDU) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*p = LPPaPDU(b)
+
+	return nil
 }
 
-// DownlinkUEAssociatedLPPaTransport is the DOWNLINK UE ASSOCIATED LPPA TRANSPORT
-// message (TS 36.413), sent by the MME to relay an LPPa PDU to the eNB.
+// TS 36.413 §9.1.19.1.
 type DownlinkUEAssociatedLPPaTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
 	RoutingID   RoutingID
 	LPPaPDU     LPPaPDU
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *DownlinkUEAssociatedLPPaTransport) encodeBody(w *aper.Writer) error {
-	return encodeLPPaTransportBody(w, m.MMEUES1APID, m.ENBUES1APID, m.RoutingID, m.LPPaPDU, m.unknownIEs)
+// The two UE-associated LPPa transport messages carry identical IEs and differ
+// only in procedure code (TS 36.413 §9.1.19.1, §9.1.19.2).
+func lppaTransportIEs[M any](
+	mme func(*M) *MMEUES1APID,
+	enb func(*M) *ENBUES1APID,
+	routing func(*M) *RoutingID,
+	pdu func(*M) *LPPaPDU,
+) []ieSpec[M] {
+	return []ieSpec[M]{
+		{
+			id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, mme(m)) },
+			encode: func(m *M) (per.Marshaler, bool) { return mme(m), true },
+		},
+		{
+			id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, enb(m)) },
+			encode: func(m *M) (per.Marshaler, bool) { return enb(m), true },
+		},
+		{
+			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
+			encode: func(m *M) (per.Marshaler, bool) { return routing(m), true },
+		},
+		{
+			id: idLPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
+			encode: func(m *M) (per.Marshaler, bool) { return pdu(m), true },
+		},
+	}
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+var downlinkUEAssociatedLPPaTransportIEs = lppaTransportIEs(
+	func(m *DownlinkUEAssociatedLPPaTransport) *MMEUES1APID { return &m.MMEUES1APID },
+	func(m *DownlinkUEAssociatedLPPaTransport) *ENBUES1APID { return &m.ENBUES1APID },
+	func(m *DownlinkUEAssociatedLPPaTransport) *RoutingID { return &m.RoutingID },
+	func(m *DownlinkUEAssociatedLPPaTransport) *LPPaPDU { return &m.LPPaPDU },
+)
+
+var uplinkUEAssociatedLPPaTransportIEs = lppaTransportIEs(
+	func(m *UplinkUEAssociatedLPPaTransport) *MMEUES1APID { return &m.MMEUES1APID },
+	func(m *UplinkUEAssociatedLPPaTransport) *ENBUES1APID { return &m.ENBUES1APID },
+	func(m *UplinkUEAssociatedLPPaTransport) *RoutingID { return &m.RoutingID },
+	func(m *UplinkUEAssociatedLPPaTransport) *LPPaPDU { return &m.LPPaPDU },
+)
+
+func (m *DownlinkUEAssociatedLPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcDownlinkUEAssociatedLPPaTransport, downlinkUEAssociatedLPPaTransportIEs, m)
+}
+
+func (m *UplinkUEAssociatedLPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcUplinkUEAssociatedLPPaTransport, uplinkUEAssociatedLPPaTransportIEs, m)
+}
+
 func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcDownlinkUEAssociatedLPPaTransport,
@@ -65,45 +124,28 @@ func (m *DownlinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseDownlinkUEAssociatedLPPaTransport decodes the message from the open-type
-// payload of an initiatingMessage.
 func ParseDownlinkUEAssociatedLPPaTransport(value []byte) (*DownlinkUEAssociatedLPPaTransport, error) {
-	f, err := decodeLPPaTransportBody(value)
-	if err != nil {
-		return nil, err
-	}
-
-	return &DownlinkUEAssociatedLPPaTransport{
-		MMEUES1APID:  f.mme,
-		ENBUES1APID:  f.enb,
-		RoutingID:    f.routing,
-		LPPaPDU:      f.pdu,
-		unmodeledIEs: unmodeledIEs{unknownIEs: f.unknown},
-	}, nil
+	return parseMessageBody[DownlinkUEAssociatedLPPaTransport](ProcDownlinkUEAssociatedLPPaTransport, TriggeringInitiatingMessage, downlinkUEAssociatedLPPaTransportIEs, value)
 }
 
-// UplinkUEAssociatedLPPaTransport is the UPLINK UE ASSOCIATED LPPA TRANSPORT
-// message (TS 36.413), sent by the eNB to relay an LPPa PDU to the MME.
+// TS 36.413 §9.1.19.2.
 type UplinkUEAssociatedLPPaTransport struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
 	RoutingID   RoutingID
 	LPPaPDU     LPPaPDU
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *UplinkUEAssociatedLPPaTransport) encodeBody(w *aper.Writer) error {
-	return encodeLPPaTransportBody(w, m.MMEUES1APID, m.ENBUES1APID, m.RoutingID, m.LPPaPDU, m.unknownIEs)
-}
-
-// Marshal encodes the message as a complete S1AP-PDU.
 func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcUplinkUEAssociatedLPPaTransport,
@@ -112,104 +154,6 @@ func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseUplinkUEAssociatedLPPaTransport decodes the message from the open-type
-// payload of an initiatingMessage.
 func ParseUplinkUEAssociatedLPPaTransport(value []byte) (*UplinkUEAssociatedLPPaTransport, error) {
-	f, err := decodeLPPaTransportBody(value)
-	if err != nil {
-		return nil, err
-	}
-
-	return &UplinkUEAssociatedLPPaTransport{
-		MMEUES1APID:  f.mme,
-		ENBUES1APID:  f.enb,
-		RoutingID:    f.routing,
-		LPPaPDU:      f.pdu,
-		unmodeledIEs: unmodeledIEs{unknownIEs: f.unknown},
-	}, nil
-}
-
-// encodeLPPaTransportBody writes the shared body of the two UE-associated LPPa
-// transport messages: MME-UE-S1AP-ID, eNB-UE-S1AP-ID, Routing-ID, LPPa-PDU, all
-// mandatory with reject criticality (TS 36.413 §9.1).
-func encodeLPPaTransportBody(w *aper.Writer, mme MMEUES1APID, enb ENBUES1APID, routing RoutingID, pdu LPPaPDU, unknown []rawIE) error {
-	w.WriteSequencePreamble(true, false, nil)
-
-	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, enc: mme.encode},
-		{id: idENBUES1APID, crit: CriticalityReject, enc: enb.encode},
-		{id: idRoutingID, crit: CriticalityReject, enc: routing.encode},
-		{id: idLPPaPDU, crit: CriticalityReject, enc: pdu.encode},
-	}
-
-	for _, e := range unknown {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, fields)
-}
-
-// lppaTransportFields holds the decoded body of a UE-associated LPPa transport
-// message.
-type lppaTransportFields struct {
-	mme     MMEUES1APID
-	enb     ENBUES1APID
-	routing RoutingID
-	pdu     LPPaPDU
-	unknown []rawIE
-}
-
-func decodeLPPaTransportBody(value []byte) (lppaTransportFields, error) {
-	var f lppaTransportFields
-
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return f, fmt.Errorf("s1ap: LPPa transport preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return f, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return f, err
-		}
-	}
-
-	var seenMME, seenENB, seenRouting, seenPDU bool
-
-	for _, ie := range fields {
-		sub := aper.NewReader(ie.value)
-
-		switch ie.id {
-		case idMMEUES1APID:
-			f.mme, err = decodeMMEUES1APID(sub)
-			seenMME = true
-		case idENBUES1APID:
-			f.enb, err = decodeENBUES1APID(sub)
-			seenENB = true
-		case idRoutingID:
-			f.routing, err = decodeRoutingID(sub)
-			seenRouting = true
-		case idLPPaPDU:
-			f.pdu, err = decodeLPPaPDU(sub)
-			seenPDU = true
-		default:
-			f.unknown = append(f.unknown, ie)
-		}
-
-		if err != nil {
-			return f, fmt.Errorf("s1ap: LPPa transport IE %d: %w", ie.id, err)
-		}
-	}
-
-	if !seenMME || !seenENB || !seenRouting || !seenPDU {
-		return f, fmt.Errorf("s1ap: LPPa transport missing mandatory IE")
-	}
-
-	return f, nil
+	return parseMessageBody[UplinkUEAssociatedLPPaTransport](ProcUplinkUEAssociatedLPPaTransport, TriggeringInitiatingMessage, uplinkUEAssociatedLPPaTransportIEs, value)
 }

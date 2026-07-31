@@ -3,7 +3,7 @@
 
 package s1ap
 
-import "github.com/ellanetworks/core/s1ap/aper"
+import "github.com/ellanetworks/core/per"
 
 // nameMaxLen bounds ENBname / MMEname (PrintableString (SIZE(1..150,...))).
 const nameMaxLen = 150
@@ -11,37 +11,23 @@ const nameMaxLen = 150
 // PLMNIdentity ::= TBCD-STRING ::= OCTET STRING (SIZE(3)).
 type PLMNIdentity [3]byte
 
-func (p PLMNIdentity) encode(w *aper.Writer) error {
-	return w.WriteOctetString(p[:], 3, 3, false)
+// Name is an ENBname / MMEname: PrintableString (SIZE(1..150,...)). In the
+// ALIGNED variant PrintableString encodes 8 bits per character (X.691 §30.5.2).
+type Name string
+
+func (n Name) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeKnownMultiplierString(w, enc, per.CharPrintableString, 1, nameMaxLen, true, true, true, string(n))
 }
 
-func decodePLMNIdentity(r *aper.Reader) (PLMNIdentity, error) {
-	b, err := r.ReadOctetString(3, 3, false)
+func (n *Name) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	s, err := per.DecodeKnownMultiplierString(r, enc, per.CharPrintableString, 1, nameMaxLen, true, true, true)
 	if err != nil {
-		return PLMNIdentity{}, err
+		return err
 	}
 
-	var p PLMNIdentity
+	*n = Name(s)
 
-	copy(p[:], b)
-
-	return p, nil
-}
-
-// encodeName encodes ENBname / MMEname. Without a PER-visible alphabet
-// constraint a PrintableString encodes as 8 bits per character, so it shares
-// the OCTET STRING encoding with an extensible SIZE(1..150) bound (X.691).
-func encodeName(w *aper.Writer, s string) error {
-	return w.WriteOctetString([]byte(s), 1, nameMaxLen, true)
-}
-
-func decodeName(r *aper.Reader) (string, error) {
-	b, err := r.ReadOctetString(1, nameMaxLen, true)
-	if err != nil {
-		return "", err
-	}
-
-	return string(b), nil
+	return nil
 }
 
 // uintToBits packs the low nbits of v into ceil(nbits/8) octets, most

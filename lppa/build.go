@@ -6,11 +6,10 @@ package lppa
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// reportOnDemand and reportPeriodic are the ReportCharacteristics root values
-// (TS 36.455 §9.2.4).
+// ReportCharacteristics root values (TS 36.455 §9.2.4).
 const (
 	reportOnDemand = 0
 	reportPeriodic = 1
@@ -19,9 +18,8 @@ const (
 	measurementQuantityRootCount   = 6
 )
 
-// BuildECIDMeasurementInitiationRequest encodes an on-demand E-CID Measurement
-// Initiation Request for the given quantities (TS 36.455 §8.2.1). esmlcMeasID is
-// the E-SMLC-UE-Measurement-ID the eNB echoes for correlation.
+// BuildECIDMeasurementInitiationRequest encodes an on-demand request
+// (TS 36.455 §8.2.1). esmlcMeasID is echoed by the eNB for correlation.
 func BuildECIDMeasurementInitiationRequest(esmlcMeasID int64, quantities []MeasurementQuantityValue) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -51,9 +49,8 @@ func BuildECIDMeasurementInitiationRequest(esmlcMeasID int64, quantities []Measu
 	return marshalPDU(pduInitiatingMessage, ProcECIDMeasurementInitiation, body)
 }
 
-// BuildECIDMeasurementTerminationCommand encodes an E-CID Measurement
-// Termination Command releasing the measurement association in the eNB
-// (TS 36.455 §8.2.4).
+// BuildECIDMeasurementTerminationCommand releases the measurement association
+// in the eNB (TS 36.455 §8.2.4).
 func BuildECIDMeasurementTerminationCommand(esmlcMeasID, enbMeasID int64) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -76,8 +73,8 @@ func BuildECIDMeasurementTerminationCommand(esmlcMeasID, enbMeasID int64) ([]byt
 	return marshalPDU(pduInitiatingMessage, ProcECIDMeasurementTermination, body)
 }
 
-// BuildECIDMeasurementInitiationResponse encodes an E-CID Measurement Initiation
-// Response (TS 36.455 §8.2.1). result is optional.
+// BuildECIDMeasurementInitiationResponse accepts a nil result (TS 36.455
+// §8.2.1).
 func BuildECIDMeasurementInitiationResponse(esmlcMeasID, enbMeasID int64, result *ECIDResult) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -104,8 +101,8 @@ func BuildECIDMeasurementInitiationResponse(esmlcMeasID, enbMeasID int64, result
 	return marshalPDU(pduSuccessfulOutcome, ProcECIDMeasurementInitiation, body)
 }
 
-// BuildECIDMeasurementInitiationFailure encodes an E-CID Measurement Initiation
-// Failure carrying the rejection cause (TS 36.455 §8.2.1).
+// BuildECIDMeasurementInitiationFailure encodes the rejection of an initiation
+// request (TS 36.455 §8.2.1).
 func BuildECIDMeasurementInitiationFailure(esmlcMeasID int64, cause Cause) ([]byte, error) {
 	if err := validateMeasurementID("esmlcMeasID", esmlcMeasID); err != nil {
 		return nil, err
@@ -124,8 +121,8 @@ func BuildECIDMeasurementInitiationFailure(esmlcMeasID int64, cause Cause) ([]by
 	return marshalPDU(pduUnsuccessfulOutcome, ProcECIDMeasurementInitiation, body)
 }
 
-// validateMeasurementID rejects a Measurement-ID outside its root range 1..15
-// (TS 36.455 §9.2.6) with an argument-named error.
+// validateMeasurementID rejects values outside the Measurement-ID root range
+// 1..15 (TS 36.455 §9.2.6).
 func validateMeasurementID(name string, id int64) error {
 	if id < 1 || id > 15 {
 		return fmt.Errorf("lppa: %s %d out of range [1, 15]", name, id)
@@ -134,64 +131,63 @@ func validateMeasurementID(name string, id int64) error {
 	return nil
 }
 
-// encodeMessageBody writes an E-CID message SEQUENCE: an extensible preamble
-// with no optional root fields, then the ProtocolIE-Container.
+// encodeMessageBody writes an E-CID message SEQUENCE, which is extensible with
+// no optional root field.
 func encodeMessageBody(fields []ieField) ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	w.WriteSequencePreamble(true, false, nil)
+	writeSeqPreamble(w, false, nil)
 
-	if err := encodeIEContainer(&w, fields); err != nil {
+	if err := encodeIEContainer(w, fields); err != nil {
 		return nil, err
 	}
 
-	return w.Bytes(), nil
+	return perAlignedBytes(w), nil
 }
 
-// encMeasurementID encodes a Measurement-ID ::= INTEGER (1..15, ...)
-// (TS 36.455 §9.2.6).
-func encMeasurementID(id int64) func(*aper.Writer) error {
-	return func(w *aper.Writer) error {
+// Measurement-ID ::= INTEGER (1..15, ...) (TS 36.455 §9.2.6).
+func encMeasurementID(id int64) func(*per.Writer) error {
+	return func(w *per.Writer) error {
 		return writeExtConstrainedInt(w, id, 1, 15)
 	}
 }
 
-func encReportCharacteristics(v int) func(*aper.Writer) error {
-	return func(w *aper.Writer) error {
-		return w.WriteEnum(v, reportCharacteristicsRootCount, true, false)
+func encReportCharacteristics(v int) func(*per.Writer) error {
+	return func(w *per.Writer) error {
+		return per.EncodeEnumerated(w, per.Aligned, reportCharacteristicsRootCount, true, int64(v))
 	}
 }
 
-// encMeasurementQuantities encodes MeasurementQuantities ::= SEQUENCE (SIZE
-// (1..maxNoMeas)) OF ProtocolIE-Single-Container (TS 36.455 §9.2.29).
-func encMeasurementQuantities(qs []MeasurementQuantityValue) func(*aper.Writer) error {
-	return func(w *aper.Writer) error {
+// MeasurementQuantities ::= SEQUENCE (SIZE (1..maxNoMeas)) OF
+// ProtocolIE-Single-Container (TS 36.455 §9.2.29).
+func encMeasurementQuantities(qs []MeasurementQuantityValue) func(*per.Writer) error {
+	return func(w *per.Writer) error {
 		if len(qs) < 1 || len(qs) > maxNoMeas {
 			return fmt.Errorf("lppa: measurement quantities length %d outside [1, %d]", len(qs), maxNoMeas)
 		}
 
-		if err := w.WriteConstrainedLength(len(qs), 1, maxNoMeas); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxNoMeas, int64(len(qs))); err != nil {
 			return err
 		}
 
 		for _, q := range qs {
-			if err := w.WriteConstrainedInt(int64(idMeasurementQuantitiesItem), 0, maxProtocolIEs); err != nil {
+			if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idMeasurementQuantitiesItem)); err != nil {
 				return err
 			}
 
-			if err := w.WriteEnum(int(CriticalityReject), criticalityRootCount, false, false); err != nil {
+			if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(int(CriticalityReject))); err != nil {
 				return err
 			}
 
-			var vw aper.Writer
+			vw := per.NewWriter()
 
-			vw.WriteSequencePreamble(true, false, []bool{false})
+			writeSeqPreamble(vw, false, []bool{false})
 
-			if err := vw.WriteEnum(int(q), measurementQuantityRootCount, true, false); err != nil {
+			if err := per.EncodeEnumerated(vw, per.Aligned, measurementQuantityRootCount, true, int64(int(q))); err != nil {
 				return err
 			}
 
-			if err := w.WriteOpenType(vw.Bytes()); err != nil {
+			if err := per.EncodeOpenTypeBytes(w, per.Aligned, perAlignedBytes(vw)); err != nil {
 				return err
 			}
 		}
@@ -200,20 +196,20 @@ func encMeasurementQuantities(qs []MeasurementQuantityValue) func(*aper.Writer) 
 	}
 }
 
-// encMeasurementResult encodes E-CID-MeasurementResult (TS 36.455 §9.2.5).
-func encMeasurementResult(res *ECIDResult) func(*aper.Writer) error {
-	return func(w *aper.Writer) error {
+// E-CID-MeasurementResult (TS 36.455 §9.2.5).
+func encMeasurementResult(res *ECIDResult) func(*per.Writer) error {
+	return func(w *per.Writer) error {
 		hasAP := res.APPosition != nil
 		hasMeasured := res.AngleOfArrival != nil || res.TimingAdvanceType1 != nil ||
 			res.TimingAdvanceType2 != nil || len(res.RSRP) > 0 || len(res.RSRQ) > 0
 
-		w.WriteSequencePreamble(true, false, []bool{hasAP, hasMeasured})
+		writeSeqPreamble(w, false, []bool{hasAP, hasMeasured})
 
 		if err := encECGI(w, res.ServingCell); err != nil {
 			return err
 		}
 
-		if err := w.WriteOctetString(res.ServingCellTAC, 2, 2, false); err != nil {
+		if err := per.EncodeOctetString(w, per.Aligned, 2, 2, true, true, false, res.ServingCellTAC); err != nil {
 			return err
 		}
 
@@ -234,22 +230,22 @@ func encMeasurementResult(res *ECIDResult) func(*aper.Writer) error {
 }
 
 // TS 36.455 §9.2.9.
-func encECGI(w *aper.Writer, e ECGI) error {
-	w.WriteSequencePreamble(true, false, []bool{false})
+func encECGI(w *per.Writer, e ECGI) error {
+	writeSeqPreamble(w, false, []bool{false})
 
-	if err := w.WriteOctetString(e.PLMNIdentity, 3, 3, false); err != nil {
+	if err := per.EncodeOctetString(w, per.Aligned, 3, 3, true, true, false, e.PLMNIdentity); err != nil {
 		return err
 	}
 
-	return w.WriteBitString(uintToBits(e.EUTRACellID, 28), 28, 28, 28, false)
+	return per.EncodeBitString(w, per.Aligned, 28, 28, true, true, false, uintToBits(e.EUTRACellID, 28), 28)
 }
 
-// encAPPosition encodes E-UTRANAccessPointPosition (TS 36.455 §9.2.1). The
-// SEQUENCE is extensible with no optional root fields.
-func encAPPosition(w *aper.Writer, p *APPosition) error {
-	w.WriteSequencePreamble(true, false, nil)
+// E-UTRANAccessPointPosition (TS 36.455 §9.2.1), extensible with no optional
+// root field.
+func encAPPosition(w *per.Writer, p *APPosition) error {
+	writeSeqPreamble(w, false, nil)
 
-	if err := w.WriteEnum(p.LatitudeSign, 2, false, false); err != nil {
+	if err := per.EncodeEnumerated(w, per.Aligned, 2, false, int64(p.LatitudeSign)); err != nil {
 		return err
 	}
 
@@ -260,12 +256,12 @@ func encAPPosition(w *aper.Writer, p *APPosition) error {
 		{p.Latitude, 0, 8388607},
 		{p.Longitude, -8388608, 8388607},
 	} {
-		if err := w.WriteConstrainedInt(f.v, f.lb, f.ub); err != nil {
+		if err := per.EncodeInteger(w, per.Aligned, per.Bounds{LB: f.lb, HasLB: true, UB: f.ub, HasUB: true}, f.v); err != nil {
 			return err
 		}
 	}
 
-	if err := w.WriteEnum(p.DirectionOfAltitude, 2, false, false); err != nil {
+	if err := per.EncodeEnumerated(w, per.Aligned, 2, false, int64(p.DirectionOfAltitude)); err != nil {
 		return err
 	}
 
@@ -280,7 +276,7 @@ func encAPPosition(w *aper.Writer, p *APPosition) error {
 		{p.UncertaintyAltitude, 0, 127},
 		{p.Confidence, 0, 100},
 	} {
-		if err := w.WriteConstrainedInt(f.v, f.lb, f.ub); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, f.lb, f.ub, f.v); err != nil {
 			return err
 		}
 	}
@@ -288,16 +284,15 @@ func encAPPosition(w *aper.Writer, p *APPosition) error {
 	return nil
 }
 
-// encMeasuredResults encodes MeasuredResults ::= SEQUENCE (SIZE (1..maxNoMeas))
-// OF MeasuredResultsValue, one CHOICE entry per present quantity
-// (TS 36.455 §9.2.28).
-func encMeasuredResults(w *aper.Writer, res *ECIDResult) error {
-	var entries []func(*aper.Writer) error
+// MeasuredResults ::= SEQUENCE (SIZE (1..maxNoMeas)) OF MeasuredResultsValue
+// (TS 36.455 §9.2.28), one CHOICE entry per quantity present in res.
+func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
+	var entries []func(*per.Writer) error
 
 	if res.AngleOfArrival != nil {
 		v := *res.AngleOfArrival
 
-		entries = append(entries, func(w *aper.Writer) error {
+		entries = append(entries, func(w *per.Writer) error {
 			return encMeasuredChoiceInt(w, 0, v, 0, 719)
 		})
 	}
@@ -305,7 +300,7 @@ func encMeasuredResults(w *aper.Writer, res *ECIDResult) error {
 	if res.TimingAdvanceType1 != nil {
 		v := *res.TimingAdvanceType1
 
-		entries = append(entries, func(w *aper.Writer) error {
+		entries = append(entries, func(w *per.Writer) error {
 			return encMeasuredChoiceInt(w, 1, v, 0, 7690)
 		})
 	}
@@ -313,7 +308,7 @@ func encMeasuredResults(w *aper.Writer, res *ECIDResult) error {
 	if res.TimingAdvanceType2 != nil {
 		v := *res.TimingAdvanceType2
 
-		entries = append(entries, func(w *aper.Writer) error {
+		entries = append(entries, func(w *per.Writer) error {
 			return encMeasuredChoiceInt(w, 2, v, 0, 7690)
 		})
 	}
@@ -321,16 +316,16 @@ func encMeasuredResults(w *aper.Writer, res *ECIDResult) error {
 	if len(res.RSRP) > 0 {
 		items := res.RSRP
 
-		entries = append(entries, func(w *aper.Writer) error {
-			return encMeasuredChoiceList(w, 3, func(w *aper.Writer) error { return encResultRSRP(w, items) })
+		entries = append(entries, func(w *per.Writer) error {
+			return encMeasuredChoiceList(w, 3, func(w *per.Writer) error { return encResultRSRP(w, items) })
 		})
 	}
 
 	if len(res.RSRQ) > 0 {
 		items := res.RSRQ
 
-		entries = append(entries, func(w *aper.Writer) error {
-			return encMeasuredChoiceList(w, 4, func(w *aper.Writer) error { return encResultRSRQ(w, items) })
+		entries = append(entries, func(w *per.Writer) error {
+			return encMeasuredChoiceList(w, 4, func(w *per.Writer) error { return encResultRSRQ(w, items) })
 		})
 	}
 
@@ -338,7 +333,7 @@ func encMeasuredResults(w *aper.Writer, res *ECIDResult) error {
 		return fmt.Errorf("lppa: measured results length %d outside [1, %d]", len(entries), maxNoMeas)
 	}
 
-	if err := w.WriteConstrainedLength(len(entries), 1, maxNoMeas); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxNoMeas, int64(len(entries))); err != nil {
 		return err
 	}
 
@@ -353,20 +348,25 @@ func encMeasuredResults(w *aper.Writer, res *ECIDResult) error {
 
 const measuredResultsRootCount = 5
 
-// encMeasuredChoiceInt writes a MeasuredResultsValue CHOICE whose alternative is
-// a constrained INTEGER (valueAngleOfArrival, valueTimingAdvanceType1/2).
-func encMeasuredChoiceInt(w *aper.Writer, index int, v, lb, ub int64) error {
-	if err := w.WriteChoiceIndex(index, measuredResultsRootCount, true, false); err != nil {
+// encMeasuredChoiceInt covers the valueAngleOfArrival and
+// valueTimingAdvanceType1/2 alternatives.
+func encMeasuredChoiceInt(w *per.Writer, index int, v, lb, ub int64) error {
+	if err := func() error {
+		w.WriteBit(false)
+		return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, measuredResultsRootCount-1, int64(index))
+	}(); err != nil {
 		return err
 	}
 
-	return w.WriteConstrainedInt(v, lb, ub)
+	return per.EncodeConstrainedWholeNumber(w, per.Aligned, lb, ub, v)
 }
 
-// encMeasuredChoiceList writes a MeasuredResultsValue CHOICE whose alternative is
-// a SEQUENCE-OF list (resultRSRP, resultRSRQ).
-func encMeasuredChoiceList(w *aper.Writer, index int, enc func(*aper.Writer) error) error {
-	if err := w.WriteChoiceIndex(index, measuredResultsRootCount, true, false); err != nil {
+// encMeasuredChoiceList covers the resultRSRP and resultRSRQ alternatives.
+func encMeasuredChoiceList(w *per.Writer, index int, enc func(*per.Writer) error) error {
+	if err := func() error {
+		w.WriteBit(false)
+		return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, measuredResultsRootCount-1, int64(index))
+	}(); err != nil {
 		return err
 	}
 
@@ -374,18 +374,18 @@ func encMeasuredChoiceList(w *aper.Writer, index int, enc func(*aper.Writer) err
 }
 
 // TS 36.455 §9.2.36.
-func encResultRSRP(w *aper.Writer, items []RSRPItem) error {
+func encResultRSRP(w *per.Writer, items []RSRPItem) error {
 	if len(items) < 1 || len(items) > maxCellReport {
 		return fmt.Errorf("lppa: RSRP items length %d outside [1, %d]", len(items), maxCellReport)
 	}
 
-	if err := w.WriteConstrainedLength(len(items), 1, maxCellReport); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxCellReport, int64(len(items))); err != nil {
 		return err
 	}
 
 	for _, it := range items {
 		hasECGI := it.ECGI != nil
-		w.WriteSequencePreamble(true, false, []bool{hasECGI, false})
+		writeSeqPreamble(w, false, []bool{hasECGI, false})
 
 		if err := writeExtConstrainedInt(w, it.PCI, 0, 503); err != nil {
 			return err
@@ -410,18 +410,18 @@ func encResultRSRP(w *aper.Writer, items []RSRPItem) error {
 }
 
 // TS 36.455 §9.2.37.
-func encResultRSRQ(w *aper.Writer, items []RSRQItem) error {
+func encResultRSRQ(w *per.Writer, items []RSRQItem) error {
 	if len(items) < 1 || len(items) > maxCellReport {
 		return fmt.Errorf("lppa: RSRQ items length %d outside [1, %d]", len(items), maxCellReport)
 	}
 
-	if err := w.WriteConstrainedLength(len(items), 1, maxCellReport); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxCellReport, int64(len(items))); err != nil {
 		return err
 	}
 
 	for _, it := range items {
 		hasECGI := it.ECGI != nil
-		w.WriteSequencePreamble(true, false, []bool{hasECGI, false})
+		writeSeqPreamble(w, false, []bool{hasECGI, false})
 
 		if err := writeExtConstrainedInt(w, it.PCI, 0, 503); err != nil {
 			return err
@@ -445,28 +445,30 @@ func encResultRSRQ(w *aper.Writer, items []RSRQItem) error {
 	return nil
 }
 
-// encCause encodes Cause ::= CHOICE { radioNetwork, protocol, misc, ... }
-// (TS 36.455 §9.2.2). Only the three root ENUMERATED groups are emitted.
-func encCause(c Cause) func(*aper.Writer) error {
-	return func(w *aper.Writer) error {
+// Cause ::= CHOICE { radioNetwork, protocol, misc, ... } (TS 36.455 §9.2.2).
+// Only the three root groups can be emitted.
+func encCause(c Cause) func(*per.Writer) error {
+	return func(w *per.Writer) error {
 		if c.Group < CauseGroupRadioNetwork || c.Group > CauseGroupMisc {
 			return fmt.Errorf("lppa: cannot encode cause group %d", c.Group)
 		}
 
-		if err := w.WriteChoiceIndex(int(c.Group), causeRootCount, true, false); err != nil {
+		if err := func() error {
+			w.WriteBit(false)
+			return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, causeRootCount-1, int64(int(c.Group)))
+		}(); err != nil {
 			return err
 		}
 
-		// Each root Cause group is an extensible ENUMERATED; the ordinal count is
-		// not modeled, so the value is emitted as a root ENUMERATED index.
-		return w.WriteEnum(int(c.Value), causeGroupNRoot(c.Group), true, false)
+		// Each root Cause group is itself an extensible ENUMERATED.
+		return per.EncodeEnumerated(w, per.Aligned, int64(causeGroupNRoot(c.Group)), true, int64(int(c.Value)))
 	}
 }
 
 const causeRootCount = 3
 
-// causeGroupNRoot returns the number of root ENUMERATED values for a Cause group
-// (TS 36.455 §9.2.2): CauseRadioNetwork has 3, CauseProtocol 7, CauseMisc 1.
+// causeGroupNRoot is the root ENUMERATED value count of each Cause group
+// (TS 36.455 §9.2.2).
 func causeGroupNRoot(g CauseGroup) int {
 	switch g {
 	case CauseGroupRadioNetwork:

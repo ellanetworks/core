@@ -18,7 +18,10 @@ func buildUEContextReleaseRequest(value []byte) (S1APMessageValue, string) {
 	ies := []IE{
 		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
 		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idCause, s1ap.CriticalityIgnore, cause(m.Cause)),
+	}
+
+	if m.Cause != nil {
+		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -34,7 +37,10 @@ func buildUEContextReleaseCommand(value []byte) (S1APMessageValue, string) {
 
 	ies := []IE{
 		ie(idUES1APIDs, s1ap.CriticalityReject, ues1apIDs(m.UES1APIDs)),
-		ie(idCause, s1ap.CriticalityIgnore, cause(m.Cause)),
+	}
+
+	if m.Cause != nil {
+		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -48,9 +54,14 @@ func buildUEContextReleaseComplete(value []byte) (S1APMessageValue, string) {
 		return S1APMessageValue{Error: fmt.Sprintf("parse UE Context Release Complete: %v", err)}, ""
 	}
 
-	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(m.ENBUES1APID)),
+	var ies []IE
+
+	if m.MMEUES1APID != nil {
+		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+	}
+
+	if m.ENBUES1APID != nil {
+		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
 	}
 
 	if m.CriticalityDiagnostics != nil {
@@ -59,5 +70,5 @@ func buildUEContextReleaseComplete(value []byte) (S1APMessageValue, string) {
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Complete (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Complete (MME-UE %s, eNB-UE %s)", ueIDText(m.MMEUES1APID), ueIDText(m.ENBUES1APID))
 }

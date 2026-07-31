@@ -20,6 +20,8 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 	req, err := s1ap.ParseENBConfigurationUpdate(value)
 	if err != nil {
 		logger.From(ctx, radio.Log).Warn("failed to decode ENB Configuration Update", zap.Error(err))
+		rejectENBConfigurationUpdate(m, ctx, radio, err)
+
 		return
 	}
 
@@ -55,15 +57,25 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		return
 	}
 
-	if req.ENBName != "" {
-		m.UpdateRadioName(radio, req.ENBName)
+	if req.ENBName != nil {
+		m.UpdateRadioName(radio, *req.ENBName)
 	}
 
 	if len(req.SupportedTAs) > 0 {
 		m.UpdateRadioSupportedTAs(radio, mme.EnbSupportedTAIs(req.SupportedTAs))
 	}
 
-	logger.From(ctx, radio.Log).Info("ENB Configuration Update acknowledged", zap.String("enb-name", req.ENBName))
+	logger.From(ctx, radio.Log).Info("ENB Configuration Update acknowledged", zap.String("enb-name", enbName(req.ENBName)))
+}
+
+// rejectENBConfigurationUpdate answers an undecodable update with ENB
+// CONFIGURATION UPDATE FAILURE, falling back to the Error Indication procedure
+// where the outcome cannot be built (TS 36.413 §10.3.5).
+func rejectENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Radio, err error) {
+	rejectWithFailure(m, ctx, radio.Conn, s1ap.ProcENBConfigurationUpdate, err,
+		func(cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) ([]byte, error) {
+			return (&s1ap.ENBConfigurationUpdateFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
+		}, mme.S1APProcedureENBConfigUpdateFailure)
 }
 
 // enbConfigUpdateOutcomeFor returns an Acknowledge when any updated supported TAs
@@ -78,7 +90,7 @@ func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.Plm
 
 		cause, ok := servedTAICause(req.SupportedTAs, served, tacs)
 		if !ok {
-			out, err = (&s1ap.ENBConfigurationUpdateFailure{Cause: cause}).Marshal()
+			out, err = (&s1ap.ENBConfigurationUpdateFailure{Cause: s1ap.Ptr(cause)}).Marshal()
 			if err != nil {
 				return nil, false, fmt.Errorf("mme: marshal ENB Configuration Update Failure: %w", err)
 			}
@@ -87,7 +99,17 @@ func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn models.Plm
 		}
 	}
 
-	out, err = (&s1ap.ENBConfigurationUpdateAcknowledge{}).Marshal()
+	ack := &s1ap.ENBConfigurationUpdateAcknowledge{}
+
+	// §10.3.4.2 reports in the response message of the procedure where it has one.
+	if diag := req.Diagnostics(); diag.ReportRequired() {
+		ack.CriticalityDiagnostics = &s1ap.CriticalityDiagnostics{
+			ProcedureCriticality:      s1ap.Ptr(s1ap.ProcedureCriticality(s1ap.ProcENBConfigurationUpdate)),
+			IEsCriticalityDiagnostics: diag.Report(),
+		}
+	}
+
+	out, err = ack.Marshal()
 	if err != nil {
 		return nil, false, fmt.Errorf("mme: marshal ENB Configuration Update Acknowledge: %w", err)
 	}

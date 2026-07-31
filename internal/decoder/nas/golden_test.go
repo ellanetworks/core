@@ -17,11 +17,7 @@ import (
 	"github.com/ellanetworks/core/nas/nastest"
 )
 
-// updateGolden regenerates the golden JSON fixtures: `go test ./internal/decoder/nas/
-// -run TestDecoderGolden -update`. It locks the decoder's JSON output so the migration
-// off free5gc can be proven byte-for-byte unchanged (spec_nas.md). The corpus is built
-// with free5gc; the decoder under test is what the migration replaces, so this doubles
-// as a free5gc↔fgs interop check.
+// Regenerate with: go test ./internal/decoder/nas/ -run TestDecoderGolden -update
 var updateGolden = flag.Bool("update", false, "regenerate decoder golden JSON fixtures")
 
 func mustEnc(t *testing.T, fn func() ([]byte, error)) []byte {

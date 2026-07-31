@@ -12,23 +12,16 @@ import (
 	"unicode/utf8"
 )
 
-// ---- Field classification ---------------------------------------------------
-
-// structType holds a parsed Go struct with classified fields.
 type structType struct {
 	name   string
 	named  *types.Named
 	fields []fieldInfo
-	// extSeq is true when the struct has a placeholder field tagged
-	// `per:"extseq"`, marking the type as extensible ("...") without any
-	// actual extension additions.
+	// extSeq marks the type extensible ("...") with no extension additions.
 	extSeq bool
 }
 
-// parseStruct inspects a Go struct type, classifies each field, and returns a
-// structType ready for code emission. Fields with `per:"-"` are skipped.
-// Fields with `per:"extseq"` are placeholder markers that set the extSeq flag
-// and are not included in the field list.
+// parseStruct classifies each field for emission. Fields tagged `per:"-"` or
+// `per:"extseq"` are excluded from the field list.
 func (g *generator) parseStruct(name string, named *types.Named, s *types.Struct) (*structType, error) {
 	st := &structType{name: name, named: named}
 
@@ -62,7 +55,6 @@ func (g *generator) parseStruct(name string, named *types.Named, s *types.Struct
 	return st, nil
 }
 
-// fieldKind classifies a struct field for PER emission.
 type fieldKind int
 
 const (
@@ -76,61 +68,101 @@ const (
 	kindDelegate                   // named type with MarshalPER/UnmarshalPER
 	kindString                     // string (UTF8String etc.)
 	kindREAL                       // float64
+	kindEnum                       // int-typed field tagged ENUMERATED
 )
 
-// fieldInfo holds the parsed classification of one struct field.
 type fieldInfo struct {
 	name string
 	tag  FieldTag
 	has  bool // whether a per: tag was present
 
-	fieldIdx int // unique index within the struct for variable name uniqueness
+	fieldIdx int // index within the struct, used to make local variable names unique
 
 	kind fieldKind
 
-	// For kindConstrainedInt / kindUnconstrainedInt:
 	boundsExpr string // e.g. `per.Bounds{LB: 0, UB: 255, HasLB: true, HasUB: true}`
 
-	// For kindOctetString / kindBitString:
+	enumRoot int64
+	enumExt  bool
+
+	// charTypeExpr is the per.Char* constant for a known-multiplier string
+	// type, or "" for UTF8String and untyped strings.
+	charTypeExpr string
+
 	sizeLB, sizeUB       int64
 	hasSizeLB, hasSizeUB bool
 	sizeExt              bool
 
-	// For kindSequenceOf / kindDelegate:
-	elemType types.Type
-	// For kindDelegate (value or pointer receiver):
+	elemType        types.Type
 	delegateNamed   *types.Named
-	delegateIsValue bool // true: value receiver MarshalPER; false: pointer
+	delegateIsValue bool // value receiver MarshalPER, else pointer receiver
 
-	// Whether this field is OPTIONAL (pointer) in the SEQUENCE.
 	isOptional bool
-	// Whether this field has a DEFAULT value.
 	hasDefault bool
+	isSkip     bool
+	// noDeref marks an OPTIONAL field whose absence is a nil slice rather than
+	// a nil pointer, so the value is used without dereferencing.
+	noDeref bool
 
-	// Go type spelling (for local variables in decode).
 	typeStr string
 }
 
-// classifyField inspects a struct field and its tag, returning an emission plan.
 func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error) {
 	fi := fieldInfo{name: f.Name(), typeStr: g.goTypeString(f.Type())}
 	fi.tag, fi.has = perTagFromField(f, rawTag)
 
 	ft := f.Type()
 
-	// OPTIONAL: pointer field.
 	if elem, ok := isPointer(ft); ok {
 		fi.isOptional = true
 		ft = elem
 		fi.typeStr = g.goTypeString(ft)
 	}
 
-	// DEFAULT.
+	if fi.has && fi.tag.Skip {
+		fi.isSkip = true
+	}
+
+	// A non-pointer OPTIONAL expresses absence as nil-ness, so the Go type must
+	// be nilable; anything else would emit an `x != nil` that does not compile.
+	if fi.has && fi.tag.Optional && !fi.isOptional {
+		if !isNilable(ft) {
+			return fi, fmt.Errorf("field %s: `optional` requires a pointer or slice type, got %s",
+				f.Name(), g.goTypeString(ft))
+		}
+
+		fi.isOptional = true
+		fi.noDeref = true
+	}
+
 	if fi.has && fi.tag.DefaultExpr != "" {
 		fi.hasDefault = true
 	}
 
+	// A named type with a hand-written MarshalPER always delegates, even when
+	// its underlying type would classify as a primitive (e.g. a semantic
+	// integer encoded as an OCTET STRING on the wire).
+	if named, ok := isNamed(ft); ok && !g.willGenerate(named) && g.implementsMarshalPER(named) {
+		fi.kind = kindDelegate
+		fi.delegateNamed = named
+		fi.delegateIsValue = true
+
+		return fi, nil
+	}
+
 	switch {
+	case fi.has && fi.tag.Name == "ENUMERATED":
+		if !isBasicInt(ft) && isNamedInt(ft) == nil {
+			return fi, fmt.Errorf("field %s: ENUMERATED requires an integer type, got %s", f.Name(), g.goTypeString(ft))
+		}
+
+		if !fi.tag.HasRangeUB || (fi.tag.HasRangeLB && fi.tag.RangeLB != 0) {
+			return fi, fmt.Errorf("field %s: ENUMERATED requires range:0..N for N+1 root values", f.Name())
+		}
+
+		fi.kind = kindEnum
+		fi.enumRoot = fi.tag.RangeUB + 1
+		fi.enumExt = fi.tag.RangeExtensible
 	case isBool(ft):
 		fi.kind = kindBool
 	case isByteSlice(ft):
@@ -156,7 +188,6 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 			fi.boundsExpr = "per.Bounds{}"
 		}
 	case isNamedInt(ft) != nil:
-		// Named integer type: use range tag if present, else unconstrained.
 		fi.boundsExpr = g.boundsExprFromTag(fi.tag)
 		if fi.boundsExpr != "" {
 			fi.kind = kindConstrainedInt
@@ -166,10 +197,15 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 		}
 	case isString(ft):
 		fi.kind = kindString
+		if fi.has {
+			fi.sizeLB, fi.sizeUB = fi.tag.SizeLB, fi.tag.SizeUB
+			fi.hasSizeLB, fi.hasSizeUB = fi.tag.HasSizeLB, fi.tag.HasSizeUB
+			fi.sizeExt = fi.tag.SizeExtensible
+			fi.charTypeExpr = charTypeExprFromName(fi.tag.Name)
+		}
 	case isFloat64(ft):
 		fi.kind = kindREAL
 	default:
-		// Try named type with generated methods (delegate).
 		if named, ok := isNamed(ft); ok {
 			if g.implementsMarshalPER(named) {
 				fi.kind = kindDelegate
@@ -177,7 +213,7 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 				fi.delegateIsValue = true
 			}
 		}
-		// Try slice of delegatable type (SEQUENCE OF).
+
 		if elem, ok := isSlice(ft); ok {
 			if enamed, ok2 := isNamed(elem); ok2 && g.implementsMarshalPER(enamed) {
 				fi.kind = kindSequenceOf
@@ -206,8 +242,28 @@ func (g *generator) classifyField(f *types.Var, rawTag string) (fieldInfo, error
 	return fi, nil
 }
 
-// boundsExprFromTag builds a per.Bounds literal from a range tag, or "" if no
-// range constraint is present.
+// charTypeExprFromName returns "" for UTF8String and unnamed strings, which
+// encode 8 bits per character rather than a known multiplier.
+func charTypeExprFromName(name string) string {
+	switch name {
+	case "NumericString":
+		return "per.CharNumericString"
+	case "PrintableString":
+		return "per.CharPrintableString"
+	case "VisibleString":
+		return "per.CharVisibleString"
+	case "IA5String":
+		return "per.CharIA5String"
+	case "BMPString":
+		return "per.CharBMPString"
+	case "UniversalString":
+		return "per.CharUniversalString"
+	default:
+		return ""
+	}
+}
+
+// boundsExprFromTag returns "" when the tag carries no range constraint.
 func (g *generator) boundsExprFromTag(tag FieldTag) string {
 	if !tag.HasRangeLB && !tag.HasRangeUB && !tag.RangeExtensible {
 		return ""
@@ -237,7 +293,6 @@ func (g *generator) boundsExprFromTag(tag FieldTag) string {
 	return sb.String()
 }
 
-// isBasicInt reports whether t is a predeclared integer basic type.
 func isBasicInt(t types.Type) bool {
 	b, ok := t.(*types.Basic)
 	if !ok {
@@ -254,9 +309,6 @@ func isBasicInt(t types.Type) bool {
 	}
 }
 
-// ---- Helpers for type inspection -------------------------------------------
-
-// perTagFromField extracts the `per:` key from a struct field's tag.
 func perTagFromField(_ *types.Var, rawTag string) (FieldTag, bool) {
 	tag := structTagGet(rawTag, "per")
 	if tag == "" {
@@ -274,7 +326,6 @@ func perTagFromField(_ *types.Var, rawTag string) (FieldTag, bool) {
 // structTagGet reimplements reflect.StructTag.Get without reflect.
 func structTagGet(rawTag, key string) string {
 	for rawTag != "" {
-		// Skip leading spaces.
 		i := 0
 		for i < len(rawTag) && rawTag[i] == ' ' {
 			i++
@@ -284,7 +335,7 @@ func structTagGet(rawTag, key string) string {
 		if rawTag == "" {
 			break
 		}
-		// Scan to colon.
+
 		i = 0
 		for i < len(rawTag) && rawTag[i] > ' ' && rawTag[i] != ':' && rawTag[i] != '"' {
 			i++
@@ -321,26 +372,21 @@ func structTagGet(rawTag, key string) string {
 	return ""
 }
 
-// isBool reports whether t is the predeclared bool type.
 func isBool(t types.Type) bool {
 	b, ok := t.(*types.Basic)
 	return ok && b.Kind() == types.Bool
 }
 
-// isString reports whether t is the predeclared string type.
 func isString(t types.Type) bool {
 	b, ok := t.(*types.Basic)
 	return ok && b.Kind() == types.String
 }
 
-// isFloat64 reports whether t is float64.
 func isFloat64(t types.Type) bool {
 	b, ok := t.(*types.Basic)
 	return ok && b.Kind() == types.Float64
 }
 
-// isNamedInt reports whether t is a named type whose underlying is a basic
-// integer kind. Returns the named type or nil.
 func isNamedInt(t types.Type) *types.Named {
 	n, ok := t.(*types.Named)
 	if !ok {
@@ -362,7 +408,6 @@ func isNamedInt(t types.Type) *types.Named {
 	}
 }
 
-// isByteSlice reports whether t is []byte or []uint8.
 func isByteSlice(t types.Type) bool {
 	s, ok := t.(*types.Slice)
 	if !ok {
@@ -374,7 +419,6 @@ func isByteSlice(t types.Type) bool {
 	return ok && b.Kind() == types.Byte
 }
 
-// isBoolSlice reports whether t is []bool.
 func isBoolSlice(t types.Type) bool {
 	s, ok := t.(*types.Slice)
 	if !ok {
@@ -384,7 +428,6 @@ func isBoolSlice(t types.Type) bool {
 	return isBool(s.Elem())
 }
 
-// isPointer reports whether t is a pointer and returns the element type.
 func isPointer(t types.Type) (elem types.Type, ok bool) {
 	p, ok := t.(*types.Pointer)
 	if !ok {
@@ -394,7 +437,17 @@ func isPointer(t types.Type) (elem types.Type, ok bool) {
 	return p.Elem(), true
 }
 
-// isSlice reports whether t is a slice and returns the element type.
+// isNilable judges named types by their underlying type, so a defined slice
+// type such as `type TransportLayerAddress []byte` qualifies.
+func isNilable(t types.Type) bool {
+	switch t.Underlying().(type) {
+	case *types.Slice, *types.Pointer, *types.Map, *types.Interface:
+		return true
+	default:
+		return false
+	}
+}
+
 func isSlice(t types.Type) (elem types.Type, ok bool) {
 	s, ok := t.(*types.Slice)
 	if !ok {
@@ -404,34 +457,27 @@ func isSlice(t types.Type) (elem types.Type, ok bool) {
 	return s.Elem(), true
 }
 
-// isNamed reports whether t is a named type (returns it).
 func isNamed(t types.Type) (*types.Named, bool) {
 	n, ok := t.(*types.Named)
 	return n, ok
 }
 
-// implementsMarshalPER reports whether the named type has (or will have) a
-// MarshalPER method — either already present in source or generated by pergen.
 func (g *generator) implementsMarshalPER(named *types.Named) bool {
-	if hasValueMethod(named, "MarshalPER") || hasPointerMethod(named, "MarshalPER") {
+	if hasDeclaredMethod(named, "MarshalPER") {
 		return true
 	}
 
 	return g.willGenerate(named)
 }
 
-// implementsUnmarshalPER reports whether *named has (or will have) an
-// UnmarshalPER method.
 func (g *generator) implementsUnmarshalPER(named *types.Named) bool {
-	if hasPointerMethod(named, "UnmarshalPER") {
+	if hasDeclaredMethod(named, "UnmarshalPER") {
 		return true
 	}
 
 	return g.willGenerate(named)
 }
 
-// willGenerate reports whether the named type is in the generator's set of
-// types that will get generated methods in this run.
 func (g *generator) willGenerate(named *types.Named) bool {
 	if g.genTypes == nil {
 		return false
@@ -440,10 +486,11 @@ func (g *generator) willGenerate(named *types.Named) bool {
 	return g.genTypes[named.Obj().Name()]
 }
 
-func hasValueMethod(named *types.Named, name string) bool {
-	ms := types.NewMethodSet(named)
-	for method := range ms.Methods() {
-		if method.Obj().Name() == name {
+// hasDeclaredMethod excludes methods promoted from an embedded type:
+// delegating to a promoted codec would encode only the embedded field.
+func hasDeclaredMethod(named *types.Named, name string) bool {
+	for method := range named.Methods() {
+		if method.Name() == name {
 			return true
 		}
 	}
@@ -451,19 +498,7 @@ func hasValueMethod(named *types.Named, name string) bool {
 	return false
 }
 
-func hasPointerMethod(named *types.Named, name string) bool {
-	ms := types.NewMethodSet(types.NewPointer(named))
-	for method := range ms.Methods() {
-		if method.Obj().Name() == name {
-			return true
-		}
-	}
-
-	return false
-}
-
-// goTypeString returns the Go source spelling of a types.Type in the current
-// package (unqualified for same-package named types).
+// goTypeString spells t as Go source, unqualified for same-package types.
 func (g *generator) goTypeString(t types.Type) string {
 	return types.TypeString(t, func(p *types.Package) string {
 		if g.pkg != nil && p.Path() == g.pkg.Types.Path() {
@@ -474,7 +509,6 @@ func (g *generator) goTypeString(t types.Type) string {
 	})
 }
 
-// receiverName returns a short receiver variable name for a type name.
 func receiverName(typeName string) string {
 	if typeName == "" {
 		return "v"
@@ -486,5 +520,4 @@ func receiverName(typeName string) string {
 	return string(lo) + typeName[size:]
 }
 
-// perImportPath is the import path of the runtime per package.
-const perImportPath = "github.com/ellanetworks/core/internal/per"
+const perImportPath = "github.com/ellanetworks/core/per"

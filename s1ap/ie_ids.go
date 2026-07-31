@@ -15,7 +15,7 @@ const (
 	idERABAdmittedList                          ProtocolIEID = 18
 	idERABFailedToSetupListHOReqAck             ProtocolIEID = 19
 	idERABAdmittedItem                          ProtocolIEID = 20
-	idERABToBeSetupItemHOReq                    ProtocolIEID = 26
+	idERABToBeSetupItemHOReq                    ProtocolIEID = 27
 	idERABToBeSetupListBearerSUReq              ProtocolIEID = 16
 	idERABToBeSetupItemBearerSUReq              ProtocolIEID = 17
 	idERABToBeSwitchedDLList                    ProtocolIEID = 22
@@ -71,7 +71,7 @@ const (
 	idServedGUMMEIs                             ProtocolIEID = 105
 	idUESecurityCapabilities                    ProtocolIEID = 107
 	idCNDomain                                  ProtocolIEID = 109
-	idUERadioCapabilityForPaging                ProtocolIEID = 117
+	idUERadioCapabilityForPaging                ProtocolIEID = 198
 	idRequestType                               ProtocolIEID = 98
 	idRRCEstablishmentCause                     ProtocolIEID = 134
 	idDefaultPagingDRX                          ProtocolIEID = 137

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/lmf/lpp/lpptype"
 	"github.com/ellanetworks/core/internal/lmf/lpp/models"
-	"github.com/ellanetworks/core/internal/per"
+	"github.com/ellanetworks/core/per"
 )
 
 // Decoder parses unaligned-PER bytes into an LPP-Message.

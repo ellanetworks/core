@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/decoder/eps"
 	"github.com/ellanetworks/core/internal/decoder/utils"
@@ -219,6 +220,15 @@ func rrcCauseToEnum(c s1ap.RRCEstablishmentCause) utils.EnumField {
 // criticality.
 func ie(id int64, crit s1ap.Criticality, value any) IE {
 	return IE{ID: ieEnum(id), Criticality: criticalityToEnum(crit), Value: value}
+}
+
+// ueIDText renders a UE S1AP ID for a message summary, "?" when the IE was absent.
+func ueIDText[T ~uint32](id *T) string {
+	if id == nil {
+		return "?"
+	}
+
+	return strconv.FormatUint(uint64(*id), 10)
 }
 
 // rawIEValue renders an unmodeled IE's open-type contents (TS 36.413 §9.3) as

@@ -8,24 +8,14 @@ import (
 	"strings"
 )
 
-// Config holds parsed command-line flags for pergen.
 type Config struct {
-	// patterns are the Go package patterns to load (defaults to ".").
 	patterns []string
-	// output is the path to the generated file (defaults to "per_gen.go").
-	output string
-	// types restricts generation to the named types (comma-separated). Empty = all.
-	types []string
-	// suffix is appended to the generated method names (default "").
+	output   string
+	// types restricts generation to the named types; empty means all.
+	types  []string
 	suffix string
 }
 
-// parseFlags parses the pergen command-line. Supported flags:
-//
-//	-o <file>           output file path (default "per_gen.go")
-//	-type <a,b>         restrict to types
-//	-suffix <s>         method suffix (e.g. "Unaligned")
-//	patterns            package patterns (default ".")
 func parseFlags(args []string) (Config, error) {
 	cfg := Config{output: "per_gen.go"}
 	fs := flag.NewFlagSet("pergen", flag.ContinueOnError)
@@ -47,7 +37,6 @@ func parseFlags(args []string) (Config, error) {
 	return cfg, nil
 }
 
-// commaSliceFlag implements flag.Value for a comma-separated list.
 type commaSliceFlag struct {
 	p *[]string
 }

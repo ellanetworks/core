@@ -50,8 +50,8 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 		ENBUES1APID:           1001,
 		NASPDU:                s1ap.NASPDU(wire),
 		TAI:                   s1ap.TAI{PLMNIdentity: plmnID, TAC: 1},
-		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1},
-		RRCEstablishmentCause: s1ap.RRCCauseEmergency,
+		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1}),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseEmergency),
 		STMSI:                 &s1ap.STMSI{MMEC: code, MTMSI: mtmsi},
 	}
 
@@ -114,8 +114,8 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 		ENBUES1APID:           1001,
 		NASPDU:                s1ap.NASPDU(wire),
 		TAI:                   s1ap.TAI{PLMNIdentity: plmnID, TAC: 1},
-		EUTRANCGI:             s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1},
-		RRCEstablishmentCause: s1ap.RRCCauseEmergency,
+		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1}),
+		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseEmergency),
 		STMSI:                 &s1ap.STMSI{MMEC: code, MTMSI: mtmsi},
 	}
 

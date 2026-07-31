@@ -38,8 +38,6 @@ func TestInitialUEMessageGoldenDecode(t *testing.T) {
 		t.Fatal("NAS-PDU is empty")
 	}
 
-	// Semantic round-trip: re-encoding (including preserved unknown IEs) and
-	// re-decoding must reproduce the modeled fields.
 	b2, err := msg.Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +54,8 @@ func TestInitialUEMessageGoldenDecode(t *testing.T) {
 	}
 
 	if msg2.ENBUES1APID != msg.ENBUES1APID || msg2.TAI != msg.TAI ||
-		msg2.EUTRANCGI != msg.EUTRANCGI || msg2.RRCEstablishmentCause != msg.RRCEstablishmentCause ||
+		deref(msg2.EUTRANCGI) != deref(msg.EUTRANCGI) ||
+		deref(msg2.RRCEstablishmentCause) != deref(msg.RRCEstablishmentCause) ||
 		!bytes.Equal(msg2.NASPDU, msg.NASPDU) {
 		t.Fatalf("semantic round-trip mismatch:\n  %+v\n  %+v", msg, msg2)
 	}
@@ -69,8 +68,8 @@ func TestNASTransportRoundTrips(t *testing.T) {
 
 	t.Run("InitialUEMessage", func(t *testing.T) {
 		in := &InitialUEMessage{
-			ENBUES1APID: 1, NASPDU: nas, TAI: tai, EUTRANCGI: cgi,
-			RRCEstablishmentCause: RRCCauseMOSignalling,
+			ENBUES1APID: 1, NASPDU: nas, TAI: tai, EUTRANCGI: &cgi,
+			RRCEstablishmentCause: Ptr(RRCCauseMOSignalling),
 		}
 
 		out, err := roundTripInitialUE(t, in)
@@ -78,8 +77,8 @@ func TestNASTransportRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.ENBUES1APID != in.ENBUES1APID || out.TAI != in.TAI || out.EUTRANCGI != in.EUTRANCGI ||
-			out.RRCEstablishmentCause != in.RRCEstablishmentCause || !bytes.Equal(out.NASPDU, in.NASPDU) {
+		if out.ENBUES1APID != in.ENBUES1APID || out.TAI != in.TAI || deref(out.EUTRANCGI) != deref(in.EUTRANCGI) ||
+			deref(out.RRCEstablishmentCause) != deref(in.RRCEstablishmentCause) || !bytes.Equal(out.NASPDU, in.NASPDU) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 
@@ -90,8 +89,8 @@ func TestNASTransportRoundTrips(t *testing.T) {
 
 	t.Run("InitialUEMessageWithSTMSI", func(t *testing.T) {
 		in := &InitialUEMessage{
-			ENBUES1APID: 9, NASPDU: NASPDU{0xc7, 0x00, 0x12, 0x34}, TAI: tai, EUTRANCGI: cgi,
-			RRCEstablishmentCause: RRCCauseMOSignalling,
+			ENBUES1APID: 9, NASPDU: NASPDU{0xc7, 0x00, 0x12, 0x34}, TAI: tai, EUTRANCGI: &cgi,
+			RRCEstablishmentCause: Ptr(RRCCauseMOSignalling),
 			STMSI:                 &STMSI{MMEC: 0x07, MTMSI: 0xdeadbeef},
 		}
 
@@ -111,8 +110,8 @@ func TestNASTransportRoundTrips(t *testing.T) {
 
 	t.Run("InitialUEMessageWithGUMMEI", func(t *testing.T) {
 		in := &InitialUEMessage{
-			ENBUES1APID: 3, NASPDU: nas, TAI: tai, EUTRANCGI: cgi,
-			RRCEstablishmentCause: RRCCauseMOSignalling,
+			ENBUES1APID: 3, NASPDU: nas, TAI: tai, EUTRANCGI: &cgi,
+			RRCEstablishmentCause: Ptr(RRCCauseMOSignalling),
 			GUMMEI:                &GUMMEI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, MMEGroupID: MMEGroupID{0x00, 0x01}, MMECode: 0x07},
 		}
 
@@ -127,7 +126,7 @@ func TestNASTransportRoundTrips(t *testing.T) {
 	})
 
 	t.Run("UplinkNASTransport", func(t *testing.T) {
-		in := &UplinkNASTransport{MMEUES1APID: 42, ENBUES1APID: 1, NASPDU: nas, EUTRANCGI: cgi, TAI: tai}
+		in := &UplinkNASTransport{MMEUES1APID: 42, ENBUES1APID: 1, NASPDU: nas, EUTRANCGI: &cgi, TAI: &tai}
 
 		b, err := in.Marshal()
 		if err != nil {
@@ -142,7 +141,8 @@ func TestNASTransportRoundTrips(t *testing.T) {
 		}
 
 		if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID ||
-			out.TAI != in.TAI || out.EUTRANCGI != in.EUTRANCGI || !bytes.Equal(out.NASPDU, in.NASPDU) {
+			deref(out.TAI) != deref(in.TAI) || deref(out.EUTRANCGI) != deref(in.EUTRANCGI) ||
+			!bytes.Equal(out.NASPDU, in.NASPDU) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})

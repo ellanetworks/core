@@ -6,60 +6,126 @@ package s1ap
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/s1ap/aper"
+	"github.com/ellanetworks/core/per"
 )
 
-// ErrorIndication is the ERROR INDICATION message (TS 36.413). It
-// reports a protocol error not handled by a procedure-specific failure message.
-// All IEs are optional.
+// TS 36.413 §9.1.8.3.
 type ErrorIndication struct {
 	MMEUES1APID            *MMEUES1APID
 	ENBUES1APID            *ENBUES1APID
 	Cause                  *Cause
 	CriticalityDiagnostics *CriticalityDiagnostics
 
-	unmodeledIEs
+	messageMeta
 }
 
-func (m *ErrorIndication) encodeBody(w *aper.Writer) error {
-	w.WriteSequencePreamble(true, false, nil)
+var errorIndicationIEs = []ieSpec[ErrorIndication]{
+	{
+		id: idMMEUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				v   MMEUES1APID
+			)
+			if err := perIEDecode(raw, &v); err != nil {
+				return fmt.Errorf("s1ap: ErrorIndication MME-UE-S1AP-ID: %w", err)
+			}
 
-	var fields []ieField
+			m.MMEUES1APID = &v
 
-	if m.MMEUES1APID != nil {
-		id := *m.MMEUES1APID
-		fields = append(fields, ieField{id: idMMEUES1APID, crit: CriticalityIgnore, enc: id.encode})
-	}
+			return err
+		},
+		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+			if m.MMEUES1APID == nil {
+				return nil, false
+			}
 
-	if m.ENBUES1APID != nil {
-		id := *m.ENBUES1APID
-		fields = append(fields, ieField{id: idENBUES1APID, crit: CriticalityIgnore, enc: id.encode})
-	}
+			return m.MMEUES1APID, true
+		},
+	},
+	{
+		id: idENBUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				v   ENBUES1APID
+			)
+			if err := perIEDecode(raw, &v); err != nil {
+				return fmt.Errorf("s1ap: ErrorIndication eNB-UE-S1AP-ID: %w", err)
+			}
 
-	if m.Cause != nil {
-		c := *m.Cause
-		fields = append(fields, ieField{id: idCause, crit: CriticalityIgnore, enc: c.encode})
-	}
+			m.ENBUES1APID = &v
 
-	if m.CriticalityDiagnostics != nil {
-		d := *m.CriticalityDiagnostics
-		fields = append(fields, ieField{id: idCriticalityDiagnostics, crit: CriticalityIgnore, enc: d.encode})
-	}
+			return err
+		},
+		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+			if m.ENBUES1APID == nil {
+				return nil, false
+			}
 
-	for _, e := range m.unknownIEs {
-		fields = append(fields, e.field())
-	}
+			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idCause, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				v   Cause
+			)
+			if err := perIEDecode(raw, &v); err != nil {
+				return fmt.Errorf("s1ap: ErrorIndication Cause: %w", err)
+			}
 
-	return encodeIEContainer(w, fields)
+			m.Cause = &v
+
+			return err
+		},
+		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+			if m.Cause == nil {
+				return nil, false
+			}
+
+			return m.Cause, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+			var (
+				err error
+				v   CriticalityDiagnostics
+			)
+			if err := perIEDecode(raw, &v); err != nil {
+				return fmt.Errorf("s1ap: ErrorIndication CriticalityDiagnostics: %w", err)
+			}
+
+			m.CriticalityDiagnostics = &v
+
+			return err
+		},
+		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
+	},
 }
 
-// Marshal encodes the message as a complete S1AP-PDU.
+func (m *ErrorIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcErrorIndication, errorIndicationIEs, m)
+}
+
 func (m *ErrorIndication) Marshal() ([]byte, error) {
-	var w aper.Writer
+	w := per.NewWriter()
 
-	if err := m.encodeBody(&w); err != nil {
+	if err := m.encodeBody(w, per.Aligned); err != nil {
 		return nil, err
 	}
+
+	w.AlignToByte()
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcErrorIndication,
@@ -68,65 +134,6 @@ func (m *ErrorIndication) Marshal() ([]byte, error) {
 	})
 }
 
-// ParseErrorIndication decodes the message from an initiatingMessage open-type
-// payload.
 func ParseErrorIndication(value []byte) (*ErrorIndication, error) {
-	r := aper.NewReader(value)
-
-	extPresent, _, err := r.ReadSequencePreamble(true, 0)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: ErrorIndication preamble: %w", err)
-	}
-
-	fields, err := decodeIEContainer(r)
-	if err != nil {
-		return nil, err
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return nil, err
-		}
-	}
-
-	m := &ErrorIndication{}
-
-	for _, f := range fields {
-		sub := aper.NewReader(f.value)
-
-		switch f.id {
-		case idMMEUES1APID:
-			v, err := decodeMMEUES1APID(sub)
-			if err != nil {
-				return nil, fmt.Errorf("s1ap: ErrorIndication MME-UE-S1AP-ID: %w", err)
-			}
-
-			m.MMEUES1APID = &v
-		case idENBUES1APID:
-			v, err := decodeENBUES1APID(sub)
-			if err != nil {
-				return nil, fmt.Errorf("s1ap: ErrorIndication eNB-UE-S1AP-ID: %w", err)
-			}
-
-			m.ENBUES1APID = &v
-		case idCause:
-			v, err := decodeCause(sub)
-			if err != nil {
-				return nil, fmt.Errorf("s1ap: ErrorIndication Cause: %w", err)
-			}
-
-			m.Cause = &v
-		case idCriticalityDiagnostics:
-			v, err := decodeCriticalityDiagnostics(sub)
-			if err != nil {
-				return nil, fmt.Errorf("s1ap: ErrorIndication CriticalityDiagnostics: %w", err)
-			}
-
-			m.CriticalityDiagnostics = &v
-		default:
-			m.unknownIEs = append(m.unknownIEs, f)
-		}
-	}
-
-	return m, nil
+	return parseMessageBody[ErrorIndication](ProcErrorIndication, TriggeringInitiatingMessage, errorIndicationIEs, value)
 }

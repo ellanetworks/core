@@ -51,7 +51,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	handleDetachAccept(context.Background(), m, ue)
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
@@ -167,7 +167,7 @@ func TestDetachSwitchOff(t *testing.T) {
 		t.Fatalf("unexpected release command IDs: %+v", cmd.UES1APIDs)
 	}
 
-	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7}
+	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}
 
 	b, _ := complete.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)

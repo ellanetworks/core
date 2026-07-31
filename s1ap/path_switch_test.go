@@ -15,9 +15,9 @@ func sampledPathSwitchRequest() *PathSwitchRequest {
 			{ERABID: 5, TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3}, GTPTEID: 0x01020304},
 		},
 		SourceMMEUES1APID:      0x020000bf,
-		EUTRANCGI:              EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x123c601},
-		TAI:                    TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
-		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000},
+		EUTRANCGI:              Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x123c601}),
+		TAI:                    Ptr(TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
+		UESecurityCapabilities: Ptr(UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000}),
 	}
 }
 
@@ -50,11 +50,11 @@ func TestPathSwitchRequestRoundTrip(t *testing.T) {
 		t.Fatalf("UE IDs: enb=%d srcmme=%#x", out.ENBUES1APID, out.SourceMMEUES1APID)
 	}
 
-	if out.EUTRANCGI != in.EUTRANCGI || out.TAI != in.TAI {
+	if deref(out.EUTRANCGI) != deref(in.EUTRANCGI) || deref(out.TAI) != deref(in.TAI) {
 		t.Fatalf("location: cgi=%+v tai=%+v", out.EUTRANCGI, out.TAI)
 	}
 
-	if out.UESecurityCapabilities != in.UESecurityCapabilities {
+	if deref(out.UESecurityCapabilities) != deref(in.UESecurityCapabilities) {
 		t.Fatalf("security capabilities = %+v, want %+v", out.UESecurityCapabilities, in.UESecurityCapabilities)
 	}
 
@@ -91,8 +91,8 @@ func TestPathSwitchRequestAcknowledgeRoundTrip(t *testing.T) {
 	}
 
 	in := &PathSwitchRequestAcknowledge{
-		MMEUES1APID:               0x020000bf,
-		ENBUES1APID:               2,
+		MMEUES1APID:               Ptr(MMEUES1APID(0x020000bf)),
+		ENBUES1APID:               Ptr(ENBUES1APID(2)),
 		UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 3, NextHopParameter: nh},
 		UESecurityCapabilities:    &UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000},
@@ -118,8 +118,8 @@ func TestPathSwitchRequestAcknowledgeRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID {
-		t.Fatalf("UE IDs: mme=%#x enb=%d", out.MMEUES1APID, out.ENBUES1APID)
+	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) {
+		t.Fatalf("UE IDs: mme=%#x enb=%d", deref(out.MMEUES1APID), deref(out.ENBUES1APID))
 	}
 
 	if out.SecurityContext != in.SecurityContext {
@@ -139,8 +139,8 @@ func TestPathSwitchRequestAcknowledgeRoundTrip(t *testing.T) {
 // IEs (no UE-AMBR, no replayed capabilities).
 func TestPathSwitchRequestAcknowledgeMinimal(t *testing.T) {
 	in := &PathSwitchRequestAcknowledge{
-		MMEUES1APID:     7,
-		ENBUES1APID:     2,
+		MMEUES1APID:     Ptr(MMEUES1APID(7)),
+		ENBUES1APID:     Ptr(ENBUES1APID(2)),
 		SecurityContext: SecurityContext{NextHopChainingCount: 1},
 	}
 
@@ -171,9 +171,9 @@ func TestPathSwitchRequestAcknowledgeMinimal(t *testing.T) {
 // TestPathSwitchRequestFailureRoundTrip covers the FAILURE message.
 func TestPathSwitchRequestFailureRoundTrip(t *testing.T) {
 	in := &PathSwitchRequestFailure{
-		MMEUES1APID: 7,
-		ENBUES1APID: 2,
-		Cause:       Cause{Group: CauseGroupRadioNetwork, Value: 4},
+		MMEUES1APID: Ptr(MMEUES1APID(7)),
+		ENBUES1APID: Ptr(ENBUES1APID(2)),
+		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 4}),
 	}
 
 	b, err := in.Marshal()
@@ -196,7 +196,8 @@ func TestPathSwitchRequestFailureRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || out.Cause != in.Cause {
+	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) ||
+		deref(out.Cause) != deref(in.Cause) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
 	}
 }
