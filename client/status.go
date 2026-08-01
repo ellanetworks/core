@@ -36,6 +36,10 @@ type Status struct {
 	Ready         bool           `json:"ready"`
 	SchemaVersion int            `json:"schemaVersion"`
 	Cluster       *ClusterStatus `json:"cluster,omitempty"`
+
+	// DatapathAttachMode is the mechanism the data plane attached with, empty
+	// until it is up.
+	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
 }
 
 // GetStatus retrieves the current status of the system.

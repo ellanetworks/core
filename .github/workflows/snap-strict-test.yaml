@@ -105,12 +105,12 @@ jobs:
 
       - name: Assert the datapath attached at the requested hook
         run: |
-          sudo snap logs ella-core.cored -n 500 > logs.txt
-          # JSON log line; match the message and the field independently, so
-          # key order does not matter.
-          if ! grep "datapath attached" logs.txt | grep -q "${{ matrix.attach_mode }}"; then
-            echo "::error::datapath did not report attaching at ${{ matrix.attach_mode }}"
-            grep -i "datapath attached" logs.txt || true
+          status="$(curl -sk --max-time 10 https://127.0.0.1:5002/api/v1/status)"
+          mode="$(echo "${status}" | jq -r '.result.datapathAttachMode // ""')"
+          echo "datapath attach mode: ${mode}"
+          if [ "${mode}" != "${{ matrix.attach_mode }}" ]; then
+            echo "::error::datapath attached as '${mode}', want '${{ matrix.attach_mode }}'"
+            sudo snap logs ella-core.cored -n 200 || true
             exit 1
           fi
 

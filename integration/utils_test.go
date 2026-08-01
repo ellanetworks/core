@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -172,9 +173,30 @@ func waitForEllaCoreReady(ctx context.Context, cl *client.Client) error {
 				continue
 			}
 
-			return nil
+			return checkDatapathAttachMode(status.DatapathAttachMode)
 		}
 	}
+}
+
+// checkDatapathAttachMode fails a run whose datapath did not attach the way
+// the environment asked for. The workflows run a matrix over
+// ELLA_ATTACH_MODE; nothing else verifies that the variable reaches the
+// datapath, so a compose file that stopped forwarding it would silently
+// collapse every leg of that matrix onto one mode with all tests still green.
+//
+// Fixtures that pin the mode in their config file instead of the environment
+// leave ELLA_ATTACH_MODE unset, and are not checked here.
+func checkDatapathAttachMode(got string) error {
+	want := os.Getenv("ELLA_ATTACH_MODE")
+	if want == "" {
+		return nil
+	}
+
+	if got != want {
+		return fmt.Errorf("datapath attached as %q, want %q (ELLA_ATTACH_MODE)", got, want)
+	}
+
+	return nil
 }
 
 func waitForPatternInContainer(
