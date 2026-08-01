@@ -4,9 +4,7 @@
 package ngap
 
 // pergen loads this package through the root module, which therefore requires
-// and replaces it. Until a consumer imports ngap, `go mod tidy` at the root
-// drops that require as unused and this directive stops resolving; restore the
-// require line to regenerate.
+// and replaces it.
 //go:generate sh -c "cd .. && go run ./cmd/pergen -o ngap/per_gen.go github.com/ellanetworks/core/ngap"
 
 import (
