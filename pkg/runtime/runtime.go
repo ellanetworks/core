@@ -555,6 +555,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
+		DatapathAttachMode:  upfInstance.DatapathAttachMode,
 	}); err != nil {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}

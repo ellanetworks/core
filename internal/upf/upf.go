@@ -69,6 +69,21 @@ type UPF struct {
 	fcCancel   context.CancelFunc
 	fcScanDone chan struct{} // closed when collectExpiredFlows exits
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
+
+	// attachedMode is the mechanism the datapath actually attached with,
+	// which differs from the configured one when config.DatapathChain falls
+	// back. Written once in Start before this struct is returned.
+	attachedMode string
+}
+
+// DatapathAttachMode reports the mechanism the datapath attached with, or ""
+// before the UPF is up.
+func (u *UPF) DatapathAttachMode() string {
+	if u == nil {
+		return ""
+	}
+
+	return u.attachedMode
 }
 
 func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, n6Interface config.N6Interface, attachMode string, masquerade bool, flowact bool) (*UPF, error) {
@@ -149,6 +164,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	}
 
 	upf := &UPF{
+		attachedMode:       attachedMode,
 		n3Link:             n3Link,
 		n6Link:             n6Link,
 		se:                 se,

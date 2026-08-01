@@ -3539,6 +3539,14 @@ components:
           description: >-
             Shared-database schema version this node's binary expects.
             Reported in both standalone and HA modes.
+        datapathAttachMode:
+          type: string
+          enum: [xdp-native, tcx, xdp-generic]
+          description: >-
+            Mechanism the data plane attached with. This is the effective
+            mode, which differs from the configured one when the default
+            chain falls back from driver-level XDP to TCX. Absent until the
+            data plane is attached.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
       required: [version, revision, initialized, ready, schemaVersion]
