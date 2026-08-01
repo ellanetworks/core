@@ -10,6 +10,7 @@ const (
 	idCause                  ProtocolIEID = 15
 	idCriticalityDiagnostics ProtocolIEID = 19
 	idDefaultPagingDRX       ProtocolIEID = 21
+	idFiveGSTMSI             ProtocolIEID = 26
 	idGlobalRANNodeID        ProtocolIEID = 27
 	idPLMNSupportList        ProtocolIEID = 80
 	idRANNodeName            ProtocolIEID = 82

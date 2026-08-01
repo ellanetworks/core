@@ -92,7 +92,7 @@ type STMSI struct {
 }
 
 func stmsi(s s1ap.STMSI) STMSI {
-	return STMSI{MMEC: s.MMEC, MTMSI: s.MTMSI}
+	return STMSI{MMEC: uint8(s.MMEC), MTMSI: uint32(s.MTMSI)}
 }
 
 // UES1APIDs is the UE-associated identity pair (TS 36.413 §9.2.3.13).

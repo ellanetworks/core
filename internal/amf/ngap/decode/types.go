@@ -139,18 +139,6 @@ type NGReset struct {
 	ResetType *ngapType.ResetType
 }
 
-// ErrorIndication is a decoded NGAP ErrorIndication (3GPP TS 38.413). All four
-// IEs are optional-ignore; the decoder never raises a fatal error. TS 38.413
-// requires at least one of Cause or CriticalityDiagnostics, which the decoder
-// does not enforce. AMFUENGAPID/RANUENGAPID are nil for a non-UE-associated
-// Error Indication.
-type ErrorIndication struct {
-	AMFUENGAPID            *int64
-	RANUENGAPID            *int64
-	Cause                  *ngapType.Cause
-	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
-}
-
 // HandoverCancel is a decoded NGAP HandoverCancel (3GPP TS 38.413). AMFUENGAPID
 // and RANUENGAPID are mandatory-reject; Cause is mandatory-ignore (nil when
 // absent or malformed).

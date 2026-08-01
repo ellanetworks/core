@@ -23,6 +23,16 @@ func TestEncodeBodyGolden(t *testing.T) {
 		want string
 	}{
 		{
+			"ErrorIndication",
+			goldErrorIndicationFull().encodeBody,
+			"000004000a400680ffffffffff005540020009000f400162001340087815000000001b40",
+		},
+		{
+			"ErrorIndicationFiveGSTMSI",
+			errorIndicationWithSTMSI().encodeBody,
+			"000004000a400680ffffffffff005540020009000f400162001a40070010c0deadbeef",
+		},
+		{
 			"NGSetupRequest",
 			goldRequest().encodeBody,
 			"000004001b00080002f839100001020052400a0380656c6c612d676e620066001200000000010002f8390001100801020300100015400140",
@@ -51,4 +61,16 @@ func TestEncodeBodyGolden(t *testing.T) {
 			}
 		})
 	}
+}
+
+// errorIndicationWithSTMSI carries the one IE the reference encoder cannot, so
+// its octets are derived from X.691 rather than compared against it. The IE
+// content is 0010c0deadbeef: a two-bit preamble (not extended, iE-Extensions
+// absent), the 10-bit AMF Set ID 0x001, the 6-bit AMF Pointer 0x03, then the
+// four 5G-TMSI octets realigned to the next octet boundary (§16.9, §16.10).
+func errorIndicationWithSTMSI() *ErrorIndication {
+	m := goldErrorIndication()
+	m.FiveGSTMSI = &FiveGSTMSI{AMFSetID: 0x001, AMFPointer: 0x03, FiveGTMSI: 0xdeadbeef}
+
+	return m
 }

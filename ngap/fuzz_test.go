@@ -18,7 +18,10 @@ func FuzzDecodeNoPanic(f *testing.F) {
 	f.Add([]byte{0x00, 0x15, 0x00, 0x02, 0x00, 0x00})
 	f.Add([]byte{0x20, 0x15, 0x00, 0x00})
 
-	for _, g := range []string{goldenNGSetupRequest, goldenNGSetupResponse, goldenNGSetupFailure} {
+	for _, g := range []string{
+		goldenNGSetupRequest, goldenNGSetupResponse, goldenNGSetupFailure,
+		goldenErrorIndication, goldenErrorIndicationFull,
+	} {
 		b, err := hex.DecodeString(g)
 		if err != nil {
 			f.Fatal(err)
@@ -34,6 +37,7 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		_, _ = unmarshalPERValue[SupportedTAList](data)
 		_, _ = unmarshalPERValue[ServedGUAMIList](data)
 		_, _ = unmarshalPERValue[PLMNSupportList](data)
+		_, _ = unmarshalPERValue[FiveGSTMSI](data)
 
 		pdu, err := Unmarshal(data)
 		if err != nil {

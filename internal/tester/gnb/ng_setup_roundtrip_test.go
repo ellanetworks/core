@@ -114,3 +114,48 @@ func (s *stubDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error
 }
 
 func (s *stubDB) NodeID() int { return 0 }
+
+// TestErrorIndicationGNBToAMF drives an ERROR INDICATION the gNB would send
+// after a protocol error, and asserts the AMF accepts it without answering —
+// TS 38.413 §10.3 forbids replying to one, which would loop.
+func TestErrorIndicationGNBToAMF(t *testing.T) {
+	ind := &ngap.ErrorIndication{
+		Cause: ngap.Ptr(ngap.Cause{
+			Group: ngap.CauseGroupProtocol,
+			Value: ngap.CauseProtocolAbstractSyntaxErrorReject,
+		}),
+	}
+
+	raw, err := ind.Marshal()
+	if err != nil {
+		t.Fatalf("gNB could not build Error Indication: %v", err)
+	}
+
+	w := &captureWriter{}
+
+	amfInstance := amf.New(&stubDB{operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, nil)
+
+	radio := &amf.Radio{Conn: w, Log: zap.NewNop()}
+	radio.BindAMFForTest(amfInstance)
+
+	pdu, err := ngap.Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("AMF could not decode the envelope: %v", err)
+	}
+
+	im, ok := pdu.(*ngap.InitiatingMessage)
+	if !ok || im.ProcedureCode != ngap.ProcErrorIndication {
+		t.Fatalf("gNB sent %T, want an Error Indication", pdu)
+	}
+
+	parsed, err := ngap.ParseErrorIndication(im.Value)
+	if err != nil {
+		t.Fatalf("AMF could not parse the Error Indication: %v", err)
+	}
+
+	amfngap.HandleErrorIndication(context.Background(), amfInstance, radio, parsed)
+
+	if len(w.msgs) != 0 {
+		t.Fatalf("AMF answered an Error Indication with %d message(s), want none", len(w.msgs))
+	}
+}

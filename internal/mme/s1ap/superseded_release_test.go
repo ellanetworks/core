@@ -50,7 +50,7 @@ func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMM
 		TAI:                   s1ap.TAI{PLMNIdentity: plmnID, TAC: 1},
 		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1}),
 		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseEmergency),
-		STMSI:                 &s1ap.STMSI{MMEC: code, MTMSI: ue.TmsiForTest()},
+		STMSI:                 &s1ap.STMSI{MMEC: s1ap.MMECode(code), MTMSI: s1ap.MTMSI(ue.TmsiForTest())},
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)

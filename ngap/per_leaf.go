@@ -10,6 +10,7 @@ package ngap
 //go:generate sh -c "cd .. && go run ./cmd/pergen -o ngap/per_gen.go github.com/ellanetworks/core/ngap"
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
@@ -52,6 +53,25 @@ func (t *TAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	*t = TAC(uint32(b[0])<<16 | uint32(b[1])<<8 | uint32(b[2]))
+
+	return nil
+}
+
+func (t FiveGTMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	var b [4]byte
+
+	binary.BigEndian.PutUint32(b[:], uint32(t))
+
+	return per.EncodeOctetString(w, enc, 4, 4, true, true, false, b[:])
+}
+
+func (t *FiveGTMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*t = FiveGTMSI(binary.BigEndian.Uint32(b))
 
 	return nil
 }

@@ -69,7 +69,7 @@ func TestServiceRequestReestablishes(t *testing.T) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -115,7 +115,7 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 	HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 	})
 
 	if len(cc.sent) != 2 {
@@ -182,7 +182,7 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 			HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{
 				ENBUES1APID: 9,
 				NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 			})
 
 			if len(cc.sent) != 2 {
@@ -214,7 +214,7 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 42,
 		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -265,7 +265,7 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(pdu),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -291,7 +291,7 @@ func TestServiceRequestProtocolErrorRejected96(t *testing.T) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(malformed),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 	}
 
 	HandleServiceRequest(context.Background(), m, cc, msg)
@@ -331,7 +331,7 @@ func TestResumeBadMACDoesNotRebindVictim(t *testing.T) {
 	b, err := (&s1ap.InitialUEMessage{
 		ENBUES1APID:           9,
 		NASPDU:                s1ap.NASPDU(pdu),
-		STMSI:                 &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+		STMSI:                 &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 		TAI:                   s1ap.TAI{PLMNIdentity: plmn, TAC: 1},
 		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmn, CellID: 1}),
 		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
@@ -360,7 +360,7 @@ func TestServiceRequestBadMACDoesNotRebindVictim(t *testing.T) {
 	HandleServiceRequest(context.Background(), m, attacker, &s1ap.InitialUEMessage{
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU(pdu),
-		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: binary.BigEndian.Uint32(guti.GUTI.TMSI[:])},
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
 	})
 
 	if ue.Connected() {

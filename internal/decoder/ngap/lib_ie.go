@@ -20,12 +20,15 @@ import (
 // ProtocolIE-ID values the migrated renderers cite (TS 38.413, NGAP-Constants).
 const (
 	idAMFName                ngap.ProtocolIEID = 1
+	idAMFUENGAPID            ngap.ProtocolIEID = 10
 	idCause                  ngap.ProtocolIEID = 15
 	idCriticalityDiagnostics ngap.ProtocolIEID = 19
 	idDefaultPagingDRX       ngap.ProtocolIEID = 21
+	idFiveGSTMSI             ngap.ProtocolIEID = 26
 	idGlobalRANNodeID        ngap.ProtocolIEID = 27
 	idPLMNSupportList        ngap.ProtocolIEID = 80
 	idRANNodeName            ngap.ProtocolIEID = 82
+	idRANUENGAPID            ngap.ProtocolIEID = 85
 	idRelativeAMFCapacity    ngap.ProtocolIEID = 86
 	idServedGUAMIList        ngap.ProtocolIEID = 96
 	idSupportedTAList        ngap.ProtocolIEID = 102

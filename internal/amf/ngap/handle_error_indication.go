@@ -4,32 +4,109 @@
 package ngap
 
 import (
-	gocontext "context"
+	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
+	"go.uber.org/zap"
 )
 
-func HandleErrorIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.ErrorIndication) {
-	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
-		logger.WithTrace(ctx, ran.Log).Error("[ErrorIndication] both Cause IE and CriticalityDiagnostics IE are nil, should have at least one")
+// emitErrorIndication marshals and sends an ERROR INDICATION.
+func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorIndication) {
+	b, err := ind.Marshal()
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("failed to marshal Error Indication", zap.Error(err))
+
 		return
 	}
 
-	if msg.Cause != nil {
-		logger.WithTrace(ctx, ran.Log).Debug("Error Indication Cause", logger.Cause(causeToString(*msg.Cause)))
+	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, b)
+}
+
+// sendErrorIndication answers a UE-associated message the AMF cannot act on,
+// naming the association it concerns (TS 38.413 §8.4.4.2).
+func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID *ngap.AMFUENGAPID, ranID *ngap.RANUENGAPID, cause ngap.Cause) {
+	c := cause
+	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{AMFUENGAPID: amfID, RANUENGAPID: ranID, Cause: &c})
+}
+
+// sendParseErrorIndication reports a failed decode with an ERROR INDICATION.
+//
+// An abstract syntax error carries the cause and the per-IE diagnostics the
+// rejection must report (TS 38.413 §10.3.5); where the message is UE
+// associated, the UE NGAP IDs that did decode address it (§8.4.4.2). Octets
+// that did not decode at all leave nothing to cite beyond the procedure
+// (§10.2).
+func sendParseErrorIndication(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode, err error) {
+	trigger := ngap.TriggeringInitiatingMessage
+
+	var ase *ngap.AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		crit := ngap.ProcedureCriticality(proc)
+
+		emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
+			Cause: &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolTransferSyntaxError},
+			CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
+				ProcedureCode:        &proc,
+				TriggeringMessage:    &trigger,
+				ProcedureCriticality: &crit,
+			},
+		})
+
+		return
 	}
 
-	// A protocol error on a UE-associated NG connection leaves it in an inconsistent
-	// state. TS 38.413 §8.7 is silent on the receive action; release a named UE to
-	// CM-IDLE so it re-establishes cleanly on its next Service Request.
+	diag := ase.ErrorIndicationDiagnostics()
+	amfID, ranID := ase.UEIDs()
+
+	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
+		AMFUENGAPID:            amfID,
+		RANUENGAPID:            ranID,
+		Cause:                  &ase.Cause,
+		CriticalityDiagnostics: &diag,
+	})
+}
+
+// handleErrorIndication processes an ERROR INDICATION from the gNB
+// (TS 38.413 §8.7.4). A protocol error on a UE-associated NG connection leaves
+// it in an inconsistent state, so if the indication names a known UE the AMF
+// releases it to CM-IDLE, where it re-establishes cleanly on its next Service
+// Request.
+func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.ErrorIndication) {
+	// §9.2.6.5 requires at least one of Cause and Criticality Diagnostics; a
+	// peer sending neither has told us nothing to act on.
+	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
+		logger.WithTrace(ctx, ran.Log).Error("Error Indication carries neither Cause nor Criticality Diagnostics")
+		return
+	}
+
+	fields := make([]zap.Field, 0, 3)
+	if msg.AMFUENGAPID != nil {
+		fields = append(fields, zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)))
+	}
+
+	if msg.RANUENGAPID != nil {
+		fields = append(fields, zap.Uint32("ran-ue-id", uint32(*msg.RANUENGAPID)))
+	}
+
+	if msg.Cause != nil {
+		fields = append(fields, zap.String("cause", msg.Cause.String()))
+	}
+
+	logger.WithTrace(ctx, ran.Log).Warn("Error Indication", fields...)
+
 	if msg.AMFUENGAPID == nil {
 		return
 	}
 
+	// The lookup is scoped to the sending radio: the AMF UE NGAP ID space is
+	// shared across gNBs, so resolving on the id alone would let any gNB tear
+	// down a UE attached through another.
 	ueConn := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if ueConn == nil {
 		return
@@ -37,5 +114,8 @@ func HandleErrorIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf
 
 	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
 
-	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentUnspecified)
+	// The release command still takes the reference decoder's cause constants;
+	// it moves when UE Context Release migrates.
+	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork,
+		ngapType.CauseRadioNetworkPresentUnspecified)
 }

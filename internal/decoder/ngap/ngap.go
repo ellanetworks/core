@@ -164,7 +164,7 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage, raw []byte) NGAP
 	case ngapType.InitiatingMessagePresentUplinkNonUEAssociatedNRPPaTransport:
 		return buildUplinkNonUEAssociatedNRPPaTransport(*initMsg.Value.UplinkNonUEAssociatedNRPPaTransport)
 	case ngapType.InitiatingMessagePresentErrorIndication:
-		return buildErrorIndication(*initMsg.Value.ErrorIndication)
+		return buildErrorIndication(pduValue(raw))
 	case ngapType.InitiatingMessagePresentLocationReport:
 		return buildLocationReport(*initMsg.Value.LocationReport)
 	case ngapType.InitiatingMessagePresentLocationReportingControl:

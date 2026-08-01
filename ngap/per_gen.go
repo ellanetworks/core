@@ -140,6 +140,73 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 	return nil
 }
 
+func (fiveGSTMSI *FiveGSTMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := fiveGSTMSI.AMFSetID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := fiveGSTMSI.AMFPointer.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := fiveGSTMSI.FiveGTMSI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (fiveGSTMSI *FiveGSTMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f3, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&fiveGSTMSI.AMFSetID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&fiveGSTMSI.AMFPointer).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&fiveGSTMSI.FiveGTMSI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (gUAMI *GUAMI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)

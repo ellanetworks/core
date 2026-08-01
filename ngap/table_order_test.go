@@ -16,6 +16,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		got  []ProtocolIEID
 		want []ProtocolIEID
 	}{
+		{"ErrorIndication", tableIDs(errorIndicationIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idCause, idCriticalityDiagnostics, idFiveGSTMSI}},
 		{"NGSetupRequest", tableIDs(nGSetupRequestIEs), []ProtocolIEID{idGlobalRANNodeID, idRANNodeName, idSupportedTAList, idDefaultPagingDRX, idUERetentionInformation}},
 		{"NGSetupResponse", tableIDs(nGSetupResponseIEs), []ProtocolIEID{idAMFName, idServedGUAMIList, idRelativeAMFCapacity, idPLMNSupportList, idCriticalityDiagnostics, idUERetentionInformation}},
 		{"NGSetupFailure", tableIDs(nGSetupFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},

@@ -35,7 +35,7 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
-		err := handleNGAPInitiatingMessage(gnb, pdu)
+		err := handleNGAPInitiatingMessage(gnb, pdu, sctpFrame.Data)
 		if err != nil {
 			return fmt.Errorf("could not handle NGAP InitiatingMessage: %v", err)
 		}
@@ -67,7 +67,7 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 	}
 }
 
-func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
+func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU, raw []byte) error {
 	switch pdu.InitiatingMessage.Value.Present {
 	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
 		return handleDownlinkNASTransport(gnb, pdu.InitiatingMessage.Value.DownlinkNASTransport)
@@ -84,7 +84,7 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
 	case ngapType.InitiatingMessagePresentPaging:
 		return handlePaging(gnb, pdu.InitiatingMessage.Value.Paging)
 	case ngapType.InitiatingMessagePresentErrorIndication:
-		return handleErrorIndication(pdu.InitiatingMessage.Value.ErrorIndication)
+		return handleErrorIndication(outcomeValue(raw))
 	case ngapType.InitiatingMessagePresentHandoverRequest:
 		return handleHandoverRequest(gnb, pdu.InitiatingMessage.Value.HandoverRequest)
 	case ngapType.InitiatingMessagePresentDownlinkUEAssociatedNRPPaTransport:

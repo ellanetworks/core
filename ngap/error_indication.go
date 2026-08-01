@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package s1ap
+package ngap
 
 import (
 	"fmt"
@@ -9,57 +9,59 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 36.413 §9.1.8.3.
+// TS 38.413 §9.2.6.5. Every IE is optional and ignore criticality, so an
+// ERROR INDICATION always reaches the application, however little it carries.
 type ErrorIndication struct {
-	MMEUES1APID            *MMEUES1APID
-	ENBUES1APID            *ENBUES1APID
+	AMFUENGAPID            *AMFUENGAPID
+	RANUENGAPID            *RANUENGAPID
 	Cause                  *Cause
 	CriticalityDiagnostics *CriticalityDiagnostics
+	FiveGSTMSI             *FiveGSTMSI
 
 	messageMeta
 }
 
 var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
-		id: idMMEUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
+		id: idAMFUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
-			var v MMEUES1APID
+			var v AMFUENGAPID
 
 			if err := perIEDecode(raw, &v); err != nil {
-				return fmt.Errorf("s1ap: ErrorIndication MME-UE-S1AP-ID: %w", err)
+				return fmt.Errorf("ngap: ErrorIndication AMF-UE-NGAP-ID: %w", err)
 			}
 
-			m.MMEUES1APID = &v
+			m.AMFUENGAPID = &v
 
 			return nil
 		},
 		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
-			if m.MMEUES1APID == nil {
+			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
 
-			return m.MMEUES1APID, true
+			return m.AMFUENGAPID, true
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
+		id: idRANUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
-			var v ENBUES1APID
+			var v RANUENGAPID
 
 			if err := perIEDecode(raw, &v); err != nil {
-				return fmt.Errorf("s1ap: ErrorIndication eNB-UE-S1AP-ID: %w", err)
+				return fmt.Errorf("ngap: ErrorIndication RAN-UE-NGAP-ID: %w", err)
 			}
 
-			m.ENBUES1APID = &v
+			m.RANUENGAPID = &v
 
 			return nil
 		},
 		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
-			if m.ENBUES1APID == nil {
+			if m.RANUENGAPID == nil {
 				return nil, false
 			}
 
-			return m.ENBUES1APID, true
+			return m.RANUENGAPID, true
 		},
 	},
 	{
@@ -68,7 +70,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 			var v Cause
 
 			if err := perIEDecode(raw, &v); err != nil {
-				return fmt.Errorf("s1ap: ErrorIndication Cause: %w", err)
+				return fmt.Errorf("ngap: ErrorIndication Cause: %w", err)
 			}
 
 			m.Cause = &v
@@ -89,7 +91,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 			var v CriticalityDiagnostics
 
 			if err := perIEDecode(raw, &v); err != nil {
-				return fmt.Errorf("s1ap: ErrorIndication CriticalityDiagnostics: %w", err)
+				return fmt.Errorf("ngap: ErrorIndication CriticalityDiagnostics: %w", err)
 			}
 
 			m.CriticalityDiagnostics = &v
@@ -102,6 +104,27 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 			}
 
 			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idFiveGSTMSI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+			var v FiveGSTMSI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return fmt.Errorf("ngap: ErrorIndication FiveG-S-TMSI: %w", err)
+			}
+
+			m.FiveGSTMSI = &v
+
+			return nil
+		},
+		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+			if m.FiveGSTMSI == nil {
+				return nil, false
+			}
+
+			return m.FiveGSTMSI, true
 		},
 	},
 }

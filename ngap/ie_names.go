@@ -12,6 +12,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idCause:                  "Cause",
 	idCriticalityDiagnostics: "CriticalityDiagnostics",
 	idDefaultPagingDRX:       "DefaultPagingDRX",
+	idFiveGSTMSI:             "FiveGSTMSI",
 	idGlobalRANNodeID:        "GlobalRANNodeID",
 	idPLMNSupportList:        "PLMNSupportList",
 	idRANNodeName:            "RANNodeName",

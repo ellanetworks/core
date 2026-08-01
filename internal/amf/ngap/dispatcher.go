@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/ngap"
 	free5gcngap "github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
@@ -60,7 +61,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	// NG Setup is decoded by the in-house NGAP library. It is intercepted
 	// before the free5gc decoder so exactly one codec sees the message; the
 	// remaining procedures follow as they are migrated.
-	if handled := handleNGSetup(ctx, amfInstance, ran, msg, span); handled {
+	if handled := handleMigrated(ctx, amfInstance, ran, msg, span); handled {
 		return
 	}
 
@@ -69,7 +70,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NGAP message")
 		logger.From(ctx, ran.Log).Error("NGAP decode error", zap.Error(err))
-		sendProtocolErrorIndication(ctx, ran, ngapType.CauseProtocolPresentTransferSyntaxError)
+		sendProtocolErrorIndication(ctx, ran, ngap.CauseProtocolTransferSyntaxError)
 
 		return
 	}
@@ -151,13 +152,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleNasNonDeliveryIndication(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeErrorIndication:
-			decoded, report := decode.DecodeErrorIndication(pdu.InitiatingMessage.Value.ErrorIndication)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleErrorIndication(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
 			decoded, report := decode.DecodeUERadioCapabilityInfoIndication(pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
 			if !handleDecodeReport(ctx, ran, report) {

@@ -99,9 +99,9 @@ func TestHandleNGSetup_MissingMandatoryIESendsNGSetupFailure(t *testing.T) {
 
 			msg := ngSetupRequestOmitting(t, tt.ieID)
 
-			if handled := handleNGSetup(context.Background(), amf.New(nil, nil, nil), ran, msg,
+			if handled := handleMigrated(context.Background(), amf.New(nil, nil, nil), ran, msg,
 				trace.SpanFromContext(context.Background())); !handled {
-				t.Fatal("handleNGSetup did not consume an NG Setup Request")
+				t.Fatal("handleMigrated did not consume an NG Setup Request")
 			}
 
 			if len(w.msgs) != 1 {

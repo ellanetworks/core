@@ -6,6 +6,7 @@ package s1ap
 //go:generate sh -c "cd .. && go run ./cmd/pergen -o s1ap/per_gen.go github.com/ellanetworks/core/s1ap"
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
@@ -25,6 +26,25 @@ func (p *PLMNIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	copy(p[:], b)
+
+	return nil
+}
+
+func (t MTMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	var b [4]byte
+
+	binary.BigEndian.PutUint32(b[:], uint32(t))
+
+	return per.EncodeOctetString(w, enc, 4, 4, true, true, false, b[:])
+}
+
+func (t *MTMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*t = MTMSI(binary.BigEndian.Uint32(b))
 
 	return nil
 }

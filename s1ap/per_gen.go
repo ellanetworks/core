@@ -1306,6 +1306,67 @@ func (requestType *RequestType) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	return nil
 }
 
+func (sTMSI *STMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := sTMSI.MMEC.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := sTMSI.MTMSI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sTMSI *STMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&sTMSI.MMEC).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&sTMSI.MTMSI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (securityContext *SecurityContext) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)

@@ -285,6 +285,13 @@ func handleErrorIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 		return
 	}
 
+	// §8.7.2.1 requires at least one of Cause and Criticality Diagnostics; a
+	// peer sending neither has told us nothing to act on.
+	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
+		logger.From(ctx, logger.MmeLog).Error("Error Indication carries neither Cause nor Criticality Diagnostics")
+		return
+	}
+
 	fields := make([]zap.Field, 0, 4)
 	if msg.MMEUES1APID != nil {
 		fields = append(fields, zap.Uint32("mme-ue-id", uint32(*msg.MMEUES1APID)))
