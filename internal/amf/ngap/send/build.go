@@ -41,58 +41,6 @@ func nrIA(sc *fgs.UESecurityCapability, n uint8) byte {
 	return 1
 }
 
-func BuildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGConnectionList) ([]byte, error) {
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
-	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
-
-	successfulOutcome := pdu.SuccessfulOutcome
-	successfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodeNGReset
-	successfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
-
-	successfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentNGResetAcknowledge
-	successfulOutcome.Value.NGResetAcknowledge = new(ngapType.NGResetAcknowledge)
-
-	nGResetAcknowledge := successfulOutcome.Value.NGResetAcknowledge
-	nGResetAcknowledgeIEs := &nGResetAcknowledge.ProtocolIEs
-
-	if partOfNGInterface != nil && len(partOfNGInterface.List) > 0 {
-		ie := ngapType.NGResetAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDUEAssociatedLogicalNGConnectionList
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.NGResetAcknowledgeIEsPresentUEAssociatedLogicalNGConnectionList
-		ie.Value.UEAssociatedLogicalNGConnectionList = new(ngapType.UEAssociatedLogicalNGConnectionList)
-
-		uEAssociatedLogicalNGConnectionList := ie.Value.UEAssociatedLogicalNGConnectionList
-
-		for _, item := range partOfNGInterface.List {
-			if item.AMFUENGAPID == nil && item.RANUENGAPID == nil {
-				logger.AmfLog.Warn("[Build NG Reset Ack] No AmfUeNgapID & RanUeNgapID")
-				continue
-			}
-
-			uEAssociatedLogicalNGConnectionItem := ngapType.UEAssociatedLogicalNGConnectionItem{}
-
-			if item.AMFUENGAPID != nil {
-				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-				uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = item.AMFUENGAPID
-			}
-
-			if item.RANUENGAPID != nil {
-				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = new(ngapType.RANUENGAPID)
-				uEAssociatedLogicalNGConnectionItem.RANUENGAPID = item.RANUENGAPID
-			}
-
-			uEAssociatedLogicalNGConnectionList.List = append(uEAssociatedLogicalNGConnectionList.List, uEAssociatedLogicalNGConnectionItem)
-		}
-
-		nGResetAcknowledgeIEs.List = append(nGResetAcknowledgeIEs.List, ie)
-	}
-
-	return ngap.Encoder(pdu)
-}
-
 func BuildRanConfigurationUpdateAcknowledge(criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 

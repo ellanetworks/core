@@ -124,13 +124,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleUplinkNasTransport(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeNGReset:
-			decoded, report := decode.DecodeNGReset(pdu.InitiatingMessage.Value.NGReset)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleNGReset(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverCancel:
 			decoded, report := decode.DecodeHandoverCancel(pdu.InitiatingMessage.Value.HandoverCancel)
 			if !handleDecodeReport(ctx, ran, report) {

@@ -55,14 +55,13 @@ var mandatedDeviations = map[string]string{
 	"s1ap only: func decodeItemList":            "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
 }
 
-// ngapOnlyFiles are files this library has and s1ap does not. NGAP-only IE
-// vocabulary belongs here; a message file does not, because every message this
-// library grows should sit in a file named for the same procedure on both
-// sides.
 // renamedFiles maps an ngap file to the s1ap file holding the same thing,
 // where 3GPP gives the two protocols different names for it. The pair still
 // has to exist on both sides; only the spelling differs.
 var renamedFiles = map[string]string{
+	// TS 38.413 names the procedure NG Reset where TS 36.413 names it Reset.
+	"ng_reset.go":              "reset.go",
+	"ng_reset_test.go":         "reset_test.go",
 	"ng_setup.go":              "s1_setup.go",
 	"ng_setup_resp.go":         "s1_setup_resp.go",
 	"ng_setup_failure.go":      "s1_setup_failure.go",
@@ -71,6 +70,10 @@ var renamedFiles = map[string]string{
 	"ng_setup_failure_test.go": "s1_setup_failure_test.go",
 }
 
+// ngapOnlyFiles are files this library has and s1ap does not. NGAP-only IE
+// vocabulary belongs here; a message file does not, because every message this
+// library grows should sit in a file named for the same procedure on both
+// sides.
 var ngapOnlyFiles = map[string]string{
 	"ie_slice.go":      "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
 	"ie_guami.go":      "GUAMI replaces GUMMEI and is bit-string rather than octet shaped (TS 38.413 §9.3.3.3)",

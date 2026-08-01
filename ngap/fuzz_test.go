@@ -21,6 +21,7 @@ func FuzzDecodeNoPanic(f *testing.F) {
 	for _, g := range []string{
 		goldenNGSetupRequest, goldenNGSetupResponse, goldenNGSetupFailure,
 		goldenErrorIndication, goldenErrorIndicationFull,
+		goldenNGResetAll, goldenNGResetPart, goldenNGResetAcknowledge,
 	} {
 		b, err := hex.DecodeString(g)
 		if err != nil {
@@ -38,6 +39,7 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		_, _ = unmarshalPERValue[ServedGUAMIList](data)
 		_, _ = unmarshalPERValue[PLMNSupportList](data)
 		_, _ = unmarshalPERValue[FiveGSTMSI](data)
+		_, _ = unmarshalPERValue[ResetType](data)
 
 		pdu, err := Unmarshal(data)
 		if err != nil {

@@ -22,6 +22,7 @@ import (
 const (
 	ngSetupRequestMessageType  send.NGAPProcedure = "NGSetupRequest"
 	errorIndicationMessageType send.NGAPProcedure = "ErrorIndication"
+	ngResetMessageType         send.NGAPProcedure = "NGReset"
 )
 
 // handleMigrated dispatches the procedures decoded by the in-house NGAP codec
@@ -45,6 +46,8 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		receiveNGSetup(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcErrorIndication:
 		receiveErrorIndication(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcNGReset:
+		receiveNGReset(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -117,4 +120,21 @@ func receiveNGSetup(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 	}
 
 	HandleNGSetupRequest(ctx, amfInstance, ran, req)
+}
+
+// receiveNGReset parses and handles an NG RESET. A failed parse is answered
+// with an Error Indication: NG Reset defines no unsuccessful outcome
+// (TS 38.413 §10.3.5).
+func receiveNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, ngResetMessageType, span)
+
+	req, err := ngap.ParseNGReset(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode NG Reset", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcNGReset, err)
+
+		return
+	}
+
+	HandleNGReset(ctx, amfInstance, ran, req)
 }

@@ -13,9 +13,14 @@ import (
 // S1-connection lists in Reset/Reset Acknowledge (TS 36.413).
 const maxnoofIndividualS1ConnectionsToReset = 256
 
-// resetTypeChoiceRootCount is the number of root alternatives of the ResetType
-// CHOICE: s1-Interface and partOfS1-Interface (TS 36.413).
-const resetTypeChoiceRootCount = 2
+// ResetType CHOICE root alternatives (TS 36.413 §9.2.1.5). The CHOICE is
+// extensible, so an extension bit precedes the index.
+const (
+	resetTypeS1Interface = iota
+	resetTypePartOfS1Interface
+
+	resetTypeChoiceRootCount = 2
+)
 
 // resetAllRootCount is the number of root values of ResetAll ENUMERATED
 // { reset-all, ... } (TS 36.413).
@@ -44,14 +49,14 @@ func (t ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 
 	if t.All {
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, 0); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, resetTypeS1Interface); err != nil {
 			return err
 		}
 
 		return per.EncodeEnumerated(w, enc, resetAllRootCount, true, 0)
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, 1); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, resetTypePartOfS1Interface); err != nil {
 		return err
 	}
 
@@ -74,7 +79,7 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	switch idx {
-	case 0:
+	case resetTypeS1Interface:
 		if _, err := per.DecodeEnumerated(r, enc, resetAllRootCount, true); err != nil {
 			return fmt.Errorf("s1ap: ResetAll: %w", err)
 		}

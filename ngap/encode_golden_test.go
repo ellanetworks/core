@@ -33,6 +33,16 @@ func TestEncodeBodyGolden(t *testing.T) {
 			"000004000a400680ffffffffff005540020009000f400162001a40070010c0deadbeef",
 		},
 		{
+			"NGReset",
+			goldNGResetPart().encodeBody,
+			"000002000f40018600580008400260070009200b",
+		},
+		{
+			"NGResetAcknowledge",
+			goldNGResetAcknowledge().encodeBody,
+			"000001006f40050160070009",
+		},
+		{
 			"NGSetupRequest",
 			goldRequest().encodeBody,
 			"000004001b00080002f839100001020052400a0380656c6c612d676e620066001200000000010002f8390001100801020300100015400140",

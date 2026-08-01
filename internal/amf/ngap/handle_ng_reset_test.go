@@ -9,18 +9,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	ngaplib "github.com/ellanetworks/core/ngap"
 )
 
-func miscCause() ngapType.Cause {
-	return ngapType.Cause{
-		Present: ngapType.CausePresentMisc,
-		Misc: &ngapType.CauseMisc{
-			Value: ngapType.CauseMiscPresentHardwareFailure,
-		},
-	}
+func miscCause() *ngaplib.Cause {
+	return ngaplib.Ptr(ngaplib.Cause{
+		Group: ngaplib.CauseGroupMisc, Value: ngaplib.CauseMiscHardwareFailure,
+	})
 }
 
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
@@ -35,12 +31,9 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	amf.NewUeConnForTest(ran, 0, 0, logger.AmfLog)
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := decode.NGReset{
-		Cause: miscCause(),
-		ResetType: &ngapType.ResetType{
-			Present:     ngapType.ResetTypePresentNGInterface,
-			NGInterface: &ngapType.ResetAll{Value: ngapType.ResetAllPresentResetAll},
-		},
+	msg := &ngaplib.NGReset{
+		Cause:     miscCause(),
+		ResetType: ngaplib.ResetType{All: true},
 	}
 
 	ngap.HandleNGReset(context.Background(), amfInstance, ran, msg)
@@ -70,21 +63,14 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	amf.NewUeConnForTest(ran, 0, 0, logger.AmfLog)
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	partOfNG := &ngapType.UEAssociatedLogicalNGConnectionList{
-		List: []ngapType.UEAssociatedLogicalNGConnectionItem{
-			{
-				AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 0},
-				RANUENGAPID: &ngapType.RANUENGAPID{Value: 0},
-			},
-		},
-	}
+	partOfNG := ngaplib.UEAssociatedLogicalNGConnectionList{{
+		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(0)),
+		RANUENGAPID: ngaplib.Ptr(ngaplib.RANUENGAPID(0)),
+	}}
 
-	msg := decode.NGReset{
-		Cause: miscCause(),
-		ResetType: &ngapType.ResetType{
-			Present:           ngapType.ResetTypePresentPartOfNGInterface,
-			PartOfNGInterface: partOfNG,
-		},
+	msg := &ngaplib.NGReset{
+		Cause:     miscCause(),
+		ResetType: ngaplib.ResetType{Part: partOfNG},
 	}
 
 	ngap.HandleNGReset(context.Background(), amfInstance, ran, msg)
@@ -124,21 +110,14 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	ran.BindAMFForTest(amfInstance)
 
-	partOfNG := &ngapType.UEAssociatedLogicalNGConnectionList{
-		List: []ngapType.UEAssociatedLogicalNGConnectionItem{
-			{
-				AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 999},
-				RANUENGAPID: &ngapType.RANUENGAPID{Value: 999},
-			},
-		},
-	}
+	partOfNG := ngaplib.UEAssociatedLogicalNGConnectionList{{
+		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(999)),
+		RANUENGAPID: ngaplib.Ptr(ngaplib.RANUENGAPID(999)),
+	}}
 
-	msg := decode.NGReset{
-		Cause: miscCause(),
-		ResetType: &ngapType.ResetType{
-			Present:           ngapType.ResetTypePresentPartOfNGInterface,
-			PartOfNGInterface: partOfNG,
-		},
+	msg := &ngaplib.NGReset{
+		Cause:     miscCause(),
+		ResetType: ngaplib.ResetType{Part: partOfNG},
 	}
 
 	ngap.HandleNGReset(context.Background(), amfInstance, ran, msg)

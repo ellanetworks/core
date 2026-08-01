@@ -102,7 +102,7 @@ func handleNGAPSuccessfulOutcome(pdu *ngapType.NGAPPDU, raw []byte) error {
 	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
 		return handleNGSetupResponse(outcomeValue(raw))
 	case ngapType.SuccessfulOutcomePresentNGResetAcknowledge:
-		return handleNGResetAcknowledge(pdu.SuccessfulOutcome.Value.NGResetAcknowledge)
+		return handleNGResetAcknowledge(outcomeValue(raw))
 	case ngapType.SuccessfulOutcomePresentPathSwitchRequestAcknowledge:
 		return nil // Handled via WaitForMessage
 	case ngapType.SuccessfulOutcomePresentHandoverCommand:

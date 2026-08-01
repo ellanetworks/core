@@ -159,3 +159,68 @@ func TestErrorIndicationGNBToAMF(t *testing.T) {
 		t.Fatalf("AMF answered an Error Indication with %d message(s), want none", len(w.msgs))
 	}
 }
+
+// TestNGResetGNBToAMF drives a whole-interface NG RESET and asserts the AMF
+// answers with NG RESET ACKNOWLEDGE, which the gNB needs before it may reuse
+// the released UE-NGAP-IDs (TS 38.413 §8.7.4).
+func TestNGResetGNBToAMF(t *testing.T) {
+	raw, err := gnb.BuildNGReset(&gnb.NGResetOpts{
+		Cause:    ngap.Ptr(ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscOMIntervention}),
+		ResetAll: true,
+	})
+	if err != nil {
+		t.Fatalf("gNB could not build NG Reset: %v", err)
+	}
+
+	w := &captureWriter{}
+
+	amfInstance := amf.New(&stubDB{operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, nil)
+
+	radio := &amf.Radio{Conn: w, Log: zap.NewNop()}
+	radio.BindAMFForTest(amfInstance)
+
+	pdu, err := ngap.Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("AMF could not decode the envelope: %v", err)
+	}
+
+	im, ok := pdu.(*ngap.InitiatingMessage)
+	if !ok || im.ProcedureCode != ngap.ProcNGReset {
+		t.Fatalf("gNB sent %T, want an NG Reset", pdu)
+	}
+
+	req, err := ngap.ParseNGReset(im.Value)
+	if err != nil {
+		t.Fatalf("AMF could not parse the NG Reset: %v", err)
+	}
+
+	if !req.ResetType.All {
+		t.Fatalf("AMF read ResetType %+v, want a whole-interface reset", req.ResetType)
+	}
+
+	amfngap.HandleNGReset(context.Background(), amfInstance, radio, req)
+
+	if len(w.msgs) != 1 {
+		t.Fatalf("AMF sent %d messages, want 1 (NG Reset Acknowledge)", len(w.msgs))
+	}
+
+	out, err := ngap.Unmarshal(w.msgs[0])
+	if err != nil {
+		t.Fatalf("gNB could not decode the AMF's answer: %v", err)
+	}
+
+	so, ok := out.(*ngap.SuccessfulOutcome)
+	if !ok || so.ProcedureCode != ngap.ProcNGReset {
+		t.Fatalf("AMF answered with %T, want an NG Reset Acknowledge", out)
+	}
+
+	ack, err := ngap.ParseNGResetAcknowledge(so.Value)
+	if err != nil {
+		t.Fatalf("gNB could not parse the acknowledge: %v", err)
+	}
+
+	// A whole-interface reset echoes no connection list.
+	if len(ack.ConnectionList) != 0 {
+		t.Errorf("acknowledge echoed %d connections, want none", len(ack.ConnectionList))
+	}
+}

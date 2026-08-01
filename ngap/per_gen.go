@@ -600,3 +600,86 @@ func (supportedTAItem *SupportedTAItem) UnmarshalPER(r *per.Reader, enc per.Enco
 	}
 	return nil
 }
+
+func (uEAssociatedLogicalNGConnectionItem *UEAssociatedLogicalNGConnectionItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(uEAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil)
+	w.WriteBit(uEAssociatedLogicalNGConnectionItem.RANUENGAPID != nil)
+	w.WriteBit(false)
+	if uEAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {
+		if err := (*uEAssociatedLogicalNGConnectionItem.AMFUENGAPID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if uEAssociatedLogicalNGConnectionItem.RANUENGAPID != nil {
+		if err := (*uEAssociatedLogicalNGConnectionItem.RANUENGAPID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (uEAssociatedLogicalNGConnectionItem *UEAssociatedLogicalNGConnectionItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AMFUENGAPID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_RANUENGAPID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_AMFUENGAPID {
+		var v AMFUENGAPID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uEAssociatedLogicalNGConnectionItem.AMFUENGAPID = &v
+	}
+	if p_RANUENGAPID {
+		var v RANUENGAPID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uEAssociatedLogicalNGConnectionItem.RANUENGAPID = &v
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

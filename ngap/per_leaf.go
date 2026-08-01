@@ -360,6 +360,21 @@ func (s *ServedGUAMIList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (l UEAssociatedLogicalNGConnectionList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofNGConnectionsToReset, []UEAssociatedLogicalNGConnectionItem(l))
+}
+
+func (l *UEAssociatedLogicalNGConnectionList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[UEAssociatedLogicalNGConnectionItem](r, enc, 1, maxnoofNGConnectionsToReset)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 func (p PLMNSupportList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return marshalSeqOf(w, enc, 1, maxnoofPLMNs, []PLMNSupportItem(p))
 }

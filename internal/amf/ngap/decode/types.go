@@ -130,15 +130,6 @@ type UEContextReleaseRequest struct {
 	Cause                  *ngapType.Cause
 }
 
-// NGReset is a decoded NGAP NGReset (3GPP TS 38.413). Cause is mandatory-ignore,
-// yielding a zero-value Cause when absent or malformed. ResetType is
-// mandatory-reject; when populated the inner CHOICE pointer matching
-// ResetType.Present is non-nil. ResetType aliases the source PDU buffer.
-type NGReset struct {
-	Cause     ngapType.Cause
-	ResetType *ngapType.ResetType
-}
-
 // HandoverCancel is a decoded NGAP HandoverCancel (3GPP TS 38.413). AMFUENGAPID
 // and RANUENGAPID are mandatory-reject; Cause is mandatory-ignore (nil when
 // absent or malformed).

@@ -64,12 +64,12 @@ func (g *GnodeB) SendNGSetupRequest(opts *NGSetupRequestOpts) error {
 }
 
 func (g *GnodeB) SendNGReset(opts *NGResetOpts) error {
-	pdu, err := BuildNGReset(opts)
+	pkt, err := BuildNGReset(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build NGReset: %s", err.Error())
 	}
 
-	return g.SendMessage(pdu, NGAPProcedureNGReset)
+	return g.SendToRan(pkt, NGAPProcedureNGReset)
 }
 
 func (g *GnodeB) SendUEContextReleaseRequest(opts *UEContextReleaseRequestOpts) error {

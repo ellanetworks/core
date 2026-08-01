@@ -12,6 +12,8 @@ type messageParser struct {
 // TestEveryParserIsRegistered fails if one is missing.
 var messageParsers = []messageParser{
 	{"ParseErrorIndication", func(v []byte) error { _, err := ParseErrorIndication(v); return err }},
+	{"ParseNGReset", func(v []byte) error { _, err := ParseNGReset(v); return err }},
+	{"ParseNGResetAcknowledge", func(v []byte) error { _, err := ParseNGResetAcknowledge(v); return err }},
 	{"ParseNGSetupFailure", func(v []byte) error { _, err := ParseNGSetupFailure(v); return err }},
 	{"ParseNGSetupRequest", func(v []byte) error { _, err := ParseNGSetupRequest(v); return err }},
 	{"ParseNGSetupResponse", func(v []byte) error { _, err := ParseNGSetupResponse(v); return err }},
