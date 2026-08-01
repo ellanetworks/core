@@ -40,7 +40,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
             - `cert` (string): The path to the TLS certificate file (optional).
             - `key` (string): The path to the TLS key file (optional).
 - `datapath` (object, optional): The datapath configuration. When omitted, the datapath attaches at the XDP hook in driver mode where the network interface supports it, and at the TCX hook otherwise.
-    - `attach-mode` (string, optional): The kernel hook the datapath attaches to. `xdp-native` is the production option (highest performance) and requires a compatible driver. `tcx` works on any interface and requires kernel 6.6 or later. `xdp-generic` is intended for development only.
+    - `attach-mode` (string, optional): The kernel hook the datapath attaches to. See [Attach modes](#attach-modes).
 - `xdp` (object, deprecated): Replaced by `datapath`. Cannot be set together with `datapath`.
     - `attach-mode` (string): `native` is equivalent to `datapath.attach-mode: xdp-native`, `generic` to `xdp-generic`.
 - `telemetry` (object): The telemetry configuration.
@@ -59,6 +59,30 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `snapshot-interval` (duration string, optional): Minimum interval between automatic Raft snapshots.
     - `snapshot-threshold` (int, optional): Minimum number of applied log entries between automatic snapshots.
     - `trailing-logs` (int, optional): Number of Raft log entries retained after a snapshot so a briefly-disconnected follower can catch up by log replay instead of receiving a full snapshot. Defaults to `10240`, which is correct for the vast majority of deployments. Lower it only if the Raft log is growing unboundedly under sustained write load; raise it only if followers repeatedly fall behind and trigger snapshot installs. Setting it too low on a cluster with a large database can put followers in a loop where they keep downloading snapshots and never converge.
+
+## Attach modes
+
+`datapath.attach-mode` selects the kernel hook the data plane attaches to. When
+it is unset, Ella Core attaches at the XDP hook in driver mode where the
+interface supports it, and at the TCX hook otherwise. The effective mode is
+reported as `datapathAttachMode` by [`GET /api/v1/status`](api/status.md).
+
+| Mode | Requires | Use for |
+| ---- | -------- | ------- |
+| `xdp-native` | A [driver with XDP support](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp). On a veth N3, an `XDP_PASS` program on the peer — see [Use native XDP with veth interfaces](../how_to/native_xdp_veth.md). | Production. Highest throughput. |
+| `tcx` | Kernel 6.6 or later. GRO disabled on the N6 interface: `ethtool -K <n6-interface> gro off`. | Production on interfaces without driver XDP support, including veth pairs and containers. |
+| `xdp-generic` | TX checksum offload disabled on both ends of a veth N3: `ethtool -K <veth> tx off`. | Development and test only. |
+
+With `tcx`, merged downlink frames cannot be encapsulated into well-formed
+GTP-U and are dropped, counted in
+`app_upf_datapath_drop_total{reason="encap_gso"}`. Persist the `ethtool`
+setting through your network configuration and verify it with `ethtool -k
+<n6-interface>`. Where GRO is reported as `[fixed]` or is performed by a
+hypervisor, `tcx` cannot carry that traffic.
+
+`xdp-generic` carries the same segmentation exposure as `tcx` and a checksum
+exposure of its own, neither of which the data plane can detect. It is not
+supported in production.
 
 !!! note
     When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/core.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.

@@ -65,6 +65,21 @@ It is possible to use VLAN interfaces, with or without combining interfaces
 as described previously. In this case, the configuration file should contain
 the name of the VLAN interface, not the parent interface.
 
+# NAT
+
+NAT is IPv4-only and applies to uplink traffic leaving N6, sourced from the N6
+address. It is configured on the `Networking` page of the UI or through the
+[Networking API](api/networking.md).
+
+- Source ports are allocated from 1024-32767.
+- Downlink traffic reaches a subscriber only when it matches a translation the
+  subscriber's own traffic created. Anything else is dropped and counted in
+  `app_upf_datapath_drop_total{reason="nat_unsolicited"}`.
+- Traffic NAT cannot translate is dropped and counted in the same metric under
+  another `nat_` reason: IP fragments, and protocols without ports such as ESP,
+  GRE and SCTP. Protocols that embed addresses in their payload, such as FTP in
+  active mode, do not work.
+
 # IPv6 and dual-stack support
 
 Ella Core supports IPv6 and dual-stack on the following interfaces:
