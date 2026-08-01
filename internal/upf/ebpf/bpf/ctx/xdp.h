@@ -64,8 +64,14 @@
 
 #define ctx_ingress_ifindex(ctx) ((ctx)->ingress_ifindex)
 
-/* Segment count of a GSO super-frame; XDP runs pre-GRO and only ever sees
- * wire-sized frames. */
+/* Segment count of a GSO super-frame. Native XDP runs in the driver, ahead of
+ * GRO, and only ever sees wire-sized frames. Generic XDP does not: it runs
+ * from __netif_receive_skb_core (net/core/dev.c), downstream of GRO, and
+ * generic_xdp_install disables only LRO and hardware GRO, so a merged
+ * super-frame reaches the program. xdp_md exposes no GSO metadata either way,
+ * so the count is unavailable rather than zero, and xdp-generic carries the
+ * segmentation exposure uninstrumented — see the "Segmentation offload"
+ * section of docs/explanation/user_plane_packet_processing_with_ebpf.md. */
 #define ctx_gso_segs(ctx) ((__u32)0)
 
 /* Guarantee `len` bytes are linear and writable. XDP packets already are;

@@ -49,8 +49,8 @@ Detailed performance results are available [here](../reference/performance.md).
 Ella Core supports the following attach modes:
 
 - **`xdp-native`**: The production-grade option. It offers the highest performance but is only supported on [compatible drivers](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp).
-- **`tcx`**: Attaches at the TCX hook. It works on any interface, including the veth pairs used in containers and [co-hosted deployments](../how_to/co_host_with_ocudu.md), and requires kernel 6.6 or later. Performance is lower than native XDP because the kernel has already built a socket buffer for the packet.
-- **`xdp-generic`**: A driver-independent XDP fallback intended for prototyping and test/development only. It has lower performance and is less reliable (see [Checksum offload on veth pairs](#checksum-offload-on-veth-pairs)). Do not use it in production.
+- **`tcx`**: Attaches at the TCX hook. It works on any interface, including the veth pairs used in containers and [co-hosted deployments](../how_to/co_host_with_ocudu.md), and requires kernel 6.6 or later. Performance is lower than native XDP because the kernel has already built a socket buffer for the packet. It requires GRO to be disabled on the N6 interface (see [Segmentation offload on TCX](#segmentation-offload-on-tcx)).
+- **`xdp-generic`**: A driver-independent XDP fallback intended for prototyping and test/development only. It has lower performance and is less reliable (see [Checksum offload on veth pairs](#checksum-offload-on-veth-pairs) and [Segmentation offload on TCX](#segmentation-offload-on-tcx)). Do not use it in production.
 
 For more information on configuring attach modes, refer to the [Configuration File](../reference/config_file.md) documentation.
 
@@ -74,18 +74,19 @@ For `xdp-generic` only, the remedy is to disable TX checksum offload on both end
 
 ### Segmentation offload on TCX
 
-TCX runs after the kernel has merged incoming packets with Generic Receive Offload (GRO), so downlink encapsulation can be applied to a merged frame larger than the MTU. The kernel splits that frame back into MTU-sized packets on transmit, and recomputes the outer IP and UDP **lengths** of each one, but not the outer UDP **checksum**.
+TCX runs after the kernel has merged incoming packets with Generic Receive Offload (GRO), so downlink encapsulation can be applied to a merged frame larger than the MTU. The kernel splits that frame back into MTU-sized packets on transmit and recomputes the outer IP and UDP **lengths** of each one, but it replays the rest of the tunnel headers — the outer UDP checksum and the whole GTP-U header — into every segment unchanged. Two fields are then wrong on the wire:
 
-An IPv4 outer header is unaffected, because a zero UDP checksum is valid over IPv4. An IPv6 outer header requires a valid UDP checksum, so every segment but the first is discarded by the receiver.
+- **GTP-U Length.** Every segment claims the merged frame's payload length instead of its own. The field covers extension headers (TS 29.281), so the discrepancy grows with the PDU Session Container. This applies to an IPv4 and an IPv6 outer header alike.
+- **Outer UDP checksum.** It is never recomputed: the kernel only recomputes it for tunnels that ask for an outer checksum on every segment. A zero UDP checksum is valid over IPv4, so an IPv4 outer header is unaffected by this one. An IPv6 outer header requires a valid checksum, and the one the data plane computed covers the whole merged frame, so every segment — the first included — is discarded by the receiver.
 
-IPv6 GTP-U transport in `tcx` mode therefore requires GRO to be disabled on the interface that receives downlink traffic: `ethtool -K <n6-interface> gro off`. Persist the setting through your network configuration, and verify it with `ethtool -k <n6-interface>`. In virtual machines, GRO may be reported as `[fixed]` or performed by the hypervisor, in which case IPv6 GTP-U transport is not supported in `tcx` mode.
+Neither field can be fixed after the fact, so in `tcx` mode Ella Core does not encapsulate such a frame at all: it drops it and counts it in the `app_upf_encap_gso_drop_total` metric. A non-zero value means GRO must be disabled on the interface that receives downlink traffic: `ethtool -K <n6-interface> gro off`. Persist the setting through your network configuration, and verify it with `ethtool -k <n6-interface>`. In virtual machines, GRO may be reported as `[fixed]` or performed by the hypervisor, in which case merged downlink traffic cannot be forwarded and `tcx` mode is not supported.
 
-The `xdp-native` and `xdp-generic` modes are not affected: XDP runs before GRO and only ever sees MTU-sized frames.
+The `xdp-native` mode is not affected: native XDP runs in the driver, ahead of GRO, and only ever sees MTU-sized frames.
+
+The `xdp-generic` mode carries the same exposure, uninstrumented. Generic XDP attaches through the kernel's generic hook rather than the driver, and runs from the receive path downstream of GRO; attaching it disables large receive offload and hardware GRO, but not software GRO. The XDP context exposes no segmentation metadata, so the data plane can neither detect nor count a merged frame: both stale fields reach the wire. This is a further reason not to use `xdp-generic` in production.
 
 ### IPv6 GTP-U transport
 
 Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 / S1-U interface. The inner UE payload can be IPv4 or IPv6, independent of the transport address family. The chosen transport address family depends on how the N3 / S1-U interface is configured, and what the radio advertises. If both sides are dual-stack, Ella Core prefers IPv6.
 
 **GTP echo:** Echo Request/Response messages are handled for both IPv4 and IPv6 transport, as required for GTP-U path management.
-
-**`tcx` mode:** IPv6 transport requires GRO to be disabled on the N6 interface — see [Segmentation offload on TCX](#segmentation-offload-on-tcx).

@@ -101,11 +101,12 @@ func GetN6NatUnsolicitedDropIPv4(bpfObjects *BpfObjects) uint64 {
 	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsolicitedDropIp4 })
 }
 
-// GetN6EncapGSOFrames counts downlink encapsulations applied to a GSO
-// super-frame. Segmentation replays the outer UDP checksum unchanged across
-// the resulting segments, which an IPv6 outer header does not tolerate.
-func GetN6EncapGSOFrames(bpfObjects *BpfObjects) uint64 {
-	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.EncapGsoFrames })
+// GetN6EncapGSODrops counts downlink frames dropped because they reached the
+// encapsulation path as a GSO super-frame, which cannot be encapsulated into
+// well-formed GTP-U. Non-zero means GRO is merging downlink traffic on the N6
+// interface in tcx mode.
+func GetN6EncapGSODrops(bpfObjects *BpfObjects) uint64 {
+	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropEncapGso })
 }
 
 // NatDrops counts NAT drops by reason, summed over both directions.

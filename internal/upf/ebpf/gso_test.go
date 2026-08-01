@@ -212,13 +212,14 @@ func isGTPv6Outer(fr []byte) bool {
 		binary.BigEndian.Uint16(fr[ethHdrLen+40+2:ethHdrLen+40+4]) == GTPUDPPort
 }
 
-// TestTCXIPv6OuterGSOChecksums measures the exposure TCX introduces for an
-// IPv6 GTP-U transport: the datapath runs after the kernel has merged inbound
-// traffic, so encapsulation can be applied to a frame larger than the MTU.
-// Segmentation then recomputes the outer IP and UDP lengths per segment but
-// not the outer UDP checksum, which IPv6 requires. The test asserts the
-// exposure was actually reached before drawing any conclusion from it.
-func TestTCXIPv6OuterGSOChecksums(t *testing.T) {
+// TestTCXIPv6OuterGSODropped covers the exposure TCX introduces: the datapath
+// runs after the kernel has merged inbound traffic, so encapsulation can be
+// handed a frame larger than the MTU. Segmentation replays the tunnel span
+// verbatim, so no such frame can leave as well-formed GTP-U — with an IPv6
+// outer header every segment carries a checksum computed over the whole
+// super-frame. The datapath drops instead, and the test asserts nothing
+// reached the wire.
+func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	requireProgTestRun(t)
 
 	if !testAttachModeTCX() {
@@ -229,8 +230,6 @@ func TestTCXIPv6OuterGSOChecksums(t *testing.T) {
 		teid = 0x6750534F
 		qfi  = 7
 	)
-
-	t.Skip("GSO encapsulation policy undecided; see B1")
 
 	f := setupGSO(t, true)
 	putDownlinkPDRv6Outer(t, f.obj, ueIP, teid, testUPFN3v6, testGNBv6, qfi)
@@ -267,42 +266,22 @@ func TestTCXIPv6OuterGSOChecksums(t *testing.T) {
 	t.Logf("route: success=%d no_neigh=%d mismatch=%d",
 		rs.FibSuccess, rs.FibNoNeigh, rs.IfindexMismatch)
 
-	gsoEncaps := GetN6EncapGSOFrames(f.obj)
-	t.Logf("captured %d encapsulated segments, encap_gso_frames=%d", len(frames), gsoEncaps)
+	gsoDrops := GetN6EncapGSODrops(f.obj)
+	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d", len(frames), gsoDrops)
 
-	if len(frames) == 0 {
-		all := captureAll(capFD, 300*time.Millisecond, func([]byte) bool { return true })
-		t.Logf("unfiltered frames on N3 peer: %d", len(all))
-
+	if gsoDrops == 0 {
 		for _, d := range []string{"ellgso3", "ellgso6"} {
 			for _, k := range []string{"tx_dropped", "tx_errors", "tx_packets", "rx_packets"} {
 				b, _ := os.ReadFile("/sys/class/net/" + d + "/statistics/" + k)
 				t.Logf("%s %s = %s", d, k, strings.TrimSpace(string(b)))
 			}
 		}
-	}
 
-	if gsoEncaps == 0 {
 		t.Skip("encapsulation never saw a GSO super-frame; the exposure was not reached")
 	}
 
-	if len(frames) < 2 {
-		t.Fatalf("captured %d segments, want the super-frame split into several", len(frames))
-	}
-
-	bad := 0
-
-	for i, fr := range frames {
-		parsed := parseGTPv6Frame(t, fr)
-		if !parsed.udpChecksumOK {
-			bad++
-
-			t.Logf("segment %d: outer UDP checksum invalid", i)
-		}
-	}
-
-	if bad > 0 {
-		t.Errorf("%d of %d segments carry an invalid outer UDP checksum", bad, len(frames))
+	if len(frames) != 0 {
+		t.Errorf("%d encapsulated frames reached the wire, want none: a dropped super-frame must not be encapsulated", len(frames))
 	}
 }
 
@@ -330,8 +309,8 @@ func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 		t.Fatal("captured no encapsulated frames on the N3 side")
 	}
 
-	if got := GetN6EncapGSOFrames(f.obj); got != 0 {
-		t.Errorf("encap_gso_frames = %d, want 0 with segmentation offload disabled", got)
+	if got := GetN6EncapGSODrops(f.obj); got != 0 {
+		t.Errorf("encap_gso_drop = %d, want 0 with segmentation offload disabled", got)
 	}
 
 	for i, fr := range frames {
@@ -341,11 +320,12 @@ func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 	}
 }
 
-// TestTCXIPv4OuterGSOChecksums is the IPv4-outer counterpart: a zero UDP
-// checksum is legal over IPv4, so segmenting an encapsulated super-frame is
-// expected to produce valid traffic. It also separates an IPv6-specific
-// failure from one inherent to encapsulating a GSO frame.
-func TestTCXIPv4OuterGSOChecksums(t *testing.T) {
+// TestTCXIPv4OuterGSODropped is the IPv4-outer counterpart. A zero outer UDP
+// checksum is legal over IPv4, so the checksum half of the exposure does not
+// apply, but the GTP-U message length does: segmentation replays the GTP-U
+// header verbatim, so every segment would claim the super-frame's payload
+// length. The drop is therefore not IPv6-specific.
+func TestTCXIPv4OuterGSODropped(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
@@ -364,6 +344,16 @@ func TestTCXIPv4OuterGSOChecksums(t *testing.T) {
 		return isGTPv4Outer(fr)
 	})
 
-	t.Logf("captured %d encapsulated segments, encap_gso_frames=%d, drop=%d",
-		len(frames), GetN6EncapGSOFrames(f.obj), GetN6Drop(f.obj))
+	gsoDrops := GetN6EncapGSODrops(f.obj)
+
+	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d, drop=%d",
+		len(frames), gsoDrops, GetN6Drop(f.obj))
+
+	if gsoDrops == 0 {
+		t.Skip("encapsulation never saw a GSO super-frame; the exposure was not reached")
+	}
+
+	if len(frames) != 0 {
+		t.Errorf("%d encapsulated frames reached the wire, want none", len(frames))
+	}
 }

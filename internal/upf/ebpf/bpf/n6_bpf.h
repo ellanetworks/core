@@ -56,6 +56,31 @@ struct {
 } downlink_statistics SEC(".maps");
 
 /*
+ * Whether the frame must be dropped instead of encapsulated.
+ *
+ * A GSO super-frame cannot be encapsulated into well-formed GTP-U. UDP tunnel
+ * segmentation replays the tunnel span — outer UDP header through GTP-U
+ * header — verbatim into every segment and rewrites only the outer IP and UDP
+ * lengths, so each segment leaves with the super-frame's GTP-U
+ * message_length (TS 29.281 §5.1, which counts extension headers, so the PDU
+ * Session Container widens the gap) and, with an IPv6 outer header, the
+ * super-frame's outer UDP checksum, which IPv6 requires to be valid.
+ *
+ * Encapsulating anyway puts malformed GTP-U on the wire, and on an IPv6 outer
+ * the receiver discards every segment regardless — the checksum covers the
+ * whole super-frame, so not even the first one survives. Dropping makes that
+ * a counted, attributable loss rather than a silent one. The exposure is
+ * removed at the source with `ethtool -K <n6-interface> gro off`.
+ *
+ * TCX-only: native XDP runs ahead of GRO, and xdp_md exposes no GSO metadata,
+ * so ctx_gso_segs is a compile-time 0 there and this whole branch folds away.
+ */
+static __always_inline int encap_would_be_malformed(struct packet_context *ctx)
+{
+	return ctx_gso_segs(ctx->ctx_buff) > 1;
+}
+
+/*
  * Send an encapsulated downlink packet to the GTP tunnel.
  * Branches on far->outer_header_creation to select IPv4 or IPv6 outer header,
  * then routes via the appropriate FIB lookup.
@@ -70,10 +95,6 @@ static __always_inline enum ctx_action
 send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		   __u8 tos, __u8 qfi)
 {
-	if (ctx_gso_segs(ctx->ctx_buff) > 1) {
-		ctx->statistics->encap_gso_frames += 1;
-	}
-
 	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) {
 		PROFILE_START(PROF_N6_GTP_MANIP);
 		__u32 encap_result =
@@ -275,6 +296,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		ctx->statistics->dl_drop_far_no_encap += 1;
 		return CTX_ACT_DROP;
 	}
+	if (encap_would_be_malformed(ctx)) {
+		upf_printk("upf: gso super-frame on the encap path, dropping");
+		ctx->statistics->dl_drop_encap_gso += 1;
+		return CTX_ACT_DROP;
+	}
 
 	PROFILE_START(PROF_N6_QER_RATELIMIT);
 	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status,
@@ -447,6 +473,10 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (!(far->outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		ctx->statistics->dl_drop_far_no_encap += 1;
+		return CTX_ACT_DROP;
+	}
+	if (encap_would_be_malformed(ctx)) {
+		ctx->statistics->dl_drop_encap_gso += 1;
 		return CTX_ACT_DROP;
 	}
 

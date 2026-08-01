@@ -179,7 +179,6 @@ type N3N6EntrypointTcUpfStatistic struct {
 	NatPortExhaustedDropIp4    uint64
 	NatUnsupportedProtoDropIp4 uint64
 	NatMalformedDropIp4        uint64
-	EncapGsoFrames             uint64
 	DlDropFarNoForw            uint64
 	DlDropFarNoEncap           uint64
 	DlDropQerGate              uint64
@@ -187,6 +186,7 @@ type N3N6EntrypointTcUpfStatistic struct {
 	DlDropNocp                 uint64
 	DlDropUnsolicited          uint64
 	DlDropSdf                  uint64
+	DlDropEncapGso             uint64
 	UlDropQerGate              uint64
 	UlDropQerRate              uint64
 	UlDropSdf                  uint64

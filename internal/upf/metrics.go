@@ -71,9 +71,9 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	encapGSOFramesDesc := prometheus.NewDesc(
-		"app_upf_encap_gso_frames_total",
-		"Downlink super-frames encapsulated while carrying more than one GSO segment. Each segment leaves with the super-frame's GTP-U message length.",
+	encapGSODropDesc := prometheus.NewDesc(
+		"app_upf_encap_gso_drop_total",
+		"Downlink frames dropped because they reached encapsulation as a GSO super-frame, which cannot be encapsulated into well-formed GTP-U. Non-zero means GRO must be disabled on the N6 interface.",
 		nil,
 		nil,
 	)
@@ -122,7 +122,7 @@ func RegisterMetrics() {
 
 		ch <- prometheus.MustNewConstMetric(xdpNatUnsolicitedDropDesc, prometheus.CounterValue, float64(ebpf.GetN6NatUnsolicitedDropIPv4(bpfObjects)), "ipv4")
 
-		ch <- prometheus.MustNewConstMetric(encapGSOFramesDesc, prometheus.CounterValue, float64(ebpf.GetN6EncapGSOFrames(bpfObjects)))
+		ch <- prometheus.MustNewConstMetric(encapGSODropDesc, prometheus.CounterValue, float64(ebpf.GetN6EncapGSODrops(bpfObjects)))
 
 		natDrops := ebpf.GetNatDrops(bpfObjects)
 

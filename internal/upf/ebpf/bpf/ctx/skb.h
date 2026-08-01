@@ -136,7 +136,20 @@ static __always_inline long ctx_pull(struct __ctx_buff *ctx, __u32 len)
  * minus the 14-byte L2 header, so the downgrade fires for every valid header.
  * BPF_F_ADJ_ROOM_NO_CSUM_RESET would only preserve CHECKSUM_UNNECESSARY
  * validation state, which nothing after decap consumes: the packet leaves via
- * redirect, where only CHECKSUM_PARTIAL matters at transmit. */
+ * redirect, where only CHECKSUM_PARTIAL matters at transmit.
+ *
+ * Unlike the encap path this has no gso_segs guard, because uplink GTP-U is
+ * assumed never to arrive merged. Merging it needs rx-udp-gro-forwarding
+ * (net/ipv4/udp_offload.c, the NETIF_F_GRO_UDP_FWD branch of
+ * udp_gro_receive), and that feature sits in NETIF_F_SOFT_FEATURES_OFF, which
+ * register_netdevice transfers to hw_features but never to wanted_features
+ * (net/core/dev.c), so it is off unless an operator turns it on.
+ *
+ * BPF_F_ADJ_ROOM_FIXED_GSO is not optional here: without it
+ * bpf_skb_net_shrink refuses any non-TCP GSO frame with -ENOTSUPP
+ * (net/core/filter.c). It keeps gso_size unchanged across the shrink, so if
+ * the assumption above ever breaks the segments come out short by the
+ * stripped header, not malformed. */
 static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes,
 				      __u8 inner_is_ipv6)
 {
@@ -157,8 +170,16 @@ static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes,
 }
 
 /* Open `bytes` of room for encapsulation headers between the L2 and L3
- * headers. BPF_F_ADJ_ROOM_FIXED_GSO keeps gso_size/gso_segs consistent on
- * GSO super-frames across every resize.
+ * headers.
+ *
+ * BPF_F_ADJ_ROOM_FIXED_GSO suppresses the skb_decrease_gso_size that
+ * bpf_skb_net_grow would otherwise apply (net/core/filter.c), so a segmented
+ * frame would overshoot the original max segment size by the encap overhead
+ * rather than keep the inner payload within it. That is a deliberate choice
+ * of a possible MTU overshoot over a silently reduced inner MSS, and it is
+ * inert on this path: the datapath drops GSO super-frames before they reach
+ * encapsulation (see encap_would_be_malformed in n6_bpf.h), so the flag only
+ * ever applies to frames the kernel will not segment.
  *
  * This sets skb->encapsulation, after which the kernel rejects a further
  * ENCAP grow (-EALREADY) and bpf_skb_change_tail (-ENOTSUPP): encap must be
