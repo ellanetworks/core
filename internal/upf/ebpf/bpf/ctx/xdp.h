@@ -13,7 +13,6 @@
  * produced, and even an always_inline wrapper can shift how LLVM
  * re-associates address arithmetic. */
 #define __ctx_buff xdp_md
-#define ctx_action xdp_action
 
 /* Datapath program section: attach-type-correct per object. */
 #define CTX_DP_SEC(name) SEC("xdp/" name)
@@ -25,9 +24,10 @@
 /* Whether the datapath must pull before parsing and writing. XDP frames are already linear and writable. */
 #define CTX_NEEDS_PULL 0
 
-#define CTX_ACT_OK XDP_PASS
-#define CTX_ACT_DROP XDP_DROP
-#define CTX_ACT_ABORTED XDP_ABORTED
+/* Kernel verdict for a datapath action, applied once at a program's return.
+ * enum ctx_action carries the XDP verdict encoding, so this is the identity
+ * and compiles to nothing. */
+#define ctx_verdict(action) ((int)(action))
 
 /* TC encap needs BPF_F_ADJ_ROOM_ENCAP_* on bpf_skb_adjust_room; XDP moves raw
  * bytes and carries no offload state to describe. */
@@ -110,10 +110,6 @@
  * reads past the linear head on TC. */
 #define ctx_load_bytes(ctx, off, to, len) bpf_xdp_load_bytes(ctx, off, to, len)
 
-/* Logical action index for the xdp_actions statistics array. XDP verdicts
- * are the array's native encoding. */
-#define ctx_stat_action(action) (action)
-
 /* L4 checksum updates on XDP use direct RFC 1624 arithmetic: frames are
  * never CHECKSUM_PARTIAL here, so the check field always holds a full
  * checksum. The helper-based path is TC-only. */
@@ -140,9 +136,11 @@
  * metadata tag and is not evaluated here — XDP frames carry their tag
  * in-band, and the vid expressions read volatile config the object must not
  * load for nothing. */
-#define ctx_tx_back(ctx, egress_vid) ((enum ctx_action)XDP_TX)
+#define ctx_tx_back(ctx, egress_vid) (CTX_ACT_TX)
 
 /* Transmit the frame out `ifindex`; same `egress_vid` contract as
- * ctx_tx_back. */
+ * ctx_tx_back. bpf_redirect returns XDP_REDIRECT, which is CTX_ACT_REDIRECT,
+ * so the cast is the whole conversion; a bad target surfaces later, in
+ * xdp_do_redirect. */
 #define ctx_redirect_out(ctx, ifindex, egress_vid) \
 	((enum ctx_action)bpf_redirect(ifindex, 0))

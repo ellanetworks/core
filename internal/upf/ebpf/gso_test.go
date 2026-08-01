@@ -260,13 +260,15 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	}
 
 	rs := GetN6RouteStats(f.obj)
-	t.Logf("verdicts: drop=%d aborted=%d tx=%d redirect=%d pass=%d",
-		GetN6Drop(f.obj), GetN6Aborted(f.obj), GetN6Tx(f.obj),
-		GetN6Redirect(f.obj), GetN6Pass(f.obj))
+	t.Logf("downlink: dropped=%d pass=%d tx=%d redirect=%d",
+		TotalDrops(f.obj, Downlink),
+		ForwardCount(f.obj, Downlink, ActionPass),
+		ForwardCount(f.obj, Downlink, ActionTx),
+		ForwardCount(f.obj, Downlink, ActionRedirect))
 	t.Logf("route: success=%d no_neigh=%d mismatch=%d",
 		rs.FibSuccess, rs.FibNoNeigh, rs.IfindexMismatch)
 
-	gsoDrops := GetN6EncapGSODrops(f.obj)
+	gsoDrops := DropCount(f.obj, Downlink, "encap_gso")
 	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d", len(frames), gsoDrops)
 
 	if gsoDrops == 0 {
@@ -309,7 +311,7 @@ func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 		t.Fatal("captured no encapsulated frames on the N3 side")
 	}
 
-	if got := GetN6EncapGSODrops(f.obj); got != 0 {
+	if got := DropCount(f.obj, Downlink, "encap_gso"); got != 0 {
 		t.Errorf("encap_gso_drop = %d, want 0 with segmentation offload disabled", got)
 	}
 
@@ -344,10 +346,10 @@ func TestTCXIPv4OuterGSODropped(t *testing.T) {
 		return isGTPv4Outer(fr)
 	})
 
-	gsoDrops := GetN6EncapGSODrops(f.obj)
+	gsoDrops := DropCount(f.obj, Downlink, "encap_gso")
 
 	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d, drop=%d",
-		len(frames), gsoDrops, GetN6Drop(f.obj))
+		len(frames), gsoDrops, TotalDrops(f.obj, Downlink))
 
 	if gsoDrops == 0 {
 		t.Skip("encapsulation never saw a GSO super-frame; the exposure was not reached")

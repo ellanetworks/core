@@ -8,8 +8,10 @@ package ebpf
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"net/netip"
 	"runtime"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -167,18 +169,119 @@ func runTCChecksumComplete(t *testing.T, prog *ebpf.Program, packet []byte) (uin
 
 // verdictsEquivalent maps the XDP verdict encoding onto TC's: forwarding
 // verdicts (TX and REDIRECT) both surface as TC_ACT_REDIRECT, and TC folds
-// aborted into drop (both TC_ACT_SHOT).
+// aborted into drop (both TC_ACT_SHOT). The verdicts are lossy in exactly this
+// way, which is why the action counter is keyed on the datapath's own decision
+// — see actionCounters.
 func verdictsEquivalent(xdpAction, tcAction uint32) bool {
 	switch xdpAction {
-	case XDP_PASS:
+	case ActionPass:
 		return tcAction == tcActOK
-	case XDP_DROP, XDP_ABORTED:
+	case ActionDrop, ActionAborted:
 		return tcAction == tcActShot
-	case XDP_TX, XDP_REDIRECT:
+	case ActionTx, ActionRedirect:
 		return tcAction == tcActRedirect
 	}
 
 	return false
+}
+
+// actionCounters sums a build's per-action counters over both directions and
+// all CPUs. The two builds' statistics are distinct generated types with the
+// same layout, so each caller passes its own reader.
+func actionCounters(t *testing.T, read func(*ebpf.Map) [UPFMaxAction]uint64, uplink, downlink *ebpf.Map) [UPFMaxAction]uint64 {
+	t.Helper()
+
+	var total [UPFMaxAction]uint64
+
+	for _, m := range []*ebpf.Map{uplink, downlink} {
+		for i, v := range read(m) {
+			total[i] += v
+		}
+	}
+
+	return total
+}
+
+func xdpActionCounters(t *testing.T, obj *BpfObjects) [UPFMaxAction]uint64 {
+	t.Helper()
+
+	return actionCounters(t, func(m *ebpf.Map) [UPFMaxAction]uint64 {
+		var stats []N3N6EntrypointUpfStatistic
+		if err := m.Lookup(uint32(0), &stats); err != nil {
+			t.Fatalf("read XDP statistics: %v", err)
+		}
+
+		var sum [UPFMaxAction]uint64
+
+		for _, s := range stats {
+			for i, v := range s.ForwardedActions {
+				sum[i] += v
+			}
+		}
+
+		return sum
+	}, obj.UplinkStatistics, obj.DownlinkStatistics)
+}
+
+func tcActionCounters(t *testing.T, objs *N3N6EntrypointTcObjects) [UPFMaxAction]uint64 {
+	t.Helper()
+
+	return actionCounters(t, func(m *ebpf.Map) [UPFMaxAction]uint64 {
+		var stats []N3N6EntrypointTcUpfStatistic
+		if err := m.Lookup(uint32(0), &stats); err != nil {
+			t.Fatalf("read TC statistics: %v", err)
+		}
+
+		var sum [UPFMaxAction]uint64
+
+		for _, s := range stats {
+			for i, v := range s.ForwardedActions {
+				sum[i] += v
+			}
+		}
+
+		return sum
+	}, objs.UplinkStatistics, objs.DownlinkStatistics)
+}
+
+func actionDelta(before, after [UPFMaxAction]uint64) [UPFMaxAction]uint64 {
+	var d [UPFMaxAction]uint64
+	for i := range after {
+		d[i] = after[i] - before[i]
+	}
+
+	return d
+}
+
+var actionNames = map[int]string{
+	ActionAborted:  "aborted",
+	ActionDrop:     "drop",
+	ActionPass:     "pass",
+	ActionTx:       "tx",
+	ActionRedirect: "redirect",
+}
+
+func formatActions(d [UPFMaxAction]uint64) string {
+	var b []string
+
+	for i, v := range d {
+		if v == 0 {
+			continue
+		}
+
+		name, ok := actionNames[i]
+		if !ok {
+			name = fmt.Sprintf("action%d", i)
+		}
+
+		b = append(b, fmt.Sprintf("%s=%d", name, v))
+	}
+
+	if len(b) == 0 {
+		return "none"
+	}
+
+	return strings.Join(b, " ")
 }
 
 // TestTCObjectsLoad is the verifier gate for the SCHED_CLS build: every
@@ -266,11 +369,27 @@ func TestTCMatchesXDPOutput(t *testing.T) {
 				putTCPdrDownlink(t, tcObjs, ueAddr, *tc.pdr)
 			}
 
+			xdpBefore := xdpActionCounters(t, xdpObj)
+			tcBefore := tcActionCounters(t, tcObjs)
+
 			xdpAction, xdpOut := runXDPOut(t, xdpObj.UpfEntryFunc, tc.frame)
 			tcAction, tcOut := runTC(t, tcObjs.UpfEntryFunc, tc.frame)
 
 			if !verdictsEquivalent(xdpAction, tcAction) {
 				t.Errorf("verdicts diverge: XDP %d, TC %d", xdpAction, tcAction)
+			}
+
+			// The verdicts are allowed to differ; the recorded action is
+			// not. TC cannot express an abort or a transmit-back, so a
+			// counter keyed on the verdict would report this frame as a
+			// drop or a redirect under TCX and leave those two series at
+			// zero forever.
+			xdpDelta := actionDelta(xdpBefore, xdpActionCounters(t, xdpObj))
+			tcDelta := actionDelta(tcBefore, tcActionCounters(t, tcObjs))
+
+			if xdpDelta != tcDelta {
+				t.Errorf("action counters diverge: XDP [%s], TC [%s]",
+					formatActions(xdpDelta), formatActions(tcDelta))
 			}
 
 			if !bytes.Equal(xdpOut, tcOut) {
@@ -341,7 +460,7 @@ func TestTCMatchesXDPOutputDestinationNAT(t *testing.T) {
 			len(xdpOut), xdpOut, len(tcOut), tcOut)
 	}
 
-	if xdpAction == XDP_DROP || xdpAction == XDP_ABORTED {
+	if xdpAction == ActionDrop || xdpAction == ActionAborted {
 		t.Fatalf("translated downlink packet dropped (XDP action %d)", xdpAction)
 	}
 

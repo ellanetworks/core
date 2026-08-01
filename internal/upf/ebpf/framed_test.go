@@ -47,8 +47,8 @@ func TestFramedRouteDownlinkIPv4(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("framed-route downlink packet got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("framed-route downlink packet got ActionAborted; encapsulation failed")
 	}
 
 	f := parseGTPv4Frame(t, out)
@@ -97,8 +97,8 @@ func TestFramedRouteDownlinkIPv6(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("framed-route IPv6 downlink got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("framed-route IPv6 downlink got ActionAborted; encapsulation failed")
 	}
 
 	f := parseGTPv4Frame(t, out)
@@ -148,7 +148,7 @@ func TestFramedRouteFollowsDownlinkPDRUpdate(t *testing.T) {
 	inner := ipv4Packet([4]byte{8, 8, 8, 8}, dst, 17, udpDatagram(4000, 4001, []byte{0xde, 0xad, 0xbe, 0xef}))
 
 	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
-	if action == XDP_TX || action == XDP_REDIRECT {
+	if action == ActionTx || action == ActionRedirect {
 		t.Fatalf("framed downlink forwarded while owning FAR was drop (action %d)", action)
 	}
 
@@ -159,8 +159,8 @@ func TestFramedRouteFollowsDownlinkPDRUpdate(t *testing.T) {
 	}
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
-	if action == XDP_ABORTED {
-		t.Fatal("framed-route downlink got XDP_ABORTED after FAR became forward")
+	if action == ActionAborted {
+		t.Fatal("framed-route downlink got ActionAborted after FAR became forward")
 	}
 
 	f := parseGTPv4Frame(t, out)
@@ -205,8 +205,8 @@ func TestFramedRouteDownlinkSurvivesReload(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("framed-route downlink after reload got XDP_ABORTED")
+	if action == ActionAborted {
+		t.Fatal("framed-route downlink after reload got ActionAborted")
 	}
 
 	f := parseGTPv4Frame(t, out)
@@ -235,7 +235,7 @@ func TestFramedRouteDownlinkMiss(t *testing.T) {
 
 	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action != XDP_PASS {
-		t.Fatalf("unmatched downlink got XDP action %d, want XDP_PASS (%d)", action, XDP_PASS)
+	if action != ActionPass {
+		t.Fatalf("unmatched downlink got XDP action %d, want ActionPass (%d)", action, ActionPass)
 	}
 }

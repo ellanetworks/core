@@ -52,8 +52,8 @@ func TestGTPEncapsulationDownlinkS1U(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("S1-U downlink packet got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("S1-U downlink packet got ActionAborted; encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV4EncapLenS1U+len(inner) {
@@ -117,8 +117,8 @@ func TestGTPEncapsulationDownlinkIPv4(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("downlink packet got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink packet got ActionAborted; encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV4EncapLen+len(inner) {
@@ -194,8 +194,8 @@ func TestGTPEncapsulationDownlinkInnerIPv6(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("downlink IPv6 packet got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink IPv6 packet got ActionAborted; encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV4EncapLen+len(inner) {
@@ -249,8 +249,8 @@ func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("downlink packet got XDP_ABORTED; IPv6-transport encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink packet got ActionAborted; IPv6-transport encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV6EncapLen+len(inner) {
@@ -315,8 +315,8 @@ func TestTransportLevelMarking(t *testing.T) {
 	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
-	if action == XDP_ABORTED {
-		t.Fatal("downlink packet got XDP_ABORTED")
+	if action == ActionAborted {
+		t.Fatal("downlink packet got ActionAborted")
 	}
 
 	if tos := out[ethHdrLen+1]; tos != wantTOS {

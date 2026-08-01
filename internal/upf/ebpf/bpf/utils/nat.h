@@ -355,12 +355,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	/* A fragment has no usable L4 header: the bytes at the L4 offset are
 	 * payload, and rewriting them corrupts the datagram. */
 	if (ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK)) {
-		ctx->statistics->nat_fragment_drop_ip4 += 1;
+		set_drop_reason(ctx, UPF_DROP_NAT_FRAGMENT);
 		return false;
 	}
 
 	if (!nat_ip4_lengths_valid(ctx->ctx_buff, ctx->ip4, ctx->data_end)) {
-		ctx->statistics->nat_malformed_drop_ip4 += 1;
+		set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 		return false;
 	}
 
@@ -383,12 +383,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
 			if (-1 == parse_tcp(ctx)) {
-				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 				return false;
 			}
 		}
 		if (!nat_tcp_valid(ctx->ip4, ctx->tcp)) {
-			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 			return false;
 		}
 		orig.sport = ctx->tcp->source;
@@ -406,12 +406,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
 			if (-1 == parse_udp(ctx)) {
-				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 				return false;
 			}
 		}
 		if (!nat_udp_valid(ctx->ip4, ctx->udp)) {
-			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 			return false;
 		}
 		orig.sport = ctx->udp->source;
@@ -428,12 +428,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
 			if (-1 == parse_icmp(ctx)) {
-				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 				return false;
 			}
 		}
 		if (!nat_icmp_valid(ctx->ip4)) {
-			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 			return false;
 		}
 		if (nat_icmp_is_query(ctx->icmp->type)) {
@@ -446,7 +446,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	default:
 		/* Translating a protocol with no port to renumber would
 		 * collapse every UE onto one mapping per remote host. */
-		ctx->statistics->nat_unsupported_proto_drop_ip4 += 1;
+		set_drop_reason(ctx, UPF_DROP_NAT_UNSUPPORTED_PROTO);
 		return false;
 	}
 
@@ -551,7 +551,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		    source_nat_apply_csum_helpers(ctx, orig.saddr,
 						  ctx->ip4->saddr, orig.sport,
 						  natted.sport) != 0) {
-			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 			return false;
 		}
 
@@ -589,7 +589,7 @@ allocate:;
 		}
 	}
 	if (!reserved) {
-		ctx->statistics->nat_port_exhausted_drop_ip4 += 1;
+		set_drop_reason(ctx, UPF_DROP_NAT_PORT_EXHAUSTED);
 		return false;
 	}
 
@@ -610,7 +610,7 @@ allocate:;
 		struct nat_entry *winner = bpf_map_lookup_elem(&nat_ct, &orig);
 		if (!winner) {
 			bpf_map_delete_elem(&nat_ct, &natted);
-			ctx->statistics->nat_port_exhausted_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_PORT_EXHAUSTED);
 			return false;
 		}
 		struct five_tuple winner_src = winner->peer;
@@ -624,7 +624,7 @@ allocate:;
 	if (CTX_L4_CSUM_VIA_HELPERS &&
 	    source_nat_apply_csum_helpers(ctx, orig.saddr, ctx->ip4->saddr,
 					  orig.sport, natted.sport) != 0) {
-		ctx->statistics->nat_malformed_drop_ip4 += 1;
+		set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 		return false;
 	}
 
@@ -842,7 +842,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 	struct nat_entry *origin;
 	struct five_tuple key = {};
 	if (!nat_ip4_lengths_valid(ctx->ctx_buff, ctx->ip4, ctx->data_end)) {
-		ctx->statistics->nat_malformed_drop_ip4 += 1;
+		set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 		*counted = true;
 		return false;
 	}
@@ -855,13 +855,13 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
 			if (-1 == parse_icmp(ctx)) {
-				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 				*counted = true;
 				return false;
 			}
 		}
 		if (!nat_icmp_valid(ctx->ip4)) {
-			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 			*counted = true;
 			return false;
 		}
@@ -890,7 +890,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
 			if (-1 == parse_tcp(ctx)) {
-				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 				*counted = true;
 				return false;
 			}
@@ -907,7 +907,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 		}
 
 		if (!nat_tcp_valid(ctx->ip4, ctx->tcp)) {
-			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 			*counted = true;
 			return false;
 		}
@@ -923,7 +923,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
 			if (-1 == parse_udp(ctx)) {
-				ctx->statistics->nat_malformed_drop_ip4 += 1;
+				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 				*counted = true;
 				return false;
 			}
@@ -940,7 +940,7 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 		}
 
 		if (!nat_udp_valid(ctx->ip4, ctx->udp)) {
-			ctx->statistics->nat_malformed_drop_ip4 += 1;
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
 			*counted = true;
 			return false;
 		}

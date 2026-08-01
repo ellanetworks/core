@@ -49,17 +49,11 @@ handle_uplink_ip4(struct packet_context *ctx)
 			upf_printk(
 				"upf: gtp-u received on N3, src=%pI4 dst=%pI4",
 				&ctx->ip4->saddr, &ctx->ip4->daddr);
-			enum ctx_action action = handle_gtpu(ctx);
-			ctx->statistics->xdp_actions[ctx_stat_action(action) &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
-			return action;
+			return handle_gtpu(ctx);
 		}
 	}
 
 	/* Non-GTP traffic on N3 is not uplink user-plane; leave it to the stack. */
-	ctx->statistics->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
-				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return DEFAULT_CTX_ACTION;
 }
 
@@ -71,16 +65,10 @@ handle_uplink_ip6(struct packet_context *ctx)
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
 			upf_printk("upf: gtp-u received on N3 (IPv6 outer)");
-			enum ctx_action action = handle_gtpu(ctx);
-			ctx->statistics->xdp_actions[ctx_stat_action(action) &
-						     EUPF_MAX_XDP_ACTION_MASK] +=
-				1;
-			return action;
+			return handle_gtpu(ctx);
 		}
 	}
 
-	ctx->statistics->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
-				     EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return DEFAULT_CTX_ACTION;
 }
 
@@ -106,17 +94,12 @@ handle_downlink_ip4(struct packet_context *ctx)
 	int l4_protocol = parse_ip4(ctx);
 	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMP &&
 	    l4_protocol != IPPROTO_TCP) {
-		ctx->statistics
-			->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
-				      EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return DEFAULT_CTX_ACTION;
 	}
 
 	ctx->statistics->packet_counters.rx++;
-	enum ctx_action action = handle_n6_packet_ipv4(ctx);
-	ctx->statistics->xdp_actions[ctx_stat_action(action) &
-				     EUPF_MAX_XDP_ACTION_MASK] += 1;
-	return action;
+
+	return handle_n6_packet_ipv4(ctx);
 }
 
 static __always_inline enum ctx_action
@@ -125,17 +108,12 @@ handle_downlink_ip6(struct packet_context *ctx)
 	int l4_protocol = parse_ip6(ctx);
 	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMPV6 &&
 	    l4_protocol != IPPROTO_TCP) {
-		ctx->statistics
-			->xdp_actions[ctx_stat_action(DEFAULT_CTX_ACTION) &
-				      EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return DEFAULT_CTX_ACTION;
 	}
 
 	ctx->statistics->packet_counters.rx++;
-	enum ctx_action action = handle_n6_packet_ipv6(ctx);
-	ctx->statistics->xdp_actions[ctx_stat_action(action) &
-				     EUPF_MAX_XDP_ACTION_MASK] += 1;
-	return action;
+
+	return handle_n6_packet_ipv6(ctx);
 }
 
 static __always_inline enum ctx_action
@@ -172,77 +150,79 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 	/* A tag still in the frame bytes at this hook means a second, inner tag:
 	 * the datapath does not parse QinQ, so the stack takes it. */
 	if (ctx_vlan_ingress(ctx))
-		return CTX_ACT_OK;
+		return ctx_verdict(CTX_ACT_OK);
 
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
-		return CTX_ACT_ABORTED;
-
-	/* This stage answers echo requests and error indications by rewriting
-	 * the frame in place, so the headers must be writable first. The pull
-	 * precedes the context so the parse below starts from fresh pointers. */
-	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
-		return DEFAULT_CTX_ACTION;
+		return ctx_verdict(CTX_ACT_ABORTED);
 
 	struct packet_context context = {
-		.data = ctx_data(ctx),
-		.data_end = ctx_data_end(ctx),
 		.ctx_buff = ctx,
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
 
+	/* This stage answers echo requests and error indications by rewriting
+	 * the frame in place, so the headers must be writable first. The pull
+	 * precedes the packet pointers so the parse below starts from fresh
+	 * ones. */
+	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return record_action(&context, DEFAULT_CTX_ACTION);
+
+	context.data = ctx_data(ctx);
+	context.data_end = ctx_data_end(ctx);
+
 	if (context_reinit(&context, context.data, context.data_end) != 0)
-		return DEFAULT_CTX_ACTION;
+		return record_action(&context, DEFAULT_CTX_ACTION);
 
 	/* Each transport is dispatched to its own return: a shared tail lets the
 	 * verifier merge the ip4 and ip6 states, after which it rejects a
 	 * dereference of either. */
 	if (context.ip4) {
 		if (parse_udp(&context) != GTP_UDP_PORT)
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
 		int pdu_type = parse_gtp(&context);
 		if (!context.gtp)
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
 		if (pdu_type == GTPU_ECHO_REQUEST)
-			return handle_echo_request(&context);
+			return record_action(&context, handle_echo_request(&context));
 
 		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
 		/* The stage is independently reachable, so the absent session is
 		 * confirmed here. */
 		__u32 teid4 = bpf_htonl(context.gtp->teid);
 		if (bpf_map_lookup_elem(&pdrs_uplink, &teid4))
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
-		return send_error_indication_ipv4(&context);
+		return record_action(&context, send_error_indication_ipv4(&context));
 	}
 
 	if (context.ip6) {
 		if (parse_udp(&context) != GTP_UDP_PORT)
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
 		int pdu_type = parse_gtp(&context);
 		if (!context.gtp)
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
 		if (pdu_type == GTPU_ECHO_REQUEST)
-			return handle_echo_request(&context);
+			return record_action(&context, handle_echo_request(&context));
 
 		if (pdu_type != GTPU_G_PDU || context.gtp->teid == 0)
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
 		__u32 teid6 = bpf_htonl(context.gtp->teid);
 		if (bpf_map_lookup_elem(&pdrs_uplink, &teid6))
-			return DEFAULT_CTX_ACTION;
+			return record_action(&context, DEFAULT_CTX_ACTION);
 
-		return send_error_indication_ipv6(&context);
+		return record_action(&context, send_error_indication_ipv6(&context));
 	}
 
-	return DEFAULT_CTX_ACTION;
+	return record_action(&context, DEFAULT_CTX_ACTION);
 }
 
 /* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
@@ -253,11 +233,11 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 	/* A tag still in the frame bytes at this hook means a second, inner tag:
 	 * the datapath does not parse QinQ, so the stack takes it. */
 	if (ctx_vlan_ingress(ctx))
-		return CTX_ACT_OK;
+		return ctx_verdict(CTX_ACT_OK);
 
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
-		return CTX_ACT_ABORTED;
+		return ctx_verdict(CTX_ACT_ABORTED);
 
 	struct packet_context context = {
 		.data = ctx_data(ctx),
@@ -270,7 +250,8 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 	PROFILE_START(PROF_N3_TOTAL);
 	enum ctx_action ret = process_uplink(&context);
 	PROFILE_END(PROF_N3_TOTAL);
-	return ret;
+
+	return record_action(&context, ret);
 }
 
 /* upf_downlink_func: tail-call stage for plain downlink traffic toward a UE. */
@@ -280,11 +261,11 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	/* A tag still in the frame bytes at this hook means a second, inner tag:
 	 * the datapath does not parse QinQ, so the stack takes it. */
 	if (ctx_vlan_ingress(ctx))
-		return CTX_ACT_OK;
+		return ctx_verdict(CTX_ACT_OK);
 
 	struct upf_statistic *statistics = get_stats(&downlink_statistics);
 	if (!statistics)
-		return CTX_ACT_ABORTED;
+		return ctx_verdict(CTX_ACT_ABORTED);
 
 	struct packet_context context = {
 		.data = ctx_data(ctx),
@@ -297,7 +278,8 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	PROFILE_START(PROF_N6_TOTAL);
 	enum ctx_action ret = process_downlink(&context);
 	PROFILE_END(PROF_N6_TOTAL);
-	return ret;
+
+	return record_action(&context, ret);
 }
 
 /* upf_entry_func: attached to the N3/N6 interface(s). Classifies by packet type
@@ -314,7 +296,7 @@ int upf_entry_func(struct __ctx_buff *ctx)
 	/* A tag still in the frame bytes at this hook means a second, inner tag:
 	 * the datapath does not parse QinQ, so the stack takes it. */
 	if (ctx_vlan_ingress(ctx))
-		return CTX_ACT_OK;
+		return ctx_verdict(CTX_ACT_OK);
 
 	struct packet_context context = {
 		.data = ctx_data(ctx),
@@ -327,7 +309,7 @@ int upf_entry_func(struct __ctx_buff *ctx)
 
 	if (l3_protocol == ETH_P_ARP) {
 		upf_printk("upf: arp received. passing to kernel");
-		return CTX_ACT_OK;
+		return ctx_verdict(CTX_ACT_OK);
 	}
 
 	const bool split_interfaces = n3_ifindex != 0 && n6_ifindex != 0 &&
@@ -350,13 +332,13 @@ int upf_entry_func(struct __ctx_buff *ctx)
 				index = UPF_CALL_UPLINK;
 		}
 	} else {
-		return DEFAULT_CTX_ACTION;
+		return ctx_verdict(DEFAULT_CTX_ACTION);
 	}
 
 	bpf_tail_call(ctx, &upf_calls, index);
 
 	/* Only reached if the stage program is not populated in upf_calls. */
-	return DEFAULT_CTX_ACTION;
+	return ctx_verdict(DEFAULT_CTX_ACTION);
 }
 
 /* Keyed by the inner IPv6 destination address. */
@@ -386,29 +368,29 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 	/* A tag still in the frame bytes at this hook means a second, inner tag:
 	 * the datapath does not parse QinQ, so the stack takes it. */
 	if (ctx_vlan_ingress(ctx))
-		return CTX_ACT_OK;
+		return ctx_verdict(CTX_ACT_OK);
 
 	void *data = ctx_data(ctx);
 	const void *data_end = ctx_data_end(ctx);
 
 	struct ethhdr *eth = data;
 	if ((void *)(eth + 1) > data_end)
-		return CTX_ACT_DROP;
+		return ctx_verdict(CTX_ACT_DROP);
 
 	if (eth->h_proto != bpf_htons(ETH_P_IPV6)) {
-		return CTX_ACT_DROP;
+		return ctx_verdict(CTX_ACT_DROP);
 	}
 
 	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
 	if ((void *)(ip6 + 1) > data_end) {
-		return CTX_ACT_DROP;
+		return ctx_verdict(CTX_ACT_DROP);
 	}
 
 	struct veth_tunnel_info *tun =
 		bpf_map_lookup_elem(&veth_tunnels, &ip6->daddr);
 	if (!tun) {
 		upf_printk("upf: veth XDP tunnel miss dst=%pI6c", &ip6->daddr);
-		return CTX_ACT_DROP;
+		return ctx_verdict(CTX_ACT_DROP);
 	}
 
 	upf_printk("upf: veth received RA for dest %pI6c", &ip6->daddr);
@@ -434,16 +416,16 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 						       0, tun->qfi, tun->teid);
 		}
 		if (ret != 0) {
-			return CTX_ACT_ABORTED;
+			return ctx_verdict(CTX_ACT_ABORTED);
 		}
 
 		const __u32 key4 = 0;
 		struct route_stat *route_stat4 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key4);
 		if (!route_stat4)
-			return CTX_ACT_ABORTED;
+			return ctx_verdict(CTX_ACT_ABORTED);
 
-		return route_ipv4(&pkt_ctx, route_stat4, true);
+		return ctx_verdict(route_ipv4(&pkt_ctx, route_stat4, true));
 	} else {
 		upf_printk("upf: encapsulating over IPv6");
 		if (tun->no_psc) {
@@ -458,19 +440,19 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 						       tun->qfi, tun->teid);
 		}
 		if (ret != 0) {
-			return CTX_ACT_ABORTED;
+			return ctx_verdict(CTX_ACT_ABORTED);
 		}
 
 		const __u32 key6 = 0;
 		struct route_stat *route_stat6 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key6);
 		if (!route_stat6)
-			return CTX_ACT_ABORTED;
+			return ctx_verdict(CTX_ACT_ABORTED);
 
-		return route_ipv6(&pkt_ctx, route_stat6, true);
+		return ctx_verdict(route_ipv6(&pkt_ctx, route_stat6, true));
 	}
 
-	return CTX_ACT_ABORTED;
+	return ctx_verdict(CTX_ACT_ABORTED);
 }
 
 char _license[] SEC("license") = "GPL";

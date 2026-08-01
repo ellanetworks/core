@@ -32,128 +32,65 @@ func RegisterMetrics() {
 		return float64(ebpf.GetN6DownlinkThroughputStats(bpfObjects))
 	})
 
-	// XDP action metrics with labels for interface and action
-	xdpActionDesc := prometheus.NewDesc(
-		"app_xdp_action_total",
-		"XDP action per packet.",
-		[]string{"interface", "action"},
+	// The data plane attaches at XDP or at TCX, so these name the datapath
+	// rather than either hook.
+	//
+	// Every frame the data plane handles is counted exactly once, in one of
+	// two disjoint families: forwarded, by the action taken, or dropped, by
+	// the reason it was stopped. An abort is a drop whose cause is the
+	// datapath itself, so it carries an internal_ reason rather than being a
+	// separate outcome.
+	datapathForwardDesc := prometheus.NewDesc(
+		"app_upf_datapath_forward_total",
+		"Packets the data plane forwarded, by direction and by the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in every attach mode.",
+		[]string{"direction", "action"},
 		nil,
 	)
 
-	// FIB lookup result metrics with labels for interface and result
-	xdpFibLookupDesc := prometheus.NewDesc(
-		"app_xdp_fib_lookup_total",
-		"FIB lookup outcomes in the XDP data plane.",
-		[]string{"interface", "result"},
-		nil,
-	)
-
-	// Ifindex mismatch metrics with label for interface
-	xdpIfindexMismatchDesc := prometheus.NewDesc(
-		"app_xdp_ifindex_mismatch_total",
-		"Packets dropped because the FIB-resolved interface did not match the expected N3/N6 interface.",
-		[]string{"interface"},
-		nil,
-	)
-
-	// Source-spoofing drops (uplink/N3 only) with label for address family
-	xdpSourceSpoofDropDesc := prometheus.NewDesc(
-		"app_xdp_source_spoof_drop_total",
-		"Uplink packets dropped because the inner source address was not one of the session's authorized UE or framed addresses.",
-		[]string{"family"},
-		nil,
-	)
-
-	xdpNatUnsolicitedDropDesc := prometheus.NewDesc(
-		"app_xdp_nat_unsolicited_drop_total",
-		"Downlink packets dropped because NAT is enabled and the UE destination address had no conntrack translation.",
-		[]string{"family"},
-		nil,
-	)
-
-	encapGSODropDesc := prometheus.NewDesc(
-		"app_upf_encap_gso_drop_total",
-		"Downlink frames dropped because they reached encapsulation as a GSO super-frame, which cannot be encapsulated into well-formed GTP-U. Non-zero means GRO must be disabled on the N6 interface.",
-		nil,
-		nil,
-	)
-
-	ruleDropDesc := prometheus.NewDesc(
-		"app_upf_rule_drop_total",
-		"Packets dropped by session rules, by direction and reason.",
+	datapathDropDesc := prometheus.NewDesc(
+		"app_upf_datapath_drop_total",
+		`Packets the data plane did not forward, by direction and reason. Reasons prefixed internal_ are datapath failures and should stay at zero; reason="unspecified" means a drop site recorded no cause, which is a bug.`,
 		[]string{"direction", "reason"},
 		nil,
 	)
 
-	xdpNatDropDesc := prometheus.NewDesc(
-		"app_xdp_nat_drop_total",
-		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto, malformed).",
-		[]string{"reason"},
+	// The full distribution of FIB lookup outcomes, including those that are
+	// not drops. The ones that do drop are also counted in
+	// app_upf_datapath_drop_total under their fib_ reason.
+	datapathFibLookupDesc := prometheus.NewDesc(
+		"app_upf_datapath_fib_lookup_total",
+		"FIB lookup outcomes in the data plane.",
+		[]string{"interface", "result"},
 		nil,
 	)
 
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
-	// Register XDP action collector that produces metrics with labels
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Pass(bpfObjects)), "n3", "XDP_PASS")
+		for dir, counters := range ebpf.GetDatapathCounters(bpfObjects) {
+			for _, a := range []struct {
+				label string
+				index int
+			}{
+				{"pass", ebpf.ActionPass},
+				{"tx", ebpf.ActionTx},
+				{"redirect", ebpf.ActionRedirect},
+			} {
+				ch <- prometheus.MustNewConstMetric(datapathForwardDesc,
+					prometheus.CounterValue, float64(counters.Forwarded[a.index]),
+					string(dir), a.label)
+			}
 
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Drop(bpfObjects)), "n3", "XDP_DROP")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Tx(bpfObjects)), "n3", "XDP_TX")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Aborted(bpfObjects)), "n3", "XDP_ABORTED")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Redirect(bpfObjects)), "n3", "XDP_REDIRECT")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Pass(bpfObjects)), "n6", "XDP_PASS")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Drop(bpfObjects)), "n6", "XDP_DROP")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Tx(bpfObjects)), "n6", "XDP_TX")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Aborted(bpfObjects)), "n6", "XDP_ABORTED")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Redirect(bpfObjects)), "n6", "XDP_REDIRECT")
-
-		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv4(bpfObjects)), "ipv4")
-
-		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv6(bpfObjects)), "ipv6")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatUnsolicitedDropDesc, prometheus.CounterValue, float64(ebpf.GetN6NatUnsolicitedDropIPv4(bpfObjects)), "ipv4")
-
-		ch <- prometheus.MustNewConstMetric(encapGSODropDesc, prometheus.CounterValue, float64(ebpf.GetN6EncapGSODrops(bpfObjects)))
-
-		natDrops := ebpf.GetNatDrops(bpfObjects)
-
-		ruleDrops := ebpf.GetRuleDrops(bpfObjects)
-		for _, d := range []struct {
-			dir, reason string
-			value       uint64
-		}{
-			{"downlink", "far_no_forward", ruleDrops.DLFarNoForward},
-			{"downlink", "far_no_encap", ruleDrops.DLFarNoEncap},
-			{"downlink", "qer_gate_closed", ruleDrops.DLQerGate},
-			{"downlink", "qer_rate_limit", ruleDrops.DLQerRate},
-			{"downlink", "nocp_buffer", ruleDrops.DLNoCP},
-			{"downlink", "unsolicited", ruleDrops.DLUnsolicited},
-			{"downlink", "sdf_filter", ruleDrops.DLSdf},
-			{"uplink", "qer_gate_closed", ruleDrops.ULQerGate},
-			{"uplink", "qer_rate_limit", ruleDrops.ULQerRate},
-			{"uplink", "sdf_filter", ruleDrops.ULSdf},
-			{"uplink", "decap_family_mismatch", ruleDrops.ULDecapMismatch},
-			{"uplink", "unsupported_far", ruleDrops.ULUnsupportedFAR},
-		} {
-			ch <- prometheus.MustNewConstMetric(ruleDropDesc, prometheus.CounterValue, float64(d.value), d.dir, d.reason)
+			// Every reason is published, including those sitting at zero:
+			// a series that appears only once it fires cannot be told apart
+			// from one that was never instrumented, which breaks rate() and
+			// any alert built on it.
+			for reason, name := range ebpf.DropReasonNames() {
+				ch <- prometheus.MustNewConstMetric(datapathDropDesc,
+					prometheus.CounterValue, float64(counters.Dropped[reason]),
+					string(dir), name)
+			}
 		}
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Fragment), "fragment")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.PortExhausted), "port_exhausted")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.UnsupportedProto), "unsupported_proto")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Malformed), "malformed")
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector
@@ -168,31 +105,29 @@ func RegisterMetrics() {
 			{"n3", n3},
 			{"n6", n6},
 		} {
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.iface, "success")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.iface, "success")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.iface, "no_neigh")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.iface, "no_neigh")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.iface, "blackhole")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.iface, "blackhole")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.iface, "unreachable")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.iface, "unreachable")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.iface, "prohibit")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.iface, "prohibit")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.iface, "no_src_addr")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.iface, "no_src_addr")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.iface, "frag_needed")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.iface, "frag_needed")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.iface, "not_fwded")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.iface, "not_fwded")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.iface, "fwd_disabled")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.iface, "fwd_disabled")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.iface, "unsupp_lwt")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.iface, "unsupp_lwt")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.iface, "error_ipv4")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.iface, "error_ipv4")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.iface, "error_ipv6")
-
-			ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(entry.stats.IfindexMismatch), entry.iface)
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.iface, "error_ipv6")
 		}
 	}))
 

@@ -107,7 +107,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 							 qfi, far->teid);
 		if (encap_result != 0) {
 			PROFILE_END(PROF_N6_GTP_MANIP);
-			return CTX_ACT_ABORTED;
+			return abort_with(ctx, UPF_DROP_INTERNAL_ENCAP_FAILED);
 		}
 		PROFILE_END(PROF_N6_GTP_MANIP);
 
@@ -117,7 +117,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		struct route_stat *route_stat6 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key6);
 		if (!route_stat6)
-			return CTX_ACT_ABORTED;
+			return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI6c -> %pI6c", &ctx->ip6->saddr,
@@ -139,7 +139,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 					qfi, far->teid);
 		if (encap_result != 0) {
 			PROFILE_END(PROF_N6_GTP_MANIP);
-			return CTX_ACT_ABORTED;
+			return abort_with(ctx, UPF_DROP_INTERNAL_ENCAP_FAILED);
 		}
 		PROFILE_END(PROF_N6_GTP_MANIP);
 
@@ -149,7 +149,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		struct route_stat *route_stat4 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key4);
 		if (!route_stat4)
-			return CTX_ACT_ABORTED;
+			return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
@@ -163,7 +163,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	if (own_packet_pull(ctx) != 0 || !ctx->ip4)
-		return CTX_ACT_ABORTED;
+		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
 
 	bool translated = false;
 	bool counted = false;
@@ -197,10 +197,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 				   &ue_addr);
 			/* A conntrack hit makes this the UE's packet; the host
 			 * stack has no session to answer it with. */
-			if (translated) {
-				ctx->statistics->nat_unsolicited_drop_ip4 += 1;
-				return CTX_ACT_DROP;
-			}
+			if (translated)
+				return drop_with(ctx, UPF_DROP_NAT_UNSOLICITED);
 
 			return DEFAULT_CTX_ACTION;
 		}
@@ -211,15 +209,14 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (masquerade && !translated) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4",
 			   &ip4->daddr);
-		if (fragment) {
-			ctx->statistics->nat_fragment_drop_ip4 += 1;
-		} else if (!counted) {
-			ctx->statistics->nat_unsolicited_drop_ip4 += 1;
-		} else {
-			ctx->statistics->dl_drop_unsolicited += 1;
-		}
+		if (fragment)
+			set_drop_reason(ctx, UPF_DROP_NAT_FRAGMENT);
+		else if (!counted)
+			set_drop_reason(ctx, UPF_DROP_NAT_UNSOLICITED);
+
 		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
-		return CTX_ACT_DROP;
+
+		return drop_reported(ctx, UPF_DROP_NO_DOWNLINK_SESSION);
 	}
 
 	struct far_info *far = &pdr->far;
@@ -238,9 +235,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len, encap_size, 0);
 	PROFILE_END(PROF_N6_MTU_CHECK);
 	if (ret < 0) {
-		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
-					     EUPF_MAX_XDP_ACTION_MASK] += 1;
-		return CTX_ACT_ABORTED;
+		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 	}
 	if (ret > 0) {
 		upf_printk("upf: n6 packet too large");
@@ -260,7 +255,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		 * here is a failed re-parse. */
 		ip4 = ctx->ip4;
 		if (!ip4)
-			return CTX_ACT_ABORTED;
+			return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
 	}
 
 	ctx->interface = INTERFACE_N6;
@@ -281,25 +276,21 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 
 		/* Technically, we need to buffer the packet here, but this is not
 		 * implemented yet. */
-		ctx->statistics->dl_drop_nocp += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
 	if (!(far->action & FAR_FORW)) {
 		upf_printk("upf: far not set to forward, dropping packet");
-		ctx->statistics->dl_drop_far_no_forw += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
 	}
 	if (!(far->outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		upf_printk(
 			"upf: far not set to encapsulate in gtp, dropping packet");
-		ctx->statistics->dl_drop_far_no_encap += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FAR_NO_ENCAP);
 	}
 	if (encap_would_be_malformed(ctx)) {
 		upf_printk("upf: gso super-frame on the encap path, dropping");
-		ctx->statistics->dl_drop_encap_gso += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
 	PROFILE_START(PROF_N6_QER_RATELIMIT);
@@ -307,8 +298,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		   qer->dl_maximum_bitrate);
 	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
-		ctx->statistics->dl_drop_qer_gate += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 	}
 
 	const __u64 packet_size =
@@ -317,8 +307,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	    limit_rate_sliding_window(packet_size, &qer->dl_start,
 				      qer->dl_maximum_bitrate)) {
 		PROFILE_END(PROF_N6_QER_RATELIMIT);
-		ctx->statistics->dl_drop_qer_rate += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 	}
 	PROFILE_END(PROF_N6_QER_RATELIMIT);
 
@@ -334,12 +323,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4",
 				   &ip4->daddr);
-			ctx->statistics
-				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
-					      EUPF_MAX_XDP_ACTION_MASK] += 1;
-			ctx->statistics->dl_drop_sdf += 1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
@@ -363,7 +348,7 @@ static __always_inline enum ctx_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {
 	if (own_packet_pull(ctx) != 0 || !ctx->ip6)
-		return CTX_ACT_ABORTED;
+		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
 
 	const struct ipv6hdr *ip6 = ctx->ip6;
 
@@ -412,9 +397,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	long ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len,
 				 encap_size, 0);
 	if (ret < 0) {
-		ctx->statistics->xdp_actions[ctx_stat_action(CTX_ACT_ABORTED) &
-					     EUPF_MAX_XDP_ACTION_MASK] += 1;
-		return CTX_ACT_ABORTED;
+		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 	}
 	if (ret > 0) {
 		upf_printk("upf: n6 ipv6 packet too large");
@@ -440,12 +423,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI6c",
 				   &ip6->daddr);
-			ctx->statistics
-				->xdp_actions[ctx_stat_action(CTX_ACT_DROP) &
-					      EUPF_MAX_XDP_ACTION_MASK] += 1;
-			ctx->statistics->dl_drop_sdf += 1;
 			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, DROP);
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
@@ -463,28 +442,23 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 		/* Technically, we need to buffer the packet here, but this is not
 		 * implemented yet. */
-		ctx->statistics->dl_drop_nocp += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
 	if (!(far->action & FAR_FORW)) {
-		ctx->statistics->dl_drop_far_no_forw += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
 	}
 	if (!(far->outer_header_creation &
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
-		ctx->statistics->dl_drop_far_no_encap += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FAR_NO_ENCAP);
 	}
 	if (encap_would_be_malformed(ctx)) {
-		ctx->statistics->dl_drop_encap_gso += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
 	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status,
 		   qer->dl_maximum_bitrate);
 	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
-		ctx->statistics->dl_drop_qer_gate += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 	}
 
 	const __u64 packet_size =
@@ -492,8 +466,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	if (CTX_ACT_DROP ==
 	    limit_rate_sliding_window(packet_size, &qer->dl_start,
 				      qer->dl_maximum_bitrate)) {
-		ctx->statistics->dl_drop_qer_rate += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
 	}
 
 	__u8 tos = far->transport_level_marking >> 8;

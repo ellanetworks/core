@@ -48,7 +48,7 @@ ip link set dev n3-upf-veth up
 ethtool -K eth0 gro off
 ```
 
-Disabling GRO on the N6 interface is required in `tcx` mode: merged downlink frames cannot be encapsulated into well-formed GTP-U and are dropped — see [Segmentation offload on TCX](../explanation/user_plane_packet_processing_with_ebpf.md#segmentation-offload-on-tcx).
+Disabling GRO on the N6 interface is required in `tcx` mode,  see [Segmentation offload on TCX](../explanation/user_plane_packet_processing_with_ebpf.md#segmentation-offload-on-tcx).
 
 ## 3. Configure Ella Core
 

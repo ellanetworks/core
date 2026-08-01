@@ -52,10 +52,10 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	struct gtpuhdr *gtp = ctx->gtp;
 
 	if (!ctx->eth || !ctx->udp || !gtp)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
 
 	if (!ctx->ip4 && !ctx->ip6)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
 
 	const int is_ip4 = ctx->ip4 != NULL;
 
@@ -64,7 +64,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (gtp->s) {
 		const __u8 *opt = (const __u8 *)(gtp + 1);
 		if ((const void *)(opt + sizeof(seq)) > ctx->data_end)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
 
 		__builtin_memcpy(&seq, opt, sizeof(seq));
 	}
@@ -74,7 +74,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	long delta = -ctx_tail_excess(ctx->ctx_buff, ctx->data_end, gtp,
 				      GTPU_ECHO_RESPONSE_LEN);
 	if (delta != 0 && ctx_adjust_tail(ctx->ctx_buff, (int)delta) < 0)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_INTERNAL_RESIZE_FAILED);
 
 	/* ctx_adjust_tail invalidates every packet pointer, and an offset
 	 * saved across the call is not provably in-bounds to the verifier. Re-walk
@@ -85,7 +85,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 
 	struct ethhdr *eth = data;
 	if ((const void *)(eth + 1) > data_end)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 	/* parse_ethernet accepts both C-VLAN and S-VLAN tags (parsers.h); match both
 	 * so an 802.1ad-tagged frame is not re-walked 4 octets short. */
@@ -94,7 +94,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
 		struct vlan_hdr *vlan = l3;
 		if ((const void *)(vlan + 1) > data_end)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 		l3 = vlan + 1;
 	}
@@ -103,30 +103,30 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (is_ip4) {
 		struct iphdr *ip = l3;
 		if ((const void *)(ip + 1) > data_end)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 		/* The re-walk steps a fixed 20 octets to L4, so an IPv4 header
 		 * carrying options (ihl > 5) — which parse_ip4 accepts — would be
 		 * rewritten inside the options. Drop; emitting a corrupt
 		 * frame; options on a GTP-U echo do not occur in practice. */
 		if (ip->ihl != 5)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 		udp = (struct udphdr *)(ip + 1);
 	} else {
 		struct ipv6hdr *ip6 = l3;
 		if ((const void *)(ip6 + 1) > data_end)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 		udp = (struct udphdr *)(ip6 + 1);
 	}
 
 	if ((const void *)(udp + 1) > data_end)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 	__u8 *p = (__u8 *)(udp + 1);
 	if ((const void *)(p + GTPU_ECHO_RESPONSE_LEN) > data_end)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 	gtp = (struct gtpuhdr *)p;
 
@@ -155,7 +155,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (is_ip4) {
 		struct iphdr *ip = l3;
 		if ((const void *)(ip + 1) > data_end)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 		swap_ip(ip);
 		ip->tot_len = bpf_htons(sizeof(*ip) + udp_len);
@@ -170,7 +170,7 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	} else {
 		struct ipv6hdr *ip6 = l3;
 		if ((const void *)(ip6 + 1) > data_end)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 		swap_ip6(ip6);
 		ip6->payload_len = bpf_htons(udp_len);
@@ -182,14 +182,14 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		int cs = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
 				    ctx->ctx_buff);
 		if (cs < 0)
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_INTERNAL_CSUM_FAILED);
 
 		udp->check = (__u16)cs;
 	}
 
 	swap_mac(eth);
 
-	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
+	return tx_back(ctx, egress_vlan_reflected(ctx));
 }
 
 /* GTP-U Error Indication information element types (TS 29.281 §8.1). */
@@ -210,13 +210,13 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	struct gtpuhdr *gtp = ctx->gtp;
 
 	if (!eth || !ip || !udp || !gtp)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
 
 	/* 12-octet GTP-U header (mandatory + optional word) followed by the two
 	 * mandatory IEs: TEID Data I (5) and GTP-U Peer Address (7) = 24 octets. */
 	__u8 *p = (__u8 *)gtp;
 	if ((const void *)(p + 24) > ctx->data_end)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
 
 	__be32 trigger_teid = gtp->teid;
 	__be32 peer_addr = ip->daddr; /* destination of the triggering packet */
@@ -258,9 +258,9 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
 	long trim = ctx_tail_excess(ctx->ctx_buff, ctx->data_end, p, 24);
 	if (trim > 0 && ctx_adjust_tail(ctx->ctx_buff, (int)-trim) < 0)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_INTERNAL_RESIZE_FAILED);
 
-	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
+	return tx_back(ctx, egress_vlan_reflected(ctx));
 }
 
 /* IPv6-transport counterpart of send_error_indication_ipv4 (TS 29.281 §7.3.1).
@@ -275,14 +275,14 @@ send_error_indication_ipv6(struct packet_context *ctx)
 	struct gtpuhdr *gtp = ctx->gtp;
 
 	if (!eth || !ip6 || !udp || !gtp)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
 
 	/* 12-octet GTP-U header (mandatory + optional word) followed by the two
 	 * mandatory IEs: TEID Data I (5) and GTP-U Peer Address (1+2+16 = 19) = 36
 	 * octets. */
 	__u8 *p = (__u8 *)gtp;
 	if ((const void *)(p + 36) > ctx->data_end)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_MALFORMED_GTP);
 
 	__be32 trigger_teid = gtp->teid;
 	struct in6_addr peer_addr =
@@ -328,13 +328,13 @@ send_error_indication_ipv6(struct packet_context *ctx)
 	int csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
 			      ctx->ctx_buff);
 	if (csum < 0)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_INTERNAL_CSUM_FAILED);
 	udp->check = (__u16)csum;
 
 	/* Drop the trailing T-PDU so the frame ends after the IEs. */
 	long trim = ctx_tail_excess(ctx->ctx_buff, ctx->data_end, p, 36);
 	if (trim > 0 && ctx_adjust_tail(ctx->ctx_buff, (int)-trim) < 0)
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_INTERNAL_RESIZE_FAILED);
 
-	return ctx_tx_back(ctx->ctx_buff, egress_vlan_reflected(ctx));
+	return tx_back(ctx, egress_vlan_reflected(ctx));
 }

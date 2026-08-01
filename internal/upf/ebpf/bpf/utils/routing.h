@@ -100,8 +100,8 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		__builtin_memcpy(ctx->eth->h_source, fib_params->smac,
 				 ETH_ALEN);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
-		return ctx_redirect_out(ctx->ctx_buff, fib_params->ifindex,
-					egress_vlan_forwarded(ctx));
+		return redirect_out(ctx, fib_params->ifindex,
+			    egress_vlan_forwarded(ctx));
 	}
 
 	__u32 expected_ifindex;
@@ -117,7 +117,7 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
 			   fib_params->ifindex, expected_ifindex);
 		statistic->ip4_ifindex_mismatch += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_IFINDEX_MISMATCH);
 	}
 
 	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
@@ -131,15 +131,15 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 			int nat_ok = source_nat(ctx, fib_params);
 			PROFILE_END(PROF_N3_NAT);
 			if (!nat_ok) {
-				return CTX_ACT_DROP;
+				return drop_reported(ctx, UPF_DROP_NAT_TRANSLATE_FAILED);
 			}
 		}
 	}
 
 	if (expected_ifindex == ctx_ingress_ifindex(ctx->ctx_buff))
-		return ctx_tx_back(ctx->ctx_buff, egress_vlan_forwarded(ctx));
-	return ctx_redirect_out(ctx->ctx_buff, expected_ifindex,
-				egress_vlan_forwarded(ctx));
+		return tx_back(ctx, egress_vlan_forwarded(ctx));
+	return redirect_out(ctx, expected_ifindex,
+			    egress_vlan_forwarded(ctx));
 }
 
 static __always_inline enum ctx_action
@@ -150,8 +150,8 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		__builtin_memcpy(ctx->eth->h_source, fib_params->smac,
 				 ETH_ALEN);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
-		return ctx_redirect_out(ctx->ctx_buff, fib_params->ifindex,
-					egress_vlan_forwarded(ctx));
+		return redirect_out(ctx, fib_params->ifindex,
+			    egress_vlan_forwarded(ctx));
 	}
 
 	__u32 expected_ifindex;
@@ -167,7 +167,7 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
 			   fib_params->ifindex, expected_ifindex);
 		statistic->ip6_ifindex_mismatch += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_IFINDEX_MISMATCH);
 	}
 
 	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
@@ -178,11 +178,11 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 
 	if (expected_ifindex == ctx_ingress_ifindex(ctx->ctx_buff) &&
 	    expected_ifindex != 0)
-		return ctx_tx_back(ctx->ctx_buff, egress_vlan_forwarded(ctx));
+		return tx_back(ctx, egress_vlan_forwarded(ctx));
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
 		   fib_params->smac, fib_params->dmac);
-	return ctx_redirect_out(ctx->ctx_buff, fib_params->ifindex,
-				egress_vlan_forwarded(ctx));
+	return redirect_out(ctx, fib_params->ifindex,
+			    egress_vlan_forwarded(ctx));
 }
 
 static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
@@ -223,7 +223,7 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 		bpf_ringbuf_output(&no_neigh_map, &ev, sizeof(ev), 0);
 		statistic->fib_lookup_ip4_no_neigh += 1;
 
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_NO_NEIGH);
 	}
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: nexthop: %pI4",
@@ -237,27 +237,27 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_blackhole += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_BLACKHOLE);
 	case BPF_FIB_LKUP_RET_UNREACHABLE:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_unreachable += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_UNREACHABLE);
 	case BPF_FIB_LKUP_RET_PROHIBIT:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_prohibit += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_PROHIBIT);
 	case BPF_FIB_LKUP_RET_NO_SRC_ADDR:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		statistic->fib_lookup_ip4_no_src_addr += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_NO_SRC_ADDR);
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 		upf_printk("upf: fragmentation needed for %pI4 -> %pI4",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr);
 		statistic->fib_lookup_ip4_frag_needed += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_FRAG_NEEDED);
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
@@ -280,7 +280,7 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
 		if (rc < 0) {
 			statistic->fib_lookup_ip4_error += 1;
-			return CTX_ACT_DROP;
+			return drop_with(ctx, UPF_DROP_FIB_ERROR);
 		}
 		return CTX_ACT_OK;
 	}
@@ -323,7 +323,7 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 		bpf_ringbuf_output(&no_neigh_map, &ev, sizeof(ev), 0);
 		statistic->fib_lookup_ip6_no_neigh += 1;
 
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_NO_NEIGH);
 	}
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI6c",
@@ -337,27 +337,27 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_blackhole += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_BLACKHOLE);
 	case BPF_FIB_LKUP_RET_UNREACHABLE:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_unreachable += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_UNREACHABLE);
 	case BPF_FIB_LKUP_RET_PROHIBIT:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_prohibit += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_PROHIBIT);
 	case BPF_FIB_LKUP_RET_NO_SRC_ADDR:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
 		statistic->fib_lookup_ip6_no_src_addr += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_NO_SRC_ADDR);
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 		upf_printk("upf: fragmentation needed %pI6c -> %pI6c",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr);
 		statistic->fib_lookup_ip6_frag_needed += 1;
-		return CTX_ACT_DROP;
+		return drop_with(ctx, UPF_DROP_FIB_FRAG_NEEDED);
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);

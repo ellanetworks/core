@@ -365,9 +365,8 @@ func warnGROOnTCX(n6Ifname string) {
 
 	if enabled {
 		logger.UpfLog.Warn("GRO is enabled on the N6 interface while the datapath is attached at TCX: "+
-			"large downlink flows are encapsulated as GSO super-frames whose segments carry the "+
-			"super-frame's GTP message_length, and IPv6 GTP-U transport is unsupported; disable with "+
-			"`ethtool -K <iface> gro off` if peers reject such traffic",
+			"merged downlink frames cannot be encapsulated into well-formed GTP-U and are dropped, "+
+			"counted in app_upf_encap_gso_drop_total; disable with `ethtool -K <iface> gro off`",
 			zap.String("iface", n6Ifname))
 	}
 }

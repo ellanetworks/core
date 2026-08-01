@@ -21,6 +21,9 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
+#include "bpf/ctx/ctx.h"
+#include "bpf/utils/drop_reason.h"
+
 struct byte_counter {
 	__u64 bytes;
 };
@@ -30,34 +33,24 @@ struct packet_counters {
 	__u64 tx;
 };
 
-#define EUPF_MAX_XDP_ACTION 8
-#define EUPF_MAX_XDP_ACTION_MASK 0x07
+#define UPF_MAX_ACTION 8
+#define UPF_ACTION_MASK 0x07
 
 struct upf_statistic {
 	struct byte_counter byte_counter;
 	struct packet_counters packet_counters;
-	__u64 xdp_actions[EUPF_MAX_XDP_ACTION];
-	__u64 source_spoof_drop_ip4;
-	__u64 source_spoof_drop_ip6;
-	__u64 nat_unsolicited_drop_ip4;
-	__u64 nat_fragment_drop_ip4;
-	__u64 nat_port_exhausted_drop_ip4;
-	__u64 nat_unsupported_proto_drop_ip4;
-	__u64 nat_malformed_drop_ip4;
-	__u64 dl_drop_far_no_forw;
-	__u64 dl_drop_far_no_encap;
-	__u64 dl_drop_qer_gate;
-	__u64 dl_drop_qer_rate;
-	__u64 dl_drop_nocp;
-	__u64 dl_drop_unsolicited;
-	__u64 dl_drop_sdf;
-	/* Downlink frames dropped because they reached encapsulation as a GSO
-	 * super-frame; see the drop site in n6_bpf.h. TC-only, the counter is
-	 * dead weight in the XDP objects: xdp_md carries no GSO metadata. */
-	__u64 dl_drop_encap_gso;
-	__u64 ul_drop_qer_gate;
-	__u64 ul_drop_qer_rate;
-	__u64 ul_drop_sdf;
-	__u64 ul_drop_decap_mismatch;
-	__u64 ul_drop_unsupported_far;
+	/* Frames the datapath forwarded, indexed by enum ctx_action. Only the
+	 * forwarding actions are counted here — a dropped frame goes to
+	 * drop_reasons instead, so every frame lands in exactly one cell of
+	 * exactly one of the two arrays and the totals reconcile by
+	 * construction.
+	 *
+	 * Indexed by the datapath's action, not the hook's verdict: TC has no
+	 * verdict distinguishing a hairpin transmit from a redirect, so a
+	 * verdict-keyed counter would report no transmits at all under TCX. */
+	__u64 forwarded_actions[UPF_MAX_ACTION];
+	/* Frames the datapath did not forward, indexed by enum upf_drop_reason.
+	 * Aborts land here too, under their UPF_DROP_INTERNAL_* reason: an
+	 * abort is a drop whose cause is the datapath itself. */
+	__u64 drop_reasons[UPF_DROP_REASON_MAX];
 };

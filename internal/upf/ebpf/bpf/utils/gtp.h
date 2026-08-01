@@ -204,7 +204,7 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 	if (pdr_expects_ipv6 != (ctx->ip6 != NULL)) {
 		upf_printk(
 			"upf: remove_gtp_header: outer family disagrees with pdr");
-		ctx->statistics->ul_drop_decap_mismatch += 1;
+		set_drop_reason(ctx, UPF_DROP_DECAP_FAMILY_MISMATCH);
 		return -1;
 	}
 

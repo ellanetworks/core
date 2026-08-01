@@ -20,154 +20,105 @@
 package ebpf
 
 import (
+	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
 
+// Datapath actions: the index of the per-action forwarding counter the data
+// plane keeps (enum ctx_action in bpf/ctx/ctx.h). These are what the data
+// plane decided, not the verdict the hook returned — TCX cannot express a
+// transmit-back, so a counter keyed on the verdict would report none. The
+// values coincide with the XDP verdict encoding, which is why an XDP
+// program's return value can be compared against them directly.
+//
+// A frame the data plane did not forward is counted in DropReasons instead,
+// under the reason that stopped it, so the two arrays are disjoint and sum to
+// the frames the program handled.
 const (
-	XDP_ABORTED  = 0
-	XDP_DROP     = 1
-	XDP_PASS     = 2
-	XDP_TX       = 3
-	XDP_REDIRECT = 4
+	ActionAborted  = 0
+	ActionDrop     = 1
+	ActionPass     = 2
+	ActionTx       = 3
+	ActionRedirect = 4
+
+	// UPFMaxAction is the width of the forwarding counter array
+	// (UPF_MAX_ACTION).
+	UPFMaxAction = 8
 )
 
-func getUpfN3XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {
-	return sumUplinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 {
-		return s.XdpActions[field]
-	})
-}
+// Direction of a datapath counter, which is also which statistics map it
+// comes from: the uplink and downlink pipelines keep their own.
+type Direction string
 
-func getUpfN6XdpStatisticField(bpfObjects *BpfObjects, field uint32) uint64 {
-	var statistics []N3N6EntrypointUpfStatistic
+const (
+	Uplink   Direction = "uplink"
+	Downlink Direction = "downlink"
+)
 
-	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N6 stats", zap.Error(err))
-		return 0
+func statsMap(bpfObjects *BpfObjects, dir Direction) *ebpf.Map {
+	if dir == Uplink {
+		return bpfObjects.UplinkStatistics
 	}
 
-	var totalValue uint64
-	for _, statistic := range statistics {
-		totalValue += statistic.XdpActions[field]
+	return bpfObjects.DownlinkStatistics
+}
+
+// readStats returns the per-CPU statistics of one direction, already summed
+// over CPUs, or false when the map could not be read. Callers must not
+// publish partial data on a failed read.
+func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatistic, bool) {
+	var (
+		perCPU []N3N6EntrypointUpfStatistic
+		total  N3N6EntrypointUpfStatistic
+	)
+
+	if err := statsMap(bpfObjects, dir).Lookup(uint32(0), &perCPU); err != nil {
+		logger.UpfLog.Warn("failed to fetch UPF datapath stats",
+			zap.String("direction", string(dir)), zap.Error(err))
+
+		return total, false
 	}
 
-	return totalValue
-}
+	for _, s := range perCPU {
+		total.ByteCounter.Bytes += s.ByteCounter.Bytes
+		total.PacketCounters.Rx += s.PacketCounters.Rx
+		total.PacketCounters.Tx += s.PacketCounters.Tx
 
-func sumUplinkStatField(bpfObjects *BpfObjects, sel func(N3N6EntrypointUpfStatistic) uint64) uint64 {
-	var statistics []N3N6EntrypointUpfStatistic
+		for i := range s.ForwardedActions {
+			total.ForwardedActions[i] += s.ForwardedActions[i]
+		}
 
-	err := bpfObjects.UplinkStatistics.Lookup(uint32(0), &statistics)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N3 stats", zap.Error(err))
-		return 0
+		for i := range s.DropReasons {
+			total.DropReasons[i] += s.DropReasons[i]
+		}
 	}
 
-	var total uint64
-	for _, statistic := range statistics {
-		total += sel(statistic)
+	return total, true
+}
+
+// DatapathCounters is one direction's packet accounting: frames forwarded, by
+// action, and frames not forwarded, by reason.
+type DatapathCounters struct {
+	Forwarded [UPFMaxAction]uint64
+	Dropped   [UPFDropReasonMax]uint64
+}
+
+// GetDatapathCounters reads both directions. A direction whose map could not
+// be read is absent from the result rather than reported as zero.
+func GetDatapathCounters(bpfObjects *BpfObjects) map[Direction]DatapathCounters {
+	out := make(map[Direction]DatapathCounters, 2)
+
+	for _, dir := range []Direction{Uplink, Downlink} {
+		s, ok := readStats(bpfObjects, dir)
+		if !ok {
+			continue
+		}
+
+		out[dir] = DatapathCounters{Forwarded: s.ForwardedActions, Dropped: s.DropReasons}
 	}
 
-	return total
-}
-
-func sumDownlinkStatField(bpfObjects *BpfObjects, sel func(N3N6EntrypointUpfStatistic) uint64) uint64 {
-	var statistics []N3N6EntrypointUpfStatistic
-
-	err := bpfObjects.DownlinkStatistics.Lookup(uint32(0), &statistics)
-	if err != nil {
-		logger.UpfLog.Warn("failed to fetch UPF N6 stats", zap.Error(err))
-		return 0
-	}
-
-	var total uint64
-	for _, statistic := range statistics {
-		total += sel(statistic)
-	}
-
-	return total
-}
-
-func GetN3SourceSpoofDropIPv4(bpfObjects *BpfObjects) uint64 {
-	return sumUplinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.SourceSpoofDropIp4 })
-}
-
-func GetN3SourceSpoofDropIPv6(bpfObjects *BpfObjects) uint64 {
-	return sumUplinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.SourceSpoofDropIp6 })
-}
-
-func GetN6NatUnsolicitedDropIPv4(bpfObjects *BpfObjects) uint64 {
-	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsolicitedDropIp4 })
-}
-
-// GetN6EncapGSODrops counts downlink frames dropped because they reached the
-// encapsulation path as a GSO super-frame, which cannot be encapsulated into
-// well-formed GTP-U. Non-zero means GRO is merging downlink traffic on the N6
-// interface in tcx mode.
-func GetN6EncapGSODrops(bpfObjects *BpfObjects) uint64 {
-	return sumDownlinkStatField(bpfObjects, func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropEncapGso })
-}
-
-// NatDrops counts NAT drops by reason, summed over both directions.
-type NatDrops struct {
-	Fragment         uint64
-	PortExhausted    uint64
-	UnsupportedProto uint64
-	Malformed        uint64
-}
-
-func GetNatDrops(bpfObjects *BpfObjects) NatDrops {
-	sum := func(sel func(N3N6EntrypointUpfStatistic) uint64) uint64 {
-		return sumUplinkStatField(bpfObjects, sel) + sumDownlinkStatField(bpfObjects, sel)
-	}
-
-	return NatDrops{
-		Fragment:         sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatFragmentDropIp4 }),
-		PortExhausted:    sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatPortExhaustedDropIp4 }),
-		UnsupportedProto: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatUnsupportedProtoDropIp4 }),
-		Malformed:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.NatMalformedDropIp4 }),
-	}
-}
-
-func GetN3Aborted(bpfObjects *BpfObjects) uint64 {
-	return getUpfN3XdpStatisticField(bpfObjects, XDP_ABORTED)
-}
-
-func GetN3Drop(bpfObjects *BpfObjects) uint64 {
-	return getUpfN3XdpStatisticField(bpfObjects, XDP_DROP)
-}
-
-func GetN3Pass(bpfObjects *BpfObjects) uint64 {
-	return getUpfN3XdpStatisticField(bpfObjects, XDP_PASS)
-}
-
-func GetN3Tx(bpfObjects *BpfObjects) uint64 {
-	return getUpfN3XdpStatisticField(bpfObjects, XDP_TX)
-}
-
-func GetN3Redirect(bpfObjects *BpfObjects) uint64 {
-	return getUpfN3XdpStatisticField(bpfObjects, XDP_REDIRECT)
-}
-
-func GetN6Aborted(bpfObjects *BpfObjects) uint64 {
-	return getUpfN6XdpStatisticField(bpfObjects, XDP_ABORTED)
-}
-
-func GetN6Drop(bpfObjects *BpfObjects) uint64 {
-	return getUpfN6XdpStatisticField(bpfObjects, XDP_DROP)
-}
-
-func GetN6Pass(bpfObjects *BpfObjects) uint64 {
-	return getUpfN6XdpStatisticField(bpfObjects, XDP_PASS)
-}
-
-func GetN6Tx(bpfObjects *BpfObjects) uint64 {
-	return getUpfN6XdpStatisticField(bpfObjects, XDP_TX)
-}
-
-func GetN6Redirect(bpfObjects *BpfObjects) uint64 {
-	return getUpfN6XdpStatisticField(bpfObjects, XDP_REDIRECT)
+	return out
 }
 
 type RouteStats struct {
@@ -338,41 +289,119 @@ func ReadProfilingStats(bpfObjects *BpfObjects) ([]ProfileEntry, error) {
 	return results, nil
 }
 
-// RuleDrops counts packets the session rules discarded, by reason. These paths
-// return a drop verdict without any other counter, so without this the drop is
-// visible only in the aggregate action total.
-type RuleDrops struct {
-	DLFarNoForward   uint64
-	DLFarNoEncap     uint64
-	DLQerGate        uint64
-	DLQerRate        uint64
-	DLNoCP           uint64
-	DLUnsolicited    uint64
-	DLSdf            uint64
-	ULQerGate        uint64
-	ULQerRate        uint64
-	ULSdf            uint64
-	ULDecapMismatch  uint64
-	ULUnsupportedFAR uint64
+// UPFDropReasonMax is the width of the drop counter array
+// (UPF_DROP_REASON_MAX in bpf/utils/drop_reason.h).
+const UPFDropReasonMax = 64
+
+// dropReasonNames maps a drop reason to its metric label value. The order is
+// the order of enum upf_drop_reason in bpf/utils/drop_reason.h, and
+// TestDropReasonNamesMatchDatapath fails if the two drift apart.
+//
+// A reason absent from this table would publish as its numeric index, which
+// is why the table is exhaustive rather than sparse: an unnamed reason is a
+// series an operator cannot interpret.
+var dropReasonNames = [...]string{
+	"unspecified",
+	"no_uplink_session",
+	"no_downlink_session",
+	"far_no_forward",
+	"far_no_encap",
+	"far_unsupported",
+	"qer_gate_closed",
+	"qer_rate_limit",
+	"sdf_filter",
+	"nocp_buffer",
+	"source_spoof_ipv4",
+	"source_spoof_ipv6",
+	"decap_family_mismatch",
+	"encap_gso",
+	"df_not_set",
+	"rs_intercepted",
+	"nat_unsolicited",
+	"nat_fragment",
+	"nat_port_exhausted",
+	"nat_unsupported_proto",
+	"nat_malformed",
+	"nat_translate_failed",
+	"fib_no_neigh",
+	"fib_blackhole",
+	"fib_unreachable",
+	"fib_prohibit",
+	"fib_no_src_addr",
+	"fib_frag_needed",
+	"fib_error",
+	"ifindex_mismatch",
+	"malformed_gtp",
+	"malformed_header",
+	"internal_pull_failed",
+	"internal_mtu_check_failed",
+	"internal_encap_failed",
+	"internal_decap_failed",
+	"internal_csum_failed",
+	"internal_resize_failed",
+	"internal_write_failed",
+	"internal_map_lookup_failed",
+	"internal_tx_failed",
 }
 
-func GetRuleDrops(bpfObjects *BpfObjects) RuleDrops {
-	sum := func(sel func(N3N6EntrypointUpfStatistic) uint64) uint64 {
-		return sumUplinkStatField(bpfObjects, sel) + sumDownlinkStatField(bpfObjects, sel)
+// DropReasonNames returns the label value of every reason the datapath can
+// record, indexed by reason. Userspace publishes all of them, including the
+// ones sitting at zero: a counter that only appears once it fires cannot be
+// told apart from one that was never instrumented.
+func DropReasonNames() []string { return dropReasonNames[:] }
+
+// DropReasonByName resolves a reason's label value to its index, so a caller
+// can ask for one specific reason without hardcoding a position.
+func DropReasonByName(name string) (int, bool) {
+	for i, n := range dropReasonNames {
+		if n == name {
+			return i, true
+		}
 	}
 
-	return RuleDrops{
-		DLFarNoForward:   sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropFarNoForw }),
-		DLFarNoEncap:     sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropFarNoEncap }),
-		DLQerGate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropQerGate }),
-		DLQerRate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropQerRate }),
-		DLNoCP:           sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropNocp }),
-		DLUnsolicited:    sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropUnsolicited }),
-		DLSdf:            sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.DlDropSdf }),
-		ULQerGate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropQerGate }),
-		ULQerRate:        sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropQerRate }),
-		ULSdf:            sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropSdf }),
-		ULDecapMismatch:  sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropDecapMismatch }),
-		ULUnsupportedFAR: sum(func(s N3N6EntrypointUpfStatistic) uint64 { return s.UlDropUnsupportedFar }),
+	return 0, false
+}
+
+// DropCount returns how many frames one direction did not forward for one
+// reason. Unknown reason names return 0: the caller asked about a reason the
+// datapath cannot record.
+func DropCount(bpfObjects *BpfObjects, dir Direction, reason string) uint64 {
+	i, ok := DropReasonByName(reason)
+	if !ok {
+		return 0
 	}
+
+	s, ok := readStats(bpfObjects, dir)
+	if !ok {
+		return 0
+	}
+
+	return s.DropReasons[i]
+}
+
+// ForwardCount returns how many frames one direction forwarded with one
+// action (ActionPass, ActionTx, ActionRedirect).
+func ForwardCount(bpfObjects *BpfObjects, dir Direction, action int) uint64 {
+	s, ok := readStats(bpfObjects, dir)
+	if !ok {
+		return 0
+	}
+
+	return s.ForwardedActions[action]
+}
+
+// TotalDrops returns every frame one direction did not forward, whatever the
+// reason.
+func TotalDrops(bpfObjects *BpfObjects, dir Direction) uint64 {
+	s, ok := readStats(bpfObjects, dir)
+	if !ok {
+		return 0
+	}
+
+	var total uint64
+	for _, v := range s.DropReasons {
+		total += v
+	}
+
+	return total
 }

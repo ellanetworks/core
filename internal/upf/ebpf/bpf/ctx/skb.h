@@ -26,11 +26,29 @@
 /* Whether the datapath must pull before parsing and writing. A TC skb may be non-linear or cloned. */
 #define CTX_NEEDS_PULL 1
 
-enum ctx_action {
-	CTX_ACT_OK = TC_ACT_OK,
-	CTX_ACT_DROP = TC_ACT_SHOT,
-	CTX_ACT_ABORTED = TC_ACT_SHOT,
-};
+/* Kernel verdict for a datapath action, applied once at a program's return.
+ *
+ * TC has no verdict for an abort and none for transmitting back out the
+ * ingress interface: an abort is a drop, and both forwarding actions are
+ * TC_ACT_REDIRECT because the redirect helper has already recorded the target
+ * (ctx_tx_back names the ingress interface, so the hairpin is a redirect to
+ * self). The distinction is not lost — the statistics are indexed by the
+ * action, so they still separate abort from drop and tx from redirect. */
+static __always_inline int ctx_verdict(enum ctx_action action)
+{
+	switch (action) {
+	case CTX_ACT_OK:
+		return TC_ACT_OK;
+	case CTX_ACT_TX:
+	case CTX_ACT_REDIRECT:
+		return TC_ACT_REDIRECT;
+	case CTX_ACT_DROP:
+	case CTX_ACT_ABORTED:
+		break;
+	}
+
+	return TC_ACT_SHOT;
+}
 
 /* GTP-U carries bare IP, so inner_mac stays equal to inner_net (the ipip
  * model) and the GTP-U header lives inside the opaque tunnel span that UDP
@@ -247,23 +265,6 @@ static __always_inline long ctx_l4_csum_replace(struct __ctx_buff *ctx,
 	return bpf_l4_csum_replace(ctx, off, from, to, flags);
 }
 
-/* Logical action index for the xdp_actions statistics array, which uses the
- * XDP verdict encoding. TC verdicts collide with it (TC_ACT_SHOT == 2 ==
- * XDP_PASS), and TC folds aborted into drop (both TC_ACT_SHOT). */
-static __always_inline __u32 ctx_stat_action(enum ctx_action action)
-{
-	switch ((int)action) {
-	case TC_ACT_OK:
-		return XDP_PASS;
-	case TC_ACT_SHOT:
-		return XDP_DROP;
-	case TC_ACT_REDIRECT:
-		return XDP_REDIRECT;
-	}
-
-	return XDP_ABORTED;
-}
-
 /* The kernel moves a VLAN tag out of the frame bytes before the TCX hook
  * (skb_vlan_untag), so tags are handled via metadata here and the in-band
  * branches compile out. */
@@ -309,16 +310,28 @@ static __always_inline long ctx_vlan_egress(struct __ctx_buff *ctx,
 				 (__u16)egress_vid);
 }
 
+/* TC has no XDP_TX-style verdict: a hairpin is a redirect naming the ingress
+ * interface. bpf_redirect only records the target — the verdict that acts on
+ * it is returned later by ctx_verdict — and rejects nothing but unknown
+ * flags, which are a constant 0 here. The check keeps that assumption from
+ * failing silently: a rejected redirect must not be reported as a transmit. */
+static __always_inline int ctx_redirect_recorded(__u32 ifindex)
+{
+	return bpf_redirect(ifindex, 0) == TC_ACT_REDIRECT;
+}
+
 /* Transmit the frame back out its ingress interface, tagged `egress_vid`
- * (0 for untagged); TC has no XDP_TX-style verdict, the redirect helper's
- * return value is the verdict. */
+ * (0 for untagged). */
 static __always_inline enum ctx_action ctx_tx_back(struct __ctx_buff *ctx,
 						   int egress_vid)
 {
 	if (ctx_vlan_egress(ctx, egress_vid) < 0)
 		return CTX_ACT_ABORTED;
 
-	return bpf_redirect(ctx->ingress_ifindex, 0);
+	if (!ctx_redirect_recorded(ctx->ingress_ifindex))
+		return CTX_ACT_ABORTED;
+
+	return CTX_ACT_TX;
 }
 
 /* Transmit the frame out `ifindex`, tagged `egress_vid` (0 for untagged). */
@@ -328,5 +341,8 @@ ctx_redirect_out(struct __ctx_buff *ctx, __u32 ifindex, int egress_vid)
 	if (ctx_vlan_egress(ctx, egress_vid) < 0)
 		return CTX_ACT_ABORTED;
 
-	return bpf_redirect(ifindex, 0);
+	if (!ctx_redirect_recorded(ifindex))
+		return CTX_ACT_ABORTED;
+
+	return CTX_ACT_REDIRECT;
 }
