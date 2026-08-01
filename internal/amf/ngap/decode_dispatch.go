@@ -45,24 +45,12 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 }
 
 // respondToFatalReport answers a fatal decode of an initiating message, reporting
-// the offending IEs in Criticality Diagnostics. NG Setup is rejected with its
-// unsuccessful-outcome message (NG SETUP FAILURE), which TS 38.413 §10.3.5 requires
-// in preference to the Error Indication (§10.3.4.2) that every other procedure here
-// still falls back to; procedures that also define a failure message (e.g. RAN
-// Configuration Update) can be added the same way.
+// the offending IEs in Criticality Diagnostics. Every procedure still decoded
+// here falls back to the Error Indication of TS 38.413 §10.3.4.2; a procedure
+// that defines an unsuccessful outcome rejects with that instead once it moves
+// to the in-house codec, as NG Setup does in receive_ng_setup.go.
 func respondToFatalReport(ctx context.Context, ran *amf.Radio, report *decode.Report) {
 	cd := report.ToCriticalityDiagnostics()
-
-	if report.ProcedureCode == ngapType.ProcedureCodeNGSetup {
-		sendNGSetupFailure(ctx, ran, &ngapType.Cause{
-			Present: ngapType.CausePresentProtocol,
-			Protocol: &ngapType.CauseProtocol{
-				Value: ngapType.CauseProtocolPresentAbstractSyntaxErrorReject,
-			},
-		}, &cd)
-
-		return
-	}
 
 	pkt, err := send.BuildErrorIndication(nil, nil, nil, &cd)
 	if err != nil {

@@ -5,27 +5,29 @@
 package amf_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func gnbGlobalRANNodeID(t *testing.T, hexID string) *ngapType.GlobalRANNodeID {
+func gnbGlobalRANNodeID(t *testing.T, hexID string) ngap.GlobalRANNodeID {
 	t.Helper()
 
-	id := &ngapType.GlobalRANNodeID{}
-	id.Present = ngapType.GlobalRANNodeIDPresentGlobalGNBID
-	id.GlobalGNBID = &ngapType.GlobalGNBID{}
-	id.GlobalGNBID.GNBID.Present = ngapType.GNBIDPresentGNBID
-	id.GlobalGNBID.GNBID.GNBID = new(aper.BitString)
-	*id.GlobalGNBID.GNBID.GNBID = ngapConvert.HexToBitString(hexID, 24)
+	v, err := strconv.ParseUint(hexID, 16, 32)
+	if err != nil {
+		t.Fatalf("bad gNB id %q: %v", hexID, err)
+	}
 
-	return id
+	return ngap.GlobalRANNodeID{
+		Kind:         ngap.RANNodeIDGNB,
+		PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39},
+		Value:        uint32(v),
+		Bits:         24,
+	}
 }
 
 func newRadioForTest(a *amf.AMF, conn *sctp.SCTPConn, name string) *amf.Radio {

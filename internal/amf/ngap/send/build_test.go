@@ -43,61 +43,6 @@ func TestBuildPaging_NoRegistrationArea_ClearError(t *testing.T) {
 	}
 }
 
-func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
-	guami := &models.Guami{
-		PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"},
-		AmfID:  "cafe00",
-	}
-
-	snssaiList := []models.Snssai{
-		{Sst: 1, Sd: "010203"},
-		{Sst: 2, Sd: "aabbcc"},
-		{Sst: 3, Sd: ""},
-	}
-
-	encoded, err := BuildNGSetupResponse(guami, snssaiList, "TestAMF", 255)
-	if err != nil {
-		t.Fatalf("BuildNGSetupResponse failed: %v", err)
-	}
-
-	pdu, err := ngap.Decoder(encoded)
-	if err != nil {
-		t.Fatalf("NGAP decode failed: %v", err)
-	}
-
-	if pdu.Present != ngapType.NGAPPDUPresentSuccessfulOutcome {
-		t.Fatalf("expected SuccessfulOutcome, got %d", pdu.Present)
-	}
-
-	resp := pdu.SuccessfulOutcome.Value.NGSetupResponse
-	if resp == nil {
-		t.Fatal("expected NGSetupResponse, got nil")
-	}
-
-	var plmnSupportList *ngapType.PLMNSupportList
-
-	for _, ie := range resp.ProtocolIEs.List {
-		if ie.Id.Value == ngapType.ProtocolIEIDPLMNSupportList {
-			plmnSupportList = ie.Value.PLMNSupportList
-
-			break
-		}
-	}
-
-	if plmnSupportList == nil {
-		t.Fatal("PLMNSupportList IE not found")
-	}
-
-	if len(plmnSupportList.List) != 1 {
-		t.Fatalf("expected 1 PLMN support item, got %d", len(plmnSupportList.List))
-	}
-
-	sliceList := plmnSupportList.List[0].SliceSupportList.List
-	if len(sliceList) != 3 {
-		t.Fatalf("expected 3 slice support items, got %d", len(sliceList))
-	}
-}
-
 func TestBuildInitialContextSetupRequest_MultipleAllowedNSSAI(t *testing.T) {
 	allowedNssai := []models.Snssai{
 		{Sst: 1, Sd: "010203"},

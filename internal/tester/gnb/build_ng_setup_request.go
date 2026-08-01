@@ -6,10 +6,9 @@ package gnb
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type SliceOpt struct {
@@ -29,133 +28,106 @@ type NGSetupRequestOpts struct {
 	Slices []SliceOpt // If non-empty, overrides Sst/Sd with multiple slices
 }
 
-func BuildNGSetupRequest(opts *NGSetupRequestOpts) (ngapType.NGAPPDU, error) {
+// gnbIDBits is the gNB-ID width this simulator advertises. NGAP allows 22..32
+// (TS 38.413 §9.3.1.6); 24 keeps the identifier a whole number of octets.
+const gnbIDBits = 24
+
+// BuildNGSetupRequest encodes an NG SETUP REQUEST PDU.
+func BuildNGSetupRequest(opts *NGSetupRequestOpts) ([]byte, error) {
 	if opts.Mcc == "" {
-		return ngapType.NGAPPDU{}, fmt.Errorf("MCC is required to build NGSetupRequest")
+		return nil, fmt.Errorf("MCC is required to build NGSetupRequest")
 	}
 
 	if opts.Mnc == "" {
-		return ngapType.NGAPPDU{}, fmt.Errorf("MNC is required to build NGSetupRequest")
+		return nil, fmt.Errorf("MNC is required to build NGSetupRequest")
 	}
 
 	plmnID, err := GetMccAndMncInOctets(opts.Mcc, opts.Mnc)
 	if err != nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("could not get plmnID in octets: %v", err)
+		return nil, fmt.Errorf("could not get plmnID in octets: %v", err)
+	}
+
+	if len(plmnID) != 3 {
+		return nil, fmt.Errorf("plmnID is %d octets, want 3", len(plmnID))
+	}
+
+	plmn := ngap.PLMNIdentity{plmnID[0], plmnID[1], plmnID[2]}
+
+	gnbID, err := strconv.ParseUint(opts.GnbID, 16, 32)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse gNB ID %q: %v", opts.GnbID, err)
 	}
 
 	slices := opts.Slices
 	if len(slices) == 0 {
 		if opts.Sst == 0 {
-			return ngapType.NGAPPDU{}, fmt.Errorf("SST is required to build NGSetupRequest")
+			return nil, fmt.Errorf("SST is required to build NGSetupRequest")
 		}
 
 		slices = []SliceOpt{{Sst: opts.Sst, Sd: opts.Sd}}
 	}
 
 	if opts.Tac == "" {
-		return ngapType.NGAPPDU{}, fmt.Errorf("TAC is required to build NGSetupRequest")
+		return nil, fmt.Errorf("TAC is required to build NGSetupRequest")
 	}
 
 	tac, err := hex.DecodeString(opts.Tac)
 	if err != nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("could not get tac in bytes: %v", err)
+		return nil, fmt.Errorf("could not get tac in bytes: %v", err)
 	}
 
-	pdu := ngapType.NGAPPDU{}
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+	if len(tac) != 3 {
+		return nil, fmt.Errorf("TAC is %d octets, want 3", len(tac))
+	}
 
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeNGSetup
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentNGSetupRequest
-	initiatingMessage.Value.NGSetupRequest = new(ngapType.NGSetupRequest)
-
-	nGSetupRequest := initiatingMessage.Value.NGSetupRequest
-	nGSetupRequestIEs := &nGSetupRequest.ProtocolIEs
-
-	ie := ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDGlobalRANNodeID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentGlobalRANNodeID
-	ie.Value.GlobalRANNodeID = new(ngapType.GlobalRANNodeID)
-
-	globalRANNodeID := ie.Value.GlobalRANNodeID
-	globalRANNodeID.Present = ngapType.GlobalRANNodeIDPresentGlobalGNBID
-	globalRANNodeID.GlobalGNBID = new(ngapType.GlobalGNBID)
-
-	globalGNBID := globalRANNodeID.GlobalGNBID
-	globalGNBID.PLMNIdentity.Value = plmnID
-	globalGNBID.GNBID.Present = ngapType.GNBIDPresentGNBID
-	globalGNBID.GNBID.GNBID = new(aper.BitString)
-
-	gNBID := globalGNBID.GNBID.GNBID
-
-	*gNBID = ngapConvert.HexToBitString(opts.GnbID, 24)
-
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-
-	ie = ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANNodeName
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentRANNodeName
-	ie.Value.RANNodeName = new(ngapType.RANNodeName)
-
-	rANNodeName := ie.Value.RANNodeName
-	rANNodeName.Value = opts.Name
-
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-	ie = ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDSupportedTAList
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentSupportedTAList
-	ie.Value.SupportedTAList = new(ngapType.SupportedTAList)
-
-	supportedTAList := ie.Value.SupportedTAList
-
-	supportedTAItem := ngapType.SupportedTAItem{}
-	supportedTAItem.TAC.Value = tac
-
-	broadcastPLMNList := &supportedTAItem.BroadcastPLMNList
-	broadcastPLMNItem := ngapType.BroadcastPLMNItem{}
-	broadcastPLMNItem.PLMNIdentity.Value = plmnID
-
-	sliceSupportList := &broadcastPLMNItem.TAISliceSupportList
+	support := make(ngap.SliceSupportList, 0, len(slices))
 
 	for _, s := range slices {
-		sst, sd, err := GetSliceInBytes(s.Sst, s.Sd)
+		snssai, err := sliceToNGAP(s)
 		if err != nil {
-			return ngapType.NGAPPDU{}, fmt.Errorf("could not get slice info in bytes: %v", err)
+			return nil, err
 		}
 
-		sliceSupportItem := ngapType.SliceSupportItem{}
-		sliceSupportItem.SNSSAI.SST.Value = sst
-
-		if sd != nil {
-			sliceSupportItem.SNSSAI.SD = new(ngapType.SD)
-			sliceSupportItem.SNSSAI.SD.Value = sd
-		}
-
-		sliceSupportList.List = append(sliceSupportList.List, sliceSupportItem)
+		support = append(support, ngap.SliceSupportItem{SNSSAI: snssai})
 	}
 
-	broadcastPLMNList.List = append(broadcastPLMNList.List, broadcastPLMNItem)
+	req := &ngap.NGSetupRequest{
+		GlobalRANNodeID: ngap.GlobalRANNodeID{
+			Kind:         ngap.RANNodeIDGNB,
+			PLMNIdentity: plmn,
+			Value:        uint32(gnbID),
+			Bits:         gnbIDBits,
+		},
+		RANNodeName: ngap.Ptr(opts.Name),
+		SupportedTAList: ngap.SupportedTAList{{
+			TAC:               ngap.TAC(uint32(tac[0])<<16 | uint32(tac[1])<<8 | uint32(tac[2])),
+			BroadcastPLMNList: ngap.BroadcastPLMNList{{PLMNIdentity: plmn, TAISliceSupportList: support}},
+		}},
+		DefaultPagingDRX: ngap.Ptr(ngap.PagingDRXv128),
+	}
 
-	supportedTAList.List = append(supportedTAList.List, supportedTAItem)
+	return req.Marshal()
+}
 
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
+func sliceToNGAP(s SliceOpt) (ngap.SNSSAI, error) {
+	sst, sd, err := GetSliceInBytes(s.Sst, s.Sd)
+	if err != nil {
+		return ngap.SNSSAI{}, fmt.Errorf("could not get slice info in bytes: %v", err)
+	}
 
-	ie = ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDDefaultPagingDRX
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentDefaultPagingDRX
-	ie.Value.DefaultPagingDRX = new(ngapType.PagingDRX)
+	if len(sst) != 1 {
+		return ngap.SNSSAI{}, fmt.Errorf("SST is %d octets, want 1", len(sst))
+	}
 
-	pagingDRX := ie.Value.DefaultPagingDRX
-	pagingDRX.Value = ngapType.PagingDRXPresentV128
+	out := ngap.SNSSAI{SST: ngap.SST(sst[0])}
 
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
+	if sd != nil {
+		if len(sd) != 3 {
+			return ngap.SNSSAI{}, fmt.Errorf("SD is %d octets, want 3", len(sd))
+		}
 
-	return pdu, nil
+		out.SD = &ngap.SD{sd[0], sd[1], sd[2]}
+	}
+
+	return out, nil
 }

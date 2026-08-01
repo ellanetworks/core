@@ -1,0 +1,46 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package ngap
+
+import (
+	"testing"
+)
+
+// TestTableOrderMatchesASN1 pins the IEs each table models to their relative
+// order in the message's NGAP-PROTOCOL-IES container (TS 38.413 §9.4.5), which
+// is the order encode emits them in. IEs a table does not model are not pinned.
+func TestTableOrderMatchesASN1(t *testing.T) {
+	tests := []struct {
+		name string
+		got  []ProtocolIEID
+		want []ProtocolIEID
+	}{
+		{"NGSetupRequest", tableIDs(nGSetupRequestIEs), []ProtocolIEID{idGlobalRANNodeID, idRANNodeName, idSupportedTAList, idDefaultPagingDRX, idUERetentionInformation}},
+		{"NGSetupResponse", tableIDs(nGSetupResponseIEs), []ProtocolIEID{idAMFName, idServedGUAMIList, idRelativeAMFCapacity, idPLMNSupportList, idCriticalityDiagnostics, idUERetentionInformation}},
+		{"NGSetupFailure", tableIDs(nGSetupFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.got) != len(tt.want) {
+				t.Fatalf("%d IEs, want %d: %v vs %v", len(tt.got), len(tt.want), tt.got, tt.want)
+			}
+
+			for i := range tt.got {
+				if tt.got[i] != tt.want[i] {
+					t.Errorf("row %d = %s, want %s", i, tt.got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func tableIDs[M any](table []ieSpec[M]) []ProtocolIEID {
+	ids := make([]ProtocolIEID, len(table))
+	for i := range table {
+		ids[i] = table[i].id
+	}
+
+	return ids
+}

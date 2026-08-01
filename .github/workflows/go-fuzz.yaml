@@ -33,6 +33,12 @@ jobs:
           - dir: nas
             pkg: .
             target: FuzzWalkOptionalIEs
+          - dir: ngap
+            pkg: .
+            target: FuzzDecodeNoPanic
+          - dir: s1ap
+            pkg: .
+            target: FuzzDecodeNoPanic
     steps:
       - uses: actions/checkout@v7
 

@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/ngap"
+	free5gcngap "github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -57,7 +57,14 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 	)
 	defer span.End()
 
-	pdu, err := ngap.Decoder(msg)
+	// NG Setup is decoded by the in-house NGAP library. It is intercepted
+	// before the free5gc decoder so exactly one codec sees the message; the
+	// remaining procedures follow as they are migrated.
+	if handled := handleNGSetup(ctx, amfInstance, ran, msg, span); handled {
+		return
+	}
+
+	pdu, err := free5gcngap.Decoder(msg)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NGAP message")
@@ -79,37 +86,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 		attribute.String("network.local.address", amf.AddrString(localAddress)),
 	)
 
-	// Pre-decode NGSetupRequest so the peer's RANNodeName can be applied to
-	// ran.Name *before* the inbound event is logged, preserving chronological
-	// ordering with the outbound NGSetupResponse.
-	var (
-		ngSetupDecoded decode.NGSetupRequest
-		ngSetupReport  *decode.Report
-		haveNGSetup    bool
-	)
-
-	if pdu.Present == ngapType.NGAPPDUPresentInitiatingMessage &&
-		pdu.InitiatingMessage != nil &&
-		pdu.InitiatingMessage.ProcedureCode.Value == ngapType.ProcedureCodeNGSetup {
-		ngSetupDecoded, ngSetupReport = decode.DecodeNGSetupRequest(pdu.InitiatingMessage.Value.NGSetupRequest)
-		haveNGSetup = true
-
-		if ngSetupDecoded.RANNodeName != "" {
-			amfInstance.UpdateRadioName(ran, ngSetupDecoded.RANNodeName)
-		}
-	}
-
 	amfInstance.LogNetworkEvent(ctx, ran.Conn, messageType, logger.DirectionInbound, msg)
-
-	if haveNGSetup {
-		if !handleDecodeReport(ctx, ran, ngSetupReport) {
-			return
-		}
-
-		HandleNGSetupRequest(ctx, amfInstance, ran, ngSetupDecoded)
-
-		return
-	}
 
 	// TS 38.413: NG Setup must be the first NGAP procedure after
 	// the TNL association is established. Reject anything else.

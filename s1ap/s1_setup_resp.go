@@ -17,6 +17,9 @@ type S1SetupResponse struct {
 	messageMeta
 }
 
+// relativeMMECapacityBounds is RelativeMMECapacity ::= INTEGER (0..255).
+var relativeMMECapacityBounds = per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}
+
 var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
 		id: idMMEname, presence: presenceOptional, crit: CriticalityIgnore,
@@ -50,12 +53,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
 		id: idRelativeMMECapacity, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   int64
-			)
-
-			v, err = per.DecodeInteger(per.NewReader(raw), enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
+			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeMMECapacityBounds)
 			if err != nil {
 				return err
 			}
@@ -71,7 +69,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(*m.RelativeMMECapacity))
+				return per.EncodeInteger(w, enc, relativeMMECapacityBounds, int64(*m.RelativeMMECapacity))
 			}), true
 		},
 	},

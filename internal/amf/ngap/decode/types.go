@@ -10,27 +10,6 @@ import (
 
 type RRCEstablishmentCause aper.Enumerated
 
-type GlobalRANNodeKind uint8
-
-const (
-	GlobalRANNodeKindUnknown GlobalRANNodeKind = iota
-	GlobalRANNodeKindGNB
-	GlobalRANNodeKindNgENB
-	GlobalRANNodeKindN3IWF
-)
-
-// GlobalRANNodeID wraps a validated GlobalRANNodeID CHOICE. When Kind is not
-// Unknown, the variant pointer matching Kind and any nested *aper.BitString are
-// non-nil. Raw aliases the source PDU buffer and must be consumed within the
-// synchronous handler invocation.
-type GlobalRANNodeID struct {
-	kind GlobalRANNodeKind
-	raw  *ngapType.GlobalRANNodeID
-}
-
-func (g GlobalRANNodeID) Kind() GlobalRANNodeKind        { return g.kind }
-func (g GlobalRANNodeID) Raw() *ngapType.GlobalRANNodeID { return g.raw }
-
 type UserLocationKind uint8
 
 const (
@@ -68,20 +47,6 @@ type InitialUEMessage struct {
 	RRCEstablishmentCause   RRCEstablishmentCause
 	FiveGSTMSI              *FiveGSTMSI
 	UEContextRequest        bool
-}
-
-// NGSetupRequest is a decoded NGAP NGSetupRequest (3GPP TS 38.413).
-// GlobalRANNodeID and SupportedTAItems are mandatory; RANNodeName is "" when
-// absent.
-//
-// SupportedTAItems aliases the source PDU buffer (TAC, PLMNIdentity and SNSSAI
-// octet strings) and must be consumed within the synchronous handler
-// invocation. It may be empty on a non-fatal decode: TS 38.413 forbids a
-// zero-item container, but real gNBs occasionally send one.
-type NGSetupRequest struct {
-	GlobalRANNodeID  GlobalRANNodeID
-	SupportedTAItems []ngapType.SupportedTAItem
-	RANNodeName      string
 }
 
 // PathSwitchRequest is a decoded NGAP PathSwitchRequest (3GPP TS 38.413).

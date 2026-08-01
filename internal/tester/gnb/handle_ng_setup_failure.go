@@ -4,24 +4,25 @@
 package gnb
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handleNGSetupFailure(nGSetupFailure *ngapType.NGSetupFailure) error {
-	var cause *ngapType.Cause
-
-	for _, ie := range nGSetupFailure.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-		}
+func handleNGSetupFailure(value []byte) error {
+	fail, err := ngap.ParseNGSetupFailure(value)
+	if err != nil {
+		return fmt.Errorf("could not parse NGSetupFailure: %w", err)
 	}
 
-	logger.GnbLogger.Debug("Received NGSetupFailure",
-		zap.String("Cause", causeToString(*cause)),
-	)
+	cause := "absent"
+	if fail.Cause != nil {
+		cause = fail.Cause.String()
+	}
+
+	logger.GnbLogger.Debug("Received NGSetupFailure", zap.String("Cause", cause))
 
 	return nil
 }

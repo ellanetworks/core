@@ -4,6 +4,7 @@
 package s1ap
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -22,9 +23,16 @@ func TestNilableUnlessRequiredAndReject(t *testing.T) {
 	rows := parseIETables(t)
 	fields, sliceTypes := parseMessageFields(t)
 
+	// A row whose field the scan cannot resolve is a row this invariant does
+	// not cover, which is how the check quietly stops holding. Report them
+	// rather than skipping in silence.
+	var skipped []string
+
 	for _, r := range rows {
 		field, ok := fields[r.message][r.field]
 		if !ok {
+			skipped = append(skipped, fmt.Sprintf("%s IE %s (field %q)", r.message, r.id, r.field))
+
 			continue
 		}
 
@@ -40,6 +48,10 @@ func TestNilableUnlessRequiredAndReject(t *testing.T) {
 		if !mustHold && !nilable {
 			t.Errorf("%s.%s is %q for %s/%s: want nilable", r.message, r.field, field, r.presence, r.criticality)
 		}
+	}
+
+	for _, s := range skipped {
+		t.Errorf("IE table row not matched to a struct field, so its typing is unchecked: %s", s)
 	}
 }
 

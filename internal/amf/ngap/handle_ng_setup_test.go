@@ -5,30 +5,19 @@ package ngap_test
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
+	"github.com/ellanetworks/core/internal/models"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
-
-func decodeNGSetupRequestOrFatal(t *testing.T, pdu *ngapType.NGAPPDU) decode.NGSetupRequest {
-	t.Helper()
-
-	decoded, report := decode.DecodeNGSetupRequest(pdu.InitiatingMessage.Value.NGSetupRequest)
-	if report != nil {
-		t.Fatalf("decoder produced report: %+v", report)
-	}
-
-	return decoded
-}
 
 type SliceOpt struct {
 	Sst int32
@@ -47,18 +36,21 @@ type NGSetupRequestOpts struct {
 	Slices []SliceOpt // if set, overrides Sst/Sd
 }
 
-func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
-	if opts.Mcc == "" {
-		return nil, fmt.Errorf("MCC is required to build NGSetupRequest")
+// buildNGSetupRequest assembles the request as the library models it, which is
+// what the handler now receives from the dispatcher.
+func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngaplib.NGSetupRequest, error) {
+	if opts.Mcc == "" || opts.Mnc == "" {
+		return nil, fmt.Errorf("MCC and MNC are required to build NGSetupRequest")
 	}
 
-	if opts.Mnc == "" {
-		return nil, fmt.Errorf("MNC is required to build NGSetupRequest")
-	}
-
-	plmnID, err := getMccAndMncInOctets(opts.Mcc, opts.Mnc)
+	plmn, err := util.PLMNToNGAP(models.PlmnID{Mcc: opts.Mcc, Mnc: opts.Mnc})
 	if err != nil {
-		return nil, fmt.Errorf("could not get plmnID in octets: %v", err)
+		return nil, fmt.Errorf("could not encode PLMN: %w", err)
+	}
+
+	gnbID, err := strconv.ParseUint(opts.GnbID, 16, 32)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse gNB id %q: %w", opts.GnbID, err)
 	}
 
 	slices := opts.Slices
@@ -70,110 +62,46 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 		slices = []SliceOpt{{Sst: opts.Sst, Sd: opts.Sd}}
 	}
 
-	pdu := ngapType.NGAPPDU{}
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeNGSetup
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentNGSetupRequest
-	initiatingMessage.Value.NGSetupRequest = new(ngapType.NGSetupRequest)
-
-	nGSetupRequest := initiatingMessage.Value.NGSetupRequest
-	nGSetupRequestIEs := &nGSetupRequest.ProtocolIEs
-
-	ie := ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDGlobalRANNodeID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentGlobalRANNodeID
-	ie.Value.GlobalRANNodeID = new(ngapType.GlobalRANNodeID)
-
-	globalRANNodeID := ie.Value.GlobalRANNodeID
-	globalRANNodeID.Present = ngapType.GlobalRANNodeIDPresentGlobalGNBID
-	globalRANNodeID.GlobalGNBID = new(ngapType.GlobalGNBID)
-
-	globalGNBID := globalRANNodeID.GlobalGNBID
-	globalGNBID.PLMNIdentity.Value = plmnID
-	globalGNBID.GNBID.Present = ngapType.GNBIDPresentGNBID
-	globalGNBID.GNBID.GNBID = new(aper.BitString)
-
-	gNBID := globalGNBID.GNBID.GNBID
-
-	*gNBID = ngapConvert.HexToBitString(opts.GnbID, 24)
-
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-
-	ie = ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANNodeName
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentRANNodeName
-	ie.Value.RANNodeName = new(ngapType.RANNodeName)
-
-	rANNodeName := ie.Value.RANNodeName
-	rANNodeName.Value = opts.Name
-
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
-
-	if opts.Tac != "" {
-		tac, err := hex.DecodeString(opts.Tac)
-		if err != nil {
-			return nil, fmt.Errorf("could not get tac in bytes: %v", err)
-		}
-
-		ie = ngapType.NGSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDSupportedTAList
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.NGSetupRequestIEsPresentSupportedTAList
-		ie.Value.SupportedTAList = new(ngapType.SupportedTAList)
-
-		supportedTAList := ie.Value.SupportedTAList
-
-		supportedTAItem := ngapType.SupportedTAItem{}
-		supportedTAItem.TAC.Value = tac
-
-		broadcastPLMNList := &supportedTAItem.BroadcastPLMNList
-		broadcastPLMNItem := ngapType.BroadcastPLMNItem{}
-		broadcastPLMNItem.PLMNIdentity.Value = plmnID
-		sliceSupportList := &broadcastPLMNItem.TAISliceSupportList
-
-		for _, s := range slices {
-			sst, sd, err := getSliceInBytes(s.Sst, s.Sd)
-			if err != nil {
-				return nil, fmt.Errorf("could not get slice info in bytes: %v", err)
-			}
-
-			sliceSupportItem := ngapType.SliceSupportItem{}
-			sliceSupportItem.SNSSAI.SST.Value = sst
-
-			if sd != nil {
-				sliceSupportItem.SNSSAI.SD = new(ngapType.SD)
-				sliceSupportItem.SNSSAI.SD.Value = sd
-			}
-
-			sliceSupportList.List = append(sliceSupportList.List, sliceSupportItem)
-		}
-
-		broadcastPLMNList.List = append(broadcastPLMNList.List, broadcastPLMNItem)
-
-		supportedTAList.List = append(supportedTAList.List, supportedTAItem)
-
-		nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
+	req := &ngaplib.NGSetupRequest{
+		GlobalRANNodeID: ngaplib.GlobalRANNodeID{
+			Kind:         ngaplib.RANNodeIDGNB,
+			PLMNIdentity: plmn,
+			Value:        uint32(gnbID),
+			Bits:         24,
+		},
+		RANNodeName:      ngaplib.Ptr(opts.Name),
+		DefaultPagingDRX: ngaplib.Ptr(ngaplib.PagingDRXv128),
 	}
 
-	ie = ngapType.NGSetupRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDDefaultPagingDRX
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.NGSetupRequestIEsPresentDefaultPagingDRX
-	ie.Value.DefaultPagingDRX = new(ngapType.PagingDRX)
+	if opts.Tac == "" {
+		return req, nil
+	}
 
-	pagingDRX := ie.Value.DefaultPagingDRX
-	pagingDRX.Value = ngapType.PagingDRXPresentV128
+	tac, err := strconv.ParseUint(opts.Tac, 16, 32)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse TAC %q: %w", opts.Tac, err)
+	}
 
-	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)
+	support := make(ngaplib.SliceSupportList, 0, len(slices))
 
-	return &pdu, nil
+	for _, sl := range slices {
+		snssai, err := util.SNSSAIToNGAP(models.Snssai{Sst: sl.Sst, Sd: sl.Sd})
+		if err != nil {
+			return nil, fmt.Errorf("could not encode slice: %w", err)
+		}
+
+		support = append(support, ngaplib.SliceSupportItem{SNSSAI: snssai})
+	}
+
+	req.SupportedTAList = ngaplib.SupportedTAList{{
+		TAC: ngaplib.TAC(tac),
+		BroadcastPLMNList: ngaplib.BroadcastPLMNList{{
+			PLMNIdentity:        plmn,
+			TAISliceSupportList: support,
+		}},
+	}}
+
+	return req, nil
 }
 
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testing.T) {
@@ -209,10 +137,9 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		},
 	}, nil, nil)
 
-	decoded := decodeNGSetupRequestOrFatal(t, msg)
-	decoded.SupportedTAItems = nil
+	msg.SupportedTAList = nil
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decoded)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(sender.SentNGSetupFailures))
@@ -269,7 +196,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		Operator: op,
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(sender.SentNGSetupFailures))
@@ -327,7 +254,7 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse to be sent, but got %d", len(sender.SentNGSetupResponses))
@@ -430,7 +357,7 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse, got %d", len(sender.SentNGSetupResponses))
@@ -512,7 +439,7 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse, got %d", len(sender.SentNGSetupResponses))
@@ -575,7 +502,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
 
 	amfInstance := amf.New(&fakeDBInstance{Operator: op}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure, got %d", len(sender.SentNGSetupFailures))
@@ -613,7 +540,7 @@ func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
 		OperatorErr: fmt.Errorf("database unavailable"),
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected NGSetupFailure on DB error, got %d", len(sender.SentNGSetupFailures))
@@ -659,7 +586,7 @@ func TestHandleNGSetupRequest_SliceDBFailure_SendsNGSetupFailure(t *testing.T) {
 		SlicesErr: fmt.Errorf("slice query failed"),
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected NGSetupFailure on slice DB error, got %d", len(sender.SentNGSetupFailures))
@@ -701,7 +628,7 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected NGSetupResponse even with no slice overlap, got %d responses", len(sender.SentNGSetupResponses))

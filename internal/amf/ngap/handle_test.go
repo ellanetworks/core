@@ -51,19 +51,11 @@ func reverse(s string) string {
 	return aux
 }
 
-func getSliceInBytes(sst int32, sd string) ([]byte, []byte, error) {
-	sstBytes := []byte{byte(sst)}
-
-	if sd != "" {
-		sdBytes, err := hex.DecodeString(sd)
-		if err != nil {
-			return sstBytes, nil, fmt.Errorf("could not decode sd to bytes: %v", err)
-		}
-
-		return sstBytes, sdBytes, nil
-	}
-
-	return sstBytes, nil, nil
+// sstOctet is the SST as the reference decoder's fixtures carry it. The SD is
+// no longer needed by any caller: the NG Setup fixtures build their S-NSSAIs
+// through the library.
+func sstOctet(sst int32) []byte {
+	return []byte{byte(sst)}
 }
 
 type fakeDBInstance struct {

@@ -12,7 +12,9 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/free5gc/aper"
 	libngap "github.com/free5gc/ngap"
+	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -77,9 +79,11 @@ func (w *capturingWriter) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 	return len(b), nil
 }
 
-// A fatal NG SETUP REQUEST decode is rejected with NG SETUP FAILURE, not the Error
-// Indication other procedures fall back to (TS 38.413 §10.3.5).
-func TestHandleDecodeReport_NGSetupFatalSendsNGSetupFailure(t *testing.T) {
+// A fatal NG SETUP REQUEST decode is rejected with NG SETUP FAILURE, not the
+// Error Indication other procedures fall back to (TS 38.413 §10.3.5). The
+// request is built with the reference encoder so it can omit a mandatory IE,
+// which this library's own encoder refuses to do (§10.3.3).
+func TestHandleNGSetup_MissingMandatoryIESendsNGSetupFailure(t *testing.T) {
 	tests := []struct {
 		name string
 		ieID int64
@@ -93,14 +97,11 @@ func TestHandleDecodeReport_NGSetupFatalSendsNGSetupFailure(t *testing.T) {
 			w := &capturingWriter{}
 			ran := newDecodeReportRadio(w)
 
-			report := &decode.Report{
-				ProcedureCode:     ngapType.ProcedureCodeNGSetup,
-				TriggeringMessage: ngapType.TriggeringMessagePresentInitiatingMessage,
-			}
-			report.MissingMandatory(tt.ieID, ngapType.CriticalityPresentReject)
+			msg := ngSetupRequestOmitting(t, tt.ieID)
 
-			if proceed := handleDecodeReport(context.Background(), ran, report); proceed {
-				t.Fatal("a fatal decode must skip the handler (return false)")
+			if handled := handleNGSetup(context.Background(), amf.New(nil, nil, nil), ran, msg,
+				trace.SpanFromContext(context.Background())); !handled {
+				t.Fatal("handleNGSetup did not consume an NG Setup Request")
 			}
 
 			if len(w.msgs) != 1 {
@@ -168,6 +169,68 @@ func TestHandleDecodeReport_NGSetupFatalSendsNGSetupFailure(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ngSetupRequestOmitting encodes an NG SETUP REQUEST without the named IE.
+func ngSetupRequestOmitting(t *testing.T, omit int64) []byte {
+	t.Helper()
+
+	pdu := ngapType.NGAPPDU{Present: ngapType.NGAPPDUPresentInitiatingMessage}
+	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+	im := pdu.InitiatingMessage
+	im.ProcedureCode.Value = ngapType.ProcedureCodeNGSetup
+	im.Criticality.Value = ngapType.CriticalityPresentReject
+	im.Value.Present = ngapType.InitiatingMessagePresentNGSetupRequest
+	im.Value.NGSetupRequest = new(ngapType.NGSetupRequest)
+	ies := &im.Value.NGSetupRequest.ProtocolIEs
+
+	plmn := ngapType.PLMNIdentity{Value: []byte{0x02, 0xf8, 0x39}}
+
+	if omit != ngapType.ProtocolIEIDGlobalRANNodeID {
+		ie := ngapType.NGSetupRequestIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDGlobalRANNodeID
+		ie.Criticality.Value = ngapType.CriticalityPresentReject
+		ie.Value.Present = ngapType.NGSetupRequestIEsPresentGlobalRANNodeID
+		ie.Value.GlobalRANNodeID = &ngapType.GlobalRANNodeID{
+			Present:     ngapType.GlobalRANNodeIDPresentGlobalGNBID,
+			GlobalGNBID: &ngapType.GlobalGNBID{PLMNIdentity: plmn},
+		}
+		ie.Value.GlobalRANNodeID.GlobalGNBID.GNBID.Present = ngapType.GNBIDPresentGNBID
+		bs := ngapConvert.HexToBitString("000102", 24)
+		ie.Value.GlobalRANNodeID.GlobalGNBID.GNBID.GNBID = &bs
+		ies.List = append(ies.List, ie)
+	}
+
+	if omit != ngapType.ProtocolIEIDSupportedTAList {
+		ie := ngapType.NGSetupRequestIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDSupportedTAList
+		ie.Criticality.Value = ngapType.CriticalityPresentReject
+		ie.Value.Present = ngapType.NGSetupRequestIEsPresentSupportedTAList
+		ie.Value.SupportedTAList = new(ngapType.SupportedTAList)
+		ta := ngapType.SupportedTAItem{}
+		ta.TAC.Value = []byte{0x00, 0x00, 0x01}
+		bp := ngapType.BroadcastPLMNItem{PLMNIdentity: plmn}
+		ss := ngapType.SliceSupportItem{}
+		ss.SNSSAI.SST.Value = []byte{0x01}
+		bp.TAISliceSupportList.List = append(bp.TAISliceSupportList.List, ss)
+		ta.BroadcastPLMNList.List = append(ta.BroadcastPLMNList.List, bp)
+		ie.Value.SupportedTAList.List = append(ie.Value.SupportedTAList.List, ta)
+		ies.List = append(ies.List, ie)
+	}
+
+	ie := ngapType.NGSetupRequestIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDDefaultPagingDRX
+	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+	ie.Value.Present = ngapType.NGSetupRequestIEsPresentDefaultPagingDRX
+	ie.Value.DefaultPagingDRX = &ngapType.PagingDRX{Value: ngapType.PagingDRXPresentV128}
+	ies.List = append(ies.List, ie)
+
+	b, err := libngap.Encoder(pdu)
+	if err != nil {
+		t.Fatalf("encode NG Setup Request: %v", err)
+	}
+
+	return b
 }
 
 // TestHandleDecodeReport_NonFatalContinues asserts an ignore-criticality decode

@@ -85,10 +85,7 @@ func TestHandleRanConfigurationUpdate_MatchingTAs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sst, _, err := getSliceInBytes(1, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	sst := sstOctet(1)
 
 	msg := decode.RANConfigurationUpdate{
 		SupportedTAItems: []ngapType.SupportedTAItem{
@@ -139,10 +136,7 @@ func TestHandleRanConfigurationUpdate_NoMatchingTAC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sst, _, err := getSliceInBytes(1, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	sst := sstOctet(1)
 
 	msg := decode.RANConfigurationUpdate{
 		SupportedTAItems: []ngapType.SupportedTAItem{
@@ -207,10 +201,7 @@ func TestHandleRanConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sst, _, err := getSliceInBytes(1, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	sst := sstOctet(1)
 
 	msg := decode.RANConfigurationUpdate{
 		SupportedTAItems: []ngapType.SupportedTAItem{

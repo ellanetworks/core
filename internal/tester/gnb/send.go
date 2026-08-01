@@ -55,12 +55,12 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 }
 
 func (g *GnodeB) SendNGSetupRequest(opts *NGSetupRequestOpts) error {
-	pdu, err := BuildNGSetupRequest(opts)
+	pkt, err := BuildNGSetupRequest(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build NGSetupRequest: %s", err.Error())
 	}
 
-	return g.SendMessage(pdu, NGAPProcedureNGSetupRequest)
+	return g.SendToRan(pkt, NGAPProcedureNGSetupRequest)
 }
 
 func (g *GnodeB) SendNGReset(opts *NGResetOpts) error {

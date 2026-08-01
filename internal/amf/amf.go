@@ -26,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -406,9 +407,9 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 // retain them (TS 38.413 §8.7.1.1), and Ella Core never offers UE retention. A
 // gNB repeating NG Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the gNB has already forgotten.
-func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *Radio {
-	newID := util.RanIDToModels(*ranNodeID)
-	present := ranNodeID.Present
+func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) *Radio {
+	newID := util.RANNodeIDToModels(ranNodeID)
+	present := ranPresentFor(ranNodeID.Kind)
 
 	key, _ := radioIDKey(&newID)
 
@@ -445,6 +446,22 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	}
 
 	return evicted
+}
+
+// ranPresentFor maps a Global RAN Node ID alternative onto the node kind the
+// Radio records. The three ng-eNB macro variants are one kind here: they differ
+// only in identifier width, which RanID already carries.
+func ranPresentFor(kind ngap.RANNodeIDKind) int {
+	switch kind {
+	case ngap.RANNodeIDGNB:
+		return RanPresentGNbID
+	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
+		return RanPresentNgeNbID
+	case ngap.RANNodeIDN3IWF:
+		return RanPresentN3IwfID
+	}
+
+	return 0
 }
 
 // ListRadios returns an immutable snapshot of every connected radio for status/API,
