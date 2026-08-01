@@ -71,14 +71,12 @@ type StatusResponse struct {
 	SchemaVersion int                    `json:"schemaVersion"`
 	Cluster       *ClusterStatusResponse `json:"cluster,omitempty"`
 
-	// DatapathAttachMode is the mechanism the data plane attached with, one
-	// of the config.Datapath* values. Absent until the UPF is up, which the
-	// readiness probe must answer during.
+	// One of the config.Datapath* values, absent until the UPF is up.
 	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
 }
 
-// datapathMode is read through a function because the handler outlives the
-// window in which the UPF does not yet exist; nil means never available.
+// datapathMode is a function because the handler is built before the UPF
+// exists; nil means never available.
 func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

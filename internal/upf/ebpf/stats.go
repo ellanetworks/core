@@ -25,16 +25,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// Datapath actions: the index of the per-action forwarding counter the data
-// plane keeps (enum ctx_action in bpf/ctx/ctx.h). These are what the data
-// plane decided, not the verdict the hook returned — TCX cannot express a
-// transmit-back, so a counter keyed on the verdict would report none. The
-// values coincide with the XDP verdict encoding, which is why an XDP
-// program's return value can be compared against them directly.
-//
-// A frame the data plane did not forward is counted in DropReasons instead,
-// under the reason that stopped it, so the two arrays are disjoint and sum to
-// the frames the program handled.
+// Index of the per-action forwarding counter (enum ctx_action in
+// bpf/ctx/ctx.h). The values coincide with the XDP verdict encoding, which is
+// why an XDP program's return value can be compared against them directly.
 const (
 	ActionAborted  = 0
 	ActionDrop     = 1
@@ -42,13 +35,11 @@ const (
 	ActionTx       = 3
 	ActionRedirect = 4
 
-	// UPFMaxAction is the width of the forwarding counter array
-	// (UPF_MAX_ACTION).
+	// UPFMaxAction is the width of the forwarding counter array.
 	UPFMaxAction = 8
 )
 
-// Direction of a datapath counter, which is also which statistics map it
-// comes from: the uplink and downlink pipelines keep their own.
+// Direction selects the statistics map: the pipelines keep one each.
 type Direction string
 
 const (
@@ -64,9 +55,8 @@ func statsMap(bpfObjects *BpfObjects, dir Direction) *ebpf.Map {
 	return bpfObjects.DownlinkStatistics
 }
 
-// readStats returns the per-CPU statistics of one direction, already summed
-// over CPUs, or false when the map could not be read. Callers must not
-// publish partial data on a failed read.
+// readStats sums one direction's statistics over CPUs, returning false when
+// the map could not be read.
 func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatistic, bool) {
 	var (
 		perCPU []N3N6EntrypointUpfStatistic
@@ -97,15 +87,13 @@ func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatisti
 	return total, true
 }
 
-// DatapathCounters is one direction's packet accounting: frames forwarded, by
-// action, and frames not forwarded, by reason.
+// DatapathCounters is one direction's packet accounting.
 type DatapathCounters struct {
 	Forwarded [UPFMaxAction]uint64
 	Dropped   [UPFDropReasonMax]uint64
 }
 
-// GetDatapathCounters reads both directions. A direction whose map could not
-// be read is absent from the result rather than reported as zero.
+// A direction whose map could not be read is absent rather than zero.
 func GetDatapathCounters(bpfObjects *BpfObjects) map[Direction]DatapathCounters {
 	out := make(map[Direction]DatapathCounters, 2)
 
@@ -289,17 +277,12 @@ func ReadProfilingStats(bpfObjects *BpfObjects) ([]ProfileEntry, error) {
 	return results, nil
 }
 
-// UPFDropReasonMax is the width of the drop counter array
-// (UPF_DROP_REASON_MAX in bpf/utils/drop_reason.h).
+// UPFDropReasonMax is the width of the drop counter array.
 const UPFDropReasonMax = 64
 
-// dropReasonNames maps a drop reason to its metric label value. The order is
-// the order of enum upf_drop_reason in bpf/utils/drop_reason.h, and
-// TestDropReasonNamesMatchDatapath fails if the two drift apart.
-//
-// A reason absent from this table would publish as its numeric index, which
-// is why the table is exhaustive rather than sparse: an unnamed reason is a
-// series an operator cannot interpret.
+// Label value per drop reason, in the order of enum upf_drop_reason in
+// bpf/utils/drop_reason.h. TestDropReasonNamesMatchDatapath fails if the two
+// drift apart.
 var dropReasonNames = [...]string{
 	"unspecified",
 	"no_uplink_session",
@@ -344,14 +327,10 @@ var dropReasonNames = [...]string{
 	"internal_tx_failed",
 }
 
-// DropReasonNames returns the label value of every reason the datapath can
-// record, indexed by reason. Userspace publishes all of them, including the
-// ones sitting at zero: a counter that only appears once it fires cannot be
-// told apart from one that was never instrumented.
+// DropReasonNames returns every reason's label value, indexed by reason.
 func DropReasonNames() []string { return dropReasonNames[:] }
 
-// DropReasonByName resolves a reason's label value to its index, so a caller
-// can ask for one specific reason without hardcoding a position.
+// DropReasonByName resolves a label value to its index.
 func DropReasonByName(name string) (int, bool) {
 	for i, n := range dropReasonNames {
 		if n == name {
@@ -363,8 +342,7 @@ func DropReasonByName(name string) (int, bool) {
 }
 
 // DropCount returns how many frames one direction did not forward for one
-// reason. Unknown reason names return 0: the caller asked about a reason the
-// datapath cannot record.
+// reason; an unknown name returns 0.
 func DropCount(bpfObjects *BpfObjects, dir Direction, reason string) uint64 {
 	i, ok := DropReasonByName(reason)
 	if !ok {
@@ -379,8 +357,7 @@ func DropCount(bpfObjects *BpfObjects, dir Direction, reason string) uint64 {
 	return s.DropReasons[i]
 }
 
-// ForwardCount returns how many frames one direction forwarded with one
-// action (ActionPass, ActionTx, ActionRedirect).
+// ForwardCount counts frames forwarded with one action.
 func ForwardCount(bpfObjects *BpfObjects, dir Direction, action int) uint64 {
 	s, ok := readStats(bpfObjects, dir)
 	if !ok {
@@ -390,8 +367,7 @@ func ForwardCount(bpfObjects *BpfObjects, dir Direction, action int) uint64 {
 	return s.ForwardedActions[action]
 }
 
-// TotalDrops returns every frame one direction did not forward, whatever the
-// reason.
+// TotalDrops counts every frame one direction did not forward.
 func TotalDrops(bpfObjects *BpfObjects, dir Direction) uint64 {
 	s, ok := readStats(bpfObjects, dir)
 	if !ok {

@@ -7,25 +7,12 @@
 #include <bpf/bpf_helpers.h>
 
 /*
- * Per-packet profiling infrastructure for the XDP UPF pipeline.
+ * Per-packet profiling, compiled in with -DENABLE_PROFILING via BPF_CFLAGS:
  *
- * Enabled by compiling with -DENABLE_PROFILING (passed via BPF_CFLAGS).
- * When disabled, all macros expand to nothing — zero overhead.
- *
- * Overhead note: each bpf_ktime_get_ns() call has a non-negligible cost dependant
- * hardware. With many sections instrumented, this overhead can compound and become
- * large.
- *
- * Usage (BPF C side):
- *   PROFILE_START(idx);
- *   ... code to measure ...
- *   PROFILE_END(idx);
- *
- * Usage (Go userspace side):
- *   stats, err := ReadProfilingStats(bpfObjects)
- *
- * Enabling profiling:
  *   BPF_CFLAGS="-DENABLE_PROFILING" go generate ./internal/upf/ebpf/
+ *
+ * Without it every macro expands to nothing. Each bracket costs two
+ * bpf_ktime_get_ns() calls, which compound across instrumented sections.
  */
 
 /* One entry per profiling index, stored in a per-CPU array map. */

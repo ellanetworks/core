@@ -47,9 +47,7 @@ const (
 
 	t2VethMTU = "3000" // headroom for the payload sweep plus GTP encapsulation
 
-	// N6-side IPv6, the counterpart of natPublicIP: the address a
-	// self-generated ICMPv6 error is sourced from, and the prefix the test
-	// server sits in.
+	// The IPv6 counterpart of natPublicIP, and the server's prefix.
 	t2N6IPv6         = "2001:db8:6::1"
 	t2ServerV6Prefix = "2001:4860:4860::/48"
 )
@@ -102,11 +100,9 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	addRoute(t, "198.51.100.0/24", t2N6Dev, natPublicIP)
 	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
 
-	// The N6 side needs an IPv6 address and a route to the server prefix for
-	// the same reason it needs the IPv4 pair: a self-generated ICMP error is
-	// sourced from the address the FIB picks for reaching the sender. Without
-	// these the kernel answers from whatever global address the host happens
-	// to have, which makes the assertion depend on the machine.
+	// A self-generated ICMP error is sourced from the address the FIB picks
+	// for the sender; without these it would be whatever global address the
+	// host happens to have.
 	if out, err := ipCmd("addr", "add", t2N6IPv6+"/64", "dev", t2N6Dev, "nodad"); err != nil {
 		t.Fatalf("add N6 IPv6 addr: %v: %s", err, out)
 	}
@@ -127,9 +123,8 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	attachXDP(t, f.obj, f.n3Dev.Index)
 	attachXDP(t, f.obj, f.n6Dev.Index)
 
-	// A test that expected a packet and captured nothing cannot tell a drop
-	// from a capture that missed it. The datapath records why it dropped, so
-	// on failure say so rather than leaving it to be guessed at.
+	// A test that captured nothing cannot tell a drop from a missed capture;
+	// the datapath knows which.
 	t.Cleanup(func() {
 		if t.Failed() {
 			logDropReasons(t, f.obj)
@@ -139,7 +134,7 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	return f
 }
 
-// logDropReasons prints every non-zero drop reason in both directions.
+// logDropReasons prints the non-zero counters in both directions.
 func logDropReasons(t *testing.T, obj *BpfObjects) {
 	t.Helper()
 

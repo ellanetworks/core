@@ -32,14 +32,9 @@ func RegisterMetrics() {
 		return float64(ebpf.GetN6DownlinkThroughputStats(bpfObjects))
 	})
 
-	// The data plane attaches at XDP or at TCX, so these name the datapath
-	// rather than either hook.
-	//
-	// Every frame the data plane handles is counted exactly once, in one of
-	// two disjoint families: forwarded, by the action taken, or dropped, by
-	// the reason it was stopped. An abort is a drop whose cause is the
-	// datapath itself, so it carries an internal_ reason rather than being a
-	// separate outcome.
+	// Every frame is counted exactly once across the two families:
+	// forwarded, by action, or dropped, by reason. An abort is a drop whose
+	// cause is the datapath itself and carries an internal_ reason.
 	datapathForwardDesc := prometheus.NewDesc(
 		"app_upf_datapath_forward_total",
 		"Packets the data plane forwarded, by direction and by the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in every attach mode.",
@@ -54,9 +49,8 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	// The full distribution of FIB lookup outcomes, including those that are
-	// not drops. The ones that do drop are also counted in
-	// app_upf_datapath_drop_total under their fib_ reason.
+	// The full distribution, including outcomes that are not drops; the ones
+	// that are also appear in app_upf_datapath_drop_total.
 	datapathFibLookupDesc := prometheus.NewDesc(
 		"app_upf_datapath_fib_lookup_total",
 		"FIB lookup outcomes in the data plane.",
@@ -81,10 +75,8 @@ func RegisterMetrics() {
 					string(dir), a.label)
 			}
 
-			// Every reason is published, including those sitting at zero:
-			// a series that appears only once it fires cannot be told apart
-			// from one that was never instrumented, which breaks rate() and
-			// any alert built on it.
+			// Publish every reason, including those at zero: an absent
+			// series cannot be told apart from one never instrumented.
 			for reason, name := range ebpf.DropReasonNames() {
 				ch <- prometheus.MustNewConstMetric(datapathDropDesc,
 					prometheus.CounterValue, float64(counters.Dropped[reason]),

@@ -56,24 +56,11 @@ struct {
 } downlink_statistics SEC(".maps");
 
 /*
- * Whether the frame must be dropped instead of encapsulated.
- *
  * A GSO super-frame cannot be encapsulated into well-formed GTP-U. UDP tunnel
- * segmentation replays the tunnel span — outer UDP header through GTP-U
- * header — verbatim into every segment and rewrites only the outer IP and UDP
- * lengths, so each segment leaves with the super-frame's GTP-U
- * message_length (TS 29.281 §5.1, which counts extension headers, so the PDU
- * Session Container widens the gap) and, with an IPv6 outer header, the
- * super-frame's outer UDP checksum, which IPv6 requires to be valid.
- *
- * Encapsulating anyway puts malformed GTP-U on the wire, and on an IPv6 outer
- * the receiver discards every segment regardless — the checksum covers the
- * whole super-frame, so not even the first one survives. Dropping makes that
- * a counted, attributable loss rather than a silent one. The exposure is
- * removed at the source with `ethtool -K <n6-interface> gro off`.
- *
- * TCX-only: native XDP runs ahead of GRO, and xdp_md exposes no GSO metadata,
- * so ctx_gso_segs is a compile-time 0 there and this whole branch folds away.
+ * segmentation replays the tunnel span verbatim into every segment and
+ * rewrites only the outer IP and UDP lengths, so each one leaves with the
+ * super-frame's GTP-U message_length (TS 29.281 §5.1) and, with an IPv6 outer
+ * header, its outer UDP checksum.
  */
 static __always_inline int encap_would_be_malformed(struct packet_context *ctx)
 {
@@ -81,15 +68,10 @@ static __always_inline int encap_would_be_malformed(struct packet_context *ctx)
 }
 
 /*
- * Send an encapsulated downlink packet to the GTP tunnel.
- * Branches on far->outer_header_creation to select IPv4 or IPv6 outer header,
- * then routes via the appropriate FIB lookup.
- *
- * The two branches are kept completely separate (each ends with its own
- * return) so the BPF verifier never merges a state where ctx->ip4 was
- * cleared by context_set_ip6 with a path that calls route_ipv4, or vice
- * versa.  Merging those states would make ctx->ip4 / ctx->ip6 appear as
- * plain scalars to the verifier and cause invalid-mem-access rejections.
+ * The IPv4 and IPv6 branches each end in their own return so the verifier
+ * never merges a state where context_set_ip6 cleared ctx->ip4 with one that
+ * calls route_ipv4: merged, both appear as plain scalars and every
+ * dereference is rejected.
  */
 static __always_inline enum ctx_action
 send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
@@ -353,11 +335,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	const struct ipv6hdr *ip6 = ctx->ip6;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
-	/*
-	 * The UE receives a full /64 prefix for each
-	 * IPv6 PDU session, and that prefix is the key
-	 * for the PDR. Mask the lower 64 bits to get the prefix.
-	 */
+	/* Each IPv6 PDU session gets a /64, and the prefix is the PDR key. */
 	struct in6_addr prefix = ip6->daddr;
 	__builtin_memset(((void *)&prefix) + 8, 0, 8);
 

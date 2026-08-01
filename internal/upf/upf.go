@@ -70,14 +70,12 @@ type UPF struct {
 	fcScanDone chan struct{} // closed when collectExpiredFlows exits
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
 
-	// attachedMode is the mechanism the datapath actually attached with,
-	// which differs from the configured one when config.DatapathChain falls
-	// back. Written once in Start before this struct is returned.
+	// Differs from the configured mode when config.DatapathChain falls back.
+	// Written once in Start, before this struct is returned.
 	attachedMode string
 }
 
-// DatapathAttachMode reports the mechanism the datapath attached with, or ""
-// before the UPF is up.
+// DatapathAttachMode is empty before the UPF is up.
 func (u *UPF) DatapathAttachMode() string {
 	if u == nil {
 		return ""

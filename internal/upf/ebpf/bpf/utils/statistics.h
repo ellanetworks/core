@@ -39,18 +39,11 @@ struct packet_counters {
 struct upf_statistic {
 	struct byte_counter byte_counter;
 	struct packet_counters packet_counters;
-	/* Frames the datapath forwarded, indexed by enum ctx_action. Only the
-	 * forwarding actions are counted here — a dropped frame goes to
-	 * drop_reasons instead, so every frame lands in exactly one cell of
-	 * exactly one of the two arrays and the totals reconcile by
-	 * construction.
-	 *
-	 * Indexed by the datapath's action, not the hook's verdict: TC has no
-	 * verdict distinguishing a hairpin transmit from a redirect, so a
-	 * verdict-keyed counter would report no transmits at all under TCX. */
+	/* Indexed by enum ctx_action, forwarding actions only. A frame the
+	 * datapath did not forward is counted in drop_reasons instead, so the
+	 * two arrays are disjoint and sum to the frames handled. */
 	__u64 forwarded_actions[UPF_MAX_ACTION];
-	/* Frames the datapath did not forward, indexed by enum upf_drop_reason.
-	 * Aborts land here too, under their UPF_DROP_INTERNAL_* reason: an
-	 * abort is a drop whose cause is the datapath itself. */
+	/* Indexed by enum upf_drop_reason. Aborts land here too, under an
+	 * UPF_DROP_INTERNAL_* reason. */
 	__u64 drop_reasons[UPF_DROP_REASON_MAX];
 };

@@ -29,13 +29,8 @@
 #include "bpf/utils/nat.h"
 
 /*
- * The datapath is split so the verifier checks each stage on its own budget. A
- * thin entry program (upf_entry_func) classifies by packet type and tail-calls
- * into a stage program: upf_uplink_func (GTP-U decap) or upf_downlink_func
- * (downlink forwarding). Classifying by packet type (not by interface) keeps a
- * single entry working whether N3 and N6 are separate interfaces or the same
- * one. The downlink stage is also the reuse point for UE-to-UE local switching
- * later. See bpf_datapath_split_plan.md.
+ * The datapath is split so the verifier checks each stage on its own budget:
+ * a thin entry program tail-calls into upf_uplink_func or upf_downlink_func.
  */
 
 /* N3 uplink: GTP-U-encapsulated traffic from the gNB. */
@@ -131,8 +126,7 @@ process_downlink(struct packet_context *ctx)
 	return DEFAULT_CTX_ACTION;
 }
 
-/* The lookup fails only to the verifier: the statistics maps are single-entry
- * per-CPU arrays, so index 0 always exists. */
+/* Fails only to the verifier: the maps are single-entry per-CPU arrays. */
 static __always_inline struct upf_statistic *get_stats(void *stats_map)
 {
 	const __u32 key = 0;
@@ -140,15 +134,14 @@ static __always_inline struct upf_statistic *get_stats(void *stats_map)
 	return bpf_map_lookup_elem(stats_map, &key);
 }
 
-/* upf_gtpu_control_func: tail-call stage for the GTP-U messages the UPF answers
- * itself — echo requests (TS 29.281 §7.2) and error indications for an unknown
- * TEID (§7.3.1). Re-parses from its own ctx (the stack does not survive a tail
- * call). */
+/* The GTP-U messages the UPF answers itself: echo requests (TS 29.281 §7.2)
+ * and error indications for an unknown TEID (§7.3.1). Re-parses from its own
+ * ctx; the stack does not survive a tail call. */
 CTX_DP_SEC("upf_gtpu_control")
 int upf_gtpu_control_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes at this hook means a second, inner tag:
-	 * the datapath does not parse QinQ, so the stack takes it. */
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 
@@ -225,13 +218,12 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 	return record_action(&context, DEFAULT_CTX_ACTION);
 }
 
-/* upf_uplink_func: tail-call stage for GTP-U uplink traffic. Re-parses from its
- * own ctx (the stack does not survive a tail call). */
+/* Re-parses from its own ctx; the stack does not survive a tail call. */
 CTX_DP_SEC("upf_uplink")
 int upf_uplink_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes at this hook means a second, inner tag:
-	 * the datapath does not parse QinQ, so the stack takes it. */
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 
@@ -254,12 +246,11 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 	return record_action(&context, ret);
 }
 
-/* upf_downlink_func: tail-call stage for plain downlink traffic toward a UE. */
 CTX_DP_SEC("upf_downlink")
 int upf_downlink_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes at this hook means a second, inner tag:
-	 * the datapath does not parse QinQ, so the stack takes it. */
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 
@@ -282,19 +273,16 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	return record_action(&context, ret);
 }
 
-/* upf_entry_func: attached to the N3/N6 interface(s). Classifies by packet type
- * — GTP-U (UDP :2152) is uplink, everything else is downlink — and tail-calls
- * the matching stage. Packet-type classification (not interface) keeps this
- * correct when N3 and N6 share one interface.
- *
- * With distinct interfaces the shape alone is not enough: uplink traffic is
- * attributed to a subscriber and source-NATed on its behalf, so a GTP-U-shaped
- * packet arriving on N6 must not claim that treatment. */
+/* Classifying by packet type rather than by interface keeps this correct when
+ * N3 and N6 share one. With distinct interfaces the shape alone is not
+ * enough: uplink traffic is attributed to a subscriber and source-NATed on
+ * its behalf, so a GTP-U-shaped packet arriving on N6 must not claim that
+ * treatment. */
 CTX_DP_SEC("upf_entry")
 int upf_entry_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes at this hook means a second, inner tag:
-	 * the datapath does not parse QinQ, so the stack takes it. */
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 
@@ -365,8 +353,8 @@ struct {
 CTX_DP_SEC("veth_xdp")
 int veth_xdp_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes at this hook means a second, inner tag:
-	 * the datapath does not parse QinQ, so the stack takes it. */
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 

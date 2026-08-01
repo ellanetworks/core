@@ -11,14 +11,9 @@ import (
 	"testing"
 )
 
-// The datapath records a drop reason as an index into an array; userspace
-// turns that index into a metric label. Nothing in the build ties the two
-// together, so a reason inserted in the middle of the C enum would silently
-// relabel every reason after it — old series would keep their names and
-// change meaning, which is worse than losing them.
-//
-// This test is that tie: it reads the enum out of the header and requires the
-// Go table to match it entry for entry, in order.
+// Nothing in the build ties the C enum to the Go label table, so a reason
+// inserted mid-enum would relabel every reason after it: old series would
+// keep their names and change meaning. This is that tie.
 func TestDropReasonNamesMatchDatapath(t *testing.T) {
 	const header = "bpf/utils/drop_reason.h"
 
@@ -39,8 +34,7 @@ func TestDropReasonNamesMatchDatapath(t *testing.T) {
 			continue
 		}
 
-		// An explicit value has to agree with the position, because the
-		// counter is an array and the Go table is indexed by position.
+		// The counter is an array indexed by position.
 		if value != "" && value != strconv.Itoa(len(names)) {
 			t.Errorf("%s: %s is pinned to %s but sits at position %d",
 				header, name, value, len(names))
@@ -67,9 +61,8 @@ func TestDropReasonNamesMatchDatapath(t *testing.T) {
 	}
 }
 
-// TestDropReasonsFitTheCounter guards the other half: the array the datapath
-// writes into is fixed-width and indexed with a mask, so a reason past the end
-// would wrap onto another reason's counter rather than overflow.
+// The counter array is indexed with a mask, so a reason past the end wraps
+// onto another reason rather than overflowing.
 func TestDropReasonsFitTheCounter(t *testing.T) {
 	if n := len(DropReasonNames()); n > UPFDropReasonMax {
 		t.Fatalf("%d drop reasons exceed the %d-wide counter array; raise UPF_DROP_REASON_MAX and its mask together",
@@ -77,9 +70,8 @@ func TestDropReasonsFitTheCounter(t *testing.T) {
 	}
 }
 
-// label converts a datapath enum name to the metric label value userspace
-// publishes: UPF_DROP_QER_GATE_CLOSED becomes qer_gate_closed. UNSPEC is
-// spelled out, because "unspec" is jargon in a label an operator reads.
+// UPF_DROP_QER_GATE_CLOSED becomes qer_gate_closed. UNSPEC is spelled out;
+// "unspec" is jargon in a label an operator reads.
 func label(enumName string) string {
 	name := strings.ToLower(strings.TrimPrefix(enumName, "UPF_DROP_"))
 	if name == "unspec" {

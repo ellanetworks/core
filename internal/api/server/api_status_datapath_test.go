@@ -56,10 +56,8 @@ func statusBody(t *testing.T, handler http.Handler) map[string]any {
 	return body.Result
 }
 
-// The mode an operator needs is the one the datapath attached with, not the
-// one that was configured: the default chain falls back from driver-level XDP
-// to TCX, and that changes both the GSO exposure and what the drop metrics can
-// report.
+// The reported mode is the one attached with, not the one configured: the
+// default chain falls back from driver-level XDP to TCX.
 func TestStatusReportsEffectiveDatapathAttachMode(t *testing.T) {
 	handler := statusHandler(t, func() string { return config.DatapathTCX })
 
@@ -68,9 +66,7 @@ func TestStatusReportsEffectiveDatapathAttachMode(t *testing.T) {
 	}
 }
 
-// Status is the readiness probe, so it has to answer before the datapath is
-// attached. The field is absent then rather than reporting a mode that is not
-// in effect yet.
+// Status answers before the datapath attaches, and omits the field then.
 func TestStatusOmitsDatapathAttachModeBeforeAttach(t *testing.T) {
 	for name, mode := range map[string]func() string{
 		"no datapath":      nil,

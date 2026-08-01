@@ -212,13 +212,10 @@ func isGTPv6Outer(fr []byte) bool {
 		binary.BigEndian.Uint16(fr[ethHdrLen+40+2:ethHdrLen+40+4]) == GTPUDPPort
 }
 
-// TestTCXIPv6OuterGSODropped covers the exposure TCX introduces: the datapath
-// runs after the kernel has merged inbound traffic, so encapsulation can be
-// handed a frame larger than the MTU. Segmentation replays the tunnel span
-// verbatim, so no such frame can leave as well-formed GTP-U — with an IPv6
-// outer header every segment carries a checksum computed over the whole
-// super-frame. The datapath drops instead, and the test asserts nothing
-// reached the wire.
+// TCX runs after GRO, so encapsulation can be handed a frame larger than the
+// MTU. Segmentation replays the tunnel span verbatim, so no such frame can
+// leave as well-formed GTP-U; the datapath drops it and nothing reaches the
+// wire.
 func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -322,11 +319,8 @@ func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 	}
 }
 
-// TestTCXIPv4OuterGSODropped is the IPv4-outer counterpart. A zero outer UDP
-// checksum is legal over IPv4, so the checksum half of the exposure does not
-// apply, but the GTP-U message length does: segmentation replays the GTP-U
-// header verbatim, so every segment would claim the super-frame's payload
-// length. The drop is therefore not IPv6-specific.
+// A zero outer UDP checksum is legal over IPv4, but the GTP-U message length
+// is still the super-frame's, so the drop is not IPv6-specific.
 func TestTCXIPv4OuterGSODropped(t *testing.T) {
 	requireProgTestRun(t)
 

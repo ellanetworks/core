@@ -12,28 +12,22 @@
 
 #define __ctx_buff __sk_buff
 
-/* Datapath program section: SCHED_CLS with the BPF_TCX_INGRESS attach type
- * (cilium/ebpf resolves the "tcx/ingress" prefix; the bare "tc"/"classifier"
- * names carry attach type 0). */
+/* cilium/ebpf resolves the "tcx/ingress" prefix to BPF_TCX_INGRESS; the bare
+ * "tc"/"classifier" names carry attach type 0. */
 #define CTX_DP_SEC(name) SEC("tcx/ingress/" name)
 
-/* Bytes made linear and writable ahead of parsing and direct header writes.
- * Covers the deepest write: Ethernet (14) + VLAN (4) + IPv4 with options (60)
- * + TCP with options (60). Reads and writes past this bound need
- * ctx_load_bytes or another ctx_pull. */
+/* Covers the deepest direct write: Ethernet (14) + VLAN (4) + IPv4 with
+ * options (60) + TCP with options (60). Past this bound, use ctx_load_bytes
+ * or another ctx_pull. */
 #define CTX_PULL_LEN 192
 
-/* Whether the datapath must pull before parsing and writing. A TC skb may be non-linear or cloned. */
+/* A TC skb may be non-linear or cloned. */
 #define CTX_NEEDS_PULL 1
 
-/* Kernel verdict for a datapath action, applied once at a program's return.
- *
- * TC has no verdict for an abort and none for transmitting back out the
- * ingress interface: an abort is a drop, and both forwarding actions are
- * TC_ACT_REDIRECT because the redirect helper has already recorded the target
- * (ctx_tx_back names the ingress interface, so the hairpin is a redirect to
- * self). The distinction is not lost — the statistics are indexed by the
- * action, so they still separate abort from drop and tx from redirect. */
+/* TC has no verdict for an abort, nor for a transmit back out the ingress
+ * interface: an abort is a drop, and both forwarding actions are
+ * TC_ACT_REDIRECT because the redirect helper has already recorded the
+ * target. */
 static __always_inline int ctx_verdict(enum ctx_action action)
 {
 	switch (action) {
@@ -50,11 +44,10 @@ static __always_inline int ctx_verdict(enum ctx_action action)
 	return TC_ACT_SHOT;
 }
 
-/* GTP-U carries bare IP, so inner_mac stays equal to inner_net (the ipip
- * model) and the GTP-U header lives inside the opaque tunnel span that UDP
- * tunnel segmentation replays verbatim per segment (tnl_hlen in
- * net/ipv4/udp_offload.c runs from the outer transport header to
- * inner_mac). BPF_F_ADJ_ROOM_ENCAP_L2 is for Ethernet-inner tunnels. */
+/* GTP-U carries bare IP, so inner_mac stays equal to inner_net and the GTP-U
+ * header falls inside the tunnel span that UDP tunnel segmentation replays
+ * verbatim per segment (tnl_hlen, net/ipv4/udp_offload.c).
+ * BPF_F_ADJ_ROOM_ENCAP_L2 is for Ethernet-inner tunnels. */
 #define CTX_ENCAP_FLAGS_IPV4 \
 	(BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 | BPF_F_ADJ_ROOM_ENCAP_L4_UDP)
 #define CTX_ENCAP_FLAGS_IPV6 \
@@ -70,16 +63,15 @@ static __always_inline const void *ctx_data_end(struct __ctx_buff *ctx)
 	return (const void *)(long)ctx->data_end;
 }
 
-/* Whole-frame length: data_end bounds only the linear head of a non-linear or
- * GSO skb, so skb->len is authoritative. */
+/* data_end bounds only the linear head of a non-linear or GSO skb, so
+ * skb->len is authoritative. */
 static __always_inline __u64 ctx_full_len(struct __ctx_buff *ctx)
 {
 	return ctx->len;
 }
 
-/* Bytes from `from` (a pointer into the linear head) to the end of the frame,
- * frags included; `data_end` is unused here but keeps one call shape across
- * both contexts. */
+/* `from` must lie in the linear head. `data_end` is unused; it keeps one call
+ * shape across both contexts. */
 static __always_inline __u64 ctx_len_from(struct __ctx_buff *ctx,
 					  const void *data_end,
 					  const void *from)
@@ -105,15 +97,14 @@ static __always_inline __u32 ctx_ingress_ifindex(struct __ctx_buff *ctx)
 	return ctx->ingress_ifindex;
 }
 
-/* Segment count of a GSO super-frame (0 or 1 for wire-sized frames). */
+/* 0 or 1 for wire-sized frames. */
 static __always_inline __u32 ctx_gso_segs(struct __ctx_buff *ctx)
 {
 	return ctx->gso_segs;
 }
 
-/* True when the frame holds `len` bytes starting at `from` — frags included,
- * so this validates datagram lengths on non-linear frames. Not a substitute
- * for a data_end check before direct access. */
+/* Counts frags, so it validates datagram lengths on non-linear frames. Not a
+ * substitute for a data_end check before direct access. */
 static __always_inline int ctx_frame_holds(struct __ctx_buff *ctx,
 					   const void *data_end,
 					   const void *from, __u64 len)
@@ -121,9 +112,8 @@ static __always_inline int ctx_frame_holds(struct __ctx_buff *ctx,
 	return len <= ctx_len_from(ctx, data_end, from);
 }
 
-/* Signed count of frame bytes past the first `keep` bytes starting at `from`
- * (negative when the frame ends short of that), counting frags. `from` must
- * lie in the linear head. */
+/* Negative when the frame ends short of `keep`. `from` must lie in the linear
+ * head. */
 static __always_inline long ctx_tail_excess(struct __ctx_buff *ctx,
 					    const void *data_end,
 					    const void *from, __u32 keep)
@@ -131,9 +121,9 @@ static __always_inline long ctx_tail_excess(struct __ctx_buff *ctx,
 	return (long)ctx_len_from(ctx, data_end, from) - (long)keep;
 }
 
-/* Guarantee `len` bytes are linear and writable: pulls frags into the head and
- * unclones (a cloned skb rejects direct writes). Clamped because
- * bpf_skb_pull_data fails outright when len exceeds skb->len. */
+/* Pulls frags into the head and unclones; a cloned skb rejects direct writes.
+ * Clamped because bpf_skb_pull_data fails outright when len exceeds
+ * skb->len. */
 static __always_inline long ctx_pull(struct __ctx_buff *ctx, __u32 len)
 {
 	if (len > ctx->len)
@@ -142,40 +132,27 @@ static __always_inline long ctx_pull(struct __ctx_buff *ctx, __u32 len)
 	return bpf_skb_pull_data(ctx, len);
 }
 
-/* Remove `bytes` of encapsulation between the L2 and L3 headers; the caller's
- * L2 save/rewrite around the call finds the header already in place and
- * rewrites it with identical bytes.
+/* Remove `bytes` of encapsulation between the L2 and L3 headers; the caller
+ * saves and rewrites the L2 header around the call.
  *
- * The skb_postpull_rcsum in the shrink path downgrades CHECKSUM_PARTIAL to
- * CHECKSUM_NONE only once skb_checksum_start_offset drops below zero
- * (include/linux/skbuff.h, __skb_postpull_rcsum), which GTP-U decap needs for
- * correct checksums on veth traffic. Decap always strips the outer L3+UDP+GTP
- * span, which exceeds the offset of the outer UDP header by 8 + gtp_hdr_len
- * minus the 14-byte L2 header, so the downgrade fires for every valid header.
- * BPF_F_ADJ_ROOM_NO_CSUM_RESET would only preserve CHECKSUM_UNNECESSARY
- * validation state, which nothing after decap consumes: the packet leaves via
- * redirect, where only CHECKSUM_PARTIAL matters at transmit.
+ * The shrink path's skb_postpull_rcsum downgrades CHECKSUM_PARTIAL to
+ * CHECKSUM_NONE once skb_checksum_start_offset drops below zero
+ * (include/linux/skbuff.h), which GTP-U decap needs for correct checksums on
+ * veth traffic. Stripping the outer L3+UDP+GTP span always passes that point.
  *
- * Unlike the encap path this has no gso_segs guard, because uplink GTP-U is
- * assumed never to arrive merged. Merging it needs rx-udp-gro-forwarding
- * (net/ipv4/udp_offload.c, the NETIF_F_GRO_UDP_FWD branch of
- * udp_gro_receive), and that feature sits in NETIF_F_SOFT_FEATURES_OFF, which
- * register_netdevice transfers to hw_features but never to wanted_features
- * (net/core/dev.c), so it is off unless an operator turns it on.
- *
- * BPF_F_ADJ_ROOM_FIXED_GSO is not optional here: without it
- * bpf_skb_net_shrink refuses any non-TCP GSO frame with -ENOTSUPP
- * (net/core/filter.c). It keeps gso_size unchanged across the shrink, so if
- * the assumption above ever breaks the segments come out short by the
- * stripped header, not malformed. */
+ * BPF_F_ADJ_ROOM_FIXED_GSO is not optional: without it bpf_skb_net_shrink
+ * refuses any non-TCP GSO frame with -ENOTSUPP (net/core/filter.c). There is
+ * no gso_segs guard here because uplink GTP-U only arrives merged under
+ * rx-udp-gro-forwarding, which is off unless an operator turns it on:
+ * NETIF_F_GRO_UDP_FWD reaches hw_features but never wanted_features
+ * (net/core/dev.c). */
 static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes,
 				      __u8 inner_is_ipv6)
 {
 	/* Without a DECAP_L3 flag bpf_skb_net_shrink leaves skb->protocol at the
-	 * outer family (net/core/filter.c), so the stack delivers a decapsulated
-	 * frame to the wrong packet_type and egress picks offloads off the wrong
-	 * protocol. The grow side sets it from ENCAP_L3_*, which is why encap
-	 * needs no equivalent. */
+	 * outer family (net/core/filter.c), so the stack delivers the frame to
+	 * the wrong packet_type and egress picks offloads off the wrong
+	 * protocol. */
 	long ret = bpf_skb_adjust_room(
 		ctx, -bytes, BPF_ADJ_ROOM_MAC,
 		BPF_F_ADJ_ROOM_FIXED_GSO |
@@ -190,14 +167,10 @@ static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes,
 /* Open `bytes` of room for encapsulation headers between the L2 and L3
  * headers.
  *
- * BPF_F_ADJ_ROOM_FIXED_GSO suppresses the skb_decrease_gso_size that
- * bpf_skb_net_grow would otherwise apply (net/core/filter.c), so a segmented
- * frame would overshoot the original max segment size by the encap overhead
- * rather than keep the inner payload within it. That is a deliberate choice
- * of a possible MTU overshoot over a silently reduced inner MSS, and it is
- * inert on this path: the datapath drops GSO super-frames before they reach
- * encapsulation (see encap_would_be_malformed in n6_bpf.h), so the flag only
- * ever applies to frames the kernel will not segment.
+ * BPF_F_ADJ_ROOM_FIXED_GSO suppresses skb_decrease_gso_size
+ * (net/core/filter.c), so segments overshoot the original max segment size by
+ * the encap overhead rather than carry a silently reduced inner MSS. Inert
+ * here: encap_would_be_malformed drops GSO super-frames before this point.
  *
  * This sets skb->encapsulation, after which the kernel rejects a further
  * ENCAP grow (-EALREADY) and bpf_skb_change_tail (-ENOTSUPP): encap must be
@@ -213,18 +186,15 @@ static __always_inline long ctx_encap(struct __ctx_buff *ctx, __s32 bytes,
 	return ctx_pull(ctx, CTX_PULL_LEN);
 }
 
-/* Original L2 header after ctx_encap opened `encap_size` bytes of room: the
- * room opened after the L2 header, so it is still at the frame front and the
- * caller's copy to the front collapses to a self-copy. The caller
- * bounds-checks the returned pointer. */
+/* The room opened after the L2 header, so it is still at the frame front and
+ * the caller's copy to the front collapses to a self-copy. */
 static __always_inline struct ethhdr *ctx_encap_saved_eth(void *data,
 							  __u64 encap_size)
 {
 	return (struct ethhdr *)data;
 }
 
-/* Grow `bytes` at the very front of the frame; the previous frame start (its
- * L2 header included) moves to offset `bytes`. */
+/* The previous frame start, L2 header included, moves to offset `bytes`. */
 static __always_inline long ctx_prepend(struct __ctx_buff *ctx, __s32 bytes)
 {
 	long ret = bpf_skb_change_head(ctx, bytes, 0);
@@ -234,9 +204,8 @@ static __always_inline long ctx_prepend(struct __ctx_buff *ctx, __s32 bytes)
 	return ctx_pull(ctx, CTX_PULL_LEN);
 }
 
-/* Move the frame end by `delta` (negative trims, positive grows). No pull
- * needed after: bpf_skb_change_tail makes the whole skb linear and writable
- * (__bpf_try_make_writable over skb->len). */
+/* No pull needed after: bpf_skb_change_tail makes the whole skb linear and
+ * writable (__bpf_try_make_writable over skb->len). */
 static __always_inline long ctx_adjust_tail(struct __ctx_buff *ctx, __s32 delta)
 {
 	return bpf_skb_change_tail(ctx, ctx->len + delta, 0);
@@ -265,22 +234,17 @@ static __always_inline long ctx_l4_csum_replace(struct __ctx_buff *ctx,
 	return bpf_l4_csum_replace(ctx, off, from, to, flags);
 }
 
-/* The kernel moves a VLAN tag out of the frame bytes before the TCX hook
- * (skb_vlan_untag), so tags are handled via metadata here and the in-band
- * branches compile out. */
+/* skb_vlan_untag moves the tag out of the frame bytes before the hook, so
+ * tags are handled via metadata and the in-band branches compile out. */
 #define CTX_INBAND_VLAN 0
 
-/* QinQ guard. The kernel strips only the outer tag before the hook, so an
+/* QinQ guard: the kernel strips only the outer tag before the hook, so an
  * ethertype that is still a VLAN tag means a second one remains in the frame
- * bytes; the datapath hands those to the stack in every attach mode. Returns
- * 0 to proceed, > 0 to pass the frame to the stack.
+ * bytes. Returns 0 to proceed, > 0 to pass the frame to the stack.
  *
- * The ingress tag itself is deliberately left in place: a frame the datapath
- * does not own is returned with TC_ACT_OK and demultiplexed to its VLAN
- * sub-device by the stack, which runs after this hook. Popping here would
- * deliver ARP, ND and host traffic to the master netdev instead. Redirected
- * frames clear it in ctx_vlan_egress, before the tag they leave with is set.
- */
+ * The ingress tag is left in place so the stack can demultiplex a frame the
+ * datapath does not own to its VLAN sub-device; redirected frames clear it in
+ * ctx_vlan_egress. */
 static __always_inline long ctx_vlan_ingress(struct __ctx_buff *ctx)
 {
 	if (ctx->protocol == bpf_htons(ETH_P_8021Q) ||
@@ -290,16 +254,14 @@ static __always_inline long ctx_vlan_ingress(struct __ctx_buff *ctx)
 	return 0;
 }
 
-/* Set the metadata tag the frame leaves with; on an untagged skb this writes
- * no packet bytes, and segmentation copies it to every segment. Invalidates
- * packet pointers. */
+/* Writes no packet bytes on an untagged skb, and segmentation copies the tag
+ * to every segment. Invalidates packet pointers. */
 static __always_inline long ctx_vlan_egress(struct __ctx_buff *ctx,
 					    int egress_vid)
 {
-	/* The ingress tag rides in the metadata and dev_queue_xmit would
-	 * re-insert it on the egress interface, so it goes before the egress
-	 * tag is set: pushing onto a tagged skb writes the old tag in-band and
-	 * produces QinQ. */
+	/* dev_queue_xmit would re-insert the ingress tag on the egress
+	 * interface, and pushing onto a tagged skb writes the old tag in-band
+	 * as QinQ, so it goes first. */
 	if (ctx->vlan_present && bpf_skb_vlan_pop(ctx))
 		return -1;
 
@@ -310,18 +272,15 @@ static __always_inline long ctx_vlan_egress(struct __ctx_buff *ctx,
 				 (__u16)egress_vid);
 }
 
-/* TC has no XDP_TX-style verdict: a hairpin is a redirect naming the ingress
- * interface. bpf_redirect only records the target — the verdict that acts on
- * it is returned later by ctx_verdict — and rejects nothing but unknown
- * flags, which are a constant 0 here. The check keeps that assumption from
- * failing silently: a rejected redirect must not be reported as a transmit. */
+/* bpf_redirect records the target; the verdict acting on it comes later, from
+ * ctx_verdict. It rejects nothing but unknown flags, a constant 0 here, and
+ * the check keeps a rejected redirect from being reported as a transmit. */
 static __always_inline int ctx_redirect_recorded(__u32 ifindex)
 {
 	return bpf_redirect(ifindex, 0) == TC_ACT_REDIRECT;
 }
 
-/* Transmit the frame back out its ingress interface, tagged `egress_vid`
- * (0 for untagged). */
+/* `egress_vid` 0 leaves the frame untagged. */
 static __always_inline enum ctx_action ctx_tx_back(struct __ctx_buff *ctx,
 						   int egress_vid)
 {
@@ -334,7 +293,6 @@ static __always_inline enum ctx_action ctx_tx_back(struct __ctx_buff *ctx,
 	return CTX_ACT_TX;
 }
 
-/* Transmit the frame out `ifindex`, tagged `egress_vid` (0 for untagged). */
 static __always_inline enum ctx_action
 ctx_redirect_out(struct __ctx_buff *ctx, __u32 ifindex, int egress_vid)
 {

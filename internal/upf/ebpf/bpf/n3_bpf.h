@@ -201,13 +201,10 @@ handle_gtp_packet(struct packet_context *ctx)
 	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
 		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
-	/* Rewriting the tunnel in place instead of decapsulating — GTP-to-GTP
-	 * forwarding, as N9 or S5/S8 would need — is not supported. Ella's SMF
-	 * only sets outer_header_creation on downlink FARs, so a session cannot
-	 * ask for it; a FAR that does is refused rather than forwarded, because
-	 * the frame would leave with a stale outer UDP checksum (the pseudo-header
-	 * covers the addresses being rewritten) and would bypass both SDF
-	 * filtering and the anti-spoof check, which only run on the decap path. */
+	/* GTP-to-GTP forwarding (N9, S5/S8) is not supported: the frame would leave
+	 * with a stale outer UDP checksum, whose pseudo-header covers the
+	 * addresses being rewritten, and would bypass the SDF and anti-spoof
+	 * checks that only run on the decap path. */
 	if (far->outer_header_creation &
 	    (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6)) {
 		PROFILE_END(PROF_N3_GTP_MANIP);
@@ -231,23 +228,12 @@ handle_gtp_packet(struct packet_context *ctx)
 		else if (ctx->ip6)
 			parse_l4(ctx->ip6->nexthdr, ctx);
 
-		/*
-		 * Intercept IPv6 Router Solicitations from UEs.
-		 *
-		 * After GTP decap, if the inner packet is an ICMPv6 RS
-		 * (next_header=58, type=133), emit the TEID and UE source
-		 * address to Go via the rs_event ring buffer and drop the
-		 * packet.  The RA response is generated entirely in Go and
-		 * injected through the veth path.
-		 */
+		/* An inner ICMPv6 Router Solicitation is handed to userspace
+		 * over the rs_event ring buffer; the RA is built in Go and
+		 * injected through the veth path. */
 		if (ctx->ip6 && ctx->ip6->nexthdr == IPPROTO_ICMPV6) {
-			/*
-			 * ICMPv6 header: the first byte after the IPv6
-			 * header is the type field.  ctx->data was advanced
-			 * past the IPv6 header by context_reinit inside
-			 * remove_gtp_header, so re-derive pointers from
-			 * the xdp_md to be safe.
-			 */
+			/* context_reinit advanced ctx->data past the IPv6
+			 * header, so re-derive the pointers. */
 			void *pkt_data = ctx_data(ctx->ctx_buff);
 			const void *pkt_end = ctx_data_end(ctx->ctx_buff);
 			struct ipv6hdr *ip6_inner =

@@ -81,9 +81,7 @@ func TestUplinkStatisticsIPv6(t *testing.T) {
 	}
 }
 
-// sumStats returns the byte counter and the number of frames accounted for in
-// one direction: forwarded plus dropped. The two arrays are disjoint, so this
-// is the frame count the datapath handled.
+// Forwarded plus dropped; the two are disjoint.
 func sumStats(t *testing.T, m *ebpf.Map) (bytes, frames uint64) {
 	t.Helper()
 
@@ -107,12 +105,8 @@ func sumStats(t *testing.T, m *ebpf.Map) (bytes, frames uint64) {
 	return bytes, frames
 }
 
-// TestEveryFrameIsAccountedExactlyOnce is the invariant the two counter
-// families exist to provide: forwarded and dropped are disjoint, and together
-// they equal the frames the datapath handled. It is what makes
-// app_upf_datapath_drop_total safe to compare against
-// app_upf_datapath_forward_total, and what a drop site that forgets to record
-// a reason cannot break silently — the frame still lands in "unspecified".
+// The invariant that makes app_upf_datapath_drop_total comparable against
+// app_upf_datapath_forward_total.
 func TestEveryFrameIsAccountedExactlyOnce(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -120,7 +114,7 @@ func TestEveryFrameIsAccountedExactlyOnce(t *testing.T) {
 
 	obj := loadProgramConfig(t, false, false, 1, 1, 0, 0)
 
-	// A forwarded flow and a dropped one, so both families are exercised.
+	// One forwarded flow and one dropped, so both families are exercised.
 	putForwardingUplinkPDR(t, obj, teid, 0)
 
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)

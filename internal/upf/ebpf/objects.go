@@ -32,18 +32,10 @@ import (
 	"go.uber.org/zap"
 )
 
-//
-// Supported BPF_CFLAGS:
-// 	- ENABLE_LOG:
-//		- enables debug output to tracepipe (`bpftool prog tracelog`)
-// 	- ENABLE_PROFILING:
-//		- enables per-packet latency profiling via profiling_map (per-CPU array).
-//		- each bpf_ktime_get_ns() call adds ~600-900 ns overhead per sample.
-//		- read results with ReadProfilingStats() in stats.go.
-//
-// Usage: export BPF_CFLAGS="-DENABLE_LOG"
-// Usage: export BPF_CFLAGS="-DENABLE_PROFILING"
-// Usage: export BPF_CFLAGS="-DENABLE_LOG -DENABLE_PROFILING"
+// BPF_CFLAGS selects optional instrumentation: -DENABLE_LOG for debug output
+// on the trace pipe, -DENABLE_PROFILING for per-packet latency in
+// profiling_map, read back by ReadProfilingStats. Profiling costs ~600-900 ns
+// per sample.
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint bpf/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6EntrypointTc bpf/n3n6_bpf.c -- -DCTX_TC -I. -O2 -Wall -Werror -g

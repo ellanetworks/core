@@ -37,8 +37,7 @@ type Status struct {
 	SchemaVersion int            `json:"schemaVersion"`
 	Cluster       *ClusterStatus `json:"cluster,omitempty"`
 
-	// DatapathAttachMode is the mechanism the data plane attached with, empty
-	// until it is up.
+	// Empty until the data plane is up.
 	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
 }
 

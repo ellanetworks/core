@@ -167,11 +167,8 @@ func runTCChecksumComplete(t *testing.T, prog *ebpf.Program, packet []byte) (uin
 	return action, opts.DataOut
 }
 
-// verdictsEquivalent maps the XDP verdict encoding onto TC's: forwarding
-// verdicts (TX and REDIRECT) both surface as TC_ACT_REDIRECT, and TC folds
-// aborted into drop (both TC_ACT_SHOT). The verdicts are lossy in exactly this
-// way, which is why the action counter is keyed on the datapath's own decision
-// — see actionCounters.
+// TC folds TX and REDIRECT into TC_ACT_REDIRECT, and ABORTED into
+// TC_ACT_SHOT. That loss is why the counters are keyed on the action.
 func verdictsEquivalent(xdpAction, tcAction uint32) bool {
 	switch xdpAction {
 	case ActionPass:
@@ -185,9 +182,8 @@ func verdictsEquivalent(xdpAction, tcAction uint32) bool {
 	return false
 }
 
-// actionCounters sums a build's per-action counters over both directions and
-// all CPUs. The two builds' statistics are distinct generated types with the
-// same layout, so each caller passes its own reader.
+// The two builds' statistics are distinct generated types with the same
+// layout, so each caller passes its own reader.
 func actionCounters(t *testing.T, read func(*ebpf.Map) [UPFMaxAction]uint64, uplink, downlink *ebpf.Map) [UPFMaxAction]uint64 {
 	t.Helper()
 
@@ -379,11 +375,7 @@ func TestTCMatchesXDPOutput(t *testing.T) {
 				t.Errorf("verdicts diverge: XDP %d, TC %d", xdpAction, tcAction)
 			}
 
-			// The verdicts are allowed to differ; the recorded action is
-			// not. TC cannot express an abort or a transmit-back, so a
-			// counter keyed on the verdict would report this frame as a
-			// drop or a redirect under TCX and leave those two series at
-			// zero forever.
+			// The verdicts may differ; the recorded action may not.
 			xdpDelta := actionDelta(xdpBefore, xdpActionCounters(t, xdpObj))
 			tcDelta := actionDelta(tcBefore, tcActionCounters(t, tcObjs))
 
