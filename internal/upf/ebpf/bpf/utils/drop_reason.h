@@ -35,6 +35,8 @@ enum upf_drop_reason {
 	UPF_DROP_NO_DOWNLINK_SESSION,
 	UPF_DROP_FAR_NO_FORWARD,
 	UPF_DROP_FAR_NO_ENCAP,
+	/* The FAR asked for something the datapath does not implement: today
+	 * only an uplink FAR requesting GTP-to-GTP forwarding (see n3_bpf.h). */
 	UPF_DROP_FAR_UNSUPPORTED,
 	UPF_DROP_QER_GATE_CLOSED,
 	UPF_DROP_QER_RATE_LIMIT,

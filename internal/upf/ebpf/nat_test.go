@@ -570,7 +570,7 @@ func TestNATDropsFragments(t *testing.T) {
 	t.Run("uplink", func(t *testing.T) {
 		capFD := f.captureN6(t)
 
-		before := DropCount(f.obj, Downlink, "nat_fragment")
+		before := DropCount(f.obj, Uplink, "nat_fragment")
 
 		inner := asFragment(ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(64))))
 		f.injectUplink(t, uplinkGPDU(ulTEID, inner))
@@ -581,7 +581,7 @@ func TestNATDropsFragments(t *testing.T) {
 			t.Errorf("uplink fragment egressed on N6: %x", got)
 		}
 
-		if after := DropCount(f.obj, Downlink, "nat_fragment"); after != before+1 {
+		if after := DropCount(f.obj, Uplink, "nat_fragment"); after != before+1 {
 			t.Errorf("fragment drop counter = %d, want %d", after, before+1)
 		}
 	})
@@ -1102,7 +1102,7 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			capFD := f.captureN6(t)
 
-			before := DropCount(f.obj, Downlink, "nat_malformed")
+			before := DropCount(f.obj, Uplink, "nat_malformed")
 
 			f.injectUplink(t, uplinkGPDU(teid, tc.build()))
 
@@ -1114,7 +1114,7 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 				t.Errorf("malformed segment egressed on N6: %x", got)
 			}
 
-			if after := DropCount(f.obj, Downlink, "nat_malformed"); after != before+1 {
+			if after := DropCount(f.obj, Uplink, "nat_malformed"); after != before+1 {
 				t.Errorf("malformed drop counter = %d, want %d", after, before+1)
 			}
 		})

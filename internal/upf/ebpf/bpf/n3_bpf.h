@@ -201,53 +201,21 @@ handle_gtp_packet(struct packet_context *ctx)
 	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
 		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
-	/* Rewriting the tunnel in place keeps the frame encapsulated, so the
-	 * inner headers source_allowed checks below are never exposed and the
-	 * egress side is still derived from the ingress interface. Ella's SMF
-	 * only sets outer_header_creation on downlink FARs, so this is refused
-	 * rather than forwarded unvalidated. */
+	/* Rewriting the tunnel in place instead of decapsulating — GTP-to-GTP
+	 * forwarding, as N9 or S5/S8 would need — is not supported. Ella's SMF
+	 * only sets outer_header_creation on downlink FARs, so a session cannot
+	 * ask for it; a FAR that does is refused rather than forwarded, because
+	 * the frame would leave with a stale outer UDP checksum (the pseudo-header
+	 * covers the addresses being rewritten) and would bypass both SDF
+	 * filtering and the anti-spoof check, which only run on the decap path. */
 	if (far->outer_header_creation &
 	    (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6)) {
 		PROFILE_END(PROF_N3_GTP_MANIP);
 		return drop_with(ctx, UPF_DROP_FAR_UNSUPPORTED);
 	}
 
-	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4) {
-		void *pkt_data4 = ctx_data(ctx->ctx_buff);
-		const void *pkt_end4 = ctx_data_end(ctx->ctx_buff);
-		size_t ip4_offset = sizeof(struct ethhdr);
-		if (ctx->vlan)
-			ip4_offset += sizeof(struct vlan_hdr);
-		struct iphdr *outer_ip4 =
-			(struct iphdr *)(pkt_data4 + ip4_offset);
-		if ((const void *)(outer_ip4 + 1) > pkt_end4) {
-			PROFILE_END(PROF_N3_GTP_MANIP);
-			return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
-		}
-		__u32 remoteip_v4 = ipv4_from_mapped(&far->remoteip);
-		upf_printk("upf: session for teid:%d -> %d remote:%pI4", teid,
-			   far->teid, &remoteip_v4);
-		update_gtp_tunnel(ctx, outer_ip4,
-				  ipv4_from_mapped(&far->localip), remoteip_v4,
-				  0, far->teid);
-	} else if (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) {
-		void *pkt_data = ctx_data(ctx->ctx_buff);
-		const void *pkt_end = ctx_data_end(ctx->ctx_buff);
-		size_t ip6_offset = sizeof(struct ethhdr);
-		if (ctx->vlan)
-			ip6_offset += sizeof(struct vlan_hdr);
-		struct ipv6hdr *outer_ip6 =
-			(struct ipv6hdr *)(pkt_data + ip6_offset);
-		if ((const void *)(outer_ip6 + 1) > pkt_end) {
-			PROFILE_END(PROF_N3_GTP_MANIP);
-			return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
-		}
-		upf_printk("upf: session for teid:%d -> %d remote:IPv6", teid,
-			   far->teid);
-		update_gtp_tunnel_ipv6(ctx, outer_ip6, &far->localip,
-				       &far->remoteip, far->teid);
-	} else if (outer_header_removal == OHR_GTP_U_UDP_IPv4 ||
-		   outer_header_removal == OHR_GTP_U_UDP_IPv6) {
+	if (outer_header_removal == OHR_GTP_U_UDP_IPv4 ||
+	    outer_header_removal == OHR_GTP_U_UDP_IPv6) {
 		long result = remove_gtp_header(ctx, outer_header_removal);
 		if (result) {
 			PROFILE_END(PROF_N3_GTP_MANIP);

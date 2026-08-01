@@ -479,59 +479,6 @@ func TestGTPDecapsulationInnerIPv6(t *testing.T) {
 	}
 }
 
-// TestGTPForwardIPv4 checks GTP-to-GTP forwarding: when the uplink FAR requests
-// outer-header creation, the packet is not decapsulated but its outer IPv4
-// source/destination and TEID are rewritten to the FAR's values, with a valid
-// outer checksum and the inner packet preserved.
-func TestGTPForwardIPv4(t *testing.T) {
-	requireProgTestRun(t)
-
-	const (
-		lookupTEID = 0x11112222
-		outerTEID  = 0x33334444
-	)
-
-	local := [4]byte{192, 168, 50, 1}
-	remote := [4]byte{203, 0, 113, 9}
-
-	obj := loadN3N6Program(t)
-	putForwardingUplinkPDRGTP(t, obj, lookupTEID, local, remote, outerTEID)
-
-	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
-
-	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(lookupTEID, inner))
-
-	if action == ActionAborted {
-		t.Fatal("forwarded packet got ActionAborted")
-	}
-
-	if len(out) != ethHdrLen+gtpV4EncapLen+len(inner) {
-		t.Fatalf("forwarded frame length = %d, want %d (no decap)", len(out), ethHdrLen+gtpV4EncapLen+len(inner))
-	}
-
-	f := parseGTPv4Frame(t, out)
-
-	if !f.outerChecksumOK {
-		t.Error("outer IPv4 header checksum is invalid after tunnel rewrite")
-	}
-
-	if f.outerSrc != local {
-		t.Errorf("outer src IP = %v, want %v (FAR localip)", f.outerSrc, local)
-	}
-
-	if f.outerDst != remote {
-		t.Errorf("outer dst IP = %v, want %v (FAR remoteip)", f.outerDst, remote)
-	}
-
-	if f.teid != outerTEID {
-		t.Errorf("rewritten TEID = %#x, want %#x", f.teid, uint32(outerTEID))
-	}
-
-	if !bytes.Equal(f.inner, inner) {
-		t.Errorf("inner packet altered by tunnel rewrite:\n got %x\nwant %x", f.inner, inner)
-	}
-}
-
 // TestGTPDecapsulationIPv6Transport checks that a G-PDU received over an IPv6
 // transport (outer IPv6/UDP) is decapsulated to its inner IPv4 packet.
 func TestGTPDecapsulationIPv6Transport(t *testing.T) {

@@ -400,25 +400,3 @@ func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uin
 		t.Fatalf("install downlink IPv6-transport PDR: %v", err)
 	}
 }
-
-// putForwardingUplinkPDRGTP installs an uplink PDR keyed by lookupTEID that
-// re-encapsulates (GTP-to-GTP) toward remote with outerTEID instead of
-// decapsulating.
-func putForwardingUplinkPDRGTP(t *testing.T, obj *BpfObjects, lookupTEID uint32, local, remote [4]byte, outerTEID uint32) {
-	t.Helper()
-
-	pdr := PdrInfo{
-		IMSI: "001010000000001",
-		Far: FarInfo{
-			Action:              0x02, // FAR_FORW
-			OuterHeaderCreation: 0x01, // OHC_GTP_U_UDP_IPv4
-			TeID:                outerTEID,
-			LocalIP:             IPToIn6Addr(netip.AddrFrom4(local)),
-			RemoteIP:            IPToIn6Addr(netip.AddrFrom4(remote)),
-		},
-		Qer: QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
-	}
-	if err := obj.PutPdrUplink(lookupTEID, pdr); err != nil {
-		t.Fatalf("install uplink GTP-forward PDR: %v", err)
-	}
-}

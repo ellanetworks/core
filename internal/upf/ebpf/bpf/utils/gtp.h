@@ -584,29 +584,6 @@ static __always_inline __u32 add_gtp_over_ip4_headers_s1u(
 	return 0;
 }
 
-static __always_inline void update_gtp_tunnel(struct packet_context *ctx,
-					      struct iphdr *ip4, int srcip,
-					      int dstip, __u8 tos, int teid)
-{
-	ctx->gtp->teid = bpf_htonl(teid);
-	ip4->saddr = srcip;
-	ip4->daddr = dstip;
-	ip4->check = 0;
-	ip4->check = ipv4_csum(ip4, sizeof(*ip4));
-}
-
-static __always_inline void update_gtp_tunnel_ipv6(struct packet_context *ctx,
-						   struct ipv6hdr *ip6,
-						   const struct in6_addr *srcip,
-						   const struct in6_addr *dstip,
-						   int teid)
-{
-	ctx->gtp->teid = bpf_htonl(teid);
-	__builtin_memcpy(&ip6->saddr, srcip, sizeof(struct in6_addr));
-	__builtin_memcpy(&ip6->daddr, dstip, sizeof(struct in6_addr));
-	/* IPv6 has no header checksum */
-}
-
 static __always_inline __u32 add_gtp_over_ip6_headers(
 	struct packet_context *ctx, const struct in6_addr *saddr,
 	const struct in6_addr *daddr, __u8 traffic_class, __u8 qfi, int teid)
