@@ -8,6 +8,8 @@
 #include <linux/types.h>
 #include <bpf/bpf_helpers.h>
 
+#include "bpf/ctx/action.h"
+
 /* Macros rather than inline wrappers: the XDP object's BTF and instruction
  * stream must stay what the pre-shim source produced, and even an
  * always_inline wrapper can shift how LLVM re-associates address arithmetic. */

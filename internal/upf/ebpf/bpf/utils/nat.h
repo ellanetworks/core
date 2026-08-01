@@ -218,44 +218,50 @@ find_origin_for_icmp(struct five_tuple *key, struct packet_context *ctx,
 static __always_inline void update_port(struct packet_context *ctx,
 					__u16 new_port)
 {
-	__u16 old_port;
+	/* The checksum is derived from the field before it is overwritten; the
+	 * TC build corrects it with bpf_l4_csum_replace after the writes
+	 * instead, so the arithmetic compiles out there. */
 	switch (ctx->ip4->protocol) {
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
 			return;
 		}
-		old_port = ctx->tcp->source;
-		ctx->tcp->source = new_port;
+
 		if (!CTX_L4_CSUM_VIA_HELPERS) {
 			ctx->tcp->check = ipv4_csum_update_u16(
-				ctx->tcp->check, old_port, new_port);
+				ctx->tcp->check, ctx->tcp->source, new_port);
 		}
+
+		ctx->tcp->source = new_port;
 		break;
 	case IPPROTO_UDP:
 		if (!ctx->udp) {
 			return;
 		}
-		old_port = ctx->udp->source;
-		ctx->udp->source = new_port;
+
 		if (!CTX_L4_CSUM_VIA_HELPERS && ctx->udp->check != 0) {
 			ctx->udp->check = ipv4_csum_update_u16(
-				ctx->udp->check, old_port, new_port);
+				ctx->udp->check, ctx->udp->source, new_port);
 			/* Zero means "no checksum" in IPv4 UDP (RFC 768). */
 			if (ctx->udp->check == 0) {
 				ctx->udp->check = 0xFFFF;
 			}
 		}
+
+		ctx->udp->source = new_port;
 		break;
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
 			return;
 		}
-		old_port = ctx->icmp->un.echo.id;
-		ctx->icmp->un.echo.id = new_port;
+
 		if (!CTX_L4_CSUM_VIA_HELPERS) {
 			ctx->icmp->checksum = ipv4_csum_update_u16(
-				ctx->icmp->checksum, old_port, new_port);
+				ctx->icmp->checksum, ctx->icmp->un.echo.id,
+				new_port);
 		}
+
+		ctx->icmp->un.echo.id = new_port;
 		break;
 	}
 }

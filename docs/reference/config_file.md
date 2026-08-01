@@ -73,17 +73,6 @@ reported as `datapathAttachMode` by [`GET /api/v1/status`](api/status.md).
 | `tcx` | Kernel 6.6 or later. GRO disabled on the N6 interface: `ethtool -K <n6-interface> gro off`. | Production on interfaces without driver XDP support, including veth pairs and containers. |
 | `xdp-generic` | TX checksum offload disabled on both ends of a veth N3: `ethtool -K <veth> tx off`. | Development and test only. |
 
-With `tcx`, merged downlink frames cannot be encapsulated into well-formed
-GTP-U and are dropped, counted in
-`app_upf_datapath_drop_total{reason="encap_gso"}`. Persist the `ethtool`
-setting through your network configuration and verify it with `ethtool -k
-<n6-interface>`. Where GRO is reported as `[fixed]` or is performed by a
-hypervisor, `tcx` cannot carry that traffic.
-
-`xdp-generic` carries the same segmentation exposure as `tcx` and a checksum
-exposure of its own, neither of which the data plane can detect. It is not
-supported in production.
-
 !!! note
     When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/core.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
 

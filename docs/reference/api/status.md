@@ -29,7 +29,7 @@ Top‑level (always present):
 - `initialized` (boolean): True once the system has at least one user.
 - `ready` (boolean): True once the node has completed full startup.
 - `schemaVersion` (integer): Shared‑database schema version this binary expects. Reported in both standalone and HA modes.
-- `datapathAttachMode` (string): Mechanism the data plane attached with — `xdp-native`, `tcx`, or `xdp-generic`. This is the effective mode, which differs from the configured one when the default chain falls back from driver-level XDP to TCX. Omitted until the data plane is attached.
+- `datapathAttachMode` (string): Mechanism the data plane attached with — `xdp-native`, `tcx`, or `xdp-generic`.
 
 The nested `cluster` object is present only when HA is enabled:
 

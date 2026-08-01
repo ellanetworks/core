@@ -8,6 +8,8 @@
 #include <linux/pkt_cls.h>
 #include <linux/types.h>
 #include <bpf/bpf_helpers.h>
+
+#include "bpf/ctx/action.h"
 #include <bpf/bpf_endian.h>
 
 #define __ctx_buff __sk_buff

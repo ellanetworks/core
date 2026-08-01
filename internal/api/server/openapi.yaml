@@ -3543,10 +3543,7 @@ components:
           type: string
           enum: [xdp-native, tcx, xdp-generic]
           description: >-
-            Mechanism the data plane attached with. This is the effective
-            mode, which differs from the configured one when the default
-            chain falls back from driver-level XDP to TCX. Absent until the
-            data plane is attached.
+            Mechanism the data plane attached with.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
       required: [version, revision, initialized, ready, schemaVersion]
