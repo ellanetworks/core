@@ -7,6 +7,7 @@ package ebpf
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -45,6 +46,12 @@ const (
 	t2N6Peer = "ellt2n6p"
 
 	t2VethMTU = "3000" // headroom for the payload sweep plus GTP encapsulation
+
+	// N6-side IPv6, the counterpart of natPublicIP: the address a
+	// self-generated ICMPv6 error is sourced from, and the prefix the test
+	// server sits in.
+	t2N6IPv6         = "2001:db8:6::1"
+	t2ServerV6Prefix = "2001:4860:4860::/48"
 )
 
 var (
@@ -95,6 +102,20 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	addRoute(t, "198.51.100.0/24", t2N6Dev, natPublicIP)
 	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
 
+	// The N6 side needs an IPv6 address and a route to the server prefix for
+	// the same reason it needs the IPv4 pair: a self-generated ICMP error is
+	// sourced from the address the FIB picks for reaching the sender. Without
+	// these the kernel answers from whatever global address the host happens
+	// to have, which makes the assertion depend on the machine.
+	if out, err := ipCmd("addr", "add", t2N6IPv6+"/64", "dev", t2N6Dev, "nodad"); err != nil {
+		t.Fatalf("add N6 IPv6 addr: %v: %s", err, out)
+	}
+
+	if out, err := ipCmd("route", "add", t2ServerV6Prefix, "dev", t2N6Dev,
+		"src", t2N6IPv6); err != nil {
+		t.Fatalf("add N6 IPv6 route: %v: %s", err, out)
+	}
+
 	f := &t2{
 		obj:    loadAttachedProgramConfig(t, false, masquerade, ifByName(t, t2N3Dev).Index, ifByName(t, t2N6Dev).Index, 0, 0),
 		n3Dev:  ifByName(t, t2N3Dev),
@@ -106,7 +127,46 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	attachXDP(t, f.obj, f.n3Dev.Index)
 	attachXDP(t, f.obj, f.n6Dev.Index)
 
+	// A test that expected a packet and captured nothing cannot tell a drop
+	// from a capture that missed it. The datapath records why it dropped, so
+	// on failure say so rather than leaving it to be guessed at.
+	t.Cleanup(func() {
+		if t.Failed() {
+			logDropReasons(t, f.obj)
+		}
+	})
+
 	return f
+}
+
+// logDropReasons prints every non-zero drop reason in both directions.
+func logDropReasons(t *testing.T, obj *BpfObjects) {
+	t.Helper()
+
+	names := DropReasonNames()
+
+	for dir, counters := range GetDatapathCounters(obj) {
+		var lines []string
+
+		for i, n := range counters.Dropped {
+			if n != 0 && i < len(names) {
+				lines = append(lines, fmt.Sprintf("%s=%d", names[i], n))
+			}
+		}
+
+		for _, a := range []struct {
+			label string
+			index int
+		}{{"pass", ActionPass}, {"tx", ActionTx}, {"redirect", ActionRedirect}} {
+			if v := counters.Forwarded[a.index]; v != 0 {
+				lines = append(lines, fmt.Sprintf("%s=%d", a.label, v))
+			}
+		}
+
+		if len(lines) > 0 {
+			t.Logf("%s datapath: %s", dir, strings.Join(lines, " "))
+		}
+	}
 }
 
 func (f *t2) injectUplink(t *testing.T, frame []byte)   { inject(t, f.n3Peer.Index, frame) }
