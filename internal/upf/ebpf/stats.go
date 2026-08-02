@@ -298,6 +298,7 @@ var dropReasonNames = [...]string{
 	"source_spoof_ipv6",
 	"decap_family_mismatch",
 	"encap_gso",
+	"decap_gso",
 	"df_not_set",
 	"rs_intercepted",
 	"nat_unsolicited",

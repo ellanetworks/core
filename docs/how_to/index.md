@@ -11,6 +11,7 @@ Initial setup and configuration of Ella Core.
 - [Co-host with OCUDU](co_host_with_ocudu.md)
 - [Use VLANs](vlan.md)
 - [Use native XDP with veth interfaces](native_xdp_veth.md)
+- [Disable Merged Packets](disable_merged_packets.md)
 - [Integrate with a Radio](integrate_with_radio.md)
 
 ## Day 2 Operations

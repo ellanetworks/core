@@ -180,6 +180,13 @@ handle_gtp_packet(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
 	}
 
+	/* Only the first datagram's outer headers are stripped; the rest stay in
+	 * the payload as intact GTP-U. */
+	if (frame_is_merged(ctx)) {
+		upf_printk("upf: merged frame on the decap path, dropping");
+		return drop_with(ctx, UPF_DROP_DECAP_GSO);
+	}
+
 	PROFILE_START(PROF_N3_QER_RATELIMIT);
 	upf_printk("upf: qer gate_status:%d mbr:%d", qer->ul_gate_status,
 		   qer->ul_maximum_bitrate);

@@ -530,3 +530,119 @@ func TestTCSourceNATMaintainsChecksumComplete(t *testing.T) {
 		})
 	}
 }
+
+// runTCMerged runs the program on a frame the kernel presents as several
+// datagrams behind one set of headers, which is what a veth or virtio peer
+// delivers when it offloads segmentation.
+func runTCMerged(t *testing.T, prog *ebpf.Program, packet []byte, segs, size uint32) uint32 {
+	t.Helper()
+
+	opts := &ebpf.RunOptions{
+		Data:    packet,
+		DataOut: make([]byte, len(packet)+256),
+		Context: skbRunContext{IngressIfindex: 1, GsoSegs: segs, GsoSize: size},
+	}
+
+	action, err := prog.Run(opts)
+	if err != nil {
+		if errors.Is(err, ebpf.ErrNotSupported) {
+			t.Skipf("BPF_PROG_TEST_RUN for SCHED_CLS not supported on this kernel: %v", err)
+		}
+
+		t.Fatalf("run TC program: %v", err)
+	}
+
+	return action
+}
+
+// A merged frame cannot be encapsulated or decapsulated into correct GTP-U:
+// segmentation replays the tunnel headers verbatim, and decapsulation strips
+// only the first datagram's. Both directions drop it and say so.
+func TestTCMergedFramesDropped(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4D455247
+		dlTEID = 0x4D455248
+		qfi    = 5
+		segs   = 4
+	)
+
+	var (
+		ueAddr = [4]byte{10, 45, 0, 7}
+		local  = [4]byte{192, 168, 100, 1}
+		remote = [4]byte{192, 168, 100, 9}
+	)
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+	downlink := ethFrame(0x0800, ipv4Packet([4]byte{8, 8, 8, 8}, ueAddr, 17,
+		udpDatagramChecksummed([4]byte{8, 8, 8, 8}, ueAddr, 53, 4001, []byte{1, 2, 3, 4})))
+
+	for _, tc := range []struct {
+		name   string
+		dir    Direction
+		reason string
+		frame  []byte
+		setup  func(*N3N6EntrypointTcObjects)
+	}{
+		{
+			name: "uplink decap", dir: Uplink, reason: "decap_gso",
+			frame: uplinkGPDU(ulTEID, inner),
+			setup: func(objs *N3N6EntrypointTcObjects) {
+				putTCPdrUplink(t, objs, ulTEID, PdrInfo{
+					IMSI:   "001010000000001",
+					Far:    FarInfo{Action: 0x02},
+					Qer:    QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
+					UEIPv4: canonicalUEv4,
+				})
+			},
+		},
+		{
+			name: "downlink encap", dir: Downlink, reason: "encap_gso",
+			frame: downlink,
+			setup: func(objs *N3N6EntrypointTcObjects) {
+				putTCPdrDownlink(t, objs, ueAddr, ipv4OuterDownlinkPDR(dlTEID, local, remote, qfi))
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			objs := loadTCProgramConfig(t, false, 0, 1)
+			tc.setup(objs)
+
+			if action := runTCMerged(t, objs.UpfEntryFunc, tc.frame, segs, 1000); action != tcActShot {
+				t.Errorf("verdict = %d, want TC_ACT_SHOT (%d)", action, tcActShot)
+			}
+
+			if got := tcDropCount(t, objs, tc.dir, tc.reason); got != 1 {
+				t.Errorf("%s = %d, want 1", tc.reason, got)
+			}
+		})
+	}
+}
+
+// tcDropCount reads one drop reason from the SCHED_CLS build's statistics.
+func tcDropCount(t *testing.T, objs *N3N6EntrypointTcObjects, dir Direction, reason string) uint64 {
+	t.Helper()
+
+	i, ok := DropReasonByName(reason)
+	if !ok {
+		t.Fatalf("unknown drop reason %q", reason)
+	}
+
+	m := objs.UplinkStatistics
+	if dir == Downlink {
+		m = objs.DownlinkStatistics
+	}
+
+	var stats []N3N6EntrypointTcUpfStatistic
+	if err := m.Lookup(uint32(0), &stats); err != nil {
+		t.Fatalf("read TC statistics: %v", err)
+	}
+
+	var total uint64
+	for _, s := range stats {
+		total += s.DropReasons[i]
+	}
+
+	return total
+}

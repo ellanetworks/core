@@ -52,7 +52,7 @@ to 2 interfaces.
   <figcaption>Combined All</figcaption>
 </figure>
 
-One or both of these interfaces can be virtual interfaces, with `veth`. When using veth with native XDP mode, an additional XDP program must be attached to the peer interface — see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs) and the [setup guide](../how_to/native_xdp_veth.md) for details.
+One or both of these interfaces can be virtual interfaces, with `veth`. See [Datapath constraints](#datapath-constraints).
 
 ## Combined on one interface
 
@@ -64,6 +64,14 @@ using the same interface name in the configuration file, or by using VLANs.
 It is possible to use VLAN interfaces, with or without combining interfaces
 as described previously. In this case, the configuration file should contain
 the name of the VLAN interface, not the parent interface.
+
+# Datapath constraints
+
+The datapath attaches to N3 and N6 at the hook set by `datapath.attach-mode`. The shape of those interfaces constrains which modes work.
+
+- **veth, `xdp-native`**: an XDP program must be attached to the peer interface, see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs) and the [setup guide](../how_to/native_xdp_veth.md).
+- **veth, `xdp-generic`**: TX checksum offload must be disabled on both ends, see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#checksum-offload-on-veth-pairs).
+- **Any interface, `tcx` or `xdp-generic`**: the interface must not deliver merged packets, see [Disable merged packets](../how_to/disable_merged_packets.md). 
 
 # NAT
 

@@ -73,6 +73,15 @@ struct packet_context {
 	__u8 interface : 1;
 };
 
+/* A merged buffer holds several datagrams behind one set of headers, so
+ * neither encapsulation nor decapsulation can produce a correct frame from
+ * it. The kernel merges on receive with GRO, and a veth or virtio peer can
+ * deliver one without any merge on this side. */
+static __always_inline int frame_is_merged(const struct packet_context *ctx)
+{
+	return ctx_gso_segs(ctx->ctx_buff) > 1;
+}
+
 /* Every drop in the datapath returns through one of these, so the reason
  * reaches the counter; helpers that decide without a packet_context leave the
  * translation to their caller. The two differ only in the hook verdict —

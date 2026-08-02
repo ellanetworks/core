@@ -352,10 +352,9 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 	return value.data != 0, nil
 }
 
-// warnGROOnTCX logs the TCX GSO exposure when the N6 receive interface has
-// GRO enabled: encapsulated super-frames are segmented with the super-frame's
-// GTP message_length on every segment, and an IPv6 outer additionally carries
-// a stale outer UDP checksum. GRO-off on this interface removes both.
+// warnGROOnTCX warns when N6 has GRO enabled under TCX. It covers only the
+// receive-side merge: a veth or virtio peer that offloads segmentation
+// delivers merged buffers with GRO off, which no local feature reports.
 func warnGROOnTCX(n6Ifname string) {
 	enabled, err := interfaceGROEnabled(n6Ifname)
 	if err != nil {
@@ -365,8 +364,8 @@ func warnGROOnTCX(n6Ifname string) {
 
 	if enabled {
 		logger.UpfLog.Warn("GRO is enabled on the N6 interface while the datapath is attached at TCX: "+
-			"merged downlink frames cannot be encapsulated into well-formed GTP-U and are dropped, "+
-			"counted in app_upf_encap_gso_drop_total; disable with `ethtool -K <iface> gro off`",
+			"merged buffers cannot be encapsulated into valid GTP-U and are dropped, counted in "+
+			"app_upf_datapath_drop_total{reason=\"encap_gso\"}; disable with `ethtool -K <iface> gro off`",
 			zap.String("iface", n6Ifname))
 	}
 }

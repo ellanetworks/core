@@ -143,7 +143,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     Edit the file to match your network interfaces and desired configuration.
 
     !!! note
-        This example uses `tcx` mode, which works on the veth interfaces containers get. On a host whose driver supports it, use `xdp-native` mode for the highest performance — see [Attach modes](../reference/config_file.md#attach-modes).
+        This example uses `tcx` mode, which works on the veth interfaces containers get. On a host whose driver supports it, use `xdp-native` mode for the highest performance — see [Config file](../reference/config_file.md).
 
     Start the Ella Core container:
 

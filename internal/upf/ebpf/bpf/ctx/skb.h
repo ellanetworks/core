@@ -143,11 +143,8 @@ static __always_inline long ctx_pull(struct __ctx_buff *ctx, __u32 len)
  * veth traffic. Stripping the outer L3+UDP+GTP span always passes that point.
  *
  * BPF_F_ADJ_ROOM_FIXED_GSO is not optional: without it bpf_skb_net_shrink
- * refuses any non-TCP GSO frame with -ENOTSUPP (net/core/filter.c). There is
- * no gso_segs guard here because uplink GTP-U only arrives merged under
- * rx-udp-gro-forwarding, which is off unless an operator turns it on:
- * NETIF_F_GRO_UDP_FWD reaches hw_features but never wanted_features
- * (net/core/dev.c). */
+ * refuses any non-TCP GSO frame with -ENOTSUPP (net/core/filter.c). Merged
+ * frames never reach here — frame_is_merged drops them in n3_bpf.h. */
 static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes,
 				      __u8 inner_is_ipv6)
 {
@@ -172,7 +169,7 @@ static __always_inline long ctx_decap(struct __ctx_buff *ctx, __s32 bytes,
  * BPF_F_ADJ_ROOM_FIXED_GSO suppresses skb_decrease_gso_size
  * (net/core/filter.c), so segments overshoot the original max segment size by
  * the encap overhead rather than carry a silently reduced inner MSS. Inert
- * here: encap_would_be_malformed drops GSO super-frames before this point.
+ * here: frame_is_merged drops merged frames before this point.
  *
  * This sets skb->encapsulation, after which the kernel rejects a further
  * ENCAP grow (-EALREADY) and bpf_skb_change_tail (-ENOTSUPP): encap must be

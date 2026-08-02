@@ -46,9 +46,10 @@ ip -n n3ns link set lo up
 ip -n n3ns link set dev n3-ran-veth up
 ip link set dev n3-upf-veth up
 ethtool -K eth0 gro off
+ip netns exec n3ns ethtool -K n3-ran-veth tso off gso off
 ```
 
-Disabling GRO on the N6 interface is required in `tcx` mode: merged downlink frames cannot be encapsulated into well-formed GTP-U and are dropped. See [Attach modes](../reference/config_file.md#attach-modes).
+`tcx` mode requires both interfaces to deliver unmerged packets — see [Disable merged packets](disable_merged_packets.md).
 
 ## 3. Configure Ella Core
 

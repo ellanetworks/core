@@ -50,33 +50,23 @@ The data plane can attach at either of two kernel hooks, and the choice decides
 how much of the kernel's own processing has already happened when it sees a
 packet.
 
-**XDP** runs in the network driver, before the kernel builds a socket buffer.
-Nothing has been merged, offloaded or annotated yet, so the data plane sees
-exactly what arrived on the wire. That is why it is the fastest option, and why
-it needs a driver that supports the hook.
+- **xdp-native** runs in the network driver, before the kernel builds a socket buffer. Nothing has been merged, offloaded or annotated yet, so the data plane sees exactly what arrived on the wire. That is why it is the fastest option, and why it needs a driver that supports the hook.
 
-**TCX** runs on the socket buffer, after the kernel's receive path. It is
-available on every interface, including the veth pairs used in containers and
-[co-hosted deployments](../how_to/co_host_with_ocudu.md), which is what makes it
-the option that always works. The cost is that the kernel may already have
-merged several received packets into one buffer larger than the MTU. Such a
-frame cannot be encapsulated into GTP-U that is valid on the wire — the tunnel
-headers are copied unchanged into each packet the kernel later splits it back
-into, so their lengths and checksums describe the merged frame rather than
-themselves. Ella Core drops those frames rather than emit them, which is why
-`tcx` requires generic receive offload to be turned off on N6.
+- **tcx** runs on the socket buffer, after the kernel's receive path. It is available on every interface, including the veth pairs used in containers and [co-hosted deployments](../how_to/co_host_with_ocudu.md), which is what makes it the option that always works.
 
-There is also a **generic XDP** hook, which presents the XDP interface but runs
-late in the receive path like TCX. It inherits TCX's exposure without exposing
-the socket-buffer metadata needed to detect it, and adds a checksum hazard of
-its own on veth pairs. It exists for development on hardware that supports
-neither of the other two.
+- **xdp-generic** presents the XDP interface but runs late in the receive path, like TCX. It should only be used for testing and prototyping.
 
-Each mode's requirements are listed under [Attach
-modes](../reference/config_file.md#attach-modes). The mode a running node
-actually attached with is reported by [`GET
-/api/v1/status`](../reference/api/status.md), which matters because the default
-setting resolves to driver XDP or TCX depending on the hardware it finds.
+### Merged packets
+
+Both hooks that run on the socket buffer can be handed one holding several packets merged together — merged by the kernel's receive path, or handed over already merged by a veth or virtio peer that offloads segmentation. Neither encapsulation nor decapsulation can produce valid GTP-U from that. Encapsulation writes one tunnel header for the whole buffer, and when the kernel splits it back into wire-sized packets it copies that header onto each one unchanged: every packet then claims the merged buffer's GTP-U payload length rather than its own, and with an IPv6 outer header its checksum as well. Decapsulation strips only the first packet's outer headers and leaves the rest in the payload.
+
+TCX can see that the buffer is merged and drops it. Generic XDP cannot, and emits the malformed result. Either way the remedy is to [disable merged packets](../how_to/disable_merged_packets.md) on N3 and N6.
+
+### Checksum offload on veth pairs
+
+An application transmitting over a veth leaves the transport checksum for the egress NIC to complete, recording where to write it in the packet's metadata. In `xdp-generic` mode the kernel does not update that metadata when the data plane removes the GTP-U header, so the checksum is later written at the stale offset, corrupting the decapsulated packet at a position that depends on the header removed. Nothing detects it: neither the data plane counters nor a capture on the host. Disabling TX checksum offload on both ends of the pair (`ethtool -K <veth> tx off`) forces the checksum to be completed before the packet reaches the data plane.
+
+`xdp-native` forwards redirected frames as raw packets, which carry no such metadata, and TCX discards it with the header.
 
 ### XDP redirect on veth pairs
 

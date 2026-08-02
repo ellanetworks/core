@@ -28,10 +28,10 @@ const (
 	gsoSegments    = 4
 )
 
-// gsoFixture is the downlink half of the t2 topology with an IPv6 N3
-// transport: the datapath encapsulates toward an IPv6 outer header, and the
-// N3 device segments in software on transmit so the wire carries the
-// individual segments, not the super-frame.
+// gsoFixture is the t2 topology with an IPv6 N3 transport. Merged buffers
+// reach the datapath because veth advertises NETIF_F_GSO_SOFTWARE, so a
+// peer's segmentation-offloaded send crosses as one buffer; no GRO is
+// involved on the receiving side.
 type gsoFixture struct {
 	obj    *BpfObjects
 	n3Peer *net.Interface
@@ -112,9 +112,9 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 	}
 
 	if !senderGSO {
-		// The mitigation, modelled at its effect: encapsulation only ever
-		// sees frames at or below the MTU. Disabling GRO on the N6 receive
-		// interface achieves the same thing for merged inbound traffic.
+		// The mitigation for a veth: the peer segments before transmitting,
+		// so nothing merged crosses. GRO on the receiving side is not
+		// involved and `gro off` there would change nothing.
 		ethtoolOff(t, n6Peer, "tso", "off", "gso", "off")
 	}
 

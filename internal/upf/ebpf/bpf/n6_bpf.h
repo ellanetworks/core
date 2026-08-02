@@ -56,18 +56,6 @@ struct {
 } downlink_statistics SEC(".maps");
 
 /*
- * A GSO super-frame cannot be encapsulated into well-formed GTP-U. UDP tunnel
- * segmentation replays the tunnel span verbatim into every segment and
- * rewrites only the outer IP and UDP lengths, so each one leaves with the
- * super-frame's GTP-U message_length (TS 29.281 §5.1) and, with an IPv6 outer
- * header, its outer UDP checksum.
- */
-static __always_inline int encap_would_be_malformed(struct packet_context *ctx)
-{
-	return ctx_gso_segs(ctx->ctx_buff) > 1;
-}
-
-/*
  * The IPv4 and IPv6 branches each end in their own return so the verifier
  * never merges a state where context_set_ip6 cleared ctx->ip4 with one that
  * calls route_ipv4: merged, both appear as plain scalars and every
@@ -270,8 +258,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			"upf: far not set to encapsulate in gtp, dropping packet");
 		return drop_with(ctx, UPF_DROP_FAR_NO_ENCAP);
 	}
-	if (encap_would_be_malformed(ctx)) {
-		upf_printk("upf: gso super-frame on the encap path, dropping");
+	/* Segmentation replays the tunnel span verbatim, so every segment would
+	 * carry the merged frame's GTP-U message_length (TS 29.281 §5.1) and,
+	 * with an IPv6 outer header, its outer UDP checksum. */
+	if (frame_is_merged(ctx)) {
+		upf_printk("upf: merged frame on the encap path, dropping");
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 
@@ -429,7 +420,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
 		return drop_with(ctx, UPF_DROP_FAR_NO_ENCAP);
 	}
-	if (encap_would_be_malformed(ctx)) {
+	if (frame_is_merged(ctx)) {
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
 	}
 

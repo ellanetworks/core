@@ -36,6 +36,7 @@ enum upf_drop_reason {
 	UPF_DROP_SOURCE_SPOOF_IPV6,
 	UPF_DROP_DECAP_FAMILY_MISMATCH,
 	UPF_DROP_ENCAP_GSO,
+	UPF_DROP_DECAP_GSO,
 	UPF_DROP_DF_NOT_SET,
 	/* Not a failure: a Router Solicitation is handed to the RA responder
 	 * over a ring buffer. Counted like any other non-forward so the totals
