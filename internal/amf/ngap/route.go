@@ -23,6 +23,8 @@ const (
 	ngSetupRequestMessageType  send.NGAPProcedure = "NGSetupRequest"
 	errorIndicationMessageType send.NGAPProcedure = "ErrorIndication"
 	ngResetMessageType         send.NGAPProcedure = "NGReset"
+
+	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
 )
 
 // handleMigrated dispatches the procedures decoded by the in-house NGAP codec
@@ -48,6 +50,8 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		receiveErrorIndication(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcNGReset:
 		receiveNGReset(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcRANConfigurationUpdate:
+		receiveRANConfigurationUpdate(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -137,4 +141,34 @@ func receiveNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 	}
 
 	HandleNGReset(ctx, amfInstance, ran, req)
+}
+
+// receiveRANConfigurationUpdate parses and handles a RAN CONFIGURATION UPDATE.
+// The procedure defines an unsuccessful outcome, so a failed parse is answered
+// there rather than with an Error Indication (TS 38.413 §10.3.5).
+func receiveRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, ranConfigurationUpdateMessageType, span)
+
+	req, err := ngap.ParseRANConfigurationUpdate(im.Value)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decode RAN Configuration Update")
+
+		var ase *ngap.AbstractSyntaxError
+		if errors.As(err, &ase) {
+			sendRANConfigurationUpdateProtocolFailure(ctx, ran, ase)
+
+			return
+		}
+
+		// Octets that decoded as the envelope but not as its body. The
+		// procedure is known even though no IE is, so the Error Indication
+		// cites it (§10.2, §9.3.1.3).
+		logger.From(ctx, ran.Log).Error("RAN Configuration Update decode error", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcRANConfigurationUpdate, err)
+
+		return
+	}
+
+	HandleRANConfigurationUpdate(ctx, amfInstance, ran, req)
 }

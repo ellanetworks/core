@@ -68,6 +68,11 @@ var renamedFiles = map[string]string{
 	"ng_setup_test.go":         "s1_setup_test.go",
 	"ng_setup_resp_test.go":    "s1_setup_resp_test.go",
 	"ng_setup_failure_test.go": "s1_setup_failure_test.go",
+
+	// TS 38.413 names the NG-RAN node's update RAN Configuration Update where
+	// TS 36.413 names the eNB's ENB Configuration Update.
+	"ran_config_update.go":      "enb_config_update.go",
+	"ran_config_update_test.go": "enb_config_update_test.go",
 }
 
 // ngapOnlyFiles are files this library has and s1ap does not. NGAP-only IE
@@ -77,6 +82,8 @@ var renamedFiles = map[string]string{
 var ngapOnlyFiles = map[string]string{
 	"ie_slice.go":      "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
 	"ie_guami.go":      "GUAMI replaces GUMMEI and is bit-string rather than octet shaped (TS 38.413 §9.3.3.3)",
+	"ie_tnl.go":        "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
+	"ie_tnl_test.go":   "tests for ie_tnl.go",
 	"symmetry_test.go": "this file: the checker lives on one side",
 }
 

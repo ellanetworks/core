@@ -30,6 +30,25 @@ func (n *Name) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+// TransportLayerAddress ::= BIT STRING (SIZE(1..160, ...)). Holds the address
+// octets (IPv4 = 4, IPv6 = 16).
+type TransportLayerAddress []byte
+
+func (a TransportLayerAddress) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeBitString(w, enc, 1, 160, true, true, true, a, len(a)*8)
+}
+
+func (a *TransportLayerAddress) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, nbits, err := per.DecodeBitString(r, enc, 1, 160, true, true, true)
+	if err != nil {
+		return err
+	}
+
+	*a = TransportLayerAddress(b[:(nbits+7)/8])
+
+	return nil
+}
+
 // uintToBits packs the low nbits of v into ceil(nbits/8) octets, most
 // significant bit first, matching BIT STRING storage.
 func uintToBits(v uint64, nbits int) []byte {

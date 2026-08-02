@@ -21,6 +21,7 @@ const (
 	idSourceAMFUENGAPID                   ProtocolIEID = 100
 	idSupportedTAList                     ProtocolIEID = 102
 	idTimeToWait                          ProtocolIEID = 107
+	idNGRANTNLAssociationToRemoveList     ProtocolIEID = 167
 	idUEAssociatedLogicalNGConnectionList ProtocolIEID = 111
 	idUERetentionInformation              ProtocolIEID = 147
 )

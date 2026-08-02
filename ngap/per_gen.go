@@ -280,6 +280,78 @@ func (gUAMI *GUAMI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (nGRANTNLAssociationToRemoveItem *NGRANTNLAssociationToRemoveItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddressAMF != nil)
+	w.WriteBit(false)
+	if err := nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddressAMF != nil {
+		if err := (*nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddressAMF).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nGRANTNLAssociationToRemoveItem *NGRANTNLAssociationToRemoveItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TNLAssociationTransportLayerAddressAMF, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_TNLAssociationTransportLayerAddressAMF {
+		var v CPTransportLayerInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddressAMF = &v
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (pLMNSupportItem *PLMNSupportItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)

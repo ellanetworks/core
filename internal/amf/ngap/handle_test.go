@@ -21,9 +21,12 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func getMccAndMncInOctets(mccStr string, mncStr string) ([]byte, error) {
-	mcc := reverse(mccStr)
-	mnc := reverse(mncStr)
+// servedPLMNOctets encodes the operator PLMN (001/01) as the reference
+// decoder's fixtures carry it. Every caller wants the served PLMN, so it takes
+// no arguments.
+func servedPLMNOctets() ([]byte, error) {
+	mcc := reverse("001")
+	mnc := reverse("01")
 
 	var res string
 
@@ -49,13 +52,6 @@ func reverse(s string) string {
 	}
 
 	return aux
-}
-
-// sstOctet is the SST as the reference decoder's fixtures carry it. The SD is
-// no longer needed by any caller: the NG Setup fixtures build their S-NSSAIs
-// through the library.
-func sstOctet(sst int32) []byte {
-	return []byte{byte(sst)}
 }
 
 type fakeDBInstance struct {

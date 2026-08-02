@@ -5,117 +5,141 @@ package ngap
 
 import (
 	"context"
-	"encoding/hex"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-// HandleRanConfigurationUpdate applies an NG-RAN node's configuration update. Per
-// TS 38.413 §8.7.2.2 an absent IE leaves the corresponding configuration
+// HandleRANConfigurationUpdate applies an NG-RAN node's configuration update.
+// Per TS 38.413 §8.7.2.2 an absent IE leaves the corresponding configuration
 // unchanged, so a name- or DRX-only update is accepted: only a present Supported
-// TA List overwrites the stored TAs, and a present list broadcasting no served TAI
-// is rejected with a Failure.
-func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.RANConfigurationUpdate) {
-	var cause ngapType.Cause
+// TA List is validated and committed, and one broadcasting no served TAI is
+// answered with a Failure (§8.7.2.3).
+func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, req *ngap.RANConfigurationUpdate) {
+	// Only a Supported TA List needs validating against what this AMF serves;
+	// §8.7.2.2 leaves everything else alone, so an update that carries no TAs
+	// is accepted without consulting the operator configuration at all.
+	var operatorInfo *amf.OperatorInfo
 
-	if msg.SupportedTAItems != nil {
-		tais := ranConfigUpdateTAIs(ctx, ran, msg.SupportedTAItems)
-		cause = validateRanSupportedTAIs(ctx, amfInstance, ran, tais)
+	if len(req.SupportedTAList) > 0 {
+		var err error
 
-		if cause.Present == ngapType.CausePresentNothing {
-			amfInstance.UpdateRadioSupportedTAIs(ran, tais)
-		}
-	}
-
-	if cause.Present == ngapType.CausePresentNothing && msg.RANNodeName != "" {
-		amfInstance.UpdateRadioName(ran, msg.RANNodeName)
-	}
-
-	if cause.Present == ngapType.CausePresentNothing {
-		pkt, err := send.BuildRanConfigurationUpdateAcknowledge(nil)
+		operatorInfo, err = amfInstance.OperatorInfo(ctx)
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error building ran configuration update acknowledge", zap.Error(err))
+			logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
+			sendRANConfigurationUpdateFailure(ctx, ran, causeNoServedTAC, nil)
+
 			return
 		}
-
-		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, pkt)
-	} else {
-		pkt, err := send.BuildRanConfigurationUpdateFailure(cause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error building ran configuration update failure", zap.Error(err))
-			return
-		}
-
-		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt)
 	}
+
+	tais, outBytes, accepted, reason, err := ranConfigUpdateOutcomeFor(req, operatorInfo)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("failed to handle RAN Configuration Update", zap.Error(err))
+		return
+	}
+
+	if !accepted {
+		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, outBytes)
+
+		logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update rejected",
+			zap.String("reason", reason),
+			zap.Any("gnb_tai_list", tais),
+			zap.Any("core_tai_list", operatorInfo.Tais))
+
+		return
+	}
+
+	// Commit only what the message carried: §8.7.2.2 leaves everything else as
+	// it was, so an absent IE must not clear the stored configuration.
+	if name := ranNodeName(req.RANNodeName); name != "" {
+		amfInstance.UpdateRadioName(ran, name)
+	}
+
+	if len(req.SupportedTAList) > 0 {
+		amfInstance.UpdateRadioSupportedTAIs(ran, tais)
+	}
+
+	ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, outBytes)
+
+	logger.WithTrace(ctx, ran.Log).Info("RAN Configuration Update acknowledged",
+		zap.String("gnb-name", ran.NodeName()))
 }
 
-// ranConfigUpdateTAIs flattens the Supported TA List into one AMF TAI per
-// (broadcast PLMN, TAC) pair with its supported slices.
-func ranConfigUpdateTAIs(ctx context.Context, ran *amf.Radio, items []ngapType.SupportedTAItem) []amf.SupportedTAI {
-	tais := make([]amf.SupportedTAI, 0)
+// ranConfigUpdateOutcomeFor returns an Acknowledge when the update may be taken
+// into use, otherwise a Failure (TS 38.413 §8.7.2.3). reason is a
+// human-readable rejection summary, empty when accepted; tais is what the gNB
+// broadcasts, which the caller commits to the Radio only on accept.
+//
+// An update carrying no Supported TA List is always accepted: it changes
+// something else, and §8.7.2.2 leaves the stored TAs alone. operatorInfo is
+// consulted only in that case and so may be nil otherwise.
+func ranConfigUpdateOutcomeFor(req *ngap.RANConfigurationUpdate, operatorInfo *amf.OperatorInfo) (tais []amf.SupportedTAI, out []byte, accepted bool, reason string, err error) {
+	if len(req.SupportedTAList) > 0 {
+		tais = supportedTAIs(req.SupportedTAList)
 
-	for _, supportedTAItem := range items {
-		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
-
-		for _, broadcastPLMNItem := range supportedTAItem.BroadcastPLMNList.List {
-			supportedTAI := amf.SupportedTAI{}
-			supportedTAI.Tai.Tac = tac
-			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
-			supportedTAI.Tai.PlmnID = &plmnID
-
-			for _, tAISliceSupportItem := range broadcastPLMNItem.TAISliceSupportList.List {
-				supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
+		if cause, ok := servedTAICause(tais, operatorInfo); !ok {
+			out, err = (&ngap.RANConfigurationUpdateFailure{Cause: &cause}).Marshal()
+			if err != nil {
+				return tais, nil, false, "", fmt.Errorf("amf: marshal RAN Configuration Update Failure: %w", err)
 			}
 
-			logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
+			reason = "gNB broadcasts no PLMN served by this AMF (Unknown PLMN)"
+			if cause == causeNoServedTAC {
+				reason = "gNB broadcasts a served PLMN but no TAC served by this AMF"
+			}
 
-			tais = append(tais, supportedTAI)
+			if len(tais) == 0 {
+				reason = "gNB broadcasts no supported TA"
+			}
+
+			return tais, out, false, reason, nil
 		}
 	}
 
-	return tais
+	ack := &ngap.RANConfigurationUpdateAcknowledge{}
+
+	// §10.3.4.2 reports in the response message of the procedure where it has one.
+	if diag := req.Diagnostics(); diag.ReportRequired() {
+		ack.CriticalityDiagnostics = &ngap.CriticalityDiagnostics{
+			ProcedureCriticality:      ngap.Ptr(ngap.ProcedureCriticality(ngap.ProcRANConfigurationUpdate)),
+			IEsCriticalityDiagnostics: diag.Report(),
+		}
+	}
+
+	out, err = ack.Marshal()
+	if err != nil {
+		return tais, nil, false, "", fmt.Errorf("amf: marshal RAN Configuration Update Acknowledge: %w", err)
+	}
+
+	return tais, out, true, "", nil
 }
 
-// validateRanSupportedTAIs reports a Cause when the Supported TA List broadcasts
-// no served TAI, and CausePresentNothing when it may be taken into use
-// (TS 38.413 §8.7.2.3).
-func validateRanSupportedTAIs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, tais []amf.SupportedTAI) ngapType.Cause {
-	misc := func(v aper.Enumerated) ngapType.Cause {
-		return ngapType.Cause{Present: ngapType.CausePresentMisc, Misc: &ngapType.CauseMisc{Value: v}}
-	}
-
-	if len(tais) == 0 {
-		logger.WithTrace(ctx, ran.Log).Warn("RanConfigurationUpdate failure: No supported TA in the Supported TA List")
-		return misc(ngapType.CauseMiscPresentUnspecified)
-	}
-
-	operatorInfo, err := amfInstance.OperatorInfo(ctx)
+// sendRANConfigurationUpdateFailure answers with a RAN CONFIGURATION UPDATE
+// FAILURE carrying cause and, where the rejection answers a protocol error, the
+// per-IE diagnostics §10.3.5 wants.
+func sendRANConfigurationUpdateFailure(ctx context.Context, ran *amf.Radio, cause ngap.Cause, diag *ngap.CriticalityDiagnostics) {
+	pkt, err := (&ngap.RANConfigurationUpdateFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
-		return misc(ngapType.CauseMiscPresentUnspecified)
+		logger.WithTrace(ctx, ran.Log).Error("error building RAN Configuration Update Failure", zap.Error(err))
+		return
 	}
 
-	if !amf.AnyPLMNMatch(tais, operatorInfo.Guami.PlmnID) {
-		logger.WithTrace(ctx, ran.Log).Warn("No broadcast PLMN matches operator", zap.Any("gnb_tai_list", tais), zap.Any("operator_plmn", operatorInfo.Guami.PlmnID))
-		return misc(ngapType.CauseMiscPresentUnknownPLMN)
-	}
+	ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt)
+}
 
-	for i, tai := range tais {
-		if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
-			logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
-			return ngapType.Cause{}
-		}
-	}
+// sendRANConfigurationUpdateProtocolFailure rejects an update that must not
+// reach the application. The procedure defines an unsuccessful outcome, so
+// TS 38.413 §10.3.5 reports the abstract syntax error there rather than in an
+// Error Indication.
+func sendRANConfigurationUpdateProtocolFailure(ctx context.Context, ran *amf.Radio, ase *ngap.AbstractSyntaxError) {
+	diag := ase.OutcomeDiagnostics()
 
-	logger.WithTrace(ctx, ran.Log).Warn("PLMN matches but no served TAC found", zap.Any("gnb_tai_list", tais), zap.Any("core_tai_list", operatorInfo.Tais))
+	sendRANConfigurationUpdateFailure(ctx, ran, ase.Cause, &diag)
 
-	return misc(ngapType.CauseMiscPresentUnspecified)
+	logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update rejected", zap.Error(ase))
 }

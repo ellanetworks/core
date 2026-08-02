@@ -343,6 +343,21 @@ func (s *SupportedTAList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (l NGRANTNLAssociationToRemoveList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTNLAssociations, []NGRANTNLAssociationToRemoveItem(l))
+}
+
+func (l *NGRANTNLAssociationToRemoveList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[NGRANTNLAssociationToRemoveItem](r, enc, 1, maxnoofTNLAssociations)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 func (s ServedGUAMIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return marshalSeqOf(w, enc, 1, maxnoofServedGUAMIs, []ServedGUAMIItem(s))
 }

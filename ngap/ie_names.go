@@ -23,6 +23,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idSourceAMFUENGAPID:                   "SourceAMFUENGAPID",
 	idSupportedTAList:                     "SupportedTAList",
 	idTimeToWait:                          "TimeToWait",
+	idNGRANTNLAssociationToRemoveList:     "NGRANTNLAssociationToRemoveList",
 	idUEAssociatedLogicalNGConnectionList: "UEAssociatedLogicalNGConnectionList",
 	idUERetentionInformation:              "UERetentionInformation",
 }

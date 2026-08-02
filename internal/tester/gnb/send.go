@@ -17,8 +17,9 @@ type NGAPProcedure string
 
 const (
 	// Non-UE associated NGAP procedures
-	NGAPProcedureNGSetupRequest NGAPProcedure = "NGSetupRequest"
-	NGAPProcedureNGReset        NGAPProcedure = "NGReset"
+	NGAPProcedureNGSetupRequest         NGAPProcedure = "NGSetupRequest"
+	NGAPProcedureNGReset                NGAPProcedure = "NGReset"
+	NGAPProcedureRANConfigurationUpdate NGAPProcedure = "RANConfigurationUpdate"
 
 	// UE-associated NGAP procedures
 	NGAPProcedureInitialUEMessage                  NGAPProcedure = "InitialUEMessage"
@@ -38,7 +39,7 @@ const (
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
-	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset:
+	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset, NGAPProcedureRANConfigurationUpdate:
 		return 0, nil
 
 	case NGAPProcedureInitialUEMessage, NGAPProcedureUplinkNASTransport,
@@ -61,6 +62,15 @@ func (g *GnodeB) SendNGSetupRequest(opts *NGSetupRequestOpts) error {
 	}
 
 	return g.SendToRan(pkt, NGAPProcedureNGSetupRequest)
+}
+
+func (g *GnodeB) SendRANConfigurationUpdate(opts *RANConfigurationUpdateOpts) error {
+	pkt, err := BuildRANConfigurationUpdate(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build RANConfigurationUpdate: %s", err.Error())
+	}
+
+	return g.SendToRan(pkt, NGAPProcedureRANConfigurationUpdate)
 }
 
 func (g *GnodeB) SendNGReset(opts *NGResetOpts) error {

@@ -17,4 +17,13 @@ var messageParsers = []messageParser{
 	{"ParseNGSetupFailure", func(v []byte) error { _, err := ParseNGSetupFailure(v); return err }},
 	{"ParseNGSetupRequest", func(v []byte) error { _, err := ParseNGSetupRequest(v); return err }},
 	{"ParseNGSetupResponse", func(v []byte) error { _, err := ParseNGSetupResponse(v); return err }},
+	{"ParseRANConfigurationUpdate", func(v []byte) error { _, err := ParseRANConfigurationUpdate(v); return err }},
+	{"ParseRANConfigurationUpdateAcknowledge", func(v []byte) error {
+		_, err := ParseRANConfigurationUpdateAcknowledge(v)
+		return err
+	}},
+	{"ParseRANConfigurationUpdateFailure", func(v []byte) error {
+		_, err := ParseRANConfigurationUpdateFailure(v)
+		return err
+	}},
 }

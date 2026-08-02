@@ -173,13 +173,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleUplinkRanStatusTransfer(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeRANConfigurationUpdate:
-			decoded, report := decode.DecodeRANConfigurationUpdate(pdu.InitiatingMessage.Value.RANConfigurationUpdate)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleRanConfigurationUpdate(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
 			decoded, report := decode.DecodePDUSessionResourceNotify(pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
 			if !handleDecodeReport(ctx, ran, report) {

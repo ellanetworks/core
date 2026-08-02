@@ -103,6 +103,8 @@ func handleNGAPSuccessfulOutcome(pdu *ngapType.NGAPPDU, raw []byte) error {
 		return handleNGSetupResponse(outcomeValue(raw))
 	case ngapType.SuccessfulOutcomePresentNGResetAcknowledge:
 		return handleNGResetAcknowledge(outcomeValue(raw))
+	case ngapType.SuccessfulOutcomePresentRANConfigurationUpdateAcknowledge:
+		return nil // Handled via WaitForMessage
 	case ngapType.SuccessfulOutcomePresentPathSwitchRequestAcknowledge:
 		return nil // Handled via WaitForMessage
 	case ngapType.SuccessfulOutcomePresentHandoverCommand:
@@ -116,6 +118,8 @@ func handleNGAPUnsuccessfulOutcome(pdu *ngapType.NGAPPDU, raw []byte) error {
 	switch pdu.UnsuccessfulOutcome.Value.Present {
 	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
 		return handleNGSetupFailure(outcomeValue(raw))
+	case ngapType.UnsuccessfulOutcomePresentRANConfigurationUpdateFailure:
+		return nil // Handled via WaitForMessage
 	case ngapType.UnsuccessfulOutcomePresentPathSwitchRequestFailure:
 		return nil // Handled via WaitForMessage
 	default:
