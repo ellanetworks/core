@@ -9,6 +9,7 @@ db:
 interfaces:
   n2:
     address: "10.100.0.11"
+    port: 38412
   n3:
     address: "10.3.0.11"
   n6:
@@ -21,8 +22,8 @@ xdp:
 cluster:
   enabled: true
   node-id: 1
-  bind-address: "10.100.0.11:7000"
+  bind-address: "ella-core-1:7000"
   peers:
-      - "10.100.0.11:7000"
-      - "10.100.0.12:7000"
-      - "10.100.0.13:7000"
+      - "ella-core-1:7000"
+      - "ella-core-2:7000"
+      - "ella-core-3:7000"
