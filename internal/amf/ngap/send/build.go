@@ -41,38 +41,6 @@ func nrIA(sc *fgs.UESecurityCapability, n uint8) byte {
 	return 1
 }
 
-func BuildDownlinkRanConfigurationTransfer(
-	sONConfigurationTransfer *ngapType.SONConfigurationTransfer,
-) ([]byte, error) {
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeDownlinkRANConfigurationTransfer
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentDownlinkRANConfigurationTransfer
-	initiatingMessage.Value.DownlinkRANConfigurationTransfer = new(ngapType.DownlinkRANConfigurationTransfer)
-
-	downlinkRANConfigurationTransfer := initiatingMessage.Value.DownlinkRANConfigurationTransfer
-	downlinkRANConfigurationTransferIEs := &downlinkRANConfigurationTransfer.ProtocolIEs
-
-	if sONConfigurationTransfer != nil {
-		ie := ngapType.DownlinkRANConfigurationTransferIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDSONConfigurationTransferDL
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.DownlinkRANConfigurationTransferIEsPresentSONConfigurationTransferDL
-		ie.Value.SONConfigurationTransferDL = new(ngapType.SONConfigurationTransfer)
-
-		ie.Value.SONConfigurationTransferDL = sONConfigurationTransfer
-
-		downlinkRANConfigurationTransferIEs.List = append(downlinkRANConfigurationTransferIEs.List, ie)
-	}
-
-	return ngap.Encoder(pdu)
-}
-
 func BuildPathSwitchRequestFailure(
 	amfUeNgapID,
 	ranUeNgapID int64,

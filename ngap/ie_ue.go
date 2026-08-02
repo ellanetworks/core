@@ -49,3 +49,12 @@ func (id *RANUENGAPID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 	return nil
 }
+
+// TAI ::= SEQUENCE { pLMNIdentity, tAC, iE-Extensions OPTIONAL } (extensible)
+// — TS 38.413 §9.3.3.11.
+type TAI struct {
+	_            [0]struct{} `per:"extseq"`
+	PLMNIdentity PLMNIdentity
+	TAC          TAC
+	_            ieExtensions `per:",skip"`
+}

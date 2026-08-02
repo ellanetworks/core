@@ -24,6 +24,8 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"NGSetupFailure", tableIDs(nGSetupFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
 		{"RANConfigurationUpdate", tableIDs(rANConfigurationUpdateIEs), []ProtocolIEID{idRANNodeName, idSupportedTAList, idDefaultPagingDRX, idGlobalRANNodeID, idNGRANTNLAssociationToRemoveList}},
 		{"RANConfigurationUpdateAcknowledge", tableIDs(rANConfigurationUpdateAcknowledgeIEs), []ProtocolIEID{idCriticalityDiagnostics}},
+		{"UplinkRANConfigurationTransfer", tableIDs(uplinkRANConfigurationTransferIEs), []ProtocolIEID{idSONConfigurationTransferUL}},
+		{"DownlinkRANConfigurationTransfer", tableIDs(downlinkRANConfigurationTransferIEs), []ProtocolIEID{idSONConfigurationTransferDL}},
 		{"RANConfigurationUpdateFailure", tableIDs(rANConfigurationUpdateFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
 	}
 

@@ -21,6 +21,8 @@ var protocolIENames = map[ProtocolIEID]string{
 	idResetType:                           "ResetType",
 	idServedGUAMIList:                     "ServedGUAMIList",
 	idSourceAMFUENGAPID:                   "SourceAMFUENGAPID",
+	idSONConfigurationTransferDL:          "SONConfigurationTransferDL",
+	idSONConfigurationTransferUL:          "SONConfigurationTransferUL",
 	idSupportedTAList:                     "SupportedTAList",
 	idTimeToWait:                          "TimeToWait",
 	idNGRANTNLAssociationToRemoveList:     "NGRANTNLAssociationToRemoveList",

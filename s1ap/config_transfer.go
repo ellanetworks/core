@@ -17,11 +17,17 @@ func (c SONConfigurationTransfer) MarshalPER(w *per.Writer, _ per.Encoding) erro
 	return w.WriteOctets(c)
 }
 
+// sonConfigurationTransferPreambleBits is the SEQUENCE preamble ahead of the
+// first field: the extension bit, then a presence bit for iE-Extensions. NGAP's
+// counterpart has two OPTIONAL fields where S1AP has one, so the two preambles
+// differ in width.
+const sonConfigurationTransferPreambleBits = 2
+
 // TargetENBID decodes the destination eNB from the leading field (TS 36.413 §9.2.3.26).
 func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
 	r := per.NewReader(c)
 
-	for range 2 { // extension bit + iE-Extensions presence bit
+	for range sonConfigurationTransferPreambleBits {
 		if _, err := r.ReadBit(); err != nil {
 			return TargeteNBID{}, fmt.Errorf("s1ap: SONConfigurationTransfer preamble: %w", err)
 		}
@@ -57,6 +63,26 @@ var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
 			return m.SONConfigurationTransfer, true
 		},
 	},
+}
+
+func (m *ENBConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcENBConfigurationTransfer, eNBConfigurationTransferIEs, m)
+}
+
+func (m *ENBConfigurationTransfer) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcENBConfigurationTransfer,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
 }
 
 func ParseENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, error) {
@@ -106,4 +132,8 @@ func (m *MMEConfigurationTransfer) Marshal() ([]byte, error) {
 		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
+}
+
+func ParseMMEConfigurationTransfer(value []byte) (*MMEConfigurationTransfer, error) {
+	return parseMessageBody[MMEConfigurationTransfer](ProcMMEConfigurationTransfer, TriggeringInitiatingMessage, mMEConfigurationTransferIEs, value)
 }

@@ -194,13 +194,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleLocationReport(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
-			decoded, report := decode.DecodeUplinkRANConfigurationTransfer(pdu.InitiatingMessage.Value.UplinkRANConfigurationTransfer)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUplinkRanConfigurationTransfer(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
 			decoded, report := decode.DecodePDUSessionResourceModifyIndication(pdu.InitiatingMessage.Value.PDUSessionResourceModifyIndication)
 			if !handleDecodeReport(ctx, ran, report) {

@@ -19,6 +19,8 @@ const (
 	idResetType                           ProtocolIEID = 88
 	idServedGUAMIList                     ProtocolIEID = 96
 	idSourceAMFUENGAPID                   ProtocolIEID = 100
+	idSONConfigurationTransferDL          ProtocolIEID = 98
+	idSONConfigurationTransferUL          ProtocolIEID = 99
 	idSupportedTAList                     ProtocolIEID = 102
 	idTimeToWait                          ProtocolIEID = 107
 	idNGRANTNLAssociationToRemoveList     ProtocolIEID = 167

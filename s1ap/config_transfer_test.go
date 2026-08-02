@@ -141,3 +141,63 @@ func TestENBConfigurationTransfer_NoSONIE(t *testing.T) {
 		t.Fatalf("expected nil SON Configuration Transfer, got %x", msg.SONConfigurationTransfer)
 	}
 }
+
+// Both directions must encode and decode: the MME parses ENB CONFIGURATION
+// TRANSFER and builds MME CONFIGURATION TRANSFER, and an eNB peer needs the
+// mirror of each. TS 36.413 §8.15.2/§8.16.2 relay the SON Configuration
+// Transfer verbatim, so the payload must survive untouched in both.
+func TestConfigurationTransferRelaysVerbatimBothDirections(t *testing.T) {
+	transfer := SONConfigurationTransfer{0x01, 0x02, 0x03, 0x04}
+
+	t.Run("eNB to MME", func(t *testing.T) {
+		b, err := (&ENBConfigurationTransfer{SONConfigurationTransfer: transfer}).Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pdu, err := Unmarshal(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		im, ok := pdu.(*InitiatingMessage)
+		if !ok || im.ProcedureCode != ProcENBConfigurationTransfer {
+			t.Fatalf("got %T procedureCode %d", pdu, pdu.procedureCode())
+		}
+
+		out, err := ParseENBConfigurationTransfer(im.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(out.SONConfigurationTransfer, transfer) {
+			t.Errorf("transfer = %x, want %x", out.SONConfigurationTransfer, transfer)
+		}
+	})
+
+	t.Run("MME to eNB", func(t *testing.T) {
+		b, err := (&MMEConfigurationTransfer{SONConfigurationTransfer: transfer}).Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pdu, err := Unmarshal(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		im, ok := pdu.(*InitiatingMessage)
+		if !ok || im.ProcedureCode != ProcMMEConfigurationTransfer {
+			t.Fatalf("got %T procedureCode %d", pdu, pdu.procedureCode())
+		}
+
+		out, err := ParseMMEConfigurationTransfer(im.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(out.SONConfigurationTransfer, transfer) {
+			t.Errorf("transfer = %x, want %x", out.SONConfigurationTransfer, transfer)
+		}
+	})
+}

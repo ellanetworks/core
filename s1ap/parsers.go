@@ -14,6 +14,7 @@ var messageParsers = []messageParser{
 	{"ParseDownlinkNASTransport", func(v []byte) error { _, err := ParseDownlinkNASTransport(v); return err }},
 	{"ParseDownlinkUEAssociatedLPPaTransport", func(v []byte) error { _, err := ParseDownlinkUEAssociatedLPPaTransport(v); return err }},
 	{"ParseENBConfigurationTransfer", func(v []byte) error { _, err := ParseENBConfigurationTransfer(v); return err }},
+	{"ParseMMEConfigurationTransfer", func(v []byte) error { _, err := ParseMMEConfigurationTransfer(v); return err }},
 	{"ParseENBConfigurationUpdate", func(v []byte) error { _, err := ParseENBConfigurationUpdate(v); return err }},
 	{"ParseENBConfigurationUpdateAcknowledge", func(v []byte) error { _, err := ParseENBConfigurationUpdateAcknowledge(v); return err }},
 	{"ParseENBConfigurationUpdateFailure", func(v []byte) error { _, err := ParseENBConfigurationUpdateFailure(v); return err }},

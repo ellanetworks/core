@@ -25,6 +25,8 @@ const (
 	ngResetMessageType         send.NGAPProcedure = "NGReset"
 
 	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
+
+	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
 
 // handleMigrated dispatches the procedures decoded by the in-house NGAP codec
@@ -52,6 +54,8 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		receiveNGReset(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcRANConfigurationUpdate:
 		receiveRANConfigurationUpdate(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcUplinkRANConfigurationTransfer:
+		receiveUplinkRANConfigurationTransfer(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -171,4 +175,21 @@ func receiveRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ra
 	}
 
 	HandleRANConfigurationUpdate(ctx, amfInstance, ran, req)
+}
+
+// receiveUplinkRANConfigurationTransfer parses and handles an UPLINK RAN
+// CONFIGURATION TRANSFER. The procedure defines no unsuccessful outcome, so a
+// failed parse is answered with an Error Indication (TS 38.413 §10.3.5).
+func receiveUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, uplinkRANConfigurationTransferMessageType, span)
+
+	req, err := ngap.ParseUplinkRANConfigurationTransfer(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Uplink RAN Configuration Transfer", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkRANConfigurationTransfer, err)
+
+		return
+	}
+
+	HandleUplinkRANConfigurationTransfer(ctx, amfInstance, ran, req)
 }
