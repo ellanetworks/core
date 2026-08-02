@@ -20,7 +20,7 @@ configs:
           address: "10.3.0.2"
           port: 5002
       datapath:
-        attach-mode: "${ELLA_ATTACH_MODE:-xdp-generic}"
+        attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
   gobgp_config:
     content: |
       [global.config]

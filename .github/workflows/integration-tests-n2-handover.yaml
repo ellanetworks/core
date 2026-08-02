@@ -43,7 +43,7 @@ jobs:
       - name: Run N2 Handover integration tests
         env:
           INTEGRATION: "1"
-          ELLA_ATTACH_MODE: ${{ matrix.attach_mode }}
+          ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
           go test ./integration/... -run TestIntegration5GN2Handover -v -timeout 10m

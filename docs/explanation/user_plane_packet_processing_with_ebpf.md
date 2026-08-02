@@ -1,10 +1,10 @@
 ---
-description: How Ella Core's data plane is built, and what the choice of kernel hook implies.
+description: Data Plane Packet Processing with eBPF explanation - Definitions, components, and workflow of packet processing.
 ---
 
 # Data Plane Packet processing with eBPF
 
-The data plane is the part of Ella Core that carries subscriber traffic, between the **N3 / S1-U** and **N6 / SGi** interfaces. This page explains how it is built and why, so that you can reason about the choices it exposes — chiefly which kernel hook it attaches to.
+This document explains the key concepts behind packet Ella Core's subscriber data packet processing, between the **N3 / S1-U** and **N6 / SGi** interfaces. It covers the components, workflow, and technologies used in the data plane.
 
 ## eBPF, XDP, and TCX
 

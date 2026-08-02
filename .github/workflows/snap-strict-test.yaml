@@ -22,10 +22,6 @@ jobs:
           name: ella-core-snap
           path: ${{ steps.build.outputs.snap }}
 
-  # One install per attach mechanism, from the same build. Strict confinement is
-  # the one place the two attach paths can diverge on permissions: generic XDP
-  # attaches over netlink (the same path native XDP uses, which no runner can
-  # exercise), while TCX goes through bpf() BPF_LINK_CREATE and pins to bpffs.
   snap-install:
     needs: snap-build
     strategy:

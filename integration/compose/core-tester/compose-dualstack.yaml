@@ -20,7 +20,7 @@ configs:
           name: "eth0"
           port: 5002
       datapath:
-        attach-mode: "${ELLA_ATTACH_MODE:-xdp-generic}"
+        attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
 
 services:
   ella-core:

@@ -47,7 +47,7 @@ jobs:
       - name: Run framed routing 4G integration test
         env:
           INTEGRATION: "1"
-          ELLA_ATTACH_MODE: ${{ matrix.attach_mode }}
+          ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ${{ matrix.ip_version }}
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/framed-logs
         run: |
