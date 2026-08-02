@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -152,6 +153,13 @@ type Diagnostics struct {
 	// Truncated dropped it, so a report is never starved by ignore entries.
 	notify bool
 }
+
+// errNotComprehended marks a decode failure that TS 38.413 §10.3.1 classifies as
+// a not-comprehended IE (cases 1, 2 and 6) rather than a transfer syntax error.
+// §10.3.1 requires these to be "handled based on received Criticality
+// information", so the IE table applies the IE's criticality instead of
+// abandoning the message.
+var errNotComprehended = errors.New("ngap: IE not comprehended")
 
 // DiagnosticIE names an IE an abstract syntax error concerned, and what was
 // wrong with it.

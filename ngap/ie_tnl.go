@@ -58,9 +58,12 @@ func (c *CPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encodi
 
 // NGRANTNLAssociationToRemoveItem ::= SEQUENCE {
 // tNLAssociationTransportLayerAddress, tNLAssociationTransportLayerAddressAMF
-// OPTIONAL, iE-Extensions OPTIONAL } (extensible).
+// OPTIONAL, iE-Extensions OPTIONAL }.
+//
+// Unlike every sibling item in §9.3, this SEQUENCE carries no extension marker
+// (TS 38.413 ASN.1, NGRAN-TNLAssociationToRemoveItem), so its preamble is the
+// two OPTIONAL bits with no leading extension bit.
 type NGRANTNLAssociationToRemoveItem struct {
-	_                                      [0]struct{} `per:"extseq"`
 	TNLAssociationTransportLayerAddress    CPTransportLayerInformation
 	TNLAssociationTransportLayerAddressAMF *CPTransportLayerInformation `per:",optional"`
 	_                                      ieExtensions                 `per:",skip"`

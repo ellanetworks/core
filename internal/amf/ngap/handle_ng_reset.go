@@ -41,27 +41,34 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, re
 		return
 	}
 
-	reset := releaseListedUEs(ctx, amfInstance, ran, req.ResetType.Part)
+	released := releaseListedUEs(ctx, amfInstance, ran, req.ResetType.Part)
 
 	logger.WithTrace(ctx, ran.Log).Info("NG Reset (part of interface)",
 		zap.String("cause", cause),
 		zap.Int("requested", len(req.ResetType.Part)),
-		zap.Int("connections", len(reset)))
+		zap.Int("connections", len(released)))
 
-	// TS 38.413 §8.7.4.2.1: the acknowledge echoes the UE-associated logical
-	// NG-connections that were reset.
-	sendNGResetAcknowledge(ctx, ran, reset, req.Diagnostics())
+	// TS 38.413 §8.7.4.2.2: the acknowledge echoes every UE-associated logical
+	// NG-connection the reset named, in the order received, including the ones
+	// this AMF does not hold.
+	sendNGResetAcknowledge(ctx, ran, req.ResetType.Part, req.Diagnostics())
 }
 
-// releaseListedUEs releases each UE the list names and returns the entries that
-// matched, which is what the acknowledge echoes. An entry naming no UE this AMF
-// holds is skipped: the gNB may be resetting a connection the AMF already lost.
+// releaseListedUEs releases each UE the list names and returns the entries it
+// actually released, which is what the log reports. It is deliberately not what
+// the acknowledge echoes: TS 38.413 §8.7.4.2.2 requires the echo to carry every
+// named connection, in the order received, "and shall include also unknown
+// UE-associated logical NG-connections", because the gNB cannot reuse a UE NGAP
+// ID until the AMF has confirmed it.
 func releaseListedUEs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, list ngap.UEAssociatedLogicalNGConnectionList) ngap.UEAssociatedLogicalNGConnectionList {
-	reset := make(ngap.UEAssociatedLogicalNGConnectionList, 0, len(list))
+	released := make(ngap.UEAssociatedLogicalNGConnectionList, 0, len(list))
 
 	for _, item := range list {
 		ueConn := findUEForConnectionItem(amfInstance, ran, item)
 		if ueConn == nil {
+			// §8.7.4.4.1: an item naming neither identity names nothing and is
+			// ignored; one naming a UE this AMF has already lost is equally
+			// nothing to release. Both are still echoed by the caller.
 			logger.WithTrace(ctx, ran.Log).Warn("NG Reset names a UE this AMF does not hold",
 				zap.Any("amf-ue-id", item.AMFUENGAPID), zap.Any("ran-ue-id", item.RANUENGAPID))
 
@@ -74,10 +81,10 @@ func releaseListedUEs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 			continue
 		}
 
-		reset = append(reset, item)
+		released = append(released, item)
 	}
 
-	return reset
+	return released
 }
 
 // findUEForConnectionItem resolves one UE-associated logical NG-connection.

@@ -125,4 +125,22 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 	if len(sender.SentNGResetAcknowledges) != 1 {
 		t.Fatalf("expected 1 NGResetAcknowledge, got %d", len(sender.SentNGResetAcknowledges))
 	}
+
+	// TS 38.413 §8.7.4.2.2: the acknowledge "shall include also unknown
+	// UE-associated logical NG-connections". The gNB cannot reuse a UE NGAP ID
+	// until the AMF confirms it, so dropping the ones this AMF never held would
+	// strand them.
+	list := sender.SentNGResetAcknowledges[0].PartOfNGInterface
+	if list == nil || len(list.List) != 1 {
+		t.Fatalf("acknowledge must echo the unknown connection, got %+v", list)
+	}
+
+	item := list.List[0]
+	if item.AMFUENGAPID == nil || item.AMFUENGAPID.Value != 999 {
+		t.Errorf("echoed AMF-UE-NGAP-ID = %+v, want 999", item.AMFUENGAPID)
+	}
+
+	if item.RANUENGAPID == nil || item.RANUENGAPID.Value != 999 {
+		t.Errorf("echoed RAN-UE-NGAP-ID = %+v, want 999", item.RANUENGAPID)
+	}
 }

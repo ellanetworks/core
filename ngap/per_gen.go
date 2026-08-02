@@ -281,7 +281,6 @@ func (gUAMI *GUAMI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 }
 
 func (nGRANTNLAssociationToRemoveItem *NGRANTNLAssociationToRemoveItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
 	w.WriteBit(nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddressAMF != nil)
 	w.WriteBit(false)
 	if err := nGRANTNLAssociationToRemoveItem.TNLAssociationTransportLayerAddress.MarshalPER(w, enc); err != nil {
@@ -296,10 +295,6 @@ func (nGRANTNLAssociationToRemoveItem *NGRANTNLAssociationToRemoveItem) MarshalP
 }
 
 func (nGRANTNLAssociationToRemoveItem *NGRANTNLAssociationToRemoveItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
 	p_TNLAssociationTransportLayerAddressAMF, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -324,30 +319,6 @@ func (nGRANTNLAssociationToRemoveItem *NGRANTNLAssociationToRemoveItem) Unmarsha
 			return err
 		}
 		_ = v
-	}
-	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits[i] = b
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }

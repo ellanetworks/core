@@ -62,6 +62,41 @@ func TestNGRANTNLAssociationToRemoveListRoundTrip(t *testing.T) {
 	}
 }
 
+// NGRAN-TNLAssociationToRemoveItem is the one item SEQUENCE in §9.3 with no
+// extension marker, so its preamble is the two OPTIONAL bits and nothing else.
+// A leading extension bit would shift every field by one and misread a
+// conformant peer, so the first bit is pinned to the AMF-address presence.
+func TestNGRANTNLAssociationToRemoveItemPreambleHasNoExtensionBit(t *testing.T) {
+	encode := func(t *testing.T, item NGRANTNLAssociationToRemoveItem) []byte {
+		t.Helper()
+
+		w := per.NewWriter()
+		if err := item.MarshalPER(w, per.Aligned); err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+
+		return perBytes(w)
+	}
+
+	addr := CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 3, 0, 3}}
+
+	without := encode(t, NGRANTNLAssociationToRemoveItem{TNLAssociationTransportLayerAddress: addr})
+	with := encode(t, NGRANTNLAssociationToRemoveItem{
+		TNLAssociationTransportLayerAddress:    addr,
+		TNLAssociationTransportLayerAddressAMF: &addr,
+	})
+
+	// Bit 0 is the AMF-address presence bit: it must track the field, which it
+	// cannot do if an extension bit sits in front of it.
+	if got := without[0] & 0x80; got != 0x00 {
+		t.Errorf("first bit with AMF address absent = %#02x, want 0 (presence bit, not an extension bit)", got)
+	}
+
+	if got := with[0] & 0x80; got != 0x80 {
+		t.Errorf("first bit with AMF address present = %#02x, want the high bit set", got)
+	}
+}
+
 // TS 38.413 §9.3.2.6 closes CPTransportLayerInformation with a choice-Extensions
 // alternative rather than an extension marker, so selecting it must be an
 // explicit error and not a zero address that reads as one the peer chose.

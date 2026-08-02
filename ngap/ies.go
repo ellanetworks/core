@@ -144,7 +144,11 @@ func decodeChoiceExtension(r *per.Reader, enc per.Encoding, choice string) error
 		return fmt.Errorf("ngap: %s choice-Extensions value: %w", choice, err)
 	}
 
-	return fmt.Errorf("ngap: unsupported %s alternative %s", choice, ProtocolIEID(id))
+	// TS 38.413 §10.3.1 case 6, "receives IEs or IE groups for a functionality
+	// that is not supported", is an abstract syntax error handled on the IE's
+	// criticality — not a transfer syntax error. The container was consumed
+	// above, so the decoder is positioned to carry on if criticality allows it.
+	return fmt.Errorf("%w: unsupported %s alternative %s", errNotComprehended, choice, ProtocolIEID(id))
 }
 
 // decodeIEContainer reads a ProtocolIE-Container in wire order, keeping every

@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
@@ -182,6 +183,24 @@ func parseMessageBody[M any, PM interface {
 		lastIdx = idx
 
 		if err := spec.decode((*M)(m), f.value, enc); err != nil {
+			// §10.3.1 cases 1, 2 and 6 are not-comprehended IEs, "handled based
+			// on received Criticality information" — the same three-way choice
+			// §10.3.4.2 makes for an unknown IE id, not an abandoned message.
+			if errors.Is(err, errNotComprehended) {
+				if f.crit == CriticalityReject {
+					return nil, reject(CauseProtocolAbstractSyntaxErrorReject,
+						[]CriticalityDiagnosticsIEItem{{
+							IECriticality: f.crit,
+							IEID:          f.id,
+							TypeOfError:   TypeOfErrorNotUnderstood,
+						}})
+				}
+
+				meta.diagnostics.record(f.id, f.crit, TypeOfErrorNotUnderstood)
+
+				continue
+			}
+
 			return nil, &TransferSyntaxError{
 				Procedure: procedure,
 				Err:       fmt.Errorf("IE %s: %w", f.id, err),
