@@ -180,3 +180,30 @@ func TestHandleRANConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
 		t.Fatalf("expected Misc/UnknownPLMN cause, got %+v", failure.Cause.Misc)
 	}
 }
+
+// TS 38.413 §8.7.2.2: "If the Global RAN Node ID IE is included ... the AMF
+// shall associate the TNLA to the NG-C interface instance using the Global RAN
+// Node ID." §8.7.2.1 adds that the procedure "does not affect existing
+// UE-related contexts", so the re-key must not disturb them.
+func TestHandleRANConfigurationUpdate_RebindsGlobalRANNodeID(t *testing.T) {
+	ran := newTestRadio(newTestAMF())
+	amfInstance := newTestAMF()
+
+	newID := ngaplib.GlobalRANNodeID{
+		Kind:         ngaplib.RANNodeIDGNB,
+		PLMNIdentity: ngaplib.PLMNIdentity{0x00, 0xf1, 0x10},
+		Value:        0x0000AB,
+		Bits:         24,
+	}
+
+	ngap.HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
+		&ngaplib.RANConfigurationUpdate{GlobalRANNodeID: &newID})
+
+	if ran.RanID == nil {
+		t.Fatal("Global RAN Node ID was not associated with the radio")
+	}
+
+	if found, ok := amfInstance.FindRadioByRanID(*ran.RanID); !ok || found != ran {
+		t.Errorf("radio not reachable by its new Global RAN Node ID (ok=%v)", ok)
+	}
+}

@@ -52,7 +52,11 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	tais, outBytes, accepted, reason, err := ngSetupOutcomeFor(req, operatorInfo, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
 	if err != nil {
+		// §8.7.1.3 obliges an answer whenever the AMF cannot accept the setup,
+		// which includes being unable to build its own response.
 		logger.WithTrace(ctx, ran.Log).Error("failed to handle NG Setup Request", zap.Error(err))
+		sendNGSetupFailure(ctx, ran, causeNoServedTAC, nil)
+
 		return
 	}
 

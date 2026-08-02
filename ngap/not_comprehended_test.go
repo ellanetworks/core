@@ -102,3 +102,31 @@ func TestChoiceExtensionOnIgnoreIEIsIgnored(t *testing.T) {
 		t.Errorf("not-comprehended Cause missing from diagnostics: %+v", msg.Diagnostics().IEs)
 	}
 }
+
+// TS 38.413 §10.3.1 has the receiver "read the remaining message and ... then
+// for each detected Abstract Syntax Error" act, and §10.3.4.2 wants a
+// Criticality Diagnostics entry "for each reported IE/IE group" — so two
+// not-comprehended reject IEs must produce two entries, not just the first.
+func TestAllNotComprehendedRejectIEsAreReported(t *testing.T) {
+	value := container(t,
+		ieField{id: ProtocolIEID(40001), crit: CriticalityReject, raw: []byte{0x00}},
+		ieField{id: ProtocolIEID(40002), crit: CriticalityReject, raw: []byte{0x00}},
+	)
+
+	_, err := ParseNGSetupRequest(value)
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
+	}
+
+	if len(ase.IEs) != 2 {
+		t.Fatalf("reported %d IEs, want 2: %+v", len(ase.IEs), ase.IEs)
+	}
+
+	for i, want := range []ProtocolIEID{40001, 40002} {
+		if ase.IEs[i].IEID != want || ase.IEs[i].TypeOfError != TypeOfErrorNotUnderstood {
+			t.Errorf("entry %d = %+v, want not-understood %s", i, ase.IEs[i], want)
+		}
+	}
+}

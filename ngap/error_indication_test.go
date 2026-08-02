@@ -115,20 +115,20 @@ func TestErrorIndicationGoldenDecode(t *testing.T) {
 	}
 }
 
-// Every IE is optional, so an ERROR INDICATION carrying nothing is still a
-// valid message the receiver must accept (TS 38.413 §9.2.6.5).
+// TS 38.413 §8.7.5.2: "The ERROR INDICATION message shall contain at least
+// either the Cause IE or the Criticality Diagnostics IE." §10.3.3 binds the
+// sender, so encoding one that carries neither must fail.
+func TestErrorIndicationRefusesEmptyOnSend(t *testing.T) {
+	if _, err := (&ErrorIndication{}).Marshal(); err == nil {
+		t.Fatal("Marshal() = nil error, want a refusal for a message with neither IE")
+	}
+}
+
+// Every IE is optional in the ASN.1 (§9.2.6.13), so a peer can still put an
+// empty one on the wire. The receiver must decode it rather than fall over; the
+// application-level guard then decides what to do with it.
 func TestErrorIndicationEmpty(t *testing.T) {
-	b, err := (&ErrorIndication{}).Marshal()
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
-	}
-
-	pdu, err := Unmarshal(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	msg, err := ParseErrorIndication(pdu.value())
+	msg, err := ParseErrorIndication(container(t))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}

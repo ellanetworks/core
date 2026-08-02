@@ -448,6 +448,43 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) *Radio 
 	return evicted
 }
 
+// RebindRanID re-keys a connected radio onto the Global RAN Node ID a RAN
+// CONFIGURATION UPDATE carries, so the TNLA stays associated with the right
+// NG-C interface instance (TS 38.413 §8.7.2.2).
+//
+// Unlike ClaimRanID it leaves every UE context alone, because §8.7.2.1 states
+// the procedure "does not affect existing UE-related contexts, if any". For the
+// same reason it never evicts an incumbent holding the same identity: it reports
+// false and leaves the registry untouched, so a conflicting update costs nobody
+// their sessions.
+func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) bool {
+	newID := util.RANNodeIDToModels(ranNodeID)
+
+	key, ok := radioIDKey(&newID)
+	if !ok {
+		return false
+	}
+
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	if holder, taken := amf.radiosByID[key]; taken && holder != radio {
+		return false
+	}
+
+	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey == key {
+		return true
+	} else if ok {
+		delete(amf.radiosByID, oldKey)
+	}
+
+	radio.RanPresent = ranPresentFor(ranNodeID.Kind)
+	radio.RanID = &newID
+	amf.radiosByID[key] = radio
+
+	return true
+}
+
 // ranPresentFor maps a Global RAN Node ID alternative onto the node kind the
 // Radio records. The three ng-eNB macro variants are one kind here: they differ
 // only in identifier width, which RanID already carries.

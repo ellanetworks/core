@@ -103,7 +103,7 @@ func findUEForConnectionItem(amfInstance *amf.AMF, ran *amf.Radio, item ngap.UEA
 }
 
 // sendNGResetAcknowledge answers an NG RESET with NG RESET ACKNOWLEDGE
-// (TS 38.413 §9.2.6.12). connectionList is nil only for a whole-interface reset.
+// (TS 38.413 §9.2.6.11). connectionList is nil only for a whole-interface reset.
 func sendNGResetAcknowledge(ctx context.Context, ran *amf.Radio, connectionList ngap.UEAssociatedLogicalNGConnectionList, diag ngap.Diagnostics) {
 	ack := &ngap.NGResetAcknowledge{ConnectionList: connectionList}
 

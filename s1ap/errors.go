@@ -4,9 +4,17 @@
 package s1ap
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// errNotComprehended marks a decode failure that TS 36.413 §10.3.1 classifies as
+// a not-comprehended IE (cases 1, 2 and 6) rather than a transfer syntax error.
+// §10.3.1 requires these to be "handled based on received Criticality
+// information", so the IE table applies the IE's criticality instead of
+// abandoning the message.
+var errNotComprehended = errors.New("s1ap: IE not comprehended")
 
 // TransferSyntaxError reports octets that are not a decodable PER encoding.
 // Nothing of the message is recoverable (TS 36.413 §10.2).

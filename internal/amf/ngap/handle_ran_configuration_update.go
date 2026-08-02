@@ -64,6 +64,14 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 		amfInstance.UpdateRadioSupportedTAIs(ran, tais)
 	}
 
+	// §8.7.2.2: "If the Global RAN Node ID IE is included ... the AMF shall
+	// associate the TNLA to the NG-C interface instance using the Global RAN
+	// Node ID." Re-keying leaves UE contexts alone, as §8.7.2.1 requires.
+	if req.GlobalRANNodeID != nil && !amfInstance.RebindRanID(ran, *req.GlobalRANNodeID) {
+		logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update names a Global RAN Node ID held by another association",
+			zap.Any("global-ran-node-id", req.GlobalRANNodeID))
+	}
+
 	ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, outBytes)
 
 	logger.WithTrace(ctx, ran.Log).Info("RAN Configuration Update acknowledged",

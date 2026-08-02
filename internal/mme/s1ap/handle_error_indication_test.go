@@ -35,7 +35,11 @@ func TestErrorIndicationReleasesReferencedUE(t *testing.T) {
 func TestErrorIndicationWithoutUEIsNoop(t *testing.T) {
 	m := newTestMME(t)
 
-	b, err := (&s1ap.ErrorIndication{}).Marshal()
+	// Carries a Cause but neither UE identity: §8.7.2.2 requires at least one of
+	// Cause / Criticality Diagnostics, and the UE IEs stay absent.
+	b, err := (&s1ap.ErrorIndication{
+		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}),
+	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}

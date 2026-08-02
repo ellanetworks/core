@@ -74,14 +74,14 @@ func traceMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg
 }
 
 // receiveErrorIndication parses and handles an ERROR INDICATION. A failed parse
-// is not answered: TS 38.413 §10.3 forbids replying to an Error Indication with
+// is not answered: TS 38.413 §10.5 forbids replying to an Error Indication with
 // another, which would loop.
 func receiveErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
 	traceMessage(ctx, amfInstance, ran, msg, errorIndicationMessageType, span)
 
 	ind, err := ngap.ParseErrorIndication(im.Value)
 	if err != nil {
-		// TS 38.413 §10.3 forbids answering an Error Indication with another,
+		// TS 38.413 §10.5 forbids answering an Error Indication with another,
 		// so a failed parse is logged and dropped.
 		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Error Indication", zap.Error(err))
 

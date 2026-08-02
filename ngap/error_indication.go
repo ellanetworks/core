@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 38.413 §9.2.6.5. Every IE is optional and ignore criticality, so an
+// TS 38.413 §9.2.6.13. Every IE is optional and ignore criticality, so an
 // ERROR INDICATION always reaches the application, however little it carries.
 type ErrorIndication struct {
 	AMFUENGAPID            *AMFUENGAPID
@@ -134,6 +134,13 @@ func (m *ErrorIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
 }
 
 func (m *ErrorIndication) Marshal() ([]byte, error) {
+	// TS 38.413 §8.7.5.2: "The ERROR INDICATION message shall contain at least
+	// either the Cause IE or the Criticality Diagnostics IE." Every IE is
+	// optional, so the IE table cannot enforce it; §10.3.3 binds the sender.
+	if m.Cause == nil && m.CriticalityDiagnostics == nil {
+		return nil, fmt.Errorf("ngap: ErrorIndication needs at least a Cause or Criticality Diagnostics")
+	}
+
 	w := per.NewWriter()
 
 	if err := m.encodeBody(w, per.Aligned); err != nil {

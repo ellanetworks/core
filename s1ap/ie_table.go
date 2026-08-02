@@ -4,6 +4,7 @@
 package s1ap
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
@@ -152,18 +153,26 @@ func parseMessageBody[M any, PM interface {
 	seen := make(map[ProtocolIEID]bool, len(table))
 	lastIdx := -1
 
+	// Every not-comprehended reject IE is collected so the single report names
+	// them all (§10.3.4.2: "for each reported IE/IE group").
+	var notUnderstood []CriticalityDiagnosticsIEItem
+
 	for _, f := range fields {
 		idx, spec, ok := lookupIESpec(table, f.id)
 		if !ok {
 			// §10.3.4.2: a not-comprehended IE marked reject stops the
-			// procedure; the rest are reported and carried past.
+			// procedure; the rest are reported and carried past. §10.3.1 has
+			// the receiver "read the remaining message and ... then for each
+			// detected Abstract Syntax Error" act, so the scan continues and
+			// every offending IE is reported together.
 			if f.crit == CriticalityReject {
-				return nil, reject(CauseProtocolAbstractSyntaxErrorReject,
-					[]CriticalityDiagnosticsIEItem{{
-						IECriticality: f.crit,
-						IEID:          f.id,
-						TypeOfError:   TypeOfErrorNotUnderstood,
-					}})
+				notUnderstood = append(notUnderstood, CriticalityDiagnosticsIEItem{
+					IECriticality: f.crit,
+					IEID:          f.id,
+					TypeOfError:   TypeOfErrorNotUnderstood,
+				})
+
+				continue
 			}
 
 			meta.diagnostics.record(f.id, f.crit, TypeOfErrorNotUnderstood)
@@ -182,6 +191,25 @@ func parseMessageBody[M any, PM interface {
 		lastIdx = idx
 
 		if err := spec.decode((*M)(m), f.value, enc); err != nil {
+			// §10.3.1 cases 1, 2 and 6 are not-comprehended IEs, "handled based
+			// on received Criticality information" — the same three-way choice
+			// §10.3.4.2 makes for an unknown IE id, not an abandoned message.
+			if errors.Is(err, errNotComprehended) {
+				if f.crit == CriticalityReject {
+					notUnderstood = append(notUnderstood, CriticalityDiagnosticsIEItem{
+						IECriticality: f.crit,
+						IEID:          f.id,
+						TypeOfError:   TypeOfErrorNotUnderstood,
+					})
+
+					continue
+				}
+
+				meta.diagnostics.record(f.id, f.crit, TypeOfErrorNotUnderstood)
+
+				continue
+			}
+
 			return nil, &TransferSyntaxError{
 				Procedure: procedure,
 				Err:       fmt.Errorf("IE %s: %w", f.id, err),
@@ -189,6 +217,10 @@ func parseMessageBody[M any, PM interface {
 		}
 
 		seen[f.id] = true
+	}
+
+	if len(notUnderstood) > 0 {
+		return nil, reject(CauseProtocolAbstractSyntaxErrorReject, notUnderstood)
 	}
 
 	// §10.3.5: absence is judged per IE, by the criticality §9.1 assigns it

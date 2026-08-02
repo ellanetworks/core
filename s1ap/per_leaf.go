@@ -251,18 +251,36 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 
+	var rejected ProtocolIEID
+
+	comprehended := true
+
 	for i := int64(0); i < n; i++ {
-		if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs); err != nil {
+		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
+		if err != nil {
 			return err
 		}
 
-		if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {
+		crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
+		if err != nil {
 			return err
 		}
 
 		if err := per.SkipOpenType(r, enc); err != nil {
 			return err
 		}
+
+		// TS 36.413 §10.3.4.2: an extension this version does not model is a
+		// not-comprehended IE, and one marked reject stops the procedure. The
+		// whole container is still consumed first so the reader stays aligned
+		// for a caller whose criticality lets it carry on.
+		if Criticality(crit) == CriticalityReject && comprehended {
+			comprehended, rejected = false, ProtocolIEID(id)
+		}
+	}
+
+	if !comprehended {
+		return fmt.Errorf("%w: iE-Extensions %s", errNotComprehended, rejected)
 	}
 
 	return nil

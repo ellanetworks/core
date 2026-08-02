@@ -54,7 +54,7 @@ type PLMNSupportList []PLMNSupportItem
 // UERetentionInformation ::= ENUMERATED { ues-retained, ... } (extensible).
 // A gNB offers UE retention across NG Setup; Ella Core never accepts it, so
 // the AMF ignores the value, but it is modeled so a decode renders its name
-// rather than opaque octets (TS 38.413 §9.3.1.86).
+// rather than opaque octets (TS 38.413 §9.3.1.117).
 type UERetentionInformation uint8
 
 const (

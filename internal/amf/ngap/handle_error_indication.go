@@ -29,7 +29,7 @@ func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorInd
 }
 
 // sendErrorIndication answers a UE-associated message the AMF cannot act on,
-// naming the association it concerns (TS 38.413 §8.4.4.2).
+// naming the association it concerns (TS 38.413 §8.7.5.2).
 func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID *ngap.AMFUENGAPID, ranID *ngap.RANUENGAPID, cause ngap.Cause) {
 	c := cause
 	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{AMFUENGAPID: amfID, RANUENGAPID: ranID, Cause: &c})
@@ -39,7 +39,7 @@ func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID *ngap.AMFUEN
 //
 // An abstract syntax error carries the cause and the per-IE diagnostics the
 // rejection must report (TS 38.413 §10.3.5); where the message is UE
-// associated, the UE NGAP IDs that did decode address it (§8.4.4.2). Octets
+// associated, the UE NGAP IDs that did decode address it (§8.7.5.2). Octets
 // that did not decode at all leave nothing to cite beyond the procedure
 // (§10.2).
 func sendParseErrorIndication(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode, err error) {
@@ -73,12 +73,12 @@ func sendParseErrorIndication(ctx context.Context, ran *amf.Radio, proc ngap.Pro
 }
 
 // handleErrorIndication processes an ERROR INDICATION from the gNB
-// (TS 38.413 §8.7.4). A protocol error on a UE-associated NG connection leaves
+// (TS 38.413 §8.7.5). A protocol error on a UE-associated NG connection leaves
 // it in an inconsistent state, so if the indication names a known UE the AMF
 // releases it to CM-IDLE, where it re-establishes cleanly on its next Service
 // Request.
 func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.ErrorIndication) {
-	// §9.2.6.5 requires at least one of Cause and Criticality Diagnostics; a
+	// §9.2.6.13 requires at least one of Cause and Criticality Diagnostics; a
 	// peer sending neither has told us nothing to act on.
 	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Error Indication carries neither Cause nor Criticality Diagnostics")
