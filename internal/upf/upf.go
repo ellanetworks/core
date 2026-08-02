@@ -138,7 +138,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		zap.String("n3", n3AttachmentInterface), zap.String("n6", n6AttachmentInterface))
 
 	if attachedMode == config.DatapathTCX {
-		warnGROOnTCX(n6AttachmentInterface)
+		warnMergedPacketSources(n3AttachmentInterface, n6AttachmentInterface)
 	}
 
 	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)

@@ -76,10 +76,14 @@ struct packet_context {
 /* A merged buffer holds several datagrams behind one set of headers, so
  * neither encapsulation nor decapsulation can produce a correct frame from
  * it. The kernel merges on receive with GRO, and a veth or virtio peer can
- * deliver one without any merge on this side. */
+ * deliver one without any merge on this side.
+ *
+ * A buffer no longer than one segment is not merged, whatever gso_size says. */
 static __always_inline int frame_is_merged(const struct packet_context *ctx)
 {
-	return ctx_gso_segs(ctx->ctx_buff) > 1;
+	__u32 gso_size = ctx_gso_size(ctx->ctx_buff);
+
+	return gso_size != 0 && ctx_full_len(ctx->ctx_buff) > gso_size;
 }
 
 /* Every drop in the datapath returns through one of these, so the reason

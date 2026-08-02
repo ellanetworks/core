@@ -99,10 +99,13 @@ static __always_inline __u32 ctx_ingress_ifindex(struct __ctx_buff *ctx)
 	return ctx->ingress_ifindex;
 }
 
-/* 0 or 1 for wire-sized frames. */
-static __always_inline __u32 ctx_gso_segs(struct __ctx_buff *ctx)
+/* Non-zero when the buffer holds several datagrams. gso_segs is not usable
+ * for this: a virtio, tap or vhost source leaves it at 0 and flags the buffer
+ * SKB_GSO_DODGY (include/linux/virtio_net.h), so only gso_size distinguishes
+ * a merged buffer — it is what skb_is_gso() itself reads. */
+static __always_inline __u32 ctx_gso_size(struct __ctx_buff *ctx)
 {
-	return ctx->gso_segs;
+	return ctx->gso_size;
 }
 
 /* Counts frags, so it validates datagram lengths on non-linear frames. Not a

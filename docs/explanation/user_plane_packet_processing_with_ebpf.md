@@ -60,13 +60,13 @@ packet.
 
 Both hooks that run on the socket buffer can be handed one holding several packets merged together — merged by the kernel's receive path, or handed over already merged by a veth or virtio peer that offloads segmentation. Neither encapsulation nor decapsulation can produce valid GTP-U from that. Encapsulation writes one tunnel header for the whole buffer, and when the kernel splits it back into wire-sized packets it copies that header onto each one unchanged: every packet then claims the merged buffer's GTP-U payload length rather than its own, and with an IPv6 outer header its checksum as well. Decapsulation strips only the first packet's outer headers and leaves the rest in the payload.
 
-TCX can see that the buffer is merged and drops it. Generic XDP cannot, and emits the malformed result. Either way the remedy is to [disable merged packets](../how_to/disable_merged_packets.md) on N3 and N6.
+TCX can see that the buffer is merged and drops it. Generic XDP cannot: a merged buffer over the MTU is answered with a spurious ICMP "fragmentation needed" and its payload is destroyed, and one under the MTU leaves as the malformed GTP-U above. Either way the remedy is to [disable merged packets](../how_to/disable_merged_packets.md) on N3 and N6.
 
 ### Checksum offload on veth pairs
 
 An application transmitting over a veth leaves the transport checksum for the egress NIC to complete, recording where to write it in the packet's metadata. In `xdp-generic` mode the kernel does not update that metadata when the data plane removes the GTP-U header, so the checksum is later written at the stale offset, corrupting the decapsulated packet at a position that depends on the header removed. Nothing detects it: neither the data plane counters nor a capture on the host. Disabling TX checksum offload on both ends of the pair (`ethtool -K <veth> tx off`) forces the checksum to be completed before the packet reaches the data plane.
 
-`xdp-native` forwards redirected frames as raw packets, which carry no such metadata, and TCX discards it with the header.
+`xdp-native` forwards redirected frames as raw packets, which carry no such metadata. TCX drops the request when it removes the header, because the kernel invalidates it once the checksum's start offset falls outside the packet — that covers decapsulation only, not a frame the data plane encapsulates.
 
 ### XDP redirect on veth pairs
 

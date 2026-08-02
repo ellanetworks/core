@@ -32,7 +32,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_ip_addresses_total | The total number of IP addresses available for subscribers. | Gauge |
 | app_upf_datapath_forward_total | Packets the data plane forwarded, with labels for direction (uplink, downlink) and the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in `xdp-native`, `xdp-generic` and `tcx`. | Counter |
 | app_upf_datapath_drop_total | Packets the data plane did not forward, with labels for direction (uplink, downlink) and reason. | Counter |
-| app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane, with labels for interface (n3, n6) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
+| app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane, with labels for direction (uplink, downlink) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
 | app_uplink_bytes | The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. | Counter |
 | app_downlink_bytes | The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header. | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |

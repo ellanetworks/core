@@ -221,6 +221,18 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 		return mode, n3Link, n6Link, err
 	}
 
+	// A veth accepts a native attach and then drops every redirected frame,
+	// so the EOPNOTSUPP fallback below never fires for it. Skip straight to
+	// TCX rather than blackhole the datapath.
+	for _, iface := range []datapathIface{n3, n6} {
+		if nativeXDPBlackholes(iface.name) {
+			logger.UpfLog.Info("interface cannot forward redirected frames in native XDP, attaching at TCX",
+				zap.String("iface", iface.name))
+
+			return attachChainTCX(objs, n3, n6)
+		}
+	}
+
 	n3Link, n6Link, err := attachBothXDP(objs, n3, n6, link.XDPDriverMode)
 	if err == nil {
 		return config.DatapathXDPNative, n3Link, n6Link, nil
@@ -233,10 +245,14 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 	logger.UpfLog.Info("no driver-level XDP support on the datapath interfaces, attaching at TCX",
 		zap.String("n3", n3.name), zap.String("n6", n6.name))
 
-	// The XDP object cannot serve a TCX hook: reload as SCHED_CLS. Every map
-	// and program handle taken from objs before this point refers to the
-	// closed object, so map readers must be constructed after attachDatapath
-	// returns.
+	return attachChainTCX(objs, n3, n6)
+}
+
+// attachChainTCX is the chain's TCX leg. The XDP object cannot serve a TCX
+// hook, so the objects are reloaded as SCHED_CLS: every map and program handle
+// taken before this point refers to the closed object, and map readers must be
+// constructed after attachDatapath returns.
+func attachChainTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (string, link.Link, *link.Link, error) {
 	if err := objs.Close(); err != nil {
 		logger.UpfLog.Warn("failed to close XDP objects before TCX fallback", zap.Error(err))
 	}
@@ -246,10 +262,10 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 		return "", nil, nil, fmt.Errorf("load TCX datapath objects: %w", err)
 	}
 
-	n3Link, n6Link, err = attachBothTCX(objs, n3, n6)
+	n3Link, n6Link, err := attachBothTCX(objs, n3, n6)
 	if err != nil {
-		/* The reloaded objects are unreachable to the caller once the
-		 * attach fails, so they are released here. */
+		// The reloaded objects are unreachable to the caller once the attach
+		// fails, so they are released here.
 		if closeErr := objs.Close(); closeErr != nil {
 			logger.UpfLog.Warn("failed to close TCX objects after a failed attach",
 				zap.Error(closeErr))
@@ -312,7 +328,75 @@ func tcxUnavailable(err error) bool {
 	return errors.Is(err, cebpf.ErrNotSupported)
 }
 
-const ethtoolGGRO = 0x2b
+const (
+	ethtoolGGRO     = 0x2b
+	ethtoolGDrvInfo = 0x03
+)
+
+// interfaceDriver reads the interface's driver name via ETHTOOL_GDRVINFO.
+func interfaceDriver(ifname string) (string, error) {
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
+	if err != nil {
+		return "", err
+	}
+
+	defer func() { _ = unix.Close(fd) }()
+
+	// struct ethtool_drvinfo; only cmd and driver are read back.
+	var value struct {
+		cmd        uint32
+		driver     [32]byte
+		version    [32]byte
+		fwVersion  [32]byte
+		busInfo    [32]byte
+		eromVer    [32]byte
+		reserved2  [12]byte
+		nPrivFlags uint32
+		nStats     uint32
+		testinfoLn uint32
+		eedumpLen  uint32
+		regdumpLen uint32
+	}
+
+	value.cmd = ethtoolGDrvInfo
+
+	var ifr struct {
+		name [unix.IFNAMSIZ]byte
+		data unsafe.Pointer
+		_    [16]byte
+	}
+
+	if len(ifname) >= unix.IFNAMSIZ {
+		return "", fmt.Errorf("interface name %q too long", ifname)
+	}
+
+	copy(ifr.name[:], ifname)
+	ifr.data = unsafe.Pointer(&value)
+
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd),
+		unix.SIOCETHTOOL, uintptr(unsafe.Pointer(&ifr))); errno != 0 {
+		return "", fmt.Errorf("ETHTOOL_GDRVINFO %s: %w", ifname, errno)
+	}
+
+	return unix.ByteSliceToString(value.driver[:]), nil
+}
+
+// nativeXDPBlackholes reports whether a redirect out of this interface would
+// be dropped in native XDP mode. On a veth, xdp_features carries
+// NETDEV_XDP_ACT_NDO_XMIT only while the peer has its own XDP program or GRO
+// (drivers/net/veth.c), and veth_xdp_xmit refuses without the peer's NAPI —
+// so the attach succeeds and the traffic disappears.
+func nativeXDPBlackholes(ifname string) bool {
+	driver, err := interfaceDriver(ifname)
+	if err != nil {
+		logger.UpfLog.Debug("could not read interface driver",
+			zap.String("iface", ifname), zap.Error(err))
+
+		return false
+	}
+
+	return driver == "veth"
+}
 
 // interfaceGROEnabled reads the interface's generic-receive-offload state via
 // the ETHTOOL_GGRO ioctl.
@@ -352,20 +436,24 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 	return value.data != 0, nil
 }
 
-// warnGROOnTCX warns when N6 has GRO enabled under TCX. It covers only the
-// receive-side merge: a veth or virtio peer that offloads segmentation
-// delivers merged buffers with GRO off, which no local feature reports.
-func warnGROOnTCX(n6Ifname string) {
-	enabled, err := interfaceGROEnabled(n6Ifname)
-	if err != nil {
-		logger.UpfLog.Debug("could not read GRO state", zap.String("iface", n6Ifname), zap.Error(err))
-		return
-	}
+// warnMergedPacketSources warns when an interface has GRO enabled under TCX.
+// It covers only the receive-side merge: a veth or virtio peer that offloads
+// segmentation delivers merged packets with GRO off, which no local feature
+// reports. Both directions matter — the uplink drops merged packets too.
+func warnMergedPacketSources(ifnames ...string) {
+	for _, ifname := range ifnames {
+		enabled, err := interfaceGROEnabled(ifname)
+		if err != nil {
+			logger.UpfLog.Debug("could not read GRO state", zap.String("iface", ifname), zap.Error(err))
+			continue
+		}
 
-	if enabled {
-		logger.UpfLog.Warn("GRO is enabled on the N6 interface while the datapath is attached at TCX: "+
-			"merged buffers cannot be encapsulated into valid GTP-U and are dropped, counted in "+
-			"app_upf_datapath_drop_total{reason=\"encap_gso\"}; disable with `ethtool -K <iface> gro off`",
-			zap.String("iface", n6Ifname))
+		if enabled {
+			logger.UpfLog.Warn("GRO is enabled on a datapath interface while attached at TCX: "+
+				"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
+				"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
+				"see the disable-merged-packets guide for the knob this deployment needs",
+				zap.String("iface", ifname))
+		}
 	}
 }

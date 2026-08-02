@@ -268,7 +268,14 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	gsoDrops := DropCount(f.obj, Downlink, "encap_gso")
 	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d", len(frames), gsoDrops)
 
-	if gsoDrops == 0 {
+	// A frame on the wire is the regression this test exists to catch: it
+	// was encapsulated instead of dropped, which bumps no counter. Assert it
+	// before considering the run inconclusive.
+	if len(frames) != 0 {
+		t.Errorf("%d encapsulated frames reached the wire, want none: a merged frame must not be encapsulated", len(frames))
+	}
+
+	if gsoDrops == 0 && len(frames) == 0 {
 		for _, d := range []string{"ellgso3", "ellgso6"} {
 			for _, k := range []string{"tx_dropped", "tx_errors", "tx_packets", "rx_packets"} {
 				b, _ := os.ReadFile("/sys/class/net/" + d + "/statistics/" + k)
@@ -276,11 +283,7 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 			}
 		}
 
-		t.Skip("encapsulation never saw a GSO super-frame; the exposure was not reached")
-	}
-
-	if len(frames) != 0 {
-		t.Errorf("%d encapsulated frames reached the wire, want none: a dropped super-frame must not be encapsulated", len(frames))
+		t.Skip("no merged frame reached encapsulation; the exposure was not reached")
 	}
 }
 
@@ -345,11 +348,11 @@ func TestTCXIPv4OuterGSODropped(t *testing.T) {
 	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d, drop=%d",
 		len(frames), gsoDrops, TotalDrops(f.obj, Downlink))
 
-	if gsoDrops == 0 {
-		t.Skip("encapsulation never saw a GSO super-frame; the exposure was not reached")
-	}
-
 	if len(frames) != 0 {
 		t.Errorf("%d encapsulated frames reached the wire, want none", len(frames))
+	}
+
+	if gsoDrops == 0 && len(frames) == 0 {
+		t.Skip("no merged frame reached encapsulation; the exposure was not reached")
 	}
 }

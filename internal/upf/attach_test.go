@@ -172,5 +172,5 @@ func TestTCXAttachPinAdopt(t *testing.T) {
 		t.Fatalf("read GRO state: %v", err)
 	}
 
-	warnGROOnTCX(tcxTestDev)
+	warnMergedPacketSources(tcxTestDev)
 }

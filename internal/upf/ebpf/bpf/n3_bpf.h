@@ -160,7 +160,12 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_END(PROF_N3_MTU_CHECK);
 		return abort_with(ctx, UPF_DROP_MALFORMED_GTP);
 	}
-	int decap_size = decap_no_vlan;
+	/* The same span remove_gtp_header strips: the input tag goes with the
+	 * outer headers, and an output tag is added back. Both terms are 0 on
+	 * TCX, where tags are out of band. */
+	int decap_size = (int)decap_no_vlan +
+			 (CTX_INBAND_VLAN && ctx->vlan ? (int)sizeof(struct vlan_hdr) : 0) -
+			 (CTX_INBAND_VLAN && n6_vlan ? (int)sizeof(struct vlan_hdr) : 0);
 	long ret = bpf_check_mtu(ctx->ctx_buff, n6_ifindex, &mtu_len,
 				 -decap_size, 0);
 	PROFILE_END(PROF_N3_MTU_CHECK);

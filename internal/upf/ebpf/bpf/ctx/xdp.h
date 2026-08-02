@@ -44,11 +44,10 @@
 
 #define ctx_ingress_ifindex(ctx) ((ctx)->ingress_ifindex)
 
-/* xdp_md carries no GSO metadata, so the count is unavailable rather than
- * zero: generic XDP runs downstream of GRO and can be handed a merged frame
- * it cannot count. See the segmentation offload section of
+/* xdp_md carries no GSO metadata, so a merged buffer is undetectable rather
+ * than absent: generic XDP runs downstream of GRO and can be handed one. See
  * docs/explanation/user_plane_packet_processing_with_ebpf.md. */
-#define ctx_gso_segs(ctx) ((__u32)0)
+#define ctx_gso_size(ctx) ((__u32)0)
 
 /* XDP frames are already linear and writable. */
 #define ctx_pull(ctx, len) ((long)0)

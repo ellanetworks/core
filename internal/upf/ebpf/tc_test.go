@@ -531,9 +531,10 @@ func TestTCSourceNATMaintainsChecksumComplete(t *testing.T) {
 	}
 }
 
-// runTCMerged runs the program on a frame the kernel presents as several
-// datagrams behind one set of headers, which is what a veth or virtio peer
-// delivers when it offloads segmentation.
+// runTCMerged runs the program on a buffer holding several datagrams behind
+// one set of headers. gso_segs is left at 0 on purpose: that is what a
+// virtio, tap or vhost source produces, and the datapath must still see the
+// buffer as merged.
 func runTCMerged(t *testing.T, prog *ebpf.Program, packet []byte, segs, size uint32) uint32 {
 	t.Helper()
 
@@ -565,7 +566,6 @@ func TestTCMergedFramesDropped(t *testing.T) {
 		ulTEID = 0x4D455247
 		dlTEID = 0x4D455248
 		qfi    = 5
-		segs   = 4
 	)
 
 	var (
@@ -609,12 +609,16 @@ func TestTCMergedFramesDropped(t *testing.T) {
 			objs := loadTCProgramConfig(t, false, 0, 1)
 			tc.setup(objs)
 
-			if action := runTCMerged(t, objs.UpfEntryFunc, tc.frame, segs, 1000); action != tcActShot {
-				t.Errorf("verdict = %d, want TC_ACT_SHOT (%d)", action, tcActShot)
+			// gso_size smaller than the frame is what makes it merged; the
+			// virtio case reports no segment count at all.
+			for _, segs := range []uint32{4, 0} {
+				if action := runTCMerged(t, objs.UpfEntryFunc, tc.frame, segs, 64); action != tcActShot {
+					t.Errorf("gso_segs=%d: verdict = %d, want TC_ACT_SHOT (%d)", segs, action, tcActShot)
+				}
 			}
 
-			if got := tcDropCount(t, objs, tc.dir, tc.reason); got != 1 {
-				t.Errorf("%s = %d, want 1", tc.reason, got)
+			if got := tcDropCount(t, objs, tc.dir, tc.reason); got != 2 {
+				t.Errorf("%s = %d, want 2", tc.reason, got)
 			}
 		})
 	}
