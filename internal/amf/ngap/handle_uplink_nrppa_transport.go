@@ -47,7 +47,7 @@ func HandleUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *am
 		return
 	}
 
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, ranUeNgapID, amfUeNgapID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, ranUeNgapID, amfUeNgapID)
 	if !ok {
 		return
 	}

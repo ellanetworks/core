@@ -13,7 +13,7 @@ import (
 )
 
 func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceSetupResponse) {
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
 	if !ok {
 		return
 	}

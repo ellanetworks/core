@@ -309,8 +309,8 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		//
 		// This rejects S1 Setup from a Release-13 eNB, whose SupportedTAs-Item
 		// carries the reject-criticality id-RAT-Type (232) on an NB-IoT TAC.
-		// Deliberate: Ella Core does not serve NB-IoT. Modeling RAT-Type is
-		// what changes that, not loosening this rule.
+		// Deliberate while NB-IoT is unsupported. Modeling RAT-Type is what
+		// changes that, not loosening this rule.
 		if Criticality(crit) == CriticalityReject && comprehended {
 			comprehended, rejected = false, ProtocolIEID(id)
 		}

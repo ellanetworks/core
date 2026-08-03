@@ -19,12 +19,12 @@ import (
 // to its SMF and returns the Modify Confirm; sessions the SMF cannot modify go in
 // the Failed to Modify list with a cause (TS 38.413 §8.2.5.2).
 func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceModifyIndication) {
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("UE Context", zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)), zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("UE Context", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 	ueConn.TouchLastSeen()
 
 	amfUe := ueConn.UeContext()

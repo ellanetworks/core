@@ -9,17 +9,17 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestNasNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
+func TestNASNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
+	ngap.HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &libngap.NASNonDeliveryIndication{
 		RANUENGAPID: 99,
 		AMFUENGAPID: 999,
 	})
@@ -28,7 +28,7 @@ func TestNasNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
-func TestNasNonDeliveryIndication_UEFound_ReportOnly(t *testing.T) {
+func TestNASNonDeliveryIndication_UEFound_ReportOnly(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
@@ -39,21 +39,18 @@ func TestNasNonDeliveryIndication_UEFound_ReportOnly(t *testing.T) {
 
 	// TS 38.413 §8.6.4: report-only — the handler resolves the UE and records
 	// liveness; the (undelivered downlink) NAS-PDU is not acted on. Verify no panic.
-	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
+	ngap.HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &libngap.NASNonDeliveryIndication{
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
-		NASPDU:      []byte{0x7E, 0x00, 0x00},
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID},
-		},
+		NASPDU:      libngap.NASPDU{0x7E, 0x00, 0x00},
+		Cause:       libngap.Ptr(libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnknownLocalUENGAPID}),
 	})
 }
 
 // The NAS-PDU IE is the downlink message the RAN could not deliver; feeding it back
 // into the uplink NAS path would fail the downlink/uplink integrity check and perturb
 // the uplink NAS count (TS 38.413 §8.6.4). The handler must not invoke the NAS layer.
-func TestNasNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
+func TestNASNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
@@ -64,14 +61,11 @@ func TestNasNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
+	ngap.HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &libngap.NASNonDeliveryIndication{
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
-		NASPDU:      []byte{0xDE, 0xAD},
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID},
-		},
+		NASPDU:      libngap.NASPDU{0xDE, 0xAD},
+		Cause:       libngap.Ptr(libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnknownLocalUENGAPID}),
 	})
 
 	if len(fakeNAS.Calls) != 0 {

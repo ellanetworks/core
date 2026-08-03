@@ -26,7 +26,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 
 	ueConn := amfInstance.FindUEByRanUeNgapID(ran, models.RanUeNgapID(*msg.RANUENGAPID))
 	if ueConn == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)), zap.Uint32("ran-ue-id", uint32(*msg.RANUENGAPID)))
 		return
 	}
 

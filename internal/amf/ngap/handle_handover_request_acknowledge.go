@@ -51,7 +51,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	targetUe := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*msg.AMFUENGAPID))
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)))
 		sendUnknownLocalUEError(ctx, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 
 		return
@@ -62,7 +62,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	targetUe.TouchLastSeen()
-	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", int64(targetUe.RanUeNgapID)), zap.Any("AmfUeNgapID", int64(targetUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Uint32("ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(targetUe.AmfUeNgapID)))
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
@@ -130,8 +130,8 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		pduSessionResourceToReleaseList.List = append(pduSessionResourceToReleaseList.List, releaseItem)
 	}
 
-	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Int64("sourceRanUeNgapID", int64(sourceUe.RanUeNgapID)), zap.Int64("sourceAmfUeNgapID", int64(sourceUe.AmfUeNgapID)),
-		zap.Int64("targetRanUeNgapID", int64(targetUe.RanUeNgapID)), zap.Int64("targetAmfUeNgapID", int64(targetUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)),
+		zap.Uint32("target-ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)))
 
 	if len(pduSessionResourceHandoverList.List) == 0 {
 		logger.WithTrace(ctx, targetUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")

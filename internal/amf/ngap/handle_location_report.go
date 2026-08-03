@@ -24,7 +24,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
@@ -40,7 +40,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Location Report", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)), zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Location Report", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
 
 	switch msg.LocationReportingRequestType.EventType.Value {
 	case ngapType.EventTypePresentDirect:

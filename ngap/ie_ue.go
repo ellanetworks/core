@@ -50,6 +50,24 @@ func (id *RANUENGAPID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+// NASPDU ::= OCTET STRING (unbounded), carried opaquely (TS 24.501).
+type NASPDU []byte
+
+func (n NASPDU) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, n)
+}
+
+func (n *NASPDU) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*n = NASPDU(b)
+
+	return nil
+}
+
 // TAI ::= SEQUENCE { pLMNIdentity, tAC, iE-Extensions OPTIONAL } (extensible)
 // — TS 38.413 §9.3.3.11.
 type TAI struct {

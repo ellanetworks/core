@@ -510,8 +510,8 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 
 	for _, ueConn := range stale {
 		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
-			zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)),
-			zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
+			zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
+			zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
@@ -537,8 +537,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
 
 	logger.AmfLog.Info("ran ue removed",
-		zap.Int64("amfUeNgapID", int64(ueConn.AmfUeNgapID)),
-		zap.Int64("ranUeNgapID", int64(ueConn.RanUeNgapID)),
+		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
+		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
 	)
 
 	return nil
@@ -571,7 +571,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	a.mu.Unlock()
 
 	ueConn.Log = ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID))
-	ueConn.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+	ueConn.Log.Info("ran ue switched to new Ran", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
 	return true
 }

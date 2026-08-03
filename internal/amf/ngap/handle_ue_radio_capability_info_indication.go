@@ -19,12 +19,12 @@ import (
 )
 
 func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UERadioCapabilityInfoIndication) {
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Radio Capability Info Indication", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)), zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Radio Capability Info Indication", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
 	ueConn.TouchLastSeen()
 
 	amfUe := ueConn.UeContext()

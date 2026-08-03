@@ -138,13 +138,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleUEContextReleaseRequest(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeNASNonDeliveryIndication:
-			decoded, report := decode.DecodeNASNonDeliveryIndication(pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleNasNonDeliveryIndication(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
 			decoded, report := decode.DecodeUERadioCapabilityInfoIndication(pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
 			if !handleDecodeReport(ctx, ran, report) {

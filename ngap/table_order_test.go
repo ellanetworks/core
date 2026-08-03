@@ -23,6 +23,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"NGSetupRequest", tableIDs(nGSetupRequestIEs), []ProtocolIEID{idGlobalRANNodeID, idRANNodeName, idSupportedTAList, idDefaultPagingDRX, idUERetentionInformation}},
 		{"NGSetupResponse", tableIDs(nGSetupResponseIEs), []ProtocolIEID{idAMFName, idServedGUAMIList, idRelativeAMFCapacity, idPLMNSupportList, idCriticalityDiagnostics, idUERetentionInformation}},
 		{"NGSetupFailure", tableIDs(nGSetupFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
+		{"NASNonDeliveryIndication", tableIDs(nASNonDeliveryIndicationIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idNASPDU, idCause}},
 		{"Paging", tableIDs(pagingIEs), []ProtocolIEID{idUEPagingIdentity, idPagingDRX, idTAIListForPaging, idPagingPriority, idUERadioCapabilityForPaging, idPagingOrigin}},
 		{"RANConfigurationUpdate", tableIDs(rANConfigurationUpdateIEs), []ProtocolIEID{idRANNodeName, idSupportedTAList, idDefaultPagingDRX, idGlobalRANNodeID, idNGRANTNLAssociationToRemoveList}},
 		{"RANConfigurationUpdateAcknowledge", tableIDs(rANConfigurationUpdateAcknowledgeIEs), []ProtocolIEID{idCriticalityDiagnostics}},

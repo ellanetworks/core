@@ -26,6 +26,8 @@ const (
 
 	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
 
+	nasNonDeliveryIndicationMessageType send.NGAPProcedure = "NASNonDeliveryIndication"
+
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
 
@@ -71,6 +73,8 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		receiveRANConfigurationUpdate(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcUplinkRANConfigurationTransfer:
 		receiveUplinkRANConfigurationTransfer(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcNASNonDeliveryIndication:
+		receiveNASNonDeliveryIndication(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -207,4 +211,21 @@ func receiveUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf
 	}
 
 	HandleUplinkRANConfigurationTransfer(ctx, amfInstance, ran, req)
+}
+
+// receiveNASNonDeliveryIndication parses and handles a NAS NON DELIVERY
+// INDICATION. Both UE NGAP IDs are mandatory with reject criticality, so a
+// message missing either does not reach the handler.
+func receiveNASNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, nasNonDeliveryIndicationMessageType, span)
+
+	ind, err := ngap.ParseNASNonDeliveryIndication(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode NAS Non Delivery Indication", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcNASNonDeliveryIndication, err)
+
+		return
+	}
+
+	HandleNASNonDeliveryIndication(ctx, amfInstance, ran, ind)
 }

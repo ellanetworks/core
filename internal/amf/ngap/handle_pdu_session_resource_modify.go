@@ -13,13 +13,13 @@ import (
 )
 
 func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceNotify) {
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceNotify", zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceNotify", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {

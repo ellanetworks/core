@@ -153,20 +153,6 @@ type UERadioCapabilityInfoIndication struct {
 	UERadioCapabilityForPaging *ngapType.UERadioCapabilityForPaging
 }
 
-// NASNonDeliveryIndication is a decoded NGAP NASNonDeliveryIndication
-// (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject. NASPDU and
-// Cause are mandatory-ignore, yielding an empty byte slice and a zero-value
-// Cause respectively.
-//
-// NASPDU is copied out of the source PDU buffer so it may be forwarded across
-// asynchronous boundaries to NAS processing.
-type NASNonDeliveryIndication struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-	NASPDU      []byte
-	Cause       ngapType.Cause
-}
-
 // InitialContextSetupFailure is a decoded NGAP InitialContextSetupFailure
 // (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject. Cause is
 // mandatory-ignore, yielding a zero-value Cause when absent or malformed.

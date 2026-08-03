@@ -12,6 +12,7 @@ const (
 	idDefaultPagingDRX                    ProtocolIEID = 21
 	idFiveGSTMSI                          ProtocolIEID = 26
 	idGlobalRANNodeID                     ProtocolIEID = 27
+	idNASPDU                              ProtocolIEID = 38
 	idPLMNSupportList                     ProtocolIEID = 80
 	idPagingDRX                           ProtocolIEID = 50
 	idPagingOrigin                        ProtocolIEID = 51

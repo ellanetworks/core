@@ -22,7 +22,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
 	if !ok {
 		return
 	}

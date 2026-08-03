@@ -32,7 +32,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
 	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
@@ -115,9 +115,9 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 	}
 
 	if amfUe.Conn() != nil {
-		logger.WithTrace(ctx, ueConn.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+		logger.WithTrace(ctx, ueConn.Log).Debug("Implicit Deregistration", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("UeContext Attach UeConn", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("UeContext Attach UeConn", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 	amfInstance.AttachUeConn(amfUe, ueConn)
 }

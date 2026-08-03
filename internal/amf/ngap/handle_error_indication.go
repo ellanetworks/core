@@ -17,6 +17,46 @@ import (
 )
 
 // emitErrorIndication marshals and sends an ERROR INDICATION.
+// ueIDs names the association a report concerns (TS 38.413 §8.4.4.2); both
+// fields are nil for node-level signalling.
+type ueIDs struct {
+	amf *ngap.AMFUENGAPID
+	ran *ngap.RANUENGAPID
+}
+
+// nodeLevel is the empty association, for procedures with no UE context.
+func nodeLevel() ueIDs { return ueIDs{} }
+
+func ueAssociated(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID) ueIDs {
+	return ueIDs{amf: &amfID, ran: &ranID}
+}
+
+// reportDiagnostics tells the sender about abstract syntax errors the message
+// survived. TS 38.413 §10.3.4.2 requires reporting a not-comprehended IE
+// marked notify; ignore-criticality entries are carried silently and
+// §9.3.1.3 forbids naming them.
+func reportDiagnostics(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode,
+	trigger ngap.TriggeringMessage, ids ueIDs, diag ngap.Diagnostics,
+) {
+	if !diag.ReportRequired() {
+		return
+	}
+
+	crit := ngap.ProcedureCriticality(proc)
+
+	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
+		AMFUENGAPID: ids.amf,
+		RANUENGAPID: ids.ran,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
+		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
+			ProcedureCode:             &proc,
+			TriggeringMessage:         &trigger,
+			ProcedureCriticality:      &crit,
+			IEsCriticalityDiagnostics: diag.Report(),
+		},
+	})
+}
+
 func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorIndication) {
 	b, err := ind.Marshal()
 	if err != nil {

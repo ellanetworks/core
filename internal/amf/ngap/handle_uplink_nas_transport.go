@@ -13,7 +13,7 @@ import (
 )
 
 func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UplinkNASTransport) {
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
 	if !ok {
 		return
 	}
@@ -27,7 +27,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 			logger.WithTrace(ctx, ueConn.Log).Error("error removing ran ue context", zap.Error(err))
 		}
 
-		logger.WithTrace(ctx, ueConn.Log).Error("No UE Context of UeConn", zap.Int64("ranUeNgapID", msg.RANUENGAPID), zap.Int64("amfUeNgapID", msg.AMFUENGAPID))
+		logger.WithTrace(ctx, ueConn.Log).Error("No UE Context of UeConn", zap.Uint32("ran-ue-id", uint32(msg.RANUENGAPID)), zap.Uint64("amf-ue-id", uint64(msg.AMFUENGAPID)))
 
 		return
 	}

@@ -1,19 +1,26 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package s1ap
+package ngap
 
 import (
 	"bytes"
 	"testing"
 )
 
+// Golden NAS NON DELIVERY INDICATION PDUs from free5gc/ngap v1.1.3.
+const (
+	goldenNASNonDelivery         = "0013401c000004000a0002000100550002000100264003027e00000f40020000"
+	goldenNASNonDeliveryWideIDs  = "00134026000004000a000680ffffffffff00550005c0ffffffff00264006057e01020304000f400203c0"
+	goldenNASNonDeliveryNASCause = "0013401a000004000a0002002a00550002000700264002017e000f400148"
+)
+
 func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 	in := &NASNonDeliveryIndication{
-		MMEUES1APID: 42,
-		ENBUES1APID: 1,
+		AMFUENGAPID: 42,
+		RANUENGAPID: 1,
 		NASPDU:      NASPDU{0x7E, 0x00, 0x42},
-		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnknownMMEUES1APID}),
+		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkInconsistentRemoteUEID}),
 	}
 
 	b, err := in.Marshal()
@@ -21,9 +28,9 @@ func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Initiating message, procedureCode 16 (TS 36.413 §9.1.7.4).
-	if b[1] != 0x10 {
-		t.Fatalf("procedureCode byte = %#x, want 0x10", b[1])
+	// Initiating message, procedureCode 19 (TS 38.413 §9.2.5.4).
+	if b[1] != 0x13 {
+		t.Fatalf("procedureCode byte = %#x, want 0x13", b[1])
 	}
 
 	pdu, err := Unmarshal(b)
@@ -36,19 +43,11 @@ func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID ||
+	if out.AMFUENGAPID != in.AMFUENGAPID || out.RANUENGAPID != in.RANUENGAPID ||
 		deref(out.Cause) != deref(in.Cause) || !bytes.Equal(out.NASPDU, in.NASPDU) {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
 }
-
-// Golden NAS NON DELIVERY INDICATION PDUs from pycrate's S1AP ASN.1 module,
-// a second, independent implementation encoding the same messages.
-const (
-	goldenNASNonDelivery         = "0010401c000004000000020001000800020001001a4003027e00000240020000"
-	goldenNASNonDeliveryWideIDs  = "0010402400000400000005c0ffffffff0008000480ffffff001a4006057e010203040002400201e0"
-	goldenNASNonDeliveryNASCause = "0010401a00000400000002002a000800020007001a4002017e0002400124"
-)
 
 func TestNASNonDeliveryIndicationGolden(t *testing.T) {
 	tests := []struct {
@@ -59,27 +58,27 @@ func TestNASNonDeliveryIndicationGolden(t *testing.T) {
 		{
 			"minimal",
 			&NASNonDeliveryIndication{
-				MMEUES1APID: 1, ENBUES1APID: 1, NASPDU: NASPDU{0x7e, 0x00},
+				AMFUENGAPID: 1, RANUENGAPID: 1, NASPDU: NASPDU{0x7e, 0x00},
 				Cause: Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
 			},
 			goldenNASNonDelivery,
 		},
 		{
-			// The widest ids either field can carry: MME-UE-S1AP-ID is 32 bits,
-			// eNB-UE-S1AP-ID 24.
+			// The widest ids either field can carry: the AMF's is 40 bits,
+			// past what a uint32 holds.
 			"wide ids",
 			&NASNonDeliveryIndication{
-				MMEUES1APID: 0xffffffff, ENBUES1APID: 0xffffff,
+				AMFUENGAPID: 0xffffffffff, RANUENGAPID: 0xffffffff,
 				NASPDU: NASPDU{0x7e, 0x01, 0x02, 0x03, 0x04},
-				Cause:  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnknownPairUES1APID}),
+				Cause:  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkInconsistentRemoteUEID}),
 			},
 			goldenNASNonDeliveryWideIDs,
 		},
 		{
 			"nas cause group",
 			&NASNonDeliveryIndication{
-				MMEUES1APID: 42, ENBUES1APID: 7, NASPDU: NASPDU{0x7e},
-				Cause: Ptr(Cause{Group: CauseGroupNAS, Value: CauseNASDetach}),
+				AMFUENGAPID: 42, RANUENGAPID: 7, NASPDU: NASPDU{0x7e},
+				Cause: Ptr(Cause{Group: CauseGroupNAS, Value: CauseNASDeregister}),
 			},
 			goldenNASNonDeliveryNASCause,
 		},
@@ -106,7 +105,7 @@ func TestNASNonDeliveryIndicationGolden(t *testing.T) {
 				t.Fatalf("parse: %v", err)
 			}
 
-			if out.MMEUES1APID != tt.msg.MMEUES1APID || out.ENBUES1APID != tt.msg.ENBUES1APID ||
+			if out.AMFUENGAPID != tt.msg.AMFUENGAPID || out.RANUENGAPID != tt.msg.RANUENGAPID ||
 				deref(out.Cause) != deref(tt.msg.Cause) || !bytes.Equal(out.NASPDU, tt.msg.NASPDU) {
 				t.Fatalf("decode mismatch:\n  got  %+v\n  want %+v", out, tt.msg)
 			}
@@ -123,14 +122,14 @@ func TestNASNonDeliveryIndicationMissingIEs(t *testing.T) {
 
 	if _, err := ParseNASNonDeliveryIndication(container(t,
 		ieField{id: idNASPDU, crit: CriticalityIgnore, val: NASPDU{0x7e}},
-		ieField{id: idCause, crit: CriticalityIgnore, val: Cause{Group: CauseGroupNAS, Value: CauseNASDetach}},
+		ieField{id: idCause, crit: CriticalityIgnore, val: Cause{Group: CauseGroupNAS, Value: CauseNASDeregister}},
 	)); err == nil {
 		t.Error("decoded a message with neither UE id, want it rejected")
 	}
 
 	msg, err := ParseNASNonDeliveryIndication(container(t,
-		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
-		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+		ieField{id: idAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
+		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
