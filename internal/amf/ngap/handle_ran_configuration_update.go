@@ -31,7 +31,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 		operatorInfo, err = amfInstance.OperatorInfo(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
-			sendRANConfigurationUpdateFailure(ctx, ran, causeNoServedTAC, nil)
+			sendRANConfigurationUpdateFailure(ctx, ran, causeUnspecified, nil)
 
 			return
 		}
@@ -39,7 +39,11 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 
 	tais, outBytes, accepted, reason, err := ranConfigUpdateOutcomeFor(req, operatorInfo)
 	if err != nil {
+		// §8.7.2.3 obliges an answer whenever the AMF cannot accept the update,
+		// which includes being unable to build its own response.
 		logger.WithTrace(ctx, ran.Log).Error("failed to handle RAN Configuration Update", zap.Error(err))
+		sendRANConfigurationUpdateFailure(ctx, ran, causeUnspecified, nil)
+
 		return
 	}
 

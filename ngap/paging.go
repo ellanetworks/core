@@ -12,7 +12,7 @@ import (
 // maxnoofTAIforPaging bounds TAIListForPaging (TS 38.413, NGAP-Constants).
 const maxnoofTAIforPaging = 16
 
-// UEPagingIdentity alternatives (TS 38.413 §9.3.3.15). Unlike S1AP's UE Paging
+// UEPagingIdentity alternatives (TS 38.413 §9.3.3.18). Unlike S1AP's UE Paging
 // ID, which is an extensible CHOICE of S-TMSI and IMSI, this one carries a
 // single identity and is closed by a choice-Extensions alternative.
 const (
@@ -51,7 +51,7 @@ const (
 
 // taiListForPagingItem ::= SEQUENCE { tAI, iE-Extensions OPTIONAL }
 // (extensible). NGAP lists items directly where S1AP wraps them in a
-// ProtocolIE-SingleContainer (TS 38.413 §9.3.3.24 vs TS 36.413 §9.2.3.16).
+// ProtocolIE-SingleContainer. The TAI it carries is TS 38.413 §9.3.3.11.
 type taiListForPagingItem struct {
 	_   [0]struct{} `per:"extseq"`
 	TAI TAI
@@ -164,15 +164,15 @@ var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				drx PagingDRX
-			)
+			var drx PagingDRX
 
-			err = perIEDecode(raw, &drx)
+			if err := perIEDecode(raw, &drx); err != nil {
+				return err
+			}
+
 			m.PagingDRX = &drx
 
-			return err
+			return nil
 		},
 		encode: func(m *Paging) (per.Marshaler, bool) {
 			if m.PagingDRX == nil {
@@ -215,7 +215,7 @@ var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			v, err := per.DecodeEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, true)
+			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, "PagingPriority")
 			if err != nil {
 				return err
 			}
@@ -242,15 +242,15 @@ var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   UERadioCapabilityForPaging
-			)
+			var v UERadioCapabilityForPaging
 
-			err = perIEDecode(raw, &v)
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
 			m.UERadioCapabilityForPaging = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *Paging) (per.Marshaler, bool) {
 			if m.UERadioCapabilityForPaging == nil {
@@ -263,7 +263,7 @@ var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idPagingOrigin, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			v, err := per.DecodeEnumerated(per.NewReader(raw), enc, pagingOriginRootCount, true)
+			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingOriginRootCount, "PagingOrigin")
 			if err != nil {
 				return err
 			}

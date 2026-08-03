@@ -38,7 +38,7 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 		plmn, tacs, err = servedPLMNAndTACs(ctx, m)
 		if err != nil {
 			logger.From(ctx, radio.Log).Error("Could not get operator info", zap.Error(err))
-			sendENBConfigurationUpdateFailure(m, ctx, radio, causeNoServedTAC, nil)
+			sendENBConfigurationUpdateFailure(m, ctx, radio, causeUnspecified, nil)
 
 			return
 		}
@@ -46,7 +46,11 @@ func handleENBConfigurationUpdate(m *mme.MME, ctx context.Context, radio *mme.Ra
 
 	tais, out, accepted, reason, err := enbConfigUpdateOutcomeFor(req, plmn, tacs)
 	if err != nil {
+		// §8.7.4.3 obliges an answer whenever the MME cannot accept the update,
+		// which includes being unable to build its own response.
 		logger.From(ctx, radio.Log).Error("failed to handle ENB Configuration Update", zap.Error(err))
+		sendENBConfigurationUpdateFailure(m, ctx, radio, causeUnspecified, nil)
+
 		return
 	}
 

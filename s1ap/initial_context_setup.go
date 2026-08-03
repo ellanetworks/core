@@ -211,15 +211,15 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -332,15 +332,15 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {

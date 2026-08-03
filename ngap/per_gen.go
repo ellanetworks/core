@@ -101,7 +101,7 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 		return err
 	}
 	criticalityDiagnosticsIEItem.IEID = ProtocolIEID(n1)
-	e2, err := per.DecodeEnumerated(r, enc, 2, true)
+	e2, err := decodeRootEnumerated(r, enc, 2, "TypeOfError")
 	if err != nil {
 		return err
 	}

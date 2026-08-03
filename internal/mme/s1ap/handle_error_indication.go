@@ -285,11 +285,15 @@ func handleErrorIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 		return
 	}
 
-	// §8.7.2.2 requires at least one of Cause and Criticality Diagnostics; a
-	// peer sending neither has told us nothing to act on.
+	// TS 36.413 §8.7.2.2 — "shall contain at least either the Cause IE or the
+	// Criticality Diagnostics IE" — binds the sender, and s1ap.ErrorIndication
+	// holds this MME to it on the way out. On the way in it is only a protocol
+	// violation to report: §10.5 asks for local error handling, and an
+	// indication naming a UE still says its S1 connection is inconsistent, so
+	// dropping it here would strand the UE that the release below exists to
+	// clean up.
 	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
 		logger.From(ctx, logger.MmeLog).Error("Error Indication carries neither Cause nor Criticality Diagnostics")
-		return
 	}
 
 	fields := make([]zap.Field, 0, 4)

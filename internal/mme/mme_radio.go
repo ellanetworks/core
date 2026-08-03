@@ -224,8 +224,6 @@ func (m *MME) FindRadioByGlobalENBID(g s1ap.GlobalENBID) (*Radio, bool) {
 	return radio, ok
 }
 
-// UpdateRadioName updates the stored name of a connected eNB from an eNB
-// Configuration Update (TS 36.413 §8.7.4).
 // NodeName returns the eNB's human-readable name, empty when it has not sent
 // one. Mirrors amf.Radio.NodeName.
 func (r *Radio) NodeName() string {
@@ -235,6 +233,8 @@ func (r *Radio) NodeName() string {
 	return r.name
 }
 
+// UpdateRadioName updates the stored name of a connected eNB from an eNB
+// Configuration Update (TS 36.413 §8.7.4).
 func (m *MME) UpdateRadioName(radio *Radio, name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

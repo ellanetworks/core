@@ -10,7 +10,8 @@ import (
 )
 
 // TargetRANNodeIDSON ::= SEQUENCE { globalRANNodeID, selectedTAI,
-// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.6.
+// iE-Extensions OPTIONAL } (extensible) — a field of the SON Configuration
+// Transfer of TS 38.413 §9.3.3.6, with no standalone clause of its own.
 //
 // Named for the ASN.1's TargetRANNodeID-SON, which is the SON-transfer variant
 // of Target RAN Node ID; the plain TargetRANNodeID has the same shape but a
@@ -24,7 +25,7 @@ type TargetRANNodeIDSON struct {
 
 // SONConfigurationTransfer is held as raw open-type bytes: it is relayed
 // verbatim, and only the leading Target RAN Node ID is decoded
-// (TS 38.413 §9.3.3.14).
+// (TS 38.413 §9.3.3.6).
 //
 // §8.8.1.2 has the AMF "transparently transfer the SON Configuration Transfer
 // IE towards the NG-RAN node indicated in the Target RAN Node ID IE", so
@@ -43,7 +44,7 @@ func (c SONConfigurationTransfer) MarshalPER(w *per.Writer, _ per.Encoding) erro
 const sonConfigurationTransferPreambleBits = 3
 
 // TargetRANNodeID decodes the destination NG-RAN node from the leading field
-// (TS 38.413 §9.3.3.14).
+// (TS 38.413 §9.3.3.6).
 func (c SONConfigurationTransfer) TargetRANNodeID() (TargetRANNodeIDSON, error) {
 	r := per.NewReader(c)
 
@@ -61,7 +62,7 @@ func (c SONConfigurationTransfer) TargetRANNodeID() (TargetRANNodeIDSON, error) 
 	return t, nil
 }
 
-// TS 38.413 §9.2.6.9.
+// TS 38.413 §9.2.7.1.
 type UplinkRANConfigurationTransfer struct {
 	SONConfigurationTransfer SONConfigurationTransfer
 
@@ -109,7 +110,7 @@ func ParseUplinkRANConfigurationTransfer(value []byte) (*UplinkRANConfigurationT
 	return parseMessageBody[UplinkRANConfigurationTransfer](ProcUplinkRANConfigurationTransfer, TriggeringInitiatingMessage, uplinkRANConfigurationTransferIEs, value)
 }
 
-// TS 38.413 §9.2.6.10.
+// TS 38.413 §9.2.7.2.
 type DownlinkRANConfigurationTransfer struct {
 	SONConfigurationTransfer SONConfigurationTransfer
 

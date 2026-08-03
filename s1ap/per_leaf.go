@@ -153,6 +153,38 @@ func (e *ENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func encodeBitStringUint(w *per.Writer, enc per.Encoding, v uint64, nbits int) error {
+	if nbits < 64 && v >= 1<<uint(nbits) {
+		return fmt.Errorf("s1ap: value %d exceeds %d-bit field", v, nbits)
+	}
+
+	return per.EncodeBitString(w, enc, int64(nbits), int64(nbits), true, true, false, uintToBits(v, nbits), nbits)
+}
+
+func decodeBitStringUint(r *per.Reader, enc per.Encoding, nbits int) (uint64, error) {
+	b, _, err := per.DecodeBitString(r, enc, int64(nbits), int64(nbits), true, true, false)
+	if err != nil {
+		return 0, err
+	}
+
+	return bitsToUint(b, nbits), nil
+}
+
+func (u UERetentionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeEnumerated(w, enc, ueRetentionInformationRootCount, true, int64(u))
+}
+
+func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, ueRetentionInformationRootCount, "UERetentionInformation")
+	if err != nil {
+		return err
+	}
+
+	*u = UERetentionInformation(idx)
+
+	return nil
+}
+
 func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeEnumerated(w, enc, pagingDRXRootCount, true, int64(p))
 }
@@ -160,7 +192,7 @@ func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
 // UnmarshalPER decodes PagingDRX; an extension addition decodes to
 // pagingDRXRootCount+k so it cannot collide with a root value.
 func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeEnumerated(r, enc, pagingDRXRootCount, true)
+	idx, err := decodeRootEnumerated(r, enc, pagingDRXRootCount, "PagingDRX")
 	if err != nil {
 		return err
 	}
@@ -274,13 +306,18 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		// not-comprehended IE, and one marked reject stops the procedure. The
 		// whole container is still consumed first so the reader stays aligned
 		// for a caller whose criticality lets it carry on.
+		//
+		// An extension marked ignore or notify is skipped and the IE holding it
+		// is still delivered, as §10.3.4.2 requires. A notify extension should
+		// also be reported back; a leaf decoder has no diagnostics sink to
+		// record it in, so that report is not made today.
 		if Criticality(crit) == CriticalityReject && comprehended {
 			comprehended, rejected = false, ProtocolIEID(id)
 		}
 	}
 
 	if !comprehended {
-		return fmt.Errorf("%w: iE-Extensions %s", errNotComprehended, rejected)
+		return &notComprehendedIE{ID: rejected, Crit: CriticalityReject, What: "iE-Extensions"}
 	}
 
 	return nil

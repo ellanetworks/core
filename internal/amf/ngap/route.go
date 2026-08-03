@@ -45,6 +45,21 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		return false
 	}
 
+	// TS 38.413 §8.7.1.1: "This procedure shall be the first NGAP procedure
+	// triggered after the TNL association has become operational." The reference
+	// decoder's path enforces that further down the dispatcher, but this one
+	// returns before reaching it, so it has to gate itself — otherwise a peer
+	// that never completed NG Setup could reach a handler, and RAN Configuration
+	// Update would let it claim a Global RAN Node ID and open the gate for
+	// everything else. The MME gates the same way (its dispatcher drops
+	// everything but S1 Setup until SetupComplete).
+	if im.ProcedureCode != ngap.ProcNGSetup && ran.RanID == nil {
+		logger.From(ctx, ran.Log).Warn("NGAP message before NG Setup, dropping",
+			zap.String("procedure", im.ProcedureCode.String()))
+
+		return true
+	}
+
 	switch im.ProcedureCode {
 	case ngap.ProcNGSetup:
 		receiveNGSetup(ctx, amfInstance, ran, msg, im, span)

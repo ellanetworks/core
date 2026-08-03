@@ -26,7 +26,7 @@ func (t TimeToWait) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (t *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeEnumerated(r, enc, timeToWaitRootCount, true)
+	idx, err := decodeRootEnumerated(r, enc, timeToWaitRootCount, "TimeToWait")
 	if err != nil {
 		return err
 	}
@@ -70,15 +70,15 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 	{
 		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				ttw TimeToWait
-			)
+			var ttw TimeToWait
 
-			err = perIEDecode(raw, &ttw)
+			if err := perIEDecode(raw, &ttw); err != nil {
+				return err
+			}
+
 			m.TimeToWait = &ttw
 
-			return err
+			return nil
 		},
 		encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
@@ -91,15 +91,15 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {

@@ -79,15 +79,15 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 	{
 		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   UERetentionInformation
-			)
+			var v UERetentionInformation
 
-			err = perIEDecode(raw, &v)
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
 			m.UERetentionInformation = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *NGSetupRequest) (per.Marshaler, bool) {
 			if m.UERetentionInformation == nil {

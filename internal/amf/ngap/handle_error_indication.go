@@ -78,11 +78,15 @@ func sendParseErrorIndication(ctx context.Context, ran *amf.Radio, proc ngap.Pro
 // releases it to CM-IDLE, where it re-establishes cleanly on its next Service
 // Request.
 func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.ErrorIndication) {
-	// §9.2.6.13 requires at least one of Cause and Criticality Diagnostics; a
-	// peer sending neither has told us nothing to act on.
+	// TS 38.413 §8.7.5.2 — "shall contain at least either the Cause IE or the
+	// Criticality Diagnostics IE" — binds the sender, and ngap.ErrorIndication
+	// holds this AMF to it on the way out. On the way in it is only a protocol
+	// violation to report: §10.5 asks for local error handling, and an
+	// indication naming a UE still says its NG connection is inconsistent, so
+	// dropping it here would strand the UE that the release below exists to
+	// clean up.
 	if msg.Cause == nil && msg.CriticalityDiagnostics == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Error Indication carries neither Cause nor Criticality Diagnostics")
-		return
 	}
 
 	fields := make([]zap.Field, 0, 3)

@@ -61,15 +61,15 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 	{
 		id: idDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				drx PagingDRX
-			)
+			var drx PagingDRX
 
-			err = perIEDecode(raw, &drx)
+			if err := perIEDecode(raw, &drx); err != nil {
+				return err
+			}
+
 			m.DefaultPagingDRX = &drx
 
-			return err
+			return nil
 		},
 		encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
 			if m.DefaultPagingDRX == nil {
@@ -82,15 +82,15 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 	{
 		id: idGlobalRANNodeID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   GlobalRANNodeID
-			)
+			var v GlobalRANNodeID
 
-			err = perIEDecode(raw, &v)
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
 			m.GlobalRANNodeID = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
 			if m.GlobalRANNodeID == nil {
@@ -153,15 +153,15 @@ var rANConfigurationUpdateAcknowledgeIEs = []ieSpec[RANConfigurationUpdateAcknow
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *RANConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -231,15 +231,15 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 	{
 		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				ttw TimeToWait
-			)
+			var ttw TimeToWait
 
-			err = perIEDecode(raw, &ttw)
+			if err := perIEDecode(raw, &ttw); err != nil {
+				return err
+			}
+
 			m.TimeToWait = &ttw
 
-			return err
+			return nil
 		},
 		encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
@@ -252,15 +252,15 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {

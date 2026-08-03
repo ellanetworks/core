@@ -235,3 +235,35 @@ func rejectedIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
 
 	return ids
 }
+
+// TS 36.413 §8.7.3.2 has the eNB offer UE retention across S1 Setup and the MME
+// echo back whether it retained the contexts. Ella Core never retains, so it
+// only has to read the offer and leave its own answer absent — but it must read
+// it rather than reject the setup over an IE it does not model.
+func TestS1SetupUERetentionInformationRoundTrip(t *testing.T) {
+	sent := &S1SetupRequest{
+		GlobalENBID:            GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x1a2b3}},
+		SupportedTAs:           SupportedTAs{{TAC: 1, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
+		DefaultPagingDRX:       Ptr(PagingDRXv128),
+		UERetentionInformation: Ptr(UERetentionUesRetained),
+	}
+
+	raw, err := sent.Marshal()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	pdu, err := Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	got, err := ParseS1SetupRequest(pdu.value())
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if deref(got.UERetentionInformation) != UERetentionUesRetained {
+		t.Errorf("UERetentionInformation = %v, want ues-retained", got.UERetentionInformation)
+	}
+}

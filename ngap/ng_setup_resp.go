@@ -78,15 +78,15 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -99,15 +99,15 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 	{
 		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   UERetentionInformation
-			)
+			var v UERetentionInformation
 
-			err = perIEDecode(raw, &v)
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
 			m.UERetentionInformation = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
 			if m.UERetentionInformation == nil {

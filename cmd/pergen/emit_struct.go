@@ -399,7 +399,15 @@ func (g *generator) emitFieldUnmarshal(r *bytes.Buffer, target string, fi fieldI
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
 		fmt.Fprintf(r, "%s%s = %s(n%d)\n", prefix, target, fi.typeStr, fi.fieldIdx)
 	case kindEnum:
-		fmt.Fprintf(r, "%se%d, err := per.DecodeEnumerated(r, enc, %d, %t)\n", prefix, fi.fieldIdx, fi.enumRoot, fi.enumExt)
+		// An extensible ENUMERATED goes through decodeRootEnumerated, which
+		// refuses an extension addition rather than let nRoot+k narrow back
+		// onto a root value in the enumeration's small Go type.
+		if fi.enumExt {
+			fmt.Fprintf(r, "%se%d, err := decodeRootEnumerated(r, enc, %d, %q)\n", prefix, fi.fieldIdx, fi.enumRoot, fi.typeStr)
+		} else {
+			fmt.Fprintf(r, "%se%d, err := per.DecodeEnumerated(r, enc, %d, false)\n", prefix, fi.fieldIdx, fi.enumRoot)
+		}
+
 		fmt.Fprintf(r, "%sif err != nil {\n%s\treturn err\n%s}\n", prefix, prefix, prefix)
 		fmt.Fprintf(r, "%s%s = %s(e%d)\n", prefix, target, fi.typeStr, fi.fieldIdx)
 	case kindOctetString:

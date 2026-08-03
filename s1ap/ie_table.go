@@ -154,8 +154,24 @@ func parseMessageBody[M any, PM interface {
 	lastIdx := -1
 
 	// Every not-comprehended reject IE is collected so the single report names
-	// them all (§10.3.4.2: "for each reported IE/IE group").
+	// them all (§10.3.4.2: "for each reported IE/IE group"), up to the
+	// maxnoofErrors the list is bounded by. Past that the report is truncated
+	// rather than left unsendable: a peer that piles on unknown reject IEs
+	// would otherwise make the failure message fail to encode, and the
+	// procedure it was answering would go unanswered.
 	var notUnderstood []CriticalityDiagnosticsIEItem
+
+	reportNotUnderstood := func(id ProtocolIEID, crit Criticality) {
+		if len(notUnderstood) >= maxnoofErrors {
+			return
+		}
+
+		notUnderstood = append(notUnderstood, CriticalityDiagnosticsIEItem{
+			IECriticality: crit,
+			IEID:          id,
+			TypeOfError:   TypeOfErrorNotUnderstood,
+		})
+	}
 
 	for _, f := range fields {
 		idx, spec, ok := lookupIESpec(table, f.id)
@@ -166,11 +182,7 @@ func parseMessageBody[M any, PM interface {
 			// detected Abstract Syntax Error" act, so the scan continues and
 			// every offending IE is reported together.
 			if f.crit == CriticalityReject {
-				notUnderstood = append(notUnderstood, CriticalityDiagnosticsIEItem{
-					IECriticality: f.crit,
-					IEID:          f.id,
-					TypeOfError:   TypeOfErrorNotUnderstood,
-				})
+				reportNotUnderstood(f.id, f.crit)
 
 				continue
 			}
@@ -185,7 +197,10 @@ func parseMessageBody[M any, PM interface {
 		// Only IEs this version knows are considered, so the unknown ids
 		// handled above do not advance the cursor.
 		if idx <= lastIdx {
-			return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, nil)
+			// The IEs already collected go out with this report: §10.3.4.2
+			// wants an entry "for each reported IE/IE group", and abandoning
+			// the scan here must not silently drop the ones behind it.
+			return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, notUnderstood)
 		}
 
 		lastIdx = idx
@@ -195,17 +210,25 @@ func parseMessageBody[M any, PM interface {
 			// on received Criticality information" — the same three-way choice
 			// §10.3.4.2 makes for an unknown IE id, not an abandoned message.
 			if errors.Is(err, errNotComprehended) {
-				if f.crit == CriticalityReject {
-					notUnderstood = append(notUnderstood, CriticalityDiagnosticsIEItem{
-						IECriticality: f.crit,
-						IEID:          f.id,
-						TypeOfError:   TypeOfErrorNotUnderstood,
-					})
+				// §10.3.2 handles "the entire item (IE or IE group) which is
+				// not (fully or partially) comprehended ... in accordance with
+				// its own criticality information". Usually that item is this
+				// IE, but an unmodeled extension inside it is its own item with
+				// its own id and criticality, and names itself.
+				id, crit := f.id, f.crit
+
+				var item *notComprehendedIE
+				if errors.As(err, &item) {
+					id, crit = item.ID, item.Crit
+				}
+
+				if crit == CriticalityReject {
+					reportNotUnderstood(id, crit)
 
 					continue
 				}
 
-				meta.diagnostics.record(f.id, f.crit, TypeOfErrorNotUnderstood)
+				meta.diagnostics.record(id, crit, TypeOfErrorNotUnderstood)
 
 				continue
 			}

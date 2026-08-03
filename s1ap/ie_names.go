@@ -73,6 +73,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idResetType:                                 "ResetType",
 	idUEAssociatedLogicalS1ConnectionListResAck: "UEAssociatedLogicalS1ConnectionListResAck",
 	idSTMSI:                               "STMSI",
+	idUERetentionInformation:              "UERetentionInformation",
 	idUES1APIDs:                           "UES1APIDs",
 	idEUTRANCGI:                           "EUTRANCGI",
 	idServedGUMMEIs:                       "ServedGUMMEIs",

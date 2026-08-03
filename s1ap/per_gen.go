@@ -113,7 +113,7 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 		return err
 	}
 	criticalityDiagnosticsIEItem.IEID = ProtocolIEID(n1)
-	e2, err := per.DecodeEnumerated(r, enc, 2, true)
+	e2, err := decodeRootEnumerated(r, enc, 2, "TypeOfError")
 	if err != nil {
 		return err
 	}
@@ -1262,12 +1262,12 @@ func (requestType *RequestType) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err != nil {
 		return err
 	}
-	e0, err := per.DecodeEnumerated(r, enc, 3, true)
+	e0, err := decodeRootEnumerated(r, enc, 3, "EventType")
 	if err != nil {
 		return err
 	}
 	requestType.EventType = EventType(e0)
-	e1, err := per.DecodeEnumerated(r, enc, 1, true)
+	e1, err := decodeRootEnumerated(r, enc, 1, "ReportArea")
 	if err != nil {
 		return err
 	}

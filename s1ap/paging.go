@@ -67,20 +67,20 @@ type taiItem struct {
 	_   ieExtensions `per:",skip"`
 }
 
+// ueIdentityIndexValueBits is UE-Identity-Index-value ::= BIT STRING (SIZE(10))
+// (TS 36.413 §9.2.3.10).
+const ueIdentityIndexValueBits = 10
+
 var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idUEIdentityIndexValue, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			b, nbits, err := per.DecodeBitString(per.NewReader(raw), enc, 10, 10, true, true, false)
+			n, err := decodeBitStringUint(per.NewReader(raw), enc, ueIdentityIndexValueBits)
 			if err != nil {
 				return err
 			}
 
-			if nbits != 10 || len(b) < 2 {
-				return fmt.Errorf("s1ap: UE identity index value is %d bits", nbits)
-			}
-
-			v := uint16(b[0])<<2 | uint16(b[1])>>6
+			v := uint16(n)
 			m.UEIdentityIndexValue = &v
 
 			return nil
@@ -91,9 +91,7 @@ var pagingIEs = []ieSpec[Paging]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				b := []byte{byte(*m.UEIdentityIndexValue >> 2), byte(*m.UEIdentityIndexValue << 6)}
-
-				return per.EncodeBitString(w, enc, 10, 10, true, true, false, b, 10)
+				return encodeBitStringUint(w, enc, uint64(*m.UEIdentityIndexValue), ueIdentityIndexValueBits)
 			}), true
 		},
 	},
@@ -148,15 +146,15 @@ var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				drx PagingDRX
-			)
+			var drx PagingDRX
 
-			err = perIEDecode(raw, &drx)
+			if err := perIEDecode(raw, &drx); err != nil {
+				return err
+			}
+
 			m.PagingDRX = &drx
 
-			return err
+			return nil
 		},
 		encode: func(m *Paging) (per.Marshaler, bool) {
 			if m.PagingDRX == nil {
@@ -219,12 +217,12 @@ var pagingIEs = []ieSpec[Paging]{
 			}), true
 		},
 	},
-	// UE Radio Capability for Paging follows the List of TAIs in the message
-	// order (§9.1.6.1); included only when the eNB reported one.
+	// Paging Priority follows the List of TAIs in the message order (§9.1.6);
+	// included only when the MME assigns one.
 	{
 		id: idPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			v, err := per.DecodeEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, true)
+			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, "PagingPriority")
 			if err != nil {
 				return err
 			}

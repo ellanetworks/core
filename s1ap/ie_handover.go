@@ -29,13 +29,9 @@ func (t HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeEnumerated(r, enc, handoverTypeRootCount, true)
+	idx, err := decodeRootEnumerated(r, enc, handoverTypeRootCount, "HandoverType")
 	if err != nil {
 		return err
-	}
-
-	if idx >= handoverTypeRootCount {
-		return fmt.Errorf("%w: HandoverType extension value", errNotComprehended)
 	}
 
 	*t = HandoverType(idx)

@@ -156,7 +156,7 @@ func (c RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error
 }
 
 func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeEnumerated(r, enc, rrcEstablishmentCauseRootCount, true)
+	idx, err := decodeRootEnumerated(r, enc, rrcEstablishmentCauseRootCount, "RRCEstablishmentCause")
 	if err != nil {
 		return fmt.Errorf("s1ap: rrc establishment cause: %w", err)
 	}

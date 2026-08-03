@@ -13,7 +13,8 @@ import (
 // lists in NG Reset / NG Reset Acknowledge (TS 38.413, NGAP-Constants).
 const maxnoofNGConnectionsToReset = 65536
 
-// ResetType CHOICE alternatives (TS 38.413 §9.3.1.16). The CHOICE is not
+// ResetType CHOICE alternatives, defined inline in the NG RESET of TS 38.413
+// §9.2.6.11 rather than in a clause of its own. The CHOICE is not
 // extensible, so choice-Extensions is a plain alternative index.
 const (
 	resetTypeNGInterface = iota
@@ -29,7 +30,7 @@ const resetAllRootCount = 1
 
 // UEAssociatedLogicalNGConnectionItem identifies one UE-associated logical
 // NG-connection by its AMF-UE-NGAP-ID and/or RAN-UE-NGAP-ID (TS 38.413
-// §9.3.1.17). Both identities are optional; an item may carry either or both.
+// §9.3.3.25). Both identities are optional; an item may carry either or both.
 type UEAssociatedLogicalNGConnectionItem struct {
 	_           [0]struct{}  `per:"extseq"`
 	AMFUENGAPID *AMFUENGAPID `per:",optional"`
@@ -77,7 +78,7 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 	switch idx {
 	case resetTypeNGInterface:
-		if _, err := per.DecodeEnumerated(r, enc, resetAllRootCount, true); err != nil {
+		if _, err := decodeRootEnumerated(r, enc, resetAllRootCount, "ResetAll"); err != nil {
 			return fmt.Errorf("ngap: ResetAll: %w", err)
 		}
 

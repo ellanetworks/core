@@ -92,3 +92,31 @@ func TestS1SetupResponseReencodeStable(t *testing.T) {
 		t.Fatalf("re-encode unstable:\n  b1 % x\n  b2 % x", b1, b2)
 	}
 }
+
+// The MME's own answer to the eNB's UE-retention offer (TS 36.413 §8.7.3.2).
+func TestS1SetupResponseUERetentionInformationRoundTrip(t *testing.T) {
+	sent := &S1SetupResponse{
+		ServedGUMMEIs:          ServedGUMMEIs{{ServedPLMNs: []PLMNIdentity{{0x00, 0xf1, 0x10}}, ServedGroupIDs: []MMEGroupID{{0x80, 0x01}}, ServedMMECs: []MMECode{2}}},
+		RelativeMMECapacity:    Ptr(uint8(255)),
+		UERetentionInformation: Ptr(UERetentionUesRetained),
+	}
+
+	raw, err := sent.Marshal()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	pdu, err := Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	got, err := ParseS1SetupResponse(pdu.value())
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if deref(got.UERetentionInformation) != UERetentionUesRetained {
+		t.Errorf("UERetentionInformation = %v, want ues-retained", got.UERetentionInformation)
+	}
+}

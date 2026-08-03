@@ -52,7 +52,9 @@ func (u *UES1APIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if isExt {
-		return fmt.Errorf("s1ap: UE-S1AP-IDs extension alternative unsupported")
+		// §10.3.1 case 6, as for ResetType: handled on criticality rather than
+		// abandoning the message.
+		return fmt.Errorf("%w: UE-S1AP-IDs extension alternative", errNotComprehended)
 	}
 
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, ues1apIDsChoiceRootCount-1)
@@ -221,15 +223,15 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -242,15 +244,15 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 	{
 		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				uli UserLocationInformation
-			)
+			var uli UserLocationInformation
 
-			err = perIEDecode(raw, &uli)
+			if err := perIEDecode(raw, &uli); err != nil {
+				return err
+			}
+
 			m.UserLocationInformation = &uli
 
-			return err
+			return nil
 		},
 		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {

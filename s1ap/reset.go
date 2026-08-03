@@ -13,7 +13,8 @@ import (
 // S1-connection lists in Reset/Reset Acknowledge (TS 36.413).
 const maxnoofIndividualS1ConnectionsToReset = 256
 
-// ResetType CHOICE root alternatives (TS 36.413 §9.2.1.5). The CHOICE is
+// ResetType CHOICE root alternatives, defined inline in the RESET of TS 36.413
+// §9.1.8.1 rather than in a clause of its own. The CHOICE is
 // extensible, so an extension bit precedes the index.
 const (
 	resetTypeS1Interface = iota
@@ -70,7 +71,10 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if isExt {
-		return fmt.Errorf("s1ap: ResetType extension alternative unsupported")
+		// §10.3.1 case 6: an alternative this version does not support is an
+		// abstract syntax error handled on the IE's criticality, not a
+		// transfer syntax error that abandons the whole RESET.
+		return fmt.Errorf("%w: ResetType extension alternative", errNotComprehended)
 	}
 
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, resetTypeChoiceRootCount-1)
@@ -80,7 +84,7 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 	switch idx {
 	case resetTypeS1Interface:
-		if _, err := per.DecodeEnumerated(r, enc, resetAllRootCount, true); err != nil {
+		if _, err := decodeRootEnumerated(r, enc, resetAllRootCount, "ResetAll"); err != nil {
 			return fmt.Errorf("s1ap: ResetAll: %w", err)
 		}
 

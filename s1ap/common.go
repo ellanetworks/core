@@ -45,7 +45,11 @@
 // one.
 package s1ap
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ellanetworks/core/per"
+)
 
 // Ptr returns a pointer to v, for setting an optional IE inline.
 func Ptr[T any](v T) *T { return &v }
@@ -72,6 +76,31 @@ func (c Criticality) String() string {
 	default:
 		return fmt.Sprintf("Criticality(%d)", uint8(c))
 	}
+}
+
+// decodeRootEnumerated decodes an extensible ENUMERATED and refuses an
+// extension addition.
+//
+// per.DecodeEnumerated reports the k'th extension value as nRoot+k, which is
+// what keeps it distinct from a root value — but every enumeration here is a
+// small unsigned Go type, so storing nRoot+k narrows it straight back onto a
+// root value. A peer's unknown future value would then read as a specific one
+// this version does know, silently and with no error.
+//
+// An unknown value is a functionality this version does not support, which
+// TS 36.413 §10.3.1 case 6 makes an abstract syntax error handled on the
+// IE's criticality rather than a transfer syntax error.
+func decodeRootEnumerated(r *per.Reader, enc per.Encoding, nRoot int64, name string) (int64, error) {
+	idx, err := per.DecodeEnumerated(r, enc, nRoot, true)
+	if err != nil {
+		return 0, err
+	}
+
+	if idx >= nRoot {
+		return 0, fmt.Errorf("%w: %s extension value %d", errNotComprehended, name, idx)
+	}
+
+	return idx, nil
 }
 
 // presence ::= ENUMERATED { optional, conditional, mandatory }. It drives the

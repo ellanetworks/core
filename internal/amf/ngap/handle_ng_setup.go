@@ -28,6 +28,13 @@ var causeUnknownPLMN = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseM
 // broadcasts a served PLMN but no TAC this AMF serves.
 var causeNoServedTAC = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
 
+// causeUnspecified is the same Cause Misc "unspecified" on the wire, named for
+// the other reason the AMF sends it: a failure on its own side, where the
+// gNB's configuration is not at fault and nothing more specific fits. Kept
+// distinct from causeNoServedTAC so a reader can tell which rejection a call
+// site means.
+var causeUnspecified = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+
 // HandleNGSetupRequest answers a gNB's NG Setup Request with an NG Setup
 // Response when the gNB broadcasts a TAI this AMF serves, otherwise an NG Setup
 // Failure (TS 38.413 §8.7.1).
@@ -37,7 +44,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
-		sendNGSetupFailure(ctx, ran, causeNoServedTAC, nil)
+		sendNGSetupFailure(ctx, ran, causeUnspecified, nil)
 
 		return
 	}
@@ -45,7 +52,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not list operator SNSSAI", zap.Error(err))
-		sendNGSetupFailure(ctx, ran, causeNoServedTAC, nil)
+		sendNGSetupFailure(ctx, ran, causeUnspecified, nil)
 
 		return
 	}
@@ -55,7 +62,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		// §8.7.1.3 obliges an answer whenever the AMF cannot accept the setup,
 		// which includes being unable to build its own response.
 		logger.WithTrace(ctx, ran.Log).Error("failed to handle NG Setup Request", zap.Error(err))
-		sendNGSetupFailure(ctx, ran, causeNoServedTAC, nil)
+		sendNGSetupFailure(ctx, ran, causeUnspecified, nil)
 
 		return
 	}

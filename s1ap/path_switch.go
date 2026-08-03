@@ -226,9 +226,13 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			)
 
 			err = perIEDecode(raw, &ambr)
+			if err != nil {
+				return err
+			}
+
 			m.UEAggregateMaximumBitRate = &ambr
 
-			return err
+			return nil
 		},
 		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
 			if m.UEAggregateMaximumBitRate == nil {
@@ -273,9 +277,13 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			)
 
 			err = perIEDecode(raw, &caps)
+			if err != nil {
+				return err
+			}
+
 			m.UESecurityCapabilities = &caps
 
-			return err
+			return nil
 		},
 		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
 			if m.UESecurityCapabilities == nil {

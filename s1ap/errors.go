@@ -16,6 +16,29 @@ import (
 // abandoning the message.
 var errNotComprehended = errors.New("s1ap: IE not comprehended")
 
+// notComprehendedIE names the item a decoder could not comprehend and the
+// criticality that governs it.
+//
+// TS 36.413 §10.3.2: "the entire item (IE or IE group) which is not (fully or
+// partially) comprehended shall be treated in accordance with its own
+// criticality information". For an unmodeled extension that item is the
+// extension, not whichever IE happens to contain it — so an extension marked
+// reject rejects the procedure even inside an IE marked ignore, and the
+// Criticality Diagnostics names the extension's id (§9.2.1.21: "the IE ID of
+// the not understood or missing IE"). Decoders whose not-comprehended item is
+// the containing IE itself return the bare sentinel instead.
+type notComprehendedIE struct {
+	ID   ProtocolIEID
+	Crit Criticality
+	What string
+}
+
+func (e *notComprehendedIE) Error() string {
+	return fmt.Sprintf("%s: %s %s (criticality %s)", errNotComprehended, e.What, e.ID, e.Crit)
+}
+
+func (e *notComprehendedIE) Unwrap() error { return errNotComprehended }
+
 // TransferSyntaxError reports octets that are not a decodable PER encoding.
 // Nothing of the message is recoverable (TS 36.413 §10.2).
 type TransferSyntaxError struct {

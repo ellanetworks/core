@@ -9,8 +9,9 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TimerApproachForGUAMIRemoval ::= ENUMERATED { apply-timer, ... } —
-// TS 38.413 §9.3.3.24. Present means the NG-RAN node should keep the GUAMI for
+// TimerApproachForGUAMIRemoval ::= ENUMERATED { apply-timer, ... }, defined
+// inline in the AMF STATUS INDICATION of TS 38.413 §9.2.6.10 rather than in a
+// clause of its own. Present means the NG-RAN node should keep the GUAMI for
 // the guard period rather than dropping it at once (TS 23.501).
 type TimerApproachForGUAMIRemoval uint8
 
@@ -29,7 +30,7 @@ func (t TimerApproachForGUAMIRemoval) MarshalPER(w *per.Writer, enc per.Encoding
 }
 
 func (t *TimerApproachForGUAMIRemoval) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := per.DecodeEnumerated(r, enc, timerApproachForGUAMIRemovalRootCount, true)
+	v, err := decodeRootEnumerated(r, enc, timerApproachForGUAMIRemovalRootCount, "TimerApproachForGUAMIRemoval")
 	if err != nil {
 		return err
 	}
@@ -40,8 +41,8 @@ func (t *TimerApproachForGUAMIRemoval) UnmarshalPER(r *per.Reader, enc per.Encod
 }
 
 // UnavailableGUAMIItem ::= SEQUENCE { gUAMI, timerApproachForGUAMIRemoval
-// OPTIONAL, backupAMFName OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
-// TS 38.413 §9.3.3.23.
+// OPTIONAL, backupAMFName OPTIONAL, iE-Extensions OPTIONAL } (extensible),
+// defined inline in TS 38.413 §9.2.6.10.
 type UnavailableGUAMIItem struct {
 	_                            [0]struct{} `per:"extseq"`
 	GUAMI                        GUAMI
@@ -56,7 +57,7 @@ type UnavailableGUAMIItem struct {
 // UnavailableGUAMIItem.
 type UnavailableGUAMIList []UnavailableGUAMIItem
 
-// TS 38.413 §9.2.6.11.
+// TS 38.413 §9.2.6.10.
 //
 // The one IE is mandatory with reject criticality, so it is a value type: a
 // receiver that cannot read it has nothing to act on and rejects the procedure

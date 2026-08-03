@@ -67,6 +67,7 @@ const (
 	idResetType                                 ProtocolIEID = 92
 	idUEAssociatedLogicalS1ConnectionListResAck ProtocolIEID = 93
 	idSTMSI                                     ProtocolIEID = 96
+	idUERetentionInformation                    ProtocolIEID = 228
 	idUES1APIDs                                 ProtocolIEID = 99
 	idEUTRANCGI                                 ProtocolIEID = 100
 	idServedGUMMEIs                             ProtocolIEID = 105

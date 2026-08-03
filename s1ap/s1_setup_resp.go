@@ -13,6 +13,10 @@ type S1SetupResponse struct {
 	ServedGUMMEIs          ServedGUMMEIs
 	RelativeMMECapacity    *uint8
 	CriticalityDiagnostics *CriticalityDiagnostics
+	// UERetentionInformation echoes back whether the MME retained UE contexts
+	// across the setup; Ella Core never does, so it is left absent on send
+	// (TS 36.413 §8.7.3.2).
+	UERetentionInformation *UERetentionInformation
 
 	messageMeta
 }
@@ -76,15 +80,15 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -92,6 +96,27 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			}
 
 			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
+			var v UERetentionInformation
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.UERetentionInformation = &v
+
+			return nil
+		},
+		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+			if m.UERetentionInformation == nil {
+				return nil, false
+			}
+
+			return m.UERetentionInformation, true
 		},
 	},
 }

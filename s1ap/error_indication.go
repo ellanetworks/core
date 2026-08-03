@@ -15,6 +15,7 @@ type ErrorIndication struct {
 	ENBUES1APID            *ENBUES1APID
 	Cause                  *Cause
 	CriticalityDiagnostics *CriticalityDiagnostics
+	STMSI                  *STMSI
 
 	messageMeta
 }
@@ -102,6 +103,27 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 			}
 
 			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idSTMSI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+			var v STMSI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return fmt.Errorf("s1ap: ErrorIndication S-TMSI: %w", err)
+			}
+
+			m.STMSI = &v
+
+			return nil
+		},
+		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+			if m.STMSI == nil {
+				return nil, false
+			}
+
+			return m.STMSI, true
 		},
 	},
 }
