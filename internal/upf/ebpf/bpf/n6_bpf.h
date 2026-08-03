@@ -220,9 +220,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	PROFILE_END(PROF_N6_NAT);
 
 	if (CTX_L4_CSUM_VIA_HELPERS) {
-		/* destination_nat_apply re-parses after its csum helpers; the
-		 * frame was parsed as IPv4 above, so a missing IPv4 header
-		 * here is a failed re-parse. */
+		/* The frame parsed as IPv4 above, so a missing header here is a
+		 * failed re-parse inside destination_nat_apply. */
 		ip4 = ctx->ip4;
 		if (!ip4)
 			return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
@@ -260,7 +259,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	}
 	/* Segmentation replays the tunnel span verbatim, so every segment would
 	 * carry the merged frame's GTP-U message_length (TS 29.281 §5.1) and,
-	 * with an IPv6 outer header, its outer UDP checksum. */
+	 * over IPv6, its outer UDP checksum. */
 	if (frame_is_merged(ctx)) {
 		upf_printk("upf: merged frame on the encap path, dropping");
 		return drop_with(ctx, UPF_DROP_ENCAP_GSO);

@@ -33,8 +33,7 @@ func RegisterMetrics() {
 	})
 
 	// Every frame is counted exactly once across the two families:
-	// forwarded, by action, or dropped, by reason. An abort is a drop whose
-	// cause is the datapath itself and carries an internal_ reason.
+	// forwarded, by action, or dropped, by reason.
 	datapathForwardDesc := prometheus.NewDesc(
 		"app_upf_datapath_forward_total",
 		"Packets the data plane forwarded, by direction and by the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in every attach mode.",
@@ -49,8 +48,7 @@ func RegisterMetrics() {
 		nil,
 	)
 
-	// The full distribution, including outcomes that are not drops; the ones
-	// that are also appear in app_upf_datapath_drop_total.
+	// The full distribution, including outcomes that are not drops.
 	datapathFibLookupDesc := prometheus.NewDesc(
 		"app_upf_datapath_fib_lookup_total",
 		"FIB lookup outcomes in the data plane.",

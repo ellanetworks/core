@@ -150,15 +150,11 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 		.interface = INTERFACE_N3,
 	};
 
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return record_action(&context, CTX_ACT_OK);
 
-	/* This stage answers echo requests and error indications by rewriting
-	 * the frame in place, so the headers must be writable first. The pull
-	 * precedes the packet pointers so the parse below starts from fresh
-	 * ones. */
+	/* This stage rewrites the frame in place, so the headers must be
+	 * writable first. */
 	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return record_action(&context, DEFAULT_CTX_ACTION);
 
@@ -232,16 +228,14 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 		.interface = INTERFACE_N3,
 	};
 
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return record_action(&context, CTX_ACT_OK);
 
 	/* data_end bounds only the linear head, which a header-splitting NIC
 	 * sizes with eth_get_headlen: __skb_get_poff stops at thoff + 8 for UDP
 	 * (net/core/flow_dissector.c), leaving the GTP-U header in a fragment.
-	 * Parsing before this pull would fail and hand the G-PDU to the stack
-	 * undecapsulated. The pull also unclones, which the rewrites need. */
+	 * Parsing before this pull would hand the G-PDU to the stack
+	 * undecapsulated. */
 	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return record_action(&context,
 				     abort_with(&context, UPF_DROP_INTERNAL_PULL_FAILED));
@@ -269,14 +263,12 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 		.interface = INTERFACE_N6,
 	};
 
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return record_action(&context, CTX_ACT_OK);
 
 	/* A TC skb can be non-linear or cloned: the pull makes the headers
-	 * writable for the NAT and encapsulation rewrites, and brings the
-	 * headers quoted inside an ICMP error within reach of data_end. */
+	 * writable for the NAT and encapsulation rewrites, and brings an ICMP
+	 * error's quoted headers within reach of data_end. */
 	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return record_action(&context,
 				     abort_with(&context, UPF_DROP_INTERNAL_PULL_FAILED));
@@ -291,20 +283,16 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	return record_action(&context, ret);
 }
 
-/* Classifying by packet type rather than by interface keeps this correct when
- * N3 and N6 share one. With distinct interfaces the shape alone is not
- * enough: uplink traffic is attributed to a subscriber and source-NATed on
- * its behalf, so a GTP-U-shaped packet arriving on N6 must not claim that
- * treatment. */
+/* Classifying by packet shape rather than by interface keeps this correct when
+ * N3 and N6 share one. The shape alone is not enough, though: uplink traffic
+ * is attributed to a subscriber and source-NATed on its behalf, so a
+ * GTP-U-shaped packet arriving on N6 must not claim that treatment. */
 CTX_DP_SEC("upf_entry")
 int upf_entry_func(struct __ctx_buff *ctx)
 {
-	/* Returns here are not counted: the entrypoint has not classified the
-	 * frame yet, so neither statistics map is the right one. The stage
-	 * programs own every frame they are tail-called with. */
+	/* Returns here are not counted: the frame is not classified yet, so
+	 * neither statistics map is the right one. */
 
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 
@@ -375,8 +363,6 @@ struct {
 CTX_DP_SEC("veth_xdp")
 int veth_xdp_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))
 		return ctx_verdict(CTX_ACT_OK);
 

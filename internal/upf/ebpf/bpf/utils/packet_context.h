@@ -74,15 +74,9 @@ struct packet_context {
 };
 
 /* A merged buffer holds several datagrams behind one set of headers, so
- * neither encapsulation nor decapsulation can produce a correct frame from
- * it. The kernel merges on receive with GRO, and a veth or virtio peer can
- * deliver one without any merge on this side.
- *
- * gso_size says the buffer is GSO; gso_segs says how many segments it holds,
- * and is the only one of the two that answers the question. Frame length
- * cannot substitute for it — gso_size measures payload, skb->len includes the
- * headers, so a single full-size segment compares as merged. A source that
- * reports no count at all (SKB_GSO_DODGY) is treated as merged: it sets
+ * neither encapsulation nor decapsulation can produce a correct frame from it.
+ * gso_size only says the buffer is GSO; gso_segs is what answers the question.
+ * A source that reports no count (SKB_GSO_DODGY) counts as merged: it sets
  * gso_size only for a buffer it had already segmented. */
 static __always_inline int frame_is_merged(const struct packet_context *ctx)
 {
@@ -92,10 +86,9 @@ static __always_inline int frame_is_merged(const struct packet_context *ctx)
 	return ctx_gso_segs(ctx->ctx_buff) != 1;
 }
 
-/* Every drop in the datapath returns through one of these, so the reason
- * reaches the counter; helpers that decide without a packet_context leave the
- * translation to their caller. The two differ only in the hook verdict —
- * XDP_ABORTED fires trace_xdp_exception — and are counted alike. */
+/* Every drop returns through one of these, so the reason reaches the counter.
+ * The two differ only in the hook verdict — XDP_ABORTED fires
+ * trace_xdp_exception — and are counted alike. */
 static __always_inline enum ctx_action drop_with(struct packet_context *ctx,
 						 enum upf_drop_reason reason)
 {
@@ -112,9 +105,8 @@ static __always_inline enum ctx_action abort_with(struct packet_context *ctx,
 	return CTX_ACT_ABORTED;
 }
 
-/* The transmit helpers decide without a packet_context, so the datapath calls
- * them through these wrappers, which attach the cause of their one failure
- * mode. */
+/* The transmit helpers take no packet_context, so these wrappers attach the
+ * cause of their one failure mode. */
 static __always_inline enum ctx_action tx_failed(struct packet_context *ctx,
 						 enum ctx_action action)
 {
@@ -155,7 +147,6 @@ drop_reported(struct packet_context *ctx, enum upf_drop_reason fallback)
 	return CTX_ACT_DROP;
 }
 
-/* Same rule as drop_reported. */
 static __always_inline enum ctx_action
 abort_reported(struct packet_context *ctx, enum upf_drop_reason fallback)
 {
@@ -165,31 +156,28 @@ abort_reported(struct packet_context *ctx, enum upf_drop_reason fallback)
 	return CTX_ACT_ABORTED;
 }
 
-/* VLAN id a frame leaves with, keyed on the logical side it is bound for
- * and not the egress ifindex: when N3 and N6 are sub-interfaces of one
- * NIC, both resolve to the same master and the ifindex cannot tell the two
- * directions apart. */
+/* Keyed on the logical side the frame is bound for, not the egress ifindex:
+ * with N3 and N6 on sub-interfaces of one NIC both resolve to the same master,
+ * which cannot tell the two directions apart. */
 static __always_inline int
 egress_vlan_forwarded(const struct packet_context *ctx)
 {
 	return ctx->interface == INTERFACE_N3 ? n6_vlan : n3_vlan;
 }
 
-/* Counterpart for a frame the datapath answers itself, which leaves by the
- * side it arrived on. */
+/* Counterpart for a frame the datapath answers itself. */
 static __always_inline int
 egress_vlan_reflected(const struct packet_context *ctx)
 {
 	return ctx->interface == INTERFACE_N3 ? n3_vlan : n6_vlan;
 }
 
-/* Every program that owns a frame's outcome returns through this exactly
- * once, at its boundary, so the frame is counted neither twice nor not at
- * all.
+/* Every program that owns a frame's outcome returns through this exactly once,
+ * so the frame is counted neither twice nor not at all.
  *
- * The reason is read from the context rather than passed in because C does
- * not order argument evaluation: `record_action(ctx, handle(ctx))` would
- * otherwise be free to sample it before handle() sets it. */
+ * The reason is read from the context rather than passed in because C does not
+ * order argument evaluation: `record_action(ctx, handle(ctx))` would otherwise
+ * be free to sample it before handle() sets it. */
 static __always_inline int record_action(struct packet_context *ctx,
 					 enum ctx_action action)
 {

@@ -5,14 +5,11 @@
 
 /*
  * Why the datapath did not forward a frame, as one dimension of
- * app_upf_datapath_drop_total. Direction is not part of this enum: the uplink
- * and downlink pipelines keep separate statistics maps.
+ * app_upf_datapath_drop_total. Direction is not in this enum: the uplink and
+ * downlink pipelines keep separate statistics maps.
  *
- * UPF_DROP_INTERNAL_* means the datapath itself failed, so one alert can
- * watch the prefix; they should be zero forever.
- *
- * Values are dense and never reused: an entry that becomes unreachable is
- * kept and marked, so a historical series keeps its meaning.
+ * Values are dense and never reused, so a historical series keeps its meaning:
+ * an entry that becomes unreachable is kept and marked.
  */
 enum upf_drop_reason {
 	/* A drop site that skipped drop_with()/abort_with(). */
@@ -38,9 +35,9 @@ enum upf_drop_reason {
 	UPF_DROP_ENCAP_GSO,
 	UPF_DROP_DECAP_GSO,
 	UPF_DROP_DF_NOT_SET,
-	/* Not a failure: a Router Solicitation is handed to the RA responder
-	 * over a ring buffer. Counted like any other non-forward so the totals
-	 * stay closed. */
+	/* Not a failure: the Router Solicitation went to the RA responder over
+	 * a ring buffer. Counted like any other non-forward so the totals stay
+	 * closed. */
 	UPF_DROP_RS_INTERCEPTED,
 
 	/* NAT. */
@@ -65,7 +62,8 @@ enum upf_drop_reason {
 	UPF_DROP_MALFORMED_GTP,
 	UPF_DROP_MALFORMED_HEADER,
 
-	/* Datapath failures. Should be zero forever. */
+	/* Datapath failures: one alert watches the prefix, and they should be
+	 * zero forever. */
 	UPF_DROP_INTERNAL_PULL_FAILED,
 	UPF_DROP_INTERNAL_MTU_CHECK_FAILED,
 	UPF_DROP_INTERNAL_ENCAP_FAILED,
@@ -74,8 +72,6 @@ enum upf_drop_reason {
 	UPF_DROP_INTERNAL_RESIZE_FAILED,
 	UPF_DROP_INTERNAL_WRITE_FAILED,
 	UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED,
-	/* The VLAN tag could not be rewritten, or the redirect helper refused
-	 * the target. */
 	UPF_DROP_INTERNAL_TX_FAILED,
 
 	UPF_DROP_REASON_COUNT,

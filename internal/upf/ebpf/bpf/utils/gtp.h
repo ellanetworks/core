@@ -65,11 +65,9 @@
  * caps pathological chains; far above any N3 header (typically 16 octets). */
 #define GTP_MAX_HDR_LEN 64
 
-/* Deepest span the datapath parses or writes behind a single pull. Two paths
- * compete for it: the uplink GTP-U chain, and the dNAT translation of an ICMP
- * error, which reaches the L4 ports inside the quoted datagram. A pull shorter
- * than either turns a bounds check into a pass-to-stack with no counter, so
- * the bound is asserted against the parse depth it has to cover. */
+/* Deepest span the datapath parses or writes behind a single pull. A pull
+ * shorter than either path below turns a bounds check into a pass-to-stack
+ * with no counter, so CTX_PULL_LEN is asserted against both. */
 /* eth 14 + VLAN 4 + IPv4 with options 60 */
 #define CTX_PARSE_DEPTH_L2_L3 78
 /* + UDP 8 + GTP-U 64 */
@@ -157,8 +155,8 @@ gtp_decap_size_no_vlan(const struct packet_context *ctx)
 	__u32 outer_ip_size;
 	if (ctx->ip4) {
 		outer_ip_size = (__u32)ctx->ip4->ihl * 4;
-		/* parse_ip4 rejects ihl < 5; the field is 4 bits so the upper
-		 * bound is 60. Restated here so the verifier sees it. */
+		/* parse_ip4 already rejects ihl < 5; restated so the verifier
+		 * sees the bound. */
 		if (outer_ip_size < sizeof(struct iphdr) || outer_ip_size > 60)
 			return 0;
 	} else if (ctx->ip6) {
@@ -196,9 +194,9 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		return -1;
 	}
 
-	/* The PDR names the transport family the session was established with.
-	 * A frame whose outer header disagrees would be stripped by the wrong
-	 * amount, landing the parse inside the inner packet. */
+	/* A frame whose outer family disagrees with the session's would be
+	 * stripped by the wrong amount, landing the parse inside the inner
+	 * packet. */
 	const __u8 pdr_expects_ipv6 = outer_header_removal ==
 				      OHR_GTP_U_UDP_IPv6;
 	if (pdr_expects_ipv6 != (ctx->ip6 != NULL)) {
@@ -240,8 +238,7 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 	 * tag. Resizing first lets every rewrite below use a fixed offset from
 	 * the new packet start, which the verifier can bound even though the
 	 * stripped GTP header length varies. */
-	/* The inner version nibble has to be read before the resize moves it;
-	 * guess_eth_protocol below re-derives it for the Ethernet type. */
+	/* Read before the resize moves it. */
 	const __u8 *inner_peek = (const __u8 *)ctx->gtp + ctx->gtp_hdr_len;
 	if ((const void *)(inner_peek + 1) > data_end) {
 		upf_printk("upf: remove_gtp_header: can't read inner header");
@@ -709,9 +706,9 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 	if (ip6) {
 		__u32 udp_off =
 			(__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
-		/* Built from headers where the inner L4 region allows it: the
-		 * byte sum would read an inner checksum the kernel has not
-		 * written yet on a CHECKSUM_PARTIAL frame. */
+		/* Header-only where the inner L4 region allows it: on a
+		 * CHECKSUM_PARTIAL frame the byte sum would read an inner
+		 * checksum the kernel has not written yet. */
 		int csum_ret = udpv6_csum_from_headers(
 			&ip6->saddr, &ip6->daddr, udp, bpf_ntohs(udp->len),
 			gtp, gtp_full_hdr_size, inner_is_ip6, data_end);
@@ -827,9 +824,9 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 	if (ip6) {
 		__u32 udp_off =
 			(__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
-		/* Built from headers where the inner L4 region allows it: the
-		 * byte sum would read an inner checksum the kernel has not
-		 * written yet on a CHECKSUM_PARTIAL frame. */
+		/* Header-only where the inner L4 region allows it: on a
+		 * CHECKSUM_PARTIAL frame the byte sum would read an inner
+		 * checksum the kernel has not written yet. */
 		int csum_ret = udpv6_csum_from_headers(
 			&ip6->saddr, &ip6->daddr, udp, bpf_ntohs(udp->len),
 			gtp, sizeof(struct gtpuhdr), inner_is_ip6, data_end);

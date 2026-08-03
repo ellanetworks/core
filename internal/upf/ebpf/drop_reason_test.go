@@ -12,8 +12,7 @@ import (
 )
 
 // Nothing in the build ties the C enum to the Go label table, so a reason
-// inserted mid-enum would relabel every reason after it: old series would
-// keep their names and change meaning. This is that tie.
+// inserted mid-enum would silently relabel every reason after it.
 func TestDropReasonNamesMatchDatapath(t *testing.T) {
 	const header = "bpf/utils/drop_reason.h"
 
@@ -34,7 +33,6 @@ func TestDropReasonNamesMatchDatapath(t *testing.T) {
 			continue
 		}
 
-		// The counter is an array indexed by position.
 		if value != "" && value != strconv.Itoa(len(names)) {
 			t.Errorf("%s: %s is pinned to %s but sits at position %d",
 				header, name, value, len(names))

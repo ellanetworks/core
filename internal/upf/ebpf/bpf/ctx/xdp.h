@@ -10,9 +10,9 @@
 
 #include "bpf/ctx/action.h"
 
-/* Macros rather than inline wrappers: the XDP object's BTF and instruction
- * stream must stay what the pre-shim source produced, and even an
- * always_inline wrapper can shift how LLVM re-associates address arithmetic. */
+/* Macros rather than inline wrappers: an always_inline wrapper can shift how
+ * LLVM re-associates address arithmetic, and the XDP object's instruction
+ * stream must stay what the pre-shim source produced. */
 #define __ctx_buff xdp_md
 
 #define CTX_DP_SEC(name) SEC("xdp/" name)
@@ -20,7 +20,6 @@
 #define CTX_PULL_LEN 192
 #define CTX_NEEDS_PULL 0
 
-/* Identity: enum ctx_action carries the XDP verdict encoding. */
 #define ctx_verdict(action) ((int)(action))
 
 /* XDP moves raw bytes and carries no offload state to describe. */
@@ -45,8 +44,7 @@
 #define ctx_ingress_ifindex(ctx) ((ctx)->ingress_ifindex)
 
 /* xdp_md carries no GSO metadata, so a merged buffer is undetectable rather
- * than absent: generic XDP runs downstream of GRO and can be handed one. See
- * docs/explanation/user_plane_packet_processing_with_ebpf.md. */
+ * than absent: generic XDP runs downstream of GRO and can be handed one. */
 #define ctx_gso_size(ctx) ((__u32)0)
 #define ctx_gso_segs(ctx) ((__u32)0)
 
@@ -85,10 +83,9 @@
 
 #define ctx_vlan_ingress(ctx) ((long)0)
 
-/* egress_vid is unevaluated: XDP frames carry their tag in-band, and the vid
- * expressions read volatile config the object must not load for nothing. */
+/* egress_vid is unevaluated: the tag is in-band here, and the vid expressions
+ * read volatile config the object must not load for nothing. */
 #define ctx_tx_back(ctx, egress_vid) (CTX_ACT_TX)
 
-/* bpf_redirect returns XDP_REDIRECT, which is CTX_ACT_REDIRECT. */
 #define ctx_redirect_out(ctx, ifindex, egress_vid) \
 	((enum ctx_action)bpf_redirect(ifindex, 0))

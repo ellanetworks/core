@@ -120,11 +120,9 @@ func loadProgramFlow(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	return loadProgramConfig(t, true, false, n3Ifindex, n6Ifindex, 0, 0)
 }
 
-// testAttachModeTCX selects the SCHED_CLS build and TCX attach for the
-// real-attach fixtures (BPF_PROG_TEST_RUN suites always exercise the XDP
-// build; the TC build's test_run coverage is tc_test.go), so the same
-// attached suites run per mode: ELLA_TEST_ATTACH_MODE=tcx via
-// go test -exec "sudo env ...".
+// Selects the SCHED_CLS build and TCX attach for the real-attach fixtures, so
+// the same suites run per mode. BPF_PROG_TEST_RUN suites always exercise the
+// XDP build; tc_test.go covers the TC build there.
 func testAttachModeTCX() bool { return os.Getenv("ELLA_TEST_ATTACH_MODE") == "tcx" }
 
 // loadAttachedProgramConfig is loadProgramConfig at the fixture attach mode.

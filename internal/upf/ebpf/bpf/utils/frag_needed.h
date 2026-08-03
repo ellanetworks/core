@@ -27,12 +27,10 @@ static __always_inline int vlan_to_insert(struct packet_context *ctx)
 	return egress_vlan_reflected(ctx);
 }
 
-/* Source address for a self-generated reply: the preferred source the FIB would
- * pick for the destination. BPF_FIB_LOOKUP_SRC is what writes ipv4_src
- * (net/core/filter.c, fib_result_prefsrc); without it the field is returned
- * unchanged. tot_len stays 0 so the MTU check does not abort the lookup before
- * the source is written. The seed is the address the trigger was sent to, which
- * is what remains if the lookup does not reach that point. */
+/* Source address for a self-generated reply: the preferred source the FIB
+ * would pick. BPF_FIB_LOOKUP_SRC is what writes ipv4_src (net/core/filter.c,
+ * fib_result_prefsrc), and tot_len stays 0 so the MTU check does not abort the
+ * lookup before it does. The seed is what remains if it never gets there. */
 static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
 {
 	struct bpf_fib_lookup fib_params = {};
@@ -51,8 +49,8 @@ static __always_inline __be32 get_src_ip_addr(struct packet_context *ctx)
 /* IPv6 counterpart. RFC 4443 §2.2 requires the source to be an address of the
  * node; the UE address the trigger was sent to is neither ours nor routable
  * back through N6 under BCP38. */
-/* `orig` is the trigger's header re-derived after the resize: ctx->ip6 still
- * points into the pre-resize frame and the verifier treats it as a scalar. */
+/* `orig` is re-derived after the resize: ctx->ip6 still points into the
+ * pre-resize frame, which the verifier treats as a scalar. */
 static __always_inline void get_src_ip6_addr(struct packet_context *ctx,
 					     const struct ipv6hdr *orig,
 					     struct in6_addr *out)
@@ -164,9 +162,9 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		}
 	}
 
-	/* Built field by field: copying the trigger inherits its ihl, tos (ECN
-	 * included), id and frag_off, and an ihl claiming options this header
-	 * does not carry makes the receiver parse the ICMP inside the payload. */
+	/* Built field by field: copying the trigger would inherit its ihl, tos
+	 * (ECN included), id and frag_off, and an ihl claiming options this
+	 * header does not carry lands the receiver's parse in the payload. */
 	__builtin_memset(new_ip, 0, sizeof(*new_ip));
 	new_ip->version = 4;
 	new_ip->ihl = sizeof(struct iphdr) >> 2;
@@ -188,8 +186,7 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	new_icmp->type = ICMP_DEST_UNREACH;
 	new_icmp->code = ICMP_FRAG_NEEDED;
 	new_icmp->un.frag.mtu = mtu;
-	/* RFC 1191 §4: the unused half of the word is zero, and it is covered
-	 * by the checksum computed below. */
+	/* RFC 1191 §4, and it is covered by the checksum computed below. */
 	new_icmp->un.frag.__unused = 0;
 
 	int pkt_size = (int)ctx_len_from(ctx->ctx_buff, data_end, data);
@@ -221,21 +218,9 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	return tx_back(ctx, egress_vlan_reflected(ctx));
 }
 
-/*
- * send_packet_too_big - generate an ICMPv6 Packet Too Big (Type 2, Code 0)
- * error and send it back towards the originator of the oversized inner IPv6
- * packet.
- *
- * The new packet structure is:
- *   ETH (14) | IPv6 (40) | ICMPv6 PTB (8) | ICMP_QUOTE_LEN of the trigger
- * (+ 4 bytes if VLAN is added).
- *
- * We prepend sizeof(icmp6hdr)+sizeof(ipv6hdr) = 48 bytes in front of the
- * original packet, reuse the original IPv6 header as the ICMPv6 payload,
- * swap src/dst addresses, and compute the ICMPv6 checksum.
- *
- * @mtu: effective MTU in network byte order (16-bit).
- */
+/* ICMPv6 Packet Too Big (RFC 4443 §3.2), built in place: the room prepended in
+ * front of the trigger holds the new headers, and the trigger itself becomes
+ * the quote. @mtu is in network byte order. */
 static __always_inline enum ctx_action
 send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 {
@@ -373,17 +358,9 @@ frag_needed_ipv6(struct packet_context *ctx, __be16 mtu)
 	return send_packet_too_big(ctx, mtu);
 }
 
-/*
- * frag_needed - dispatch to the correct MTU-exceeded handler.
- *
- * Use ctx->ip4 / ctx->ip6 (set during initial packet parsing) to decide:
- *   IPv4 inner → ICMP Fragmentation Needed
- *   IPv6 inner → ICMPv6 Packet Too Big
- *
- * We deliberately avoid re-reading eth->h_proto here: a fresh memory load
- * would give the BPF verifier an unconstrained scalar and cause it to explore
- * the wrong branch on paths where ctx->ip4 is known to be NULL.
- */
+/* Dispatches on the parsed pointers rather than re-reading eth->h_proto: a
+ * fresh load is an unconstrained scalar to the verifier, which then explores
+ * the branch where ctx->ip4 is known to be NULL. */
 static __always_inline enum ctx_action frag_needed(struct packet_context *ctx,
 						   __u32 mtu_len)
 {

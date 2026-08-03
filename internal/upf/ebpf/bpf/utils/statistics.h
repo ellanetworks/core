@@ -39,11 +39,9 @@ struct packet_counters {
 struct upf_statistic {
 	struct byte_counter byte_counter;
 	struct packet_counters packet_counters;
-	/* Indexed by enum ctx_action, forwarding actions only. A frame the
-	 * datapath did not forward is counted in drop_reasons instead, so the
-	 * two arrays are disjoint and sum to the frames handled. */
+	/* Indexed by enum ctx_action, forwarding actions only: the two arrays
+	 * are disjoint and sum to the frames handled. */
 	__u64 forwarded_actions[UPF_MAX_ACTION];
-	/* Indexed by enum upf_drop_reason. Aborts land here too, under an
-	 * UPF_DROP_INTERNAL_* reason. */
+	/* Indexed by enum upf_drop_reason; aborts land here too. */
 	__u64 drop_reasons[UPF_DROP_REASON_MAX];
 };

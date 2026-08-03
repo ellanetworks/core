@@ -20,7 +20,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// attachXDP attaches prog at the XDP hook of the interface in the given mode.
 // The returned link owns the attachment: closing it, or exiting, detaches.
 func attachXDP(prog *cebpf.Program, ifindex int, flags link.XDPAttachFlags) (link.Link, error) {
 	return link.AttachXDP(link.XDPOptions{
@@ -30,14 +29,11 @@ func attachXDP(prog *cebpf.Program, ifindex int, flags link.XDPAttachFlags) (lin
 	})
 }
 
-// attachTCX attaches prog at TCX ingress of the interface.
-//
 // TCX is a multi-program hook: unlike XDP, which refuses a second attach with
-// EBUSY, it accepts one and runs both. A second instance of this daemon would
-// therefore double-process every frame — encapsulating, translating and
-// metering it twice — rather than failing to start, so that case is refused
-// here. Foreign programs are left alone: sharing the hook with a CNI or an
-// observability agent is what TCX is for.
+// EBUSY, it accepts one and runs both, so a second instance of this daemon
+// would double-process every frame rather than fail to start. Foreign programs
+// are left alone: sharing the hook with a CNI or an observability agent is what
+// TCX is for.
 func attachTCX(prog *cebpf.Program, ifindex int, ifname string) (link.Link, error) {
 	if err := datapathAlreadyAttached(prog, ifindex); err != nil {
 		return nil, fmt.Errorf("%s: %w", ifname, err)
@@ -50,11 +46,10 @@ func attachTCX(prog *cebpf.Program, ifindex int, ifname string) (link.Link, erro
 	})
 }
 
-// datapathAlreadyAttached reports an error when a program with the same name
-// as prog is already at TCX ingress on ifindex, which means another instance
-// of this daemon holds the hook. A kernel that cannot be queried is treated as
-// empty: refusing to start on a probe failure is worse than the stacking this
-// guards against.
+// A program with the same name at TCX ingress means another instance of this
+// daemon holds the hook. A kernel that cannot be queried is treated as empty:
+// refusing to start on a probe failure is worse than the stacking this guards
+// against.
 func datapathAlreadyAttached(prog *cebpf.Program, ifindex int) error {
 	info, err := prog.Info()
 	if err != nil {
@@ -88,30 +83,26 @@ func datapathAlreadyAttached(prog *cebpf.Program, ifindex int) error {
 	return nil
 }
 
-// loadDatapathObjects loads the object the requested mechanism can actually
-// attach: a TCX hook takes SCHED_CLS programs, every XDP mode takes XDP
-// programs. The default chain starts at native XDP and reloads in
-// attachDatapath if it falls back to TCX.
+// A TCX hook takes SCHED_CLS programs and every XDP mode takes XDP programs.
+// The default chain starts at native XDP and reloads in attachDatapath if it
+// falls back to TCX.
 func loadDatapathObjects(objs *ebpf.BpfObjects, mode string) error {
 	objs.UseTCX = mode == config.DatapathTCX
 
 	return objs.Load()
 }
 
-// datapathIface is one side of the datapath: the netdev the program attaches
-// to, already resolved through any VLAN master.
+// The netdev the program attaches to, already resolved through any VLAN
+// master.
 type datapathIface struct {
 	index int
 	name  string
 }
 
-// attachDatapath loads the object matching the requested mechanism and
-// attaches it to both interfaces, returning the mechanism actually used.
-//
-// config.DatapathChain tries driver-level XDP first and falls back to TCX
-// when the NIC has no XDP support; generic is never reached that way. The
-// fallback reloads the objects because the two hooks need different program
-// types, which is a one-off cost at startup on non-native NICs.
+// attachDatapath attaches the datapath to both interfaces and returns the
+// mechanism actually used. config.DatapathChain tries driver-level XDP first
+// and falls back to TCX, reloading the objects because the two hooks need
+// different program types.
 func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (string, link.Link, *link.Link, error) {
 	switch mode {
 	case config.DatapathXDPNative, config.DatapathXDPGeneric:
@@ -141,8 +132,7 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 	}
 
 	// A veth accepts a native attach and then drops every redirected frame,
-	// so the EOPNOTSUPP fallback below never fires for it. Skip straight to
-	// TCX rather than blackhole the datapath.
+	// so the EOPNOTSUPP fallback below never fires for it.
 	for _, iface := range []datapathIface{n3, n6} {
 		if nativeXDPBlackholes(iface.name) {
 			logger.UpfLog.Info("interface cannot forward redirected frames in native XDP, attaching at TCX",
@@ -167,10 +157,9 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 	return attachChainTCX(objs, n3, n6)
 }
 
-// attachChainTCX is the chain's TCX leg. The XDP object cannot serve a TCX
-// hook, so the objects are reloaded as SCHED_CLS: every map and program handle
-// taken before this point refers to the closed object, and map readers must be
-// constructed after attachDatapath returns.
+// The chain's TCX leg reloads the objects as SCHED_CLS, so every map and
+// program handle taken before this point refers to the closed object: map
+// readers must be constructed after attachDatapath returns.
 func attachChainTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (string, link.Link, *link.Link, error) {
 	if err := objs.Close(); err != nil {
 		logger.UpfLog.Warn("failed to close XDP objects before TCX fallback", zap.Error(err))
@@ -183,8 +172,7 @@ func attachChainTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (string, link.L
 
 	n3Link, n6Link, err := attachBothTCX(objs, n3, n6)
 	if err != nil {
-		// The reloaded objects are unreachable to the caller once the attach
-		// fails, so they are released here.
+		// The caller cannot reach the reloaded objects once the attach fails.
 		if closeErr := objs.Close(); closeErr != nil {
 			logger.UpfLog.Warn("failed to close TCX objects after a failed attach",
 				zap.Error(closeErr))
@@ -240,23 +228,20 @@ func attachBothTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (link.Link, *lin
 	return n3Link, &n6Link, nil
 }
 
-// tcxUnavailable reports the kernel lacking TCX support. EINVAL is not a
-// signal here: the kernel also returns it for an attach the program cannot
-// serve, such as an XDP program offered to a TCX hook.
+// EINVAL is not a signal of a missing TCX: the kernel also returns it for an
+// attach the program cannot serve, such as an XDP program offered to a TCX
+// hook.
 func tcxUnavailable(err error) bool {
 	return errors.Is(err, cebpf.ErrNotSupported)
 }
 
 const ethtoolGGRO = 0x2b
 
-// nativeXDPBlackholes reports whether a redirect out of this interface would
-// be dropped in native XDP mode. On a veth, xdp_features carries
-// NETDEV_XDP_ACT_NDO_XMIT only while the peer has its own XDP program or GRO
-// (drivers/net/veth.c), and veth_xdp_xmit refuses without the peer's NAPI —
-// so the attach succeeds and the traffic disappears.
-//
-// A probe failure returns false: the chain then attaches natively, which is
-// the pre-existing behaviour, and the attach itself reports any real problem.
+// Whether a redirect out of this interface would be dropped in native XDP
+// mode. On a veth, xdp_features carries NETDEV_XDP_ACT_NDO_XMIT only while the
+// peer has its own XDP program or GRO (drivers/net/veth.c), and veth_xdp_xmit
+// refuses without the peer's NAPI, so the attach succeeds and the traffic
+// disappears. A probe failure returns false and lets the attach proceed.
 func nativeXDPBlackholes(ifname string) bool {
 	l, err := netlink.LinkByName(ifname)
 	if err != nil {
@@ -269,8 +254,6 @@ func nativeXDPBlackholes(ifname string) bool {
 	return l.Type() == "veth"
 }
 
-// interfaceGROEnabled reads the interface's generic-receive-offload state via
-// the ETHTOOL_GGRO ioctl.
 func interfaceGROEnabled(ifname string) (bool, error) {
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
 	if err != nil {
@@ -307,10 +290,9 @@ func interfaceGROEnabled(ifname string) (bool, error) {
 	return value.data != 0, nil
 }
 
-// warnMergedPacketSources warns when an interface has GRO enabled under TCX.
-// It covers only the receive-side merge: a veth or virtio peer that offloads
+// Covers only the receive-side merge: a veth or virtio peer that offloads
 // segmentation delivers merged packets with GRO off, which no local feature
-// reports. Both directions matter — the uplink drops merged packets too.
+// reports.
 func warnMergedPacketSources(ifnames ...string) {
 	for _, ifname := range ifnames {
 		enabled, err := interfaceGROEnabled(ifname)

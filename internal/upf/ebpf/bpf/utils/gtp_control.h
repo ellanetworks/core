@@ -42,11 +42,10 @@ static __always_inline void swap_ip6(struct ipv6hdr *ip6)
  * §5.1) followed by the mandatory Recovery IE (TV format, 2 octets). */
 #define GTPU_ECHO_RESPONSE_LEN (14)
 
-/* Answer a GTP-U Echo Request by rewriting it in place into an Echo Response
- * carrying the mandatory Recovery IE (TS 29.281 §7.2.2, Table 7.2.2-1). The
- * response repeats the request's sequence number (§7.2.2) and is emitted at a
- * fixed length, so a request bearing extension headers or a private extension
- * is answered with the canonical form; its tail is not reflected. */
+/* Rewrites the request in place into an Echo Response carrying the mandatory
+ * Recovery IE (TS 29.281 §7.2.2, Table 7.2.2-1), repeating its sequence
+ * number. Emitted at a fixed length, so a request bearing extension headers or
+ * a private extension is answered with the canonical form. */
 static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 {
 	struct gtpuhdr *gtp = ctx->gtp;
@@ -76,10 +75,9 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	if (delta != 0 && ctx_adjust_tail(ctx->ctx_buff, (int)delta) < 0)
 		return drop_with(ctx, UPF_DROP_INTERNAL_RESIZE_FAILED);
 
-	/* ctx_adjust_tail invalidates every packet pointer, and an offset
-	 * saved across the call is not provably in-bounds to the verifier. Re-walk
-	 * the headers from data instead: each is a bounds-checked constant step
-	 * from the last, which the verifier tracks precisely. */
+	/* ctx_adjust_tail invalidates every packet pointer, and an offset saved
+	 * across it is not provably in-bounds. Re-walking is a bounds-checked
+	 * constant step per header, which the verifier tracks precisely. */
 	void *data = ctx_data(ctx->ctx_buff);
 	const void *data_end = ctx_data_end(ctx->ctx_buff);
 
@@ -105,10 +103,9 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		if ((const void *)(ip + 1) > data_end)
 			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
-		/* The re-walk steps a fixed 20 octets to L4, so an IPv4 header
-		 * carrying options (ihl > 5) — which parse_ip4 accepts — would be
-		 * rewritten inside the options. Drop; emitting a corrupt
-		 * frame; options on a GTP-U echo do not occur in practice. */
+		/* The re-walk steps a fixed 20 octets to L4, so options
+		 * (ihl > 5, which parse_ip4 accepts) would be rewritten in
+		 * place. They do not occur on a GTP-U echo in practice. */
 		if (ip->ihl != 5)
 			return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
@@ -196,11 +193,9 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 #define GTPU_IE_TEID_DATA_I (16)
 #define GTPU_IE_PEER_ADDRESS (133)
 
-/* Reflect a GTP-U Error Indication to the sender of a G-PDU received for a TEID
- * with no PDU session, over IPv4 N3 transport (TS 29.281 §7.3.1). The message
- * carries the triggering TEID (Tunnel Endpoint Identifier Data I, §8.3) and this
- * UPF's address (GTP-U Peer Address, §8.4); the S flag is set as required for
- * Error Indication messages (§5.1). */
+/* Reflected to the sender of a G-PDU for a TEID with no PDU session, over IPv4
+ * N3 transport (TS 29.281 §7.3.1): the triggering TEID (§8.3) and this UPF's
+ * address (§8.4), with the S flag set as §5.1 requires. */
 static __always_inline enum ctx_action
 send_error_indication_ipv4(struct packet_context *ctx)
 {
@@ -263,9 +258,8 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	return tx_back(ctx, egress_vlan_reflected(ctx));
 }
 
-/* IPv6-transport counterpart of send_error_indication_ipv4 (TS 29.281 §7.3.1).
- * The GTP-U Peer Address IE carries the 16-octet IPv6 address (§8.4), and the
- * UDP checksum is mandatory over IPv6. */
+/* IPv6-transport counterpart: the Peer Address IE carries the 16-octet address
+ * (TS 29.281 §8.4), and the UDP checksum is mandatory. */
 static __always_inline enum ctx_action
 send_error_indication_ipv6(struct packet_context *ctx)
 {
@@ -323,7 +317,6 @@ send_error_indication_ipv6(struct packet_context *ctx)
 	p[19] = 16;
 	__builtin_memcpy(p + 20, &peer_addr, sizeof(peer_addr));
 
-	/* UDP checksum is mandatory over IPv6. */
 	__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
 	int csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
 			      ctx->ctx_buff);

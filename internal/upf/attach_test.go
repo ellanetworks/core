@@ -52,9 +52,8 @@ func tcxProgramCount(t *testing.T, ifindex int) int {
 	return len(res.Programs)
 }
 
-// TestDatapathObjectMatchesAttachMode pins the invariant every explicit
-// attach-mode relies on: the loaded object has to carry the program type the
-// hook accepts, or the attach fails with EINVAL at startup.
+// The loaded object has to carry the program type the hook accepts, or the
+// attach fails with EINVAL at startup.
 func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 	requireRoot(t)
 
@@ -90,9 +89,8 @@ func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 	}
 }
 
-// TestTCXAttachRefusesToStack covers the TCX attach lifecycle: the link owns
-// the attachment and Close detaches it, and a second attach on an occupied
-// hook is refused rather than stacking a second datapath on it.
+// The link owns the attachment and Close detaches it; a second attach on an
+// occupied hook is refused rather than stacking a second datapath.
 func TestTCXAttachRefusesToStack(t *testing.T) {
 	requireRoot(t)
 
@@ -130,8 +128,7 @@ func TestTCXAttachRefusesToStack(t *testing.T) {
 		t.Fatalf("TCX programs on hook = %d, want 1", got)
 	}
 
-	// A second daemon must not end up running alongside the first: TCX would
-	// accept the attach and run both.
+	// TCX would otherwise accept the attach and run both.
 	if _, err := attachTCX(obj.UpfEntryFunc, iface.Index, tcxTestDev); err == nil {
 		t.Error("second attach on an occupied hook succeeded, want refusal")
 	}

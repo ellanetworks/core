@@ -246,18 +246,14 @@ static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 	return csum_fold_helper((__u64)c.sum);
 }
 
-/* Ones-complement sum of a valid L4 region — header, payload and its own
- * check field — is ~pseudo_header: with F = ~fold(pseudo + S), the region
- * sums to S + F = ~pseudo. That holds whether the sender wrote F or the
- * kernel completes it at egress from CHECKSUM_PARTIAL, because the bytes that
- * reach the wire are the same either way.
- *
- * The outer checksum can therefore be built from headers alone, substituting
- * ~pseudo_inner for the whole inner L4 region. Nothing in it depends on
- * ip_summed, which BPF cannot read.
- */
+/* A valid L4 region — header, payload and its own check field — sums to
+ * ~pseudo_header: with F = ~fold(pseudo + S), the region sums to S + F. That
+ * is true of the bytes on the wire whether the sender wrote F or the kernel
+ * completes it at egress, so an outer checksum built by substituting
+ * ~pseudo_inner for the whole inner L4 region needs no access to ip_summed,
+ * which BPF cannot read. */
 
-/* IPv4 pseudo-header, in the order the checksum covers it. */
+/* In the order the checksum covers it. */
 struct ip4_pseudo {
 	__be32 saddr;
 	__be32 daddr;
@@ -274,9 +270,8 @@ struct ip6_pseudo {
 	__u8 next_hdr;
 };
 
-/* Whether an inner L4 protocol's region satisfies the identity. SCTP carries
- * a CRC32c rather than a ones-complement checksum, so neither form is correct
- * for it. */
+/* SCTP carries a CRC32c rather than a ones-complement checksum, so the
+ * identity does not hold for it. */
 static __always_inline int inner_l4_is_summable(__u8 proto)
 {
 	return proto == IPPROTO_TCP || proto == IPPROTO_UDP ||
@@ -285,8 +280,8 @@ static __always_inline int inner_l4_is_summable(__u8 proto)
 
 /* ~pseudo_inner for an inner IPv4 packet, or -1 when the identity does not
  * apply: a fragment has no L4 header of its own, and UDP with a zero checksum
- * carries no checksum to substitute. Both are always CHECKSUM_NONE, so the
- * caller's byte sum is correct for them. */
+ * has nothing to substitute. Both are always CHECKSUM_NONE, so the caller's
+ * byte sum is correct for them. */
 static __always_inline __s32 inner_pseudo_ip4(const struct iphdr *ip4,
 					      const void *data_end)
 {
@@ -325,8 +320,8 @@ static __always_inline __s32 inner_pseudo_ip4(const struct iphdr *ip4,
 		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
 }
 
-/* Counterpart for an inner IPv6 packet. Extension headers are not walked: an
- * inner next-header that is not the L4 protocol falls back. */
+/* Extension headers are not walked: an inner next-header that is not the L4
+ * protocol falls back. */
 static __always_inline __s32 inner_pseudo_ip6(const struct ipv6hdr *ip6,
 					      const void *data_end)
 {
@@ -359,12 +354,10 @@ static __always_inline __s32 inner_pseudo_ip6(const struct ipv6hdr *ip6,
 		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
 }
 
-/* Outer UDP-over-IPv6 checksum built from headers only, substituting
- * ~pseudo_inner for the inner L4 region. `tunnel_len` is the GTP-U header
- * including any extension chain, and must be a compile-time constant so the
- * bounded read is provable. Returns -1 when the inner packet does not satisfy
- * the identity; the caller then falls back to summing the bytes.
- */
+/* Outer UDP-over-IPv6 checksum built from headers only. `tunnel_len` is the
+ * GTP-U header including any extension chain, and must be a compile-time
+ * constant so the bounded read is provable. Returns -1 when the inner packet
+ * does not satisfy the identity, leaving the caller to sum the bytes. */
 static __always_inline int
 udpv6_csum_from_headers(const struct in6_addr *saddr,
 			const struct in6_addr *daddr, const struct udphdr *udp,
@@ -416,7 +409,7 @@ udpv6_csum_from_headers(const struct in6_addr *saddr,
 	if (sum < 0)
 		return -1;
 
-	/* The inner L4 region, as ~pseudo_inner in one 16-bit word. */
+	/* The inner L4 region, as one 16-bit word. */
 	__be16 substitute[2] = { (__be16)not_pseudo_inner, 0 };
 
 	sum = bpf_csum_diff(0, 0, (__be32 *)substitute, sizeof(substitute),
@@ -492,25 +485,21 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 }
 
 /* Bytes of the trigger quoted back in an ICMP error, starting at its IP
- * header. RFC 792 allows up to 576 for IPv4 and RFC 4443 as much as fits the
- * minimum MTU, so this is well within both.
+ * header; a compile-time constant because the checksum helpers walk it with an
+ * unrolled loop. Well within RFC 792's 576 bytes and RFC 4443's minimum MTU.
  *
  * The size is what clears the floor bpf_skb_change_tail enforces on a
  * CHECKSUM_PARTIAL skb: __bpf_skb_min_len (net/core/filter.c) refuses a trim
- * below csum_start + csum_offset + 2, which for a TCP trigger is 80 bytes on
- * the IPv4 reply and 120 on the IPv6 one. A 28-byte quote produced 70 and 110
- * and the resize failed, so no error was emitted at all.
+ * below csum_start + csum_offset + 2, 80 bytes for an IPv4 TCP trigger and 120
+ * for IPv6. At 28 the resize failed and no error was emitted at all.
  *
- * The reply keeps the trigger's csum_start, now pointing inside the quote, and
+ * The reply still carries the trigger's csum_start, now inside the quote, and
  * no helper clears CHECKSUM_PARTIAL: bpf_skb_adjust_room resets only
  * CHECKSUM_UNNECESSARY, bpf_skb_change_tail only CHECKSUM_COMPLETE. An egress
- * that completes the checksum overwrites two quoted bytes and invalidates the
- * ICMP checksum. A partial trigger implies a sender on this host, so the reply
- * is delivered here, where skb_csum_unnecessary() holds for CHECKSUM_PARTIAL
- * and nothing verifies or completes it.
- *
- * Kept a compile-time constant: the checksum helpers walk it with an unrolled
- * loop. */
+ * that completes the checksum therefore corrupts the quote. A partial trigger
+ * implies a sender on this host, so the reply is delivered here, where
+ * skb_csum_unnecessary() holds for CHECKSUM_PARTIAL and nothing completes
+ * it. */
 #define ICMP_QUOTE_LEN 128
 
 /*

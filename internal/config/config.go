@@ -22,8 +22,7 @@ const (
 	AttachModeGeneric = "generic"
 )
 
-// datapath.attach-mode values. Each names one concrete mechanism: native and
-// generic are flavors of the XDP hook, TCX is a different hook. The automatic
+// datapath.attach-mode values, each one concrete mechanism. The automatic
 // native-then-TCX chain is what an absent setting yields, so no value spells
 // it.
 const (
@@ -405,10 +404,10 @@ func Validate(filePath string) (Config, error) {
 	config.Datapath.AttachMode = attachMode
 
 	// Generic XDP attaches to the configured interface and lets the kernel
-	// tag; every other mechanism attaches to the VLAN master and tags in the
-	// datapath. Native XDP cannot attach to a VLAN netdev at all (no
-	// ndo_bpf), and this runs before the chain knows whether native or TCX
-	// wins, so the whole chain has to resolve the same way.
+	// tag; every other mechanism attaches to the VLAN master, since native
+	// XDP cannot attach to a VLAN netdev at all (no ndo_bpf). This runs
+	// before the chain knows whether native or TCX wins, so both legs have
+	// to resolve the same way.
 	if attachMode != DatapathXDPGeneric {
 		config.Interfaces.N3.VlanConfig, err = GetVLANConfigForInterfaceFunc(n3InterfaceName)
 		if err != nil {
@@ -614,10 +613,9 @@ var GetInterfaceNameFunc = func(address string) (string, error) {
 	return "", nil
 }
 
-// resolveAttachMode reduces the datapath.attach-mode setting and the
-// deprecated xdp.attach-mode block to a single mechanism. An unset value is
-// DatapathChain, not an error: the automatic chain is the default, not a
-// value an operator spells out.
+// resolveAttachMode reduces datapath.attach-mode and the deprecated
+// xdp.attach-mode block to a single mechanism. An unset value is
+// DatapathChain, not an error.
 func resolveAttachMode(x XDPYaml, d DatapathYaml) (string, error) {
 	if x.AttachMode != "" && d.AttachMode != "" {
 		return "", errors.New("xdp.attach-mode and datapath.attach-mode are both set. xdp.attach-mode is deprecated: keep only datapath.attach-mode")

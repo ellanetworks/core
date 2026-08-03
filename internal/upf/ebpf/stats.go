@@ -25,9 +25,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Index of the per-action forwarding counter (enum ctx_action in
-// bpf/ctx/ctx.h). The values coincide with the XDP verdict encoding, which is
-// why an XDP program's return value can be compared against them directly.
+// Index of the per-action forwarding counter, matching enum ctx_action in
+// bpf/ctx/action.h.
 const (
 	ActionAborted  = 0
 	ActionDrop     = 1
@@ -281,8 +280,8 @@ func ReadProfilingStats(bpfObjects *BpfObjects) ([]ProfileEntry, error) {
 const UPFDropReasonMax = 64
 
 // Label value per drop reason, in the order of enum upf_drop_reason in
-// bpf/utils/drop_reason.h. TestDropReasonNamesMatchDatapath fails if the two
-// drift apart.
+// bpf/utils/drop_reason.h; TestDropReasonNamesMatchDatapath guards the two
+// against drift.
 var dropReasonNames = [...]string{
 	"unspecified",
 	"no_uplink_session",

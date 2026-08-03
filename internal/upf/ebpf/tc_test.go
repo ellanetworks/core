@@ -27,8 +27,7 @@ const (
 	tcActRedirect = 7
 )
 
-// loadTCProgramConfig loads the SCHED_CLS build of the datapath through the
-// kernel verifier with the same configuration knobs as loadProgramConfig.
+// loadProgramConfig for the SCHED_CLS build.
 func loadTCProgramConfig(t *testing.T, masquerade bool, n3Ifindex, n6Ifindex int) *N3N6EntrypointTcObjects { //nolint:unparam // signature mirrors loadProgramConfig
 	t.Helper()
 
@@ -132,15 +131,12 @@ func runTC(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	return action, opts.DataOut
 }
 
-// bpfFTestSKBChecksumComplete makes BPF_PROG_TEST_RUN present the skb as
-// CHECKSUM_COMPLETE and recompute skb->csum afterwards, returning EBADMSG when
-// the program's header rewrites did not carry the running sum along. Without
-// it the test skb is CHECKSUM_NONE, where arithmetic that never touches
-// skb->csum is indistinguishable from arithmetic that maintains it.
+// Presents the skb as CHECKSUM_COMPLETE and recomputes skb->csum after the
+// run, returning EBADMSG when the program's rewrites did not carry the running
+// sum along. The default CHECKSUM_NONE cannot tell the two apart.
 const bpfFTestSKBChecksumComplete = 1 << 2
 
-// runTCChecksumComplete is runTC with that validation enabled. A kernel
-// without the flag rejects the run with EINVAL.
+// A kernel without the flag rejects the run with EINVAL.
 func runTCChecksumComplete(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
 	t.Helper()
 
@@ -280,8 +276,7 @@ func formatActions(d [UPFMaxAction]uint64) string {
 	return strings.Join(b, " ")
 }
 
-// TestTCObjectsLoad is the verifier gate for the SCHED_CLS build: every
-// program in the TC object must load.
+// The verifier gate for the SCHED_CLS build.
 func TestTCObjectsLoad(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -300,11 +295,8 @@ func TestTCObjectsLoad(t *testing.T) {
 	}
 }
 
-// TestTCMatchesXDPOutput runs the same frames through the XDP and TC builds
-// of the datapath with identical map state and requires byte-identical output
-// packets and equivalent verdicts. This pins the TC build to the XDP build's
-// behavior across decap, encap (PSC, S1-U, IPv6 outer), echo, and error
-// indication.
+// Pins the TC build to the XDP build: the same frames against the same map
+// state must come out byte-identical, with equivalent verdicts.
 func TestTCMatchesXDPOutput(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -392,10 +384,8 @@ func TestTCMatchesXDPOutput(t *testing.T) {
 	}
 }
 
-// TestTCMatchesXDPOutputDestinationNAT seeds the same conntrack mapping into
-// both builds and requires byte-identical destination-NAT output: address and
-// port rewrites plus the incremental checksum updates, which the TC build
-// performs through bpf_l4_csum_replace.
+// Same, for destination NAT: the TC build reaches the same bytes through
+// bpf_l4_csum_replace.
 func TestTCMatchesXDPOutputDestinationNAT(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -468,11 +458,9 @@ func TestTCMatchesXDPOutputDestinationNAT(t *testing.T) {
 	}
 }
 
-// TestTCInBandVLANPassedToStack checks the QinQ guard: at TCX ingress the
-// kernel keeps at most one tag out-of-band, so a frame whose bytes still
-// carry a VLAN ethertype is beyond single-tag configs and belongs to the
-// stack — matching the XDP build, whose parser finds no L3 branch for the
-// inner tag and passes the frame.
+// The QinQ guard: the kernel keeps at most one tag out of band, so a frame
+// whose bytes still carry a VLAN ethertype belongs to the stack — which is
+// also where the XDP build's parser leaves it.
 func TestTCInBandVLANPassedToStack(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -496,11 +484,9 @@ func TestTCInBandVLANPassedToStack(t *testing.T) {
 	}
 }
 
-// TestTCSourceNATMaintainsChecksumComplete pins the uplink masquerade path to
-// the checksum contract the TC hook actually runs under. Rewriting the source
-// address moves the L4 checksum without a compensating change in the bytes
-// skb->csum covers, so the update has to reach the kernel through
-// bpf_l4_csum_replace for the running sum to stay valid.
+// Rewriting the source address moves the L4 checksum without a compensating
+// change in the bytes skb->csum covers, so the update has to reach the kernel
+// through bpf_l4_csum_replace for the running sum to stay valid.
 func TestTCSourceNATMaintainsChecksumComplete(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -531,10 +517,8 @@ func TestTCSourceNATMaintainsChecksumComplete(t *testing.T) {
 	}
 }
 
-// runTCMerged runs the program on a buffer holding several datagrams behind
-// one set of headers. gso_segs is left at 0 on purpose: that is what a
-// virtio, tap or vhost source produces, and the datapath must still see the
-// buffer as merged.
+// gso_segs 0 is what a virtio, tap or vhost source produces, and the datapath
+// must still see the buffer as merged.
 func runTCMerged(t *testing.T, prog *ebpf.Program, packet []byte, segs, size uint32) uint32 {
 	t.Helper()
 
@@ -556,9 +540,8 @@ func runTCMerged(t *testing.T, prog *ebpf.Program, packet []byte, segs, size uin
 	return action
 }
 
-// A merged frame cannot be encapsulated or decapsulated into correct GTP-U:
-// segmentation replays the tunnel headers verbatim, and decapsulation strips
-// only the first datagram's. Both directions drop it and say so.
+// Segmentation replays the tunnel headers verbatim and decapsulation strips
+// only the first datagram's, so both directions drop the frame and say so.
 func TestTCMergedFramesDropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -609,9 +592,7 @@ func TestTCMergedFramesDropped(t *testing.T) {
 			objs := loadTCProgramConfig(t, false, 0, 1)
 			tc.setup(objs)
 
-			// A buffer longer than one segment is what makes it merged, so
-			// the size has to be under the frame length. The virtio case
-			// reports no segment count at all.
+			// The virtio case reports no segment count at all.
 			gsoSize := uint32(len(tc.frame) / 2)
 
 			for _, segs := range []uint32{4, 0} {
@@ -627,7 +608,6 @@ func TestTCMergedFramesDropped(t *testing.T) {
 	}
 }
 
-// tcDropCount reads one drop reason from the SCHED_CLS build's statistics.
 func tcDropCount(t *testing.T, objs *N3N6EntrypointTcObjects, dir Direction, reason string) uint64 {
 	t.Helper()
 

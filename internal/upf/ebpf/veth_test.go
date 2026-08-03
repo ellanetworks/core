@@ -194,9 +194,9 @@ func isGTPv4Outer(fr []byte) bool {
 
 // routerAdvertisement builds a minimal ICMPv6 Router Advertisement message
 // (type 134). The veth program treats it as opaque inner payload.
-// routerAdvertisement mirrors what buildRAPacket emits: an RA carrying a
-// valid ICMPv6 checksum. The datapath derives the outer checksum from the
-// inner one, so an inner packet that is itself invalid proves nothing.
+// Carries a valid ICMPv6 checksum, as buildRAPacket emits: the datapath
+// derives the outer checksum from the inner one, so an invalid inner packet
+// would prove nothing.
 func routerAdvertisement(src, dst [16]byte) []byte {
 	ra := make([]byte, 16)
 	ra[0] = 134 // Router Advertisement

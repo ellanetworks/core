@@ -172,8 +172,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
 	}
 
-	/* Only the first datagram's outer headers are stripped; the rest stay in
-	 * the payload as intact GTP-U. */
+	/* Decap would strip the first datagram's outer headers and leave the
+	 * rest in the payload as intact GTP-U. */
 	if (frame_is_merged(ctx)) {
 		upf_printk("upf: merged frame on the decap path, dropping");
 		return drop_with(ctx, UPF_DROP_DECAP_GSO);
@@ -200,10 +200,9 @@ handle_gtp_packet(struct packet_context *ctx)
 	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
 		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
-	/* GTP-to-GTP forwarding (N9, S5/S8) is not supported: the frame would leave
-	 * with a stale outer UDP checksum, whose pseudo-header covers the
-	 * addresses being rewritten, and would bypass the SDF and anti-spoof
-	 * checks that only run on the decap path. */
+	/* GTP-to-GTP forwarding (N9, S5/S8) is not supported: the frame would
+	 * leave with a stale outer UDP checksum over rewritten addresses, and
+	 * would bypass the SDF and anti-spoof checks the decap path runs. */
 	if (far->outer_header_creation &
 	    (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6)) {
 		PROFILE_END(PROF_N3_GTP_MANIP);
@@ -227,9 +226,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		else if (ctx->ip6)
 			parse_l4(ctx->ip6->nexthdr, ctx);
 
-		/* An inner ICMPv6 Router Solicitation is handed to userspace
-		 * over the rs_event ring buffer; the RA is built in Go and
-		 * injected through the veth path. */
+		/* The RA is built in Go and injected through the veth path. */
 		if (ctx->ip6 && ctx->ip6->nexthdr == IPPROTO_ICMPV6) {
 			/* context_reinit advanced ctx->data past the IPv6
 			 * header, so re-derive the pointers. */

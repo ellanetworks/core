@@ -18,18 +18,15 @@
 #ifndef NAT_H
 #define NAT_H
 
-/* Address translation: rewriting packets against the conntrack table in
- * nat_ct.h. The split keeps the table's ownership and lifetime rules apart
- * from the header edits they authorise. */
+/* Header rewriting, against the conntrack table nat_ct.h owns: the split keeps
+ * the table's lifetime rules apart from the edits they authorise. */
 
 // An ICMP error quotes the packet that triggered it; that quote is both the
 // lookup key and part of what has to be translated.
 //
-// The ICMP checksum edits below stay direct RFC 1624 arithmetic on both hooks,
-// unlike the rest of this file: no NIC offloads the ICMPv4 checksum, so Linux
-// emits ICMPv4 as CHECKSUM_NONE and the field always holds a full checksum.
-// Every changed field is folded into the outer checksum — the quoted saddr,
-// the quoted port, the quoted L4 checksum and the quoted IP checksum.
+// The edits below stay direct RFC 1624 arithmetic on both hooks, unlike the
+// rest of this file: no NIC offloads the ICMPv4 checksum, so Linux emits
+// ICMPv4 as CHECKSUM_NONE and the field always holds a full checksum.
 static __always_inline struct nat_entry *
 nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
 			 __u32 outer_daddr)
@@ -218,9 +215,9 @@ find_origin_for_icmp(struct five_tuple *key, struct packet_context *ctx,
 static __always_inline void update_port(struct packet_context *ctx,
 					__u16 new_port)
 {
-	/* The checksum is derived from the field before it is overwritten; the
-	 * TC build corrects it with bpf_l4_csum_replace after the writes
-	 * instead, so the arithmetic compiles out there. */
+	/* Derived from the field before it is overwritten. The TC build
+	 * corrects the checksum after the writes instead, so this compiles out
+	 * there. */
 	switch (ctx->ip4->protocol) {
 	case IPPROTO_TCP:
 		if (!ctx->tcp) {
@@ -266,12 +263,11 @@ static __always_inline void update_port(struct packet_context *ctx,
 	}
 }
 
-/* TC variant of the source_nat checksum work: the address and port deltas are
- * withheld from the field writes and applied here through ctx_l4_csum_replace,
- * so skb->csum is carried along under CHECKSUM_COMPLETE (the IPv4 header
- * checksum needs no such care — its own delta cancels the address delta over
- * the bytes skb->csum covers). The helper calls invalidate packet pointers,
- * so the context is re-derived before returning. */
+/* TC variant of the source_nat checksum work: the deltas go through
+ * ctx_l4_csum_replace so skb->csum is carried along under CHECKSUM_COMPLETE.
+ * The IPv4 header checksum needs no such care — its own delta cancels the
+ * address delta over the bytes skb->csum covers. The helper calls invalidate
+ * packet pointers, so the context is re-derived before returning. */
 static __always_inline long
 source_nat_apply_csum_helpers(struct packet_context *ctx, __u32 old_saddr,
 			      __u32 new_saddr, __u16 old_port, __u16 new_port)
@@ -310,8 +306,7 @@ source_nat_apply_csum_helpers(struct packet_context *ctx, __u32 old_saddr,
 		return -1;
 	}
 
-	/* A failed update ships a packet whose address and port were rewritten
-	 * but whose L4 checksum was not. */
+	/* A failed update ships a rewritten packet with a stale checksum. */
 	long err = 0;
 
 	if (pseudo_hdr && old_saddr != new_saddr) {
@@ -679,11 +674,8 @@ struct nat_xlate {
 	bool has_l4_id;
 };
 
-/* TC variant of destination_nat_apply: all checksum deltas go through
- * ctx_l4_csum_replace so every ip_summed state is handled (the IPv4 header
- * checksum is software-only and stays direct arithmetic). Field writes come
- * first; the helper calls invalidate packet pointers, so the caller must
- * re-derive them after. */
+/* TC variant of destination_nat_apply, on the same terms as
+ * source_nat_apply_csum_helpers. */
 static __always_inline void
 destination_nat_apply_csum_helpers(struct packet_context *ctx,
 				   const struct nat_xlate *x)

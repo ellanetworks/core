@@ -100,9 +100,8 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	addRoute(t, "198.51.100.0/24", t2N6Dev, natPublicIP)
 	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
 
-	// A self-generated ICMP error is sourced from the address the FIB picks
-	// for the sender; without these it would be whatever global address the
-	// host happens to have.
+	// A self-generated ICMP error is sourced from the address the FIB picks;
+	// without these it would be whatever global address the host has.
 	if out, err := ipCmd("addr", "add", t2N6IPv6+"/64", "dev", t2N6Dev, "nodad"); err != nil {
 		t.Fatalf("add N6 IPv6 addr: %v: %s", err, out)
 	}
@@ -123,8 +122,7 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	attachXDP(t, f.obj, f.n3Dev.Index)
 	attachXDP(t, f.obj, f.n6Dev.Index)
 
-	// A test that captured nothing cannot tell a drop from a missed capture;
-	// the datapath knows which.
+	// A test that captured nothing cannot tell a drop from a missed capture.
 	t.Cleanup(func() {
 		if t.Failed() {
 			logDropReasons(t, f.obj)
@@ -222,7 +220,6 @@ func attachXDP(t *testing.T, obj *BpfObjects, ifindex int) {
 	attachDatapath(t, obj, obj.UpfEntryFunc, ifindex)
 }
 
-// attachDatapath attaches prog on the interface at the fixture's attach mode:
 // TCX ingress for the SCHED_CLS build, generic XDP for the XDP build.
 func attachDatapath(t *testing.T, obj *BpfObjects, prog *ebpf.Program, ifindex int) {
 	t.Helper()

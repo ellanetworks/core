@@ -28,10 +28,9 @@ const (
 	gsoSegments    = 4
 )
 
-// gsoFixture is the t2 topology with an IPv6 N3 transport. Merged buffers
-// reach the datapath because veth advertises NETIF_F_GSO_SOFTWARE, so a
-// peer's segmentation-offloaded send crosses as one buffer; no GRO is
-// involved on the receiving side.
+// The t2 topology with an IPv6 N3 transport. veth advertises
+// NETIF_F_GSO_SOFTWARE, so a peer's segmentation-offloaded send crosses as one
+// merged buffer with no GRO involved.
 type gsoFixture struct {
 	obj    *BpfObjects
 	n3Peer *net.Interface
@@ -68,8 +67,6 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 		t.Fatalf("enable ip_forward: %v", err)
 	}
 
-	// The outer header is IPv6, so the datapath's FIB lookup for it is a
-	// forwarding lookup.
 	if err := writeSysctl("net.ipv6.conf.all.forwarding", "1"); err != nil {
 		t.Fatalf("enable ipv6 forwarding: %v", err)
 	}
@@ -112,9 +109,8 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 	}
 
 	if !senderGSO {
-		// The mitigation for a veth: the peer segments before transmitting,
-		// so nothing merged crosses. GRO on the receiving side is not
-		// involved and `gro off` there would change nothing.
+		// The mitigation for a veth: the peer segments before
+		// transmitting, so nothing merged crosses.
 		ethtoolOff(t, n6Peer, "tso", "off", "gso", "off")
 	}
 
@@ -148,8 +144,7 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 	}
 }
 
-// sendSegmented sends one datagram the kernel hands to the datapath as a
-// single GSO super-frame, using UDP segmentation offload.
+// One datagram handed to the datapath as a single GSO super-frame.
 func sendSegmented(t *testing.T, f *gsoFixture, segmented bool) {
 	t.Helper()
 
@@ -180,10 +175,9 @@ func sendSegmented(t *testing.T, f *gsoFixture, segmented bool) {
 	}
 }
 
-// sendPlain sends one datagram small enough that the kernel keeps it on the
-// corked path, where it leaves the socket CHECKSUM_PARTIAL: the inner UDP
-// check field holds the pseudo-header sum and the final value is written at
-// egress. Above roughly the MTU the path falls back to CHECKSUM_NONE.
+// One datagram small enough to stay on the corked path, where it leaves the
+// socket CHECKSUM_PARTIAL: the inner check field holds the pseudo-header sum
+// until egress. Above roughly the MTU the path falls back to CHECKSUM_NONE.
 func sendPlain(t *testing.T, f *gsoFixture, size int) {
 	t.Helper()
 
@@ -239,10 +233,8 @@ func isGTPv6Outer(fr []byte) bool {
 		binary.BigEndian.Uint16(fr[ethHdrLen+40+2:ethHdrLen+40+4]) == GTPUDPPort
 }
 
-// TCX runs after GRO, so encapsulation can be handed a frame larger than the
-// MTU. Segmentation replays the tunnel span verbatim, so no such frame can
-// leave as well-formed GTP-U; the datapath drops it and nothing reaches the
-// wire.
+// Encapsulation can be handed a frame larger than the MTU, which cannot leave
+// as well-formed GTP-U: the datapath drops it and nothing reaches the wire.
 func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -295,9 +287,8 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	gsoDrops := DropCount(f.obj, Downlink, "encap_gso")
 	t.Logf("captured %d encapsulated frames, encap_gso_drop=%d", len(frames), gsoDrops)
 
-	// A frame on the wire is the regression this test exists to catch: it
-	// was encapsulated instead of dropped, which bumps no counter. Assert it
-	// before considering the run inconclusive.
+	// A frame on the wire is the regression this test exists to catch, so
+	// assert it before considering the run inconclusive.
 	if len(frames) != 0 {
 		t.Errorf("%d encapsulated frames reached the wire, want none: a merged frame must not be encapsulated", len(frames))
 	}
@@ -314,10 +305,8 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 	}
 }
 
-// TestTCXIPv6OuterWithoutGSOChecksums is the control: with segmentation
-// offload off on the sender, encapsulation only ever sees frames at or below
-// the MTU, which is what disabling GRO on the N6 interface achieves for
-// merged inbound traffic. Every outer UDP checksum must then be valid.
+// The control: with segmentation offload off, encapsulation only sees frames
+// at or below the MTU and every outer UDP checksum must be valid.
 func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -384,12 +373,10 @@ func TestTCXIPv4OuterGSODropped(t *testing.T) {
 	}
 }
 
-// TestTCXIPv6OuterPartialInnerChecksum covers the ordering the outer checksum
-// depends on. The trigger leaves the sender CHECKSUM_PARTIAL, so at
-// encapsulation the inner UDP check field still holds the pseudo-header sum;
-// the kernel writes the final value afterwards. An outer checksum summed from
-// the bytes present at that moment is stale by the time the frame reaches the
-// wire, and an IPv6 peer drops it.
+// The trigger leaves the sender CHECKSUM_PARTIAL, so at encapsulation the
+// inner check field still holds the pseudo-header sum and the kernel writes
+// the final value afterwards. An outer checksum summed from the bytes present
+// at that moment is stale on the wire, and an IPv6 peer drops the frame.
 func TestTCXIPv6OuterPartialInnerChecksum(t *testing.T) {
 	requireProgTestRun(t)
 
