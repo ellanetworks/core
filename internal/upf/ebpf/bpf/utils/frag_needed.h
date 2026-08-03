@@ -174,9 +174,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 	new_ip->frag_off = 0;
 	new_ip->protocol = IPPROTO_ICMP;
 	new_ip->ttl = 64;
-	new_ip->tot_len =
-		bpf_htons(sizeof(struct iphdr) + sizeof(struct icmphdr) +
-			  sizeof(struct iphdr) + 8);
+	new_ip->tot_len = bpf_htons(sizeof(struct iphdr) +
+				    sizeof(struct icmphdr) + ICMP_QUOTE_LEN);
 	new_ip->daddr = ctx->ip4->saddr;
 	new_ip->saddr = get_src_ip_addr(ctx);
 	recompute_ipv4_csum(new_ip);
@@ -198,7 +197,7 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
 	int icmp_pkt_size = sizeof(struct ethhdr) + sizeof(struct iphdr) +
-			    sizeof(struct icmphdr) + sizeof(struct iphdr) + 8;
+			    sizeof(struct icmphdr) + ICMP_QUOTE_LEN;
 	if (incoming_vlan) {
 		icmp_pkt_size += sizeof(struct vlan_hdr);
 	}
@@ -206,8 +205,7 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
 		upf_printk("upf: could not write new icmp header");
 		return abort_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 	}
-	recompute_icmp_csum(new_icmp,
-			    sizeof(struct icmphdr) + sizeof(struct iphdr) + 8);
+	recompute_icmp_csum(new_icmp, sizeof(struct icmphdr) + ICMP_QUOTE_LEN);
 	if (pkt_size != icmp_pkt_size) {
 		adj_size = icmp_pkt_size - pkt_size;
 		int ret = ctx_adjust_tail(ctx->ctx_buff, adj_size);
@@ -229,8 +227,8 @@ frag_needed_ipv4(struct packet_context *ctx, __be16 mtu)
  * packet.
  *
  * The new packet structure is:
- *   ETH (14) | IPv6 (40) | ICMPv6 PTB (8) | orig IPv6 hdr (40) | 8 bytes
- * = 110 bytes (+ 4 bytes if VLAN is added).
+ *   ETH (14) | IPv6 (40) | ICMPv6 PTB (8) | ICMP_QUOTE_LEN of the trigger
+ * (+ 4 bytes if VLAN is added).
  *
  * We prepend sizeof(icmp6hdr)+sizeof(ipv6hdr) = 48 bytes in front of the
  * original packet, reuse the original IPv6 header as the ICMPv6 payload,
@@ -315,7 +313,7 @@ send_packet_too_big(struct packet_context *ctx, __be16 mtu)
 
 	/* --- Write new IPv6 header (swap src/dst) --- */
 	static const __u16 icmp6_msg_len =
-		sizeof(struct icmp6hdr) + sizeof(struct ipv6hdr) + 8;
+		sizeof(struct icmp6hdr) + ICMP_QUOTE_LEN;
 	new_ip6->version = 6;
 	new_ip6->priority = 0;
 	new_ip6->flow_lbl[0] = 0;

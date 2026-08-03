@@ -480,29 +480,47 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	}
 
 	__u32 aligned_len = (udp_len + 3) & ~3U;
-	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
+
+	int check = l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
+	if (check < 0)
+		return -1;
+
+	/* RFC 768: a computed zero is transmitted as all ones. Over IPv6 a zero
+	 * checksum is not "no checksum" but invalid, and the receiver drops the
+	 * datagram (RFC 8200). */
+	return check == 0 ? 0xFFFF : check;
 }
+
+/* Bytes of the trigger quoted back in an ICMP error, starting at its IP
+ * header. RFC 792 allows up to 576 for IPv4 and RFC 4443 as much as fits the
+ * minimum MTU, so this is well within both.
+ *
+ * The size is what clears the floor bpf_skb_change_tail enforces on a
+ * CHECKSUM_PARTIAL skb: __bpf_skb_min_len (net/core/filter.c) refuses a trim
+ * below csum_start + csum_offset + 2, which for a TCP trigger is 80 bytes on
+ * the IPv4 reply and 120 on the IPv6 one. A 28-byte quote produced 70 and 110
+ * and the resize failed, so no error was emitted at all. Kept a compile-time
+ * constant: the checksum helpers walk it with an unrolled loop. */
+#define ICMP_QUOTE_LEN 128
 
 /*
  * icmpv6_ptb_csum - compute the ICMPv6 checksum for a Packet Too Big message.
  *
  * The ICMPv6 checksum covers an IPv6 pseudo-header (40 bytes) plus the entire
  * ICMPv6 message.  For the Packet Too Big message we include:
- *   icmp6hdr (8) + original ipv6hdr (40) + first 8 bytes of original payload
- * = 56 bytes total ICMPv6 message.
+ *   icmp6hdr (8) + ICMP_QUOTE_LEN bytes of the original packet.
  *
  * @saddr / @daddr: source and destination addresses on the *new* IPv6 header
  *                  (already swapped relative to the original packet).
  * @icmp6: pointer to the ICMPv6 header in packet memory; must be followed by
- *         at least (sizeof(ipv6hdr) + 8) bytes within packet bounds.
+ *         at least ICMP_QUOTE_LEN bytes within packet bounds.
  */
 static __always_inline __u16 icmpv6_ptb_csum(const struct in6_addr *saddr,
 					     const struct in6_addr *daddr,
 					     struct icmp6hdr *icmp6)
 {
-	/* Fixed ICMPv6 message length: 8 + 40 + 8 = 56 bytes */
 	static const __u32 icmp6_msg_len =
-		sizeof(struct icmp6hdr) + sizeof(struct ipv6hdr) + 8;
+		sizeof(struct icmp6hdr) + ICMP_QUOTE_LEN;
 
 	/* Build the IPv6 pseudo-header on the BPF stack (40 bytes) */
 	struct {
