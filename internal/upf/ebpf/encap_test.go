@@ -292,6 +292,49 @@ func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 	}
 }
 
+// The outer IP, UDP and GTP-U lengths are all derived from the inner packet's
+// declared length, so a frame that does not carry it would leave with headers
+// describing bytes that are not there. The header-derived outer checksum reads
+// no payload, so nothing else would catch it.
+func TestDownlinkIPv6TransportRejectsOverDeclaredInnerLength(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgram(t, 1, 0)
+
+	ueIP := [4]byte{10, 45, 0, 2}
+	server := [4]byte{8, 8, 8, 8}
+	local := netip.MustParseAddr("2001:db8:33::1").As16()
+	remote := netip.MustParseAddr("2001:db8:33::9").As16()
+
+	const (
+		teid = 0x77778888
+		qfi  = 7
+	)
+
+	putDownlinkPDRv6Outer(t, obj, ueIP, teid, local, remote, qfi)
+
+	// A non-zero inner UDP checksum is what puts the encapsulation on the
+	// header-derived path; a zero one falls back to summing the bytes.
+	inner := ipv4Packet(server, ueIP, 17,
+		udpDatagramChecksummed(server, ueIP, 4000, 4001, []byte{0x01, 0x02, 0x03, 0x04}))
+
+	binary.BigEndian.PutUint16(inner[2:4], uint16(len(inner)+200))
+	binary.BigEndian.PutUint16(inner[10:12], 0)
+	binary.BigEndian.PutUint16(inner[10:12], ipv4HeaderChecksum(inner[:20]))
+
+	before := DropCount(obj, Downlink, "internal_encap_failed")
+
+	action, _ := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
+	if action != ActionAborted {
+		t.Fatalf("action = %d, want ActionAborted (%d): the frame left with outer lengths it does not carry",
+			action, ActionAborted)
+	}
+
+	if after := DropCount(obj, Downlink, "internal_encap_failed"); after != before+1 {
+		t.Errorf("internal_encap_failed = %d, want %d", after, before+1)
+	}
+}
+
 // TestTransportLevelMarking checks that a FAR's transport-level marking is
 // written to the outer IPv4 TOS byte of the encapsulated downlink packet.
 func TestTransportLevelMarking(t *testing.T) {

@@ -710,8 +710,9 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 		 * CHECKSUM_PARTIAL frame the byte sum would read an inner
 		 * checksum the kernel has not written yet. */
 		int csum_ret = udpv6_csum_from_headers(
-			&ip6->saddr, &ip6->daddr, udp, bpf_ntohs(udp->len),
-			gtp, gtp_full_hdr_size, inner_is_ip6, data_end);
+			ctx->ctx_buff, &ip6->saddr, &ip6->daddr, udp,
+			bpf_ntohs(udp->len), gtp, gtp_full_hdr_size,
+			inner_is_ip6, data_end);
 		if (csum_ret < 0) {
 			csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr,
 					      udp_off, bpf_ntohs(udp->len),
@@ -828,8 +829,9 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 		 * CHECKSUM_PARTIAL frame the byte sum would read an inner
 		 * checksum the kernel has not written yet. */
 		int csum_ret = udpv6_csum_from_headers(
-			&ip6->saddr, &ip6->daddr, udp, bpf_ntohs(udp->len),
-			gtp, sizeof(struct gtpuhdr), inner_is_ip6, data_end);
+			ctx->ctx_buff, &ip6->saddr, &ip6->daddr, udp,
+			bpf_ntohs(udp->len), gtp, sizeof(struct gtpuhdr),
+			inner_is_ip6, data_end);
 		if (csum_ret < 0) {
 			csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr,
 					      udp_off, bpf_ntohs(udp->len),

@@ -282,7 +282,8 @@ static __always_inline int inner_l4_is_summable(__u8 proto)
  * apply: a fragment has no L4 header of its own, and UDP with a zero checksum
  * has nothing to substitute. Both are always CHECKSUM_NONE, so the caller's
  * byte sum is correct for them. */
-static __always_inline __s32 inner_pseudo_ip4(const struct iphdr *ip4,
+static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
+					      const struct iphdr *ip4,
 					      const void *data_end)
 {
 	if ((const void *)(ip4 + 1) > data_end)
@@ -296,6 +297,13 @@ static __always_inline __s32 inner_pseudo_ip4(const struct iphdr *ip4,
 
 	__u16 tot_len = bpf_ntohs(ip4->tot_len);
 	if (tot_len < sizeof(struct iphdr))
+		return -1;
+
+	/* The declared length has to be backed by real bytes. The outer
+	 * headers were sized from it, so a shorter frame is already
+	 * self-inconsistent; falling back to the byte sum turns that into a
+	 * failed read and a drop. */
+	if (!ctx_frame_holds(ctx, data_end, ip4, tot_len))
 		return -1;
 
 	if (ip4->protocol == IPPROTO_UDP) {
@@ -322,13 +330,19 @@ static __always_inline __s32 inner_pseudo_ip4(const struct iphdr *ip4,
 
 /* Extension headers are not walked: an inner next-header that is not the L4
  * protocol falls back. */
-static __always_inline __s32 inner_pseudo_ip6(const struct ipv6hdr *ip6,
+static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
+					      const struct ipv6hdr *ip6,
 					      const void *data_end)
 {
 	if ((const void *)(ip6 + 1) > data_end)
 		return -1;
 
 	if (!inner_l4_is_summable(ip6->nexthdr))
+		return -1;
+
+	/* As in inner_pseudo_ip4. */
+	if (!ctx_frame_holds(ctx, data_end, ip6,
+			     sizeof(*ip6) + bpf_ntohs(ip6->payload_len)))
 		return -1;
 
 	if (ip6->nexthdr == IPPROTO_UDP) {
@@ -359,16 +373,16 @@ static __always_inline __s32 inner_pseudo_ip6(const struct ipv6hdr *ip6,
  * constant so the bounded read is provable. Returns -1 when the inner packet
  * does not satisfy the identity, leaving the caller to sum the bytes. */
 static __always_inline int
-udpv6_csum_from_headers(const struct in6_addr *saddr,
+udpv6_csum_from_headers(struct __ctx_buff *ctx, const struct in6_addr *saddr,
 			const struct in6_addr *daddr, const struct udphdr *udp,
 			__u32 udp_len, const void *tunnel, __u32 tunnel_len,
 			int inner_is_ip6, const void *data_end)
 {
 	const void *inner = (const void *)((const __u8 *)tunnel + tunnel_len);
 
-	__s32 not_pseudo_inner = inner_is_ip6 ?
-					 inner_pseudo_ip6(inner, data_end) :
-					 inner_pseudo_ip4(inner, data_end);
+	__s32 not_pseudo_inner =
+		inner_is_ip6 ? inner_pseudo_ip6(ctx, inner, data_end) :
+			       inner_pseudo_ip4(ctx, inner, data_end);
 	if (not_pseudo_inner < 0)
 		return -1;
 
