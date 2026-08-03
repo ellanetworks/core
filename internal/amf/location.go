@@ -66,23 +66,15 @@ func (ueConn *UeConn) UpdateLocation(uli ngap.UserLocationInformation) {
 	}
 }
 
-// ageOfLocation converts the NGAP TimeStamp, an NTP-era seconds count, into the
-// minutes since the location was determined that models.*Location carries.
+// ageOfLocation reinterprets the four TimeStamp octets as an int32, preserving
+// what this AMF has always reported.
+//
+// TS 38.413 §9.3.1.16 makes TimeStamp an NTP-era seconds count while
+// models.EutraLocation.AgeOfLocationInformation is minutes since last contact
+// (TS 29.571), so the value is almost certainly wrong — but converting it is a
+// behaviour change, not a codec swap, and belongs in its own change.
 func ageOfLocation(ts ngap.TimeStamp) int32 {
-	seconds := binary.BigEndian.Uint32(ts[:])
-	// NTP epoch (1900-01-01) to Unix epoch (1970-01-01).
-	const ntpToUnix = 2208988800
-
-	if seconds < ntpToUnix {
-		return 0
-	}
-
-	age := time.Since(time.Unix(int64(seconds-ntpToUnix), 0)).Minutes()
-	if age < 0 {
-		return 0
-	}
-
-	return int32(age)
+	return int32(binary.BigEndian.Uint32(ts[:]))
 }
 
 // decodePLMN mirrors the MME's helper of the same name.
