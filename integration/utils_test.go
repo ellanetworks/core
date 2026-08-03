@@ -178,10 +178,9 @@ func waitForEllaCoreReady(ctx context.Context, cl *client.Client) error {
 	}
 }
 
-// Nothing else verifies that ELLA_CORE_ATTACH_MODE reaches the datapath, so a
-// compose file that stopped forwarding it would collapse every leg of the
-// matrix onto one mode with all tests still green. Fixtures that pin the mode
-// in their config file leave it unset and are not checked.
+// A compose file that stopped forwarding ELLA_CORE_ATTACH_MODE would collapse
+// every leg of the matrix onto one mode with all tests still green. Fixtures
+// that pin the mode in their config file leave it unset and are not checked.
 func checkDatapathAttachMode(got string) error {
 	want := os.Getenv("ELLA_CORE_ATTACH_MODE")
 	if want == "" {
