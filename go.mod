@@ -16,7 +16,7 @@ require (
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
 	github.com/ishidawataru/sctp v0.0.0-20250303034628-ecf9ed6df987
 	github.com/mattn/go-sqlite3 v1.14.42
-	github.com/moby/moby/client v0.5.0
+	github.com/moby/moby/client v0.5.1
 	github.com/osrg/gobgp/v4 v4.7.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8
