@@ -115,7 +115,7 @@ func (r *RAResponder) Start() error {
 	if r.bpfObjects.UseTCX {
 		vethLink, err = attachTCX(r.bpfObjects.VethXdpFunc, xdpIdx, VethXDPName)
 	} else {
-		vethLink, err = attachXDP(r.bpfObjects.VethXdpFunc, xdpIdx, VethXDPName, link.XDPGenericMode)
+		vethLink, err = attachXDP(r.bpfObjects.VethXdpFunc, xdpIdx, link.XDPGenericMode)
 	}
 
 	if err != nil {

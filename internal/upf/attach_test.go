@@ -7,7 +7,6 @@ package upf
 
 import (
 	"context"
-	"errors"
 	"net"
 	"os"
 	"os/exec"
@@ -91,10 +90,10 @@ func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 	}
 }
 
-// TestTCXAttachPinAdopt covers the TCX attach lifecycle: attach pins the
-// link, a second attach adopts the pin via link.Update without stacking a
-// program on the hook, and a clean Close unpins and detaches.
-func TestTCXAttachPinAdopt(t *testing.T) {
+// TestTCXAttachRefusesToStack covers the TCX attach lifecycle: the link owns
+// the attachment and Close detaches it, and a second attach on an occupied
+// hook is refused rather than stacking a second datapath on it.
+func TestTCXAttachRefusesToStack(t *testing.T) {
 	requireRoot(t)
 
 	if out, err := exec.CommandContext(context.Background(), "ip", "link", "add", tcxTestDev, "type", "veth",
@@ -127,40 +126,22 @@ func TestTCXAttachPinAdopt(t *testing.T) {
 		t.Fatalf("attach TCX: %v", err)
 	}
 
-	pinned, ok := l.(*pinnedLink)
-	if !ok {
-		t.Fatalf("TCX link is not pinned (bpffs unavailable?)")
-	}
-
-	if _, err := os.Stat(pinned.pinPath); err != nil {
-		t.Fatalf("pin missing at %s: %v", pinned.pinPath, err)
-	}
-
 	if got := tcxProgramCount(t, iface.Index); got != 1 {
 		t.Fatalf("TCX programs on hook = %d, want 1", got)
 	}
 
-	// A process that died without Close leaves the pin with no open fd; the
-	// next attach must adopt it and keep exactly one program on the hook.
-	if err := pinned.Link.Close(); err != nil {
-		t.Fatalf("close crashed-process fd: %v", err)
-	}
-
-	adopted, err := attachTCX(obj.UpfEntryFunc, iface.Index, tcxTestDev)
-	if err != nil {
-		t.Fatalf("re-attach (adopt) TCX: %v", err)
+	// A second daemon must not end up running alongside the first: TCX would
+	// accept the attach and run both.
+	if _, err := attachTCX(obj.UpfEntryFunc, iface.Index, tcxTestDev); err == nil {
+		t.Error("second attach on an occupied hook succeeded, want refusal")
 	}
 
 	if got := tcxProgramCount(t, iface.Index); got != 1 {
-		t.Fatalf("TCX programs on hook after adopt = %d, want 1 (hook stacked)", got)
+		t.Fatalf("TCX programs on hook after refused attach = %d, want 1", got)
 	}
 
-	if err := adopted.Close(); err != nil {
-		t.Fatalf("close adopted link: %v", err)
-	}
-
-	if _, err := os.Stat(pinned.pinPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("pin still present after Close: %v", err)
+	if err := l.Close(); err != nil {
+		t.Fatalf("close link: %v", err)
 	}
 
 	if got := tcxProgramCount(t, iface.Index); got != 0 {

@@ -8,8 +8,6 @@ package upf
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"unsafe"
 
 	cebpf "github.com/cilium/ebpf"
@@ -22,172 +20,72 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// bpfPinDir holds the datapath's link pins. A pinned link keeps the program
-// attached across an unclean process exit, so a restart re-adopts it rather
-// than detaching and attaching again. The datapath still starts with empty
-// maps and sessions are restored after Start returns, so this shortens the
-// window rather than removing it — and in the default chain the pin is
-// released before the first attach is tried, so it does not apply there at
-// all. Pinning is best-effort: without a writable bpffs the links live only
-// as long as the process, which is the behavior of an unpinned attach.
-const bpfPinDir = "/sys/fs/bpf/ella-core"
-
-// pinnedLink unpins on Close so a clean shutdown detaches the datapath, while
-// a crash leaves the pin for the next process to adopt.
-type pinnedLink struct {
-	link.Link
-	pinPath string
+// attachXDP attaches prog at the XDP hook of the interface in the given mode.
+// The returned link owns the attachment: closing it, or exiting, detaches.
+func attachXDP(prog *cebpf.Program, ifindex int, flags link.XDPAttachFlags) (link.Link, error) {
+	return link.AttachXDP(link.XDPOptions{
+		Program:   prog,
+		Interface: ifindex,
+		Flags:     flags,
+	})
 }
 
-func (p *pinnedLink) Close() error {
-	if p.pinPath != "" {
-		if err := p.Unpin(); err != nil && !errors.Is(err, os.ErrNotExist) {
-			_ = p.Link.Close()
-			return fmt.Errorf("unpin datapath link %s: %w", p.pinPath, err)
-		}
+// attachTCX attaches prog at TCX ingress of the interface.
+//
+// TCX is a multi-program hook: unlike XDP, which refuses a second attach with
+// EBUSY, it accepts one and runs both. A second instance of this daemon would
+// therefore double-process every frame — encapsulating, translating and
+// metering it twice — rather than failing to start, so that case is refused
+// here. Foreign programs are left alone: sharing the hook with a CNI or an
+// observability agent is what TCX is for.
+func attachTCX(prog *cebpf.Program, ifindex int, ifname string) (link.Link, error) {
+	if err := datapathAlreadyAttached(prog, ifindex); err != nil {
+		return nil, fmt.Errorf("%s: %w", ifname, err)
 	}
 
-	return p.Link.Close()
+	return link.AttachTCX(link.TCXOptions{
+		Program:   prog,
+		Attach:    cebpf.AttachTCXIngress,
+		Interface: ifindex,
+	})
 }
 
-// datapathPinName is the pin for one interface at one hook. The XDP name
-// carries the mode because bpf_xdp_link_update validates only the program type
-// and expected attach type: updating a pinned generic link with a native-mode
-// program succeeds and reinstalls in the pinned link's own mode. The mode in
-// the name keeps each pin to the mode that created it.
-func datapathPinName(hook, ifname string) string {
-	return hook + "-" + ifname
-}
-
-// datapathPinNames lists every pin the datapath may hold for an interface,
-// across hooks and XDP modes, including the unqualified xdp-<if> name.
-func datapathPinNames(ifname string) []string {
-	return []string{
-		datapathPinName("xdp", ifname),
-		datapathPinName("xdp-native", ifname),
-		datapathPinName("xdp-generic", ifname),
-		datapathPinName("tcx-ingress", ifname),
+// datapathAlreadyAttached reports an error when a program with the same name
+// as prog is already at TCX ingress on ifindex, which means another instance
+// of this daemon holds the hook. A kernel that cannot be queried is treated as
+// empty: refusing to start on a probe failure is worse than the stacking this
+// guards against.
+func datapathAlreadyAttached(prog *cebpf.Program, ifindex int) error {
+	info, err := prog.Info()
+	if err != nil {
+		return nil
 	}
-}
 
-// releaseForeignPins drops every pin for ifname other than keep. A pin holds a
-// reference that keeps its program attached, so one left by a previous hook or
-// mode would run alongside the new attach: XDP ahead of TCX, encapsulating,
-// translating and metering each packet twice.
-func releaseForeignPins(ifname, keep string) error {
-	for _, name := range datapathPinNames(ifname) {
-		if name == keep {
+	name := info.Name
+
+	attached, err := link.QueryPrograms(link.QueryOptions{
+		Target: ifindex,
+		Attach: cebpf.AttachTCXIngress,
+	})
+	if err != nil || attached == nil {
+		return nil
+	}
+
+	for _, ap := range attached.Programs {
+		other, err := cebpf.NewProgramFromID(ap.ID)
+		if err != nil {
 			continue
 		}
 
-		pinPath := filepath.Join(bpfPinDir, name)
+		otherInfo, err := other.Info()
+		_ = other.Close()
 
-		l, err := link.LoadPinnedLink(pinPath, nil)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-
-			return fmt.Errorf("inspect pin %s: %w", pinPath, err)
+		if err == nil && otherInfo.Name == name {
+			return fmt.Errorf("%q is already attached at TCX ingress: refusing to stack a second datapath", name)
 		}
-
-		err = l.Unpin()
-		_ = l.Close()
-
-		if err != nil {
-			return fmt.Errorf("unpin datapath link %s: %w", pinPath, err)
-		}
-
-		logger.UpfLog.Info("released datapath link pinned at another hook",
-			zap.String("pin", pinPath))
 	}
 
 	return nil
-}
-
-// adoptOrAttach re-points a pinned link from a previous process at prog, or
-// attaches fresh via attach and pins the result. Pins belonging to another
-// hook or XDP mode are released first, then a stale pin of this name that
-// cannot be updated (incompatible program) is discarded before the fresh
-// attach so hooks cannot stack.
-func adoptOrAttach(ifname, pinName string, prog *cebpf.Program, attach func() (link.Link, error)) (link.Link, error) {
-	pinPath := filepath.Join(bpfPinDir, pinName)
-
-	if err := releaseForeignPins(ifname, pinName); err != nil {
-		return nil, err
-	}
-
-	// Only an absent pin means "nothing to adopt". Any other failure leaves a
-	// live link holding the hook, and attaching over it stacks a second
-	// program: at TCX both would then run, encapsulating twice.
-	l, err := link.LoadPinnedLink(pinPath, nil)
-	switch {
-	case err == nil:
-		if updateErr := l.Update(prog); updateErr == nil {
-			logger.UpfLog.Info("adopted pinned datapath link", zap.String("pin", pinPath))
-			return &pinnedLink{Link: l, pinPath: pinPath}, nil
-		}
-
-		unpinErr := l.Unpin()
-		_ = l.Close()
-
-		if unpinErr != nil {
-			return nil, fmt.Errorf("unpin stale datapath link %s: %w", pinPath, unpinErr)
-		}
-	case !errors.Is(err, os.ErrNotExist):
-		return nil, fmt.Errorf("inspect pin %s: %w", pinPath, err)
-	}
-
-	l, err = attach()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := os.MkdirAll(bpfPinDir, 0o750); err != nil {
-		logger.UpfLog.Warn("datapath link not pinned; it detaches with the process",
-			zap.String("dir", bpfPinDir), zap.Error(err))
-
-		return l, nil
-	}
-
-	if err := l.Pin(pinPath); err != nil {
-		logger.UpfLog.Warn("datapath link not pinned; it detaches with the process",
-			zap.String("pin", pinPath), zap.Error(err))
-
-		return l, nil
-	}
-
-	return &pinnedLink{Link: l, pinPath: pinPath}, nil
-}
-
-// attachXDP attaches prog at the XDP hook of the interface in the given mode,
-// adopting a pinned link when one exists.
-func attachXDP(prog *cebpf.Program, ifindex int, ifname string, flags link.XDPAttachFlags) (link.Link, error) {
-	hook := "xdp-native"
-	if flags == link.XDPGenericMode {
-		hook = "xdp-generic"
-	}
-
-	return adoptOrAttach(ifname, datapathPinName(hook, ifname), prog, func() (link.Link, error) {
-		return link.AttachXDP(link.XDPOptions{
-			Program:   prog,
-			Interface: ifindex,
-			Flags:     flags,
-		})
-	})
-}
-
-// attachTCX attaches prog at TCX ingress of the interface, adopting a pinned
-// link when one exists. Reload goes through link.Update on the held link: a
-// second AttachTCX would stack a program on the hook.
-func attachTCX(prog *cebpf.Program, ifindex int, ifname string) (link.Link, error) {
-	return adoptOrAttach(ifname, datapathPinName("tcx-ingress", ifname), prog, func() (link.Link, error) {
-		return link.AttachTCX(link.TCXOptions{
-			Program:   prog,
-			Attach:    cebpf.AttachTCXIngress,
-			Interface: ifindex,
-		})
-	})
 }
 
 // loadDatapathObjects loads the object the requested mechanism can actually
@@ -289,7 +187,7 @@ func attachChainTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (string, link.L
 }
 
 func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAttachFlags) (link.Link, *link.Link, error) {
-	n3Link, err := attachXDP(objs.UpfEntryFunc, n3.index, n3.name, flags)
+	n3Link, err := attachXDP(objs.UpfEntryFunc, n3.index, flags)
 	if err != nil {
 		return nil, nil, fmt.Errorf("attach datapath on n3 interface %q: %w", n3.name, err)
 	}
@@ -298,7 +196,7 @@ func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAt
 		return n3Link, nil, nil
 	}
 
-	n6Link, err := attachXDP(objs.UpfEntryFunc, n6.index, n6.name, flags)
+	n6Link, err := attachXDP(objs.UpfEntryFunc, n6.index, flags)
 	if err != nil {
 		_ = n3Link.Close()
 
