@@ -120,6 +120,16 @@ func attachDatapath(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface) (s
 			flags = link.XDPGenericMode
 		}
 
+		if mode == config.DatapathXDPNative {
+			for _, iface := range []datapathIface{n3, n6} {
+				if nativeXDPBlackholes(iface.name) {
+					logger.UpfLog.Warn("configured attach mode cannot forward redirected frames on this interface: "+
+						"the attach succeeds and every redirected frame is dropped, use tcx instead",
+						zap.String("iface", iface.name), zap.String("mode", mode))
+				}
+			}
+		}
+
 		n3Link, n6Link, err := attachBothXDP(objs, n3, n6, flags)
 
 		return mode, n3Link, n6Link, err
@@ -244,10 +254,13 @@ const ethtoolGGRO = 0x2b
 // NETDEV_XDP_ACT_NDO_XMIT only while the peer has its own XDP program or GRO
 // (drivers/net/veth.c), and veth_xdp_xmit refuses without the peer's NAPI —
 // so the attach succeeds and the traffic disappears.
+//
+// A probe failure returns false: the chain then attaches natively, which is
+// the pre-existing behaviour, and the attach itself reports any real problem.
 func nativeXDPBlackholes(ifname string) bool {
 	l, err := netlink.LinkByName(ifname)
 	if err != nil {
-		logger.UpfLog.Debug("could not read interface type",
+		logger.UpfLog.Warn("could not read interface type, assuming native XDP can forward redirected frames",
 			zap.String("iface", ifname), zap.Error(err))
 
 		return false

@@ -26,6 +26,8 @@
 /* A TC skb may be non-linear or cloned. */
 #define CTX_NEEDS_PULL 1
 
+#define VLAN_TAG_LEN 4
+
 /* TC has no verdict for an abort, nor for a transmit back out the ingress
  * interface: an abort is a drop, and both forwarding actions are
  * TC_ACT_REDIRECT because the redirect helper has already recorded the
@@ -66,10 +68,12 @@ static __always_inline const void *ctx_data_end(struct __ctx_buff *ctx)
 }
 
 /* data_end bounds only the linear head of a non-linear or GSO skb, so
- * skb->len is authoritative. */
+ * skb->len is authoritative. It excludes a tag the kernel moved to metadata,
+ * which XDP counts as frame bytes: added back so both builds meter the same
+ * traffic identically. */
 static __always_inline __u64 ctx_full_len(struct __ctx_buff *ctx)
 {
-	return ctx->len;
+	return ctx->len + (ctx->vlan_present ? VLAN_TAG_LEN : 0);
 }
 
 /* `from` must lie in the linear head. `data_end` is unused; it keeps one call
@@ -99,13 +103,18 @@ static __always_inline __u32 ctx_ingress_ifindex(struct __ctx_buff *ctx)
 	return ctx->ingress_ifindex;
 }
 
-/* Non-zero when the buffer holds several datagrams. gso_segs is not usable
- * for this: a virtio, tap or vhost source leaves it at 0 and flags the buffer
- * SKB_GSO_DODGY (include/linux/virtio_net.h), so only gso_size distinguishes
- * a merged buffer — it is what skb_is_gso() itself reads. */
+/* Non-zero exactly when the buffer is GSO: it is what skb_is_gso() reads. */
 static __always_inline __u32 ctx_gso_size(struct __ctx_buff *ctx)
 {
 	return ctx->gso_size;
+}
+
+/* Segments the buffer holds, or 0 when the source did not count them: a
+ * virtio, tap or vhost header sets gso_size and leaves gso_segs at 0, flagged
+ * SKB_GSO_DODGY (include/linux/virtio_net.h). */
+static __always_inline __u32 ctx_gso_segs(struct __ctx_buff *ctx)
+{
+	return ctx->gso_segs;
 }
 
 /* Counts frags, so it validates datagram lengths on non-linear frames. Not a

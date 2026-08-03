@@ -499,8 +499,18 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
  * CHECKSUM_PARTIAL skb: __bpf_skb_min_len (net/core/filter.c) refuses a trim
  * below csum_start + csum_offset + 2, which for a TCP trigger is 80 bytes on
  * the IPv4 reply and 120 on the IPv6 one. A 28-byte quote produced 70 and 110
- * and the resize failed, so no error was emitted at all. Kept a compile-time
- * constant: the checksum helpers walk it with an unrolled loop. */
+ * and the resize failed, so no error was emitted at all.
+ *
+ * The reply keeps the trigger's csum_start, now pointing inside the quote, and
+ * no helper clears CHECKSUM_PARTIAL: bpf_skb_adjust_room resets only
+ * CHECKSUM_UNNECESSARY, bpf_skb_change_tail only CHECKSUM_COMPLETE. An egress
+ * that completes the checksum overwrites two quoted bytes and invalidates the
+ * ICMP checksum. A partial trigger implies a sender on this host, so the reply
+ * is delivered here, where skb_csum_unnecessary() holds for CHECKSUM_PARTIAL
+ * and nothing verifies or completes it.
+ *
+ * Kept a compile-time constant: the checksum helpers walk it with an unrolled
+ * loop. */
 #define ICMP_QUOTE_LEN 128
 
 /*

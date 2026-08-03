@@ -140,11 +140,6 @@ static __always_inline struct upf_statistic *get_stats(void *stats_map)
 CTX_DP_SEC("upf_gtpu_control")
 int upf_gtpu_control_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
-	if (ctx_vlan_ingress(ctx))
-		return ctx_verdict(CTX_ACT_OK);
-
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
 		return ctx_verdict(CTX_ACT_ABORTED);
@@ -154,6 +149,11 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
+
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
+	if (ctx_vlan_ingress(ctx))
+		return record_action(&context, CTX_ACT_OK);
 
 	/* This stage answers echo requests and error indications by rewriting
 	 * the frame in place, so the headers must be writable first. The pull
@@ -222,22 +222,32 @@ int upf_gtpu_control_func(struct __ctx_buff *ctx)
 CTX_DP_SEC("upf_uplink")
 int upf_uplink_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
-	if (ctx_vlan_ingress(ctx))
-		return ctx_verdict(CTX_ACT_OK);
-
 	struct upf_statistic *statistics = get_stats(&uplink_statistics);
 	if (!statistics)
 		return ctx_verdict(CTX_ACT_ABORTED);
 
 	struct packet_context context = {
-		.data = ctx_data(ctx),
-		.data_end = ctx_data_end(ctx),
 		.ctx_buff = ctx,
 		.statistics = statistics,
 		.interface = INTERFACE_N3,
 	};
+
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
+	if (ctx_vlan_ingress(ctx))
+		return record_action(&context, CTX_ACT_OK);
+
+	/* data_end bounds only the linear head, which a header-splitting NIC
+	 * sizes with eth_get_headlen: __skb_get_poff stops at thoff + 8 for UDP
+	 * (net/core/flow_dissector.c), leaving the GTP-U header in a fragment.
+	 * Parsing before this pull would fail and hand the G-PDU to the stack
+	 * undecapsulated. The pull also unclones, which the rewrites need. */
+	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return record_action(&context,
+				     abort_with(&context, UPF_DROP_INTERNAL_PULL_FAILED));
+
+	context.data = ctx_data(ctx);
+	context.data_end = ctx_data_end(ctx);
 
 	PROFILE_START(PROF_N3_TOTAL);
 	enum ctx_action ret = process_uplink(&context);
@@ -249,22 +259,30 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 CTX_DP_SEC("upf_downlink")
 int upf_downlink_func(struct __ctx_buff *ctx)
 {
-	/* A tag still in the frame bytes means a second, inner one: the
-	 * datapath does not parse QinQ. */
-	if (ctx_vlan_ingress(ctx))
-		return ctx_verdict(CTX_ACT_OK);
-
 	struct upf_statistic *statistics = get_stats(&downlink_statistics);
 	if (!statistics)
 		return ctx_verdict(CTX_ACT_ABORTED);
 
 	struct packet_context context = {
-		.data = ctx_data(ctx),
-		.data_end = ctx_data_end(ctx),
 		.ctx_buff = ctx,
 		.statistics = statistics,
 		.interface = INTERFACE_N6,
 	};
+
+	/* A tag still in the frame bytes means a second, inner one: the
+	 * datapath does not parse QinQ. */
+	if (ctx_vlan_ingress(ctx))
+		return record_action(&context, CTX_ACT_OK);
+
+	/* A TC skb can be non-linear or cloned: the pull makes the headers
+	 * writable for the NAT and encapsulation rewrites, and brings the
+	 * headers quoted inside an ICMP error within reach of data_end. */
+	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return record_action(&context,
+				     abort_with(&context, UPF_DROP_INTERNAL_PULL_FAILED));
+
+	context.data = ctx_data(ctx);
+	context.data_end = ctx_data_end(ctx);
 
 	PROFILE_START(PROF_N6_TOTAL);
 	enum ctx_action ret = process_downlink(&context);
@@ -281,6 +299,10 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 CTX_DP_SEC("upf_entry")
 int upf_entry_func(struct __ctx_buff *ctx)
 {
+	/* Returns here are not counted: the entrypoint has not classified the
+	 * frame yet, so neither statistics map is the right one. The stage
+	 * programs own every frame they are tail-called with. */
+
 	/* A tag still in the frame bytes means a second, inner one: the
 	 * datapath does not parse QinQ. */
 	if (ctx_vlan_ingress(ctx))

@@ -48,6 +48,7 @@
  * than absent: generic XDP runs downstream of GRO and can be handed one. See
  * docs/explanation/user_plane_packet_processing_with_ebpf.md. */
 #define ctx_gso_size(ctx) ((__u32)0)
+#define ctx_gso_segs(ctx) ((__u32)0)
 
 /* XDP frames are already linear and writable. */
 #define ctx_pull(ctx, len) ((long)0)

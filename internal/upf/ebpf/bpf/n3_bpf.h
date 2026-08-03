@@ -134,19 +134,6 @@ handle_gtp_packet(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_NO_UPLINK_SESSION);
 	}
 
-	if (own_packet_pull(ctx) != 0)
-		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
-
-	if (CTX_NEEDS_PULL) {
-		if (parse_udp(ctx) != GTP_UDP_PORT)
-			return abort_with(ctx, UPF_DROP_MALFORMED_GTP);
-
-		parse_gtp(ctx);
-
-		if (!ctx->gtp)
-			return abort_with(ctx, UPF_DROP_MALFORMED_GTP);
-	}
-
 	__u32 urr_id = pdr->urr_id;
 	__u8 outer_header_removal = pdr->outer_header_removal;
 

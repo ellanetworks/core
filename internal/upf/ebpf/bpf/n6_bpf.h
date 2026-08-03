@@ -132,8 +132,8 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
-	if (own_packet_pull(ctx) != 0 || !ctx->ip4)
-		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
+	if (!ctx->ip4)
+		return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	bool translated = false;
 	bool counted = false;
@@ -320,8 +320,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 static __always_inline enum ctx_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {
-	if (own_packet_pull(ctx) != 0 || !ctx->ip6)
-		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
+	if (!ctx->ip6)
+		return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 	const struct ipv6hdr *ip6 = ctx->ip6;
 

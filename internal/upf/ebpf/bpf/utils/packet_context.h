@@ -78,12 +78,18 @@ struct packet_context {
  * it. The kernel merges on receive with GRO, and a veth or virtio peer can
  * deliver one without any merge on this side.
  *
- * A buffer no longer than one segment is not merged, whatever gso_size says. */
+ * gso_size says the buffer is GSO; gso_segs says how many segments it holds,
+ * and is the only one of the two that answers the question. Frame length
+ * cannot substitute for it — gso_size measures payload, skb->len includes the
+ * headers, so a single full-size segment compares as merged. A source that
+ * reports no count at all (SKB_GSO_DODGY) is treated as merged: it sets
+ * gso_size only for a buffer it had already segmented. */
 static __always_inline int frame_is_merged(const struct packet_context *ctx)
 {
-	__u32 gso_size = ctx_gso_size(ctx->ctx_buff);
+	if (ctx_gso_size(ctx->ctx_buff) == 0)
+		return 0;
 
-	return gso_size != 0 && ctx_full_len(ctx->ctx_buff) > gso_size;
+	return ctx_gso_segs(ctx->ctx_buff) != 1;
 }
 
 /* Every drop in the datapath returns through one of these, so the reason
