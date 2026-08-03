@@ -8,8 +8,7 @@ import (
 	"testing"
 )
 
-// Golden RAN CONFIGURATION UPDATE PDUs from a second, independent NGAP
-// implementation (free5gc/ngap v1.1.3) encoding the same messages.
+// Golden RAN CONFIGURATION UPDATE PDUs
 const (
 	goldenRANConfigUpdate         = "0023003e000004005240120780456c6c612d436f72652d5465737465720066001000000000010000f110000010081020300015400140001b40080000f11010000102"
 	goldenRANConfigUpdateNameOnly = "0023000d000001005240060180676e6231"

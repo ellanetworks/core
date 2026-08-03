@@ -36,6 +36,7 @@ const (
 	idERABSetupItemBearerSURes                  ProtocolIEID = 39
 	idSecurityContext                           ProtocolIEID = 40
 	idUEPagingID                                ProtocolIEID = 43
+	idPagingDRX                                 ProtocolIEID = 44
 	idTAIList                                   ProtocolIEID = 46
 	idTAIItem                                   ProtocolIEID = 47
 	idERABFailedToSetupListCtxtSU               ProtocolIEID = 48
@@ -71,6 +72,7 @@ const (
 	idServedGUMMEIs                             ProtocolIEID = 105
 	idUESecurityCapabilities                    ProtocolIEID = 107
 	idCNDomain                                  ProtocolIEID = 109
+	idPagingPriority                            ProtocolIEID = 151
 	idUERadioCapabilityForPaging                ProtocolIEID = 198
 	idRequestType                               ProtocolIEID = 98
 	idRRCEstablishmentCause                     ProtocolIEID = 134

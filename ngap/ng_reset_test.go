@@ -11,9 +11,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Golden NG RESET PDUs from a second, independent NGAP implementation
-// (free5gc/ngap v1.1.3) encoding the same message. Both ResetType alternatives
-// are covered: the whole interface, and a list of UE associations.
+// Golden NG RESET PDUs
 const (
 	goldenNGResetAll         = "0014000d000002000f4001860058000100"
 	goldenNGResetPart        = "00140014000002000f40018600580008400260070009200b"

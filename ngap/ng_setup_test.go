@@ -13,9 +13,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Golden NG Setup PDUs. Each was produced by a second, independent NGAP
-// implementation (free5gc/ngap v1.1.3) encoding the same message, so a match
-// pins this codec against something other than itself.
+// Golden NG Setup PDUs.
 const (
 	goldenNGSetupRequest  = "00150038000004001b00080002f839100001020052400a0380656c6c612d676e620066001200000000010002f8390001100801020300100015400140"
 	goldenNGSetupResponse = "201500310000040001000a0380656c6c612d616d6600600008000002f83902004300564001ff0050000b0002f83900001008010203"

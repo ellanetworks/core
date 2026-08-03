@@ -10,12 +10,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Golden ERROR INDICATION PDUs from a second, independent NGAP implementation
-// (free5gc/ngap v1.1.3) encoding the same message.
-//
-// Neither carries the 5G-S-TMSI: that implementation predates the IE's addition
-// to this procedure, so it cannot express it. The IE is pinned separately by
-// TestErrorIndicationFiveGSTMSI and TestEncodeBodyGolden instead.
+// Golden ERROR INDICATION PDUs
 const (
 	goldenErrorIndication     = "00094018000003000a400680ffffffffff005540020009000f400162"
 	goldenErrorIndicationFull = "00094024000004000a400680ffffffffff005540020009000f400162001340087815000000001b40"

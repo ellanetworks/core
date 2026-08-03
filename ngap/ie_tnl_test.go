@@ -11,10 +11,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// free5gc/ngap v1.1.3 does not model NGRAN-TNLAssociationToRemoveList, so this
-// IE has no second implementation to pin bytes against. Round-tripping is what
-// is available: it still catches a codec that reads back something other than
-// what it wrote.
 func TestNGRANTNLAssociationToRemoveListRoundTrip(t *testing.T) {
 	in := NGRANTNLAssociationToRemoveList{
 		{

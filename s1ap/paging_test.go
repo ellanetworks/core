@@ -90,3 +90,61 @@ func TestPagingOmitsRadioCapabilityForPaging(t *testing.T) {
 		t.Fatalf("expected no UE Radio Capability for Paging, got %x", out.UERadioCapabilityForPaging)
 	}
 }
+
+// Paging DRX and Paging Priority are both optional-ignore IEs of the Paging
+// container (TS 36.413 §9.1.6.1); the 5G side carries the same pair, so they
+// must round-trip here too. Absent means the IE is omitted, not defaulted.
+func TestPagingDRXAndPriorityRoundTrip(t *testing.T) {
+	// UE Identity Index Value and CN Domain are mandatory in S1AP and have no
+	// 5G counterpart (TS 36.413 §9.1.6.1).
+	in := &Paging{
+		UEIdentityIndexValue: Ptr(uint16(42)),
+		STMSI:                &STMSI{MMEC: 1, MTMSI: 0xdeadbeef},
+		PagingDRX:            Ptr(PagingDRXv128),
+		CNDomain:             Ptr(CNDomainPS),
+		TAIList:              []TAI{{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}},
+		PagingPriority:       Ptr(PagingPriorityLevel3),
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParsePaging(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.PagingDRX == nil || *out.PagingDRX != PagingDRXv128 {
+		t.Errorf("PagingDRX = %v, want v128", out.PagingDRX)
+	}
+
+	if out.PagingPriority == nil || *out.PagingPriority != PagingPriorityLevel3 {
+		t.Errorf("PagingPriority = %v, want priolevel3", out.PagingPriority)
+	}
+
+	// Omitted stays omitted.
+	in.PagingDRX, in.PagingPriority = nil, nil
+
+	b, err = in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, _ = Unmarshal(b)
+
+	out, err = ParsePaging(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.PagingDRX != nil || out.PagingPriority != nil {
+		t.Errorf("absent IEs decoded to non-nil: DRX=%v priority=%v", out.PagingDRX, out.PagingPriority)
+	}
+}

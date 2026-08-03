@@ -11,8 +11,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Golden PAGING PDUs from a second, independent NGAP implementation
-// (free5gc/ngap v1.1.3) encoding the same messages.
+// Golden PAGING PDUs
 const (
 	goldenPagingMinimal = "0018402000000200734007000820deadbeef0067400e1000f1100000010000f110000002"
 	goldenPagingFull    = "0018403700000600734007000820deadbeef00324001400067400e1000f1100000010000f1100000020034400120007640044002aabb0033400100"

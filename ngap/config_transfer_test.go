@@ -8,11 +8,7 @@ import (
 	"testing"
 )
 
-// Golden RAN CONFIGURATION TRANSFER PDUs from a second, independent NGAP
-// implementation (free5gc/ngap v1.1.3) encoding the same messages. The nested
-// SON Configuration Transfer targets gNB 00:01:02 in PLMN 001/01 (TAC 000001)
-// and is sourced from gNB 00:0a:0b (TAC 000002), carrying a SON Information
-// Request for Xn TNL Configuration Info.
+// Golden RAN CONFIGURATION TRANSFER PDUs
 const (
 	goldenUplinkRANConfigTransfer        = "0030402700000100634020000000f110100001020000f1100000010000f11010000a0b0000f11000000200"
 	goldenDownlinkRANConfigTransfer      = "0006402700000100624020000000f110100001020000f1100000010000f11010000a0b0000f11000000200"

@@ -47,7 +47,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"InitialUEMessage", tableIDs(initialUEMessageIEs), []ProtocolIEID{idENBUES1APID, idNASPDU, idTAI, idEUTRANCGI, idRRCEstablishmentCause, idSTMSI, idGUMMEI}},
 		{"UplinkNASTransport", tableIDs(uplinkNASTransportIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idNASPDU, idEUTRANCGI, idTAI}},
 		{"DownlinkNASTransport", tableIDs(downlinkNASTransportIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idNASPDU}},
-		{"Paging", tableIDs(pagingIEs), []ProtocolIEID{idUEIdentityIndexValue, idUEPagingID, idCNDomain, idTAIList, idUERadioCapabilityForPaging}},
+		{"Paging", tableIDs(pagingIEs), []ProtocolIEID{idUEIdentityIndexValue, idUEPagingID, idPagingDRX, idCNDomain, idTAIList, idPagingPriority, idUERadioCapabilityForPaging}},
 		{"PathSwitchRequest", tableIDs(pathSwitchRequestIEs), []ProtocolIEID{idENBUES1APID, idERABToBeSwitchedDLList, idSourceMMEUES1APID, idEUTRANCGI, idTAI, idUESecurityCapabilities}},
 		{"PathSwitchRequestAcknowledge", tableIDs(pathSwitchRequestAcknowledgeIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idUEAggregateMaximumBitrate, idERABToBeReleasedList, idSecurityContext, idUESecurityCapabilities}},
 		{"PathSwitchRequestFailure", tableIDs(pathSwitchRequestFailureIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCause, idCriticalityDiagnostics}},
