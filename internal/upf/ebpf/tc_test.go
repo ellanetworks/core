@@ -609,10 +609,13 @@ func TestTCMergedFramesDropped(t *testing.T) {
 			objs := loadTCProgramConfig(t, false, 0, 1)
 			tc.setup(objs)
 
-			// gso_size smaller than the frame is what makes it merged; the
-			// virtio case reports no segment count at all.
+			// A buffer longer than one segment is what makes it merged, so
+			// the size has to be under the frame length. The virtio case
+			// reports no segment count at all.
+			gsoSize := uint32(len(tc.frame) / 2)
+
 			for _, segs := range []uint32{4, 0} {
-				if action := runTCMerged(t, objs.UpfEntryFunc, tc.frame, segs, 64); action != tcActShot {
+				if action := runTCMerged(t, objs.UpfEntryFunc, tc.frame, segs, gsoSize); action != tcActShot {
 					t.Errorf("gso_segs=%d: verdict = %d, want TC_ACT_SHOT (%d)", segs, action, tcActShot)
 				}
 			}

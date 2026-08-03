@@ -113,8 +113,13 @@ func adoptOrAttach(ifname, pinName string, prog *cebpf.Program, attach func() (l
 		return nil, err
 	}
 
-	if l, err := link.LoadPinnedLink(pinPath, nil); err == nil {
-		if err := l.Update(prog); err == nil {
+	// Only an absent pin means "nothing to adopt". Any other failure leaves a
+	// live link holding the hook, and attaching over it stacks a second
+	// program: at TCX both would then run, encapsulating twice.
+	l, err := link.LoadPinnedLink(pinPath, nil)
+	switch {
+	case err == nil:
+		if updateErr := l.Update(prog); updateErr == nil {
 			logger.UpfLog.Info("adopted pinned datapath link", zap.String("pin", pinPath))
 			return &pinnedLink{Link: l, pinPath: pinPath}, nil
 		}
@@ -125,9 +130,11 @@ func adoptOrAttach(ifname, pinName string, prog *cebpf.Program, attach func() (l
 		if unpinErr != nil {
 			return nil, fmt.Errorf("unpin stale datapath link %s: %w", pinPath, unpinErr)
 		}
+	case !errors.Is(err, os.ErrNotExist):
+		return nil, fmt.Errorf("inspect pin %s: %w", pinPath, err)
 	}
 
-	l, err := attach()
+	l, err = attach()
 	if err != nil {
 		return nil, err
 	}
