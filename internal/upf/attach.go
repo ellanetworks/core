@@ -17,15 +17,19 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
 
 // bpfPinDir holds the datapath's link pins. A pinned link keeps the program
-// attached across an unclean process exit, so a restart re-adopts the running
-// datapath without a traffic gap. Pinning is best-effort: without a writable
-// bpffs the links live only as long as the process, which is the behavior of
-// an unpinned attach.
+// attached across an unclean process exit, so a restart re-adopts it rather
+// than detaching and attaching again. The datapath still starts with empty
+// maps and sessions are restored after Start returns, so this shortens the
+// window rather than removing it — and in the default chain the pin is
+// released before the first attach is tried, so it does not apply there at
+// all. Pinning is best-effort: without a writable bpffs the links live only
+// as long as the process, which is the behavior of an unpinned attach.
 const bpfPinDir = "/sys/fs/bpf/ella-core"
 
 // pinnedLink unpins on Close so a clean shutdown detaches the datapath, while
@@ -335,58 +339,7 @@ func tcxUnavailable(err error) bool {
 	return errors.Is(err, cebpf.ErrNotSupported)
 }
 
-const (
-	ethtoolGGRO     = 0x2b
-	ethtoolGDrvInfo = 0x03
-)
-
-// interfaceDriver reads the interface's driver name via ETHTOOL_GDRVINFO.
-func interfaceDriver(ifname string) (string, error) {
-	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
-	if err != nil {
-		return "", err
-	}
-
-	defer func() { _ = unix.Close(fd) }()
-
-	// struct ethtool_drvinfo; only cmd and driver are read back.
-	var value struct {
-		cmd        uint32
-		driver     [32]byte
-		version    [32]byte
-		fwVersion  [32]byte
-		busInfo    [32]byte
-		eromVer    [32]byte
-		reserved2  [12]byte
-		nPrivFlags uint32
-		nStats     uint32
-		testinfoLn uint32
-		eedumpLen  uint32
-		regdumpLen uint32
-	}
-
-	value.cmd = ethtoolGDrvInfo
-
-	var ifr struct {
-		name [unix.IFNAMSIZ]byte
-		data unsafe.Pointer
-		_    [16]byte
-	}
-
-	if len(ifname) >= unix.IFNAMSIZ {
-		return "", fmt.Errorf("interface name %q too long", ifname)
-	}
-
-	copy(ifr.name[:], ifname)
-	ifr.data = unsafe.Pointer(&value)
-
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd),
-		unix.SIOCETHTOOL, uintptr(unsafe.Pointer(&ifr))); errno != 0 {
-		return "", fmt.Errorf("ETHTOOL_GDRVINFO %s: %w", ifname, errno)
-	}
-
-	return unix.ByteSliceToString(value.driver[:]), nil
-}
+const ethtoolGGRO = 0x2b
 
 // nativeXDPBlackholes reports whether a redirect out of this interface would
 // be dropped in native XDP mode. On a veth, xdp_features carries
@@ -394,15 +347,15 @@ func interfaceDriver(ifname string) (string, error) {
 // (drivers/net/veth.c), and veth_xdp_xmit refuses without the peer's NAPI —
 // so the attach succeeds and the traffic disappears.
 func nativeXDPBlackholes(ifname string) bool {
-	driver, err := interfaceDriver(ifname)
+	l, err := netlink.LinkByName(ifname)
 	if err != nil {
-		logger.UpfLog.Debug("could not read interface driver",
+		logger.UpfLog.Debug("could not read interface type",
 			zap.String("iface", ifname), zap.Error(err))
 
 		return false
 	}
 
-	return driver == "veth"
+	return l.Type() == "veth"
 }
 
 // interfaceGROEnabled reads the interface's generic-receive-offload state via

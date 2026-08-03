@@ -608,6 +608,9 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 		n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
 
 	int ip_packet_len = 0;
+	/* Captured before ctx_encap invalidates the parsed pointers. */
+	const int inner_is_ip6 = ctx->ip6 != NULL;
+
 	if (ctx->ip4) {
 		ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
 	} else if (ctx->ip6) {
@@ -706,8 +709,18 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 	if (ip6) {
 		__u32 udp_off =
 			(__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
-		int csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
-					  bpf_ntohs(udp->len), ctx->ctx_buff);
+		/* Built from headers where the inner L4 region allows it: the
+		 * byte sum would read an inner checksum the kernel has not
+		 * written yet on a CHECKSUM_PARTIAL frame. */
+		int csum_ret = udpv6_csum_from_headers(
+			&ip6->saddr, &ip6->daddr, udp, bpf_ntohs(udp->len),
+			gtp, gtp_full_hdr_size, inner_is_ip6, data_end);
+		if (csum_ret < 0) {
+			csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr,
+					      udp_off, bpf_ntohs(udp->len),
+					      ctx->ctx_buff);
+		}
+
 		if (csum_ret < 0) {
 			upf_printk("upf: udpv6_csum failed");
 			return -1;
@@ -744,6 +757,9 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 		n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
 
 	int ip_packet_len = 0;
+	/* Captured before ctx_encap invalidates the parsed pointers. */
+	const int inner_is_ip6 = ctx->ip6 != NULL;
+
 	if (ctx->ip4) {
 		ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
 	} else if (ctx->ip6) {
@@ -811,8 +827,18 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 	if (ip6) {
 		__u32 udp_off =
 			(__u32)((__u8 *)udp - (__u8 *)ctx_data(ctx->ctx_buff));
-		int csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
-					  bpf_ntohs(udp->len), ctx->ctx_buff);
+		/* Built from headers where the inner L4 region allows it: the
+		 * byte sum would read an inner checksum the kernel has not
+		 * written yet on a CHECKSUM_PARTIAL frame. */
+		int csum_ret = udpv6_csum_from_headers(
+			&ip6->saddr, &ip6->daddr, udp, bpf_ntohs(udp->len),
+			gtp, sizeof(struct gtpuhdr), inner_is_ip6, data_end);
+		if (csum_ret < 0) {
+			csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr,
+					      udp_off, bpf_ntohs(udp->len),
+					      ctx->ctx_buff);
+		}
+
 		if (csum_ret < 0) {
 			return -1;
 		}

@@ -180,10 +180,37 @@ func sendSegmented(t *testing.T, f *gsoFixture, segmented bool) {
 	}
 }
 
-func captureAll(fd int, d time.Duration, match func([]byte) bool) [][]byte {
+// sendPlain sends one datagram small enough that the kernel keeps it on the
+// corked path, where it leaves the socket CHECKSUM_PARTIAL: the inner UDP
+// check field holds the pseudo-header sum and the final value is written at
+// egress. Above roughly the MTU the path falls back to CHECKSUM_NONE.
+func sendPlain(t *testing.T, f *gsoFixture, size int) {
+	t.Helper()
+
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, unix.IPPROTO_UDP)
+	if err != nil {
+		t.Fatalf("socket: %v", err)
+	}
+
+	defer func() { _ = unix.Close(fd) }()
+
+	if err := unix.Bind(fd, &unix.SockaddrInet4{Addr: f.srcIP.As4()}); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+
+	if err := unix.Sendto(fd, make([]byte, size), 0,
+		&unix.SockaddrInet4{Addr: ueIP, Port: 4444}); err != nil {
+		t.Fatalf("sendto: %v", err)
+	}
+}
+
+// captureWindow is how long a capture waits for the frames one send produces.
+const captureWindow = 2 * time.Second
+
+func captureAll(fd int, match func([]byte) bool) [][]byte {
 	var out [][]byte
 
-	deadline := time.Now().Add(d)
+	deadline := time.Now().Add(captureWindow)
 	buf := make([]byte, 65536)
 
 	for time.Now().Before(deadline) {
@@ -235,7 +262,7 @@ func TestTCXIPv6OuterGSODropped(t *testing.T) {
 
 	sendSegmented(t, f, true)
 
-	all := captureAll(capFD, 2*time.Second, func([]byte) bool { return true })
+	all := captureAll(capFD, func([]byte) bool { return true })
 	for i, fr := range all {
 		t.Logf("frame %d: len=%d ethertype=%02x%02x nexthdr=%d gtp=%v",
 			i, len(fr), fr[12], fr[13],
@@ -306,7 +333,7 @@ func TestTCXIPv6OuterWithoutGSOChecksums(t *testing.T) {
 
 	sendSegmented(t, f, false)
 
-	frames := captureAll(capFD, 2*time.Second, isGTPv6Outer)
+	frames := captureAll(capFD, isGTPv6Outer)
 	if len(frames) == 0 {
 		t.Fatal("captured no encapsulated frames on the N3 side")
 	}
@@ -339,7 +366,7 @@ func TestTCXIPv4OuterGSODropped(t *testing.T) {
 
 	sendSegmented(t, f, true)
 
-	frames := captureAll(capFD, 2*time.Second, func(fr []byte) bool {
+	frames := captureAll(capFD, func(fr []byte) bool {
 		return isGTPv4Outer(fr)
 	})
 
@@ -354,5 +381,42 @@ func TestTCXIPv4OuterGSODropped(t *testing.T) {
 
 	if gsoDrops == 0 && len(frames) == 0 {
 		t.Skip("no merged frame reached encapsulation; the exposure was not reached")
+	}
+}
+
+// TestTCXIPv6OuterPartialInnerChecksum covers the ordering the outer checksum
+// depends on. The trigger leaves the sender CHECKSUM_PARTIAL, so at
+// encapsulation the inner UDP check field still holds the pseudo-header sum;
+// the kernel writes the final value afterwards. An outer checksum summed from
+// the bytes present at that moment is stale by the time the frame reaches the
+// wire, and an IPv6 peer drops it.
+func TestTCXIPv6OuterPartialInnerChecksum(t *testing.T) {
+	requireProgTestRun(t)
+
+	if !testAttachModeTCX() {
+		t.Skip("CHECKSUM_PARTIAL reaches the datapath only at the TC hook")
+	}
+
+	const (
+		teid = 0x50415254
+		qfi  = 7
+	)
+
+	f := setupGSO(t, false)
+	putDownlinkPDRv6Outer(t, f.obj, ueIP, teid, testUPFN3v6, testGNBv6, qfi)
+
+	capFD := openCapture(t, f.n3Peer.Index)
+
+	sendPlain(t, f, 1000)
+
+	frames := captureAll(capFD, isGTPv6Outer)
+	if len(frames) == 0 {
+		t.Fatal("captured no encapsulated frames on the N3 side")
+	}
+
+	for i, fr := range frames {
+		if parsed := parseGTPv6Frame(t, fr); !parsed.udpChecksumOK {
+			t.Errorf("frame %d: outer UDP checksum invalid", i)
+		}
 	}
 }

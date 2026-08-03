@@ -393,7 +393,7 @@ func ipv6OuterDownlinkPDR(teid uint32, local, remote [16]byte, qfi uint8) PdrInf
 
 // putDownlinkPDRv6Outer installs a downlink PDR (IPv4 UE) that encapsulates into
 // an IPv6 transport.
-func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [16]byte, qfi uint8) {
+func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [16]byte, qfi uint8) { //nolint:unparam // signature mirrors putDownlinkPDR
 	t.Helper()
 
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), ipv6OuterDownlinkPDR(teid, local, remote, qfi)); err != nil {

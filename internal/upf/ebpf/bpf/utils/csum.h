@@ -246,6 +246,190 @@ static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 	return csum_fold_helper((__u64)c.sum);
 }
 
+/* Ones-complement sum of a valid L4 region — header, payload and its own
+ * check field — is ~pseudo_header: with F = ~fold(pseudo + S), the region
+ * sums to S + F = ~pseudo. That holds whether the sender wrote F or the
+ * kernel completes it at egress from CHECKSUM_PARTIAL, because the bytes that
+ * reach the wire are the same either way.
+ *
+ * The outer checksum can therefore be built from headers alone, substituting
+ * ~pseudo_inner for the whole inner L4 region. Nothing in it depends on
+ * ip_summed, which BPF cannot read.
+ */
+
+/* IPv4 pseudo-header, in the order the checksum covers it. */
+struct ip4_pseudo {
+	__be32 saddr;
+	__be32 daddr;
+	__u8 zero;
+	__u8 proto;
+	__be16 l4_len;
+};
+
+struct ip6_pseudo {
+	struct in6_addr src;
+	struct in6_addr dst;
+	__be32 upper_len;
+	__u8 zero[3];
+	__u8 next_hdr;
+};
+
+/* Whether an inner L4 protocol's region satisfies the identity. SCTP carries
+ * a CRC32c rather than a ones-complement checksum, so neither form is correct
+ * for it. */
+static __always_inline int inner_l4_is_summable(__u8 proto)
+{
+	return proto == IPPROTO_TCP || proto == IPPROTO_UDP ||
+	       proto == IPPROTO_ICMPV6;
+}
+
+/* ~pseudo_inner for an inner IPv4 packet, or -1 when the identity does not
+ * apply: a fragment has no L4 header of its own, and UDP with a zero checksum
+ * carries no checksum to substitute. Both are always CHECKSUM_NONE, so the
+ * caller's byte sum is correct for them. */
+static __always_inline __s32 inner_pseudo_ip4(const struct iphdr *ip4,
+					      const void *data_end)
+{
+	if ((const void *)(ip4 + 1) > data_end)
+		return -1;
+
+	if (ip4->ihl != 5 || (ip4->frag_off & bpf_htons(0x3fff)) != 0)
+		return -1;
+
+	if (!inner_l4_is_summable(ip4->protocol))
+		return -1;
+
+	__u16 tot_len = bpf_ntohs(ip4->tot_len);
+	if (tot_len < sizeof(struct iphdr))
+		return -1;
+
+	if (ip4->protocol == IPPROTO_UDP) {
+		const struct udphdr *udp = (const struct udphdr *)(ip4 + 1);
+
+		if ((const void *)(udp + 1) > data_end)
+			return -1;
+
+		if (udp->check == 0)
+			return -1;
+	}
+
+	struct ip4_pseudo pseudo = {
+		.saddr = ip4->saddr,
+		.daddr = ip4->daddr,
+		.zero = 0,
+		.proto = ip4->protocol,
+		.l4_len = bpf_htons(tot_len - (__u16)sizeof(struct iphdr)),
+	};
+
+	return (__s32)csum_fold_helper(
+		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
+}
+
+/* Counterpart for an inner IPv6 packet. Extension headers are not walked: an
+ * inner next-header that is not the L4 protocol falls back. */
+static __always_inline __s32 inner_pseudo_ip6(const struct ipv6hdr *ip6,
+					      const void *data_end)
+{
+	if ((const void *)(ip6 + 1) > data_end)
+		return -1;
+
+	if (!inner_l4_is_summable(ip6->nexthdr))
+		return -1;
+
+	if (ip6->nexthdr == IPPROTO_UDP) {
+		const struct udphdr *udp = (const struct udphdr *)(ip6 + 1);
+
+		if ((const void *)(udp + 1) > data_end)
+			return -1;
+
+		if (udp->check == 0)
+			return -1;
+	}
+
+	struct ip6_pseudo pseudo = {
+		.upper_len = bpf_htonl(bpf_ntohs(ip6->payload_len)),
+		.zero = { 0, 0, 0 },
+		.next_hdr = ip6->nexthdr,
+	};
+
+	__builtin_memcpy(&pseudo.src, &ip6->saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&pseudo.dst, &ip6->daddr, sizeof(struct in6_addr));
+
+	return (__s32)csum_fold_helper(
+		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
+}
+
+/* Outer UDP-over-IPv6 checksum built from headers only, substituting
+ * ~pseudo_inner for the inner L4 region. `tunnel_len` is the GTP-U header
+ * including any extension chain, and must be a compile-time constant so the
+ * bounded read is provable. Returns -1 when the inner packet does not satisfy
+ * the identity; the caller then falls back to summing the bytes.
+ */
+static __always_inline int
+udpv6_csum_from_headers(const struct in6_addr *saddr,
+			const struct in6_addr *daddr, const struct udphdr *udp,
+			__u32 udp_len, const void *tunnel, __u32 tunnel_len,
+			int inner_is_ip6, const void *data_end)
+{
+	const void *inner = (const void *)((const __u8 *)tunnel + tunnel_len);
+
+	__s32 not_pseudo_inner = inner_is_ip6 ?
+					 inner_pseudo_ip6(inner, data_end) :
+					 inner_pseudo_ip4(inner, data_end);
+	if (not_pseudo_inner < 0)
+		return -1;
+
+	struct ip6_pseudo pseudo = {
+		.upper_len = bpf_htonl(udp_len),
+		.zero = { 0, 0, 0 },
+		.next_hdr = IPPROTO_UDP,
+	};
+
+	__builtin_memcpy(&pseudo.src, saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&pseudo.dst, daddr, sizeof(struct in6_addr));
+
+	__s64 sum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
+	if (sum < 0)
+		return -1;
+
+	/* udp->check is still zero here; the caller writes the result. */
+	if ((const void *)(udp + 1) > data_end)
+		return -1;
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)udp, sizeof(*udp), (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	if ((const void *)((const __u8 *)tunnel + tunnel_len) > data_end)
+		return -1;
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)tunnel, tunnel_len, (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	__u32 inner_hdr_len = inner_is_ip6 ? sizeof(struct ipv6hdr) :
+					     sizeof(struct iphdr);
+	if (inner + inner_hdr_len > data_end)
+		return -1;
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)inner, inner_hdr_len, (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	/* The inner L4 region, as ~pseudo_inner in one 16-bit word. */
+	__be16 substitute[2] = { (__be16)not_pseudo_inner, 0 };
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)substitute, sizeof(substitute),
+			    (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	__u16 check = csum_fold_helper((__u64)sum);
+
+	/* RFC 8200: a zero checksum is invalid over IPv6. */
+	return check == 0 ? 0xFFFF : check;
+}
+
 // udpv6_csum computes the full UDP-over-IPv6 checksum from packet bytes via the
 // chunked bpf_loop helper above. The IPv6 UDP checksum is mandatory, so it is
 // computed fresh over the payload during GTP-over-IPv6 encapsulation (gtp.h).

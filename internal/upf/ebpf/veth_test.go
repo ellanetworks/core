@@ -50,7 +50,7 @@ func TestVethRAEncapsulation(t *testing.T) {
 
 	capFD := openCapture(t, n3Peer.Index)
 
-	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement())
+	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
 	inject(t, injPeer.Index, ethFrame(0x86DD, ra))
 
 	got := captureMatching(capFD, time.Second, isGTPv4Outer)
@@ -120,7 +120,7 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 
 	capFD := openCapture(t, n3Peer.Index)
 
-	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement())
+	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
 	inject(t, injPeer.Index, ethFrame(0x86DD, ra))
 
 	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
@@ -194,9 +194,12 @@ func isGTPv4Outer(fr []byte) bool {
 
 // routerAdvertisement builds a minimal ICMPv6 Router Advertisement message
 // (type 134). The veth program treats it as opaque inner payload.
-func routerAdvertisement() []byte {
+// routerAdvertisement mirrors what buildRAPacket emits: an RA carrying a
+// valid ICMPv6 checksum. The datapath derives the outer checksum from the
+// inner one, so an inner packet that is itself invalid proves nothing.
+func routerAdvertisement(src, dst [16]byte) []byte {
 	ra := make([]byte, 16)
 	ra[0] = 134 // Router Advertisement
 
-	return ra
+	return icmpv6Checksummed(src, dst, ra)
 }
