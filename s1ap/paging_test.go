@@ -63,8 +63,7 @@ func TestPagingRoundtrip(t *testing.T) {
 	}
 }
 
-// TestPagingOmitsRadioCapabilityForPaging verifies the optional IE is absent when no
-// paging capability is set (it must not encode an empty octet string).
+// An unset optional IE must be omitted, not encoded as an empty octet string.
 func TestPagingOmitsRadioCapabilityForPaging(t *testing.T) {
 	in := &Paging{
 		UEIdentityIndexValue: Ptr(uint16(0x2a9)),
@@ -93,12 +92,9 @@ func TestPagingOmitsRadioCapabilityForPaging(t *testing.T) {
 	}
 }
 
-// Paging DRX and Paging Priority are both optional-ignore IEs of the Paging
-// container (TS 36.413 §9.1.6.1); the 5G side carries the same pair, so they
-// must round-trip here too. Absent means the IE is omitted, not defaulted.
+// Both optional-ignore (§9.1.6). Absent means omitted, not defaulted.
 func TestPagingDRXAndPriorityRoundTrip(t *testing.T) {
-	// UE Identity Index Value and CN Domain are mandatory in S1AP and have no
-	// 5G counterpart (TS 36.413 §9.1.6.1).
+	// Mandatory in S1AP, with no 5G counterpart.
 	in := &Paging{
 		UEIdentityIndexValue: Ptr(uint16(42)),
 		STMSI:                &STMSI{MMEC: 1, MTMSI: 0xdeadbeef},
@@ -151,11 +147,9 @@ func TestPagingDRXAndPriorityRoundTrip(t *testing.T) {
 	}
 }
 
-// TS 36.413 §9.2.3.13 makes UE Paging ID an extensible CHOICE of S-TMSI and
-// IMSI. Only S-TMSI is modeled, so the other alternatives must be an explicit
-// error rather than a zero identity that would read as a real UE. The IE is
-// ignore criticality, so §10.3.4.2 has the receiver drop its content and carry
-// on with the rest of the message. Mirrors the NGAP test of the same rule.
+// §9.2.3.13 makes UE Paging ID an extensible CHOICE of S-TMSI and IMSI. Only
+// S-TMSI is modeled, so the rest must error rather than yield a zero identity;
+// the IE is ignore, so §10.3.4.2 carries on with the message.
 func TestUEPagingIDUnsupportedAlternativesAreIgnored(t *testing.T) {
 	taiList := per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 		return encodeSingleContainerList(w, enc, maxnoofTAIs, idTAIItem, CriticalityIgnore,

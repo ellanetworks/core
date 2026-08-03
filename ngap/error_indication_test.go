@@ -110,18 +110,16 @@ func TestErrorIndicationGoldenDecode(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.7.5.2: "The ERROR INDICATION message shall contain at least
-// either the Cause IE or the Criticality Diagnostics IE." §10.3.3 binds the
-// sender, so encoding one that carries neither must fail.
+// §8.7.5.2 requires at least one of Cause and Criticality Diagnostics, and
+// §10.3.3 binds the sender.
 func TestErrorIndicationRefusesEmptyOnSend(t *testing.T) {
 	if _, err := (&ErrorIndication{}).Marshal(); err == nil {
 		t.Fatal("Marshal() = nil error, want a refusal for a message with neither IE")
 	}
 }
 
-// Every IE is optional in the ASN.1 (§9.2.6.13), so a peer can still put an
-// empty one on the wire. The receiver must decode it rather than fall over; the
-// application-level guard then decides what to do with it.
+// Every IE is optional (§9.2.6.13), so an empty one is decodable; the
+// application guard decides what to do with it.
 func TestErrorIndicationEmpty(t *testing.T) {
 	msg, err := ParseErrorIndication(container(t))
 	if err != nil {
@@ -138,9 +136,8 @@ func TestErrorIndicationEmpty(t *testing.T) {
 	}
 }
 
-// The 5G-S-TMSI is the one IE the reference encoder cannot express, so it gets
-// its own round trip. Its two bit-string fields are the same widths a GUAMI
-// carries, which is what lets a peer find the AMF that allocated the identity.
+// The one IE the reference encoder cannot express, so it gets its own round
+// trip.
 func TestErrorIndicationFiveGSTMSI(t *testing.T) {
 	in := goldErrorIndication()
 	in.FiveGSTMSI = &FiveGSTMSI{AMFSetID: 0x3ff, AMFPointer: 0x3f, FiveGTMSI: 0xdeadbeef}

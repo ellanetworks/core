@@ -17,13 +17,10 @@ func (c SONConfigurationTransfer) MarshalPER(w *per.Writer, _ per.Encoding) erro
 	return w.WriteOctets(c)
 }
 
-// sonConfigurationTransferPreambleBits is the SEQUENCE preamble ahead of the
-// first field: the extension bit, then a presence bit for iE-Extensions. NGAP's
-// counterpart has two OPTIONAL fields where S1AP has one, so the two preambles
-// differ in width.
+// The extension bit, then a presence bit for iE-Extensions.
 const sonConfigurationTransferPreambleBits = 2
 
-// TargetENBID decodes the destination eNB from the leading field (TS 36.413 §9.2.3.26).
+// TS 36.413 §9.2.3.26.
 func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
 	r := per.NewReader(c)
 

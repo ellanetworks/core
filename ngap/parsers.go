@@ -8,8 +8,7 @@ type messageParser struct {
 	Parse func(value []byte) error
 }
 
-// messageParsers lists every exported ParseXxx in this package;
-// TestEveryParserIsRegistered fails if one is missing.
+// Every exported ParseXxx in this package.
 var messageParsers = []messageParser{
 	{"ParseAMFStatusIndication", func(v []byte) error { _, err := ParseAMFStatusIndication(v); return err }},
 	{"ParseErrorIndication", func(v []byte) error { _, err := ParseErrorIndication(v); return err }},

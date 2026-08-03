@@ -11,13 +11,11 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// idNBIoTDefaultPagingDRX is an NG SETUP REQUEST IE this version does not
-// model (TS 38.413 §9.2.6.1). It is ignore criticality, so §10.3.4.2 says the
-// receiver carries on.
+// An NG SETUP REQUEST IE this version does not model (§9.2.6.1), ignore
+// criticality.
 const idNBIoTDefaultPagingDRX ProtocolIEID = 204
 
-// encodeWithExtraIE writes an NG SETUP REQUEST carrying one IE the table does
-// not model, at the given criticality.
+// An NG SETUP REQUEST carrying one unmodeled IE at the given criticality.
 func encodeWithExtraIE(t *testing.T, crit Criticality, id ProtocolIEID) []byte {
 	t.Helper()
 
@@ -40,9 +38,8 @@ func encodeWithExtraIE(t *testing.T, crit Criticality, id ProtocolIEID) []byte {
 	return perBytes(w)
 }
 
-// TS 38.413 §10.3.4.2: an IE the receiver does not comprehend, marked ignore,
-// is reported and the message is still delivered. Preserving it verbatim keeps
-// a re-encode faithful to what the peer sent.
+// §10.3.4.2: reported, still delivered, and preserved verbatim so a re-encode
+// stays faithful to what the peer sent.
 func TestUnmodeledIgnoreIEIsPreserved(t *testing.T) {
 	value := encodeWithExtraIE(t, CriticalityIgnore, idNBIoTDefaultPagingDRX)
 
@@ -62,8 +59,7 @@ func TestUnmodeledIgnoreIEIsPreserved(t *testing.T) {
 		t.Errorf("diagnostic = %+v", got)
 	}
 
-	// §9.3.1.3 forbids reporting an ignore IE, and TS 38.413 defines no notify
-	// criticality at all, so nothing is reportable.
+	// §9.3.1.3 forbids reporting an ignore IE, so nothing is reportable.
 	if d.ReportRequired() || d.Report() != nil {
 		t.Errorf("ReportRequired() = %v, Report() = %+v, want false and nil", d.ReportRequired(), d.Report())
 	}
@@ -74,7 +70,6 @@ func TestUnmodeledIgnoreIEIsPreserved(t *testing.T) {
 		t.Fatalf("UnknownIEs() = %+v", unknown)
 	}
 
-	// Re-encoding puts the preserved IE back on the wire after the modeled ones.
 	out, err := req.Marshal()
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -126,8 +121,7 @@ func TestUnmodeledRejectIEIsRejected(t *testing.T) {
 	}
 }
 
-// A message with nothing unmodeled returns no unknown IEs, so a caller can
-// test the slice rather than its length.
+// nil rather than empty, so a caller can test the slice itself.
 func TestUnknownIEsNilWhenNone(t *testing.T) {
 	req, err := ParseNGSetupRequest(container(t, ngSetupFields()...))
 	if err != nil {
@@ -143,9 +137,8 @@ func TestUnknownIEsNilWhenNone(t *testing.T) {
 	}
 }
 
-// A preserved IE keeps the criticality the peer stamped, not the one this
-// version would have chosen: re-emitting it under a different criticality
-// would change what a downstream receiver is required to do with it.
+// The peer's criticality is kept: re-emitting under another would change what a
+// downstream receiver must do with it.
 func TestUnmodeledIECriticality(t *testing.T) {
 	value := encodeWithExtraIE(t, CriticalityIgnore, idNBIoTDefaultPagingDRX)
 

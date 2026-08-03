@@ -13,9 +13,8 @@ import (
 // iE-Extensions OPTIONAL } (extensible) — a field of the SON Configuration
 // Transfer of TS 38.413 §9.3.3.6, with no standalone clause of its own.
 //
-// Named for the ASN.1's TargetRANNodeID-SON, which is the SON-transfer variant
-// of Target RAN Node ID; the plain TargetRANNodeID has the same shape but a
-// different extension container.
+// The plain TargetRANNodeID has the same shape but a different extension
+// container.
 type TargetRANNodeIDSON struct {
 	_               [0]struct{} `per:"extseq"`
 	GlobalRANNodeID GlobalRANNodeID
@@ -27,24 +26,19 @@ type TargetRANNodeIDSON struct {
 // verbatim, and only the leading Target RAN Node ID is decoded
 // (TS 38.413 §9.3.3.6).
 //
-// §8.8.1.2 has the AMF "transparently transfer the SON Configuration Transfer
-// IE towards the NG-RAN node indicated in the Target RAN Node ID IE", so
-// re-encoding the interior would be both wasted work and a chance to corrupt a
-// payload this node is only carrying.
+// §8.8.1.2 has the AMF transfer it "transparently", so the interior is never
+// re-encoded.
 type SONConfigurationTransfer []byte
 
 func (c SONConfigurationTransfer) MarshalPER(w *per.Writer, _ per.Encoding) error {
 	return w.WriteOctets(c)
 }
 
-// sonConfigurationTransferPreambleBits is the SEQUENCE preamble ahead of the
-// first field: the extension bit, then a presence bit each for
-// xnTNLConfigurationInfo and iE-Extensions. S1AP's counterpart has one OPTIONAL
-// field where NGAP has two, so the two preambles differ in width.
+// The extension bit, then a presence bit each for xnTNLConfigurationInfo and
+// iE-Extensions.
 const sonConfigurationTransferPreambleBits = 3
 
-// TargetRANNodeID decodes the destination NG-RAN node from the leading field
-// (TS 38.413 §9.3.3.6).
+// TS 38.413 §9.3.3.6.
 func (c SONConfigurationTransfer) TargetRANNodeID() (TargetRANNodeIDSON, error) {
 	r := per.NewReader(c)
 

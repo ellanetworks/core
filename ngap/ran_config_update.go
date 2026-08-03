@@ -7,11 +7,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 38.413 §9.2.6.4.
-//
-// Every IE is optional: TS 38.413 §8.7.2.2 leaves the corresponding
-// configuration unchanged where one is absent, so a name-only update is a
-// well-formed message.
+// TS 38.413 §9.2.6.4. Every IE is optional: §8.7.2.2 leaves the corresponding
+// configuration unchanged where one is absent.
 type RANConfigurationUpdate struct {
 	RANNodeName                     *string
 	SupportedTAList                 SupportedTAList
@@ -101,9 +98,8 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 		},
 	},
 	{
-		// Modeled although Ella Core does not act on it: the IE is marked
-		// reject, so a decoder that did not comprehend it would have to reject
-		// an otherwise valid update (TS 38.413 §10.3.4.2).
+		// Modeled but not acted on: the IE is reject, so not comprehending it
+		// would reject an otherwise valid update (§10.3.4.2).
 		id: idNGRANTNLAssociationToRemoveList, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NGRANTNLAssociationToRemoveList)

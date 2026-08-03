@@ -8,10 +8,8 @@ import (
 	"testing"
 )
 
-// CriticalityDiagnostics-IE-List is SIZE(1..maxnoofErrors), so a report naming
-// more than that cannot be encoded. A peer choosing how many unknown reject IEs
-// to send therefore chooses whether the answer is sendable — the report is
-// truncated instead, so the procedure it answers is always answered.
+// CriticalityDiagnostics-IE-List is SIZE(1..maxnoofErrors), so an untruncated
+// report would let a peer choose whether the answer encodes at all.
 func TestNotUnderstoodReportStaysSendable(t *testing.T) {
 	fields := make([]ieField, 0, maxnoofErrors+64)
 	for i := range cap(fields) {

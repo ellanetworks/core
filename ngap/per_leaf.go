@@ -14,8 +14,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Hand-written Aligned-PER codecs for leaf types whose Go shape differs from
-// their wire shape; pergen generates the SEQUENCE types built from them.
+// Hand-written codecs for leaf types whose Go shape differs from their wire
+// shape; pergen generates the SEQUENCEs built from them.
 
 func (p PLMNIdentity) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeOctetString(w, enc, 3, 3, true, true, false, p[:])
@@ -104,8 +104,8 @@ func (s *SD) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// The GUAMI fields are BIT STRINGs whose widths are not octet multiples, so
-// each is packed from an integer rather than copied from octets.
+// The GUAMI fields are BIT STRINGs of non-octet widths, so each is packed from
+// an integer rather than copied from octets.
 
 func (a AMFRegionID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return encodeBitStringUint(w, enc, uint64(a), amfRegionIDBits)
@@ -152,8 +152,7 @@ func (a *AMFPointer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// encodeBitStringUint writes a fixed-size BIT STRING holding the low nbits of
-// v. A value wider than the field is an error rather than a silent truncation.
+// A value wider than the field is an error rather than a silent truncation.
 func encodeBitStringUint(w *per.Writer, enc per.Encoding, v uint64, nbits int) error {
 	if nbits < 64 && v >= 1<<uint(nbits) {
 		return fmt.Errorf("ngap: value %d exceeds %d-bit field", v, nbits)
@@ -285,8 +284,6 @@ func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeEnumerated(w, enc, pagingDRXRootCount, true, int64(p))
 }
 
-// UnmarshalPER decodes PagingDRX; an extension addition decodes to
-// pagingDRXRootCount+k so it cannot collide with a root value.
 func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	idx, err := decodeRootEnumerated(r, enc, pagingDRXRootCount, "PagingDRX")
 	if err != nil {
@@ -418,7 +415,8 @@ func (p *PLMNSupportList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// ieExtensions is a ProtocolExtensionContainer: never encoded, discarded on decode.
+// A ProtocolExtensionContainer: never encoded, and on decode only its
+// criticality is acted on.
 type ieExtensions struct{}
 
 func (ieExtensions) MarshalPER(*per.Writer, per.Encoding) error {
@@ -450,15 +448,11 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 			return err
 		}
 
-		// TS 38.413 §10.3.4.2: an extension this version does not model is a
-		// not-comprehended IE, and one marked reject stops the procedure. The
-		// whole container is still consumed first so the reader stays aligned
-		// for a caller whose criticality lets it carry on.
-		//
-		// An extension marked ignore or notify is skipped and the IE holding it
-		// is still delivered, as §10.3.4.2 requires. A notify extension should
-		// also be reported back; a leaf decoder has no diagnostics sink to
-		// record it in, so that report is not made today.
+		// §10.3.4.2: an unmodeled extension marked reject stops the procedure;
+		// ignore and notify are skipped and the IE holding them still
+		// delivered. The container is consumed either way so the reader stays
+		// aligned. A notify extension should also be reported back, which a
+		// leaf decoder has no diagnostics sink to do.
 		if Criticality(crit) == CriticalityReject && comprehended {
 			comprehended, rejected = false, ProtocolIEID(id)
 		}
@@ -471,8 +465,6 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// skipSequenceExtensionsPER steps over a SEQUENCE's unmodeled iE-Extensions
-// container and any extension additions.
 func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, extAdditions bool) error {
 	if extContainer {
 		var e ieExtensions
@@ -515,7 +507,6 @@ func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, ex
 	return nil
 }
 
-// marshalSeqOf encodes a SEQUENCE (SIZE(lb..ub)) OF items.
 func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []T) error {
 	off := 0
 
@@ -538,7 +529,6 @@ func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []
 	})
 }
 
-// unmarshalSeqOf decodes a SEQUENCE (SIZE(lb..ub)) OF items.
 func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, error) {
 	var items []T
 

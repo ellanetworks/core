@@ -10,13 +10,11 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// idRATType is a real SupportedTAs-Item extension (TS 36.413), reject
-// criticality, that this version does not model. Any unmodeled id would do; a
-// real one keeps the vector honest about what a Release-13 eNB sends.
+// A real reject-criticality SupportedTAs-Item extension this version does not
+// model, sent by a Release-13 eNB.
 const idRATType ProtocolIEID = 232
 
-// extendedTAI encodes a TAI whose iE-Extensions container carries one unmodeled
-// extension with the given criticality.
+// A TAI whose iE-Extensions container carries one unmodeled extension.
 func extendedTAI(t *testing.T, crit Criticality) []byte {
 	t.Helper()
 
@@ -53,12 +51,9 @@ func extendedTAI(t *testing.T, crit Criticality) []byte {
 	return w.Bytes()
 }
 
-// TS 36.413 §10.3.2: "the entire item (IE or IE group) which is not (fully or
-// partially) comprehended shall be treated in accordance with its own
-// criticality information". A reject-criticality extension is its own item, so
-// it rejects the procedure even though the TAI containing it is marked ignore —
-// and §9.2.1.21 has the diagnostics name "the IE ID of the not understood or
-// missing IE", which is the extension's, not the container's.
+// §10.3.2 treats a not-comprehended item on its own criticality, so a reject
+// extension rejects even inside an ignore IE, and §9.2.1.21 names the
+// extension's id rather than the container's.
 func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	_, err := ParseUplinkNASTransport(container(t,
 		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
@@ -86,8 +81,7 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	}
 }
 
-// An ignore-criticality extension is skipped and the IE holding it is still
-// delivered — §10.3.4.2's "continue with the procedure" for the containing IE.
+// §10.3.4.2: an ignore extension is skipped and its IE still delivered.
 func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	msg, err := ParseUplinkNASTransport(container(t,
 		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},

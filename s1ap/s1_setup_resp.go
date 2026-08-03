@@ -13,9 +13,8 @@ type S1SetupResponse struct {
 	ServedGUMMEIs          ServedGUMMEIs
 	RelativeMMECapacity    *uint8
 	CriticalityDiagnostics *CriticalityDiagnostics
-	// UERetentionInformation echoes back whether the MME retained UE contexts
-	// across the setup; Ella Core never does, so it is left absent on send
-	// (TS 36.413 §8.7.3.2).
+	// Whether the MME retained UE contexts across the setup (§8.7.3.2); Ella
+	// Core never does, so it is left absent on send.
 	UERetentionInformation *UERetentionInformation
 
 	messageMeta

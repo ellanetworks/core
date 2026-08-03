@@ -34,24 +34,21 @@ func (e rawIE) field() ieField {
 	return ieField{id: e.id, crit: e.crit, raw: e.value}
 }
 
-// RawIE is a ProtocolIE-Field the message type does not model, with its value
-// left as open-type bytes (TS 38.413).
+// A ProtocolIE-Field the message type does not model; Value is open-type bytes.
 type RawIE struct {
 	ID          ProtocolIEID
 	Criticality Criticality
 	Value       []byte
 }
 
-// messageMeta is embedded in every message struct. It carries what the typed
-// fields cannot: IEs this version does not model, and the abstract syntax
-// errors that did not stop delivery.
+// What the typed fields cannot carry: IEs this version does not model, and the
+// abstract syntax errors that did not stop delivery.
 type messageMeta struct {
 	unknownIEs  []rawIE
 	diagnostics Diagnostics
 }
 
-// preserve keeps an unmodeled IE so it survives a re-encode, up to a bound: a
-// peer chooses both the count and the size of what we would retain.
+// Bounded: a peer chooses both the count and the size of what we would retain.
 func (u *messageMeta) preserve(f rawIE) {
 	if len(u.unknownIEs) >= maxPreservedIEs {
 		u.diagnostics.Truncated = true
@@ -62,11 +59,11 @@ func (u *messageMeta) preserve(f rawIE) {
 	u.unknownIEs = append(u.unknownIEs, f)
 }
 
-// Diagnostics returns the abstract syntax errors found while decoding that
-// TS 38.413 §10.3.4.2 and §10.3.5 let the receiver carry on past.
+// The abstract syntax errors §10.3.4.2 and §10.3.5 let the receiver carry on
+// past.
 func (u messageMeta) Diagnostics() Diagnostics { return u.diagnostics }
 
-// UnknownIEs returns, in wire order, the IEs this message type does not model.
+// In wire order.
 func (u messageMeta) UnknownIEs() []RawIE {
 	if len(u.unknownIEs) == 0 {
 		return nil
@@ -80,7 +77,6 @@ func (u messageMeta) UnknownIEs() []RawIE {
 	return out
 }
 
-// encodeIEContainer writes a ProtocolIE-Container (TS 38.413).
 func encodeIEContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
 	if len(fields) > maxProtocolIEs {
 		return fmt.Errorf("ngap: %d IEs exceed maxProtocolIEs", len(fields))
@@ -123,13 +119,9 @@ func encodeContainerField(w *per.Writer, enc per.Encoding, f ieField) error {
 	return nil
 }
 
-// decodeChoiceExtension reads the ProtocolIE-SingleContainer that closes an
-// NGAP CHOICE (TS 38.413 §9.3) and reports the alternative as unsupported.
-//
-// Where S1AP marks a CHOICE extensible, NGAP gives it a choice-Extensions
-// alternative carrying one open IE. A peer selecting it has sent a value this
-// version cannot represent, so decoding says so by id instead of returning a
-// zero value the caller would read as a root alternative.
+// Reads the ProtocolIE-SingleContainer that closes an NGAP CHOICE (§9.3).
+// Reporting the alternative by id beats returning a zero value the caller would
+// read as a root alternative.
 func decodeChoiceExtension(r *per.Reader, enc per.Encoding, choice string) error {
 	id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
 	if err != nil {
@@ -144,15 +136,12 @@ func decodeChoiceExtension(r *per.Reader, enc per.Encoding, choice string) error
 		return fmt.Errorf("ngap: %s choice-Extensions value: %w", choice, err)
 	}
 
-	// TS 38.413 §10.3.1 case 6, "receives IEs or IE groups for a functionality
-	// that is not supported", is an abstract syntax error handled on the IE's
-	// criticality — not a transfer syntax error. The container was consumed
-	// above, so the decoder is positioned to carry on if criticality allows it.
+	// §10.3.1 case 6, handled on criticality. The container was consumed above,
+	// so the decoder can carry on if criticality allows it.
 	return fmt.Errorf("%w: unsupported %s alternative %s", errNotComprehended, choice, ProtocolIEID(id))
 }
 
-// decodeIEContainer reads a ProtocolIE-Container in wire order, keeping every
-// field including ids the caller does not model.
+// Keeps every field, including ids the caller does not model.
 //
 //nolint:unparam
 func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
@@ -161,9 +150,8 @@ func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
 		return nil, fmt.Errorf("ngap: IE container length: %w", err)
 	}
 
-	// A ProtocolIE-Field costs at least an id, a criticality and a non-empty
-	// open type, so a count the remaining octets cannot hold is bogus and must
-	// not be pre-allocated for.
+	// A count the remaining octets cannot hold is bogus and must not be
+	// pre-allocated for.
 	if maxBits := int64(r.Bits()); n > maxBits/minIEFieldBits {
 		return nil, fmt.Errorf("ngap: IE container declares %d IEs in %d bits", n, maxBits)
 	}

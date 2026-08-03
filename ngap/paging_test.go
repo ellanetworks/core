@@ -113,10 +113,8 @@ func TestPagingGoldenDecode(t *testing.T) {
 	}
 }
 
-// Every Paging IE carries ignore criticality, so a message missing a mandatory
-// one is still delivered with the omission reported (TS 38.413 §10.3.5) — the
-// reason none of the fields is a value type. The sender is still bound by
-// §10.3.3, so encoding one is refused.
+// Every Paging IE is ignore criticality, so §10.3.5 still delivers a message
+// missing a mandatory one. §10.3.3 still binds the sender.
 func TestPagingMissingMandatoryIEs(t *testing.T) {
 	if _, err := (&Paging{}).Marshal(); err == nil {
 		t.Error("Marshal() = nil error, want a required-IE error")
@@ -147,9 +145,8 @@ func TestPagingMissingMandatoryIEs(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.3.15 closes UEPagingIdentity with a choice-Extensions
-// alternative rather than an extension marker, so selecting it must be an
-// explicit error and not a zero identity that reads as a real UE.
+// §9.3.3.18 closes UEPagingIdentity with a choice-Extensions alternative, so
+// selecting it must error rather than yield a zero identity.
 func TestUEPagingIdentityChoiceExtensionIsRejected(t *testing.T) {
 	w := per.NewWriter()
 	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0,
@@ -173,8 +170,7 @@ func TestUEPagingIdentityChoiceExtensionIsRejected(t *testing.T) {
 			})},
 	)
 
-	// id-UEPagingIdentity is ignore criticality, so §10.3.4.2 has the receiver
-	// drop the IE's content and carry on rather than lose the message.
+	// Ignore criticality, so §10.3.4.2 drops the content and carries on.
 	msg, err := ParsePaging(value)
 	if err != nil {
 		t.Fatalf("parse: %v", err)

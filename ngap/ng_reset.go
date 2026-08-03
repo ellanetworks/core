@@ -9,8 +9,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// maxnoofNGConnectionsToReset bounds the UE-associated logical NG-connection
-// lists in NG Reset / NG Reset Acknowledge (TS 38.413, NGAP-Constants).
+// TS 38.413, NGAP-Constants.
 const maxnoofNGConnectionsToReset = 65536
 
 // ResetType CHOICE alternatives, defined inline in the NG RESET of TS 38.413
@@ -24,13 +23,11 @@ const (
 	resetTypeAlternatives = 3
 )
 
-// resetAllRootCount is the number of root values of ResetAll ENUMERATED
-// { reset-all, ... } (TS 38.413).
+// ResetAll ::= ENUMERATED { reset-all, ... }.
 const resetAllRootCount = 1
 
-// UEAssociatedLogicalNGConnectionItem identifies one UE-associated logical
-// NG-connection by its AMF-UE-NGAP-ID and/or RAN-UE-NGAP-ID (TS 38.413
-// §9.3.3.25). Both identities are optional; an item may carry either or both.
+// TS 38.413 §9.3.3.25. Both identities are optional; an item may carry either
+// or both.
 type UEAssociatedLogicalNGConnectionItem struct {
 	_           [0]struct{}  `per:"extseq"`
 	AMFUENGAPID *AMFUENGAPID `per:",optional"`
@@ -40,15 +37,11 @@ type UEAssociatedLogicalNGConnectionItem struct {
 
 // UEAssociatedLogicalNGConnectionList ::= SEQUENCE (SIZE(1..
 // maxnoofNGConnectionsToReset)) OF UE-associatedLogicalNG-connectionItem.
-//
-// Unlike the S1AP list it mirrors, the items are not wrapped in a
-// ProtocolIE-SingleContainer, so this is a plain SEQUENCE OF.
+// A plain SEQUENCE OF: the items are not in a ProtocolIE-SingleContainer.
 type UEAssociatedLogicalNGConnectionList []UEAssociatedLogicalNGConnectionItem
 
-// ResetType is the ResetType CHOICE (TS 38.413 §9.3.1.16): All selects
-// nG-Interface (ResetAll, value reset-all), reset of the whole NG interface;
-// otherwise Part selects partOfNG-Interface, the UE-associated logical
-// NG-connections to reset.
+// All selects nG-Interface, resetting the whole interface; otherwise Part
+// selects partOfNG-Interface, the connections to reset.
 type ResetType struct {
 	All  bool
 	Part UEAssociatedLogicalNGConnectionList

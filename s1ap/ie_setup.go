@@ -21,10 +21,9 @@ type SupportedTAItem struct {
 // SupportedTAs ::= SEQUENCE (SIZE(1..maxnoofTACs)) OF SupportedTAs-Item.
 type SupportedTAs []SupportedTAItem
 
-// PagingDRX ::= ENUMERATED { v32, v64, v128, v256, ... } (extensible).
-// An eNB offers UE retention across S1 Setup; Ella Core never accepts it, so
-// the MME ignores the value, but it is modeled so a decode renders its name
-// rather than opaque octets (TS 36.413 §9.2.1.108).
+// UERetentionInformation ::= ENUMERATED { ues-retained, ... } (extensible) —
+// TS 36.413 §9.2.1.108. Modeled but never accepted: Ella Core retains no UE
+// context across S1 Setup.
 type UERetentionInformation uint8
 
 const (
@@ -33,6 +32,7 @@ const (
 	ueRetentionInformationRootCount = 1
 )
 
+// PagingDRX ::= ENUMERATED { v32, v64, v128, v256, ... } (extensible).
 type PagingDRX uint8
 
 const (

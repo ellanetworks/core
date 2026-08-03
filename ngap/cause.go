@@ -21,19 +21,15 @@ const (
 
 	causeRootGroups = 5
 
-	// causeChoiceExtensions is the choice-Extensions alternative that closes
-	// the CHOICE. It is an alternative index, not a group, so it is never a
-	// valid CauseGroup.
+	// An alternative index, not a group, so never a valid CauseGroup.
 	causeChoiceExtensions = 5
 
-	// causeAlternatives counts every alternative of the CHOICE. Unlike S1AP's
-	// Cause the CHOICE is not extensible, so there is no extension bit and the
-	// index spans the choice-Extensions alternative.
+	// The CHOICE is not extensible, so there is no extension bit and the index
+	// spans the choice-Extensions alternative.
 	causeAlternatives = 6
 )
 
-// causeGroupRootCount is the number of root ENUMERATED values in each group's
-// CauseXxx type, which sets the index width (TS 38.413 §9.3.1.2).
+// Root ENUMERATED values per group, which sets the index width (§9.3.1.2).
 var causeGroupRootCount = [causeRootGroups]int{
 	CauseGroupRadioNetwork: 45,
 	CauseGroupTransport:    2,

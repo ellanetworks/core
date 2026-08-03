@@ -133,9 +133,8 @@ func (m *ErrorIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
 }
 
 func (m *ErrorIndication) Marshal() ([]byte, error) {
-	// TS 36.413 §8.7.2.2: "The ERROR INDICATION message shall contain at least
-	// either the Cause IE or the Criticality Diagnostics IE." Every IE is
-	// optional, so the IE table cannot enforce it; §10.3.3 binds the sender.
+	// §8.7.2.2 requires at least one of Cause and Criticality Diagnostics.
+	// Every IE is optional, so the IE table cannot enforce it.
 	if m.Cause == nil && m.CriticalityDiagnostics == nil {
 		return nil, fmt.Errorf("s1ap: ErrorIndication needs at least a Cause or Criticality Diagnostics")
 	}

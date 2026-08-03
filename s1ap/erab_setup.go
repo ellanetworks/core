@@ -9,9 +9,8 @@ import (
 
 // ERABToBeSetupItemBearerSUReq ::= SEQUENCE { e-RAB-ID, e-RABlevelQoSParameters,
 // transportLayerAddress, gTP-TEID, nAS-PDU, iE-Extensions OPTIONAL }
-// (extensible). The NAS-PDU is mandatory:
-// the E-RAB Setup carries the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST for an
-// additional PDN connection (TS 36.413).
+// (extensible). The NAS-PDU is mandatory: it carries the ACTIVATE DEFAULT EPS
+// BEARER CONTEXT REQUEST for an additional PDN connection.
 type ERABToBeSetupItemBearerSUReq struct {
 	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
@@ -22,9 +21,8 @@ type ERABToBeSetupItemBearerSUReq struct {
 	_                     ieExtensions `per:",skip"`
 }
 
-// ERABSetupItemBearerSURes has the same structure as ERABSetupItemCtxtSURes
-// (e-RAB-ID, transportLayerAddress, gTP-TEID): the eNB endpoint the UPF sends
-// downlink traffic to (TS 36.413). The two decode identically.
+// ERABSetupItemBearerSURes ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
+// gTP-TEID }: the eNB endpoint the UPF sends downlink traffic to.
 type ERABSetupItemBearerSURes = ERABSetupItemCtxtSURes
 
 // TS 36.413 §9.1.3.1.

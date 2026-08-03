@@ -10,8 +10,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// choiceExtensionValue encodes a CHOICE that selects its choice-Extensions
-// alternative, carrying one ProtocolIE-SingleContainer entry.
+// A CHOICE selecting its choice-Extensions alternative, carrying one entry.
 func choiceExtensionValue(t *testing.T, alternatives, index int, id ProtocolIEID) []byte {
 	t.Helper()
 
@@ -29,14 +28,10 @@ func choiceExtensionValue(t *testing.T, alternatives, index int, id ProtocolIEID
 	return perBytes(w)
 }
 
-// TS 38.413 §10.3.1 case 6 — "receives IEs or IE groups for a functionality that
-// is not supported" — is an abstract syntax error "handled based on received
-// Criticality information", not a transfer syntax error. For a reject IE that
-// means the procedure is rejected via its unsuccessful outcome, so the peer gets
-// an NG SETUP FAILURE rather than an ERROR INDICATION.
+// §10.3.1 case 6 is handled on criticality, so a reject IE rejects via the
+// procedure's unsuccessful outcome rather than an ERROR INDICATION.
 func TestChoiceExtensionOnRejectIEIsAbstractSyntaxError(t *testing.T) {
-	// id-GlobalRANNodeID is CRITICALITY reject in NGSetupRequestIEs. A TNGF,
-	// TWIF or W-AGF identifies itself through GlobalRANNodeID's
+	// A TNGF, TWIF or W-AGF identifies itself through GlobalRANNodeID's
 	// choice-Extensions, which this library does not model.
 	value := container(t, ieField{
 		id:   idGlobalRANNodeID,
@@ -64,8 +59,7 @@ func TestChoiceExtensionOnRejectIEIsAbstractSyntaxError(t *testing.T) {
 	}
 }
 
-// The same construct on an ignore IE must not cost the message: §10.3.4.2 says
-// to ignore the IE's content, report it, and continue with the procedure.
+// §10.3.4.2: ignore the content, report it, continue with the procedure.
 func TestChoiceExtensionOnIgnoreIEIsIgnored(t *testing.T) {
 	// id-Cause is CRITICALITY ignore in NGResetIEs.
 	value := container(t,
@@ -103,10 +97,8 @@ func TestChoiceExtensionOnIgnoreIEIsIgnored(t *testing.T) {
 	}
 }
 
-// TS 38.413 §10.3.1 has the receiver "read the remaining message and ... then
-// for each detected Abstract Syntax Error" act, and §10.3.4.2 wants a
-// Criticality Diagnostics entry "for each reported IE/IE group" — so two
-// not-comprehended reject IEs must produce two entries, not just the first.
+// §10.3.4.2 wants an entry "for each reported IE/IE group", so two offenders
+// produce two entries, not just the first.
 func TestAllNotComprehendedRejectIEsAreReported(t *testing.T) {
 	value := container(t,
 		ieField{id: ProtocolIEID(40001), crit: CriticalityReject, raw: []byte{0x00}},

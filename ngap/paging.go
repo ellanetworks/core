@@ -12,9 +12,8 @@ import (
 // maxnoofTAIforPaging bounds TAIListForPaging (TS 38.413, NGAP-Constants).
 const maxnoofTAIforPaging = 16
 
-// UEPagingIdentity alternatives (TS 38.413 §9.3.3.18). Unlike S1AP's UE Paging
-// ID, which is an extensible CHOICE of S-TMSI and IMSI, this one carries a
-// single identity and is closed by a choice-Extensions alternative.
+// UEPagingIdentity alternatives (TS 38.413 §9.3.3.18). One identity, closed by
+// a choice-Extensions alternative rather than an extension marker.
 const (
 	uePagingIdentityFiveGSTMSI = iota
 	uePagingIdentityChoiceExtensions
@@ -38,9 +37,8 @@ const (
 	pagingPriorityRootCount = 8
 )
 
-// PagingOrigin ::= ENUMERATED { non-3gpp, ... } — §9.3.1.79. The IE is present
-// only when the paging was triggered from a non-3GPP access, so the single root
-// value carries the whole meaning.
+// PagingOrigin ::= ENUMERATED { non-3gpp, ... } — §9.3.1.79. Present only for
+// paging triggered from a non-3GPP access, so its presence is the message.
 type PagingOrigin uint8
 
 const (
@@ -50,8 +48,7 @@ const (
 )
 
 // taiListForPagingItem ::= SEQUENCE { tAI, iE-Extensions OPTIONAL }
-// (extensible). NGAP lists items directly where S1AP wraps them in a
-// ProtocolIE-SingleContainer. The TAI it carries is TS 38.413 §9.3.3.11.
+// (extensible). The TAI is TS 38.413 §9.3.3.11.
 type taiListForPagingItem struct {
 	_   [0]struct{} `per:"extseq"`
 	TAI TAI
@@ -61,9 +58,6 @@ type taiListForPagingItem struct {
 // UERadioCapabilityForPaging ::= SEQUENCE {
 // uERadioCapabilityForPagingOfNR OPTIONAL, uERadioCapabilityForPagingOfEUTRA
 // OPTIONAL, iE-Extensions OPTIONAL } (extensible) — §9.3.1.68.
-//
-// S1AP's IE of the same name is a bare OCTET STRING; NR splits the capability
-// per RAT, so the 5G shape carries two.
 type UERadioCapabilityForPaging struct {
 	_     [0]struct{}                        `per:"extseq"`
 	NR    *UERadioCapabilityForPagingOfNR    `per:",optional"`
@@ -107,10 +101,7 @@ func (c *UERadioCapabilityForPagingOfEUTRA) UnmarshalPER(r *per.Reader, enc per.
 	return nil
 }
 
-// TS 38.413 §9.2.4.1.
-//
-// Every IE this message carries is ignore criticality, so none is a value type:
-// a receiver takes what arrived and continues (§10.3.5).
+// TS 38.413 §9.2.4.1. Every IE is ignore criticality, so none is a value type.
 type Paging struct {
 	FiveGSTMSI                 *FiveGSTMSI
 	PagingDRX                  *PagingDRX

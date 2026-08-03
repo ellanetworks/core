@@ -13,10 +13,6 @@ type FiveGTMSI uint32
 //	    aMFPointer    AMFPointer,    -- BIT STRING (SIZE(6))
 //	    fiveG-TMSI    FiveG-TMSI,    -- OCTET STRING (SIZE(4))
 //	    iE-Extensions ... OPTIONAL }
-//
-// Where S1AP's S-TMSI pairs an octet-aligned MME code with the M-TMSI, the
-// 5G identity leads with the same two bit strings a GUAMI carries, so the AMF
-// that allocated the temporary identity can be found from it.
 type FiveGSTMSI struct {
 	_          [0]struct{} `per:"extseq"`
 	AMFSetID   AMFSetID

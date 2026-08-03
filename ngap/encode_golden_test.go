@@ -10,12 +10,9 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TestEncodeBodyGolden pins the exact octets of every message body, including
-// IE ids, order and criticalities. A round-trip test cannot: it re-reads
-// whatever the encoder just wrote.
-//
-// The bodies here are the open-type payloads of the golden PDUs in
-// ng_setup_test.go, so they carry the same second-implementation provenance.
+// Pins the exact octets, which a round-trip test cannot: it re-reads whatever
+// the encoder just wrote. The bodies are payloads of the golden PDUs, so they
+// carry the same second-implementation provenance.
 func TestEncodeBodyGolden(t *testing.T) {
 	tests := []struct {
 		name string
@@ -73,11 +70,9 @@ func TestEncodeBodyGolden(t *testing.T) {
 	}
 }
 
-// errorIndicationWithSTMSI carries the one IE the reference encoder cannot, so
-// its octets are derived from X.691 rather than compared against it. The IE
-// content is 0010c0deadbeef: a two-bit preamble (not extended, iE-Extensions
-// absent), the 10-bit AMF Set ID 0x001, the 6-bit AMF Pointer 0x03, then the
-// four 5G-TMSI octets realigned to the next octet boundary (§16.9, §16.10).
+// The one IE the reference encoder cannot express, so these octets are derived
+// from X.691 rather than compared against it: two-bit preamble, 10-bit AMF Set
+// ID 0x001, 6-bit AMF Pointer 0x03, then the realigned 5G-TMSI (§16.9, §16.10).
 func errorIndicationWithSTMSI() *ErrorIndication {
 	m := goldErrorIndication()
 	m.FiveGSTMSI = &FiveGSTMSI{AMFSetID: 0x001, AMFPointer: 0x03, FiveGTMSI: 0xdeadbeef}

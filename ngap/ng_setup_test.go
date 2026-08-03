@@ -132,9 +132,8 @@ func TestNGSetupRequestGoldenDecode(t *testing.T) {
 	}
 }
 
-// TestNGSetupGoldenEncode is the other half of the differential check: the
-// bytes this codec writes must equal the ones the reference implementation
-// wrote for the same message.
+// The other half of the differential check: the bytes written must equal the
+// reference implementation's for the same message.
 func TestNGSetupGoldenEncode(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -224,8 +223,7 @@ func TestParseNGSetupRequestMissingMandatoryIE(t *testing.T) {
 		globalRANNodeID bool
 		supportedTAList bool
 		pagingDRX       bool
-		// wantReject lists the absent reject-criticality IEs; nil means the
-		// message is still delivered.
+		// Absent reject-criticality IEs; nil means still delivered.
 		wantReject   []ProtocolIEID
 		wantReported []ProtocolIEID
 	}{
@@ -283,8 +281,8 @@ func TestParseNGSetupRequestMissingMandatoryIE(t *testing.T) {
 	}
 }
 
-// NG SETUP FAILURE has an unsuccessful outcome to reject with, which is what
-// decides between it and an Error Indication (§10.3.5).
+// §10.3.5 picks the unsuccessful outcome over an Error Indication where the
+// procedure defines one.
 func TestNGSetupRejectionHasUnsuccessfulOutcome(t *testing.T) {
 	value := encodePartialNGSetup(t, false, true, true)
 

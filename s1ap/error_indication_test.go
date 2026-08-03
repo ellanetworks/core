@@ -40,9 +40,8 @@ func TestErrorIndicationRoundTrips(t *testing.T) {
 		}
 	})
 
-	// Every IE is optional in the ASN.1 (§9.1.8.6), so a peer can still put an
-	// empty one on the wire. The receiver must decode it rather than fall over;
-	// the application-level guard then decides what to do with it.
+	// Every IE is optional, so an empty one is decodable; the application guard
+	// decides what to do with it.
 	t.Run("empty", func(t *testing.T) {
 		out, err := ParseErrorIndication(container(t))
 		if err != nil {
@@ -55,18 +54,15 @@ func TestErrorIndicationRoundTrips(t *testing.T) {
 	})
 }
 
-// TS 36.413 §8.7.2.2: "The ERROR INDICATION message shall contain at least
-// either the Cause IE or the Criticality Diagnostics IE." §10.3.3 binds the
-// sender, so encoding one that carries neither must fail.
+// §8.7.2.2 requires at least one of Cause and Criticality Diagnostics, and
+// §10.3.3 binds the sender.
 func TestErrorIndicationRefusesEmptyOnSend(t *testing.T) {
 	if _, err := (&ErrorIndication{}).Marshal(); err == nil {
 		t.Fatal("Marshal() = nil error, want a refusal for a message with neither IE")
 	}
 }
 
-// TS 36.413 ErrorIndicationIEs carries { ID id-S-TMSI CRITICALITY ignore TYPE
-// S-TMSI PRESENCE optional }, which the NGAP twin models as FiveG-S-TMSI. An
-// eNB that knows only the S-TMSI names the UE with it.
+// An eNB that knows only the S-TMSI names the UE with it.
 func TestErrorIndicationSTMSIRoundTrip(t *testing.T) {
 	sent := &ErrorIndication{
 		Cause: &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
@@ -97,8 +93,7 @@ func TestErrorIndicationSTMSIRoundTrip(t *testing.T) {
 	}
 }
 
-// The IE is optional: absent must stay absent rather than decode as an all-zero
-// S-TMSI, which is a legal identity that would name a real UE.
+// An all-zero S-TMSI is a legal identity, so absent must stay absent.
 func TestErrorIndicationSTMSIStaysAbsent(t *testing.T) {
 	raw, err := (&ErrorIndication{Cause: &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}}).Marshal()
 	if err != nil {

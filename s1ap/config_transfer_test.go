@@ -96,8 +96,8 @@ func TestENBConfigurationTransfer_RelayRoundTrip(t *testing.T) {
 	}
 }
 
-// relayedSON extracts the SON Configuration Transfer IE (id-...MCT) value from an
-// MME CONFIGURATION TRANSFER body.
+// The id-SONConfigurationTransferMCT value out of an MME CONFIGURATION
+// TRANSFER body.
 func relayedSON(t *testing.T, value []byte) []byte {
 	t.Helper()
 
@@ -142,10 +142,8 @@ func TestENBConfigurationTransfer_NoSONIE(t *testing.T) {
 	}
 }
 
-// Both directions must encode and decode: the MME parses ENB CONFIGURATION
-// TRANSFER and builds MME CONFIGURATION TRANSFER, and an eNB peer needs the
-// mirror of each. TS 36.413 §8.15.2/§8.16.2 relay the SON Configuration
-// Transfer verbatim, so the payload must survive untouched in both.
+// §8.15.2/§8.16.2 relay the transfer verbatim, so the payload must survive
+// untouched in both directions.
 func TestConfigurationTransferRelaysVerbatimBothDirections(t *testing.T) {
 	transfer := SONConfigurationTransfer{0x01, 0x02, 0x03, 0x04}
 

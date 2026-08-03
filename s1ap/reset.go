@@ -9,13 +9,11 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// maxnoofIndividualS1ConnectionsToReset bounds the UE-associated logical
-// S1-connection lists in Reset/Reset Acknowledge (TS 36.413).
+// TS 36.413, S1AP-Constants.
 const maxnoofIndividualS1ConnectionsToReset = 256
 
 // ResetType CHOICE root alternatives, defined inline in the RESET of TS 36.413
-// §9.1.8.1 rather than in a clause of its own. The CHOICE is
-// extensible, so an extension bit precedes the index.
+// §9.1.8.1. The CHOICE is extensible, so an extension bit precedes the index.
 const (
 	resetTypeS1Interface = iota
 	resetTypePartOfS1Interface
@@ -23,13 +21,10 @@ const (
 	resetTypeChoiceRootCount = 2
 )
 
-// resetAllRootCount is the number of root values of ResetAll ENUMERATED
-// { reset-all, ... } (TS 36.413).
+// ResetAll ::= ENUMERATED { reset-all, ... }.
 const resetAllRootCount = 1
 
-// UEAssociatedLogicalS1ConnectionItem identifies one UE-associated logical
-// S1-connection by its MME-UE-S1AP-ID and/or eNB-UE-S1AP-ID (TS 36.413).
-// Both identities are optional; an item may carry either or both.
+// TS 36.413. Both identities are optional; an item may carry either or both.
 type UEAssociatedLogicalS1ConnectionItem struct {
 	_           [0]struct{}  `per:"extseq"`
 	MMEUES1APID *MMEUES1APID `per:",optional"`
@@ -37,10 +32,8 @@ type UEAssociatedLogicalS1ConnectionItem struct {
 	_           ieExtensions `per:",skip"`
 }
 
-// ResetType is the ResetType CHOICE (TS 36.413): All selects
-// s1-Interface (ResetAll, value reset-all), reset of the whole S1 interface;
-// otherwise Part selects partOfS1-Interface, the UE-associated logical
-// S1-connections to reset.
+// All selects s1-Interface, resetting the whole interface; otherwise Part
+// selects partOfS1-Interface, the connections to reset.
 type ResetType struct {
 	All  bool
 	Part []UEAssociatedLogicalS1ConnectionItem
@@ -71,9 +64,7 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if isExt {
-		// §10.3.1 case 6: an alternative this version does not support is an
-		// abstract syntax error handled on the IE's criticality, not a
-		// transfer syntax error that abandons the whole RESET.
+		// §10.3.1 case 6: handled on criticality, not by abandoning the RESET.
 		return fmt.Errorf("%w: ResetType extension alternative", errNotComprehended)
 	}
 

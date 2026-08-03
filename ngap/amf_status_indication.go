@@ -10,9 +10,8 @@ import (
 )
 
 // TimerApproachForGUAMIRemoval ::= ENUMERATED { apply-timer, ... }, defined
-// inline in the AMF STATUS INDICATION of TS 38.413 §9.2.6.10 rather than in a
-// clause of its own. Present means the NG-RAN node should keep the GUAMI for
-// the guard period rather than dropping it at once (TS 23.501).
+// inline in TS 38.413 §9.2.6.10. Present means keep the GUAMI for the guard
+// period rather than dropping it at once (TS 23.501).
 type TimerApproachForGUAMIRemoval uint8
 
 const (
@@ -47,8 +46,7 @@ type UnavailableGUAMIItem struct {
 	_                            [0]struct{} `per:"extseq"`
 	GUAMI                        GUAMI
 	TimerApproachForGUAMIRemoval *TimerApproachForGUAMIRemoval `per:",optional"`
-	// BackupAMFName names the AMF the NG-RAN node should reselect towards
-	// (§8.7.6.2); empty means the IE is omitted.
+	// The AMF to reselect towards (§8.7.6.2).
 	BackupAMFName *Name        `per:",optional"`
 	_             ieExtensions `per:",skip"`
 }
@@ -57,11 +55,8 @@ type UnavailableGUAMIItem struct {
 // UnavailableGUAMIItem.
 type UnavailableGUAMIList []UnavailableGUAMIItem
 
-// TS 38.413 §9.2.6.10.
-//
-// The one IE is mandatory with reject criticality, so it is a value type: a
-// receiver that cannot read it has nothing to act on and rejects the procedure
-// (§10.3.4.2).
+// TS 38.413 §9.2.6.10. The one IE is mandatory with reject criticality, so it
+// is a value type.
 type AMFStatusIndication struct {
 	UnavailableGUAMIList UnavailableGUAMIList
 

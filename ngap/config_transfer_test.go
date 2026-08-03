@@ -15,8 +15,7 @@ const (
 	goldenDownlinkRANConfigTransferEmpty = "00064003000000"
 )
 
-// sonTransferBytes is the SON Configuration Transfer open-type payload out of
-// the golden PDUs, which is exactly what the AMF relays verbatim.
+// The open-type payload out of the golden PDUs, which is what the AMF relays.
 func sonTransferBytes(t *testing.T, golden string) SONConfigurationTransfer {
 	t.Helper()
 
@@ -85,9 +84,7 @@ func TestRANConfigurationTransferGoldenDecode(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.8.1.2 has the AMF relay the transfer "transparently", so what it
-// forwards must be byte-identical to what arrived. Only the leading Target RAN
-// Node ID is read, for routing.
+// §8.8.1.2 relays "transparently", so what is forwarded must be byte-identical.
 func TestSONConfigurationTransferRelaysVerbatim(t *testing.T) {
 	transfer := sonTransferBytes(t, goldenUplinkRANConfigTransfer)
 
@@ -101,8 +98,8 @@ func TestSONConfigurationTransferRelaysVerbatim(t *testing.T) {
 	}
 }
 
-// The AMF routes on the Target RAN Node ID at the head of the transfer, so that
-// field must decode without touching the rest (TS 38.413 §9.3.3.14).
+// Routing reads the leading Target RAN Node ID without touching the rest
+// (§9.3.3.6).
 func TestSONConfigurationTransferTargetRANNodeID(t *testing.T) {
 	transfer := sonTransferBytes(t, goldenUplinkRANConfigTransfer)
 

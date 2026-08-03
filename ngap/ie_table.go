@@ -10,29 +10,24 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Retention bounds for attacker-controlled input: a peer may fill a container
-// with as many IEs as the message carries, and both recording a diagnostic and
-// keeping an unmodeled IE for re-encode outlive the decode that found them.
+// A peer chooses how many IEs to send, and both survive the decode that found
+// them.
 const (
 	maxDiagnosticIEs = 64
 	maxPreservedIEs  = 32
 )
 
-// minIEFieldBits is the smallest a ProtocolIE-Field can be on the wire: a
-// 16-bit id, a 2-bit criticality, and an open type of at least one length
-// octet and one content octet.
+// 16-bit id + 2-bit criticality + an open type of at least one length and one
+// content octet.
 const minIEFieldBits = 34
 
-// ieSpec is one row of a message's TS 38.413 §9.2/§9.3 IE table. Encode and
-// decode both read it, so the two directions cannot disagree on an IE's
-// criticality or presence.
+// One row of a message's TS 38.413 §9.2/§9.3 IE table.
 type ieSpec[M any] struct {
 	id       ProtocolIEID
 	presence presence
 	crit     Criticality
 
-	// condition reports whether a conditional IE must be present in m. It is
-	// set if and only if presence is presenceConditional.
+	// Set if and only if presence is presenceConditional.
 	condition func(m *M) bool
 
 	decode func(m *M, raw []byte, enc per.Encoding) error
@@ -40,8 +35,7 @@ type ieSpec[M any] struct {
 	encode func(m *M) (per.Marshaler, bool)
 }
 
-// required reports whether TS 38.413 §10.3.3 obliges the sender to include the
-// IE in this message.
+// TS 38.413 §10.3.3.
 func (s ieSpec[M]) required(m *M) bool {
 	switch s.presence {
 	case presenceMandatory:
@@ -55,23 +49,18 @@ func (s ieSpec[M]) required(m *M) bool {
 	}
 }
 
-// deliverable reports whether a receiver still processes the message when the
-// IE is absent (TS 38.413 §10.3.5). Only reject criticality stops delivery,
+// §10.3.5: only reject criticality stops an absent IE from being delivered,
 // which is what lets a required reject IE be a value type.
 func (s ieSpec[M]) deliverable() bool { return s.crit != CriticalityReject }
 
 func (u *messageMeta) meta() *messageMeta { return u }
 
-// message is satisfied by a pointer to any message struct.
 type message interface {
 	meta() *messageMeta
 }
 
-// encodeMessageBody writes the SEQUENCE extension bit, then every present IE
-// in table order, then any IE preserved verbatim from a previous decode.
-//
-// A required IE that is unset is an error: TS 38.413 §10.3.3 binds the sender
-// even where §10.3.5 lets a receiver carry on without it.
+// An unset required IE is an error: TS 38.413 §10.3.3 binds the sender even
+// where §10.3.5 lets a receiver carry on without it.
 func encodeMessageBody[M any, PM interface {
 	*M
 	message
@@ -108,12 +97,8 @@ func encodeMessageBody[M any, PM interface {
 	return encodeIEContainer(w, enc, fields)
 }
 
-// parseMessageBody decodes an IE container against its table, applying the
-// abstract syntax error handling of TS 38.413 §10.3.4.2, §10.3.5 and §10.3.6.
-//
-// It returns no message when the procedure must be rejected. Otherwise every
-// value-typed field of the result holds what the peer sent, and anything the
-// receiver may carry on without is reported through Diagnostics.
+// Applies the abstract syntax error handling of TS 38.413 §10.3.4.2, §10.3.5 and
+// §10.3.6. Returns no message when the procedure must be rejected.
 func parseMessageBody[M any, PM interface {
 	*M
 	message
@@ -153,12 +138,8 @@ func parseMessageBody[M any, PM interface {
 	seen := make(map[ProtocolIEID]bool, len(table))
 	lastIdx := -1
 
-	// Every not-comprehended reject IE is collected so the single report names
-	// them all (§10.3.4.2: "for each reported IE/IE group"), up to the
-	// maxnoofErrors the list is bounded by. Past that the report is truncated
-	// rather than left unsendable: a peer that piles on unknown reject IEs
-	// would otherwise make the failure message fail to encode, and the
-	// procedure it was answering would go unanswered.
+	// Collected for one report naming them all (§10.3.4.2), truncated at the
+	// maxnoofErrors the list is bounded by so the report stays encodable.
 	var notUnderstood []CriticalityDiagnosticsIEItem
 
 	reportNotUnderstood := func(id ProtocolIEID, crit Criticality) {
@@ -176,11 +157,9 @@ func parseMessageBody[M any, PM interface {
 	for _, f := range fields {
 		idx, spec, ok := lookupIESpec(table, f.id)
 		if !ok {
-			// §10.3.4.2: a not-comprehended IE marked reject stops the
-			// procedure; the rest are reported and carried past. §10.3.1 has
-			// the receiver "read the remaining message and ... then for each
-			// detected Abstract Syntax Error" act, so the scan continues and
-			// every offending IE is reported together.
+			// §10.3.4.2: reject stops the procedure, the rest are carried
+			// past. §10.3.1 has the receiver read on either way, so the scan
+			// continues and reports every offender together.
 			if f.crit == CriticalityReject {
 				reportNotUnderstood(f.id, f.crit)
 
@@ -193,28 +172,21 @@ func parseMessageBody[M any, PM interface {
 			continue
 		}
 
-		// §10.3.6: too many occurrences, or out of the order §9.2/§9.3 defines.
-		// Only IEs this version knows are considered, so the unknown ids
-		// handled above do not advance the cursor.
+		// §10.3.6: out of the order §9.2/§9.3 defines, or carried twice. Unknown
+		// ids do not advance the cursor.
 		if idx <= lastIdx {
-			// The IEs already collected go out with this report: §10.3.4.2
-			// wants an entry "for each reported IE/IE group", and abandoning
-			// the scan here must not silently drop the ones behind it.
+			// Abandoning the scan must not drop what it already collected.
 			return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, notUnderstood)
 		}
 
 		lastIdx = idx
 
 		if err := spec.decode((*M)(m), f.value, enc); err != nil {
-			// §10.3.1 cases 1, 2 and 6 are not-comprehended IEs, "handled based
-			// on received Criticality information" — the same three-way choice
-			// §10.3.4.2 makes for an unknown IE id, not an abandoned message.
+			// §10.3.1 cases 1, 2 and 6 are handled on criticality, not by
+			// abandoning the message.
 			if errors.Is(err, errNotComprehended) {
-				// §10.3.2 handles "the entire item (IE or IE group) which is
-				// not (fully or partially) comprehended ... in accordance with
-				// its own criticality information". Usually that item is this
-				// IE, but an unmodeled extension inside it is its own item with
-				// its own id and criticality, and names itself.
+				// §10.3.2 handles the item on its own criticality, which for an
+				// unmodeled extension is the extension's, not this IE's.
 				id, crit := f.id, f.crit
 
 				var item *notComprehendedIE
@@ -246,8 +218,7 @@ func parseMessageBody[M any, PM interface {
 		return nil, reject(CauseProtocolAbstractSyntaxErrorReject, notUnderstood)
 	}
 
-	// §10.3.5: absence is judged per IE, by the criticality §9.2/§9.3 assigns
-	// it in this message.
+	// §10.3.5: absence is judged per IE, by the criticality §9.2/§9.3 assigns it.
 	var missingReject []CriticalityDiagnosticsIEItem
 
 	for i := range table {
@@ -297,9 +268,8 @@ func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (int, ieSpec[M], bo
 	return -1, ieSpec[M]{}, false
 }
 
-// modeledIEs keeps the first occurrence of each IE the table names, which is
-// what addressing an unsuccessful outcome needs, and bounds the result by the
-// table length, so the peer does not choose its size.
+// First occurrence only, bounded by the table length so the peer does not
+// choose the size.
 func modeledIEs[M any](table []ieSpec[M], fields []rawIE) []RawIE {
 	var out []RawIE
 

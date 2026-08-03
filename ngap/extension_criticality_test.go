@@ -10,13 +10,10 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// idNRCGI is a real TAI extension id (TS 38.413) that this version does not
-// model. Any unmodeled id would do; a real one keeps the vector honest about
-// what a later-release gNB sends.
+// A real TAI extension id this version does not model.
 const idNRCGI ProtocolIEID = 82
 
-// extendedTAIList encodes a one-item TAIListForPaging whose TAI carries one
-// unmodeled iE-Extension with the given criticality.
+// A one-item TAIListForPaging whose TAI carries one unmodeled iE-Extension.
 func extendedTAIList(t *testing.T, crit Criticality) []byte {
 	t.Helper()
 
@@ -60,12 +57,9 @@ func extendedTAIList(t *testing.T, crit Criticality) []byte {
 	return w.Bytes()
 }
 
-// TS 38.413 §10.3.2: "the entire item (IE or IE group) which is not (fully or
-// partially) comprehended shall be treated in accordance with its own
-// criticality information". A reject-criticality extension is its own item, so
-// it rejects the procedure even though the TAI List containing it is marked
-// ignore — and §9.2.1.21 has the diagnostics name "the IE ID of the not
-// understood or missing IE", which is the extension's, not the container's.
+// §10.3.2 treats a not-comprehended item on its own criticality, so a reject
+// extension rejects even inside an ignore IE, and §9.3.1.3 names the
+// extension's id rather than the container's.
 func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	_, err := ParsePaging(container(t,
 		ieField{id: idUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
@@ -90,8 +84,7 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	}
 }
 
-// An ignore-criticality extension is skipped and the IE holding it is still
-// delivered — §10.3.4.2's "continue with the procedure" for the containing IE.
+// §10.3.4.2: an ignore extension is skipped and its IE still delivered.
 func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	msg, err := ParsePaging(container(t,
 		ieField{id: idUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},

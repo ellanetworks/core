@@ -15,17 +15,14 @@ import (
 	"testing"
 )
 
-// A field may be a value type only when its absence stops the message from
-// reaching the application, which TS 36.413 §10.3.5 makes true exactly for
-// required IEs of reject criticality. Every other IE must be nil-able, so a
-// receiver can tell an absent IE from a zero one; a slice type already is.
+// §10.3.5 stops delivery only for required reject-criticality IEs, so only
+// those may be value types.
 func TestNilableUnlessRequiredAndReject(t *testing.T) {
 	rows := parseIETables(t)
 	fields, sliceTypes := parseMessageFields(t)
 
-	// A row whose field the scan cannot resolve is a row this invariant does
-	// not cover, which is how the check quietly stops holding. Report them
-	// rather than skipping in silence.
+	// An unresolvable row is one this invariant does not cover, so report it
+	// rather than skip in silence.
 	var skipped []string
 
 	for _, r := range rows {
@@ -111,8 +108,7 @@ func parseIETables(t *testing.T) []ieRow {
 	return rows
 }
 
-// parseMessageFields returns each struct's field types, and the set of package
-// type names whose underlying type is a slice.
+// Field types per struct, plus the package type names that are slices.
 func parseMessageFields(t *testing.T) (map[string]map[string]string, map[string]bool) {
 	t.Helper()
 

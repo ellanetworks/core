@@ -10,8 +10,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// extensionEnum encodes the k'th extension addition of an extensible
-// ENUMERATED whose root holds nRoot values.
+// The k'th extension addition of an ENUMERATED whose root holds nRoot values.
 func extensionEnum(t *testing.T, nRoot, k int64) []byte {
 	t.Helper()
 
@@ -25,12 +24,9 @@ func extensionEnum(t *testing.T, nRoot, k int64) []byte {
 	return w.Bytes()
 }
 
-// A value this version does not know must not read as one it does.
-// per.DecodeEnumerated reports the k'th extension as nRoot+k, and every
-// enumeration here is a small unsigned Go type, so an unguarded decoder
-// narrows nRoot+k straight back onto a root value: a PagingPriority extension
-// with k=255 would read as 7 (priolevel8). TS 36.413 §10.3.1 case 6 makes an
-// unsupported value an abstract syntax error handled on criticality instead.
+// An unguarded decoder narrows nRoot+k back onto a root value: a PagingPriority
+// extension with k=255 reads as 7 (priolevel8). §10.3.1 case 6 handles it on
+// criticality instead.
 func TestEnumExtensionIsNotComprehended(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -58,8 +54,8 @@ func TestEnumExtensionIsNotComprehended(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// k spans a same-byte extension and one that needs the
-			// normally-small length form.
+			// Spans a same-byte extension and one needing the normally-small
+			// length form.
 			for _, k := range []int64{0, 1, 255} {
 				raw := extensionEnum(t, tt.nRoot, k)
 
@@ -76,9 +72,8 @@ func TestEnumExtensionIsNotComprehended(t *testing.T) {
 	}
 }
 
-// The same rule through the IE-container engine: Paging Priority is optional
-// with ignore criticality, so an unknown value leaves the field absent and the
-// rest of the message is still acted on (§10.3.4.2).
+// Through the IE-container engine: the IE is optional-ignore, so §10.3.4.2
+// leaves the field absent and acts on the rest.
 func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 	msg, err := ParsePaging(container(t,
 		ieField{id: idPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
@@ -97,11 +92,9 @@ func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 	}
 }
 
-// TS 36.413 §10.3.4.2 for an ignore-criticality IE: "continue with the
-// procedure as if the not comprehended IEs/IE groups were not received". A
-// decoder that stores its scratch value before checking the error leaves the
-// caller a zero that reads as a real one — here DefaultPagingDRX v32, which
-// would silently reset an eNB's paging cycle.
+// §10.3.4.2: continue "as if the not comprehended IEs/IE groups were not
+// received". Storing the scratch value before checking the error would deliver
+// a zero that reads as DefaultPagingDRX v32.
 func TestNotComprehendedIEIsNotDelivered(t *testing.T) {
 	msg, err := ParseENBConfigurationUpdate(container(t,
 		ieField{id: idENBname, crit: CriticalityIgnore, val: Name("ella-enb")},

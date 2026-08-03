@@ -6,9 +6,8 @@ package ngap
 // maxnoofServedGUAMIs bounds ServedGUAMIList (TS 38.413, NGAP-Constants).
 const maxnoofServedGUAMIs = 256
 
-// GUAMI bit-string widths (TS 38.413 §9.3.3.3). Unlike S1AP's octet-aligned
-// GUMMEI the three fields are bit strings of 8, 10 and 6 bits, so they are
-// held as integers and packed by the hand-written codecs in per_leaf.go.
+// GUAMI bit-string widths (TS 38.413 §9.3.3.3). Not octet multiples, so the
+// fields are held as integers.
 const (
 	amfRegionIDBits = 8
 	amfSetIDBits    = 10

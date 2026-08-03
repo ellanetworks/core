@@ -10,8 +10,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// container encodes an IE container body as a peer would send it, without the
-// ordering and presence rules the encoder normally enforces.
+// As a peer would send it, without the rules the encoder normally enforces.
 func container(t *testing.T, fields ...ieField) []byte {
 	t.Helper()
 
@@ -71,8 +70,7 @@ func TestIEsOutOfOrderRejected(t *testing.T) {
 	}
 }
 
-// An unmodeled IE does not count towards the order §10.3.6 checks, since only
-// IEs the receiver's version defines are considered.
+// §10.3.6 considers only IEs the receiver's version defines.
 func TestUnknownIEDoesNotBreakOrdering(t *testing.T) {
 	fields := ngSetupFields()
 	unknown := ieField{id: ProtocolIEID(60000), crit: CriticalityIgnore, raw: []byte{0x01, 0x02}}
@@ -218,10 +216,8 @@ func TestOversizedIECountRejected(t *testing.T) {
 	}
 }
 
-// A notify entry must survive the diagnostics bound, or the report required by
-// TS 38.413 §10.3.4.2 would carry no IE. TS 38.413 assigns no IE notify
-// criticality, but a peer chooses what it stamps on the wire, so the path is
-// reachable and the displacement rule still has to hold.
+// A notify entry must survive the diagnostics bound or the §10.3.4.2 report
+// carries no IE. No IE table assigns notify, but a peer chooses what it stamps.
 func TestNotifySurvivesTruncation(t *testing.T) {
 	fields := ngSetupFields()
 	for i := range maxDiagnosticIEs + 10 {
@@ -248,9 +244,8 @@ func TestNotifySurvivesTruncation(t *testing.T) {
 	}
 }
 
-// UEIDs recovers the association a rejection concerns (TS 38.413 §8.4.4.2).
-// NG Setup is node-level, so the decoded IEs are supplied directly until a
-// UE-associated message is modeled.
+// §8.4.4.2. NG Setup is node-level, so the decoded IEs are supplied directly
+// until a UE-associated message is modeled.
 func TestUEIDsRecoverTheAssociation(t *testing.T) {
 	encode := func(t *testing.T, m per.Marshaler) []byte {
 		t.Helper()
@@ -294,8 +289,7 @@ func TestUEIDsRecoverTheAssociation(t *testing.T) {
 			nil, nil,
 		},
 		{
-			// A value that does not decode leaves the id absent rather than
-			// reporting a zero one.
+			// A value that does not decode leaves the id absent, not zero.
 			"undecodable id",
 			[]RawIE{{ID: idAMFUENGAPID, Value: nil}},
 			nil, nil,
@@ -321,9 +315,8 @@ func TestUEIDsRecoverTheAssociation(t *testing.T) {
 	}
 }
 
-// Padding a message with unmodeled IEs must not push the UE NGAP IDs out of
-// what the rejection retains, or the ERROR INDICATION cannot name the
-// association it concerns (TS 38.413 §8.4.4.2).
+// Padding must not push the UE NGAP IDs out of what the rejection retains, or
+// the ERROR INDICATION cannot name its association (§8.4.4.2).
 func TestModeledIEsSurvivePadding(t *testing.T) {
 	fields := ngSetupFields()
 

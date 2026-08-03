@@ -81,15 +81,13 @@ var procedureInfos = map[ProcedureCode]procedureInfo{
 	ProcMMEEarlyStatusTransfer:             {CriticalityIgnore, false},
 }
 
-// ProcedureCriticality reports the criticality TS 36.413 §9.3.2 assigns the
-// procedure, which Criticality Diagnostics reports (§9.2.1.21).
+// TS 36.413 §9.3.2.
 func ProcedureCriticality(p ProcedureCode) Criticality {
 	return procedureInfos[p].crit
 }
 
-// hasUnsuccessfulOutcome reports whether the procedure defines a message to
-// report an unsuccessful outcome. TS 36.413 §10.3.5 rejects with that message
-// where it exists, and falls back to Error Indication where it does not.
+// §10.3.5 rejects with that message where it exists, and falls back to Error
+// Indication where it does not.
 func hasUnsuccessfulOutcome(p ProcedureCode) bool {
 	return procedureInfos[p].outcome
 }

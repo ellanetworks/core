@@ -15,17 +15,11 @@ import (
 	"testing"
 )
 
-// s1apDir is where the S1AP library sits relative to this module.
 const s1apDir = "../s1ap"
 
-// engineFiles are the files TS 38.413 and TS 36.413 share a design for: the
-// abstract syntax error model, the IE-container engine and the PDU envelope.
-// Their declarations are named for the protocol machinery rather than for
-// either protocol, so a faithful transposition uses identical names and this
-// test needs no renaming table.
-//
-// Message and IE files are deliberately absent: what they declare is each
-// protocol's own vocabulary.
+// The files the two specs share a design for. Their declarations are named for
+// the machinery rather than either protocol, so a faithful transposition uses
+// identical names. Message and IE files are absent: each is its own vocabulary.
 var engineFiles = []string{
 	"cause.go",
 	"common.go",
@@ -36,13 +30,8 @@ var engineFiles = []string{
 	"pdu.go",
 }
 
-// mandatedDeviations lists every declaration allowed to exist in one library
-// and not the other, with the TS clause that forces it. Anything else is
-// drift: either a change made to one library and not the other, or a
-// divergence nobody decided on.
-//
-// Adding an entry here is a claim that 3GPP requires the asymmetry. It should
-// be as hard to justify as it looks.
+// Declarations allowed on one side only. An entry is a claim that 3GPP requires
+// the asymmetry; anything else is drift.
 var mandatedDeviations = map[string]string{
 	// TS 38.413 §9.3 closes its CHOICEs with a choice-Extensions alternative
 	// carrying an open IE container, where TS 36.413 marks them extensible.
@@ -55,18 +44,13 @@ var mandatedDeviations = map[string]string{
 	"s1ap only: func decodeItemList":            "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
 }
 
-// s1apOnlyFiles is ngapOnlyFiles' mirror: a file S1AP keeps that NGAP has no
-// counterpart for. The check runs in both directions, so a file added to one
-// library and forgotten in the other is caught whichever side it landed on.
+// ngapOnlyFiles' mirror, so a file added to one side and forgotten on the other
+// is caught whichever side it landed on.
 var s1apOnlyFiles = map[string]string{}
 
-// pendingNGAPMigration lists the S1AP files whose NGAP counterparts have not
-// been written yet. Every one belongs to a UE-associated procedure, which the
-// in-house NGAP library takes on after the non-UE procedures land.
-//
-// This is not s1apOnlyFiles: nothing here is a 3GPP-mandated asymmetry, it is
-// work outstanding. An entry is deleted when its NGAP counterpart appears, so
-// the list empties itself and the guard tightens as the migration proceeds.
+// S1AP files whose NGAP counterparts are not written yet — outstanding work,
+// not a mandated asymmetry. Entries are deleted as counterparts appear, so the
+// list empties itself.
 var pendingNGAPMigration = map[string]struct{}{
 	"erab_modification.go":            {},
 	"erab_modification_test.go":       {},
@@ -102,9 +86,7 @@ var pendingNGAPMigration = map[string]struct{}{
 	"ue_context_release_test.go":      {},
 }
 
-// renamedFiles maps an ngap file to the s1ap file holding the same thing,
-// where 3GPP gives the two protocols different names for it. The pair still
-// has to exist on both sides; only the spelling differs.
+// Same thing, different name per spec. Both sides must still exist.
 var renamedFiles = map[string]string{
 	// TS 38.413 names the procedure NG Reset where TS 36.413 names it Reset.
 	"ng_reset.go":              "reset.go",
@@ -126,10 +108,8 @@ var renamedFiles = map[string]string{
 	"ie_guami.go": "ie_gummei.go",
 }
 
-// ngapOnlyFiles are files this library has and s1ap does not. NGAP-only IE
-// vocabulary belongs here, and so does a message file for a procedure 3GPP
-// defines only for NGAP — but nothing else: a message whose procedure exists in
-// both specs must sit in a file named for it on both sides.
+// NGAP-only IE vocabulary, and message files for procedures 3GPP defines only
+// for NGAP. Nothing else.
 var ngapOnlyFiles = map[string]string{
 	"ie_slice.go":                   "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
 	"ie_tnl.go":                     "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
@@ -140,10 +120,8 @@ var ngapOnlyFiles = map[string]string{
 	"symmetry_test.go":              "this file: the checker lives on one side",
 }
 
-// TestFileNamesAreSymmetric holds the two libraries to the same file layout:
-// a type that exists on both sides must live in the same-named file, so a
-// reviewer can read them side by side. Files for messages ngap has not modeled
-// yet are ignored — absence is backlog, not drift.
+// A type on both sides must live in the same-named file, so the two can be read
+// side by side.
 func TestFileNamesAreSymmetric(t *testing.T) {
 	if _, err := os.Stat(s1apDir); err != nil {
 		t.Skipf("s1ap module not present at %s: %v", s1apDir, err)
@@ -184,8 +162,7 @@ func TestFileNamesAreSymmetric(t *testing.T) {
 		}
 	}
 
-	// The same check the other way. Without it a file added to s1ap alone is
-	// invisible to the guard that exists to catch exactly that.
+	// The same check the other way.
 	ours := map[string]bool{}
 	for _, n := range goFiles(t, ".") {
 		ours[n] = true
@@ -237,8 +214,7 @@ func TestFileNamesAreSymmetric(t *testing.T) {
 	}
 }
 
-// goFiles lists the Go file names directly in dir, generated output aside:
-// per_gen.go tracks whatever pergen was pointed at, not a design choice.
+// per_gen.go is excluded: it tracks whatever pergen was pointed at.
 func goFiles(t *testing.T, dir string) []string {
 	t.Helper()
 
@@ -263,9 +239,8 @@ func goFiles(t *testing.T, dir string) []string {
 	return out
 }
 
-// TestEngineIsSymmetricWithS1AP compares what the shared engine files declare
-// in each library. It is the machine-checked half of the rule that ngap and
-// s1ap are one design over two specifications.
+// The machine-checked half of the rule that ngap and s1ap are one design over
+// two specifications.
 func TestEngineIsSymmetricWithS1AP(t *testing.T) {
 	if _, err := os.Stat(s1apDir); err != nil {
 		t.Skipf("s1ap module not present at %s: %v", s1apDir, err)
@@ -312,9 +287,7 @@ func check(t *testing.T, key string) string {
 	return key
 }
 
-// TestMandatedDeviationsAreAllReal fails when an allowlist entry stops
-// describing something that is actually there, so the list cannot rot into a
-// blanket excuse.
+// So the allowlist cannot rot into a blanket excuse.
 func TestMandatedDeviationsAreAllReal(t *testing.T) {
 	if _, err := os.Stat(s1apDir); err != nil {
 		t.Skipf("s1ap module not present at %s: %v", s1apDir, err)
@@ -354,21 +327,14 @@ func TestMandatedDeviationsAreAllReal(t *testing.T) {
 	}
 }
 
-// engineDecls returns the type and function declarations of the engine files
-// in dir, as sorted "kind name" strings. Constants and variables are left out:
-// they hold each protocol's own procedure codes, IE ids and cause values,
-// which the ground-truth tests pin instead.
-// helperFiles hold each protocol's own IE codecs, so their type methods are
-// vocabulary rather than design and cannot be compared. Their free functions
-// are a different matter: those are shared plumbing, and one library growing a
-// helper the other open-codes is exactly the drift this suite exists to catch.
+// Type methods in these files are each protocol's own vocabulary; their free
+// functions are shared plumbing, and one library growing a helper the other
+// open-codes is drift.
 var helperFiles = []string{
 	"ie_common.go",
 	"per_leaf.go",
 }
 
-// TestHelperFuncsAreSymmetric checks the free functions of helperFiles, which
-// engineFiles deliberately leaves out.
 func TestHelperFuncsAreSymmetric(t *testing.T) {
 	if _, err := os.Stat(s1apDir); err != nil {
 		t.Skipf("s1ap module not present at %s: %v", s1apDir, err)
@@ -402,8 +368,7 @@ func TestHelperFuncsAreSymmetric(t *testing.T) {
 	}
 }
 
-// helperFuncs returns the free functions declared in helperFiles. Methods are
-// skipped: their receiver is a protocol-specific IE type.
+// Methods are skipped: their receiver is a protocol-specific IE type.
 func helperFuncs(t *testing.T, dir string) []string {
 	t.Helper()
 
@@ -441,6 +406,8 @@ func helperFuncs(t *testing.T, dir string) []string {
 	return out
 }
 
+// Types and functions only: constants and variables hold each protocol's own
+// procedure codes, IE ids and cause values, which the ground-truth tests pin.
 func engineDecls(t *testing.T, dir string) []string {
 	t.Helper()
 
@@ -487,8 +454,7 @@ func engineDecls(t *testing.T, dir string) []string {
 	return out
 }
 
-// funcDecl renders a function or method as "func Name" or "func (T) Name".
-// The receiver's pointer-ness is dropped: it is a Go choice, not a design one.
+// The receiver's pointer-ness is dropped: a Go choice, not a design one.
 func funcDecl(d *ast.FuncDecl) string {
 	if d.Recv == nil || len(d.Recv.List) == 0 {
 		return "func " + d.Name.Name

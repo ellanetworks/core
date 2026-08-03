@@ -7,8 +7,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// UE NGAP ID ranges (TS 38.413 §9.3.3). The AMF id is 40 bits wide, past what
-// S1AP's 32-bit MME-UE-S1AP-ID needs, so both are held in a uint64.
+// UE NGAP ID ranges (TS 38.413 §9.3.3). The AMF id is 40 bits wide, so both
+// are held in a uint64.
 const (
 	amfUENGAPIDMax = 1099511627775 // INTEGER (0..2^40-1)
 	ranUENGAPIDMax = 4294967295    // INTEGER (0..2^32-1)

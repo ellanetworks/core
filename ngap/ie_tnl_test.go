@@ -58,10 +58,8 @@ func TestNGRANTNLAssociationToRemoveListRoundTrip(t *testing.T) {
 	}
 }
 
-// NGRAN-TNLAssociationToRemoveItem is the one item SEQUENCE in §9.3 with no
-// extension marker, so its preamble is the two OPTIONAL bits and nothing else.
-// A leading extension bit would shift every field by one and misread a
-// conformant peer, so the first bit is pinned to the AMF-address presence.
+// The one §9.3 item SEQUENCE with no extension marker: its preamble is the two
+// OPTIONAL bits. A leading extension bit would shift every field by one.
 func TestNGRANTNLAssociationToRemoveItemPreambleHasNoExtensionBit(t *testing.T) {
 	encode := func(t *testing.T, item NGRANTNLAssociationToRemoveItem) []byte {
 		t.Helper()
@@ -82,8 +80,7 @@ func TestNGRANTNLAssociationToRemoveItemPreambleHasNoExtensionBit(t *testing.T) 
 		TNLAssociationTransportLayerAddressAMF: &addr,
 	})
 
-	// Bit 0 is the AMF-address presence bit: it must track the field, which it
-	// cannot do if an extension bit sits in front of it.
+	// Bit 0 is the AMF-address presence bit, not an extension bit.
 	if got := without[0] & 0x80; got != 0x00 {
 		t.Errorf("first bit with AMF address absent = %#02x, want 0 (presence bit, not an extension bit)", got)
 	}
@@ -93,9 +90,8 @@ func TestNGRANTNLAssociationToRemoveItemPreambleHasNoExtensionBit(t *testing.T) 
 	}
 }
 
-// TS 38.413 §9.3.2.6 closes CPTransportLayerInformation with a choice-Extensions
-// alternative rather than an extension marker, so selecting it must be an
-// explicit error and not a zero address that reads as one the peer chose.
+// §9.3.2.6 closes CPTransportLayerInformation with a choice-Extensions
+// alternative, so selecting it must error rather than yield a zero address.
 func TestCPTransportLayerInformationChoiceExtensionIsRejected(t *testing.T) {
 	w := per.NewWriter()
 	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0,

@@ -27,22 +27,19 @@ type PDU interface {
 	choiceIndex() int
 }
 
-// InitiatingMessage carries a procedure's request. Value is the open-type
-// payload: the APER encoding of the procedure-specific message body.
+// Value is the open-type payload: the APER encoding of the message body.
 type InitiatingMessage struct {
 	ProcedureCode ProcedureCode
 	Criticality   Criticality
 	Value         []byte
 }
 
-// SuccessfulOutcome carries a procedure's successful response.
 type SuccessfulOutcome struct {
 	ProcedureCode ProcedureCode
 	Criticality   Criticality
 	Value         []byte
 }
 
-// UnsuccessfulOutcome carries a procedure's failure response.
 type UnsuccessfulOutcome struct {
 	ProcedureCode ProcedureCode
 	Criticality   Criticality
@@ -62,9 +59,8 @@ func (m *UnsuccessfulOutcome) criticality() Criticality     { return m.Criticali
 func (m *UnsuccessfulOutcome) value() []byte                { return m.Value }
 func (m *UnsuccessfulOutcome) choiceIndex() int             { return pduUnsuccessfulOutcome }
 
-// Marshal encodes an NGAP-PDU envelope. Each of the three message alternatives
-// is a non-extensible SEQUENCE { procedureCode, criticality, value } with no
-// optional fields, so it carries no preamble; value is wrapped as an open type.
+// Each alternative is a non-extensible SEQUENCE with no optional fields, so it
+// carries no preamble; value is wrapped as an open type.
 func Marshal(pdu PDU) ([]byte, error) {
 	if pdu == nil {
 		return nil, fmt.Errorf("ngap: nil PDU")
@@ -96,8 +92,7 @@ func Marshal(pdu PDU) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
-// Unmarshal decodes an NGAP-PDU envelope, returning the concrete message type
-// with its open-type payload in Value (decoded by the message layer).
+// The open-type payload is left in Value for the message layer.
 func Unmarshal(b []byte) (PDU, error) {
 	r := per.NewReader(b)
 

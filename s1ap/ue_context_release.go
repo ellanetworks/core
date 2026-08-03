@@ -9,9 +9,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// UES1APIDs is the UE-S1AP-IDs CHOICE (TS 36.413): either the
-// UE-S1AP-ID-pair (both identities, the form an MME sends) or a bare
-// MME-UE-S1AP-ID. Pair selects which alternative.
+// UE-S1AP-IDs ::= CHOICE { uE-S1AP-ID-pair, mME-UE-S1AP-ID, ... }. An MME
+// sends the pair.
 type UES1APIDs struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID

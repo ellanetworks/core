@@ -9,8 +9,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// maxnoofTNLAssociations is the maximum number of TNL associations between an
-// NG-RAN node and an AMF (TS 38.413, NGAP-Constants).
+// TS 38.413, NGAP-Constants.
 const maxnoofTNLAssociations = 32
 
 // CPTransportLayerInformation alternatives (TS 38.413 §9.3.2.6). The CHOICE is
@@ -48,8 +47,7 @@ func (c *CPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encodi
 	}
 
 	if idx != cpTransportLayerInformationEndpointIPAddress {
-		// Leave the value untouched: a zero address must not read as one the
-		// peer selected.
+		// A zero address must not read as one the peer selected.
 		return fmt.Errorf("%w: CPTransportLayerInformation alternative %d", errNotComprehended, idx)
 	}
 
@@ -60,9 +58,8 @@ func (c *CPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encodi
 // tNLAssociationTransportLayerAddress, tNLAssociationTransportLayerAddressAMF
 // OPTIONAL, iE-Extensions OPTIONAL }.
 //
-// Unlike every sibling item in §9.3, this SEQUENCE carries no extension marker
-// (TS 38.413 ASN.1, NGRAN-TNLAssociationToRemoveItem), so its preamble is the
-// two OPTIONAL bits with no leading extension bit.
+// Alone among the §9.3 items this one has no extension marker, so its preamble
+// is the two OPTIONAL bits with no leading extension bit — hence no extseq tag.
 type NGRANTNLAssociationToRemoveItem struct {
 	TNLAssociationTransportLayerAddress    CPTransportLayerInformation
 	TNLAssociationTransportLayerAddressAMF *CPTransportLayerInformation `per:",optional"`

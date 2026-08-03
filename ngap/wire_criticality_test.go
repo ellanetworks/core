@@ -9,10 +9,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// wireIEs encodes a message body and reports the {id, criticality} pairs it
-// put on the wire. decodeIEContainer is the only place criticality survives
-// decoding — the message parsers discard it — so this is the only way to
-// assert what a peer actually receives.
+// The {id, criticality} pairs a body puts on the wire. The message parsers
+// discard criticality, so this is the only way to assert what a peer receives.
 func wireIEs(t *testing.T, body func(*per.Writer, per.Encoding) error) []rawIE {
 	t.Helper()
 

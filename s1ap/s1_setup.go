@@ -13,8 +13,7 @@ type S1SetupRequest struct {
 	ENBName          *string
 	SupportedTAs     SupportedTAs
 	DefaultPagingDRX *PagingDRX
-	// UERetentionInformation is what the eNB offers; the MME never accepts it,
-	// so it is decoded and reported but not acted on (TS 36.413 §8.7.3.2).
+	// What the eNB offers (§8.7.3.2); the MME never accepts it.
 	UERetentionInformation *UERetentionInformation
 
 	messageMeta

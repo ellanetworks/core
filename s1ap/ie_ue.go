@@ -51,8 +51,7 @@ func (id *MMEUES1APID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// NASPDU ::= OCTET STRING (unbounded). The S1AP layer carries NAS opaquely; the
-// bytes are decoded by the EPS NAS codec (TS 24.301), not here.
+// NASPDU ::= OCTET STRING (unbounded), carried opaquely (TS 24.301).
 type NASPDU []byte
 
 func (n NASPDU) MarshalPER(w *per.Writer, enc per.Encoding) error {

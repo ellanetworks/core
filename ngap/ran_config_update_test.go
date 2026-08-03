@@ -108,9 +108,7 @@ func TestRANConfigurationUpdateGoldenDecode(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.7.2.2: an absent IE leaves that configuration unchanged, so a
-// message carrying only one IE is well formed and must not be read as a request
-// to clear the others.
+// §8.7.2.2: an absent IE leaves that configuration unchanged, not cleared.
 func TestRANConfigurationUpdateNameOnlyDecode(t *testing.T) {
 	pdu, err := Unmarshal(mustHex(t, goldenRANConfigUpdateNameOnly))
 	if err != nil {
@@ -180,12 +178,8 @@ func TestRANConfigurationUpdateFailureGoldenDecode(t *testing.T) {
 	}
 }
 
-// The Cause is mandatory but carries ignore criticality, which binds the two
-// ends differently. TS 38.413 §10.3.3 binds the sender, so encoding an unset
-// Cause fails. §10.3.5 keys the receiver's reaction to the IE's criticality
-// rather than to its being mandatory, so an arriving message that omits it is
-// still delivered, with the omission reported in Criticality Diagnostics — the
-// reason Cause is nil-able here rather than a value.
+// Cause is mandatory but ignore, which binds the two ends differently: §10.3.3
+// refuses to encode it unset, §10.3.5 still delivers it absent. Hence nil-able.
 func TestRANConfigurationUpdateFailureMissingCause(t *testing.T) {
 	if _, err := (&RANConfigurationUpdateFailure{TimeToWait: Ptr(TimeToWaitV10s)}).Marshal(); err == nil {
 		t.Error("Marshal() = nil error, want a required-IE error for the absent Cause")

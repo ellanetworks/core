@@ -19,7 +19,6 @@ const (
 	uePagingIDChoiceSTMSI = 0
 )
 
-// CNDomain selects the core-network domain a Paging targets (TS 36.413).
 // Ella Core pages the PS domain.
 type CNDomain uint8
 
@@ -52,9 +51,8 @@ type Paging struct {
 	CNDomain             *CNDomain
 	TAIList              []TAI
 	PagingPriority       *PagingPriority
-	// UERadioCapabilityForPaging is the eNB-reported paging-specific capability
-	// (TS 36.413 §9.1.6.1, optional-ignore); when set, the eNB may use it to apply
-	// specific paging schemes. Empty means the IE is omitted.
+	// The eNB-reported paging-specific capability; when set, the eNB may use it
+	// to apply specific paging schemes.
 	UERadioCapabilityForPaging []byte
 
 	messageMeta
@@ -67,8 +65,7 @@ type taiItem struct {
 	_   ieExtensions `per:",skip"`
 }
 
-// ueIdentityIndexValueBits is UE-Identity-Index-value ::= BIT STRING (SIZE(10))
-// (TS 36.413 §9.2.3.10).
+// UE-Identity-Index-value ::= BIT STRING (SIZE(10)) — §9.2.3.10.
 const ueIdentityIndexValueBits = 10
 
 var pagingIEs = []ieSpec[Paging]{
@@ -217,8 +214,6 @@ var pagingIEs = []ieSpec[Paging]{
 			}), true
 		},
 	},
-	// Paging Priority follows the List of TAIs in the message order (§9.1.6);
-	// included only when the MME assigns one.
 	{
 		id: idPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {

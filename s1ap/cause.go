@@ -22,8 +22,7 @@ const (
 	causeRootGroups = 5
 )
 
-// causeGroupRootCount is the number of root ENUMERATED values in each group's
-// CauseXxx type, which sets the index width (TS 36.413).
+// Root ENUMERATED values per group, which sets the index width.
 var causeGroupRootCount = [causeRootGroups]int{
 	CauseGroupRadioNetwork: 36,
 	CauseGroupTransport:    2,

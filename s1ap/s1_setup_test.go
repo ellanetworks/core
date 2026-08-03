@@ -159,8 +159,7 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 		globalENBID bool
 		supportedTA bool
 		pagingDRX   bool
-		// wantReject lists the absent reject-criticality IEs; nil means the
-		// message is still delivered.
+		// Absent reject-criticality IEs; nil means still delivered.
 		wantReject   []ProtocolIEID
 		wantReported []ProtocolIEID
 	}{
@@ -236,10 +235,8 @@ func rejectedIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
 	return ids
 }
 
-// TS 36.413 §8.7.3.2 has the eNB offer UE retention across S1 Setup and the MME
-// echo back whether it retained the contexts. Ella Core never retains, so it
-// only has to read the offer and leave its own answer absent — but it must read
-// it rather than reject the setup over an IE it does not model.
+// §8.7.3.2. Ella Core never retains, but it must read the offer rather than
+// reject the setup over an IE it does not model.
 func TestS1SetupUERetentionInformationRoundTrip(t *testing.T) {
 	sent := &S1SetupRequest{
 		GlobalENBID:            GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x1a2b3}},

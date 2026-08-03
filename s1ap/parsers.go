@@ -8,8 +8,7 @@ type messageParser struct {
 	Parse func(value []byte) error
 }
 
-// messageParsers lists every exported ParseXxx in this package;
-// TestEveryParserIsRegistered fails if one is missing.
+// Every exported ParseXxx in this package.
 var messageParsers = []messageParser{
 	{"ParseDownlinkNASTransport", func(v []byte) error { _, err := ParseDownlinkNASTransport(v); return err }},
 	{"ParseDownlinkUEAssociatedLPPaTransport", func(v []byte) error { _, err := ParseDownlinkUEAssociatedLPPaTransport(v); return err }},
