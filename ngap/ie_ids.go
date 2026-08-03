@@ -32,6 +32,7 @@ const (
 	idUEAssociatedLogicalNGConnectionList ProtocolIEID = 111
 	idUEPagingIdentity                    ProtocolIEID = 115
 	idUnavailableGUAMIList                ProtocolIEID = 120
+	idUserLocationInformation             ProtocolIEID = 121
 	idUERadioCapabilityForPaging          ProtocolIEID = 118
 	idUERetentionInformation              ProtocolIEID = 147
 )

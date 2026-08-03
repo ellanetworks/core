@@ -170,6 +170,152 @@ func decodeBitStringUint(r *per.Reader, enc per.Encoding, nbits int) (uint64, er
 	return bitsToUint(b, nbits), nil
 }
 
+// userLocationCellIDBits is the CGI cell-identity width for each kind, and the
+// CHOICE alternative that selects it.
+var userLocationCellIDBits = map[UserLocationInformationKind]struct {
+	alt  int64
+	bits int
+}{
+	UserLocationEUTRA: {userLocationInformationEUTRA, eutraCellIdentityBits},
+	UserLocationNR:    {userLocationInformationNR, nrCellIdentityBits},
+}
+
+func (u UserLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	shape, ok := userLocationCellIDBits[u.Kind]
+	if !ok {
+		return fmt.Errorf("ngap: invalid UserLocationInformation kind %d", u.Kind)
+	}
+
+	if shape.bits < 64 && u.CellIdentity >= 1<<uint(shape.bits) {
+		return fmt.Errorf("ngap: cell identity %d exceeds the %d-bit field of kind %d",
+			u.CellIdentity, shape.bits, u.Kind)
+	}
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, userLocationInformationAlternatives-1, shape.alt); err != nil {
+		return err
+	}
+
+	// UserLocationInformationXxx ::= SEQUENCE { <CGI>, tAI, timeStamp OPTIONAL,
+	// iE-Extensions OPTIONAL, ... }: extension bit, then a presence bit each for
+	// timeStamp and iE-Extensions.
+	w.WriteBit(false)
+	w.WriteBit(u.TimeStamp != nil)
+	w.WriteBit(false)
+
+	// Xxx-CGI ::= SEQUENCE { pLMNIdentity, <cell identity>, iE-Extensions
+	// OPTIONAL, ... }: its own extension bit and presence bit.
+	w.WriteBit(false)
+	w.WriteBit(false)
+
+	if err := u.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+
+	if err := encodeBitStringUint(w, enc, u.CellIdentity, shape.bits); err != nil {
+		return err
+	}
+
+	if err := u.TAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+
+	if u.TimeStamp != nil {
+		return per.EncodeOctetString(w, enc, 4, 4, true, true, false, u.TimeStamp[:])
+	}
+
+	return nil
+}
+
+func (u *UserLocationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	alt, err := per.DecodeConstrainedWholeNumber(r, enc, 0, userLocationInformationAlternatives-1)
+	if err != nil {
+		return fmt.Errorf("ngap: UserLocationInformation choice: %w", err)
+	}
+
+	var kind UserLocationInformationKind
+
+	switch alt {
+	case userLocationInformationEUTRA:
+		kind = UserLocationEUTRA
+	case userLocationInformationNR:
+		kind = UserLocationNR
+	case userLocationInformationChoiceExtensions:
+		return decodeChoiceExtension(r, enc, "UserLocationInformation")
+	default:
+		// Leave the value untouched: a zero location must not read as one the
+		// peer reported.
+		return fmt.Errorf("%w: UserLocationInformation alternative %d", errNotComprehended, alt)
+	}
+
+	bits := userLocationCellIDBits[kind].bits
+
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	hasTimeStamp, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	extContainer, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	cgiExtBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	cgiExtContainer, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	var out UserLocationInformation
+
+	out.Kind = kind
+
+	if err := out.PLMNIdentity.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	if out.CellIdentity, err = decodeBitStringUint(r, enc, bits); err != nil {
+		return err
+	}
+
+	if err := skipSequenceExtensionsPER(r, enc, cgiExtContainer, cgiExtBit); err != nil {
+		return err
+	}
+
+	if err := out.TAI.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	if hasTimeStamp {
+		b, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+		if err != nil {
+			return err
+		}
+
+		var ts TimeStamp
+
+		copy(ts[:], b)
+
+		out.TimeStamp = &ts
+	}
+
+	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+		return err
+	}
+
+	*u = out
+
+	return nil
+}
+
 func (g GlobalRANNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	shape, ok := ranNodeIDShapes[g.Kind]
 	if !ok {

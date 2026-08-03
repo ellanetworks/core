@@ -84,7 +84,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	ueConn.RanUeNgapID = models.RanUeNgapID(msg.RANUENGAPID)
 
-	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
+	ueConn.UpdateDecodedLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
 	// Claim the {NH,NCC} key chain for the whole path switch: a concurrent N2 handover or
 	// NAS SMC (possibly on another gNB's dispatch goroutine) must not advance the same

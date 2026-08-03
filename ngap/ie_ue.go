@@ -50,6 +50,59 @@ func (id *RANUENGAPID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+// Cell identity widths of the two 3GPP-access CGIs (TS 38.413 §9.3.1.7,
+// §9.3.1.9). S1AP has one, 28 bits wide.
+const (
+	eutraCellIdentityBits = 28
+	nrCellIdentityBits    = 36
+)
+
+// UserLocationInformation CHOICE alternatives (TS 38.413 §9.3.1.16). The CHOICE
+// is closed by a choice-Extensions alternative rather than an extension marker,
+// so the index is constrained across all four.
+const (
+	userLocationInformationEUTRA = iota
+	userLocationInformationNR
+	userLocationInformationN3IWF
+	userLocationInformationChoiceExtensions
+
+	userLocationInformationAlternatives = 4
+)
+
+// UserLocationInformationKind selects which CGI the cell identity belongs to.
+type UserLocationInformationKind uint8
+
+const (
+	// UserLocationEUTRA is userLocationInformationEUTRA: EUTRA-CGI, 28 bits.
+	UserLocationEUTRA UserLocationInformationKind = iota
+	// UserLocationNR is userLocationInformationNR: NR-CGI, 36 bits.
+	UserLocationNR
+)
+
+// TimeStamp ::= OCTET STRING (SIZE(4)) — TS 38.413 §9.3.1.16. No S1AP
+// counterpart: the S1AP User Location Information carries no timestamp.
+type TimeStamp [4]byte
+
+// UserLocationInformation ::= CHOICE { userLocationInformationEUTRA,
+// userLocationInformationNR, userLocationInformationN3IWF-with-PortNumber,
+// choice-Extensions } — TS 38.413 §9.3.1.16.
+//
+// Both 3GPP-access alternatives are an extensible SEQUENCE of a CGI, a TAI and
+// an optional timeStamp, so they flatten into one struct: Kind says which CGI
+// CellIdentity came from and therefore how wide it is. The N3IWF alternative is
+// not modeled — Ella Core serves no non-3GPP access.
+//
+// S1AP carries the same information as two separate mandatory IEs, E-UTRAN CGI
+// and TAI, with no CHOICE and no timestamp.
+type UserLocationInformation struct {
+	Kind         UserLocationInformationKind
+	PLMNIdentity PLMNIdentity
+	// CellIdentity is right-aligned in the width Kind implies.
+	CellIdentity uint64
+	TAI          TAI
+	TimeStamp    *TimeStamp
+}
+
 // NASPDU ::= OCTET STRING (unbounded), carried opaquely (TS 24.501).
 type NASPDU []byte
 

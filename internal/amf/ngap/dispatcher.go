@@ -117,13 +117,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleInitialUEMessage(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUplinkNASTransport:
-			decoded, report := decode.DecodeUplinkNASTransport(pdu.InitiatingMessage.Value.UplinkNASTransport)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUplinkNasTransport(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverCancel:
 			decoded, report := decode.DecodeHandoverCancel(pdu.InitiatingMessage.Value.HandoverCancel)
 			if !handleDecodeReport(ctx, ran, report) {

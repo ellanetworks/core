@@ -34,7 +34,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
-	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
+	ueConn.UpdateDecodedLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
 	ueConn.UeContextRequest = msg.UEContextRequest
 

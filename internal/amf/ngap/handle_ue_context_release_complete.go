@@ -30,7 +30,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 	// Cancel the release-supervision guard so it does not also run the cleanup.
 	ueConn.StopReleaseGuard()
 
-	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
+	ueConn.UpdateDecodedLocation(ctx, amfInstance, msg.UserLocationInformation)
 
 	ueConn.TouchLastSeen()
 

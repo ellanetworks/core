@@ -10,20 +10,20 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestHandleUplinkNasTransport_UnknownUeConn_SendsErrorIndication(t *testing.T) {
+func TestHandleUplinkNASTransport_UnknownUeConn_SendsErrorIndication(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
+	ngap.HandleUplinkNASTransport(context.Background(), amfInstance, ran, &libngap.UplinkNASTransport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		NASPDU:      []byte{0x7E, 0x00, 0x55},
+		NASPDU:      libngap.NASPDU{0x7E, 0x00, 0x55},
 	})
 
 	if len(sender.SentErrorIndications) != 1 {
@@ -41,11 +41,11 @@ func TestHandleUplinkNasTransport_UnknownUeConn_SendsErrorIndication(t *testing.
 	}
 }
 
-// TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication covers
+// TestHandleUplinkNASTransport_UnknownAmfUeNgapID_SendsErrorIndication covers
 // TS 38.413: an AMF UE NGAP ID the AMF never allocated is an unknown local
 // AP ID, so the AMF answers with an Error Indication carrying the received AP IDs
 // and cause "Unknown local UE NGAP ID".
-func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *testing.T) {
+func TestHandleUplinkNASTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 	ran := newTestRadio(amfInstance)
@@ -53,10 +53,10 @@ func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *tes
 
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
+	ngap.HandleUplinkNASTransport(context.Background(), amfInstance, ran, &libngap.UplinkNASTransport{
 		AMFUENGAPID: 99999,
 		RANUENGAPID: 1,
-		NASPDU:      []byte{0x7E, 0x00, 0x55},
+		NASPDU:      libngap.NASPDU{0x7E, 0x00, 0x55},
 	})
 
 	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
@@ -67,12 +67,12 @@ func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *tes
 	}
 }
 
-// TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication
+// TestHandleUplinkNASTransport_InconsistentRanUeNgapID_SendsErrorIndication
 // covers TS 38.413: a RAN UE NGAP ID different from the one stored for the
 // connection is an inconsistent remote AP ID, so the AMF answers with an Error
 // Indication carrying the received AP IDs and cause "Inconsistent remote UE NGAP
 // ID".
-func TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication(t *testing.T) {
+func TestHandleUplinkNASTransport_InconsistentRanUeNgapID_SendsErrorIndication(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 	ran := newTestRadio(amfInstance)
@@ -80,10 +80,10 @@ func TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication(t
 
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
+	ngap.HandleUplinkNASTransport(context.Background(), amfInstance, ran, &libngap.UplinkNASTransport{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 2,
-		NASPDU:      []byte{0x7E, 0x00, 0x55},
+		NASPDU:      libngap.NASPDU{0x7E, 0x00, 0x55},
 	})
 
 	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)
@@ -94,16 +94,16 @@ func TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication(t
 	}
 }
 
-func TestHandleUplinkNasTransport_NilUeContext_RemovesUeConn(t *testing.T) {
+func TestHandleUplinkNASTransport_NilUeContext_RemovesUeConn(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
+	ngap.HandleUplinkNASTransport(context.Background(), amfInstance, ran, &libngap.UplinkNASTransport{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		NASPDU:      []byte{0x7E, 0x00, 0x55},
+		NASPDU:      libngap.NASPDU{0x7E, 0x00, 0x55},
 	})
 
 	if amfInstance.FindUEByRanUeNgapID(ran, 1) != nil {
@@ -111,7 +111,7 @@ func TestHandleUplinkNasTransport_NilUeContext_RemovesUeConn(t *testing.T) {
 	}
 }
 
-func TestHandleUplinkNasTransport_HappyPath_NASDispatched(t *testing.T) {
+func TestHandleUplinkNASTransport_HappyPath_NASDispatched(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
@@ -124,10 +124,10 @@ func TestHandleUplinkNasTransport_HappyPath_NASDispatched(t *testing.T) {
 
 	nasPDU := []byte{0xAA, 0xBB}
 
-	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
+	ngap.HandleUplinkNASTransport(context.Background(), amfInstance, ran, &libngap.UplinkNASTransport{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		NASPDU:      nasPDU,
+		NASPDU:      libngap.NASPDU(nasPDU),
 	})
 
 	if len(fakeNAS.Calls) != 1 {
@@ -143,7 +143,7 @@ func TestHandleUplinkNasTransport_HappyPath_NASDispatched(t *testing.T) {
 	}
 }
 
-func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
+func TestHandleUplinkNASTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 	fakeNAS := &fakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
@@ -154,11 +154,15 @@ func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
-		AMFUENGAPID:             10,
-		RANUENGAPID:             1,
-		NASPDU:                  []byte{0xCC},
-		UserLocationInformation: decode.UserLocationInformation{},
+	ngap.HandleUplinkNASTransport(context.Background(), amfInstance, ran, &libngap.UplinkNASTransport{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		NASPDU:      libngap.NASPDU{0xCC},
+		UserLocationInformation: &libngap.UserLocationInformation{
+			Kind: libngap.UserLocationNR, PLMNIdentity: libngap.PLMNIdentity{0x00, 0xf1, 0x10},
+			CellIdentity: 0x123456789,
+			TAI:          libngap.TAI{PLMNIdentity: libngap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
+		},
 	})
 
 	if len(fakeNAS.Calls) != 1 {

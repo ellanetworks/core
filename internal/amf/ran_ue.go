@@ -576,7 +576,7 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	return true
 }
 
-func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocationInformation *ngapType.UserLocationInformation) {
+func (ueConn *UeConn) UpdateDecodedLocation(ctx context.Context, amf *AMF, userLocationInformation *ngapType.UserLocationInformation) {
 	if userLocationInformation == nil {
 		return
 	}

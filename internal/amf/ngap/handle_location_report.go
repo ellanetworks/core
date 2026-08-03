@@ -29,7 +29,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
+	ueConn.UpdateDecodedLocation(ctx, amfInstance, msg.UserLocationInformation)
 	ueConn.TouchLastSeen()
 
 	// UserLocationInformationNR carries NRCGI/TAI only; RSRP/RSRQ/TA measurements

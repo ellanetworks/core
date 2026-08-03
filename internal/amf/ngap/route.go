@@ -27,6 +27,7 @@ const (
 	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
 
 	nasNonDeliveryIndicationMessageType send.NGAPProcedure = "NASNonDeliveryIndication"
+	uplinkNASTransportMessageType       send.NGAPProcedure = "UplinkNASTransport"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -75,6 +76,8 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		receiveUplinkRANConfigurationTransfer(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcNASNonDeliveryIndication:
 		receiveNASNonDeliveryIndication(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcUplinkNASTransport:
+		receiveUplinkNASTransport(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -228,4 +231,21 @@ func receiveNASNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, 
 	}
 
 	HandleNASNonDeliveryIndication(ctx, amfInstance, ran, ind)
+}
+
+// receiveUplinkNASTransport parses and handles an UPLINK NAS TRANSPORT. The
+// procedure defines no unsuccessful outcome, so a failed parse is answered with
+// an Error Indication (TS 38.413 §10.3.5).
+func receiveUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, uplinkNASTransportMessageType, span)
+
+	req, err := ngap.ParseUplinkNASTransport(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Uplink NAS Transport", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkNASTransport, err)
+
+		return
+	}
+
+	HandleUplinkNASTransport(ctx, amfInstance, ran, req)
 }

@@ -101,20 +101,6 @@ type InitialContextSetupResponse struct {
 	FailedToSetupItems []ngapType.PDUSessionResourceFailedToSetupItemCxtRes
 }
 
-// UplinkNASTransport is a decoded NGAP UplinkNASTransport (3GPP TS 38.413).
-// AMFUENGAPID, RANUENGAPID and NASPDU are mandatory-reject.
-// UserLocationInformation is mandatory-ignore, yielding a zero-value
-// UserLocationKind when absent or malformed.
-//
-// NASPDU is copied out of the source PDU buffer so it may be stored across
-// asynchronous boundaries; UserLocationInformation aliases the source buffer.
-type UplinkNASTransport struct {
-	AMFUENGAPID             int64
-	RANUENGAPID             int64
-	NASPDU                  []byte
-	UserLocationInformation UserLocationInformation
-}
-
 // UEContextReleaseRequest is a decoded NGAP UEContextReleaseRequest
 // (3GPP TS 38.413). AMFUENGAPID and RANUENGAPID are mandatory-reject. Cause is
 // mandatory-ignore (nil when absent or malformed). PDUSessionResourceList is

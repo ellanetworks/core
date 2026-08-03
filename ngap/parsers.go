@@ -27,6 +27,7 @@ var messageParsers = []messageParser{
 	}},
 	{"ParseNASNonDeliveryIndication", func(v []byte) error { _, err := ParseNASNonDeliveryIndication(v); return err }},
 	{"ParsePaging", func(v []byte) error { _, err := ParsePaging(v); return err }},
+	{"ParseUplinkNASTransport", func(v []byte) error { _, err := ParseUplinkNASTransport(v); return err }},
 	{"ParseRANConfigurationUpdate", func(v []byte) error { _, err := ParseRANConfigurationUpdate(v); return err }},
 	{"ParseRANConfigurationUpdateAcknowledge", func(v []byte) error {
 		_, err := ParseRANConfigurationUpdateAcknowledge(v)

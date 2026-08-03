@@ -8,8 +8,7 @@ import (
 	"testing"
 )
 
-// Golden AMF STATUS INDICATION PDUs from a second, independent NGAP
-// implementation (free5gc/ngap v1.1.3) encoding the same messages.
+// Golden AMF STATUS INDICATION PDUs
 const (
 	goldenAMFStatusIndication     = "0001400f00000100780008000000f110cafe00"
 	goldenAMFStatusIndicationFull = "0001401b00000100780014006000f110cafe0002406261636b75702d616d66"

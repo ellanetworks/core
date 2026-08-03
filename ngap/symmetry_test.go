@@ -73,8 +73,6 @@ var pendingNGAPMigration = map[string]struct{}{
 	"location_report_test.go":         {},
 	"lppa_transport.go":               {},
 	"lppa_transport_test.go":          {},
-	"nas_transport.go":                {},
-	"nas_transport_test.go":           {},
 	"path_switch.go":                  {},
 	"path_switch_test.go":             {},
 	"status_transfer.go":              {},
