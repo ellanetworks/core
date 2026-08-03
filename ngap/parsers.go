@@ -11,6 +11,7 @@ type messageParser struct {
 // messageParsers lists every exported ParseXxx in this package;
 // TestEveryParserIsRegistered fails if one is missing.
 var messageParsers = []messageParser{
+	{"ParseAMFStatusIndication", func(v []byte) error { _, err := ParseAMFStatusIndication(v); return err }},
 	{"ParseErrorIndication", func(v []byte) error { _, err := ParseErrorIndication(v); return err }},
 	{"ParseNGReset", func(v []byte) error { _, err := ParseNGReset(v); return err }},
 	{"ParseNGResetAcknowledge", func(v []byte) error { _, err := ParseNGResetAcknowledge(v); return err }},

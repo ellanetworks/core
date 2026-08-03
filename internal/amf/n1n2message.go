@@ -139,7 +139,7 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 
 	// Paging supervision is armed per-UE by SendPaging; there is no per-session
 	// paging to track in the procedure registry.
-	paging, err := amf.BuildPaging(operatorInfo.Guami, ue)
+	paging, err := amf.buildPaging(operatorInfo.Guami, ue)
 	if err != nil {
 		return fmt.Errorf("build paging error: %v", err)
 	}

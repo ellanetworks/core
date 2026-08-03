@@ -932,6 +932,95 @@ func (uERadioCapabilityForPaging *UERadioCapabilityForPaging) UnmarshalPER(r *pe
 	return nil
 }
 
+func (unavailableGUAMIItem *UnavailableGUAMIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(unavailableGUAMIItem.TimerApproachForGUAMIRemoval != nil)
+	w.WriteBit(unavailableGUAMIItem.BackupAMFName != nil)
+	w.WriteBit(false)
+	if err := unavailableGUAMIItem.GUAMI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if unavailableGUAMIItem.TimerApproachForGUAMIRemoval != nil {
+		if err := (*unavailableGUAMIItem.TimerApproachForGUAMIRemoval).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if unavailableGUAMIItem.BackupAMFName != nil {
+		if err := (*unavailableGUAMIItem.BackupAMFName).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (unavailableGUAMIItem *UnavailableGUAMIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TimerApproachForGUAMIRemoval, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_BackupAMFName, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f3, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&unavailableGUAMIItem.GUAMI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_TimerApproachForGUAMIRemoval {
+		var v TimerApproachForGUAMIRemoval
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		unavailableGUAMIItem.TimerApproachForGUAMIRemoval = &v
+	}
+	if p_BackupAMFName {
+		var v Name
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		unavailableGUAMIItem.BackupAMFName = &v
+	}
+	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (taiListForPagingItem *taiListForPagingItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)

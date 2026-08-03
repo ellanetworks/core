@@ -44,7 +44,7 @@ func TestBuildPaging(t *testing.T) {
 	ue := pagingTestUE(t)
 	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{NR: "aabbcc"}
 
-	paging, err := amfInstance.BuildPaging(pagingTestGuami(), ue)
+	paging, err := amfInstance.buildPaging(pagingTestGuami(), ue)
 	if err != nil {
 		t.Fatalf("BuildPaging: %v", err)
 	}
@@ -102,8 +102,8 @@ func TestBuildPagingRejectsEmptyRegistrationArea(t *testing.T) {
 	ue := pagingTestUE(t)
 	ue.RegistrationArea = nil
 
-	if _, err := amfInstance.BuildPaging(pagingTestGuami(), ue); err == nil {
-		t.Fatal("BuildPaging() = nil error, want a failure for an empty registration area")
+	if _, err := amfInstance.buildPaging(pagingTestGuami(), ue); err == nil {
+		t.Fatal("buildPaging() = nil error, want a failure for an empty registration area")
 	}
 }
 
@@ -114,7 +114,7 @@ func TestBuildPagingOmitsAbsentRadioCapability(t *testing.T) {
 	ue := pagingTestUE(t)
 	ue.RadioCapabilityForPaging = nil
 
-	paging, err := amfInstance.BuildPaging(pagingTestGuami(), ue)
+	paging, err := amfInstance.buildPaging(pagingTestGuami(), ue)
 	if err != nil {
 		t.Fatalf("BuildPaging: %v", err)
 	}

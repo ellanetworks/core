@@ -35,7 +35,7 @@ func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if idx >= handoverTypeRootCount {
-		return fmt.Errorf("s1ap: unsupported HandoverType extension value")
+		return fmt.Errorf("%w: HandoverType extension value", errNotComprehended)
 	}
 
 	*t = HandoverType(idx)
@@ -96,7 +96,7 @@ func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if isExt {
-		return fmt.Errorf("s1ap: unsupported TargetID extension alternative")
+		return fmt.Errorf("%w: TargetID extension alternative", errNotComprehended)
 	}
 
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, targetIDRootCount-1)
@@ -105,7 +105,7 @@ func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if idx != 0 {
-		return fmt.Errorf("s1ap: unsupported TargetID alternative %d (only targeteNB-ID)", idx)
+		return fmt.Errorf("%w: TargetID alternative %d (only targeteNB-ID)", errNotComprehended, idx)
 	}
 
 	return t.TargeteNBID.UnmarshalPER(r, enc)

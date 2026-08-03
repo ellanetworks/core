@@ -76,16 +76,18 @@ var renamedFiles = map[string]string{
 }
 
 // ngapOnlyFiles are files this library has and s1ap does not. NGAP-only IE
-// vocabulary belongs here; a message file does not, because every message this
-// library grows should sit in a file named for the same procedure on both
-// sides.
+// vocabulary belongs here, and so does a message file for a procedure 3GPP
+// defines only for NGAP — but nothing else: a message whose procedure exists in
+// both specs must sit in a file named for it on both sides.
 var ngapOnlyFiles = map[string]string{
-	"ie_slice.go":              "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
-	"ie_guami.go":              "GUAMI replaces GUMMEI and is bit-string rather than octet shaped (TS 38.413 §9.3.3.3)",
-	"ie_tnl.go":                "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
-	"ie_tnl_test.go":           "tests for ie_tnl.go",
-	"not_comprehended_test.go": "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",
-	"symmetry_test.go":         "this file: the checker lives on one side",
+	"ie_slice.go":                   "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
+	"ie_guami.go":                   "GUAMI replaces GUMMEI and is bit-string rather than octet shaped (TS 38.413 §9.3.3.3)",
+	"ie_tnl.go":                     "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
+	"ie_tnl_test.go":                "tests for ie_tnl.go",
+	"amf_status_indication.go":      "TS 36.413 defines no procedure signalling that core-network identities are unavailable: mMEStatusTransfer is UE-associated handover status and Overload Start/Stop is overload control (TS 38.413 §8.7.6)",
+	"amf_status_indication_test.go": "tests for amf_status_indication.go",
+	"not_comprehended_test.go":      "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",
+	"symmetry_test.go":              "this file: the checker lives on one side",
 }
 
 // TestFileNamesAreSymmetric holds the two libraries to the same file layout:

@@ -96,7 +96,7 @@ func (c *Cause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if gExt {
-		return fmt.Errorf("s1ap: unsupported cause extension group")
+		return fmt.Errorf("%w: cause extension group", errNotComprehended)
 	}
 
 	gi, err := per.DecodeConstrainedWholeNumber(r, enc, 0, causeRootGroups-1)

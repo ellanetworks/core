@@ -30,6 +30,7 @@ const (
 	idNGRANTNLAssociationToRemoveList     ProtocolIEID = 167
 	idUEAssociatedLogicalNGConnectionList ProtocolIEID = 111
 	idUEPagingIdentity                    ProtocolIEID = 115
+	idUnavailableGUAMIList                ProtocolIEID = 120
 	idUERadioCapabilityForPaging          ProtocolIEID = 118
 	idUERetentionInformation              ProtocolIEID = 147
 )

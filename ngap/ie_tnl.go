@@ -50,7 +50,7 @@ func (c *CPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if idx != cpTransportLayerInformationEndpointIPAddress {
 		// Leave the value untouched: a zero address must not read as one the
 		// peer selected.
-		return fmt.Errorf("ngap: unsupported CPTransportLayerInformation alternative %d", idx)
+		return fmt.Errorf("%w: CPTransportLayerInformation alternative %d", errNotComprehended, idx)
 	}
 
 	return c.EndpointIPAddress.UnmarshalPER(r, enc)

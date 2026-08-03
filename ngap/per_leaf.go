@@ -358,6 +358,21 @@ func (l *NGRANTNLAssociationToRemoveList) UnmarshalPER(r *per.Reader, enc per.En
 	return nil
 }
 
+func (l UnavailableGUAMIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofServedGUAMIs, []UnavailableGUAMIItem(l))
+}
+
+func (l *UnavailableGUAMIList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[UnavailableGUAMIItem](r, enc, 1, maxnoofServedGUAMIs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 func (s ServedGUAMIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return marshalSeqOf(w, enc, 1, maxnoofServedGUAMIs, []ServedGUAMIItem(s))
 }

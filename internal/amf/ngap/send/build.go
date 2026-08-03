@@ -105,35 +105,6 @@ func BuildPathSwitchRequestFailure(
 }
 
 // Notifies peer CP NFs that this AMF and its GUAMI(s) are unavailable (TS 23.501).
-func BuildAMFStatusIndication(unavailableGUAMIList ngapType.UnavailableGUAMIList) ([]byte, error) {
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeAMFStatusIndication
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentAMFStatusIndication
-	initiatingMessage.Value.AMFStatusIndication = new(ngapType.AMFStatusIndication)
-
-	aMFStatusIndication := initiatingMessage.Value.AMFStatusIndication
-	aMFStatusIndicationIEs := &aMFStatusIndication.ProtocolIEs
-
-	ie := ngapType.AMFStatusIndicationIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDUnavailableGUAMIList
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.AMFStatusIndicationIEsPresentUnavailableGUAMIList
-	ie.Value.UnavailableGUAMIList = new(ngapType.UnavailableGUAMIList)
-
-	ie.Value.UnavailableGUAMIList = &unavailableGUAMIList
-
-	aMFStatusIndicationIEs.List = append(aMFStatusIndicationIEs.List, ie)
-
-	return ngap.Encoder(pdu)
-}
-
 func BuildPDUSessionResourceReleaseCommand(amfUENgapID int64, ranUENgapID int64, nasPdu []byte, pduSessionResourceReleasedList ngapType.PDUSessionResourceToReleaseListRelCmd) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
@@ -1330,25 +1301,6 @@ func BuildHandoverRequest(
 
 // Paging Priority is included only when the N1N2MessageTransfer carries an ARP value
 // for priority services, e.g. MPS or MCS (TS 23.502).
-func BuildUnavailableGUAMIList(guami *models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
-	item := ngapType.UnavailableGUAMIItem{}
-
-	plmnID, err := util.PlmnIDToNgap(*guami.PlmnID)
-	if err != nil {
-		logger.AmfLog.Error("Convert PLMN ID to NGAP failed", zap.Error(err))
-		return
-	}
-
-	item.GUAMI.PLMNIdentity = *plmnID
-	regionID, setID, ptrID := ngapConvert.AmfIdToNgap(guami.AmfID)
-	item.GUAMI.AMFRegionID.Value = regionID
-	item.GUAMI.AMFSetID.Value = setID
-	item.GUAMI.AMFPointer.Value = ptrID
-	unavailableGUAMIList.List = append(unavailableGUAMIList.List, item)
-
-	return
-}
-
 func AppendPDUSessionResourceToReleaseListRelCmd(list *ngapType.PDUSessionResourceToReleaseListRelCmd,
 	pduSessionID uint8, transfer []byte,
 ) {

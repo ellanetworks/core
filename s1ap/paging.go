@@ -108,7 +108,7 @@ var pagingIEs = []ieSpec[Paging]{
 			}
 
 			if isExt {
-				return fmt.Errorf("s1ap: unsupported UE paging identity extension alternative")
+				return fmt.Errorf("%w: UE paging identity extension alternative", errNotComprehended)
 			}
 
 			index, err := per.DecodeConstrainedWholeNumber(sub, enc, 0, uePagingIDRootCount-1)
@@ -117,7 +117,7 @@ var pagingIEs = []ieSpec[Paging]{
 			}
 
 			if index != uePagingIDChoiceSTMSI {
-				return fmt.Errorf("s1ap: unsupported UE paging identity choice %d", index)
+				return fmt.Errorf("%w: UE paging identity choice %d", errNotComprehended, index)
 			}
 
 			var v STMSI

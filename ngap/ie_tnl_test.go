@@ -108,7 +108,7 @@ func TestCPTransportLayerInformationChoiceExtensionIsRejected(t *testing.T) {
 		t.Fatalf("decoded choice-Extensions as %+v, want an error", got)
 	}
 
-	if !strings.Contains(err.Error(), "unsupported CPTransportLayerInformation alternative") {
+	if !strings.Contains(err.Error(), "CPTransportLayerInformation alternative") {
 		t.Errorf("error = %q, want it to name the unsupported alternative", err)
 	}
 

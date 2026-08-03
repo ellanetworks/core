@@ -28,6 +28,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idPagingPriority:                      "PagingPriority",
 	idTAIListForPaging:                    "TAIListForPaging",
 	idUEPagingIdentity:                    "UEPagingIdentity",
+	idUnavailableGUAMIList:                "UnavailableGUAMIList",
 	idUERadioCapabilityForPaging:          "UERadioCapabilityForPaging",
 	idSupportedTAList:                     "SupportedTAList",
 	idTimeToWait:                          "TimeToWait",
