@@ -6,13 +6,14 @@ package s1ap
 //go:generate sh -c "cd .. && go run ./cmd/pergen -o s1ap/per_gen.go github.com/ellanetworks/core/s1ap"
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
 )
 
-// Hand-written Aligned-PER codecs for leaf types whose Go shape differs from
-// their wire shape; pergen generates the SEQUENCE types built from them.
+// Hand-written codecs for leaf types whose Go shape differs from their wire
+// shape; pergen generates the SEQUENCEs built from them.
 
 func (p PLMNIdentity) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeOctetString(w, enc, 3, 3, true, true, false, p[:])
@@ -25,6 +26,25 @@ func (p *PLMNIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	copy(p[:], b)
+
+	return nil
+}
+
+func (t MTMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	var b [4]byte
+
+	binary.BigEndian.PutUint32(b[:], uint32(t))
+
+	return per.EncodeOctetString(w, enc, 4, 4, true, true, false, b[:])
+}
+
+func (t *MTMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*t = MTMSI(binary.BigEndian.Uint32(b))
 
 	return nil
 }
@@ -133,14 +153,44 @@ func (e *ENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func encodeBitStringUint(w *per.Writer, enc per.Encoding, v uint64, nbits int) error {
+	if nbits < 64 && v >= 1<<uint(nbits) {
+		return fmt.Errorf("s1ap: value %d exceeds %d-bit field", v, nbits)
+	}
+
+	return per.EncodeBitString(w, enc, int64(nbits), int64(nbits), true, true, false, uintToBits(v, nbits), nbits)
+}
+
+func decodeBitStringUint(r *per.Reader, enc per.Encoding, nbits int) (uint64, error) {
+	b, _, err := per.DecodeBitString(r, enc, int64(nbits), int64(nbits), true, true, false)
+	if err != nil {
+		return 0, err
+	}
+
+	return bitsToUint(b, nbits), nil
+}
+
+func (u UERetentionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeEnumerated(w, enc, ueRetentionInformationRootCount, true, int64(u))
+}
+
+func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, ueRetentionInformationRootCount, "UERetentionInformation")
+	if err != nil {
+		return err
+	}
+
+	*u = UERetentionInformation(idx)
+
+	return nil
+}
+
 func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeEnumerated(w, enc, pagingDRXRootCount, true, int64(p))
 }
 
-// UnmarshalPER decodes PagingDRX; an extension addition decodes to
-// pagingDRXRootCount+k so it cannot collide with a root value.
 func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeEnumerated(r, enc, pagingDRXRootCount, true)
+	idx, err := decodeRootEnumerated(r, enc, pagingDRXRootCount, "PagingDRX")
 	if err != nil {
 		return err
 	}
@@ -218,7 +268,8 @@ func (s *SupportedTAs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	})
 }
 
-// ieExtensions is a ProtocolExtensionContainer: never encoded, discarded on decode.
+// A ProtocolExtensionContainer: never encoded, and on decode only its
+// criticality is acted on.
 type ieExtensions struct{}
 
 func (ieExtensions) MarshalPER(*per.Writer, per.Encoding) error {
@@ -231,25 +282,47 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 
+	var rejected ProtocolIEID
+
+	comprehended := true
+
 	for i := int64(0); i < n; i++ {
-		if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs); err != nil {
+		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
+		if err != nil {
 			return err
 		}
 
-		if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {
+		crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
+		if err != nil {
 			return err
 		}
 
 		if err := per.SkipOpenType(r, enc); err != nil {
 			return err
 		}
+
+		// §10.3.4.2: an unmodeled extension marked reject stops the procedure;
+		// ignore and notify are skipped and the IE holding them still
+		// delivered. The container is consumed either way so the reader stays
+		// aligned. A notify extension should also be reported back, which a
+		// leaf decoder has no diagnostics sink to do.
+		//
+		// This rejects S1 Setup from a Release-13 eNB, whose SupportedTAs-Item
+		// carries the reject-criticality id-RAT-Type (232) on an NB-IoT TAC.
+		// Deliberate: Ella Core does not serve NB-IoT. Modeling RAT-Type is
+		// what changes that, not loosening this rule.
+		if Criticality(crit) == CriticalityReject && comprehended {
+			comprehended, rejected = false, ProtocolIEID(id)
+		}
+	}
+
+	if !comprehended {
+		return &notComprehendedIE{ID: rejected, Crit: CriticalityReject, What: "iE-Extensions"}
 	}
 
 	return nil
 }
 
-// skipSequenceExtensionsPER steps over a SEQUENCE's unmodeled iE-Extensions
-// container and any extension additions.
 func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, extAdditions bool) error {
 	if extContainer {
 		var e ieExtensions
@@ -292,7 +365,6 @@ func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, ex
 	return nil
 }
 
-// marshalSeqOf encodes a SEQUENCE (SIZE(lb..ub)) OF items.
 func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []T) error {
 	off := 0
 
@@ -315,7 +387,6 @@ func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []
 	})
 }
 
-// unmarshalSeqOf decodes a SEQUENCE (SIZE(lb..ub)) OF items.
 func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, error) {
 	var items []T
 

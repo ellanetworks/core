@@ -137,21 +137,16 @@ func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.
 		return fmt.Errorf("get operator info error: %v", err)
 	}
 
-	guti, err := amf.PagingGuti(operatorInfo.Guami, ue)
-	if err != nil {
-		return fmt.Errorf("build 5G-GUTI error: %v", err)
-	}
-
 	// Paging supervision is armed per-UE by SendPaging; there is no per-session
 	// paging to track in the procedure registry.
-	pkg, err := send.BuildPaging(
-		guti,
-		ue.RegistrationArea,
-		ue.RadioCapabilityForPaging,
-		nil,
-	)
+	paging, err := amf.buildPaging(operatorInfo.Guami, ue)
 	if err != nil {
 		return fmt.Errorf("build paging error: %v", err)
+	}
+
+	pkg, err := paging.Marshal()
+	if err != nil {
+		return fmt.Errorf("marshal paging error: %v", err)
 	}
 
 	if err := amf.SendPaging(ctx, ue, pkg); err != nil {

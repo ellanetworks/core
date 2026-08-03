@@ -224,6 +224,15 @@ func (m *MME) FindRadioByGlobalENBID(g s1ap.GlobalENBID) (*Radio, bool) {
 	return radio, ok
 }
 
+// NodeName returns the eNB's human-readable name, empty when it has not sent
+// one. Mirrors amf.Radio.NodeName.
+func (r *Radio) NodeName() string {
+	r.m.mu.RLock()
+	defer r.m.mu.RUnlock()
+
+	return r.name
+}
+
 // UpdateRadioName updates the stored name of a connected eNB from an eNB
 // Configuration Update (TS 36.413 §8.7.4).
 func (m *MME) UpdateRadioName(radio *Radio, name string) {
@@ -271,6 +280,34 @@ func (r *Radio) TouchLastSeen() {
 // registered in the MME, so node-registry methods (SetupComplete) are not usable on it.
 func NewRadioForTest(conn S1APWriter) *Radio {
 	return &Radio{Conn: conn, Log: logger.MmeLog}
+}
+
+// RadioSupportedTAsForTest reads the encapsulated Radio field under the registry
+// lock for tests in other packages. Mirrors amf.AMF.RadioSupportedTAIsForTest.
+func (m *MME) RadioSupportedTAsForTest(r *Radio) []SupportedTAI {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return r.supportedTAIs
+}
+
+// BindMMEForTest wires a test-constructed Radio to an MME and registers it under
+// its conn, as a connected eNB is registered in prod, so the node-registry
+// methods (NodeName, SetupComplete) are usable on it. Mirrors
+// amf.Radio.BindAMFForTest.
+func (r *Radio) BindMMEForTest(m *MME) {
+	r.m = m
+
+	if r.Conn == nil {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if key, ok := r.Conn.(*sctp.SCTPConn); ok {
+		m.radios[key] = r
+	}
 }
 
 // RemoveRadio drops a connected eNB when its association closes.

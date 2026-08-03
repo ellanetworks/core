@@ -39,7 +39,7 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
-		value := buildInitiatingMessage(*pdu.InitiatingMessage)
+		value := buildInitiatingMessage(*pdu.InitiatingMessage, raw)
 		setIEValueTypes(value.IEs)
 		msg = NGAPMessage{
 			PDUType:       "InitiatingMessage",
@@ -48,7 +48,7 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 			Value:         value,
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		value := buildSuccessfulOutcome(*pdu.SuccessfulOutcome)
+		value := buildSuccessfulOutcome(*pdu.SuccessfulOutcome, raw)
 		setIEValueTypes(value.IEs)
 		msg = NGAPMessage{
 			PDUType:       "SuccessfulOutcome",
@@ -57,7 +57,7 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 			Value:         value,
 		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		value := buildUnsuccessfulOutcome(*pdu.UnsuccessfulOutcome)
+		value := buildUnsuccessfulOutcome(*pdu.UnsuccessfulOutcome, raw)
 		setIEValueTypes(value.IEs)
 		msg = NGAPMessage{
 			PDUType:       "UnsuccessfulOutcome",
@@ -127,10 +127,12 @@ func nasMessageTypeName(msg *nas.NASMessage) string {
 	return "Unknown"
 }
 
-func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue {
+// raw is the PDU as captured. Procedures rendered from the in-house library
+// parse it themselves; the reference decode above still selects the branch.
+func buildInitiatingMessage(initMsg ngapType.InitiatingMessage, raw []byte) NGAPMessageValue {
 	switch initMsg.Value.Present {
 	case ngapType.InitiatingMessagePresentNGSetupRequest:
-		return buildNGSetupRequest(*initMsg.Value.NGSetupRequest)
+		return buildNGSetupRequest(pduValue(raw))
 	case ngapType.InitiatingMessagePresentInitialUEMessage:
 		return buildInitialUEMessage(*initMsg.Value.InitialUEMessage)
 	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
@@ -162,7 +164,7 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue
 	case ngapType.InitiatingMessagePresentUplinkNonUEAssociatedNRPPaTransport:
 		return buildUplinkNonUEAssociatedNRPPaTransport(*initMsg.Value.UplinkNonUEAssociatedNRPPaTransport)
 	case ngapType.InitiatingMessagePresentErrorIndication:
-		return buildErrorIndication(*initMsg.Value.ErrorIndication)
+		return buildErrorIndication(pduValue(raw))
 	case ngapType.InitiatingMessagePresentLocationReport:
 		return buildLocationReport(*initMsg.Value.LocationReport)
 	case ngapType.InitiatingMessagePresentLocationReportingControl:
@@ -174,10 +176,10 @@ func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue
 	}
 }
 
-func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcome) NGAPMessageValue {
+func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcome, raw []byte) NGAPMessageValue {
 	switch sucMsg.Value.Present {
 	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
-		return buildNGSetupResponse(*sucMsg.Value.NGSetupResponse)
+		return buildNGSetupResponse(pduValue(raw))
 	case ngapType.SuccessfulOutcomePresentInitialContextSetupResponse:
 		return buildInitialContextSetupResponse(*sucMsg.Value.InitialContextSetupResponse)
 	case ngapType.SuccessfulOutcomePresentPDUSessionResourceSetupResponse:
@@ -193,10 +195,10 @@ func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcome) NGAPMessageValue 
 	}
 }
 
-func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcome) NGAPMessageValue {
+func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcome, raw []byte) NGAPMessageValue {
 	switch unsucMsg.Value.Present {
 	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
-		return buildNGSetupFailure(*unsucMsg.Value.NGSetupFailure)
+		return buildNGSetupFailure(pduValue(raw))
 	case ngapType.UnsuccessfulOutcomePresentInitialContextSetupFailure:
 		return buildInitialContextSetupFailure(*unsucMsg.Value.InitialContextSetupFailure)
 	default:

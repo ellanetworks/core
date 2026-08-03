@@ -13,6 +13,8 @@ type S1SetupRequest struct {
 	ENBName          *string
 	SupportedTAs     SupportedTAs
 	DefaultPagingDRX *PagingDRX
+	// What the eNB offers (§8.7.3.2); the MME never accepts it.
+	UERetentionInformation *UERetentionInformation
 
 	messageMeta
 }
@@ -73,6 +75,27 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 			}
 
 			return m.DefaultPagingDRX, true
+		},
+	},
+	{
+		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+			var v UERetentionInformation
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.UERetentionInformation = &v
+
+			return nil
+		},
+		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+			if m.UERetentionInformation == nil {
+				return nil, false
+			}
+
+			return m.UERetentionInformation, true
 		},
 	},
 }

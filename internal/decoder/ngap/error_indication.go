@@ -6,53 +6,49 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // Error Indication reports a failure that has no dedicated response message
 // (TS 38.413 §8.7.5). Every IE is optional: the UE-NGAP-IDs are present only
 // when the failure is associated with a UE, and either Cause or Criticality
 // Diagnostics — or both — carry the reason.
-func buildErrorIndication(errorIndication ngapType.ErrorIndication) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(errorIndication.ProtocolIEs.List); i++ {
-		ie := errorIndication.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDCause:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       causeToEnum(*ie.Value.Cause),
-			})
-		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
+func buildErrorIndication(value []byte) NGAPMessageValue {
+	ind, err := ngap.ParseErrorIndication(value)
+	if err != nil {
+		return NGAPMessageValue{Error: err.Error()}
 	}
 
-	return NGAPMessageValue{
-		IEs: ies,
+	ies := make([]IE, 0, 5)
+
+	if ind.AMFUENGAPID != nil {
+		ies = append(ies, libIE(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*ind.AMFUENGAPID)))
+	}
+
+	if ind.RANUENGAPID != nil {
+		ies = append(ies, libIE(idRANUENGAPID, ngap.CriticalityIgnore, int64(*ind.RANUENGAPID)))
+	}
+
+	if ind.Cause != nil {
+		ies = append(ies, libIE(idCause, ngap.CriticalityIgnore, libCause(*ind.Cause)))
+	}
+
+	if ind.CriticalityDiagnostics != nil {
+		ies = append(ies, libIE(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+			buildLibCriticalityDiagnostics(*ind.CriticalityDiagnostics)))
+	}
+
+	if ind.FiveGSTMSI != nil {
+		ies = append(ies, libIE(idFiveGSTMSI, ngap.CriticalityIgnore, buildFiveGSTMSI(*ind.FiveGSTMSI)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(ind.UnknownIEs())...)}
+}
+
+func buildFiveGSTMSI(s ngap.FiveGSTMSI) FiveGSTMSI {
+	return FiveGSTMSI{
+		AMFSetID:   bitsHex(uint64(s.AMFSetID), 10),
+		AMFPointer: bitsHex(uint64(s.AMFPointer), 6),
+		FiveGTMSI:  fmt.Sprintf("%08x", uint32(s.FiveGTMSI)),
 	}
 }

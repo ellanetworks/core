@@ -15,6 +15,7 @@ type ErrorIndication struct {
 	ENBUES1APID            *ENBUES1APID
 	Cause                  *Cause
 	CriticalityDiagnostics *CriticalityDiagnostics
+	STMSI                  *STMSI
 
 	messageMeta
 }
@@ -23,17 +24,15 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
 		id: idMMEUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   MMEUES1APID
-			)
+			var v MMEUES1APID
+
 			if err := perIEDecode(raw, &v); err != nil {
 				return fmt.Errorf("s1ap: ErrorIndication MME-UE-S1AP-ID: %w", err)
 			}
 
 			m.MMEUES1APID = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.MMEUES1APID == nil {
@@ -46,17 +45,15 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
 		id: idENBUES1APID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   ENBUES1APID
-			)
+			var v ENBUES1APID
+
 			if err := perIEDecode(raw, &v); err != nil {
 				return fmt.Errorf("s1ap: ErrorIndication eNB-UE-S1AP-ID: %w", err)
 			}
 
 			m.ENBUES1APID = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.ENBUES1APID == nil {
@@ -69,17 +66,15 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
 		id: idCause, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   Cause
-			)
+			var v Cause
+
 			if err := perIEDecode(raw, &v); err != nil {
 				return fmt.Errorf("s1ap: ErrorIndication Cause: %w", err)
 			}
 
 			m.Cause = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.Cause == nil {
@@ -92,17 +87,15 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   CriticalityDiagnostics
-			)
+			var v CriticalityDiagnostics
+
 			if err := perIEDecode(raw, &v); err != nil {
 				return fmt.Errorf("s1ap: ErrorIndication CriticalityDiagnostics: %w", err)
 			}
 
 			m.CriticalityDiagnostics = &v
 
-			return err
+			return nil
 		},
 		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -112,6 +105,27 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
+	{
+		id: idSTMSI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+			var v STMSI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return fmt.Errorf("s1ap: ErrorIndication S-TMSI: %w", err)
+			}
+
+			m.STMSI = &v
+
+			return nil
+		},
+		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+			if m.STMSI == nil {
+				return nil, false
+			}
+
+			return m.STMSI, true
+		},
+	},
 }
 
 func (m *ErrorIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -119,6 +133,12 @@ func (m *ErrorIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
 }
 
 func (m *ErrorIndication) Marshal() ([]byte, error) {
+	// §8.7.2.2 requires at least one of Cause and Criticality Diagnostics.
+	// Every IE is optional, so the IE table cannot enforce it.
+	if m.Cause == nil && m.CriticalityDiagnostics == nil {
+		return nil, fmt.Errorf("s1ap: ErrorIndication needs at least a Cause or Criticality Diagnostics")
+	}
+
 	w := per.NewWriter()
 
 	if err := m.encodeBody(w, per.Aligned); err != nil {

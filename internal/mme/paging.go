@@ -141,7 +141,7 @@ func (m *MME) buildPaging(ue *UeContext) (*s1ap.Paging, error) {
 
 	return &s1ap.Paging{
 		UEIdentityIndexValue: s1ap.Ptr(ueIdentityIndex(ue.imsiOrEmpty())),
-		STMSI:                &s1ap.STMSI{MMEC: mmeCode, MTMSI: mtmsi},
+		STMSI:                &s1ap.STMSI{MMEC: s1ap.MMECode(mmeCode), MTMSI: s1ap.MTMSI(mtmsi)},
 		CNDomain:             s1ap.Ptr(s1ap.CNDomainPS),
 		TAIList:              taiList,
 		// Replay the eNB-reported paging capability so it can apply paging

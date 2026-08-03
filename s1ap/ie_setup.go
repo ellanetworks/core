@@ -3,39 +3,6 @@
 
 package s1ap
 
-// ENBIDKind selects an ENB-ID CHOICE alternative (TS 36.413).
-type ENBIDKind uint8
-
-const (
-	ENBIDMacro      ENBIDKind = iota // root 0: BIT STRING (SIZE(20))
-	ENBIDHome                        // root 1: BIT STRING (SIZE(28))
-	ENBIDShortMacro                  // extension: BIT STRING (SIZE(18))
-	ENBIDLongMacro                   // extension: BIT STRING (SIZE(21))
-)
-
-var enbIDBits = map[ENBIDKind]int{
-	ENBIDMacro:      20,
-	ENBIDHome:       28,
-	ENBIDShortMacro: 18,
-	ENBIDLongMacro:  21,
-}
-
-// ENB-ID ::= CHOICE { macroENB-ID, homeENB-ID, ..., short-macroENB-ID,
-// long-macroENB-ID }: two root alternatives, two extension alternatives.
-type ENBID struct {
-	Kind  ENBIDKind
-	Value uint32
-}
-
-// GlobalENBID ::= SEQUENCE { pLMNidentity, eNB-ID, iE-Extensions OPTIONAL }
-// (extensible).
-type GlobalENBID struct {
-	_            [0]struct{} `per:"extseq"`
-	PLMNIdentity PLMNIdentity
-	ENBID        ENBID
-	_            ieExtensions `per:",skip"`
-}
-
 // TAC ::= OCTET STRING (SIZE(2)).
 type TAC uint16
 
@@ -53,6 +20,17 @@ type SupportedTAItem struct {
 
 // SupportedTAs ::= SEQUENCE (SIZE(1..maxnoofTACs)) OF SupportedTAs-Item.
 type SupportedTAs []SupportedTAItem
+
+// UERetentionInformation ::= ENUMERATED { ues-retained, ... } (extensible) —
+// TS 36.413 §9.2.1.108. Modeled but never accepted: Ella Core retains no UE
+// context across S1 Setup.
+type UERetentionInformation uint8
+
+const (
+	UERetentionUesRetained UERetentionInformation = iota
+
+	ueRetentionInformationRootCount = 1
+)
 
 // PagingDRX ::= ENUMERATED { v32, v64, v128, v256, ... } (extensible).
 type PagingDRX uint8

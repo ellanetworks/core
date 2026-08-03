@@ -9,6 +9,7 @@ db:
 interfaces:
   n2:
     address: "10.100.0.13"
+    port: 38412
   n3:
     address: "10.3.0.13"
   n6:
@@ -21,9 +22,9 @@ datapath:
 cluster:
   enabled: true
   node-id: 3
-  bind-address: "10.100.0.13:7000"
+  bind-address: "ella-core-3:7000"
   peers:
-      - "10.100.0.11:7000"
-      - "10.100.0.12:7000"
-      - "10.100.0.13:7000"
-  join-token: "AQAAANR7ImlkIjoiNjFmY2NlNzRjODRiMDA0MTYxYWM1MjAyMDBiYTE3ZWUiLCJub2RlX2lkIjozLCJpYXQiOjE3NzY5NzYzMDYsImV4cCI6MTc3Njk3NjkwNiwiY2FmIjoic2hhMjU2OjgzM2JmMjYzYWY2M2E3YjY2OTEyMDZmNjgyMWIwNmE1MjMxM2JhNTM3YTI0Y2IzM2IzODEyYTJiNjE0NjhhYjYiLCJjaWQiOiJhYTY0ZjVmMS01Nzc1LTRhNTAtYjEyZC01OTQzZDlhNWM1NTIifQ2uZPTriaDiWdXB1WVmuwdnZ7R46-uMijgxMwrW4rDK"
+      - "ella-core-1:7000"
+      - "ella-core-2:7000"
+      - "ella-core-3:7000"
+  join-token: "AQAAANR7ImlkIjoiNDM3NTQzOGUyYzg1MGU0NDE4MzZhMzRjZGIzOWY3NzIiLCJub2RlX2lkIjozLCJpYXQiOjE3ODU2ODA2ODgsImV4cCI6MTc4NTY4MTI4OCwibGNwIjoic2hhMjU2OjA2ZWI1MGFhMDBlMjYxOWM3ZjgzYzA0NTRiYjQ1MzE4MzhiMzdlZWI4Y2UyY2ZjNjBmNGExODgzOGM3N2U1OTUiLCJjaWQiOiJkMDUwOGVkMS1kN2MyLTQyMDgtOTgzOS04NTBlZGM4ZTQ1ZGQiffQa7KScrD2EFz1bhQRkoF5tNfVn_WgOzC121MbhGPv-"

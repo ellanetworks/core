@@ -1,0 +1,487 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package ngap_test
+
+import (
+	"testing"
+
+	decngap "github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/ellanetworks/core/ngap"
+)
+
+// ProtocolIE-ID values these assertions cite (TS 38.413, NGAP-Constants).
+const (
+	idAMFName             int64 = 1
+	idCause               int64 = 15
+	idDefaultPagingDRX    int64 = 21
+	idGlobalRANNodeID     int64 = 27
+	idPLMNSupportList     int64 = 80
+	idRANNodeName         int64 = 82
+	idRelativeAMFCapacity int64 = 86
+	idServedGUAMIList     int64 = 96
+	idSupportedTAList     int64 = 102
+)
+
+func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
+	const message = "ABUAQQAABAAbAAkAAPEQUAAAAAEAUkAUCIBVRVJBTlNJTS1nbmItMS0xLTEAZgAQAAAAAAEAAPEQAAAQCBAgMAAVQAFA"
+
+	raw, err := decodeB64(message)
+	if err != nil {
+		t.Fatalf("base64 decode failed: %v", err)
+	}
+
+	ngapMsg := decngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "InitiatingMessage" {
+		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
+	}
+
+	if ngapMsg.ProcedureCode.Label != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
+	}
+
+	if ngapMsg.ProcedureCode.Value != int64(ngap.ProcNGSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+	}
+
+	if ngapMsg.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
+	}
+
+	if ngapMsg.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	}
+
+	if len(ngapMsg.Value.IEs) != 4 {
+		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
+	}
+
+	item0 := ngapMsg.Value.IEs[0]
+
+	if item0.ID.Label != "GlobalRANNodeID" {
+		t.Errorf("expected ID=GlobalRANNodeID, got %v", item0.ID)
+	}
+
+	if item0.ID.Value != (idGlobalRANNodeID) {
+		t.Errorf("expected ID value=27, got %d", item0.ID.Value)
+	}
+
+	if item0.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
+	}
+
+	if item0.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	}
+
+	globalRANNodeID, ok := item0.Value.(decngap.GlobalRANNodeIDIE)
+	if !ok {
+		t.Fatalf("expected GlobalRANNodeIDIE, got %T", item0.Value)
+	}
+
+	if globalRANNodeID.PLMNIdentity.Mcc != "001" {
+		t.Errorf("expected PLMNIdentity.Mcc=001, got %s", globalRANNodeID.PLMNIdentity.Mcc)
+	}
+
+	if globalRANNodeID.PLMNIdentity.Mnc != "01" {
+		t.Errorf("expected PLMNIdentity.Mnc=01, got %s", globalRANNodeID.PLMNIdentity.Mnc)
+	}
+
+	if globalRANNodeID.GlobalGNBID != "00000001" {
+		t.Errorf("expected GlobalGNBID=00000001, got %s", globalRANNodeID.GlobalGNBID)
+	}
+
+	if globalRANNodeID.GlobalNgENBID != "" {
+		t.Errorf("expected empty globalNgENBID, got %s", globalRANNodeID.GlobalNgENBID)
+	}
+
+	if globalRANNodeID.GlobalN3IWFID != "" {
+		t.Errorf("expected empty GlobalN3IWFID, got %s", globalRANNodeID.GlobalN3IWFID)
+	}
+
+	item1 := ngapMsg.Value.IEs[1]
+
+	if item1.ID.Label != "RANNodeName" {
+		t.Errorf("expected ID=RANNodeName, got %v", item1.ID)
+	}
+
+	if item1.ID.Value != (idRANNodeName) {
+		t.Errorf("expected ID value=82, got %d", item1.ID.Value)
+	}
+
+	if item1.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item1.Criticality)
+	}
+
+	if item1.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
+	}
+
+	ranNodeName, ok := item1.Value.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T", item1.Value)
+	}
+
+	if ranNodeName != "UERANSIM-gnb-1-1-1" {
+		t.Errorf("expected RANNodeName=UERANSIM-gnb-1-1-1, got %s", ranNodeName)
+	}
+
+	item2 := ngapMsg.Value.IEs[2]
+
+	if item2.ID.Label != "SupportedTAList" {
+		t.Errorf("expected ID=SupportedTAList, got %s", item2.ID.Label)
+	}
+
+	if item2.ID.Value != (idSupportedTAList) {
+		t.Errorf("expected ID value=102, got %d", item2.ID.Value)
+	}
+
+	if item2.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item2.Criticality)
+	}
+
+	if item2.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
+	}
+
+	supportedTAList, ok := item2.Value.([]decngap.SupportedTA)
+	if !ok {
+		t.Fatalf("expected SupportedTAList, got %T", item2.Value)
+	}
+
+	if supportedTAList == nil {
+		t.Fatalf("expected SupportedTAList, got nil")
+	}
+
+	if len(supportedTAList) != 1 {
+		t.Fatalf("expected 1 SupportedTAItem, got %d", len(supportedTAList))
+	}
+
+	supportedTAItem := supportedTAList[0]
+
+	if supportedTAItem.TAC != "000001" {
+		t.Errorf("expected TAC=000001, got %s", supportedTAItem.TAC)
+	}
+
+	if len(supportedTAItem.BroadcastPLMNList) != 1 {
+		t.Fatalf("expected 1 BroadcastPLMN, got %d", len(supportedTAItem.BroadcastPLMNList))
+	}
+
+	if supportedTAItem.BroadcastPLMNList[0].PLMNID.Mcc != "001" {
+		t.Errorf("expected PLMNID.Mcc=001, got %s", supportedTAItem.BroadcastPLMNList[0].PLMNID.Mcc)
+	}
+
+	if supportedTAItem.BroadcastPLMNList[0].PLMNID.Mnc != "01" {
+		t.Errorf("expected PLMNID.Mnc=01, got %s", supportedTAItem.BroadcastPLMNList[0].PLMNID.Mnc)
+	}
+
+	if len(supportedTAItem.BroadcastPLMNList[0].SliceSupportList) != 1 {
+		t.Fatalf("expected 1 SNSSAI, got %d", len(supportedTAItem.BroadcastPLMNList[0].SliceSupportList))
+	}
+
+	snssai := supportedTAItem.BroadcastPLMNList[0].SliceSupportList[0]
+
+	if snssai.SST != 1 {
+		t.Errorf("expected SST=1, got %d", snssai.SST)
+	}
+
+	if snssai.SD == nil || *snssai.SD != "102030" {
+		t.Errorf("expected SD=%s, got %v", "102030", snssai.SD)
+	}
+
+	item3 := ngapMsg.Value.IEs[3]
+
+	if item3.ID.Label != "DefaultPagingDRX" {
+		t.Errorf("expected ID=DefaultPagingDRX, got %s", item3.ID.Label)
+	}
+
+	if item3.ID.Value != (idDefaultPagingDRX) {
+		t.Errorf("expected ID value=21, got %d", item3.ID.Value)
+	}
+
+	if item3.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item3.Criticality)
+	}
+
+	if item3.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
+	}
+
+	defaultPagingDRX, ok := item3.Value.(utils.EnumField)
+	if !ok {
+		t.Fatalf("expected EnumField, got %T", item3.Value)
+	}
+
+	if defaultPagingDRX.Label != "v128" {
+		t.Errorf("expected DefaultPagingDRX=v128, got %s", defaultPagingDRX.Label)
+	}
+
+	if defaultPagingDRX.Value != int64(ngap.PagingDRXv128) {
+		t.Errorf("expected DefaultPagingDRX value=2, got %d", defaultPagingDRX.Value)
+	}
+}
+
+func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
+	const message = "IBUALAAABAABAAUBAGFtZgBgAAgAAADxEMr+AABWQAH/AFAACwAA8RAAABAIECAw"
+
+	raw, err := decodeB64(message)
+	if err != nil {
+		t.Fatalf("base64 decode failed: %v", err)
+	}
+
+	ngapMsg := decngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "SuccessfulOutcome" {
+		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
+	}
+
+	if ngapMsg.ProcedureCode.Label != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
+	}
+
+	if ngapMsg.ProcedureCode.Value != int64(ngap.ProcNGSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+	}
+
+	if ngapMsg.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
+	}
+
+	if ngapMsg.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	}
+
+	if len(ngapMsg.Value.IEs) != 4 {
+		t.Errorf("expected 4 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
+	}
+
+	item0 := ngapMsg.Value.IEs[0]
+
+	if item0.ID.Label != "AMFName" {
+		t.Errorf("expected ID=AMFName, got %s", item0.ID.Label)
+	}
+
+	if item0.ID.Value != (idAMFName) {
+		t.Errorf("expected ID value=1, got %d", item0.ID.Value)
+	}
+
+	if item0.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
+	}
+
+	if item0.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	}
+
+	amfName, ok := item0.Value.(string)
+	if !ok {
+		t.Fatalf("expected string, got %T", item0.Value)
+	}
+
+	if amfName != "amf" {
+		t.Errorf("expected AMFName=amf, got %s", amfName)
+	}
+
+	item1 := ngapMsg.Value.IEs[1]
+
+	if item1.ID.Label != "ServedGUAMIList" {
+		t.Errorf("expected ID=ServedGUAMIList, got %s", item1.ID.Label)
+	}
+
+	if item1.ID.Value != (idServedGUAMIList) {
+		t.Errorf("expected ID value=96, got %d", item1.ID.Value)
+	}
+
+	if item1.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item1.Criticality)
+	}
+
+	if item1.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
+	}
+
+	servedGUAMIList, ok := item1.Value.([]decngap.Guami)
+	if !ok {
+		t.Fatalf("expected ServedGUAMIList, got %T", item1.Value)
+	}
+
+	if servedGUAMIList == nil {
+		t.Fatalf("expected ServedGUAMIList, got nil")
+	}
+
+	if len(servedGUAMIList) != 1 {
+		t.Fatalf("expected 1 GUAMI, got %d", len(servedGUAMIList))
+	}
+
+	guami := servedGUAMIList[0]
+
+	if guami.PLMNID.Mcc != "001" {
+		t.Errorf("expected PLMNID.Mcc=001, got %s", guami.PLMNID.Mcc)
+	}
+
+	if guami.PLMNID.Mnc != "01" {
+		t.Errorf("expected PLMNID.Mnc=01, got %s", guami.PLMNID.Mnc)
+	}
+
+	if guami.AMFRegionID != "ca" {
+		t.Errorf("expected AMFRegionID=ca, got %s", guami.AMFRegionID)
+	}
+
+	if guami.AMFSetID != "fe0" {
+		t.Errorf("expected AMFSetID=fe0, got %s", guami.AMFSetID)
+	}
+
+	if guami.AMFPointer != "00" {
+		t.Errorf("expected AMFPointer=00, got %s", guami.AMFPointer)
+	}
+
+	item2 := ngapMsg.Value.IEs[2]
+
+	if item2.ID.Label != "RelativeAMFCapacity" {
+		t.Errorf("expected ID=RelativeAMFCapacity, got %s", item2.ID.Label)
+	}
+
+	if item2.ID.Value != (idRelativeAMFCapacity) {
+		t.Errorf("expected ID value=86, got %d", item2.ID.Value)
+	}
+
+	if item2.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item2.Criticality)
+	}
+
+	if item2.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
+	}
+
+	relativeAMFCapacity, ok := item2.Value.(int64)
+	if !ok {
+		t.Fatalf("expected int64, got %T", item2.Value)
+	}
+
+	if relativeAMFCapacity != 255 {
+		t.Errorf("expected RelativeAMFCapacity=255, got %d", relativeAMFCapacity)
+	}
+
+	item3 := ngapMsg.Value.IEs[3]
+
+	if item3.ID.Label != "PLMNSupportList" {
+		t.Errorf("expected ID=PLMNSupportList, got %s", item3.ID.Label)
+	}
+
+	if item3.ID.Value != (idPLMNSupportList) {
+		t.Errorf("expected ID value=80, got %d", item3.ID.Value)
+	}
+
+	if item3.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", item3.Criticality)
+	}
+
+	if item3.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", item3.Criticality.Value)
+	}
+
+	plmnSupportList, ok := item3.Value.([]decngap.PLMN)
+	if !ok {
+		t.Fatalf("expected PLMNSupportList, got %T", item3.Value)
+	}
+
+	if plmnSupportList == nil {
+		t.Fatalf("expected PLMNSupportList, got nil")
+	}
+
+	if len(plmnSupportList) != 1 {
+		t.Fatalf("expected 1 PLMNSupportItem, got %d", len(plmnSupportList))
+	}
+
+	plmnItem := plmnSupportList[0]
+
+	if plmnItem.PLMNID.Mcc != "001" {
+		t.Errorf("expected Mcc=001, got %s", plmnItem.PLMNID.Mcc)
+	}
+
+	if plmnItem.PLMNID.Mnc != "01" {
+		t.Errorf("expected Mnc=01, got %s", plmnItem.PLMNID.Mnc)
+	}
+
+	if len(plmnItem.SliceSupportList) != 1 {
+		t.Fatalf("expected 1 SNSSAI, got %d", len(plmnItem.SliceSupportList))
+	}
+
+	snssai := plmnItem.SliceSupportList[0]
+
+	if snssai.SST != 1 {
+		t.Errorf("expected SST=1, got %d", snssai.SST)
+	}
+
+	if snssai.SD == nil || *snssai.SD != "102030" {
+		t.Errorf("expected SD=%s, got %v", "102030", snssai.SD)
+	}
+}
+
+func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
+	const message = "QBUACAAAAQAPQAGI"
+
+	raw, err := decodeB64(message)
+	if err != nil {
+		t.Fatalf("base64 decode failed: %v", err)
+	}
+
+	ngapMsg := decngap.DecodeNGAPMessage(raw)
+
+	if ngapMsg.PDUType != "UnsuccessfulOutcome" {
+		t.Errorf("expected PDUType=UnsuccessfulOutcome, got %v", ngapMsg.PDUType)
+	}
+
+	if ngapMsg.ProcedureCode.Label != "NGSetup" {
+		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
+	}
+
+	if ngapMsg.ProcedureCode.Value != int64(ngap.ProcNGSetup) {
+		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+	}
+
+	if ngapMsg.Criticality.Label != "Reject" {
+		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
+	}
+
+	if ngapMsg.Criticality.Value != 0 {
+		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	}
+
+	if len(ngapMsg.Value.IEs) != 1 {
+		t.Errorf("expected 1 ProtocolIEs, got %d", len(ngapMsg.Value.IEs))
+	}
+
+	item0 := ngapMsg.Value.IEs[0]
+
+	if item0.ID.Label != "Cause" {
+		t.Errorf("expected ID=Cause, got %v", item0.ID)
+	}
+
+	if item0.ID.Value != (idCause) {
+		t.Errorf("expected ID value=15, got %d", item0.ID.Value)
+	}
+
+	if item0.Criticality.Label != "Ignore" {
+		t.Errorf("expected Criticality=Ignore, got %v", item0.Criticality)
+	}
+
+	if item0.Criticality.Value != 1 {
+		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
+	}
+
+	cause, ok := item0.Value.(utils.EnumField)
+	if !ok {
+		t.Fatalf("expected Cause, got %T", item0.Value)
+	}
+
+	if cause.Label != "UnknownPLMN" {
+		t.Errorf("expected Cause=UnknownPLMN, got %v", cause.Label)
+	}
+
+	if cause.Value != int64(ngap.CauseMiscUnknownPLMNOrSNPN) {
+		t.Errorf("expected Cause value=%d, got %d", int64(ngap.CauseMiscUnknownPLMNOrSNPN), cause.Value)
+	}
+}

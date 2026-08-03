@@ -10,27 +10,6 @@ import (
 
 type RRCEstablishmentCause aper.Enumerated
 
-type GlobalRANNodeKind uint8
-
-const (
-	GlobalRANNodeKindUnknown GlobalRANNodeKind = iota
-	GlobalRANNodeKindGNB
-	GlobalRANNodeKindNgENB
-	GlobalRANNodeKindN3IWF
-)
-
-// GlobalRANNodeID wraps a validated GlobalRANNodeID CHOICE. When Kind is not
-// Unknown, the variant pointer matching Kind and any nested *aper.BitString are
-// non-nil. Raw aliases the source PDU buffer and must be consumed within the
-// synchronous handler invocation.
-type GlobalRANNodeID struct {
-	kind GlobalRANNodeKind
-	raw  *ngapType.GlobalRANNodeID
-}
-
-func (g GlobalRANNodeID) Kind() GlobalRANNodeKind        { return g.kind }
-func (g GlobalRANNodeID) Raw() *ngapType.GlobalRANNodeID { return g.raw }
-
 type UserLocationKind uint8
 
 const (
@@ -68,20 +47,6 @@ type InitialUEMessage struct {
 	RRCEstablishmentCause   RRCEstablishmentCause
 	FiveGSTMSI              *FiveGSTMSI
 	UEContextRequest        bool
-}
-
-// NGSetupRequest is a decoded NGAP NGSetupRequest (3GPP TS 38.413).
-// GlobalRANNodeID and SupportedTAItems are mandatory; RANNodeName is "" when
-// absent.
-//
-// SupportedTAItems aliases the source PDU buffer (TAC, PLMNIdentity and SNSSAI
-// octet strings) and must be consumed within the synchronous handler
-// invocation. It may be empty on a non-fatal decode: TS 38.413 forbids a
-// zero-item container, but real gNBs occasionally send one.
-type NGSetupRequest struct {
-	GlobalRANNodeID  GlobalRANNodeID
-	SupportedTAItems []ngapType.SupportedTAItem
-	RANNodeName      string
 }
 
 // PathSwitchRequest is a decoded NGAP PathSwitchRequest (3GPP TS 38.413).
@@ -163,27 +128,6 @@ type UEContextReleaseRequest struct {
 	RANUENGAPID            int64
 	PDUSessionResourceList []ngapType.PDUSessionResourceItemCxtRelReq
 	Cause                  *ngapType.Cause
-}
-
-// NGReset is a decoded NGAP NGReset (3GPP TS 38.413). Cause is mandatory-ignore,
-// yielding a zero-value Cause when absent or malformed. ResetType is
-// mandatory-reject; when populated the inner CHOICE pointer matching
-// ResetType.Present is non-nil. ResetType aliases the source PDU buffer.
-type NGReset struct {
-	Cause     ngapType.Cause
-	ResetType *ngapType.ResetType
-}
-
-// ErrorIndication is a decoded NGAP ErrorIndication (3GPP TS 38.413). All four
-// IEs are optional-ignore; the decoder never raises a fatal error. TS 38.413
-// requires at least one of Cause or CriticalityDiagnostics, which the decoder
-// does not enforce. AMFUENGAPID/RANUENGAPID are nil for a non-UE-associated
-// Error Indication.
-type ErrorIndication struct {
-	AMFUENGAPID            *int64
-	RANUENGAPID            *int64
-	Cause                  *ngapType.Cause
-	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
 }
 
 // HandoverCancel is a decoded NGAP HandoverCancel (3GPP TS 38.413). AMFUENGAPID

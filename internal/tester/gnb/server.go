@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap"
 	"github.com/ishidawataru/sctp"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
@@ -549,17 +548,12 @@ func (g *GnodeB) n2DialAndActivateLocked(idx int) error {
 // conn. Called from the locked startup / promotion path so it cannot take
 // n2Mu; goes straight to writeToConn.
 func (g *GnodeB) sendNGSetupOnConn(conn *sctp.SCTPConn) error {
-	pdu, err := BuildNGSetupRequest(&g.n2SetupOpts)
+	pkt, err := BuildNGSetupRequest(&g.n2SetupOpts)
 	if err != nil {
 		return fmt.Errorf("build NGSetupRequest: %w", err)
 	}
 
-	bytes, err := ngap.Encoder(pdu)
-	if err != nil {
-		return fmt.Errorf("encode NGSetupRequest: %w", err)
-	}
-
-	return writeToConn(conn, bytes, NGAPProcedureNGSetupRequest)
+	return writeToConn(conn, pkt, NGAPProcedureNGSetupRequest)
 }
 
 // runReceiver reads SCTP frames on conn and dispatches via HandleFrame.

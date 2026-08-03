@@ -13,9 +13,15 @@ type S1SetupResponse struct {
 	ServedGUMMEIs          ServedGUMMEIs
 	RelativeMMECapacity    *uint8
 	CriticalityDiagnostics *CriticalityDiagnostics
+	// Whether the MME retained UE contexts across the setup (§8.7.3.2); Ella
+	// Core never does, so it is left absent on send.
+	UERetentionInformation *UERetentionInformation
 
 	messageMeta
 }
+
+// relativeMMECapacityBounds is RelativeMMECapacity ::= INTEGER (0..255).
+var relativeMMECapacityBounds = per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}
 
 var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
@@ -50,12 +56,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
 		id: idRelativeMMECapacity, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				v   int64
-			)
-
-			v, err = per.DecodeInteger(per.NewReader(raw), enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
+			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeMMECapacityBounds)
 			if err != nil {
 				return err
 			}
@@ -71,22 +72,22 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(*m.RelativeMMECapacity))
+				return per.EncodeInteger(w, enc, relativeMMECapacityBounds, int64(*m.RelativeMMECapacity))
 			}), true
 		},
 	},
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -94,6 +95,27 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			}
 
 			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
+			var v UERetentionInformation
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.UERetentionInformation = &v
+
+			return nil
+		},
+		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+			if m.UERetentionInformation == nil {
+				return nil, false
+			}
+
+			return m.UERetentionInformation, true
 		},
 	},
 }

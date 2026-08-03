@@ -52,7 +52,7 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 		TAI:                   s1ap.TAI{PLMNIdentity: plmnID, TAC: 1},
 		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1}),
 		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseEmergency),
-		STMSI:                 &s1ap.STMSI{MMEC: code, MTMSI: mtmsi},
+		STMSI:                 &s1ap.STMSI{MMEC: s1ap.MMECode(code), MTMSI: s1ap.MTMSI(mtmsi)},
 	}
 
 	im, err := initialUE.Marshal()
@@ -116,7 +116,7 @@ func TestInitialUEMessageResumeVerifiedBindsAndDispatches(t *testing.T) {
 		TAI:                   s1ap.TAI{PLMNIdentity: plmnID, TAC: 1},
 		EUTRANCGI:             s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: plmnID, CellID: 1}),
 		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseEmergency),
-		STMSI:                 &s1ap.STMSI{MMEC: code, MTMSI: mtmsi},
+		STMSI:                 &s1ap.STMSI{MMEC: s1ap.MMECode(code), MTMSI: s1ap.MTMSI(mtmsi)},
 	}
 
 	im, err := initialUE.Marshal()

@@ -8,8 +8,8 @@ import (
 )
 
 // ERABToBeSwitchedDLItem ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
-// gTP-TEID, iE-Extensions OPTIONAL } (extensible). For one E-RAB it names the
-// target eNB's S1-U downlink endpoint the GTP tunnel is switched to.
+// gTP-TEID, iE-Extensions OPTIONAL } (extensible). The target eNB's S1-U
+// downlink endpoint the GTP tunnel is switched to.
 type ERABToBeSwitchedDLItem struct {
 	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
@@ -19,8 +19,8 @@ type ERABToBeSwitchedDLItem struct {
 }
 
 // SecurityContext ::= SEQUENCE { nextHopChainingCount INTEGER (0..7),
-// nextHopParameter SecurityKey, iE-Extensions OPTIONAL } (extensible). It carries
-// the {NCC, NH} the target eNB uses to derive the next KeNB (TS 33.401).
+// nextHopParameter SecurityKey, iE-Extensions OPTIONAL } (extensible). The
+// {NCC, NH} the target eNB derives the next KeNB from (TS 33.401).
 type SecurityContext struct {
 	_                    [0]struct{} `per:"extseq"`
 	NextHopChainingCount uint8       `per:",range:0..7"`
@@ -166,9 +166,8 @@ type PathSwitchRequestAcknowledge struct {
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
 	SecurityContext           SecurityContext
 	UESecurityCapabilities    *UESecurityCapabilities
-	// ERABToBeReleased lists the E-RABs the MME failed to switch the UP path for, so
-	// the eNB releases their data radio bearers (TS 36.413 §8.4.4.2). Empty on a full
-	// switch.
+	// E-RABs the MME failed to switch the UP path for, whose data radio bearers
+	// the eNB releases (§8.4.4.2).
 	ERABToBeReleased []ERABItem
 
 	messageMeta
@@ -226,9 +225,13 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			)
 
 			err = perIEDecode(raw, &ambr)
+			if err != nil {
+				return err
+			}
+
 			m.UEAggregateMaximumBitRate = &ambr
 
-			return err
+			return nil
 		},
 		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
 			if m.UEAggregateMaximumBitRate == nil {
@@ -273,9 +276,13 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			)
 
 			err = perIEDecode(raw, &caps)
+			if err != nil {
+				return err
+			}
+
 			m.UESecurityCapabilities = &caps
 
-			return err
+			return nil
 		},
 		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
 			if m.UESecurityCapabilities == nil {

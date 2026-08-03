@@ -26,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -406,9 +407,9 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 // retain them (TS 38.413 §8.7.1.1), and Ella Core never offers UE retention. A
 // gNB repeating NG Setup on its existing association — what an SCTP restart
 // produces — would otherwise keep UEs the gNB has already forgotten.
-func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *Radio {
-	newID := util.RanIDToModels(*ranNodeID)
-	present := ranNodeID.Present
+func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) *Radio {
+	newID := util.RANNodeIDToModels(ranNodeID)
+	present := ranPresentFor(ranNodeID.Kind)
 
 	key, _ := radioIDKey(&newID)
 
@@ -445,6 +446,59 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	}
 
 	return evicted
+}
+
+// RebindRanID re-keys a connected radio onto the Global RAN Node ID a RAN
+// CONFIGURATION UPDATE carries, so the TNLA stays associated with the right
+// NG-C interface instance (TS 38.413 §8.7.2.2).
+//
+// Unlike ClaimRanID it leaves every UE context alone, because §8.7.2.1 states
+// the procedure "does not affect existing UE-related contexts, if any". For the
+// same reason it never evicts an incumbent holding the same identity: it reports
+// false and leaves the registry untouched, so a conflicting update costs nobody
+// their sessions.
+func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) bool {
+	newID := util.RANNodeIDToModels(ranNodeID)
+
+	key, ok := radioIDKey(&newID)
+	if !ok {
+		return false
+	}
+
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	if holder, taken := amf.radiosByID[key]; taken && holder != radio {
+		return false
+	}
+
+	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey == key {
+		return true
+	} else if ok {
+		delete(amf.radiosByID, oldKey)
+	}
+
+	radio.RanPresent = ranPresentFor(ranNodeID.Kind)
+	radio.RanID = &newID
+	amf.radiosByID[key] = radio
+
+	return true
+}
+
+// ranPresentFor maps a Global RAN Node ID alternative onto the node kind the
+// Radio records. The three ng-eNB macro variants are one kind here: they differ
+// only in identifier width, which RanID already carries.
+func ranPresentFor(kind ngap.RANNodeIDKind) int {
+	switch kind {
+	case ngap.RANNodeIDGNB:
+		return RanPresentGNbID
+	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
+		return RanPresentNgeNbID
+	case ngap.RANNodeIDN3IWF:
+		return RanPresentN3IwfID
+	}
+
+	return 0
 }
 
 // ListRadios returns an immutable snapshot of every connected radio for status/API,
@@ -631,92 +685,6 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 	return ueConn, nil
 }
 
-// SendPaging pages an idle UE and arms its paging-supervision timer. The timer is
-// per-UE and persistent (T3513, TS 24.501 §5.6.2): paging targets a UE with no NAS
-// connection, so the timer cannot live on the connection object.
-func (amf *AMF) SendPaging(ctx context.Context, ue *UeContext, ngapBuf []byte) error {
-	if ue == nil {
-		return fmt.Errorf("amf ue is nil")
-	}
-
-	tmsi := ue.Tmsi()
-	logger.From(ctx, logger.AmfLog).Info("Paging", logger.SUPI(ue.Supi().String()), zap.Uint32("5g-tmsi", tmsi.Uint32()))
-
-	amf.pageRadios(ctx, ue, ngapBuf)
-	amf.armPaging(ue, ngapBuf)
-
-	return nil
-}
-
-// armPaging starts the paging-supervision guard for a UE just paged: retransmit Paging on
-// each interval up to a bound, then abandon (T3513, TS 24.501 §5.6.2). Check-and-arm under
-// the UE lock so a second downlink trigger cannot reset an in-flight supervision. No-op when
-// T3513 is disabled.
-func (amf *AMF) armPaging(ue *UeContext, ngapBuf []byte) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if ue.pagingTimer.Active() {
-		return
-	}
-
-	ue.pagingTimer.ArmWith(amf.T3513Cfg,
-		func(attempt int32) { amf.retransmitPaging(ue, ngapBuf, attempt) },
-		func() { amf.abandonPaging(ue) })
-}
-
-// retransmitPaging resends the Paging each guard interval (T3513, TS 24.501 §5.6.2), or
-// stops the guard once the UE has answered by re-establishing its connection.
-func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
-	if ue.Conn() != nil {
-		ue.pagingTimer.Stop()
-		return
-	}
-
-	logger.AmfLog.Info("paging unanswered, retransmitting", logger.SUPI(ue.Supi().String()), zap.Int32("attempt", attempt))
-	amf.pageRadios(context.Background(), ue, ngapBuf)
-}
-
-// abandonPaging suppresses the anchor's downlink data notification so further
-// downlink packets do not re-page an unreachable UE (TS 23.502 §4.2.3.3).
-func (amf *AMF) abandonPaging(ue *UeContext) {
-	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
-
-	if amf.Session == nil {
-		return
-	}
-
-	supi := ue.Supi()
-
-	for id := range ue.SmContextSnapshot() {
-		if err := amf.Session.HandlePagingFailure(context.Background(), supi, id); err != nil {
-			logger.AmfLog.Warn("failed to suppress downlink notification after paging failure",
-				logger.SUPI(supi.String()), zap.Error(err))
-		}
-	}
-}
-
-// pageRadios sends the paging PDU to every radio whose supported TAIs intersect
-// the UE's registration area.
-func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
-	taiList := ue.RegistrationArea
-
-	for _, ran := range amf.ConnectedRadios() {
-		for _, item := range ran.SupportedTAIList() {
-			if InTaiList(item.Tai, taiList) {
-				if err := amf.SendToRadio(ctx, ran.Conn, send.NGAPProcedurePaging, ngapBuf); err != nil {
-					// The send failure is logged at the chokepoint.
-					continue
-				}
-
-				break
-			}
-		}
-	}
-}
-
-// StopAllTimers stops every timer on every UE, so no timer-driven activity fires while
-// the system is tearing down.
 func (amf *AMF) StopAllTimers() {
 	amf.mu.RLock()
 

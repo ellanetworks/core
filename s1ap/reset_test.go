@@ -3,7 +3,11 @@
 
 package s1ap
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ellanetworks/core/per"
+)
 
 func TestResetRoundTripsResetAll(t *testing.T) {
 	cause := Cause{Group: CauseGroupMisc, Value: 0}
@@ -148,5 +152,15 @@ func TestResetAcknowledgeRoundTripsWithList(t *testing.T) {
 	if it.MMEUES1APID == nil || *it.MMEUES1APID != mme ||
 		it.ENBUES1APID == nil || *it.ENBUES1APID != enb {
 		t.Fatalf("item = %+v, want mme=%d enb=%d", it, mme, enb)
+	}
+}
+
+// A reset naming no UE association at all is refused: the list is
+// SIZE(1..maxnoofIndividualS1ConnectionsToReset), so an empty one cannot be
+// encoded.
+func TestResetTypeRejectsEmptyPart(t *testing.T) {
+	w := per.NewWriter()
+	if err := (ResetType{Part: []UEAssociatedLogicalS1ConnectionItem{}}).MarshalPER(w, per.Aligned); err == nil {
+		t.Fatal("encode accepted an empty partOfS1-Interface list")
 	}
 }

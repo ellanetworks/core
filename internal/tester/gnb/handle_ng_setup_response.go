@@ -4,39 +4,34 @@
 package gnb
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handleNGSetupResponse(nGSetupResponse *ngapType.NGSetupResponse) error {
-	var (
-		amfName             *ngapType.AMFName
-		guamiList           *ngapType.ServedGUAMIList
-		relativeAMFCapacity *ngapType.RelativeAMFCapacity
-		plmnSupportList     *ngapType.PLMNSupportList
-	)
-
-	for _, ie := range nGSetupResponse.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFName:
-			amfName = ie.Value.AMFName
-		case ngapType.ProtocolIEIDServedGUAMIList:
-			guamiList = ie.Value.ServedGUAMIList
-		case ngapType.ProtocolIEIDRelativeAMFCapacity:
-			relativeAMFCapacity = ie.Value.RelativeAMFCapacity
-		case ngapType.ProtocolIEIDPLMNSupportList:
-			plmnSupportList = ie.Value.PLMNSupportList
-		}
+func handleNGSetupResponse(value []byte) error {
+	resp, err := ngap.ParseNGSetupResponse(value)
+	if err != nil {
+		return fmt.Errorf("could not parse NGSetupResponse: %w", err)
 	}
 
 	logger.GnbLogger.Debug(
 		"Received NGSetupResponse",
-		zap.String("AMFName", amfName.Value),
-		zap.Int("GUAMIListCount", len(guamiList.List)),
-		zap.Int("RelativeAMFCapacity", int(relativeAMFCapacity.Value)),
-		zap.Int("PLMNSupportListCount", len(plmnSupportList.List)),
+		zap.String("AMFName", resp.AMFName),
+		zap.Int("GUAMIListCount", len(resp.ServedGUAMIList)),
+		zap.Int("RelativeAMFCapacity", int(derefUint8(resp.RelativeAMFCapacity))),
+		zap.Int("PLMNSupportListCount", len(resp.PLMNSupportList)),
 	)
 
 	return nil
+}
+
+func derefUint8(p *uint8) uint8 {
+	if p == nil {
+		return 0
+	}
+
+	return *p
 }

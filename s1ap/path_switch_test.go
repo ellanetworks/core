@@ -21,8 +21,6 @@ func sampledPathSwitchRequest() *PathSwitchRequest {
 	}
 }
 
-// TestPathSwitchRequestRoundTrip encodes a PATH SWITCH REQUEST, decodes it via the
-// generic Unmarshal envelope, and checks every modeled field survives.
 func TestPathSwitchRequestRoundTrip(t *testing.T) {
 	in := sampledPathSwitchRequest()
 
@@ -71,8 +69,7 @@ func TestPathSwitchRequestRoundTrip(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequestEmptyERABListRejected checks the mandatory E-RAB
-// to-be-switched list is SIZE(1..256): an empty list cannot be encoded.
+// The list is SIZE(1..256), so an empty one cannot be encoded.
 func TestPathSwitchRequestEmptyERABListRejected(t *testing.T) {
 	req := sampledPathSwitchRequest()
 	req.ERABToBeSwitchedDL = nil
@@ -82,8 +79,6 @@ func TestPathSwitchRequestEmptyERABListRejected(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequestAcknowledgeRoundTrip covers the ACK with the mandatory
-// Security Context plus the optional UE-AMBR and replayed UE security capabilities.
 func TestPathSwitchRequestAcknowledgeRoundTrip(t *testing.T) {
 	var nh SecurityKey
 	for i := range nh {
@@ -135,8 +130,6 @@ func TestPathSwitchRequestAcknowledgeRoundTrip(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequestAcknowledgeMinimal covers the ACK with only the mandatory
-// IEs (no UE-AMBR, no replayed capabilities).
 func TestPathSwitchRequestAcknowledgeMinimal(t *testing.T) {
 	in := &PathSwitchRequestAcknowledge{
 		MMEUES1APID:     Ptr(MMEUES1APID(7)),
@@ -168,7 +161,6 @@ func TestPathSwitchRequestAcknowledgeMinimal(t *testing.T) {
 	}
 }
 
-// TestPathSwitchRequestFailureRoundTrip covers the FAILURE message.
 func TestPathSwitchRequestFailureRoundTrip(t *testing.T) {
 	in := &PathSwitchRequestFailure{
 		MMEUES1APID: Ptr(MMEUES1APID(7)),

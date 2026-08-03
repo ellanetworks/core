@@ -45,7 +45,7 @@ func TestBuildPaging(t *testing.T) {
 		t.Fatalf("paging UE Radio Capability for Paging = %x, want %x", paging.UERadioCapabilityForPaging, ue.RadioCapabilityForPaging)
 	}
 
-	if paging.STMSI.MTMSI != ue.Tmsi().Uint32() {
+	if uint32(paging.STMSI.MTMSI) != ue.Tmsi().Uint32() {
 		t.Fatalf("S-TMSI M-TMSI = %#x, want %#x", paging.STMSI.MTMSI, ue.Tmsi().Uint32())
 	}
 

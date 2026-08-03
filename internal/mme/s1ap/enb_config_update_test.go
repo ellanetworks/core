@@ -4,6 +4,7 @@
 package s1ap
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
@@ -40,7 +41,7 @@ func TestENBConfigUpdateAcknowledged(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out, accepted, err := enbConfigUpdateOutcomeFor(tc.req, servedPLMN, []uint16{7})
+			_, out, accepted, _, err := enbConfigUpdateOutcomeFor(tc.req, servedPLMNIdentity(t), []uint16{7})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -71,7 +72,7 @@ func TestENBConfigUpdateRejectedUnknownPLMN(t *testing.T) {
 		SupportedTAs: s1ap.SupportedTAs{{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{foreign}}},
 	}
 
-	out, accepted, err := enbConfigUpdateOutcomeFor(req, servedPLMN, []uint16{7})
+	_, out, accepted, _, err := enbConfigUpdateOutcomeFor(req, servedPLMNIdentity(t), []uint16{7})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +109,7 @@ func TestENBConfigUpdateRejectedUnknownTAC(t *testing.T) {
 		SupportedTAs: s1ap.SupportedTAs{{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{servedPLMNIdentity(t)}}},
 	}
 
-	out, accepted, err := enbConfigUpdateOutcomeFor(req, servedPLMN, []uint16{1})
+	_, out, accepted, _, err := enbConfigUpdateOutcomeFor(req, servedPLMNIdentity(t), []uint16{1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,5 +135,99 @@ func TestENBConfigUpdateRejectedUnknownTAC(t *testing.T) {
 
 	if failure.Cause == nil || *failure.Cause != causeNoServedTAC {
 		t.Fatalf("cause = %+v, want Misc/unspecified %+v", failure.Cause, causeNoServedTAC)
+	}
+}
+
+// TestHandleENBConfigurationUpdate_AbsentTAsPreservesAndAcks verifies that a
+// name-only update (Supported TAs IE absent) is acknowledged, the stored TAs are
+// left unchanged, and the eNB name is applied (TS 36.413 §8.7.4.2). Mirrors the
+// AMF's RAN Configuration Update test of the same rule.
+func TestHandleENBConfigurationUpdate_AbsentTAsPreservesAndAcks(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	radio := mme.NewRadioForTest(cc)
+	radio.BindMMEForTest(m)
+
+	stored := []mme.SupportedTAI{{Tai: models.Tai{Tac: "0007", PlmnID: &servedPLMN}}}
+	m.UpdateRadioSupportedTAs(radio, stored)
+	m.UpdateRadioName(radio, "enb-old")
+
+	b, err := (&s1ap.ENBConfigurationUpdate{ENBName: s1ap.Ptr("enb-new")}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handleENBConfigurationUpdate(m, context.Background(), radio, initiatingValue(t, b))
+
+	if cc.count() != 1 {
+		t.Fatalf("expected 1 response, got %d", cc.count())
+	}
+
+	assertSuccessfulOutcome(t, cc.sent[0])
+
+	if tais := m.RadioSupportedTAsForTest(radio); len(tais) != 1 || tais[0].Tai.Tac != "0007" {
+		t.Fatalf("absent Supported TAs must leave the stored TAs unchanged, got %+v", tais)
+	}
+
+	if name := radio.NodeName(); name != "enb-new" {
+		t.Fatalf("eNB name = %q, want enb-new", name)
+	}
+}
+
+// TestHandleENBConfigurationUpdate_RejectPreservesTAs verifies that an update
+// whose Supported TAs name no served TAI is rejected without discarding the
+// stored TAs.
+func TestHandleENBConfigurationUpdate_RejectPreservesTAs(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	radio := mme.NewRadioForTest(cc)
+	radio.BindMMEForTest(m)
+
+	stored := []mme.SupportedTAI{{Tai: models.Tai{Tac: "0007", PlmnID: &servedPLMN}}}
+	m.UpdateRadioSupportedTAs(radio, stored)
+
+	b, err := (&s1ap.ENBConfigurationUpdate{
+		SupportedTAs: s1ap.SupportedTAs{{TAC: 0xFF, BroadcastPLMNs: s1ap.BPLMNs{servedPLMNIdentity(t)}}},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handleENBConfigurationUpdate(m, context.Background(), radio, initiatingValue(t, b))
+
+	if cc.count() != 1 {
+		t.Fatalf("expected 1 response, got %d", cc.count())
+	}
+
+	assertUnsuccessfulOutcome(t, cc.sent[0])
+
+	if tais := m.RadioSupportedTAsForTest(radio); len(tais) != 1 || tais[0].Tai.Tac != "0007" {
+		t.Fatalf("a rejected update must not discard the stored TAs, got %+v", tais)
+	}
+}
+
+func assertSuccessfulOutcome(t *testing.T, b []byte) {
+	t.Helper()
+
+	pdu, err := s1ap.Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if so, ok := pdu.(*s1ap.SuccessfulOutcome); !ok || so.ProcedureCode != s1ap.ProcENBConfigurationUpdate {
+		t.Fatalf("expected ENB Configuration Update Acknowledge, got %T", pdu)
+	}
+}
+
+func assertUnsuccessfulOutcome(t *testing.T, b []byte) {
+	t.Helper()
+
+	pdu, err := s1ap.Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if uo, ok := pdu.(*s1ap.UnsuccessfulOutcome); !ok || uo.ProcedureCode != s1ap.ProcENBConfigurationUpdate {
+		t.Fatalf("expected ENB Configuration Update Failure, got %T", pdu)
 	}
 }

@@ -22,8 +22,7 @@ const (
 	causeRootGroups = 5
 )
 
-// causeGroupRootCount is the number of root ENUMERATED values in each group's
-// CauseXxx type, which sets the index width (TS 36.413).
+// Root ENUMERATED values per group, which sets the index width.
 var causeGroupRootCount = [causeRootGroups]int{
 	CauseGroupRadioNetwork: 36,
 	CauseGroupTransport:    2,
@@ -96,7 +95,7 @@ func (c *Cause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if gExt {
-		return fmt.Errorf("s1ap: unsupported cause extension group")
+		return fmt.Errorf("%w: cause extension group", errNotComprehended)
 	}
 
 	gi, err := per.DecodeConstrainedWholeNumber(r, enc, 0, causeRootGroups-1)

@@ -159,8 +159,7 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 		globalENBID bool
 		supportedTA bool
 		pagingDRX   bool
-		// wantReject lists the absent reject-criticality IEs; nil means the
-		// message is still delivered.
+		// Absent reject-criticality IEs; nil means still delivered.
 		wantReject   []ProtocolIEID
 		wantReported []ProtocolIEID
 	}{
@@ -234,4 +233,34 @@ func rejectedIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
 	}
 
 	return ids
+}
+
+// §8.7.3.2. Ella Core never retains, but it must read the offer rather than
+// reject the setup over an IE it does not model.
+func TestS1SetupUERetentionInformationRoundTrip(t *testing.T) {
+	sent := &S1SetupRequest{
+		GlobalENBID:            GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x1a2b3}},
+		SupportedTAs:           SupportedTAs{{TAC: 1, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
+		DefaultPagingDRX:       Ptr(PagingDRXv128),
+		UERetentionInformation: Ptr(UERetentionUesRetained),
+	}
+
+	raw, err := sent.Marshal()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	pdu, err := Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	got, err := ParseS1SetupRequest(pdu.value())
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if deref(got.UERetentionInformation) != UERetentionUesRetained {
+		t.Errorf("UERetentionInformation = %v, want ues-retained", got.UERetentionInformation)
+	}
 }

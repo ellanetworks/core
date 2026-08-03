@@ -27,6 +27,13 @@ var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseM
 // AMF's NG Setup / RAN Configuration Update handling.
 var causeNoServedTAC = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
 
+// causeUnspecified is the same Cause Misc "unspecified" on the wire, named for
+// the other reason the MME sends it: a failure on its own side, where the
+// eNB's configuration is not at fault and nothing more specific fits. Kept
+// distinct from causeNoServedTAC so a reader can tell which rejection a call
+// site means.
+var causeUnspecified = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
+
 // handleS1Setup answers an eNB's S1 Setup Request with an S1 Setup Response when
 // the eNB broadcasts a TAI this MME serves, otherwise an S1 Setup Failure
 // (TS 36.413).
@@ -34,6 +41,8 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	operator, err := m.Operator(ctx)
 	if err != nil {
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to get operator for S1 Setup", zap.Error(err))
+		sendS1SetupFailure(m, ctx, conn, causeUnspecified, nil)
+
 		return
 	}
 
@@ -42,6 +51,8 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	tacs, err := operator.TACs()
 	if err != nil {
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to get operator TACs for S1 Setup", zap.Error(err))
+		sendS1SetupFailure(m, ctx, conn, causeUnspecified, nil)
+
 		return
 	}
 
@@ -50,11 +61,14 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, m.RelativeCapacity)
 	if err != nil {
 		if ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err); ok {
-			sendS1SetupFailure(m, ctx, conn, ase)
+			sendS1SetupProtocolFailure(m, ctx, conn, ase)
 			return
 		}
 
+		// §8.7.3.3 obliges an answer whenever the MME cannot accept the setup,
+		// which includes being unable to build its own response.
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to handle S1 Setup Request", zap.Error(err))
+		sendS1SetupFailure(m, ctx, conn, causeUnspecified, nil)
 
 		return
 	}
@@ -100,14 +114,26 @@ func buildS1SetupFailure(ase *s1ap.AbstractSyntaxError) ([]byte, error) {
 	return fail.Marshal()
 }
 
-func sendS1SetupFailure(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, ase *s1ap.AbstractSyntaxError) {
-	out, err := buildS1SetupFailure(ase)
+// sendS1SetupFailure answers with an S1 SETUP FAILURE carrying cause and, where
+// the rejection answers a protocol error, the per-IE diagnostics §10.3.5 wants.
+func sendS1SetupFailure(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, cause s1ap.Cause, diag *s1ap.CriticalityDiagnostics) {
+	out, err := (&s1ap.S1SetupFailure{Cause: &cause, CriticalityDiagnostics: diag}).Marshal()
 	if err != nil {
 		logger.From(ctx, m.RadioLog(conn)).Error("failed to marshal S1 Setup Failure", zap.Error(err))
 		return
 	}
 
 	m.SendToRadio(ctx, conn, mme.S1APProcedureS1SetupFailure, out)
+}
+
+// sendS1SetupProtocolFailure rejects a request that must not reach the
+// application. S1 Setup defines an unsuccessful outcome, so TS 36.413 §10.3.5
+// answers with it rather than with the Error Indication other procedures use.
+func sendS1SetupProtocolFailure(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, ase *s1ap.AbstractSyntaxError) {
+	diag := ase.OutcomeDiagnostics()
+
+	sendS1SetupFailure(m, ctx, conn, ase.Cause, &diag)
+
 	logger.From(ctx, m.RadioLog(conn)).Warn("S1 Setup rejected", zap.Error(ase))
 }
 

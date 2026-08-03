@@ -80,15 +80,15 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 	{
 		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				uli UserLocationInformation
-			)
+			var uli UserLocationInformation
 
-			err = perIEDecode(raw, &uli)
+			if err := perIEDecode(raw, &uli); err != nil {
+				return err
+			}
+
 			m.UserLocationInformation = &uli
 
-			return err
+			return nil
 		},
 		encode: func(m *ERABModificationIndication) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {

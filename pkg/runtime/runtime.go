@@ -759,9 +759,7 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 	if err != nil {
 		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
 	} else {
-		unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
-
-		pkt, buildErr := send.BuildAMFStatusIndication(unavailableGuamiList)
+		pkt, buildErr := amf.BuildAMFStatusIndication(operatorInfo.Guami)
 		if buildErr != nil {
 			logger.AmfLog.Error("failed to build AMF Status Indication", zap.Error(buildErr))
 		} else {

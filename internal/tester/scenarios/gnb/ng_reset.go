@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
@@ -57,12 +58,9 @@ func runNGReset(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	if err := node.SendNGReset(&gnb.NGResetOpts{
-		Cause: &ngapType.Cause{
-			Present: ngapType.CausePresentMisc,
-			Misc: &ngapType.CauseMisc{
-				Value: ngapType.CauseMiscPresentUnspecified,
-			},
-		},
+		Cause: ngaplib.Ptr(ngaplib.Cause{
+			Group: ngaplib.CauseGroupMisc, Value: ngaplib.CauseMiscUnspecified,
+		}),
 		ResetAll: true,
 	}); err != nil {
 		return fmt.Errorf("send NGReset: %w", err)

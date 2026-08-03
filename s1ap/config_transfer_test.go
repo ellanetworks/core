@@ -96,8 +96,8 @@ func TestENBConfigurationTransfer_RelayRoundTrip(t *testing.T) {
 	}
 }
 
-// relayedSON extracts the SON Configuration Transfer IE (id-...MCT) value from an
-// MME CONFIGURATION TRANSFER body.
+// The id-SONConfigurationTransferMCT value out of an MME CONFIGURATION
+// TRANSFER body.
 func relayedSON(t *testing.T, value []byte) []byte {
 	t.Helper()
 
@@ -140,4 +140,62 @@ func TestENBConfigurationTransfer_NoSONIE(t *testing.T) {
 	if msg.SONConfigurationTransfer != nil {
 		t.Fatalf("expected nil SON Configuration Transfer, got %x", msg.SONConfigurationTransfer)
 	}
+}
+
+// §8.15.2/§8.16.2 relay the transfer verbatim, so the payload must survive
+// untouched in both directions.
+func TestConfigurationTransferRelaysVerbatimBothDirections(t *testing.T) {
+	transfer := SONConfigurationTransfer{0x01, 0x02, 0x03, 0x04}
+
+	t.Run("eNB to MME", func(t *testing.T) {
+		b, err := (&ENBConfigurationTransfer{SONConfigurationTransfer: transfer}).Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pdu, err := Unmarshal(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		im, ok := pdu.(*InitiatingMessage)
+		if !ok || im.ProcedureCode != ProcENBConfigurationTransfer {
+			t.Fatalf("got %T procedureCode %d", pdu, pdu.procedureCode())
+		}
+
+		out, err := ParseENBConfigurationTransfer(im.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(out.SONConfigurationTransfer, transfer) {
+			t.Errorf("transfer = %x, want %x", out.SONConfigurationTransfer, transfer)
+		}
+	})
+
+	t.Run("MME to eNB", func(t *testing.T) {
+		b, err := (&MMEConfigurationTransfer{SONConfigurationTransfer: transfer}).Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pdu, err := Unmarshal(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		im, ok := pdu.(*InitiatingMessage)
+		if !ok || im.ProcedureCode != ProcMMEConfigurationTransfer {
+			t.Fatalf("got %T procedureCode %d", pdu, pdu.procedureCode())
+		}
+
+		out, err := ParseMMEConfigurationTransfer(im.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(out.SONConfigurationTransfer, transfer) {
+			t.Errorf("transfer = %x, want %x", out.SONConfigurationTransfer, transfer)
+		}
+	})
 }

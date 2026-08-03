@@ -410,14 +410,12 @@ func notifyRANsUnavailable(ctx context.Context, amfInstance *amf.AMF, timeout ti
 		return 0
 	}
 
-	unavailableGUAMIList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
-
 	sendCtx, sendCancel := context.WithTimeout(ctx, timeout)
 	defer sendCancel()
 
 	notified := 0
 
-	pkt, err := send.BuildAMFStatusIndication(unavailableGUAMIList)
+	pkt, err := amf.BuildAMFStatusIndication(operatorInfo.Guami)
 	if err != nil {
 		logger.APILog.Warn("failed to build AMF Status Indication during drain", zap.Error(err))
 		return 0

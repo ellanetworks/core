@@ -9,21 +9,22 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// maxnoofIndividualS1ConnectionsToReset bounds the UE-associated logical
-// S1-connection lists in Reset/Reset Acknowledge (TS 36.413).
+// TS 36.413, S1AP-Constants.
 const maxnoofIndividualS1ConnectionsToReset = 256
 
-// resetTypeChoiceRootCount is the number of root alternatives of the ResetType
-// CHOICE: s1-Interface and partOfS1-Interface (TS 36.413).
-const resetTypeChoiceRootCount = 2
+// ResetType CHOICE root alternatives, defined inline in the RESET of TS 36.413
+// §9.1.8.1. The CHOICE is extensible, so an extension bit precedes the index.
+const (
+	resetTypeS1Interface = iota
+	resetTypePartOfS1Interface
 
-// resetAllRootCount is the number of root values of ResetAll ENUMERATED
-// { reset-all, ... } (TS 36.413).
+	resetTypeChoiceRootCount = 2
+)
+
+// ResetAll ::= ENUMERATED { reset-all, ... }.
 const resetAllRootCount = 1
 
-// UEAssociatedLogicalS1ConnectionItem identifies one UE-associated logical
-// S1-connection by its MME-UE-S1AP-ID and/or eNB-UE-S1AP-ID (TS 36.413).
-// Both identities are optional; an item may carry either or both.
+// TS 36.413. Both identities are optional; an item may carry either or both.
 type UEAssociatedLogicalS1ConnectionItem struct {
 	_           [0]struct{}  `per:"extseq"`
 	MMEUES1APID *MMEUES1APID `per:",optional"`
@@ -31,10 +32,8 @@ type UEAssociatedLogicalS1ConnectionItem struct {
 	_           ieExtensions `per:",skip"`
 }
 
-// ResetType is the ResetType CHOICE (TS 36.413): All selects
-// s1-Interface (ResetAll, value reset-all), reset of the whole S1 interface;
-// otherwise Part selects partOfS1-Interface, the UE-associated logical
-// S1-connections to reset.
+// All selects s1-Interface, resetting the whole interface; otherwise Part
+// selects partOfS1-Interface, the connections to reset.
 type ResetType struct {
 	All  bool
 	Part []UEAssociatedLogicalS1ConnectionItem
@@ -44,14 +43,14 @@ func (t ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 
 	if t.All {
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, 0); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, resetTypeS1Interface); err != nil {
 			return err
 		}
 
 		return per.EncodeEnumerated(w, enc, resetAllRootCount, true, 0)
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, 1); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, resetTypePartOfS1Interface); err != nil {
 		return err
 	}
 
@@ -65,7 +64,8 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if isExt {
-		return fmt.Errorf("s1ap: ResetType extension alternative unsupported")
+		// §10.3.1 case 6: handled on criticality, not by abandoning the RESET.
+		return fmt.Errorf("%w: ResetType extension alternative", errNotComprehended)
 	}
 
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, resetTypeChoiceRootCount-1)
@@ -74,8 +74,8 @@ func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	switch idx {
-	case 0:
-		if _, err := per.DecodeEnumerated(r, enc, resetAllRootCount, true); err != nil {
+	case resetTypeS1Interface:
+		if _, err := decodeRootEnumerated(r, enc, resetAllRootCount, "ResetAll"); err != nil {
 			return fmt.Errorf("s1ap: ResetAll: %w", err)
 		}
 
