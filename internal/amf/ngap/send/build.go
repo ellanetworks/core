@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -1331,123 +1330,6 @@ func BuildHandoverRequest(
 
 // Paging Priority is included only when the N1N2MessageTransfer carries an ARP value
 // for priority services, e.g. MPS or MCS (TS 23.502).
-func BuildPaging(
-	guti etsi.GUTI5G,
-	registrationArea []models.Tai,
-	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
-	pagingPriority *ngapType.PagingPriority,
-) ([]byte, error) {
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodePaging
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentPaging
-	initiatingMessage.Value.Paging = new(ngapType.Paging)
-
-	paging := initiatingMessage.Value.Paging
-	pagingIEs := &paging.ProtocolIEs
-
-	ie := ngapType.PagingIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDUEPagingIdentity
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.PagingIEsPresentUEPagingIdentity
-	ie.Value.UEPagingIdentity = new(ngapType.UEPagingIdentity)
-
-	uePagingIdentity := ie.Value.UEPagingIdentity
-	uePagingIdentity.Present = ngapType.UEPagingIdentityPresentFiveGSTMSI
-	uePagingIdentity.FiveGSTMSI = new(ngapType.FiveGSTMSI)
-
-	_, amfSetID, amfPointer := ngapConvert.AmfIdToNgap(guti.Amfid)
-
-	var err error
-
-	uePagingIdentity.FiveGSTMSI.AMFSetID.Value = amfSetID
-	uePagingIdentity.FiveGSTMSI.AMFPointer.Value = amfPointer
-
-	uePagingIdentity.FiveGSTMSI.FiveGTMSI.Value, err = hex.DecodeString(guti.Tmsi.String())
-	if err != nil {
-		return nil, fmt.Errorf("could not decode tmsi: %s", err)
-	}
-
-	pagingIEs.List = append(pagingIEs.List, ie)
-
-	ie = ngapType.PagingIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDTAIListForPaging
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.PagingIEsPresentTAIListForPaging
-	ie.Value.TAIListForPaging = new(ngapType.TAIListForPaging)
-
-	if len(registrationArea) == 0 {
-		return nil, fmt.Errorf("registration area is empty for ue")
-	}
-
-	taiListForPaging := ie.Value.TAIListForPaging
-
-	for _, tai := range registrationArea {
-		var tac []byte
-
-		taiListforPagingItem := ngapType.TAIListForPagingItem{}
-
-		plmnID, err := util.PlmnIDToNgap(*tai.PlmnID)
-		if err != nil {
-			return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
-		}
-
-		taiListforPagingItem.TAI.PLMNIdentity = *plmnID
-
-		tac, err = hex.DecodeString(tai.Tac)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode tac: %s", err)
-		}
-
-		taiListforPagingItem.TAI.TAC.Value = tac
-		taiListForPaging.List = append(taiListForPaging.List, taiListforPagingItem)
-	}
-
-	pagingIEs.List = append(pagingIEs.List, ie)
-
-	if pagingPriority != nil {
-		ie = ngapType.PagingIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPagingPriority
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.PagingIEsPresentPagingPriority
-		ie.Value.PagingPriority = pagingPriority
-		pagingIEs.List = append(pagingIEs.List, ie)
-	}
-
-	if ueRadioCapabilityForPaging != nil {
-		ie = ngapType.PagingIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDUERadioCapabilityForPaging
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.PagingIEsPresentUERadioCapabilityForPaging
-		ie.Value.UERadioCapabilityForPaging = new(ngapType.UERadioCapabilityForPaging)
-
-		uERadioCapabilityForPaging := ie.Value.UERadioCapabilityForPaging
-		if ueRadioCapabilityForPaging.NR != "" {
-			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.NR)
-			if err != nil {
-				return nil, fmt.Errorf("DecodeString ue.RadioCapabilityForPaging.NR error: %s", err)
-			}
-		}
-
-		if ueRadioCapabilityForPaging.EUTRA != "" {
-			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.EUTRA)
-			if err != nil {
-				return nil, fmt.Errorf("DecodeString ue.RadioCapabilityForPaging.EUTRA error: %s", err)
-			}
-		}
-
-		pagingIEs.List = append(pagingIEs.List, ie)
-	}
-
-	return ngap.Encoder(pdu)
-}
-
 func BuildUnavailableGUAMIList(guami *models.Guami) (unavailableGUAMIList ngapType.UnavailableGUAMIList) {
 	item := ngapType.UnavailableGUAMIItem{}
 

@@ -848,3 +848,141 @@ func (uEAssociatedLogicalNGConnectionItem *UEAssociatedLogicalNGConnectionItem) 
 	}
 	return nil
 }
+
+func (uERadioCapabilityForPaging *UERadioCapabilityForPaging) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(uERadioCapabilityForPaging.NR != nil)
+	w.WriteBit(uERadioCapabilityForPaging.EUTRA != nil)
+	w.WriteBit(false)
+	if uERadioCapabilityForPaging.NR != nil {
+		if err := (*uERadioCapabilityForPaging.NR).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if uERadioCapabilityForPaging.EUTRA != nil {
+		if err := (*uERadioCapabilityForPaging.EUTRA).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (uERadioCapabilityForPaging *UERadioCapabilityForPaging) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NR, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_EUTRA, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_NR {
+		var v UERadioCapabilityForPagingOfNR
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uERadioCapabilityForPaging.NR = &v
+	}
+	if p_EUTRA {
+		var v UERadioCapabilityForPagingOfEUTRA
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uERadioCapabilityForPaging.EUTRA = &v
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (taiListForPagingItem *taiListForPagingItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := taiListForPagingItem.TAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (taiListForPagingItem *taiListForPagingItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&taiListForPagingItem.TAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}

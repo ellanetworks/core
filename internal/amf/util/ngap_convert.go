@@ -149,19 +149,33 @@ func GUAMIToNGAP(guami models.Guami) (ngap.GUAMI, error) {
 		return out, err
 	}
 
-	b, err := hex.DecodeString(guami.AmfID)
+	region, set, pointer, err := AMFIDToNGAP(guami.AmfID)
 	if err != nil {
-		return out, fmt.Errorf("could not decode AMF id %q: %w", guami.AmfID, err)
-	}
-
-	if len(b) != 3 {
-		return out, fmt.Errorf("AMF id %q is %d octets, want 3", guami.AmfID, len(b))
+		return out, err
 	}
 
 	return ngap.GUAMI{
 		PLMNIdentity: plmn,
-		AMFRegionID:  ngap.AMFRegionID(b[0]),
-		AMFSetID:     ngap.AMFSetID(uint16(b[1])<<2 | uint16(b[2])>>6),
-		AMFPointer:   ngap.AMFPointer(b[2] & 0x3f),
+		AMFRegionID:  region,
+		AMFSetID:     set,
+		AMFPointer:   pointer,
 	}, nil
+}
+
+// AMFIDToNGAP splits the three-octet AMF identifier into the Region ID, Set ID
+// and Pointer that address an AMF (TS 23.003 §2.10.1): 8 bits, then 10, then 6.
+func AMFIDToNGAP(amfID string) (ngap.AMFRegionID, ngap.AMFSetID, ngap.AMFPointer, error) {
+	b, err := hex.DecodeString(amfID)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("could not decode AMF id %q: %w", amfID, err)
+	}
+
+	if len(b) != 3 {
+		return 0, 0, 0, fmt.Errorf("AMF id %q is %d octets, want 3", amfID, len(b))
+	}
+
+	return ngap.AMFRegionID(b[0]),
+		ngap.AMFSetID(uint16(b[1])<<2 | uint16(b[2])>>6),
+		ngap.AMFPointer(b[2] & 0x3f),
+		nil
 }

@@ -25,6 +25,7 @@ var messageParsers = []messageParser{
 		_, err := ParseUplinkRANConfigurationTransfer(v)
 		return err
 	}},
+	{"ParsePaging", func(v []byte) error { _, err := ParsePaging(v); return err }},
 	{"ParseRANConfigurationUpdate", func(v []byte) error { _, err := ParseRANConfigurationUpdate(v); return err }},
 	{"ParseRANConfigurationUpdateAcknowledge", func(v []byte) error {
 		_, err := ParseRANConfigurationUpdateAcknowledge(v)

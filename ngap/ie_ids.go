@@ -13,6 +13,9 @@ const (
 	idFiveGSTMSI                          ProtocolIEID = 26
 	idGlobalRANNodeID                     ProtocolIEID = 27
 	idPLMNSupportList                     ProtocolIEID = 80
+	idPagingDRX                           ProtocolIEID = 50
+	idPagingOrigin                        ProtocolIEID = 51
+	idPagingPriority                      ProtocolIEID = 52
 	idRANNodeName                         ProtocolIEID = 82
 	idRANUENGAPID                         ProtocolIEID = 85
 	idRelativeAMFCapacity                 ProtocolIEID = 86
@@ -22,8 +25,11 @@ const (
 	idSONConfigurationTransferDL          ProtocolIEID = 98
 	idSONConfigurationTransferUL          ProtocolIEID = 99
 	idSupportedTAList                     ProtocolIEID = 102
+	idTAIListForPaging                    ProtocolIEID = 103
 	idTimeToWait                          ProtocolIEID = 107
 	idNGRANTNLAssociationToRemoveList     ProtocolIEID = 167
 	idUEAssociatedLogicalNGConnectionList ProtocolIEID = 111
+	idUEPagingIdentity                    ProtocolIEID = 115
+	idUERadioCapabilityForPaging          ProtocolIEID = 118
 	idUERetentionInformation              ProtocolIEID = 147
 )
