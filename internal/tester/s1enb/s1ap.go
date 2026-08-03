@@ -152,7 +152,7 @@ func (e *ENB) SendInitialUEMessageWithSTMSI(enbUEID int64, mmec uint8, mtmsi uin
 		TAI:                   e.tai(),
 		EUTRANCGI:             s1ap.Ptr(e.eutranCGI()),
 		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
-		STMSI:                 &s1ap.STMSI{MMEC: mmec, MTMSI: mtmsi},
+		STMSI:                 &s1ap.STMSI{MMEC: s1ap.MMECode(mmec), MTMSI: s1ap.MTMSI(mtmsi)},
 	}
 
 	b, err := msg.Marshal()

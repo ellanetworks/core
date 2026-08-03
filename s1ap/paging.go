@@ -19,7 +19,6 @@ const (
 	uePagingIDChoiceSTMSI = 0
 )
 
-// CNDomain selects the core-network domain a Paging targets (TS 36.413).
 // Ella Core pages the PS domain.
 type CNDomain uint8
 
@@ -28,15 +27,32 @@ const (
 	CNDomainCS CNDomain = 1
 )
 
+// PagingPriority ::= ENUMERATED { priolevel1..priolevel8, ... } — §9.2.1.78.
+type PagingPriority uint8
+
+const (
+	PagingPriorityLevel1 PagingPriority = iota
+	PagingPriorityLevel2
+	PagingPriorityLevel3
+	PagingPriorityLevel4
+	PagingPriorityLevel5
+	PagingPriorityLevel6
+	PagingPriorityLevel7
+	PagingPriorityLevel8
+
+	pagingPriorityRootCount = 8
+)
+
 // TS 36.413 §9.1.6.
 type Paging struct {
 	UEIdentityIndexValue *uint16
 	STMSI                *STMSI
+	PagingDRX            *PagingDRX
 	CNDomain             *CNDomain
 	TAIList              []TAI
-	// UERadioCapabilityForPaging is the eNB-reported paging-specific capability
-	// (TS 36.413 §9.1.6.1, optional-ignore); when set, the eNB may use it to apply
-	// specific paging schemes. Empty means the IE is omitted.
+	PagingPriority       *PagingPriority
+	// The eNB-reported paging-specific capability; when set, the eNB may use it
+	// to apply specific paging schemes.
 	UERadioCapabilityForPaging []byte
 
 	messageMeta
@@ -49,20 +65,19 @@ type taiItem struct {
 	_   ieExtensions `per:",skip"`
 }
 
+// UE-Identity-Index-value ::= BIT STRING (SIZE(10)) — §9.2.3.10.
+const ueIdentityIndexValueBits = 10
+
 var pagingIEs = []ieSpec[Paging]{
 	{
 		id: idUEIdentityIndexValue, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			b, nbits, err := per.DecodeBitString(per.NewReader(raw), enc, 10, 10, true, true, false)
+			n, err := decodeBitStringUint(per.NewReader(raw), enc, ueIdentityIndexValueBits)
 			if err != nil {
 				return err
 			}
 
-			if nbits != 10 || len(b) < 2 {
-				return fmt.Errorf("s1ap: UE identity index value is %d bits", nbits)
-			}
-
-			v := uint16(b[0])<<2 | uint16(b[1])>>6
+			v := uint16(n)
 			m.UEIdentityIndexValue = &v
 
 			return nil
@@ -73,9 +88,7 @@ var pagingIEs = []ieSpec[Paging]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				b := []byte{byte(*m.UEIdentityIndexValue >> 2), byte(*m.UEIdentityIndexValue << 6)}
-
-				return per.EncodeBitString(w, enc, 10, 10, true, true, false, b, 10)
+				return encodeBitStringUint(w, enc, uint64(*m.UEIdentityIndexValue), ueIdentityIndexValueBits)
 			}), true
 		},
 	},
@@ -90,7 +103,7 @@ var pagingIEs = []ieSpec[Paging]{
 			}
 
 			if isExt {
-				return fmt.Errorf("s1ap: unsupported UE paging identity extension alternative")
+				return fmt.Errorf("%w: UE paging identity extension alternative", errNotComprehended)
 			}
 
 			index, err := per.DecodeConstrainedWholeNumber(sub, enc, 0, uePagingIDRootCount-1)
@@ -99,7 +112,7 @@ var pagingIEs = []ieSpec[Paging]{
 			}
 
 			if index != uePagingIDChoiceSTMSI {
-				return fmt.Errorf("s1ap: unsupported UE paging identity choice %d", index)
+				return fmt.Errorf("%w: UE paging identity choice %d", errNotComprehended, index)
 			}
 
 			var v STMSI
@@ -125,6 +138,27 @@ var pagingIEs = []ieSpec[Paging]{
 
 				return m.STMSI.MarshalPER(w, enc)
 			}), true
+		},
+	},
+	{
+		id: idPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+			var drx PagingDRX
+
+			if err := perIEDecode(raw, &drx); err != nil {
+				return err
+			}
+
+			m.PagingDRX = &drx
+
+			return nil
+		},
+		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.PagingDRX == nil {
+				return nil, false
+			}
+
+			return m.PagingDRX, true
 		},
 	},
 	{
@@ -180,8 +214,33 @@ var pagingIEs = []ieSpec[Paging]{
 			}), true
 		},
 	},
-	// UE Radio Capability for Paging follows the List of TAIs in the message
-	// order (§9.1.6.1); included only when the eNB reported one.
+	{
+		id: idPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, "PagingPriority")
+			if err != nil {
+				return err
+			}
+
+			p := PagingPriority(v)
+			m.PagingPriority = &p
+
+			return nil
+		},
+		encode: func(m *Paging) (per.Marshaler, bool) {
+			if m.PagingPriority == nil {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				if int(*m.PagingPriority) >= pagingPriorityRootCount {
+					return fmt.Errorf("s1ap: PagingPriority %d outside the root values", *m.PagingPriority)
+				}
+
+				return per.EncodeEnumerated(w, enc, pagingPriorityRootCount, true, int64(*m.PagingPriority))
+			}), true
+		},
+	},
 	{
 		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {

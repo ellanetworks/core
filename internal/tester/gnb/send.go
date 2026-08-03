@@ -17,8 +17,9 @@ type NGAPProcedure string
 
 const (
 	// Non-UE associated NGAP procedures
-	NGAPProcedureNGSetupRequest NGAPProcedure = "NGSetupRequest"
-	NGAPProcedureNGReset        NGAPProcedure = "NGReset"
+	NGAPProcedureNGSetupRequest         NGAPProcedure = "NGSetupRequest"
+	NGAPProcedureNGReset                NGAPProcedure = "NGReset"
+	NGAPProcedureRANConfigurationUpdate NGAPProcedure = "RANConfigurationUpdate"
 
 	// UE-associated NGAP procedures
 	NGAPProcedureInitialUEMessage                  NGAPProcedure = "InitialUEMessage"
@@ -38,7 +39,7 @@ const (
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
-	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset:
+	case NGAPProcedureNGSetupRequest, NGAPProcedureNGReset, NGAPProcedureRANConfigurationUpdate:
 		return 0, nil
 
 	case NGAPProcedureInitialUEMessage, NGAPProcedureUplinkNASTransport,
@@ -55,21 +56,30 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 }
 
 func (g *GnodeB) SendNGSetupRequest(opts *NGSetupRequestOpts) error {
-	pdu, err := BuildNGSetupRequest(opts)
+	pkt, err := BuildNGSetupRequest(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build NGSetupRequest: %s", err.Error())
 	}
 
-	return g.SendMessage(pdu, NGAPProcedureNGSetupRequest)
+	return g.SendToRan(pkt, NGAPProcedureNGSetupRequest)
+}
+
+func (g *GnodeB) SendRANConfigurationUpdate(opts *RANConfigurationUpdateOpts) error {
+	pkt, err := BuildRANConfigurationUpdate(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build RANConfigurationUpdate: %s", err.Error())
+	}
+
+	return g.SendToRan(pkt, NGAPProcedureRANConfigurationUpdate)
 }
 
 func (g *GnodeB) SendNGReset(opts *NGResetOpts) error {
-	pdu, err := BuildNGReset(opts)
+	pkt, err := BuildNGReset(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build NGReset: %s", err.Error())
 	}
 
-	return g.SendMessage(pdu, NGAPProcedureNGReset)
+	return g.SendToRan(pkt, NGAPProcedureNGReset)
 }
 
 func (g *GnodeB) SendUEContextReleaseRequest(opts *UEContextReleaseRequestOpts) error {
@@ -214,10 +224,14 @@ func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) erro
 		return fmt.Errorf("ran conn is nil")
 	}
 
-	if conn.RemoteAddr() == nil {
-		return fmt.Errorf("ran address is nil")
-	}
-
+	// Deliberately no RemoteAddr() pre-check. SCTPConn.RemoteAddr converts an
+	// unsafe.Pointer to uintptr and passes it through an intermediate Go
+	// function before it reaches syscall.Syscall6, which only pins the buffer
+	// when the conversion appears directly in the syscall argument list. When
+	// entering that function grows the goroutine stack, the kernel writes the
+	// peer addresses to the abandoned stack, the address count stays zero and
+	// RemoteAddr reports nil for a perfectly healthy association. SCTPWrite
+	// below surfaces a genuinely unusable association with the real errno.
 	sid, err := getSCTPStreamID(msgType)
 	if err != nil {
 		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %s", msgType, err.Error())

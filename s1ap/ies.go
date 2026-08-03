@@ -34,24 +34,21 @@ func (e rawIE) field() ieField {
 	return ieField{id: e.id, crit: e.crit, raw: e.value}
 }
 
-// RawIE is a ProtocolIE-Field the message type does not model, with its value
-// left as open-type bytes (TS 36.413).
+// A ProtocolIE-Field the message type does not model; Value is open-type bytes.
 type RawIE struct {
 	ID          ProtocolIEID
 	Criticality Criticality
 	Value       []byte
 }
 
-// messageMeta is embedded in every message struct. It carries what the typed
-// fields cannot: IEs this version does not model, and the abstract syntax
-// errors that did not stop delivery.
+// What the typed fields cannot carry: IEs this version does not model, and the
+// abstract syntax errors that did not stop delivery.
 type messageMeta struct {
 	unknownIEs  []rawIE
 	diagnostics Diagnostics
 }
 
-// preserve keeps an unmodeled IE so it survives a re-encode, up to a bound: a
-// peer chooses both the count and the size of what we would retain.
+// Bounded: a peer chooses both the count and the size of what we would retain.
 func (u *messageMeta) preserve(f rawIE) {
 	if len(u.unknownIEs) >= maxPreservedIEs {
 		u.diagnostics.Truncated = true
@@ -62,11 +59,11 @@ func (u *messageMeta) preserve(f rawIE) {
 	u.unknownIEs = append(u.unknownIEs, f)
 }
 
-// Diagnostics returns the abstract syntax errors found while decoding that
-// TS 36.413 §10.3.4.2 and §10.3.5 let the receiver carry on past.
+// The abstract syntax errors §10.3.4.2 and §10.3.5 let the receiver carry on
+// past.
 func (u messageMeta) Diagnostics() Diagnostics { return u.diagnostics }
 
-// UnknownIEs returns, in wire order, the IEs this message type does not model.
+// In wire order.
 func (u messageMeta) UnknownIEs() []RawIE {
 	if len(u.unknownIEs) == 0 {
 		return nil
@@ -80,7 +77,6 @@ func (u messageMeta) UnknownIEs() []RawIE {
 	return out
 }
 
-// encodeIEContainer writes a ProtocolIE-Container (TS 36.413).
 func encodeIEContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
 	if len(fields) > maxProtocolIEs {
 		return fmt.Errorf("s1ap: %d IEs exceed maxProtocolIEs", len(fields))
@@ -126,9 +122,8 @@ func encodeContainerField(w *per.Writer, enc per.Encoding, f ieField) error {
 // maxnoofERABs bounds the E-RAB SEQUENCE-OF lists (TS 36.413).
 const maxnoofERABs = 256
 
-// encodeSingleContainerList writes a SEQUENCE (SIZE(1..ub)) OF
-// ProtocolIE-SingleContainer (TS 36.413). ub is each list's own ASN.1 SIZE
-// bound; that today's lists share 256 is coincidental.
+// ub is each list's own ASN.1 SIZE bound; that today's lists share 256 is
+// coincidental.
 //
 //nolint:unparam
 func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64, id ProtocolIEID, crit Criticality, items []T) error {
@@ -157,8 +152,7 @@ func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64,
 	})
 }
 
-// decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer
-// (TS 36.413). Each item is its own open type, so each gets a fresh reader.
+// Each item is its own open type, so each gets a fresh reader.
 //
 //nolint:unparam
 func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64) ([]T, error) {
@@ -202,8 +196,7 @@ func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64) ([]T, erro
 	return items, nil
 }
 
-// decodeIEContainer reads a ProtocolIE-Container in wire order, keeping every
-// field including ids the caller does not model.
+// Keeps every field, including ids the caller does not model.
 //
 //nolint:unparam
 func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
@@ -212,9 +205,8 @@ func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
 		return nil, fmt.Errorf("s1ap: IE container length: %w", err)
 	}
 
-	// A ProtocolIE-Field costs at least an id, a criticality and a non-empty
-	// open type, so a count the remaining octets cannot hold is bogus and must
-	// not be pre-allocated for.
+	// A count the remaining octets cannot hold is bogus and must not be
+	// pre-allocated for.
 	if maxBits := int64(r.Bits()); n > maxBits/minIEFieldBits {
 		return nil, fmt.Errorf("s1ap: IE container declares %d IEs in %d bits", n, maxBits)
 	}

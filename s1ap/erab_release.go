@@ -50,9 +50,13 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 			)
 
 			err = perIEDecode(raw, &ambr)
+			if err != nil {
+				return err
+			}
+
 			m.UEAggregateMaximumBitRate = &ambr
 
-			return err
+			return nil
 		},
 		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) {
 			if m.UEAggregateMaximumBitRate == nil {
@@ -216,15 +220,15 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -237,15 +241,15 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 	{
 		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				uli UserLocationInformation
-			)
+			var uli UserLocationInformation
 
-			err = perIEDecode(raw, &uli)
+			if err := perIEDecode(raw, &uli); err != nil {
+				return err
+			}
+
 			m.UserLocationInformation = &uli
 
-			return err
+			return nil
 		},
 		encode: func(m *ERABReleaseResponse) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {

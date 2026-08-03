@@ -6,6 +6,7 @@ package gnb
 import (
 	"fmt"
 
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -34,7 +35,7 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
-		err := handleNGAPInitiatingMessage(gnb, pdu)
+		err := handleNGAPInitiatingMessage(gnb, pdu, sctpFrame.Data)
 		if err != nil {
 			return fmt.Errorf("could not handle NGAP InitiatingMessage: %v", err)
 		}
@@ -43,7 +44,7 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 
 		return nil
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		err := handleNGAPSuccessfulOutcome(pdu)
+		err := handleNGAPSuccessfulOutcome(pdu, sctpFrame.Data)
 		if err != nil {
 			return fmt.Errorf("could not handle NGAP SuccessfulOutcome: %v", err)
 		}
@@ -52,7 +53,7 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 
 		return nil
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		err := handleNGAPUnsuccessfulOutcome(pdu)
+		err := handleNGAPUnsuccessfulOutcome(pdu, sctpFrame.Data)
 		if err != nil {
 			return fmt.Errorf("could not handle NGAP UnsuccessfulOutcome: %v", err)
 		}
@@ -66,7 +67,7 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 	}
 }
 
-func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
+func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU, raw []byte) error {
 	switch pdu.InitiatingMessage.Value.Present {
 	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
 		return handleDownlinkNASTransport(gnb, pdu.InitiatingMessage.Value.DownlinkNASTransport)
@@ -83,7 +84,7 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
 	case ngapType.InitiatingMessagePresentPaging:
 		return handlePaging(gnb, pdu.InitiatingMessage.Value.Paging)
 	case ngapType.InitiatingMessagePresentErrorIndication:
-		return handleErrorIndication(pdu.InitiatingMessage.Value.ErrorIndication)
+		return handleErrorIndication(outcomeValue(raw))
 	case ngapType.InitiatingMessagePresentHandoverRequest:
 		return handleHandoverRequest(gnb, pdu.InitiatingMessage.Value.HandoverRequest)
 	case ngapType.InitiatingMessagePresentDownlinkUEAssociatedNRPPaTransport:
@@ -93,12 +94,17 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
 	}
 }
 
-func handleNGAPSuccessfulOutcome(pdu *ngapType.NGAPPDU) error {
+// raw is the PDU as received. Procedures already migrated to the in-house
+// codec parse it themselves; the free5gc decode above is still what keys
+// received frames for the scenarios' WaitForMessage.
+func handleNGAPSuccessfulOutcome(pdu *ngapType.NGAPPDU, raw []byte) error {
 	switch pdu.SuccessfulOutcome.Value.Present {
 	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
-		return handleNGSetupResponse(pdu.SuccessfulOutcome.Value.NGSetupResponse)
+		return handleNGSetupResponse(outcomeValue(raw))
 	case ngapType.SuccessfulOutcomePresentNGResetAcknowledge:
-		return handleNGResetAcknowledge(pdu.SuccessfulOutcome.Value.NGResetAcknowledge)
+		return handleNGResetAcknowledge(outcomeValue(raw))
+	case ngapType.SuccessfulOutcomePresentRANConfigurationUpdateAcknowledge:
+		return nil // Handled via WaitForMessage
 	case ngapType.SuccessfulOutcomePresentPathSwitchRequestAcknowledge:
 		return nil // Handled via WaitForMessage
 	case ngapType.SuccessfulOutcomePresentHandoverCommand:
@@ -108,13 +114,35 @@ func handleNGAPSuccessfulOutcome(pdu *ngapType.NGAPPDU) error {
 	}
 }
 
-func handleNGAPUnsuccessfulOutcome(pdu *ngapType.NGAPPDU) error {
+func handleNGAPUnsuccessfulOutcome(pdu *ngapType.NGAPPDU, raw []byte) error {
 	switch pdu.UnsuccessfulOutcome.Value.Present {
 	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
-		return handleNGSetupFailure(pdu.UnsuccessfulOutcome.Value.NGSetupFailure)
+		return handleNGSetupFailure(outcomeValue(raw))
+	case ngapType.UnsuccessfulOutcomePresentRANConfigurationUpdateFailure:
+		return nil // Handled via WaitForMessage
 	case ngapType.UnsuccessfulOutcomePresentPathSwitchRequestFailure:
 		return nil // Handled via WaitForMessage
 	default:
 		return fmt.Errorf("NGAP UnsuccessfulOutcome Present is invalid: %d", pdu.UnsuccessfulOutcome.Value.Present)
 	}
+}
+
+// outcomeValue returns the open-type payload of an NGAP PDU, or nil when the
+// envelope does not decode — the caller's parse then reports it.
+func outcomeValue(raw []byte) []byte {
+	pdu, err := ngaplib.Unmarshal(raw)
+	if err != nil {
+		return nil
+	}
+
+	switch m := pdu.(type) {
+	case *ngaplib.SuccessfulOutcome:
+		return m.Value
+	case *ngaplib.UnsuccessfulOutcome:
+		return m.Value
+	case *ngaplib.InitiatingMessage:
+		return m.Value
+	}
+
+	return nil
 }

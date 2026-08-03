@@ -57,7 +57,7 @@ func EncodeBitString(
 		case ub <= 16:
 			w.WriteBitString(data, int(ub))
 			return nil
-		case ub < sixtyFourK*8:
+		case ub < sixtyFourK:
 			writeOctetAlignedBitRange(w, enc, data, 0, int(ub))
 			return nil
 		}
@@ -123,7 +123,7 @@ func DecodeBitString(
 			}
 
 			return bs, int(ub), nil
-		case ub < sixtyFourK*8:
+		case ub < sixtyFourK:
 			return readOctetAlignedBitRange(r, enc, int(ub))
 		}
 	}

@@ -21,9 +21,12 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func getMccAndMncInOctets(mccStr string, mncStr string) ([]byte, error) {
-	mcc := reverse(mccStr)
-	mnc := reverse(mncStr)
+// servedPLMNOctets encodes the operator PLMN (001/01) as the reference
+// decoder's fixtures carry it. Every caller wants the served PLMN, so it takes
+// no arguments.
+func servedPLMNOctets() ([]byte, error) {
+	mcc := reverse("001")
+	mnc := reverse("01")
 
 	var res string
 
@@ -49,21 +52,6 @@ func reverse(s string) string {
 	}
 
 	return aux
-}
-
-func getSliceInBytes(sst int32, sd string) ([]byte, []byte, error) {
-	sstBytes := []byte{byte(sst)}
-
-	if sd != "" {
-		sdBytes, err := hex.DecodeString(sd)
-		if err != nil {
-			return sstBytes, nil, fmt.Errorf("could not decode sd to bytes: %v", err)
-		}
-
-		return sstBytes, sdBytes, nil
-	}
-
-	return sstBytes, nil, nil
 }
 
 type fakeDBInstance struct {

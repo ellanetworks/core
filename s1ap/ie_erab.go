@@ -54,7 +54,7 @@ func (id *ERABID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if ext {
-		return fmt.Errorf("s1ap: unsupported E-RAB-ID extension value")
+		return fmt.Errorf("%w: E-RAB-ID extension value", errNotComprehended)
 	}
 
 	v, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 15)

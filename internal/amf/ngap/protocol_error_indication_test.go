@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/aper"
 	libngap "github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
@@ -68,7 +69,7 @@ func TestSendProtocolErrorIndication(t *testing.T) {
 	w := &capturingWriter{}
 	ran := newDecodeReportRadio(w)
 
-	sendProtocolErrorIndication(context.Background(), ran, ngapType.CauseProtocolPresentTransferSyntaxError)
+	sendProtocolErrorIndication(context.Background(), ran, ngap.CauseProtocolTransferSyntaxError)
 
 	if len(w.msgs) != 1 {
 		t.Fatalf("sent %d messages, want 1 (Error Indication)", len(w.msgs))

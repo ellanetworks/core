@@ -7,10 +7,9 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -65,34 +64,45 @@ func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ranID 
 	return nil, false
 }
 
-func sendUnknownLocalUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
-	cause := ngapType.Cause{
-		Present: ngapType.CausePresentRadioNetwork,
-		RadioNetwork: &ngapType.CauseRadioNetwork{
-			Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
-		},
-	}
+// causeUnknownLocalUEID is Cause Radio Network "unknown-local-UE-NGAP-ID"
+// (TS 38.413): an AMF UE NGAP ID this AMF does not hold.
+var causeUnknownLocalUEID = ngap.Cause{
+	Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID,
+}
 
-	sendErrorIndication(ctx, ran, amfID, ranID, &cause)
+// causeInconsistentRemoteUEID is Cause Radio Network
+// "inconsistent-remote-UE-NGAP-ID" (TS 38.413): a RAN UE NGAP ID that does not
+// match the one stored against its AMF UE NGAP ID.
+var causeInconsistentRemoteUEID = ngap.Cause{
+	Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkInconsistentRemoteUEID,
+}
+
+func sendUnknownLocalUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
+	a, r := ueIDs(amfID, ranID)
+	sendErrorIndication(ctx, ran, a, r, causeUnknownLocalUEID)
 }
 
 func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
-	cause := ngapType.Cause{
-		Present: ngapType.CausePresentRadioNetwork,
-		RadioNetwork: &ngapType.CauseRadioNetwork{
-			Value: ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID,
-		},
-	}
-
-	sendErrorIndication(ctx, ran, amfID, ranID, &cause)
+	a, r := ueIDs(amfID, ranID)
+	sendErrorIndication(ctx, ran, a, r, causeInconsistentRemoteUEID)
 }
 
-func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID, ranID *int64, cause *ngapType.Cause) {
-	pkt, err := send.BuildErrorIndication(amfID, ranID, cause, nil)
-	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error building error indication", zap.Error(err))
-		return
+// ueIDs converts the dispatcher's raw AP IDs into the library's identifier
+// types, leaving an absent id absent so the Error Indication does not claim
+// one the sender never gave (TS 38.413 §8.4.4.2).
+func ueIDs(amfID, ranID *int64) (*ngap.AMFUENGAPID, *ngap.RANUENGAPID) {
+	var (
+		a *ngap.AMFUENGAPID
+		r *ngap.RANUENGAPID
+	)
+
+	if amfID != nil {
+		a = ngap.Ptr(ngap.AMFUENGAPID(*amfID))
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, pkt)
+	if ranID != nil {
+		r = ngap.Ptr(ngap.RANUENGAPID(*ranID))
+	}
+
+	return a, r
 }

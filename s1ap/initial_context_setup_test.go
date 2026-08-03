@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// goldenICSResponse is a real INITIAL CONTEXT SETUP RESPONSE (MME-UE-S1AP-ID 0x020000bf, eNB-UE-S1AP-ID 1, one
-// E-RAB set up).
+// A real INITIAL CONTEXT SETUP RESPONSE: MME-UE-S1AP-ID 0x020000bf,
+// eNB-UE-S1AP-ID 1, one E-RAB.
 const goldenICSResponse = "2009002500000300004005c0020000bf0008400200010033400f000032400a0a1f0a0123c601000908"
 
 func TestInitialContextSetupResponseGoldenDecode(t *testing.T) {

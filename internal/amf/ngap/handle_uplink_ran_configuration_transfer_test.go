@@ -6,111 +6,116 @@ package ngap_test
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	ngaplib "github.com/ellanetworks/core/ngap"
 )
 
-func TestUplinkRanConfigurationTransfer_NilSONConfiguration(t *testing.T) {
-	ran := newTestRadio(newTestAMF())
-	amfInstance := newTestAMF()
+// goldenUplinkRANConfigTransfer is an UPLINK RAN CONFIGURATION TRANSFER whose
+// SON Configuration Transfer targets gNB 00:01:02 in PLMN 001/01. Encoded by a
+// second, independent implementation (free5gc/ngap v1.1.3), so the fixture does
+// not depend on the code under test.
+const goldenUplinkRANConfigTransfer = "0030402700000100634020000000f110100001020000f1100000010000f11010000a0b0000f11000000200"
 
-	ngap.HandleUplinkRanConfigurationTransfer(context.Background(), amfInstance, ran, decode.UplinkRANConfigurationTransfer{})
-}
+// uplinkTransferFixture returns the parsed message and the SON payload it
+// carries, which is what the AMF must relay untouched.
+func uplinkTransferFixture(t *testing.T) *ngaplib.UplinkRANConfigurationTransfer {
+	t.Helper()
 
-func TestUplinkRanConfigurationTransfer_TargetRanNotFound(t *testing.T) {
-	ran := newTestRadio(newTestAMF())
-	amfInstance := newTestAMF()
-
-	msg := decode.UplinkRANConfigurationTransfer{
-		SONConfigurationTransferUL: &ngapType.SONConfigurationTransfer{
-			TargetRANNodeID: ngapType.TargetRANNodeID{
-				GlobalRANNodeID: ngapType.GlobalRANNodeID{
-					Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-					GlobalGNBID: &ngapType.GlobalGNBID{
-						PLMNIdentity: ngapType.PLMNIdentity{Value: []byte{0x00, 0xF1, 0x10}},
-						GNBID: ngapType.GNBID{
-							Present: ngapType.GNBIDPresentGNBID,
-							GNBID: &aper.BitString{
-								Bytes:     []byte{0x00, 0x00, 0x01},
-								BitLength: 22,
-							},
-						},
-					},
-				},
-			},
-		},
+	raw, err := hex.DecodeString(goldenUplinkRANConfigTransfer)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	ngap.HandleUplinkRanConfigurationTransfer(context.Background(), amfInstance, ran, msg)
+	pdu, err := ngaplib.Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	im, ok := pdu.(*ngaplib.InitiatingMessage)
+	if !ok {
+		t.Fatalf("got %T, want an initiating message", pdu)
+	}
+
+	msg, err := ngaplib.ParseUplinkRANConfigurationTransfer(im.Value)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	return msg
 }
 
-func TestUplinkRanConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
-	sourceRan := newTestRadio(newTestAMF())
+func TestUplinkRANConfigurationTransfer_NilSONConfiguration(t *testing.T) {
+	ran := newTestRadio(newTestAMF())
+	amfInstance := newTestAMF()
 
+	// An absent IE is a well-formed message; the relay simply has nothing to do.
+	ngap.HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, ran,
+		&ngaplib.UplinkRANConfigurationTransfer{})
+}
+
+func TestUplinkRANConfigurationTransfer_TargetRanNotFound(t *testing.T) {
+	ran := newTestRadio(newTestAMF())
+	amfInstance := newTestAMF()
+
+	ngap.HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, ran, uplinkTransferFixture(t))
+}
+
+// A transfer whose leading Target RAN Node ID does not decode must be dropped
+// rather than routed on a zero target.
+func TestUplinkRANConfigurationTransfer_UndecodableTargetIsDropped(t *testing.T) {
+	ran := newTestRadio(newTestAMF())
+	amfInstance := newTestAMF()
+
+	ngap.HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, ran,
+		&ngaplib.UplinkRANConfigurationTransfer{SONConfigurationTransfer: ngaplib.SONConfigurationTransfer{0x00}})
+}
+
+// TS 38.413 §8.8.1.2: the AMF "shall transparently transfer the SON
+// Configuration Transfer IE towards the NG-RAN node indicated in the Target RAN
+// Node ID IE". The fake sender decodes what was written with the reference
+// implementation, so this also checks a third party can read what we emit.
+func TestUplinkRANConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
+	sourceRan := newTestRadio(newTestAMF())
+	msg := uplinkTransferFixture(t)
+
+	target, err := msg.SONConfigurationTransfer.TargetRANNodeID()
+	if err != nil {
+		t.Fatalf("TargetRANNodeID: %v", err)
+	}
+
+	// Register the target the fixture actually names, so the test cannot drift
+	// from the golden vector.
+	targetID := util.RANNodeIDToModels(target.GlobalRANNodeID)
 	targetSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{
 		RanPresent: amf.RanPresentGNbID,
-		RanID: &models.GlobalRanNodeID{
-			GNbID: &models.GNbID{
-				GNBValue:  "000001",
-				BitLength: 22,
-			},
-		},
-		Conn: targetSender,
-		Log:  sourceRan.Log,
+		RanID:      &targetID,
+		Conn:       targetSender,
+		Log:        sourceRan.Log,
 	}
 
 	amfInstance := newTestAMFWithSmf(&fakeSmfSbi{})
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	plmn := []byte{0x00, 0xF1, 0x10}
-	gnbID := []byte{0x00, 0x00, 0x01}
-
-	ranNode := func() ngapType.GlobalRANNodeID {
-		return ngapType.GlobalRANNodeID{
-			Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-			GlobalGNBID: &ngapType.GlobalGNBID{
-				PLMNIdentity: ngapType.PLMNIdentity{Value: plmn},
-				GNBID: ngapType.GNBID{
-					Present: ngapType.GNBIDPresentGNBID,
-					GNBID:   &aper.BitString{Bytes: gnbID, BitLength: 22},
-				},
-			},
-		}
-	}
-	tai := ngapType.TAI{PLMNIdentity: ngapType.PLMNIdentity{Value: plmn}, TAC: ngapType.TAC{Value: []byte{0x00, 0x00, 0x01}}}
-
-	sonTransfer := &ngapType.SONConfigurationTransfer{
-		TargetRANNodeID: ngapType.TargetRANNodeID{GlobalRANNodeID: ranNode(), SelectedTAI: tai},
-		SourceRANNodeID: ngapType.SourceRANNodeID{GlobalRANNodeID: ranNode(), SelectedTAI: tai},
-		SONInformation: ngapType.SONInformation{
-			Present:               ngapType.SONInformationPresentSONInformationRequest,
-			SONInformationRequest: &ngapType.SONInformationRequest{Value: 0},
-		},
-	}
-
-	msg := decode.UplinkRANConfigurationTransfer{
-		SONConfigurationTransferUL: sonTransfer,
-	}
-
-	ngap.HandleUplinkRanConfigurationTransfer(context.Background(), amfInstance, sourceRan, msg)
+	ngap.HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetSender.SentDownlinkRanConfigTransfers) != 1 {
-		t.Fatalf("expected 1 SendDownlinkRanConfigurationTransfer call, got %d", len(targetSender.SentDownlinkRanConfigTransfers))
+		t.Fatalf("expected 1 Downlink RAN Configuration Transfer, got %d", len(targetSender.SentDownlinkRanConfigTransfers))
 	}
 
-	// The transfer is re-encoded onto the wire, so compare its content, not the
-	// pointer: the target gNB ID the AMF forwards must match the input.
 	got := targetSender.SentDownlinkRanConfigTransfers[0]
-	if got.TargetRANNodeID.GlobalRANNodeID.GlobalGNBID == nil ||
-		!bytes.Equal(got.TargetRANNodeID.GlobalRANNodeID.GlobalGNBID.GNBID.GNBID.Bytes, gnbID) {
-		t.Error("expected forwarded SON transfer to match input")
+	if got.TargetRANNodeID.GlobalRANNodeID.GlobalGNBID == nil {
+		t.Fatal("forwarded transfer lost its target gNB ID")
+	}
+
+	if want := []byte{0x00, 0x01, 0x02}; !bytes.Equal(got.TargetRANNodeID.GlobalRANNodeID.GlobalGNBID.GNBID.GNBID.Bytes, want) {
+		t.Errorf("forwarded target gNB ID = %x, want %x",
+			got.TargetRANNodeID.GlobalRANNodeID.GlobalGNBID.GNBID.GNBID.Bytes, want)
 	}
 }

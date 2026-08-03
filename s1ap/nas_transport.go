@@ -93,9 +93,13 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 			)
 
 			err = perIEDecode(raw, &stmsi)
+			if err != nil {
+				return err
+			}
+
 			m.STMSI = &stmsi
 
-			return err
+			return nil
 		},
 		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
 			if m.STMSI == nil {
@@ -114,9 +118,13 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 			)
 
 			err = perIEDecode(raw, &gummei)
+			if err != nil {
+				return err
+			}
+
 			m.GUMMEI = &gummei
 
-			return err
+			return nil
 		},
 		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
 			if m.GUMMEI == nil {

@@ -578,3 +578,21 @@ func pduSessionTypeToEnum(pduType aper.Enumerated) utils.EnumField {
 		return utils.MakeEnum(int64(pduType), "", true)
 	}
 }
+
+// buildDefaultPagingDRXIE renders the reference decoder's PagingDRX. It stays
+// here until Initial Context Setup moves to the in-house codec, which has its
+// own renderer in ng_setup_request.go.
+func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) utils.EnumField {
+	switch dpd.Value {
+	case ngapType.PagingDRXPresentV32:
+		return utils.MakeEnum(uint64(dpd.Value), "v32", false)
+	case ngapType.PagingDRXPresentV64:
+		return utils.MakeEnum(uint64(dpd.Value), "v64", false)
+	case ngapType.PagingDRXPresentV128:
+		return utils.MakeEnum(uint64(dpd.Value), "v128", false)
+	case ngapType.PagingDRXPresentV256:
+		return utils.MakeEnum(uint64(dpd.Value), "v256", false)
+	default:
+		return utils.MakeEnum(uint64(dpd.Value), "", true)
+	}
+}

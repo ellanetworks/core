@@ -54,8 +54,7 @@ type DownlinkUEAssociatedLPPaTransport struct {
 	messageMeta
 }
 
-// The two UE-associated LPPa transport messages carry identical IEs and differ
-// only in procedure code (TS 36.413 §9.1.19.1, §9.1.19.2).
+// The two carry identical IEs and differ only in procedure code.
 func lppaTransportIEs[M any](
 	mme func(*M) *MMEUES1APID,
 	enb func(*M) *ENBUES1APID,

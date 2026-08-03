@@ -94,3 +94,40 @@ func TestENBConfigurationUpdateFailureRoundTrips(t *testing.T) {
 		t.Fatalf("cause mismatch: %+v", out.Cause)
 	}
 }
+
+// The Cause is mandatory but carries ignore criticality, which binds the two
+// ends differently. TS 36.413 §10.3.3 binds the sender, so encoding an unset
+// Cause fails. §10.3.5 keys the receiver's reaction to the IE's criticality
+// rather than to its being mandatory, so an arriving message that omits it is
+// still delivered, with the omission reported in Criticality Diagnostics — the
+// reason Cause is nil-able here rather than a value.
+func TestENBConfigurationUpdateFailureMissingCause(t *testing.T) {
+	if _, err := (&ENBConfigurationUpdateFailure{TimeToWait: Ptr(TimeToWait(0))}).Marshal(); err == nil {
+		t.Error("Marshal() = nil error, want a required-IE error for the absent Cause")
+	}
+
+	value := container(t, ieField{id: idTimeToWait, crit: CriticalityIgnore, val: TimeToWait(0)})
+
+	msg, err := ParseENBConfigurationUpdateFailure(value)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.Cause != nil {
+		t.Errorf("Cause = %v, want nil", msg.Cause)
+	}
+
+	diag := msg.Diagnostics()
+
+	var reported bool
+
+	for _, ie := range diag.IEs {
+		if ie.ID == idCause && ie.TypeOfError == TypeOfErrorMissing {
+			reported = true
+		}
+	}
+
+	if !reported {
+		t.Errorf("missing Cause not reported in diagnostics: %+v", diag.IEs)
+	}
+}

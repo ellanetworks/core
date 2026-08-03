@@ -24,10 +24,10 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI)
+	ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI))
 	if !ok || ue.EMMState() != mme.EMMRegistered {
 		logger.From(ctx, logger.MmeLog).Info("Service Request for an unknown or deregistered UE",
-			zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
+			zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)))
 		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, eps.EMMCauseUEIdentityCannotBeDerived)
 
 		return
@@ -48,7 +48,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	expSeq, ul, err := ue.VerifyServiceRequest(sr)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("Service Request verification failed",
-			zap.Uint32("m-tmsi", msg.STMSI.MTMSI),
+			zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)),
 			zap.Uint8("expected-sequence", expSeq),
 			zap.Uint8("received-sequence", sr.SeqShort),
 			zap.Uint32("stored-ul-count", ul),

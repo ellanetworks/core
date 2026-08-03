@@ -30,8 +30,7 @@ func (n *Name) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// uintToBits packs the low nbits of v into ceil(nbits/8) octets, most
-// significant bit first, matching BIT STRING storage.
+// Most significant bit first, matching BIT STRING storage.
 func uintToBits(v uint64, nbits int) []byte {
 	out := make([]byte, (nbits+7)/8)
 
@@ -44,9 +43,8 @@ func uintToBits(v uint64, nbits int) []byte {
 	return out
 }
 
-// bitsToUint reads the first nbits of b, most significant bit first. nbits is
-// clamped to the available bits so a caller cannot over-index on malformed
-// input.
+// nbits is clamped to the available bits so a caller cannot over-index on
+// malformed input.
 func bitsToUint(b []byte, nbits int) uint64 {
 	if nbits > len(b)*8 {
 		nbits = len(b) * 8

@@ -171,7 +171,7 @@ func TestHandoverRequired(t *testing.T) {
 		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
 	}
 
-	plmnID, err := getMccAndMncInOctets("001", "01")
+	plmnID, err := servedPLMNOctets()
 	if err != nil {
 		t.Fatalf("failed to get PLMN ID octets: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 	// Build a valid HandoverRequired message but with a RAN UE NGAP ID
 	// that doesn't exist in the RAN's UE map. The handler should send
 	// an ErrorIndication with UnknownLocalUENGAPID cause.
-	plmnID, err := getMccAndMncInOctets("001", "01")
+	plmnID, err := servedPLMNOctets()
 	if err != nil {
 		t.Fatalf("failed to get PLMN ID octets: %v", err)
 	}
@@ -379,7 +379,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 		pduSessionID = uint8(1)
 	)
 
-	plmnID, err := getMccAndMncInOctets("001", "01")
+	plmnID, err := servedPLMNOctets()
 	if err != nil {
 		t.Fatalf("failed to get PLMN ID octets: %v", err)
 	}
@@ -476,7 +476,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
 	}
 
-	plmnID, err := getMccAndMncInOctets("001", "01")
+	plmnID, err := servedPLMNOctets()
 	if err != nil {
 		t.Fatalf("failed to get PLMN ID octets: %v", err)
 	}
@@ -586,7 +586,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
 	}
 
-	plmnID, err := getMccAndMncInOctets("001", "01")
+	plmnID, err := servedPLMNOctets()
 	if err != nil {
 		t.Fatalf("failed to get PLMN ID octets: %v", err)
 	}
@@ -767,7 +767,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
 	}
 
-	plmnID, err := getMccAndMncInOctets("001", "01")
+	plmnID, err := servedPLMNOctets()
 	if err != nil {
 		t.Fatalf("failed to get PLMN ID octets: %v", err)
 	}

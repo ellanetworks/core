@@ -59,10 +59,10 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	// message cannot move the UE; the NAS layer re-decodes against the bound context to
 	// commit the uplink NAS COUNT, so this hint is not authoritative.
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
-		if ue, ok := m.LookupUeByMTMSI(msg.STMSI.MTMSI); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
+		if ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI)); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
 				logger.From(ctx, c.Log).Debug("Initial UE Message: resuming held context",
-					zap.Uint32("m-tmsi", msg.STMSI.MTMSI))
+					zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)))
 				m.AttachUeConn(ue, c)
 			}
 		}

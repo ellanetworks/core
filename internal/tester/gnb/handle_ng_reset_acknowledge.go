@@ -4,12 +4,21 @@
 package gnb
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
+	"go.uber.org/zap"
 )
 
-func handleNGResetAcknowledge(_ *ngapType.NGResetAcknowledge) error {
-	logger.GnbLogger.Debug("Received NGResetAcknowledge")
+func handleNGResetAcknowledge(value []byte) error {
+	ack, err := ngap.ParseNGResetAcknowledge(value)
+	if err != nil {
+		return fmt.Errorf("could not parse NGResetAcknowledge: %w", err)
+	}
+
+	logger.GnbLogger.Debug("Received NGResetAcknowledge",
+		zap.Int("ConnectionsReset", len(ack.ConnectionList)))
 
 	return nil
 }

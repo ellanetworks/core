@@ -10,8 +10,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// container encodes an IE container body as a peer would send it, without the
-// ordering and presence rules the encoder normally enforces.
+// As a peer would send it, without the rules the encoder normally enforces.
 func container(t *testing.T, fields ...ieField) []byte {
 	t.Helper()
 
@@ -70,8 +69,7 @@ func TestIEsOutOfOrderRejected(t *testing.T) {
 	}
 }
 
-// An unmodeled IE does not count towards the order §10.3.6 checks, since only
-// IEs the receiver's version defines are considered.
+// §10.3.6 considers only IEs the receiver's version defines.
 func TestUnknownIEDoesNotBreakOrdering(t *testing.T) {
 	fields := uplinkNASFields()
 	unknown := ieField{id: ProtocolIEID(60000), crit: CriticalityIgnore, raw: []byte{0x01, 0x02}}
@@ -191,9 +189,8 @@ func TestDiagnosticsAreBounded(t *testing.T) {
 	}
 }
 
-// Padding a message with unmodeled IEs must not push the UE S1AP IDs out of
-// what the rejection retains, or the ERROR INDICATION cannot name the
-// association it concerns (TS 36.413 §8.7.2.2).
+// Padding must not push the UE S1AP IDs out of what the rejection retains, or
+// the ERROR INDICATION cannot name its association (§8.7.2.2).
 func TestUEIDsSurvivePadding(t *testing.T) {
 	fields := uplinkNASFields()
 
@@ -264,7 +261,7 @@ func TestOversizedIECountRejected(t *testing.T) {
 }
 
 // PATH SWITCH REQUEST carries the source MME-UE-S1AP-ID instead of the plain
-// one, and the rejection still has to name the association (TS 36.413 §8.7.2.2).
+// one (§8.7.2.2).
 func TestUEIDsFromPathSwitchRequest(t *testing.T) {
 	value := container(t,
 		ieField{id: idENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
@@ -284,8 +281,8 @@ func TestUEIDsFromPathSwitchRequest(t *testing.T) {
 	}
 }
 
-// A notify entry must survive the diagnostics bound, or the report required by
-// TS 36.413 §10.3.4.2 would carry no IE.
+// A notify entry must survive the diagnostics bound or the §10.3.4.2 report
+// carries no IE.
 func TestNotifySurvivesTruncation(t *testing.T) {
 	fields := uplinkNASFields()
 	for i := range maxDiagnosticIEs + 10 {

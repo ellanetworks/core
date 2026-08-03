@@ -4,29 +4,25 @@
 package gnb
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handleErrorIndication(errorIndication *ngapType.ErrorIndication) error {
-	var cause *ngapType.Cause
-
-	for _, ie := range errorIndication.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-		}
+func handleErrorIndication(value []byte) error {
+	ind, err := ngap.ParseErrorIndication(value)
+	if err != nil {
+		return fmt.Errorf("could not parse ErrorIndication: %w", err)
 	}
 
-	causeStr := "(none)"
-	if cause != nil {
-		causeStr = causeToString(*cause)
+	cause := "(none)"
+	if ind.Cause != nil {
+		cause = ind.Cause.String()
 	}
 
-	logger.GnbLogger.Error("Received ErrorIndication",
-		zap.String("Cause", causeStr),
-	)
+	logger.GnbLogger.Error("Received ErrorIndication", zap.String("Cause", cause))
 
 	return nil
 }

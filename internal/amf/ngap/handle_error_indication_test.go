@@ -9,9 +9,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	ngaplib "github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
@@ -19,7 +18,7 @@ func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, decode.ErrorIndication{})
+	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, &ngaplib.ErrorIndication{})
 
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -31,11 +30,10 @@ func TestHandleErrorIndication_WithCause(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.ErrorIndication{
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnspecified},
-		},
+	msg := &ngaplib.ErrorIndication{
+		Cause: ngaplib.Ptr(ngaplib.Cause{
+			Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkUnspecified,
+		}),
 	}
 
 	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)
@@ -54,13 +52,12 @@ func TestHandleErrorIndication_ReleasesNamedUE(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 	ueConn := amf.NewUeConnForTest(ran, 2, 10, logger.AmfLog)
 
-	amfID := int64(10)
-	msg := decode.ErrorIndication{
+	amfID := ngaplib.AMFUENGAPID(10)
+	msg := &ngaplib.ErrorIndication{
 		AMFUENGAPID: &amfID,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnspecified},
-		},
+		Cause: ngaplib.Ptr(ngaplib.Cause{
+			Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkUnspecified,
+		}),
 	}
 
 	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)
@@ -81,13 +78,12 @@ func TestHandleErrorIndication_UnknownUENoRelease(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	amfID := int64(999)
-	msg := decode.ErrorIndication{
+	amfID := ngaplib.AMFUENGAPID(999)
+	msg := &ngaplib.ErrorIndication{
 		AMFUENGAPID: &amfID,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnspecified},
-		},
+		Cause: ngaplib.Ptr(ngaplib.Cause{
+			Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkUnspecified,
+		}),
 	}
 
 	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)
@@ -102,8 +98,8 @@ func TestHandleErrorIndication_WithCriticalityDiagnostics(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.ErrorIndication{
-		CriticalityDiagnostics: &ngapType.CriticalityDiagnostics{},
+	msg := &ngaplib.ErrorIndication{
+		CriticalityDiagnostics: &ngaplib.CriticalityDiagnostics{},
 	}
 
 	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)

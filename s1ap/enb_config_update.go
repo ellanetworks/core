@@ -55,15 +55,15 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 	{
 		id: idDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				drx PagingDRX
-			)
+			var drx PagingDRX
 
-			err = perIEDecode(raw, &drx)
+			if err := perIEDecode(raw, &drx); err != nil {
+				return err
+			}
+
 			m.DefaultPagingDRX = &drx
 
-			return err
+			return nil
 		},
 		encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
 			if m.DefaultPagingDRX == nil {
@@ -110,15 +110,15 @@ var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknow
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *ENBConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
@@ -188,15 +188,15 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 	{
 		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				ttw TimeToWait
-			)
+			var ttw TimeToWait
 
-			err = perIEDecode(raw, &ttw)
+			if err := perIEDecode(raw, &ttw); err != nil {
+				return err
+			}
+
 			m.TimeToWait = &ttw
 
-			return err
+			return nil
 		},
 		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
@@ -209,15 +209,15 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 	{
 		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
-			var (
-				err error
-				cd  CriticalityDiagnostics
-			)
+			var cd CriticalityDiagnostics
 
-			err = perIEDecode(raw, &cd)
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
 			m.CriticalityDiagnostics = &cd
 
-			return err
+			return nil
 		},
 		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {

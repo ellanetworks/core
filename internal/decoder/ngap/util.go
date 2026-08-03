@@ -747,3 +747,124 @@ func procedureCodeToEnum(code int64) utils.EnumField {
 		return utils.MakeEnum(code, "", true)
 	}
 }
+
+// Shared with the procedures still rendered from the reference decoder's
+// types. They leave with the last procedure that needs them.
+
+type CriticalityDiagnostics struct {
+	ProcedureCode             *utils.EnumField            `json:"procedure_code,omitempty"`
+	TriggeringMessage         *utils.EnumField            `json:"triggering_message,omitempty"`
+	ProcedureCriticality      *utils.EnumField            `json:"procedure_criticality,omitempty"`
+	IEsCriticalityDiagnostics []IEsCriticalityDiagnostics `json:"ie_criticality_diagnostics,omitempty"`
+}
+
+type Guami struct {
+	PLMNID      PLMNID `json:"plmn_id"`
+	AMFRegionID string `json:"amf_region_id"`
+	AMFSetID    string `json:"amf_set_id"`
+	AMFPointer  string `json:"amf_pointer"`
+}
+
+type IEsCriticalityDiagnostics struct {
+	IECriticality utils.EnumField `json:"ie_criticality"`
+	IEID          utils.EnumField `json:"ie_id"`
+	TypeOfError   utils.EnumField `json:"type_of_error"`
+}
+
+type PLMN struct {
+	PLMNID           PLMNID   `json:"plmn_id"`
+	SliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
+}
+
+// ranNodeIDHex renders a RAN node identifier as the hex digits its bit length
+// covers, matching how the AMF stores it.
+
+type PLMNID struct {
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
+}
+
+type SNSSAI struct {
+	SST int32   `json:"sst"`
+	SD  *string `json:"sd,omitempty"`
+}
+
+func buildAMFNameIE(an ngapType.AMFName) string {
+	return an.Value
+}
+
+func buildCriticalityDiagnosticsIE(cd *ngapType.CriticalityDiagnostics) CriticalityDiagnostics {
+	critDiag := CriticalityDiagnostics{}
+
+	if cd.ProcedureCode != nil {
+		procCode := procedureCodeToEnum(cd.ProcedureCode.Value)
+		critDiag.ProcedureCode = &procCode
+	}
+
+	if cd.TriggeringMessage != nil {
+		trigMsg := triggeringMessageToString(cd.TriggeringMessage.Value)
+		critDiag.TriggeringMessage = &trigMsg
+	}
+
+	if cd.ProcedureCriticality != nil {
+		procCrit := criticalityToEnum(cd.ProcedureCriticality.Value)
+		critDiag.ProcedureCriticality = &procCrit
+	}
+
+	if cd.IEsCriticalityDiagnostics != nil {
+		critDiag.IEsCriticalityDiagnostics = buildIEsCriticalityDiagnisticsList(cd.IEsCriticalityDiagnostics)
+	}
+
+	return critDiag
+}
+
+func buildGUAMI(guami ngapType.GUAMI) Guami {
+	return Guami{
+		PLMNID:      plmnIDToModels(guami.PLMNIdentity),
+		AMFRegionID: bitStringToHex(&guami.AMFRegionID.Value),
+		AMFSetID:    bitStringToHex(&guami.AMFSetID.Value),
+		AMFPointer:  bitStringToHex(&guami.AMFPointer.Value),
+	}
+}
+
+func buildIEsCriticalityDiagnisticsList(ieList *ngapType.CriticalityDiagnosticsIEList) []IEsCriticalityDiagnostics {
+	if ieList == nil {
+		return nil
+	}
+
+	ies := make([]IEsCriticalityDiagnostics, len(ieList.List))
+	for i := 0; i < len(ieList.List); i++ {
+		ie := ieList.List[i]
+		ies[i] = IEsCriticalityDiagnostics{
+			IECriticality: criticalityToEnum(ie.IECriticality.Value),
+			IEID:          protocolIEIDToEnum(ie.IEID.Value),
+			TypeOfError:   typeOfErrorToString(ie.TypeOfError.Value),
+		}
+	}
+
+	return ies
+}
+
+func triggeringMessageToString(tm aper.Enumerated) utils.EnumField {
+	switch tm {
+	case ngapType.TriggeringMessagePresentInitiatingMessage:
+		return utils.MakeEnum(uint64(tm), "InitiatingMessage", false)
+	case ngapType.TriggeringMessagePresentSuccessfulOutcome:
+		return utils.MakeEnum(uint64(tm), "SuccessfulOutcome", false)
+	case ngapType.TriggeringMessagePresentUnsuccessfullOutcome:
+		return utils.MakeEnum(uint64(tm), "UnsuccessfulOutcome", false)
+	default:
+		return utils.MakeEnum(uint64(tm), "", true)
+	}
+}
+
+func typeOfErrorToString(toe aper.Enumerated) utils.EnumField {
+	switch toe {
+	case ngapType.TypeOfErrorPresentNotUnderstood:
+		return utils.MakeEnum(uint64(toe), "NotUnderstood", false)
+	case ngapType.TypeOfErrorPresentMissing:
+		return utils.MakeEnum(uint64(toe), "Missing", false)
+	default:
+		return utils.MakeEnum(uint64(toe), "", true)
+	}
+}
