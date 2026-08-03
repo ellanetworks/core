@@ -84,7 +84,13 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SourceToTarget)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.SourceToTarget, true },
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.SourceToTarget == nil {
+				return nil, false
+			}
+
+			return &m.SourceToTarget, true
+		},
 	},
 	{
 		id: idUESecurityCapabilities, presence: presenceMandatory, crit: CriticalityReject,
@@ -223,7 +229,13 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.TargetToSource)
 		},
-		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) { return &m.TargetToSource, true },
+		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
+			if m.TargetToSource == nil {
+				return nil, false
+			}
+
+			return &m.TargetToSource, true
+		},
 	},
 }
 

@@ -33,7 +33,13 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
-		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.NASPDU, true },
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.NASPDU == nil {
+				return nil, false
+			}
+
+			return &m.NASPDU, true
+		},
 	},
 	{
 		id: idTAI, presence: presenceMandatory, crit: CriticalityReject,
@@ -191,7 +197,13 @@ var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
-		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.NASPDU, true },
+		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) {
+			if m.NASPDU == nil {
+				return nil, false
+			}
+
+			return &m.NASPDU, true
+		},
 	},
 	{
 		id: idEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
@@ -290,7 +302,13 @@ var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
 		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
-		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.NASPDU, true },
+		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) {
+			if m.NASPDU == nil {
+				return nil, false
+			}
+
+			return &m.NASPDU, true
+		},
 	},
 }
 

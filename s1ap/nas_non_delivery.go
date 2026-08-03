@@ -17,22 +17,6 @@ type NASNonDeliveryIndication struct {
 	messageMeta
 }
 
-func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
-	w := per.NewWriter()
-
-	if err := m.encodeBody(w, per.Aligned); err != nil {
-		return nil, err
-	}
-
-	w.AlignToByte()
-
-	return Marshal(&InitiatingMessage{
-		ProcedureCode: ProcNASNonDeliveryIndication,
-		Criticality:   CriticalityIgnore,
-		Value:         w.Bytes(),
-	})
-}
-
 var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 	{
 		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
@@ -82,6 +66,22 @@ var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 			return m.Cause, true
 		},
 	},
+}
+
+func (m *NASNonDeliveryIndication) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcNASNonDeliveryIndication,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
 }
 
 func (m *NASNonDeliveryIndication) encodeBody(w *per.Writer, enc per.Encoding) error {

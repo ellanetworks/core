@@ -20,22 +20,6 @@ type UplinkNASTransport struct {
 	messageMeta
 }
 
-func (m *UplinkNASTransport) Marshal() ([]byte, error) {
-	w := per.NewWriter()
-
-	if err := m.encodeBody(w, per.Aligned); err != nil {
-		return nil, err
-	}
-
-	w.AlignToByte()
-
-	return Marshal(&InitiatingMessage{
-		ProcedureCode: ProcUplinkNASTransport,
-		Criticality:   CriticalityIgnore,
-		Value:         w.Bytes(),
-	})
-}
-
 var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 	{
 		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
@@ -85,6 +69,22 @@ var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 			return m.UserLocationInformation, true
 		},
 	},
+}
+
+func (m *UplinkNASTransport) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcUplinkNASTransport,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
 }
 
 func (m *UplinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {

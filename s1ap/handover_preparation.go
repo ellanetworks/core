@@ -74,7 +74,13 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SourceToTarget)
 		},
-		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.SourceToTarget, true },
+		encode: func(m *HandoverRequired) (per.Marshaler, bool) {
+			if m.SourceToTarget == nil {
+				return nil, false
+			}
+
+			return &m.SourceToTarget, true
+		},
 	},
 }
 
@@ -159,7 +165,13 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.TargetToSource)
 		},
-		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.TargetToSource, true },
+		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
+			if m.TargetToSource == nil {
+				return nil, false
+			}
+
+			return &m.TargetToSource, true
+		},
 	},
 }
 

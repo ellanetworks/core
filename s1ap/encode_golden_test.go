@@ -30,7 +30,7 @@ func TestEncodeBodyGolden(t *testing.T) {
 		body func(*per.Writer, per.Encoding) error
 		want string
 	}{
-		{"DownlinkNASTransport", (&DownlinkNASTransport{}).encodeBody, "000003000000020000000800020000001a000100"},
+		{"DownlinkNASTransport", (&DownlinkNASTransport{NASPDU: NASPDU{0x07}}).encodeBody, "000003000000020000000800020000001a00020107"},
 		{"DownlinkUEAssociatedLPPaTransport", (&DownlinkUEAssociatedLPPaTransport{}).encodeBody, "00000400000002000000080002000000940001000093000100"},
 		{"ENBConfigurationUpdate", (&ENBConfigurationUpdate{}).encodeBody, "000000"},
 		{"ENBConfigurationUpdateAcknowledge", (&ENBConfigurationUpdateAcknowledge{}).encodeBody, "000000"},
@@ -47,17 +47,17 @@ func TestEncodeBodyGolden(t *testing.T) {
 		{"ErrorIndication", (&ErrorIndication{}).encodeBody, "000000"},
 		{"HandoverCancel", (&HandoverCancel{Cause: new(Cause)}).encodeBody, "000003000000020000000800020000000240020000"},
 		{"HandoverCancelAcknowledge", (&HandoverCancelAcknowledge{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID)}).encodeBody, "000002000040020000000840020000"},
-		{"HandoverCommand", (&HandoverCommand{}).encodeBody, "0000040000000200000008000200000001000100007b000100"},
+		{"HandoverCommand", (&HandoverCommand{TargetToSource: TransparentContainer{0x00}}).encodeBody, "0000040000000200000008000200000001000100007b00020100"},
 		{"HandoverFailure", (&HandoverFailure{MMEUES1APID: new(MMEUES1APID), Cause: new(Cause)}).encodeBody, "000002000040020000000240020000"},
 		{"HandoverNotify", (&HandoverNotify{EUTRANCGI: new(EUTRANCGI), TAI: new(TAI)}).encodeBody, "00000400000002000000080002000000644008000000000000000000434006000000000000"},
 		{"HandoverPreparationFailure", (&HandoverPreparationFailure{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID), Cause: new(Cause)}).encodeBody, "000003000040020000000840020000000240020000"},
-		{"HandoverRequest", (&HandoverRequest{Cause: new(Cause), ERABToBeSetup: []ERABToBeSetupItemHOReq{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1, QoS: goldQoS()}}}).encodeBody, "000008000000020000000100010000024002000000420004000000000035001200001b000d021f0a000001000000010009040068000100006b0005000000000000280021000000000000000000000000000000000000000000000000000000000000000000"},
-		{"HandoverRequestAcknowledge", (&HandoverRequestAcknowledge{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID), ERABAdmitted: []ERABAdmittedItem{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1}}}).encodeBody, "00000400004002000000084002000000124010000014400b0021f00a00000100000001007b000100"},
-		{"HandoverRequired", (&HandoverRequired{Cause: new(Cause)}).encodeBody, "00000600000002000000080002000000010001000002400200000004000d000000000000000000000000000068000100"},
+		{"HandoverRequest", (&HandoverRequest{Cause: new(Cause), SourceToTarget: TransparentContainer{0x00}, ERABToBeSetup: []ERABToBeSetupItemHOReq{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1, QoS: goldQoS()}}}).encodeBody, "000008000000020000000100010000024002000000420004000000000035001200001b000d021f0a00000100000001000904006800020100006b0005000000000000280021000000000000000000000000000000000000000000000000000000000000000000"},
+		{"HandoverRequestAcknowledge", (&HandoverRequestAcknowledge{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID), TargetToSource: TransparentContainer{0x00}, ERABAdmitted: []ERABAdmittedItem{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1}}}).encodeBody, "00000400004002000000084002000000124010000014400b0021f00a00000100000001007b00020100"},
+		{"HandoverRequired", (&HandoverRequired{Cause: new(Cause), SourceToTarget: TransparentContainer{0x00}}).encodeBody, "00000600000002000000080002000000010001000002400200000004000d00000000000000000000000000006800020100"},
 		{"InitialContextSetupFailure", (&InitialContextSetupFailure{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID), Cause: new(Cause)}).encodeBody, "000003000040020000000840020000000240020000"},
 		{"InitialContextSetupRequest", (&InitialContextSetupRequest{ERABToBeSetup: []ERABToBeSetupItemCtxtSUReq{{ERABID: 1, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}}}).encodeBody, "000006000000020000000800020000004200040000000000180013000034000e010009040f800a00000100000001006b00050000000000004900200000000000000000000000000000000000000000000000000000000000000000"},
 		{"InitialContextSetupResponse", (&InitialContextSetupResponse{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID), ERABSetup: []ERABSetupItemCtxtSURes{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1}}}).encodeBody, "0000030000400200000008400200000033400f000032400a021f0a00000100000001"},
-		{"InitialUEMessage", (&InitialUEMessage{EUTRANCGI: new(EUTRANCGI), RRCEstablishmentCause: new(RRCEstablishmentCause)}).encodeBody, "000005000800020000001a000100004300060000000000000064400800000000000000000086400100"},
+		{"InitialUEMessage", (&InitialUEMessage{NASPDU: NASPDU{0x07}, EUTRANCGI: new(EUTRANCGI), RRCEstablishmentCause: new(RRCEstablishmentCause)}).encodeBody, "000005000800020000001a00020107004300060000000000000064400800000000000000000086400100"},
 		{"LocationReport", (&LocationReport{EUTRANCGI: new(EUTRANCGI), TAI: new(TAI), RequestType: new(RequestType)}).encodeBody, "000005000000020000000800020000006440080000000000000000004340060000000000000062400100"},
 		{"MMEConfigurationTransfer", (&MMEConfigurationTransfer{}).encodeBody, "000000"},
 		{"MMEStatusTransfer", (&MMEStatusTransfer{Container: StatusTransferContainer{0xaa}}).encodeBody, "000003000000020000000800020000005a0001aa"},
@@ -75,7 +75,7 @@ func TestEncodeBodyGolden(t *testing.T) {
 		{"UEContextReleaseCommand", (&UEContextReleaseCommand{Cause: new(Cause)}).encodeBody, "000002006300024000000240020000"},
 		{"UEContextReleaseComplete", (&UEContextReleaseComplete{MMEUES1APID: new(MMEUES1APID), ENBUES1APID: new(ENBUES1APID)}).encodeBody, "000002000040020000000840020000"},
 		{"UEContextReleaseRequest", (&UEContextReleaseRequest{Cause: new(Cause)}).encodeBody, "000003000000020000000800020000000240020000"},
-		{"UplinkNASTransport", (&UplinkNASTransport{EUTRANCGI: new(EUTRANCGI), TAI: new(TAI)}).encodeBody, "000005000000020000000800020000001a00010000644008000000000000000000434006000000000000"},
+		{"UplinkNASTransport", (&UplinkNASTransport{NASPDU: NASPDU{0x07}, EUTRANCGI: new(EUTRANCGI), TAI: new(TAI)}).encodeBody, "000005000000020000000800020000001a0002010700644008000000000000000000434006000000000000"},
 		{"UplinkUEAssociatedLPPaTransport", (&UplinkUEAssociatedLPPaTransport{}).encodeBody, "00000400000002000000080002000000940001000093000100"},
 	}
 
