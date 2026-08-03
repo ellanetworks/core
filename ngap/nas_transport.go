@@ -94,3 +94,70 @@ func (m *UplinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
 func ParseUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
 	return parseMessageBody[UplinkNASTransport](ProcUplinkNASTransport, TriggeringInitiatingMessage, uplinkNASTransportIEs, value)
 }
+
+// TS 38.413 §9.2.5.2.
+//
+// NGAP places NAS-PDU after the optional Old AMF and RAN Paging Priority IEs
+// where S1AP puts it third, but neither optional IE is modeled, so the modeled
+// table order matches.
+type DownlinkNASTransport struct {
+	AMFUENGAPID AMFUENGAPID
+	RANUENGAPID RANUENGAPID
+	NASPDU      NASPDU
+
+	messageMeta
+}
+
+var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
+	{
+		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AMFUENGAPID)
+		},
+		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+	},
+	{
+		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.RANUENGAPID)
+		},
+		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+	},
+	{
+		id: idNASPDU, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASPDU)
+		},
+		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) {
+			if m.NASPDU == nil {
+				return nil, false
+			}
+
+			return &m.NASPDU, true
+		},
+	},
+}
+
+func (m *DownlinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcDownlinkNASTransport, downlinkNASTransportIEs, m)
+}
+
+func (m *DownlinkNASTransport) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcDownlinkNASTransport,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
+}
+
+func ParseDownlinkNASTransport(value []byte) (*DownlinkNASTransport, error) {
+	return parseMessageBody[DownlinkNASTransport](ProcDownlinkNASTransport, TriggeringInitiatingMessage, downlinkNASTransportIEs, value)
+}

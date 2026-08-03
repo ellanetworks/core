@@ -37,5 +37,5 @@ func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ra
 		return
 	}
 
-	target.SendNGAP(ctx, send.NGAPProcedureDownlinkRanStatusTransfer, pkt)
+	target.SendNGAP(ctx, send.NGAPProcedureDownlinkRANStatusTransfer, pkt)
 }

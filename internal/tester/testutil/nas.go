@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
 )
 
 // ParseNAS decodes a plain 5GS NAS message, so a caller can dispatch on its
@@ -38,32 +37,6 @@ func ExpectNAS[T fgs.Message](b []byte) (T, error) {
 	}
 
 	return got, nil
-}
-
-func GetNASPDUFromDownlinkNasTransport(downlinkNASTransport *ngapType.DownlinkNASTransport) *ngapType.NASPDU {
-	for _, ie := range downlinkNASTransport.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDNASPDU:
-			return ie.Value.NASPDU
-		default:
-			continue
-		}
-	}
-
-	return nil
-}
-
-func GetAMFUENGAPIDFromDownlinkNASTransport(downlinkNASTransport *ngapType.DownlinkNASTransport) *ngapType.AMFUENGAPID {
-	for _, ie := range downlinkNASTransport.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			return ie.Value.AMFUENGAPID
-		default:
-			continue
-		}
-	}
-
-	return nil
 }
 
 func SDFromNAS(sd [3]uint8) string {

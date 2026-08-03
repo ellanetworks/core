@@ -295,3 +295,81 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 		t.Errorf("reported %d missing IEs, want 2: %+v", missing, msg.Diagnostics().IEs)
 	}
 }
+
+// Golden DOWNLINK NAS TRANSPORT PDUs from pycrate's S1AP ASN.1 module, a
+// second, independent implementation encoding the same messages.
+const (
+	goldenDownlinkNASTransport        = "000b4016000003000000020001000800020001001a0003020742"
+	goldenDownlinkNASTransportWideIDs = "000b401e00000300000005c0ffffffff0008000480ffffff001a0006050742010203"
+)
+
+func TestDownlinkNASTransportGolden(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  *DownlinkNASTransport
+		want string
+	}{
+		{
+			"minimal",
+			&DownlinkNASTransport{MMEUES1APID: 1, ENBUES1APID: 1, NASPDU: NASPDU{0x07, 0x42}},
+			goldenDownlinkNASTransport,
+		},
+		{
+			// The widest ids either field can carry: MME-UE-S1AP-ID is 32 bits,
+			// eNB-UE-S1AP-ID 24.
+			"wide ids",
+			&DownlinkNASTransport{
+				MMEUES1APID: 0xffffffff, ENBUES1APID: 0xffffff,
+				NASPDU: NASPDU{0x07, 0x42, 0x01, 0x02, 0x03},
+			},
+			goldenDownlinkNASTransportWideIDs,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.msg.Marshal()
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+
+			if want := mustHex(t, tt.want); !bytes.Equal(got, want) {
+				t.Fatalf("encode mismatch:\n  got  %x\n  want %x", got, want)
+			}
+
+			pdu, err := Unmarshal(mustHex(t, tt.want))
+			if err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			out, err := ParseDownlinkNASTransport(pdu.value())
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+
+			if out.MMEUES1APID != tt.msg.MMEUES1APID || out.ENBUES1APID != tt.msg.ENBUES1APID ||
+				!bytes.Equal(out.NASPDU, tt.msg.NASPDU) {
+				t.Fatalf("decode mismatch:\n  got  %+v\n  want %+v", out, tt.msg)
+			}
+		})
+	}
+}
+
+// Every modeled IE is mandatory-reject, so §10.3.3 refuses to encode any unset
+// one and §10.3.5 stops an arriving message that omits one.
+func TestDownlinkNASTransportMissingIEs(t *testing.T) {
+	if _, err := (&DownlinkNASTransport{}).Marshal(); err == nil {
+		t.Error("Marshal() = nil error, want a required-IE error")
+	}
+
+	if _, err := (&DownlinkNASTransport{MMEUES1APID: 1, ENBUES1APID: 1}).Marshal(); err == nil {
+		t.Error("Marshal() with no NAS-PDU = nil error, want a required-IE error")
+	}
+
+	if _, err := ParseDownlinkNASTransport(container(t,
+		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
+		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+	)); err == nil {
+		t.Error("decoded a message with no NAS-PDU, want it rejected")
+	}
+}

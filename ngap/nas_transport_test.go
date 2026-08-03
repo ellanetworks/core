@@ -235,3 +235,111 @@ func TestUserLocationInformationCellIdentityWidth(t *testing.T) {
 		}
 	}
 }
+
+func TestDownlinkNASTransportRoundTrip(t *testing.T) {
+	in := &DownlinkNASTransport{AMFUENGAPID: 42, RANUENGAPID: 1, NASPDU: NASPDU{0x7e, 0x00, 0x41, 0x01}}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// DownlinkNASTransport is AMF-originated; an initiatingMessage with
+	// procedureCode 4 (TS 38.413 §9.2.5.2).
+	if b[1] != 0x04 {
+		t.Fatalf("procedureCode byte = %#x, want 0x04", b[1])
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParseDownlinkNASTransport(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.AMFUENGAPID != in.AMFUENGAPID || out.RANUENGAPID != in.RANUENGAPID ||
+		!bytes.Equal(out.NASPDU, in.NASPDU) {
+		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
+	}
+}
+
+// Golden DOWNLINK NAS TRANSPORT PDUs. free5gc/ngap v1.1.3 and pycrate's NGAP
+// module, two independent implementations, encode these identically.
+const (
+	goldenDownlinkNASTransport        = "00044017000003000a0002000100550002000100260004037e0056"
+	goldenDownlinkNASTransportWideIDs = "00044020000003000a000680ffffffffff00550005c0ffffffff00260006057e01020304"
+)
+
+func TestDownlinkNASTransportGolden(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  *DownlinkNASTransport
+		want string
+	}{
+		{
+			"minimal",
+			&DownlinkNASTransport{AMFUENGAPID: 1, RANUENGAPID: 1, NASPDU: NASPDU{0x7e, 0x00, 0x56}},
+			goldenDownlinkNASTransport,
+		},
+		{
+			// The widest ids either field can carry: the AMF's is 40 bits, past
+			// what a uint32 holds.
+			"wide ids",
+			&DownlinkNASTransport{
+				AMFUENGAPID: 0xffffffffff, RANUENGAPID: 0xffffffff,
+				NASPDU: NASPDU{0x7e, 0x01, 0x02, 0x03, 0x04},
+			},
+			goldenDownlinkNASTransportWideIDs,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.msg.Marshal()
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+
+			if want := mustHex(t, tt.want); !bytes.Equal(got, want) {
+				t.Fatalf("encode mismatch:\n  got  %x\n  want %x", got, want)
+			}
+
+			pdu, err := Unmarshal(mustHex(t, tt.want))
+			if err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			out, err := ParseDownlinkNASTransport(pdu.value())
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+
+			if out.AMFUENGAPID != tt.msg.AMFUENGAPID || out.RANUENGAPID != tt.msg.RANUENGAPID ||
+				!bytes.Equal(out.NASPDU, tt.msg.NASPDU) {
+				t.Fatalf("decode mismatch:\n  got  %+v\n  want %+v", out, tt.msg)
+			}
+		})
+	}
+}
+
+// Every modeled IE is mandatory-reject, so §10.3.3 refuses to encode any unset
+// one and §10.3.5 stops an arriving message that omits one.
+func TestDownlinkNASTransportMissingIEs(t *testing.T) {
+	if _, err := (&DownlinkNASTransport{}).Marshal(); err == nil {
+		t.Error("Marshal() = nil error, want a required-IE error")
+	}
+
+	if _, err := (&DownlinkNASTransport{AMFUENGAPID: 1, RANUENGAPID: 1}).Marshal(); err == nil {
+		t.Error("Marshal() with no NAS-PDU = nil error, want a required-IE error")
+	}
+
+	if _, err := ParseDownlinkNASTransport(container(t,
+		ieField{id: idAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
+		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
+	)); err == nil {
+		t.Error("decoded a message with no NAS-PDU, want it rejected")
+	}
+}

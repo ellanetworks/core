@@ -48,7 +48,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	}
 
 	if !accepted {
-		ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, outBytes)
+		ran.SendToRadio(ctx, send.NGAPProcedureRANConfigurationUpdateFailure, outBytes)
 
 		logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update rejected",
 			zap.String("reason", reason),
@@ -76,7 +76,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			zap.Any("global-ran-node-id", req.GlobalRANNodeID))
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateAcknowledge, outBytes)
+	ran.SendToRadio(ctx, send.NGAPProcedureRANConfigurationUpdateAcknowledge, outBytes)
 
 	logger.WithTrace(ctx, ran.Log).Info("RAN Configuration Update acknowledged",
 		zap.String("gnb-name", ran.NodeName()))
@@ -141,7 +141,7 @@ func sendRANConfigurationUpdateFailure(ctx context.Context, ran *amf.Radio, caus
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureRanConfigurationUpdateFailure, pkt)
+	ran.SendToRadio(ctx, send.NGAPProcedureRANConfigurationUpdateFailure, pkt)
 }
 
 // sendRANConfigurationUpdateProtocolFailure rejects an update that must not

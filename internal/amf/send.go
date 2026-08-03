@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
@@ -531,18 +532,30 @@ func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType send.NGAPProcedure, 
 	_ = amfInstance.SendToRadio(ctx, conn, msgType, pkt)
 }
 
+// downlinkNASTransportBytes builds a Downlink NAS Transport PDU carrying nas for
+// the given NGAP identities (TS 38.413 §9.2.5.2).
+func downlinkNASTransportBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, nas []byte) ([]byte, error) {
+	msg := &ngap.DownlinkNASTransport{
+		AMFUENGAPID: amfID,
+		RANUENGAPID: ranID,
+		NASPDU:      ngap.NASPDU(nas),
+	}
+
+	return msg.Marshal()
+}
+
 func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byte) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	pkt, err := send.BuildDownlinkNasTransport(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), nasPdu)
+	pkt, err := downlinkNASTransportBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), nasPdu)
 	if err != nil {
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNasTransport, pkt)
+	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNASTransport, pkt)
 }
 
 // SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying

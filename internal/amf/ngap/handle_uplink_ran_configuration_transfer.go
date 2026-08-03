@@ -48,5 +48,5 @@ func HandleUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf.
 		return
 	}
 
-	targetRadio.SendToRadio(ctx, send.NGAPProcedureDownlinkRanConfigurationTransfer, b)
+	targetRadio.SendToRadio(ctx, send.NGAPProcedureDownlinkRANConfigurationTransfer, b)
 }

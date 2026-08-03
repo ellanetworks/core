@@ -240,57 +240,6 @@ func BuildUEContextReleaseCommand(amfUENGAPID int64, ranUENGAPID int64, causePre
 	return ngap.Encoder(pdu)
 }
 
-func BuildDownlinkNasTransport(amfUENGAPID int64, ranUENGAPID int64, nasPdu []byte) ([]byte, error) {
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeDownlinkNASTransport
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentDownlinkNASTransport
-	initiatingMessage.Value.DownlinkNASTransport = new(ngapType.DownlinkNASTransport)
-
-	downlinkNasTransport := initiatingMessage.Value.DownlinkNASTransport
-	downlinkNasTransportIEs := &downlinkNasTransport.ProtocolIEs
-
-	ie := ngapType.DownlinkNASTransportIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentAMFUENGAPID
-	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-
-	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = amfUENGAPID
-
-	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-
-	ie = ngapType.DownlinkNASTransportIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentRANUENGAPID
-	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-
-	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ranUENGAPID
-
-	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-
-	ie = ngapType.DownlinkNASTransportIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDNASPDU
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.DownlinkNASTransportIEsPresentNASPDU
-	ie.Value.NASPDU = new(ngapType.NASPDU)
-
-	ie.Value.NASPDU.Value = nasPdu
-
-	downlinkNasTransportIEs.List = append(downlinkNasTransportIEs.List, ie)
-
-	return ngap.Encoder(pdu)
-}
-
 // BuildDownlinkRanStatusTransfer relays the source NG-RAN's PDCP SN/HFN status to the
 // handover target (TS 38.413 §8.4.7).
 func BuildDownlinkRanStatusTransfer(amfUENGAPID int64, ranUENGAPID int64, container *ngapType.RANStatusTransferTransparentContainer) ([]byte, error) {

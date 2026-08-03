@@ -17,10 +17,10 @@ const (
 	NGAPProcedurePaging                            NGAPProcedure = "Paging"
 	NGAPProcedureNGResetAcknowledge                NGAPProcedure = "NGResetAcknowledge"
 	NGAPProcedureErrorIndication                   NGAPProcedure = "ErrorIndication"
-	NGAPProcedureRanConfigurationUpdateAcknowledge NGAPProcedure = "RANConfigurationUpdateAcknowledge"
-	NGAPProcedureRanConfigurationUpdateFailure     NGAPProcedure = "RANConfigurationUpdateFailure"
+	NGAPProcedureRANConfigurationUpdateAcknowledge NGAPProcedure = "RANConfigurationUpdateAcknowledge"
+	NGAPProcedureRANConfigurationUpdateFailure     NGAPProcedure = "RANConfigurationUpdateFailure"
 	NGAPProcedureAMFStatusIndication               NGAPProcedure = "AMFStatusIndication"
-	NGAPProcedureDownlinkRanConfigurationTransfer  NGAPProcedure = "DownlinkRANConfigurationTransfer"
+	NGAPProcedureDownlinkRANConfigurationTransfer  NGAPProcedure = "DownlinkRANConfigurationTransfer"
 
 	// UE-associated NGAP procedures
 	NGAPProcedureInitialContextSetupRequest       NGAPProcedure = "InitialContextSetupRequest"
@@ -28,7 +28,7 @@ const (
 	NGAPProcedurePDUSessionResourceModifyConfirm  NGAPProcedure = "PDUSessionResourceModifyConfirm"
 	NGAPProcedurePDUSessionResourceSetupRequest   NGAPProcedure = "PDUSessionResourceSetupRequest"
 	NGAPProcedurePDUSessionResourceReleaseCommand NGAPProcedure = "PDUSessionResourceReleaseCommand"
-	NGAPProcedureDownlinkNasTransport             NGAPProcedure = "DownlinkNasTransport"
+	NGAPProcedureDownlinkNASTransport             NGAPProcedure = "DownlinkNASTransport"
 	NGAPProcedureLocationReportingControl         NGAPProcedure = "LocationReportingControl"
 	NGAPProcedurePathSwitchRequestFailure         NGAPProcedure = "PathSwitchRequestFailure"
 	NGAPProcedurePathSwitchRequestAcknowledge     NGAPProcedure = "PathSwitchRequestAcknowledge"
@@ -38,27 +38,27 @@ const (
 	NGAPProcedureHandoverPreparationFailure       NGAPProcedure = "HandoverPreparationFailure"
 	NGAPProcedureUEContextReleaseCommand          NGAPProcedure = "UEContextReleaseCommand"
 	NGAPProcedureDownlinkNRPPaTransport           NGAPProcedure = "DownlinkNRPPaTransport"
-	NGAPProcedureDownlinkRanStatusTransfer        NGAPProcedure = "DownlinkRANStatusTransfer"
+	NGAPProcedureDownlinkRANStatusTransfer        NGAPProcedure = "DownlinkRANStatusTransfer"
 )
 
 func GetSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	switch msgType {
 	case NGAPProcedureNGSetupResponse, NGAPProcedureNGSetupFailure,
 		NGAPProcedurePaging, NGAPProcedureNGResetAcknowledge,
-		NGAPProcedureErrorIndication, NGAPProcedureRanConfigurationUpdateAcknowledge,
-		NGAPProcedureRanConfigurationUpdateFailure, NGAPProcedureAMFStatusIndication,
-		NGAPProcedureDownlinkRanConfigurationTransfer:
+		NGAPProcedureErrorIndication, NGAPProcedureRANConfigurationUpdateAcknowledge,
+		NGAPProcedureRANConfigurationUpdateFailure, NGAPProcedureAMFStatusIndication,
+		NGAPProcedureDownlinkRANConfigurationTransfer:
 		return 0, nil
 
 	case NGAPProcedureInitialContextSetupRequest, NGAPProcedureUEContextReleaseCommand,
-		NGAPProcedureDownlinkNasTransport, NGAPProcedurePDUSessionResourceSetupRequest,
+		NGAPProcedureDownlinkNASTransport, NGAPProcedurePDUSessionResourceSetupRequest,
 		NGAPProcedurePDUSessionResourceReleaseCommand, NGAPProcedureHandoverRequest,
 		NGAPProcedureHandoverCommand, NGAPProcedureHandoverPreparationFailure,
 		NGAPProcedurePathSwitchRequestAcknowledge, NGAPProcedurePDUSessionResourceModifyRequest,
 		NGAPProcedurePDUSessionResourceModifyConfirm, NGAPProcedureHandoverCancelAcknowledge,
 		NGAPProcedureLocationReportingControl, NGAPProcedurePathSwitchRequestFailure,
 		NGAPProcedureDownlinkNRPPaTransport,
-		NGAPProcedureDownlinkRanStatusTransfer:
+		NGAPProcedureDownlinkRANStatusTransfer:
 		return 1, nil
 	default:
 		return 0, fmt.Errorf("NGAP message type (%s) not supported", msgType)
