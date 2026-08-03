@@ -136,15 +136,9 @@ struct {
 	__uint(max_entries, NAT_CT_MAP_SIZE);
 } nat_ct SEC(".maps");
 
-/* A kernel that does not track a byte swap's bounds rejects packet-pointer
- * arithmetic on tot_len, so the mask has to reach the verifier. */
 static __always_inline __u32 nat_ip4_tot_len(const struct iphdr *ip4)
 {
-	__u32 tot_len = bpf_ntohs(ip4->tot_len);
-
-	barrier_var(tot_len);
-
-	return tot_len & 0xFFFF;
+	return bounded_u16(bpf_ntohs(ip4->tot_len));
 }
 
 /* Trailing frame bytes past tot_len are not part of the datagram. */

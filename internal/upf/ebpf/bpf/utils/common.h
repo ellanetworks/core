@@ -15,3 +15,13 @@
 /* Opaque to the optimizer, so a mask applied afterwards survives codegen and
  * the verifier can derive bounds the compiler considers already known. */
 #define barrier_var(var) asm volatile("" : "+r"(var))
+
+/* A byte-swapped header field reaches the verifier as an unbounded scalar, and
+ * packet-pointer arithmetic on one is rejected. The mask restores the bound
+ * the field's width already guarantees. */
+static __always_inline __u32 bounded_u16(__u32 value)
+{
+	barrier_var(value);
+
+	return value & 0xFFFF;
+}

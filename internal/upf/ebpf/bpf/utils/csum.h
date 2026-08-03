@@ -22,6 +22,7 @@
 #pragma once
 
 #include "bpf/ctx/ctx.h"
+#include "bpf/utils/common.h"
 #include "bpf/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
@@ -295,7 +296,7 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 	if (!inner_l4_is_summable(ip4->protocol))
 		return -1;
 
-	__u16 tot_len = bpf_ntohs(ip4->tot_len);
+	__u32 tot_len = bounded_u16(bpf_ntohs(ip4->tot_len));
 	if (tot_len < sizeof(struct iphdr))
 		return -1;
 
@@ -321,7 +322,7 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 		.daddr = ip4->daddr,
 		.zero = 0,
 		.proto = ip4->protocol,
-		.l4_len = bpf_htons(tot_len - (__u16)sizeof(struct iphdr)),
+		.l4_len = bpf_htons((__u16)(tot_len - sizeof(struct iphdr))),
 	};
 
 	return (__s32)csum_fold_helper(
@@ -340,9 +341,10 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 	if (!inner_l4_is_summable(ip6->nexthdr))
 		return -1;
 
+	__u32 payload_len = bounded_u16(bpf_ntohs(ip6->payload_len));
+
 	/* As in inner_pseudo_ip4. */
-	if (!ctx_frame_holds(ctx, data_end, ip6,
-			     sizeof(*ip6) + bpf_ntohs(ip6->payload_len)))
+	if (!ctx_frame_holds(ctx, data_end, ip6, sizeof(*ip6) + payload_len))
 		return -1;
 
 	if (ip6->nexthdr == IPPROTO_UDP) {
@@ -356,7 +358,7 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 	}
 
 	struct ip6_pseudo pseudo = {
-		.upper_len = bpf_htonl(bpf_ntohs(ip6->payload_len)),
+		.upper_len = bpf_htonl(payload_len),
 		.zero = { 0, 0, 0 },
 		.next_hdr = ip6->nexthdr,
 	};
