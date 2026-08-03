@@ -231,11 +231,12 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 	if (ctx_vlan_ingress(ctx))
 		return record_action(&context, CTX_ACT_OK);
 
-	/* data_end bounds only the linear head, which a header-splitting NIC
-	 * sizes with eth_get_headlen: __skb_get_poff stops at thoff + 8 for UDP
-	 * (net/core/flow_dissector.c), leaving the GTP-U header in a fragment.
-	 * Parsing before this pull would hand the G-PDU to the stack
-	 * undecapsulated. */
+	/* Safe before parsing because upf_entry_func only tail-calls here for
+	 * UDP to the GTP-U port, which the datapath owns. data_end bounds only
+	 * the linear head, which a header-splitting NIC sizes with
+	 * eth_get_headlen: __skb_get_poff stops at thoff + 8 for UDP
+	 * (net/core/flow_dissector.c), leaving the GTP-U header in a fragment,
+	 * so parsing first would hand the G-PDU to the stack undecapsulated. */
 	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
 		return record_action(&context,
 				     abort_with(&context, UPF_DROP_INTERNAL_PULL_FAILED));
@@ -266,13 +267,9 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	if (ctx_vlan_ingress(ctx))
 		return record_action(&context, CTX_ACT_OK);
 
-	/* A TC skb can be non-linear or cloned: the pull makes the headers
-	 * writable for the NAT and encapsulation rewrites, and brings an ICMP
-	 * error's quoted headers within reach of data_end. */
-	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
-		return record_action(&context,
-				     abort_with(&context, UPF_DROP_INTERNAL_PULL_FAILED));
-
+	/* No pull here: this stage is reached by every frame that is not
+	 * GTP-U, most of which the datapath does not own. handle_n6_packet_*
+	 * pulls once the L4 filter has claimed the frame. */
 	context.data = ctx_data(ctx);
 	context.data_end = ctx_data_end(ctx);
 
