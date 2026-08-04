@@ -106,7 +106,7 @@ func (e *AbstractSyntaxError) UEIDs() (*AMFUENGAPID, *RANUENGAPID) {
 	for _, ie := range e.decoded {
 		switch ie.ID {
 		// PATH SWITCH REQUEST identifies the association by the source AMF id
-		// (TS 38.413 §9.2.3.1); no message carries both. id-NewAMF-UE-NGAP-ID
+		// (TS 38.413 §9.2.3.8); no message carries both. id-NewAMF-UE-NGAP-ID
 		// is deliberately absent: UE CONTEXT MODIFICATION REQUEST carries it
 		// alongside id-AMF-UE-NGAP-ID to assign a new id, so it names the
 		// association being moved to rather than the one to answer about.

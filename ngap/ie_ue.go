@@ -238,22 +238,11 @@ const bitRateMax = 4000000000000
 type BitRate uint64
 
 func (b BitRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: bitRateMax, HasUB: true}, int64(b))
+	return encodeExtensibleInt(w, enc, 0, bitRateMax, int64(b))
 }
 
 func (b *BitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	ext, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	if ext {
-		return fmt.Errorf("%w: BitRate extension value", errNotComprehended)
-	}
-
-	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: bitRateMax, HasUB: true})
+	v, err := decodeExtensibleInt(r, enc, 0, bitRateMax, "BitRate")
 	if err != nil {
 		return err
 	}

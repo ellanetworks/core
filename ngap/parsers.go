@@ -56,3 +56,17 @@ var messageParsers = []messageParser{
 		return err
 	}},
 }
+
+// transferParsers are the §9.3.4 transfer parsers. They take a
+// TransferContainer rather than a message body, so they are registered apart
+// from messageParsers; the fuzzer drives both.
+var transferParsers = []messageParser{
+	{"ParsePDUSessionResourceSetupUnsuccessfulTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceSetupUnsuccessfulTransfer(v)
+		return err
+	}},
+	{"ParsePDUSessionResourceModifyIndicationUnsuccessfulTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceModifyIndicationUnsuccessfulTransfer(v)
+		return err
+	}},
+}

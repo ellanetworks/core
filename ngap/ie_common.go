@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"fmt"
 	"net/netip"
 
 	"github.com/ellanetworks/core/per"
@@ -32,6 +33,102 @@ func (n *Name) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	*n = Name(s)
 
 	return nil
+}
+
+// GTP-TEID ::= OCTET STRING (SIZE(4)).
+type GTPTEID uint32
+
+func (t GTPTEID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 4, 4, true, true, false, []byte{byte(t >> 24), byte(t >> 16), byte(t >> 8), byte(t)})
+}
+
+func (t *GTPTEID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*t = GTPTEID(uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]))
+
+	return nil
+}
+
+// GTPTunnel ::= SEQUENCE { transportLayerAddress, gTP-TEID, iE-Extensions
+// OPTIONAL } (extensible) — TS 38.413 §9.3.2.2.
+type GTPTunnel struct {
+	_                     [0]struct{} `per:"extseq"`
+	TransportLayerAddress TransportLayerAddress
+	GTPTEID               GTPTEID
+	_                     ieExtensions `per:",skip"`
+}
+
+// UPTransportLayerInformation CHOICE alternatives. The CHOICE is not
+// extensible, so choice-Extensions is a plain alternative index.
+const (
+	upTransportLayerInformationGTPTunnel = iota
+	upTransportLayerInformationChoiceExtensions
+
+	upTransportLayerInformationAlternatives = 2
+)
+
+// UPTransportLayerInformation ::= CHOICE { gTPTunnel, choice-Extensions } —
+// TS 38.413 §9.3.2.2. S1AP carries the user-plane endpoint as a bare
+// TransportLayerAddress and GTP-TEID pair inside each E-RAB item instead.
+type UPTransportLayerInformation struct {
+	GTPTunnel GTPTunnel
+}
+
+func (u UPTransportLayerInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, upTransportLayerInformationAlternatives-1, upTransportLayerInformationGTPTunnel); err != nil {
+		return err
+	}
+
+	return u.GTPTunnel.MarshalPER(w, enc)
+}
+
+func (u *UPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, upTransportLayerInformationAlternatives-1)
+	if err != nil {
+		return err
+	}
+
+	if idx == upTransportLayerInformationChoiceExtensions {
+		return decodeChoiceExtension(r, enc, "UPTransportLayerInformation")
+	}
+
+	return u.GTPTunnel.UnmarshalPER(r, enc)
+}
+
+// encodeExtensibleInt encodes an INTEGER whose constraint carries an extension
+// marker but defines no extension additions: X.691 §13.1 spends one bit, then
+// the root value follows. A value outside the root is refused rather than sent
+// as an extension, because 3GPP has defined no such addition to send.
+func encodeExtensibleInt(w *per.Writer, enc per.Encoding, lb, ub, n int64) error {
+	if n < lb || n > ub {
+		return fmt.Errorf("value %d outside the extension root %d..%d", n, lb, ub)
+	}
+
+	w.WriteBit(false)
+
+	return per.EncodeInteger(w, enc, per.Bounds{LB: lb, HasLB: true, UB: ub, HasUB: true}, n)
+}
+
+// decodeExtensibleInt consumes an extension value before reporting it, so the
+// reader is left positioned after the field: X.691 §13.1 sends an out-of-root
+// value as an unconstrained integer (§13.2.4-13.2.6), which carries its own
+// length determinant and is therefore skippable without knowing the addition.
+// Criticality then decides what to do with the enclosing IE (§10.3.1 case 6).
+func decodeExtensibleInt(r *per.Reader, enc per.Encoding, lb, ub int64, name string) (int64, error) {
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: lb, HasLB: true, UB: ub, HasUB: true, Extensible: true})
+	if err != nil {
+		return 0, err
+	}
+
+	if v < lb || v > ub {
+		return 0, fmt.Errorf("%w: %s extension value %d", errNotComprehended, name, v)
+	}
+
+	return v, nil
 }
 
 // TransferContainer is an OCTET STRING (CONTAINING XxxTransfer): a nested PER

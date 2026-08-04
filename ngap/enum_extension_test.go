@@ -126,3 +126,149 @@ func TestNotComprehendedIEIsNotDelivered(t *testing.T) {
 		t.Errorf("RANNodeName = %q, want the comprehended IE still delivered", deref(msg.RANNodeName))
 	}
 }
+
+// §10.3.1 case 6 for the tag-driven ENUMERATEDs, whose root count is inlined
+// into per_gen.go rather than reached through a guarded UnmarshalPER. This
+// says nothing about whether the constant matches the tag — the extension bit
+// is written from the same constant the decoder checks, so the two agree by
+// construction; TestTaggedEnumRootCountMatchesTag covers that.
+func TestTaggedEnumExtensionIsNotComprehended(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		encode func(*per.Writer) error
+		decode func(*per.Reader) error
+	}{
+		{"SecurityResult/IntegrityProtectionResult", func(w *per.Writer) error {
+			w.WriteBit(false)
+			w.WriteBit(false)
+
+			return per.EncodeEnumerated(w, per.Aligned, integrityProtectionResultRootCount, true, integrityProtectionResultRootCount)
+		}, func(r *per.Reader) error {
+			var v SecurityResult
+			return v.UnmarshalPER(r, per.Aligned)
+		}},
+		{"SecurityIndication/IntegrityProtectionIndication", func(w *per.Writer) error {
+			w.WriteBit(false)
+			w.WriteBit(false)
+			w.WriteBit(false)
+
+			return per.EncodeEnumerated(w, per.Aligned, integrityProtectionIndicationRootCount, true, integrityProtectionIndicationRootCount)
+		}, func(r *per.Reader) error {
+			var v SecurityIndication
+			return v.UnmarshalPER(r, per.Aligned)
+		}},
+		{"AllocationAndRetentionPriority/PreemptionCapability", func(w *per.Writer) error {
+			w.WriteBit(false)
+			w.WriteBit(false)
+
+			if err := PriorityLevelARP(1).MarshalPER(w, per.Aligned); err != nil {
+				return err
+			}
+
+			return per.EncodeEnumerated(w, per.Aligned, preemptionCapabilityRootCount, true, preemptionCapabilityRootCount)
+		}, func(r *per.Reader) error {
+			var v AllocationAndRetentionPriority
+			return v.UnmarshalPER(r, per.Aligned)
+		}},
+		{"AssociatedQosFlowItem/QosFlowMappingIndication", func(w *per.Writer) error {
+			w.WriteBit(false)
+			w.WriteBit(true)
+			w.WriteBit(false)
+
+			if err := QosFlowIdentifier(3).MarshalPER(w, per.Aligned); err != nil {
+				return err
+			}
+
+			return per.EncodeEnumerated(w, per.Aligned, qosFlowMappingIndicationRootCount, true, qosFlowMappingIndicationRootCount)
+		}, func(r *per.Reader) error {
+			var v AssociatedQosFlowItem
+			return v.UnmarshalPER(r, per.Aligned)
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			w := per.NewWriter()
+			if err := tt.encode(w); err != nil {
+				t.Fatal(err)
+			}
+
+			w.AlignToByte()
+
+			err := tt.decode(per.NewReader(w.Bytes()))
+			if err == nil {
+				t.Fatal("extension value decoded, want it refused rather than read as a root value")
+			}
+
+			if !errors.Is(err, errNotComprehended) {
+				t.Errorf("err = %v, want errNotComprehended so criticality decides (§10.3.1 case 6)", err)
+			}
+		})
+	}
+}
+
+// Encodes the last root value from the constant and requires the generated
+// decoder to return it, which catches a tag whose width differs from the
+// constant's. Only where the widths actually differ: the SecurityResult case
+// (root 2, one bit) catches a widening to 3, but the SecurityIndication case
+// (root 3) cannot catch a widening to 4, because X.691 §11.5.7.1 gives both
+// two bits. TestQosEnumRootCountsMatchSpec is what pins that one.
+func TestTaggedEnumRootCountMatchesTag(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		nRoot int64
+		round func(*testing.T, int64)
+	}{
+		{"SecurityResult/IntegrityProtectionResult", integrityProtectionResultRootCount, func(t *testing.T, last int64) {
+			w := per.NewWriter()
+			w.WriteBit(false)
+			w.WriteBit(false)
+
+			if err := per.EncodeEnumerated(w, per.Aligned, last+1, true, last); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := per.EncodeEnumerated(w, per.Aligned, confidentialityProtectionResultRootCount, true, 0); err != nil {
+				t.Fatal(err)
+			}
+
+			w.AlignToByte()
+
+			var v SecurityResult
+			if err := v.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned); err != nil {
+				t.Fatalf("last root value did not decode: %v", err)
+			}
+
+			if int64(v.IntegrityProtectionResult) != last {
+				t.Errorf("IntegrityProtectionResult = %d, want %d — tag width disagrees with the RootCount constant", v.IntegrityProtectionResult, last)
+			}
+		}},
+		{"SecurityIndication/IntegrityProtectionIndication", integrityProtectionIndicationRootCount, func(t *testing.T, last int64) {
+			w := per.NewWriter()
+			w.WriteBit(false)
+			w.WriteBit(false)
+			w.WriteBit(false)
+
+			if err := per.EncodeEnumerated(w, per.Aligned, last+1, true, last); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := per.EncodeEnumerated(w, per.Aligned, confidentialityProtectionIndicationRootCount, true, 0); err != nil {
+				t.Fatal(err)
+			}
+
+			w.AlignToByte()
+
+			var v SecurityIndication
+			if err := v.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned); err != nil {
+				t.Fatalf("last root value did not decode: %v", err)
+			}
+
+			if int64(v.IntegrityProtectionIndication) != last {
+				t.Errorf("IntegrityProtectionIndication = %d, want %d — tag width disagrees with the RootCount constant", v.IntegrityProtectionIndication, last)
+			}
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.round(t, tt.nRoot-1)
+		})
+	}
+}

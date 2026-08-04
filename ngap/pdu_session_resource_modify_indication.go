@@ -50,7 +50,7 @@ type PDUSessionResourceFailedToModifyItemModCfm struct {
 type PDUSessionResourceFailedToModifyListModCfm []PDUSessionResourceFailedToModifyItemModCfm
 
 // PDUSessionResourceModifyIndicationUnsuccessfulTransfer ::= SEQUENCE { cause,
-// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.20. The first of the
+// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.22. The first of the
 // §9.3.4 transfers modelled: the AMF builds this one itself when it cannot hand
 // a session to the SMF, so it cannot stay opaque.
 type PDUSessionResourceModifyIndicationUnsuccessfulTransfer struct {
@@ -72,7 +72,19 @@ func (t *PDUSessionResourceModifyIndicationUnsuccessfulTransfer) Marshal() (Tran
 	return TransferContainer(w.Bytes()), nil
 }
 
-// TS 38.413 §9.2.1.7.
+// ParsePDUSessionResourceModifyIndicationUnsuccessfulTransfer decodes the
+// transfer the AMF returns for a session it could not hand to the SMF.
+func ParsePDUSessionResourceModifyIndicationUnsuccessfulTransfer(b TransferContainer) (*PDUSessionResourceModifyIndicationUnsuccessfulTransfer, error) {
+	var t PDUSessionResourceModifyIndicationUnsuccessfulTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
+// TS 38.413 §9.2.1.8.
 type PDUSessionResourceModifyIndication struct {
 	AMFUENGAPID              AMFUENGAPID
 	RANUENGAPID              RANUENGAPID
@@ -157,7 +169,7 @@ func ParsePDUSessionResourceModifyIndication(value []byte) (*PDUSessionResourceM
 	return parseMessageBody[PDUSessionResourceModifyIndication](ProcPDUSessionResourceModifyIndication, TriggeringInitiatingMessage, pDUSessionResourceModifyIndicationIEs, value)
 }
 
-// TS 38.413 §9.2.1.8.
+// TS 38.413 §9.2.1.9.
 type PDUSessionResourceModifyConfirm struct {
 	AMFUENGAPID              *AMFUENGAPID
 	RANUENGAPID              *RANUENGAPID

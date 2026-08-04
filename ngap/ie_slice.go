@@ -8,6 +8,9 @@ const (
 	maxnoofSliceItems     = 1024
 	maxnoofAllowedSNSSAIs = 8
 	maxnoofPDUSessions    = 256
+	maxnoofQosFlows       = 64
+
+	maxnoofMultiConnectivityMinusOne = 3
 )
 
 // SST ::= OCTET STRING (SIZE(1)).

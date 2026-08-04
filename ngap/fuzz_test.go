@@ -72,5 +72,11 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		for _, mp := range messageParsers {
 			_ = mp.Parse(pdu.value())
 		}
+
+		// Transfers arrive inside an OCTET STRING, so they see the raw octets
+		// rather than a decoded PDU body.
+		for _, tp := range transferParsers {
+			_ = tp.Parse(data)
+		}
 	})
 }

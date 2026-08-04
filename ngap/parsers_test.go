@@ -18,8 +18,9 @@ var parseFuncRE = regexp.MustCompile(`(?m)^func (Parse[A-Za-z0-9]+)\(`)
 // unregistered parser is an unfuzzed decode path — exactly the gap that lets a
 // panic on hostile input reach production.
 func TestEveryParserIsRegistered(t *testing.T) {
-	registered := make(map[string]bool, len(messageParsers))
-	for _, p := range messageParsers {
+	registered := make(map[string]bool, len(messageParsers)+len(transferParsers))
+
+	for _, p := range append(append([]messageParser{}, messageParsers...), transferParsers...) {
 		if registered[p.Name] {
 			t.Errorf("parser %s registered twice", p.Name)
 		}
@@ -49,13 +50,13 @@ func TestEveryParserIsRegistered(t *testing.T) {
 			found++
 
 			if !registered[m[1]] {
-				t.Errorf("%s declares %s but it is not in messageParsers (add it, or the fuzzer will never reach it)", name, m[1])
+				t.Errorf("%s declares %s but it is in neither messageParsers nor transferParsers (add it, or the fuzzer will never reach it)", name, m[1])
 			}
 		}
 	}
 
-	if found != len(messageParsers) {
-		t.Errorf("found %d ParseXxx functions in source, registry has %d", found, len(messageParsers))
+	if want := len(messageParsers) + len(transferParsers); found != want {
+		t.Errorf("found %d ParseXxx functions in source, registries have %d", found, want)
 	}
 
 	if found == 0 {

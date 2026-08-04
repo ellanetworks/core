@@ -4,7 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
 	"net/netip"
 
 	"github.com/ellanetworks/core/per"
@@ -14,22 +13,11 @@ import (
 type ERABID uint8
 
 func (id ERABID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	return per.EncodeConstrainedWholeNumber(w, enc, 0, 15, int64(id))
+	return encodeExtensibleInt(w, enc, 0, 15, int64(id))
 }
 
 func (id *ERABID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	ext, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	if ext {
-		return fmt.Errorf("%w: E-RAB-ID extension value", errNotComprehended)
-	}
-
-	v, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 15)
+	v, err := decodeExtensibleInt(r, enc, 0, 15, "E-RAB-ID")
 	if err != nil {
 		return err
 	}

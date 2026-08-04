@@ -52,6 +52,42 @@ type PDUSessionResourceFailedToSetupItemSURes struct {
 // (SIZE(1..maxnoofPDUSessions)) OF PDUSessionResourceFailedToSetupItemSURes.
 type PDUSessionResourceFailedToSetupListSURes []PDUSessionResourceFailedToSetupItemSURes
 
+// PDUSessionResourceSetupUnsuccessfulTransfer ::= SEQUENCE { cause,
+// criticalityDiagnostics OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
+// TS 38.413 §9.3.4.16. Carried in the Failed to Setup lists of both the setup
+// response and the initial context setup response.
+type PDUSessionResourceSetupUnsuccessfulTransfer struct {
+	_                      [0]struct{} `per:"extseq"`
+	Cause                  Cause
+	CriticalityDiagnostics *CriticalityDiagnostics `per:",optional"`
+	_                      ieExtensions            `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceSetupUnsuccessfulTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceSetupUnsuccessfulTransfer decodes the transfer an
+// NG-RAN node returns for a session it could not set up.
+func ParsePDUSessionResourceSetupUnsuccessfulTransfer(b TransferContainer) (*PDUSessionResourceSetupUnsuccessfulTransfer, error) {
+	var t PDUSessionResourceSetupUnsuccessfulTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
 // TS 38.413 §9.2.1.1.
 type PDUSessionResourceSetupRequest struct {
 	AMFUENGAPID AMFUENGAPID

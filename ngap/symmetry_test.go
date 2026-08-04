@@ -65,7 +65,6 @@ var pendingNGAPMigration = map[string]struct{}{
 	"handover_preparation.go":         {},
 	"handover_resource_allocation.go": {},
 	"handover_test.go":                {},
-	"ie_erab.go":                      {},
 	"ie_handover.go":                  {},
 	"location_report.go":              {},
 	"location_report_test.go":         {},
@@ -112,16 +111,23 @@ var renamedFiles = map[string]string{
 	// GUAMI replaces GUMMEI and is bit-string rather than octet shaped
 	// (TS 38.413 §9.3.3.3).
 	"ie_guami.go": "ie_gummei.go",
+
+	// 3GPP scopes these QoS parameters to E-RABs in TS 36.413 and to QoS flows
+	// in TS 38.413, so each library names the file after its own bearer.
+	"ie_qos.go":      "ie_erab.go",
+	"ie_qos_test.go": "ie_erab_test.go",
 }
 
 // NGAP-only IE vocabulary, and message files for procedures 3GPP defines only
 // for NGAP. Nothing else.
 var ngapOnlyFiles = map[string]string{
-	"ie_slice.go":                         "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
-	"pdu_session_resource_notify.go":      "TS 36.413 defines no E-RAB Notify: an eNB reports a changed bearer through E-RAB Modification Indication and a self-initiated release through E-RAB Release Indication (TS 38.413 §8.2.6)",
+	"ie_slice.go":                    "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
+	"pdu_session_resource_notify.go": "TS 36.413 defines no E-RAB Notify: an eNB reports a changed bearer through E-RAB Modification Indication and a self-initiated release through E-RAB Release Indication (TS 38.413 §8.2.6)",
+
 	"pdu_session_resource_notify_test.go": "tests for pdu_session_resource_notify.go",
 	"ie_tnl.go":                           "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
 	"ie_tnl_test.go":                      "tests for ie_tnl.go",
+	"ie_transport_test.go":                "UPTransportLayerInformation is a CHOICE closed by choice-Extensions; S1AP carries the user-plane endpoint as a bare address and GTP-TEID pair inside each E-RAB item (TS 38.413 §9.3.2.1)",
 	"amf_status_indication.go":            "TS 36.413 defines no procedure signalling that core-network identities are unavailable: mMEStatusTransfer is UE-associated handover status and Overload Start/Stop is overload control (TS 38.413 §8.7.6)",
 	"amf_status_indication_test.go":       "tests for amf_status_indication.go",
 	"not_comprehended_test.go":            "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",

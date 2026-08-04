@@ -136,3 +136,25 @@ func TestPDUSessionResourceModifyIndicationMissingList(t *testing.T) {
 		t.Errorf("diagnostics = %+v, want one missing entry for the modify list", ase.IEs)
 	}
 }
+
+// The transfer the AMF returns for a session it could not hand to the SMF
+// round-trips, so a peer's copy decodes to the same cause.
+func TestPDUSessionResourceModifyIndicationUnsuccessfulTransferRoundTrip(t *testing.T) {
+	in := &PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
+		Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnknownPDUSessionID},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParsePDUSessionResourceModifyIndicationUnsuccessfulTransfer(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.Cause != in.Cause {
+		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
+	}
+}

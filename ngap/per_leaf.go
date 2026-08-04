@@ -1060,3 +1060,63 @@ func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, 
 func perIEDecode(b []byte, u per.Unmarshaler) error {
 	return u.UnmarshalPER(per.NewReader(b), per.Aligned)
 }
+
+func (l QosFlowSetupRequestList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowSetupRequestItem(l))
+}
+
+func (l *QosFlowSetupRequestList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowSetupRequestItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowListWithCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowWithCauseItem(l))
+}
+
+func (l *QosFlowListWithCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowWithCauseItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l AssociatedQosFlowList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []AssociatedQosFlowItem(l))
+}
+
+func (l *AssociatedQosFlowList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AssociatedQosFlowItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowPerTNLInformationList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivityMinusOne, []QosFlowPerTNLInformationItem(l))
+}
+
+func (l *QosFlowPerTNLInformationList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowPerTNLInformationItem](r, enc, 1, maxnoofMultiConnectivityMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}

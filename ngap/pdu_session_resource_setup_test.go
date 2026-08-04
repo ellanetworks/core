@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"encoding/hex"
 	"errors"
 	"testing"
 )
@@ -169,5 +170,41 @@ func TestPDUSessionResourceSetupRequestRejectsEmptySessionList(t *testing.T) {
 
 	if _, err := m.Marshal(); err == nil {
 		t.Fatal("encoded a request with no PDU session")
+	}
+}
+
+// Golden PDU SESSION RESOURCE SETUP UNSUCCESSFUL TRANSFER (TS 38.413 §9.3.4.16).
+// free5gc/ngap v1.1.3 and pycrate's NGAP module encode it identically.
+const goldenSetupUnsuccessfulTransfer = "0000"
+
+func TestPDUSessionResourceSetupUnsuccessfulTransferRoundTrip(t *testing.T) {
+	in := &PDUSessionResourceSetupUnsuccessfulTransfer{
+		Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := hex.EncodeToString(b); got != goldenSetupUnsuccessfulTransfer {
+		t.Errorf("encoded %s, want %s", got, goldenSetupUnsuccessfulTransfer)
+	}
+
+	out, err := ParsePDUSessionResourceSetupUnsuccessfulTransfer(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.Cause != in.Cause {
+		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
+	}
+}
+
+// The transfer travels inside an OCTET STRING, so a truncated one must be
+// refused rather than yielding a zero Cause the AMF would act on.
+func TestPDUSessionResourceSetupUnsuccessfulTransferRejectsTruncated(t *testing.T) {
+	if _, err := ParsePDUSessionResourceSetupUnsuccessfulTransfer(TransferContainer{}); err == nil {
+		t.Fatal("parsed an empty transfer")
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 38.413 §9.2.3.1.
+// TS 38.413 §9.2.13.1.
 type UERadioCapabilityInfoIndication struct {
 	AMFUENGAPID       AMFUENGAPID
 	RANUENGAPID       RANUENGAPID

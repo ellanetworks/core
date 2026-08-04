@@ -46,6 +46,13 @@ func EncodeInteger(w *Writer, enc Encoding, b Bounds, n int64) error {
 	case b.Constrained():
 		rng := b.UB - b.LB + 1
 		if rng == 1 {
+			// §13.2.1 adds nothing to the field-list, which presupposes the
+			// value is the single permitted one. Checking here because the
+			// early return skips EncodeConstrainedWholeNumber's range check.
+			if n != b.LB {
+				return ErrOverflow
+			}
+
 			return nil
 		}
 
