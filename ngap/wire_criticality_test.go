@@ -34,7 +34,7 @@ func wireIEs(t *testing.T, body func(*per.Writer, per.Encoding) error) []rawIE {
 	return fields
 }
 
-// TestWireCriticality pins each stamped criticality against TS 38.413 §9.2.6.
+// TestWireCriticality pins each stamped criticality against TS 38.413 §9.2.
 // A round-trip test cannot: encode and decode agree with each other while both
 // disagree with the spec.
 func TestWireCriticality(t *testing.T) {
@@ -79,6 +79,68 @@ func TestWireCriticality(t *testing.T) {
 				{idCause, CriticalityIgnore},
 				{idTimeToWait, CriticalityIgnore},
 				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialUEMessage §9.2.5.1",
+			(&InitialUEMessage{
+				RANUENGAPID:             1,
+				NASPDU:                  NASPDU{0x7e},
+				UserLocationInformation: UserLocationInformation{Kind: UserLocationNR},
+				RRCEstablishmentCause:   Ptr(RRCCauseEmergency),
+				FiveGSTMSI:              &FiveGSTMSI{},
+				AMFSetID:                Ptr(AMFSetID(1)),
+				UEContextRequest:        Ptr(UEContextRequested),
+				AllowedNSSAI:            AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1}}},
+			}).encodeBody,
+			[]wireIE{
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+				{idUserLocationInformation, CriticalityReject},
+				{idRRCEstablishmentCause, CriticalityIgnore},
+				{idFiveGSTMSI, CriticalityReject},
+				{idAMFSetID, CriticalityIgnore},
+				{idUEContextRequest, CriticalityIgnore},
+				{idAllowedNSSAI, CriticalityReject},
+			},
+		},
+		{
+			"DownlinkNASTransport §9.2.5.2",
+			(&DownlinkNASTransport{AMFUENGAPID: 1, RANUENGAPID: 2, NASPDU: NASPDU{0x7e}}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+			},
+		},
+		{
+			"UplinkNASTransport §9.2.5.3",
+			(&UplinkNASTransport{
+				AMFUENGAPID:             1,
+				RANUENGAPID:             2,
+				NASPDU:                  NASPDU{0x7e},
+				UserLocationInformation: &UserLocationInformation{Kind: UserLocationNR},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+				{idUserLocationInformation, CriticalityIgnore},
+			},
+		},
+		{
+			"NASNonDeliveryIndication §9.2.5.4",
+			(&NASNonDeliveryIndication{
+				AMFUENGAPID: 1,
+				RANUENGAPID: 2,
+				NASPDU:      NASPDU{0x7e},
+				Cause:       Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityIgnore},
+				{idCause, CriticalityIgnore},
 			},
 		},
 	}

@@ -3,7 +3,11 @@
 
 package ngap
 
-import "github.com/ellanetworks/core/per"
+import (
+	"net/netip"
+
+	"github.com/ellanetworks/core/per"
+)
 
 // nameMaxLen bounds AMFName / RANNodeName (PrintableString (SIZE(1..150,...))).
 const nameMaxLen = 150
@@ -47,6 +51,23 @@ func (a *TransportLayerAddress) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	*a = TransportLayerAddress(b[:(nbits+7)/8])
 
 	return nil
+}
+
+// IPs returns the addresses the bit string carries. TS 38.414 §5.1 packs an
+// IPv4 address, an IPv6 address, or both with the IPv4 one first; a return is
+// invalid when that address is absent.
+func (a TransportLayerAddress) IPs() (ipv4, ipv6 netip.Addr) {
+	switch len(a) {
+	case 4:
+		ipv4, _ = netip.AddrFromSlice(a)
+	case 16:
+		ipv6, _ = netip.AddrFromSlice(a)
+	case 20:
+		ipv4, _ = netip.AddrFromSlice(a[:4])
+		ipv6, _ = netip.AddrFromSlice(a[4:])
+	}
+
+	return ipv4, ipv6
 }
 
 // Most significant bit first, matching BIT STRING storage.

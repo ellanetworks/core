@@ -41,7 +41,7 @@ func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	// where the UE now is. An omitted location leaves the last known one
 	// standing (§10.3.5).
 	if msg.UserLocationInformation != nil {
-		ueConn.UpdateLocation(*msg.UserLocationInformation)
+		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
 	if amfInstance.NAS == nil {

@@ -36,7 +36,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	reportDiagnostics(ctx, ran, ngap.ProcInitialUEMessage, ngap.TriggeringInitiatingMessage,
 		ueAssociated(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), msg.RANUENGAPID), msg.Diagnostics())
 
-	ueConn.UpdateLocation(msg.UserLocationInformation)
+	ueConn.UpdateLocation(ctx, msg.UserLocationInformation)
 
 	ueConn.UeContextRequest = msg.UEContextRequest != nil
 

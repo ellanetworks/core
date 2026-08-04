@@ -96,6 +96,51 @@ func TestWireCriticality(t *testing.T) {
 				{idTAI, CriticalityIgnore},
 			},
 		},
+		{
+			"InitialUEMessage §9.1.7.1",
+			(&InitialUEMessage{
+				ENBUES1APID:           1,
+				NASPDU:                NASPDU{0x07},
+				TAI:                   TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
+				EUTRANCGI:             Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}}),
+				RRCEstablishmentCause: Ptr(RRCCauseEmergency),
+				STMSI:                 &STMSI{},
+				GUMMEI:                &GUMMEI{},
+			}).encodeBody,
+			[]wireIE{
+				{idENBUES1APID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+				{idTAI, CriticalityReject},
+				{idEUTRANCGI, CriticalityIgnore},
+				{idRRCEstablishmentCause, CriticalityIgnore},
+				{idSTMSI, CriticalityReject},
+				{idGUMMEI, CriticalityReject},
+			},
+		},
+		{
+			"DownlinkNASTransport §9.1.7.2",
+			(&DownlinkNASTransport{MMEUES1APID: 1, ENBUES1APID: 2, NASPDU: NASPDU{0x07}}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+			},
+		},
+		{
+			"NASNonDeliveryIndication §9.1.7.4",
+			(&NASNonDeliveryIndication{
+				MMEUES1APID: 1,
+				ENBUES1APID: 2,
+				NASPDU:      NASPDU{0x07},
+				Cause:       Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idNASPDU, CriticalityIgnore},
+				{idCause, CriticalityIgnore},
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -594,7 +594,9 @@ func (ueConn *UeConn) UpdateDecodedLocation(ctx context.Context, amf *AMF, userL
 		ePlmnID := util.PlmnIDToModels(eUTRACGI.PLMNIdentity)
 
 		// Rebuilt fresh each call so the snapshot published under ue.mu is never
-		// mutated after concurrent readers alias it.
+		// mutated after concurrent readers alias it, and the whole location is
+		// replaced so a UE that moves between accesses does not keep the one it
+		// reported on the access it left.
 		eutra := &models.EutraLocation{
 			Tai: &models.Tai{
 				PlmnID: &plmnID,
@@ -611,7 +613,7 @@ func (ueConn *UeConn) UpdateDecodedLocation(ctx context.Context, amf *AMF, userL
 			eutra.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoEUTRA.TimeStamp.Value)
 		}
 
-		ueConn.Location.EutraLocation = eutra
+		ueConn.Location = models.UserLocation{EutraLocation: eutra}
 		ueConn.Tai = *eutra.Tai
 
 		if ueConn.ue != nil {
@@ -647,7 +649,7 @@ func (ueConn *UeConn) UpdateDecodedLocation(ctx context.Context, amf *AMF, userL
 			nr.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
 		}
 
-		ueConn.Location.NrLocation = nr
+		ueConn.Location = models.UserLocation{NrLocation: nr}
 		ueConn.Tai = *nr.Tai
 
 		if ueConn.ue != nil {
@@ -687,7 +689,7 @@ func (ueConn *UeConn) UpdateDecodedLocation(ctx context.Context, amf *AMF, userL
 			},
 		}
 
-		ueConn.Location.N3gaLocation = n3ga
+		ueConn.Location = models.UserLocation{N3gaLocation: n3ga}
 		ueConn.Tai = *n3ga.N3gppTai
 
 		if ueConn.ue != nil {
