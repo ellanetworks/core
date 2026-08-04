@@ -1135,3 +1135,123 @@ func (l *UPTransportLayerInformationList) UnmarshalPER(r *per.Reader, enc per.En
 
 	return nil
 }
+
+func (l UPTransportLayerInformationPairList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivityMinusOne, []UPTransportLayerInformationPairItem(l))
+}
+
+func (l *UPTransportLayerInformationPairList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[UPTransportLayerInformationPairItem](r, enc, 1, maxnoofMultiConnectivityMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l ULNGUUPTNLModifyList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivity, []ULNGUUPTNLModifyItem(l))
+}
+
+func (l *ULNGUUPTNLModifyList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[ULNGUUPTNLModifyItem](r, enc, 1, maxnoofMultiConnectivity)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowModifyConfirmList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowModifyConfirmItem(l))
+}
+
+func (l *QosFlowModifyConfirmList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowModifyConfirmItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowAddOrModifyRequestList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowAddOrModifyRequestItem(l))
+}
+
+func (l *QosFlowAddOrModifyRequestList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowAddOrModifyRequestItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowAcceptedList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowAcceptedItem(l))
+}
+
+func (l *QosFlowAcceptedList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowAcceptedItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowToBeForwardedList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowToBeForwardedItem(l))
+}
+
+func (l *QosFlowToBeForwardedList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowToBeForwardedItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowListWithDataForwarding) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowItemWithDataForwarding(l))
+}
+
+func (l *QosFlowListWithDataForwarding) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowItemWithDataForwarding](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l DataForwardingResponseDRBList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofDRBs, []DataForwardingResponseDRBItem(l))
+}
+
+func (l *DataForwardingResponseDRBList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[DataForwardingResponseDRBItem](r, enc, 1, maxnoofDRBs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}

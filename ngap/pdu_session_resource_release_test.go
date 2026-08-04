@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"encoding/hex"
 	"errors"
 	"testing"
 )
@@ -153,5 +154,48 @@ func TestPDUSessionResourceReleaseResponseMissingList(t *testing.T) {
 	if len(d.IEs) != 1 || d.IEs[0].ID != idPDUSessionResourceReleasedListRelRes ||
 		d.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for the released list", d.IEs)
+	}
+}
+
+// Dual-verified against free5gc and pycrate. The all-zero minimal case pins
+// little on its own, so a NAS cause (a different CHOICE group) and a non-zero
+// radio-network value are pinned alongside it.
+const (
+	goldenReleaseCommandTransferRadioNetwork  = "0000"
+	goldenReleaseCommandTransferNAS           = "10"
+	goldenReleaseCommandTransferRadioNetwork3 = "0030"
+)
+
+func TestPDUSessionResourceReleaseCommandTransferGolden(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		cause  Cause
+		golden string
+	}{
+		{"RadioNetworkUnspecified", Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}, goldenReleaseCommandTransferRadioNetwork},
+		{"NASNormalRelease", Cause{Group: CauseGroupNAS, Value: CauseNASNormalRelease}, goldenReleaseCommandTransferNAS},
+		{"RadioNetworkNGRANGenerated", Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkReleaseDueToNGRANGeneratedReason}, goldenReleaseCommandTransferRadioNetwork3},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			in := PDUSessionResourceReleaseCommandTransfer{Cause: c.cause}
+
+			b, err := in.Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := hex.EncodeToString(b); got != c.golden {
+				t.Fatalf("encoded %s, want %s", got, c.golden)
+			}
+
+			out, err := ParsePDUSessionResourceReleaseCommandTransfer(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if out.Cause != c.cause {
+				t.Fatalf("round trip %+v, want %+v", out.Cause, c.cause)
+			}
+		})
 	}
 }

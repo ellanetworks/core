@@ -125,6 +125,8 @@ var ngapOnlyFiles = map[string]string{
 	"pdu_session_resource_notify.go": "TS 36.413 defines no E-RAB Notify: an eNB reports a changed bearer through E-RAB Modification Indication and a self-initiated release through E-RAB Release Indication (TS 38.413 §8.2.6)",
 
 	"pdu_session_resource_notify_test.go": "tests for pdu_session_resource_notify.go",
+	"handover_transfer.go":                "the §9.3.4 transfers have no S1AP counterpart: TS 36.413 defines no OCTET STRING (CONTAINING ...) at all and carries the forwarding tunnels as plain IEs in the message body (TS 38.413 §9.3.4)",
+	"handover_transfer_test.go":           "tests for handover_transfer.go",
 	"ie_tnl.go":                           "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
 	"ie_tnl_test.go":                      "tests for ie_tnl.go",
 	"ie_transport_test.go":                "UPTransportLayerInformation is a CHOICE closed by choice-Extensions; S1AP carries the user-plane endpoint as a bare address and GTP-TEID pair inside each E-RAB item (TS 38.413 §9.3.2.1)",

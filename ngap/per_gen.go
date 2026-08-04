@@ -340,6 +340,95 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 	return nil
 }
 
+func (dataForwardingResponseDRBItem *DataForwardingResponseDRBItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(dataForwardingResponseDRBItem.DLForwardingUPTNLInformation != nil)
+	w.WriteBit(dataForwardingResponseDRBItem.ULForwardingUPTNLInformation != nil)
+	w.WriteBit(false)
+	if err := dataForwardingResponseDRBItem.DRBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if dataForwardingResponseDRBItem.DLForwardingUPTNLInformation != nil {
+		if err := (*dataForwardingResponseDRBItem.DLForwardingUPTNLInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if dataForwardingResponseDRBItem.ULForwardingUPTNLInformation != nil {
+		if err := (*dataForwardingResponseDRBItem.ULForwardingUPTNLInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (dataForwardingResponseDRBItem *DataForwardingResponseDRBItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLForwardingUPTNLInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ULForwardingUPTNLInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f3, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&dataForwardingResponseDRBItem.DRBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLForwardingUPTNLInformation {
+		var v UPTransportLayerInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		dataForwardingResponseDRBItem.DLForwardingUPTNLInformation = &v
+	}
+	if p_ULForwardingUPTNLInformation {
+		var v UPTransportLayerInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		dataForwardingResponseDRBItem.ULForwardingUPTNLInformation = &v
+	}
+	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (dynamic5QIDescriptor *Dynamic5QIDescriptor) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(dynamic5QIDescriptor.FiveQI != nil)
@@ -771,6 +860,293 @@ func (gUAMI *GUAMI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 	if p_f4 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (handoverCommandTransfer *HandoverCommandTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(handoverCommandTransfer.DLForwardingUPTNLInformation != nil)
+	w.WriteBit(handoverCommandTransfer.QosFlowToBeForwarded != nil)
+	w.WriteBit(handoverCommandTransfer.DataForwardingResponseDRB != nil)
+	w.WriteBit(false)
+	if handoverCommandTransfer.DLForwardingUPTNLInformation != nil {
+		if err := (*handoverCommandTransfer.DLForwardingUPTNLInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if handoverCommandTransfer.QosFlowToBeForwarded != nil {
+		if err := handoverCommandTransfer.QosFlowToBeForwarded.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if handoverCommandTransfer.DataForwardingResponseDRB != nil {
+		if err := handoverCommandTransfer.DataForwardingResponseDRB.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (handoverCommandTransfer *HandoverCommandTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLForwardingUPTNLInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_QosFlowToBeForwarded, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DataForwardingResponseDRB, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f3, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_DLForwardingUPTNLInformation {
+		var v UPTransportLayerInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		handoverCommandTransfer.DLForwardingUPTNLInformation = &v
+	}
+	if p_QosFlowToBeForwarded {
+		if err := (&handoverCommandTransfer.QosFlowToBeForwarded).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_DataForwardingResponseDRB {
+		if err := (&handoverCommandTransfer.DataForwardingResponseDRB).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (handoverRequestAcknowledgeTransfer *HandoverRequestAcknowledgeTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(handoverRequestAcknowledgeTransfer.DLForwardingUPTNLInformation != nil)
+	w.WriteBit(handoverRequestAcknowledgeTransfer.SecurityResult != nil)
+	w.WriteBit(handoverRequestAcknowledgeTransfer.QosFlowFailedToSetup != nil)
+	w.WriteBit(handoverRequestAcknowledgeTransfer.DataForwardingResponseDRB != nil)
+	w.WriteBit(false)
+	if err := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if handoverRequestAcknowledgeTransfer.DLForwardingUPTNLInformation != nil {
+		if err := (*handoverRequestAcknowledgeTransfer.DLForwardingUPTNLInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if handoverRequestAcknowledgeTransfer.SecurityResult != nil {
+		if err := (*handoverRequestAcknowledgeTransfer.SecurityResult).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := handoverRequestAcknowledgeTransfer.QosFlowSetupResponse.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if handoverRequestAcknowledgeTransfer.QosFlowFailedToSetup != nil {
+		if err := handoverRequestAcknowledgeTransfer.QosFlowFailedToSetup.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if handoverRequestAcknowledgeTransfer.DataForwardingResponseDRB != nil {
+		if err := handoverRequestAcknowledgeTransfer.DataForwardingResponseDRB.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (handoverRequestAcknowledgeTransfer *HandoverRequestAcknowledgeTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLForwardingUPTNLInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SecurityResult, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_QosFlowFailedToSetup, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DataForwardingResponseDRB, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f6, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLForwardingUPTNLInformation {
+		var v UPTransportLayerInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		handoverRequestAcknowledgeTransfer.DLForwardingUPTNLInformation = &v
+	}
+	if p_SecurityResult {
+		var v SecurityResult
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		handoverRequestAcknowledgeTransfer.SecurityResult = &v
+	}
+	if err := (&handoverRequestAcknowledgeTransfer.QosFlowSetupResponse).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_QosFlowFailedToSetup {
+		if err := (&handoverRequestAcknowledgeTransfer.QosFlowFailedToSetup).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_DataForwardingResponseDRB {
+		if err := (&handoverRequestAcknowledgeTransfer.DataForwardingResponseDRB).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_f6 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (handoverRequiredTransfer *HandoverRequiredTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(handoverRequiredTransfer.DirectForwardingPathAvailability != nil)
+	w.WriteBit(false)
+	if handoverRequiredTransfer.DirectForwardingPathAvailability != nil {
+		if err := (*handoverRequiredTransfer.DirectForwardingPathAvailability).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (handoverRequiredTransfer *HandoverRequiredTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DirectForwardingPathAvailability, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_DirectForwardingPathAvailability {
+		var v DirectForwardingPathAvailability
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		handoverRequiredTransfer.DirectForwardingPathAvailability = &v
+	}
+	if p_f1 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -1429,6 +1805,167 @@ func (pDUSessionResourceItemCxtRelReq *PDUSessionResourceItemCxtRelReq) Unmarsha
 	return nil
 }
 
+func (pDUSessionResourceModifyConfirmTransfer *PDUSessionResourceModifyConfirmTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(pDUSessionResourceModifyConfirmTransfer.AdditionalNGUUPTNLInformation != nil)
+	w.WriteBit(pDUSessionResourceModifyConfirmTransfer.QosFlowFailedToModify != nil)
+	w.WriteBit(false)
+	if err := pDUSessionResourceModifyConfirmTransfer.QosFlowModifyConfirm.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := pDUSessionResourceModifyConfirmTransfer.ULNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if pDUSessionResourceModifyConfirmTransfer.AdditionalNGUUPTNLInformation != nil {
+		if err := pDUSessionResourceModifyConfirmTransfer.AdditionalNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if pDUSessionResourceModifyConfirmTransfer.QosFlowFailedToModify != nil {
+		if err := pDUSessionResourceModifyConfirmTransfer.QosFlowFailedToModify.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceModifyConfirmTransfer *PDUSessionResourceModifyConfirmTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AdditionalNGUUPTNLInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_QosFlowFailedToModify, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f4, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pDUSessionResourceModifyConfirmTransfer.QosFlowModifyConfirm).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&pDUSessionResourceModifyConfirmTransfer.ULNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_AdditionalNGUUPTNLInformation {
+		if err := (&pDUSessionResourceModifyConfirmTransfer.AdditionalNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_QosFlowFailedToModify {
+		if err := (&pDUSessionResourceModifyConfirmTransfer.QosFlowFailedToModify).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_f4 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceModifyIndicationTransfer *PDUSessionResourceModifyIndicationTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(pDUSessionResourceModifyIndicationTransfer.AdditionalDLQosFlowPerTNLInformation != nil)
+	w.WriteBit(false)
+	if err := pDUSessionResourceModifyIndicationTransfer.DLQosFlowPerTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if pDUSessionResourceModifyIndicationTransfer.AdditionalDLQosFlowPerTNLInformation != nil {
+		if err := pDUSessionResourceModifyIndicationTransfer.AdditionalDLQosFlowPerTNLInformation.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceModifyIndicationTransfer *PDUSessionResourceModifyIndicationTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AdditionalDLQosFlowPerTNLInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pDUSessionResourceModifyIndicationTransfer.DLQosFlowPerTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_AdditionalDLQosFlowPerTNLInformation {
+		if err := (&pDUSessionResourceModifyIndicationTransfer.AdditionalDLQosFlowPerTNLInformation).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (pDUSessionResourceModifyIndicationUnsuccessfulTransfer *PDUSessionResourceModifyIndicationUnsuccessfulTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -1773,6 +2310,61 @@ func (pDUSessionResourceNotifyItem *PDUSessionResourceNotifyItem) UnmarshalPER(r
 		return err
 	}
 	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceReleaseCommandTransfer *PDUSessionResourceReleaseCommandTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := pDUSessionResourceReleaseCommandTransfer.Cause.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (pDUSessionResourceReleaseCommandTransfer *PDUSessionResourceReleaseCommandTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pDUSessionResourceReleaseCommandTransfer.Cause).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -2575,6 +3167,455 @@ func (packetErrorRate *PacketErrorRate) UnmarshalPER(r *per.Reader, enc per.Enco
 	return nil
 }
 
+func (pathSwitchRequestAcknowledgeTransfer *PathSwitchRequestAcknowledgeTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation != nil)
+	w.WriteBit(pathSwitchRequestAcknowledgeTransfer.SecurityIndication != nil)
+	w.WriteBit(false)
+	if pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation != nil {
+		if err := (*pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if pathSwitchRequestAcknowledgeTransfer.SecurityIndication != nil {
+		if err := (*pathSwitchRequestAcknowledgeTransfer.SecurityIndication).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pathSwitchRequestAcknowledgeTransfer *PathSwitchRequestAcknowledgeTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ULNGUUPTNLInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SecurityIndication, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_ULNGUUPTNLInformation {
+		var v UPTransportLayerInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation = &v
+	}
+	if p_SecurityIndication {
+		var v SecurityIndication
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		pathSwitchRequestAcknowledgeTransfer.SecurityIndication = &v
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (pathSwitchRequestSetupFailedTransfer *PathSwitchRequestSetupFailedTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := pathSwitchRequestSetupFailedTransfer.Cause.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (pathSwitchRequestSetupFailedTransfer *PathSwitchRequestSetupFailedTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pathSwitchRequestSetupFailedTransfer.Cause).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (pathSwitchRequestTransfer *PathSwitchRequestTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(pathSwitchRequestTransfer.DLNGUTNLInformationReused != nil)
+	w.WriteBit(pathSwitchRequestTransfer.UserPlaneSecurityInformation != nil)
+	w.WriteBit(false)
+	if err := pathSwitchRequestTransfer.DLNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if pathSwitchRequestTransfer.DLNGUTNLInformationReused != nil {
+		if err := (*pathSwitchRequestTransfer.DLNGUTNLInformationReused).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if pathSwitchRequestTransfer.UserPlaneSecurityInformation != nil {
+		if err := (*pathSwitchRequestTransfer.UserPlaneSecurityInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := pathSwitchRequestTransfer.QosFlowAccepted.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (pathSwitchRequestTransfer *PathSwitchRequestTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLNGUTNLInformationReused, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_UserPlaneSecurityInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f4, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pathSwitchRequestTransfer.DLNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLNGUTNLInformationReused {
+		var v DLNGUTNLInformationReused
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		pathSwitchRequestTransfer.DLNGUTNLInformationReused = &v
+	}
+	if p_UserPlaneSecurityInformation {
+		var v UserPlaneSecurityInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		pathSwitchRequestTransfer.UserPlaneSecurityInformation = &v
+	}
+	if err := (&pathSwitchRequestTransfer.QosFlowAccepted).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f4 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (qosFlowAcceptedItem *QosFlowAcceptedItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := qosFlowAcceptedItem.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (qosFlowAcceptedItem *QosFlowAcceptedItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&qosFlowAcceptedItem.QosFlowIdentifier).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (qosFlowAddOrModifyRequestItem *QosFlowAddOrModifyRequestItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(qosFlowAddOrModifyRequestItem.QosFlowLevelQosParameters != nil)
+	w.WriteBit(qosFlowAddOrModifyRequestItem.ERABID != nil)
+	w.WriteBit(false)
+	if err := qosFlowAddOrModifyRequestItem.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if qosFlowAddOrModifyRequestItem.QosFlowLevelQosParameters != nil {
+		if err := (*qosFlowAddOrModifyRequestItem.QosFlowLevelQosParameters).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if qosFlowAddOrModifyRequestItem.ERABID != nil {
+		if err := (*qosFlowAddOrModifyRequestItem.ERABID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (qosFlowAddOrModifyRequestItem *QosFlowAddOrModifyRequestItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_QosFlowLevelQosParameters, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ERABID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f3, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&qosFlowAddOrModifyRequestItem.QosFlowIdentifier).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_QosFlowLevelQosParameters {
+		var v QosFlowLevelQosParameters
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		qosFlowAddOrModifyRequestItem.QosFlowLevelQosParameters = &v
+	}
+	if p_ERABID {
+		var v ERABID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		qosFlowAddOrModifyRequestItem.ERABID = &v
+	}
+	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (qosFlowItemWithDataForwarding *QosFlowItemWithDataForwarding) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(qosFlowItemWithDataForwarding.DataForwardingAccepted != nil)
+	w.WriteBit(false)
+	if err := qosFlowItemWithDataForwarding.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if qosFlowItemWithDataForwarding.DataForwardingAccepted != nil {
+		if err := (*qosFlowItemWithDataForwarding.DataForwardingAccepted).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (qosFlowItemWithDataForwarding *QosFlowItemWithDataForwarding) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DataForwardingAccepted, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&qosFlowItemWithDataForwarding.QosFlowIdentifier).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DataForwardingAccepted {
+		var v DataForwardingAccepted
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		qosFlowItemWithDataForwarding.DataForwardingAccepted = &v
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (qosFlowLevelQosParameters *QosFlowLevelQosParameters) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(qosFlowLevelQosParameters.GBRQosInformation != nil)
@@ -2658,6 +3699,61 @@ func (qosFlowLevelQosParameters *QosFlowLevelQosParameters) UnmarshalPER(r *per.
 		qosFlowLevelQosParameters.AdditionalQosFlowInformation = &v
 	}
 	if p_f5 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (qosFlowModifyConfirmItem *QosFlowModifyConfirmItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := qosFlowModifyConfirmItem.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (qosFlowModifyConfirmItem *QosFlowModifyConfirmItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&qosFlowModifyConfirmItem.QosFlowIdentifier).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -2852,6 +3948,61 @@ func (qosFlowSetupRequestItem *QosFlowSetupRequestItem) UnmarshalPER(r *per.Read
 		qosFlowSetupRequestItem.ERABID = &v
 	}
 	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (qosFlowToBeForwardedItem *QosFlowToBeForwardedItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := qosFlowToBeForwardedItem.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (qosFlowToBeForwardedItem *QosFlowToBeForwardedItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&qosFlowToBeForwardedItem.QosFlowIdentifier).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -3704,6 +4855,67 @@ func (uERadioCapabilityForPaging *UERadioCapabilityForPaging) UnmarshalPER(r *pe
 	return nil
 }
 
+func (uLNGUUPTNLModifyItem *ULNGUUPTNLModifyItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := uLNGUUPTNLModifyItem.ULNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := uLNGUUPTNLModifyItem.DLNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (uLNGUUPTNLModifyItem *ULNGUUPTNLModifyItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&uLNGUUPTNLModifyItem.ULNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&uLNGUUPTNLModifyItem.DLNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (uPTransportLayerInformationItem *UPTransportLayerInformationItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -3726,6 +4938,67 @@ func (uPTransportLayerInformationItem *UPTransportLayerInformationItem) Unmarsha
 		return err
 	}
 	if p_f1 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (uPTransportLayerInformationPairItem *UPTransportLayerInformationPairItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := uPTransportLayerInformationPairItem.ULNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := uPTransportLayerInformationPairItem.DLNGUUPTNLInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (uPTransportLayerInformationPairItem *UPTransportLayerInformationPairItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&uPTransportLayerInformationPairItem.ULNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&uPTransportLayerInformationPairItem.DLNGUUPTNLInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -3815,6 +5088,67 @@ func (unavailableGUAMIItem *UnavailableGUAMIItem) UnmarshalPER(r *per.Reader, en
 		unavailableGUAMIItem.BackupAMFName = &v
 	}
 	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (userPlaneSecurityInformation *UserPlaneSecurityInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := userPlaneSecurityInformation.SecurityResult.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := userPlaneSecurityInformation.SecurityIndication.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (userPlaneSecurityInformation *UserPlaneSecurityInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&userPlaneSecurityInformation.SecurityResult).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&userPlaneSecurityInformation.SecurityIndication).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err

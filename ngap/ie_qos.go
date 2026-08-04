@@ -474,6 +474,96 @@ type AssociatedQosFlowItem struct {
 // AssociatedQosFlowItem.
 type AssociatedQosFlowList []AssociatedQosFlowItem
 
+// QosFlowModifyConfirmItem ::= SEQUENCE { qosFlowIdentifier, iE-Extensions
+// OPTIONAL } (extensible).
+type QosFlowModifyConfirmItem struct {
+	_                 [0]struct{} `per:"extseq"`
+	QosFlowIdentifier QosFlowIdentifier
+	_                 ieExtensions `per:",skip"`
+}
+
+// QosFlowModifyConfirmList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
+// QosFlowModifyConfirmItem.
+type QosFlowModifyConfirmList []QosFlowModifyConfirmItem
+
+// QosFlowAddOrModifyRequestItem ::= SEQUENCE { qosFlowIdentifier,
+// qosFlowLevelQosParameters OPTIONAL, e-RAB-ID OPTIONAL, iE-Extensions
+// OPTIONAL } (extensible). The QoS parameters are optional here where
+// QosFlowSetupRequestItem has them mandatory: a modify may touch only the
+// E-RAB mapping.
+type QosFlowAddOrModifyRequestItem struct {
+	_                         [0]struct{} `per:"extseq"`
+	QosFlowIdentifier         QosFlowIdentifier
+	QosFlowLevelQosParameters *QosFlowLevelQosParameters `per:",optional"`
+	ERABID                    *ERABID                    `per:",optional"`
+	_                         ieExtensions               `per:",skip"`
+}
+
+// QosFlowAddOrModifyRequestList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
+// QosFlowAddOrModifyRequestItem.
+type QosFlowAddOrModifyRequestList []QosFlowAddOrModifyRequestItem
+
+// DataForwardingAccepted ::= ENUMERATED { data-forwarding-accepted, ... }.
+type DataForwardingAccepted uint8
+
+const (
+	DataForwardingAcceptedTrue DataForwardingAccepted = iota
+
+	dataForwardingAcceptedRootCount = 1
+)
+
+func (d DataForwardingAccepted) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, dataForwardingAcceptedRootCount, int64(d), "DataForwardingAccepted")
+}
+
+func (d *DataForwardingAccepted) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, dataForwardingAcceptedRootCount, "DataForwardingAccepted")
+	if err != nil {
+		return err
+	}
+
+	*d = DataForwardingAccepted(idx)
+
+	return nil
+}
+
+// QosFlowAcceptedItem ::= SEQUENCE { qosFlowIdentifier, iE-Extensions OPTIONAL
+// } (extensible).
+type QosFlowAcceptedItem struct {
+	_                 [0]struct{} `per:"extseq"`
+	QosFlowIdentifier QosFlowIdentifier
+	_                 ieExtensions `per:",skip"`
+}
+
+// QosFlowAcceptedList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
+// QosFlowAcceptedItem.
+type QosFlowAcceptedList []QosFlowAcceptedItem
+
+// QosFlowToBeForwardedItem ::= SEQUENCE { qosFlowIdentifier, iE-Extensions
+// OPTIONAL } (extensible).
+type QosFlowToBeForwardedItem struct {
+	_                 [0]struct{} `per:"extseq"`
+	QosFlowIdentifier QosFlowIdentifier
+	_                 ieExtensions `per:",skip"`
+}
+
+// QosFlowToBeForwardedList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
+// QosFlowToBeForwardedItem.
+type QosFlowToBeForwardedList []QosFlowToBeForwardedItem
+
+// QosFlowItemWithDataForwarding ::= SEQUENCE { qosFlowIdentifier,
+// dataForwardingAccepted OPTIONAL, iE-Extensions OPTIONAL } (extensible).
+type QosFlowItemWithDataForwarding struct {
+	_                      [0]struct{} `per:"extseq"`
+	QosFlowIdentifier      QosFlowIdentifier
+	DataForwardingAccepted *DataForwardingAccepted `per:"ENUMERATED,range:0..0,...,optional"`
+	_                      ieExtensions            `per:",skip"`
+}
+
+// QosFlowListWithDataForwarding ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
+// QosFlowItemWithDataForwarding.
+type QosFlowListWithDataForwarding []QosFlowItemWithDataForwarding
+
 // QosFlowPerTNLInformation ::= SEQUENCE { uPTransportLayerInformation,
 // associatedQosFlowList, iE-Extensions OPTIONAL } (extensible) — TS 38.413
 // §9.3.2.8.

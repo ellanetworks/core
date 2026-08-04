@@ -261,3 +261,135 @@ func (m *PDUSessionResourceModifyResponse) Marshal() ([]byte, error) {
 func ParsePDUSessionResourceModifyResponse(value []byte) (*PDUSessionResourceModifyResponse, error) {
 	return parseMessageBody[PDUSessionResourceModifyResponse](ProcPDUSessionResourceModify, TriggeringSuccessfulOutcome, pDUSessionResourceModifyResponseIEs, value)
 }
+
+// PDUSessionResourceModifyRequestTransfer ::= SEQUENCE { protocolIEs
+// ProtocolIE-Container } (extensible) — TS 38.413 §9.3.4.5. An IE container
+// like the setup request transfer. Every IE is optional: a modify carries only
+// what changes. SecurityIndication is ignore criticality here where the setup
+// request transfer marks it reject, so it is left to the unknown-IE path.
+type PDUSessionResourceModifyRequestTransfer struct {
+	PDUSessionAggregateMaximumBitRate *PDUSessionAggregateMaximumBitRate
+	ULNGUUPTNLModify                  ULNGUUPTNLModifyList
+	NetworkInstance                   *NetworkInstance
+	QosFlowAddOrModifyRequest         QosFlowAddOrModifyRequestList
+	QosFlowToRelease                  QosFlowListWithCause
+	AdditionalULNGUUPTNLInformation   UPTransportLayerInformationList
+
+	messageMeta
+}
+
+var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModifyRequestTransfer]{
+	{
+		id: idPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+			var v PDUSessionAggregateMaximumBitRate
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.PDUSessionAggregateMaximumBitRate = &v
+
+			return nil
+		},
+		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+			if m.PDUSessionAggregateMaximumBitRate == nil {
+				return nil, false
+			}
+
+			return m.PDUSessionAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: idULNGUUPTNLModifyList, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ULNGUUPTNLModify)
+		},
+		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+			if m.ULNGUUPTNLModify == nil {
+				return nil, false
+			}
+
+			return m.ULNGUUPTNLModify, true
+		},
+	},
+	{
+		id: idNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+			var v NetworkInstance
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.NetworkInstance = &v
+
+			return nil
+		},
+		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+			if m.NetworkInstance == nil {
+				return nil, false
+			}
+
+			return m.NetworkInstance, true
+		},
+	},
+	{
+		id: idQosFlowAddOrModifyRequestList, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.QosFlowAddOrModifyRequest)
+		},
+		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+			if m.QosFlowAddOrModifyRequest == nil {
+				return nil, false
+			}
+
+			return m.QosFlowAddOrModifyRequest, true
+		},
+	},
+	{
+		id: idQosFlowToReleaseList, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.QosFlowToRelease)
+		},
+		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+			if m.QosFlowToRelease == nil {
+				return nil, false
+			}
+
+			return m.QosFlowToRelease, true
+		},
+	},
+	{
+		id: idAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AdditionalULNGUUPTNLInformation)
+		},
+		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+			if m.AdditionalULNGUUPTNLInformation == nil {
+				return nil, false
+			}
+
+			return m.AdditionalULNGUUPTNLInformation, true
+		},
+	},
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceModifyRequestTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := encodeMessageBody(w, per.Aligned, ProcPDUSessionResourceModify, pDUSessionResourceModifyRequestTransferIEs, t); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceModifyRequestTransfer decodes the transfer the SMF
+// sends for a session the NG-RAN node is to modify.
+func ParsePDUSessionResourceModifyRequestTransfer(b TransferContainer) (*PDUSessionResourceModifyRequestTransfer, error) {
+	return parseMessageBody[PDUSessionResourceModifyRequestTransfer](ProcPDUSessionResourceModify, TriggeringInitiatingMessage, pDUSessionResourceModifyRequestTransferIEs, b)
+}

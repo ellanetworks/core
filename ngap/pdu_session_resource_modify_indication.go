@@ -295,3 +295,78 @@ func (m *PDUSessionResourceModifyConfirm) Marshal() ([]byte, error) {
 func ParsePDUSessionResourceModifyConfirm(value []byte) (*PDUSessionResourceModifyConfirm, error) {
 	return parseMessageBody[PDUSessionResourceModifyConfirm](ProcPDUSessionResourceModifyIndication, TriggeringSuccessfulOutcome, pDUSessionResourceModifyConfirmIEs, value)
 }
+
+// PDUSessionResourceModifyIndicationTransfer ::= SEQUENCE {
+// dLQosFlowPerTNLInformation, additionalDLQosFlowPerTNLInformation OPTIONAL,
+// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.21. The NG-RAN node
+// builds it; the SMF consumes it.
+type PDUSessionResourceModifyIndicationTransfer struct {
+	_                                    [0]struct{} `per:"extseq"`
+	DLQosFlowPerTNLInformation           QosFlowPerTNLInformation
+	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:",optional"`
+	_                                    ieExtensions                 `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceModifyIndicationTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceModifyIndicationTransfer decodes the transfer an
+// NG-RAN node sends when it changes a session's downlink tunnel.
+func ParsePDUSessionResourceModifyIndicationTransfer(b TransferContainer) (*PDUSessionResourceModifyIndicationTransfer, error) {
+	var t PDUSessionResourceModifyIndicationTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
+// PDUSessionResourceModifyConfirmTransfer ::= SEQUENCE {
+// qosFlowModifyConfirmList, uLNGU-UP-TNLInformation,
+// additionalNG-UUPTNLInformation OPTIONAL, qosFlowFailedToModifyList OPTIONAL,
+// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.23. The SMF builds
+// it; the NG-RAN node consumes it.
+type PDUSessionResourceModifyConfirmTransfer struct {
+	_                             [0]struct{} `per:"extseq"`
+	QosFlowModifyConfirm          QosFlowModifyConfirmList
+	ULNGUUPTNLInformation         UPTransportLayerInformation
+	AdditionalNGUUPTNLInformation UPTransportLayerInformationPairList `per:",optional"`
+	QosFlowFailedToModify         QosFlowListWithCause                `per:",optional"`
+	_                             ieExtensions                        `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceModifyConfirmTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceModifyConfirmTransfer decodes the transfer the SMF
+// returns confirming a modification.
+func ParsePDUSessionResourceModifyConfirmTransfer(b TransferContainer) (*PDUSessionResourceModifyConfirmTransfer, error) {
+	var t PDUSessionResourceModifyConfirmTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}

@@ -74,4 +74,7 @@ const (
 	idQosFlowSetupRequestList           ProtocolIEID = 136
 	idSecurityIndication                ProtocolIEID = 138
 	idULNGUUPTNLInformation             ProtocolIEID = 139
+	idQosFlowAddOrModifyRequestList     ProtocolIEID = 135
+	idQosFlowToReleaseList              ProtocolIEID = 137
+	idULNGUUPTNLModifyList              ProtocolIEID = 140
 )

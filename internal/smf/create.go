@@ -18,21 +18,20 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
-func nasToNgapPDUSessionType(nasType uint8) aper.Enumerated {
+func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 	switch nasType {
 	case uint8(fgs.PDUSessionTypeIPv6):
-		return ngapType.PDUSessionTypePresentIpv6
+		return libngap.PDUSessionTypeIPv6
 	case uint8(fgs.PDUSessionTypeIPv4v6):
-		return ngapType.PDUSessionTypePresentIpv4v6
+		return libngap.PDUSessionTypeIPv4v6
 	default:
-		return ngapType.PDUSessionTypePresentIpv4
+		return libngap.PDUSessionTypeIPv4
 	}
 }
 

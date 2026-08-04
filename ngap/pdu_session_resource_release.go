@@ -254,3 +254,37 @@ func (m *PDUSessionResourceReleaseResponse) Marshal() ([]byte, error) {
 func ParsePDUSessionResourceReleaseResponse(value []byte) (*PDUSessionResourceReleaseResponse, error) {
 	return parseMessageBody[PDUSessionResourceReleaseResponse](ProcPDUSessionResourceRelease, TriggeringSuccessfulOutcome, pDUSessionResourceReleaseResponseIEs, value)
 }
+
+// PDUSessionResourceReleaseCommandTransfer ::= SEQUENCE { cause, iE-Extensions
+// OPTIONAL } (extensible) — TS 38.413 §9.3.4.13. The SMF builds it; the NG-RAN
+// node consumes it.
+type PDUSessionResourceReleaseCommandTransfer struct {
+	_     [0]struct{} `per:"extseq"`
+	Cause Cause
+	_     ieExtensions `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceReleaseCommandTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceReleaseCommandTransfer decodes the transfer the SMF
+// sends to release a session.
+func ParsePDUSessionResourceReleaseCommandTransfer(b TransferContainer) (*PDUSessionResourceReleaseCommandTransfer, error) {
+	var t PDUSessionResourceReleaseCommandTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}

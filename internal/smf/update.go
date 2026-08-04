@@ -5,7 +5,6 @@ package smf
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
@@ -15,8 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -279,29 +277,25 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 	return pdrList, farList, nil
 }
 
-func anchorFromGTPTunnel(t *ngapType.GTPTunnel) AnchorBinding {
-	ipv4, ipv6 := ngap.ParseTransportLayerAddress(t.TransportLayerAddress.Value)
+func anchorFromGTPTunnel(t libngap.GTPTunnel) AnchorBinding {
+	ipv4, ipv6 := ngap.ParseTransportLayerAddress(t.TransportLayerAddress)
 
 	return AnchorBinding{
-		TEID: binary.BigEndian.Uint32(t.GTPTEID.Value),
+		TEID: uint32(t.GTPTEID),
 		IPv4: ipv4,
 		IPv6: ipv6,
 	}
 }
 
 func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContext) error {
-	resourceSetupResponseTransfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &resourceSetupResponseTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall resource setup response transfer: %s", err.Error())
+	transfer, err := libngap.ParsePDUSessionResourceSetupResponseTransfer(b)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshall resource setup response transfer: %w", err)
 	}
 
-	tnl := resourceSetupResponseTransfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation
-	if tnl.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return fmt.Errorf("expected qos flow per tnl information up transport layer information present to be gtp tunnel")
-	}
-
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(tnl.GTPTunnel))
+	// UPTransportLayerInformation is a CHOICE whose only modelled alternative is
+	// gTPTunnel; the decoder refuses choice-Extensions on our behalf.
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel))
 
 	return nil
 }
@@ -332,26 +326,12 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 }
 
 func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
-	resourceSetupUnsuccessfulTransfer := ngapType.PDUSessionResourceSetupUnsuccessfulTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &resourceSetupUnsuccessfulTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall resource setup unsuccessful transfer: %s", err.Error())
+	transfer, err := libngap.ParsePDUSessionResourceSetupUnsuccessfulTransfer(b)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshall resource setup unsuccessful transfer: %w", err)
 	}
 
-	switch resourceSetupUnsuccessfulTransfer.Cause.Present {
-	case ngapType.CausePresentRadioNetwork:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by RadioNetwork", logger.Cause(radioNetworkCauseString(resourceSetupUnsuccessfulTransfer.Cause.RadioNetwork.Value)))
-	case ngapType.CausePresentTransport:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Transport", logger.Cause(transportCauseString(resourceSetupUnsuccessfulTransfer.Cause.Transport.Value)))
-	case ngapType.CausePresentNas:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by NAS", logger.Cause(nasCauseString(resourceSetupUnsuccessfulTransfer.Cause.Nas.Value)))
-	case ngapType.CausePresentProtocol:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Protocol", logger.Cause(protocolCauseString(resourceSetupUnsuccessfulTransfer.Cause.Protocol.Value)))
-	case ngapType.CausePresentMisc:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by Misc", logger.Cause(miscCauseString(resourceSetupUnsuccessfulTransfer.Cause.Misc.Value)))
-	case ngapType.CausePresentChoiceExtensions:
-		logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful by ChoiceExtensions", zap.Any("Cause", resourceSetupUnsuccessfulTransfer.Cause.ChoiceExtensions))
-	}
+	logger.SmfLog.Warn("PDU Session Resource Setup Unsuccessful", logger.Cause(transfer.Cause.String()))
 
 	return nil
 }

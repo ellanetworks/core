@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"encoding/hex"
 	"errors"
 	"testing"
 )
@@ -142,5 +143,163 @@ func TestPDUSessionResourceModifyRequestMissingList(t *testing.T) {
 	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idPDUSessionResourceModifyListModReq ||
 		ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for the modify list", ase.IEs)
+	}
+}
+
+// The modify request transfer is an IE container: 0x8c=140
+// UL-NGU-UP-TNLModifyList, 0x87=135 QosFlowAddOrModifyRequestList, 0x89=137
+// QosFlowToReleaseList, each reject criticality.
+const (
+	goldenModifyRequestTransferMin  = "0000010087000701008000090000"
+	goldenModifyRequestTransferFull = "000003008c0014001fc0a801010000000101f00a0000010000000200870007010080000900000089000400040000"
+)
+
+func TestPDUSessionResourceModifyRequestTransferGolden(t *testing.T) {
+	qp := QosFlowLevelQosParameters{
+		QosCharacteristics: QosCharacteristics{
+			Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+		},
+		AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
+	}
+
+	addOrModify := QosFlowAddOrModifyRequestList{{QosFlowIdentifier: 1, QosFlowLevelQosParameters: &qp}}
+
+	full := PDUSessionResourceModifyRequestTransfer{
+		ULNGUUPTNLModify: ULNGUUPTNLModifyList{{
+			ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+				TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+			}},
+			DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+				TransportLayerAddress: TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 2,
+			}},
+		}},
+		QosFlowAddOrModifyRequest: addOrModify,
+		QosFlowToRelease: QosFlowListWithCause{{
+			QosFlowIdentifier: 2,
+			Cause:             Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+		}},
+	}
+
+	for _, c := range []struct {
+		name   string
+		in     PDUSessionResourceModifyRequestTransfer
+		golden string
+	}{
+		{"Min", PDUSessionResourceModifyRequestTransfer{QosFlowAddOrModifyRequest: addOrModify}, goldenModifyRequestTransferMin},
+		{"Full", full, goldenModifyRequestTransferFull},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := c.in.Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := hex.EncodeToString(b); got != c.golden {
+				t.Fatalf("encoded %s, want %s", got, c.golden)
+			}
+
+			out, err := ParsePDUSessionResourceModifyRequestTransfer(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(out.QosFlowAddOrModifyRequest) != 1 || out.QosFlowAddOrModifyRequest[0].QosFlowIdentifier != 1 {
+				t.Errorf("QosFlowAddOrModifyRequest = %+v, want one flow with identifier 1", out.QosFlowAddOrModifyRequest)
+			}
+
+			if len(out.ULNGUUPTNLModify) != len(c.in.ULNGUUPTNLModify) {
+				t.Errorf("ULNGUUPTNLModify length %d, want %d", len(out.ULNGUUPTNLModify), len(c.in.ULNGUUPTNLModify))
+			}
+
+			if len(out.QosFlowToRelease) != len(c.in.QosFlowToRelease) {
+				t.Errorf("QosFlowToRelease length %d, want %d", len(out.QosFlowToRelease), len(c.in.QosFlowToRelease))
+			}
+		})
+	}
+}
+
+// Every IE is optional, so an empty transfer is well formed: a modify that
+// changes nothing is still syntactically valid.
+func TestPDUSessionResourceModifyRequestTransferEmpty(t *testing.T) {
+	var in PDUSessionResourceModifyRequestTransfer
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatalf("empty transfer did not encode: %v", err)
+	}
+
+	out, err := ParsePDUSessionResourceModifyRequestTransfer(b)
+	if err != nil {
+		t.Fatalf("empty transfer did not decode: %v", err)
+	}
+
+	if out.QosFlowAddOrModifyRequest != nil || out.ULNGUUPTNLModify != nil {
+		t.Errorf("decoded %+v, want all fields absent", out)
+	}
+}
+
+// QosFlowAddOrModifyRequestItem makes the QoS parameters optional where
+// QosFlowSetupRequestItem has them mandatory, so a flow carrying only an
+// identifier must round-trip.
+func TestQosFlowAddOrModifyRequestItemWithoutQosParameters(t *testing.T) {
+	in := PDUSessionResourceModifyRequestTransfer{
+		QosFlowAddOrModifyRequest: QosFlowAddOrModifyRequestList{{QosFlowIdentifier: 7}},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParsePDUSessionResourceModifyRequestTransfer(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(out.QosFlowAddOrModifyRequest) != 1 ||
+		out.QosFlowAddOrModifyRequest[0].QosFlowIdentifier != 7 ||
+		out.QosFlowAddOrModifyRequest[0].QosFlowLevelQosParameters != nil {
+		t.Fatalf("round trip %+v, want one flow with identifier 7 and no QoS parameters", out.QosFlowAddOrModifyRequest)
+	}
+}
+
+// ULNGUUPTNLModifyItem and UPTransportLayerInformationPairItem are
+// structurally identical, so the only thing distinguishing their lists is the
+// bound: maxnoofMultiConnectivity (4) against maxnoofMultiConnectivityMinusOne
+// (3). Both are two-bit length determinants for short lists, so no golden
+// separates them — only a list of exactly four does.
+func TestULNGUUPTNLModifyListAcceptsFourLegs(t *testing.T) {
+	item := ULNGUUPTNLModifyItem{
+		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		}},
+		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+			TransportLayerAddress: TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 2,
+		}},
+	}
+
+	in := PDUSessionResourceModifyRequestTransfer{
+		ULNGUUPTNLModify: ULNGUUPTNLModifyList{item, item, item, item},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatalf("four legs refused, bound is maxnoofMultiConnectivity (%d): %v", maxnoofMultiConnectivity, err)
+	}
+
+	out, err := ParsePDUSessionResourceModifyRequestTransfer(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(out.ULNGUUPTNLModify) != 4 {
+		t.Fatalf("decoded %d legs, want 4", len(out.ULNGUUPTNLModify))
+	}
+
+	over := in
+	over.ULNGUUPTNLModify = append(ULNGUUPTNLModifyList{}, item, item, item, item, item)
+
+	if _, err := over.Marshal(); err == nil {
+		t.Errorf("encoded %d legs, bound is %d", len(over.ULNGUUPTNLModify), maxnoofMultiConnectivity)
 	}
 }

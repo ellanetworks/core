@@ -418,6 +418,7 @@ func TestNGAPConstantsMatchSpec(t *testing.T) {
 		want int
 	}{
 		{"maxnoofQosFlows", maxnoofQosFlows, 64},
+		{"maxnoofMultiConnectivity", maxnoofMultiConnectivity, 4},
 		{"maxnoofMultiConnectivityMinusOne", maxnoofMultiConnectivityMinusOne, 3},
 		{"maxnoofPDUSessions", maxnoofPDUSessions, 256},
 		{"maxnoofAllowedSNSSAIs", maxnoofAllowedSNSSAIs, 8},

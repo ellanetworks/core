@@ -5,13 +5,11 @@ package smf
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/ngap"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -62,10 +60,8 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 }
 
 func handleHandoverRequiredTransfer(b []byte) error {
-	handoverRequiredTransfer := ngapType.HandoverRequiredTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &handoverRequiredTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall handover required transfer: %s", err.Error())
+	if _, err := libngap.ParseHandoverRequiredTransfer(b); err != nil {
+		return fmt.Errorf("failed to unmarshall handover required transfer: %w", err)
 	}
 
 	return nil
@@ -183,18 +179,12 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 }
 
 func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) error {
-	handoverRequestAcknowledgeTransfer := ngapType.HandoverRequestAcknowledgeTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &handoverRequestAcknowledgeTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %s", err.Error())
+	transfer, err := libngap.ParseHandoverRequestAcknowledgeTransfer(b)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %w", err)
 	}
 
-	gtpTunnel := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation.GTPTunnel
-	if gtpTunnel == nil || len(gtpTunnel.GTPTEID.Value) < 4 {
-		return fmt.Errorf("handover request acknowledge transfer is missing the DL GTP tunnel")
-	}
-
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(gtpTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel))
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
@@ -276,14 +266,9 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContex
 }
 
 func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
-	pathSwitchRequestTransfer := ngapType.PathSwitchRequestTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &pathSwitchRequestTransfer, "valueExt"); err != nil {
+	pathSwitchRequestTransfer, err := libngap.ParsePathSwitchRequestTransfer(b)
+	if err != nil {
 		return err
-	}
-
-	if pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return errors.New("pathSwitchRequestTransfer.DLNGUUPTNLInformation.Present")
 	}
 
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel))
@@ -315,10 +300,8 @@ func (s *SMF) UpdateSmContextHandoverFailed(ctx context.Context, smContextRef st
 }
 
 func handlePathSwitchRequestSetupFailedTransfer(b []byte) error {
-	pathSwitchRequestSetupFailedTransfer := ngapType.PathSwitchRequestSetupFailedTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &pathSwitchRequestSetupFailedTransfer, "valueExt"); err != nil {
-		return fmt.Errorf("failed to unmarshall path switch request setup failed transfer: %s", err.Error())
+	if _, err := libngap.ParsePathSwitchRequestSetupFailedTransfer(b); err != nil {
+		return fmt.Errorf("failed to unmarshall path switch request setup failed transfer: %w", err)
 	}
 
 	return nil

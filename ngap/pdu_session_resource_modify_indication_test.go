@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"encoding/hex"
 	"errors"
 	"testing"
 )
@@ -156,5 +157,101 @@ func TestPDUSessionResourceModifyIndicationUnsuccessfulTransferRoundTrip(t *test
 
 	if out.Cause != in.Cause {
 		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
+	}
+}
+
+// Dual-verified against free5gc and pycrate.
+const (
+	goldenModifyIndicationTransfer = "000f80c0a80101000000010003"
+	goldenModifyConfirmTransferMin = "0000203ec0a8010100000001"
+	// qosFlowFailedToModifyList present.
+	goldenModifyConfirmTransferFull = "2000203ec0a801010000000100040000"
+)
+
+func modifyTransferTunnel() UPTransportLayerInformation {
+	return UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+		TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1},
+		GTPTEID:               1,
+	}}
+}
+
+func TestPDUSessionResourceModifyIndicationTransferGolden(t *testing.T) {
+	in := PDUSessionResourceModifyIndicationTransfer{
+		DLQosFlowPerTNLInformation: QosFlowPerTNLInformation{
+			UPTransportLayerInformation: modifyTransferTunnel(),
+			AssociatedQosFlowList:       AssociatedQosFlowList{{QosFlowIdentifier: 3}},
+		},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := hex.EncodeToString(b); got != goldenModifyIndicationTransfer {
+		t.Fatalf("encoded %s, want %s", got, goldenModifyIndicationTransfer)
+	}
+
+	out, err := ParsePDUSessionResourceModifyIndicationTransfer(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(out.DLQosFlowPerTNLInformation.AssociatedQosFlowList) != 1 ||
+		out.DLQosFlowPerTNLInformation.AssociatedQosFlowList[0].QosFlowIdentifier != 3 {
+		t.Errorf("AssociatedQosFlowList = %+v, want one flow with identifier 3",
+			out.DLQosFlowPerTNLInformation.AssociatedQosFlowList)
+	}
+
+	if out.AdditionalDLQosFlowPerTNLInformation != nil {
+		t.Errorf("AdditionalDLQosFlowPerTNLInformation = %+v, want nil", out.AdditionalDLQosFlowPerTNLInformation)
+	}
+}
+
+func TestPDUSessionResourceModifyConfirmTransferGolden(t *testing.T) {
+	failed := QosFlowListWithCause{{
+		QosFlowIdentifier: 2,
+		Cause:             Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+	}}
+
+	for _, c := range []struct {
+		name   string
+		in     PDUSessionResourceModifyConfirmTransfer
+		golden string
+	}{
+		{"Min", PDUSessionResourceModifyConfirmTransfer{
+			QosFlowModifyConfirm:  QosFlowModifyConfirmList{{QosFlowIdentifier: 1}},
+			ULNGUUPTNLInformation: modifyTransferTunnel(),
+		}, goldenModifyConfirmTransferMin},
+		{"Full", PDUSessionResourceModifyConfirmTransfer{
+			QosFlowModifyConfirm:  QosFlowModifyConfirmList{{QosFlowIdentifier: 1}},
+			ULNGUUPTNLInformation: modifyTransferTunnel(),
+			QosFlowFailedToModify: failed,
+		}, goldenModifyConfirmTransferFull},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := c.in.Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := hex.EncodeToString(b); got != c.golden {
+				t.Fatalf("encoded %s, want %s", got, c.golden)
+			}
+
+			out, err := ParsePDUSessionResourceModifyConfirmTransfer(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(out.QosFlowModifyConfirm) != 1 || out.QosFlowModifyConfirm[0].QosFlowIdentifier != 1 {
+				t.Errorf("QosFlowModifyConfirm = %+v, want one flow with identifier 1", out.QosFlowModifyConfirm)
+			}
+
+			if len(out.QosFlowFailedToModify) != len(c.in.QosFlowFailedToModify) {
+				t.Errorf("QosFlowFailedToModify length %d, want %d",
+					len(out.QosFlowFailedToModify), len(c.in.QosFlowFailedToModify))
+			}
+		})
 	}
 }

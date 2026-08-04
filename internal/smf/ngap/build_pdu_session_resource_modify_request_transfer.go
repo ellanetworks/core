@@ -1,6 +1,4 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// Copyright 2019 free5GC.org
-// Modified by Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
 package ngap
@@ -9,92 +7,40 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 // BuildPDUSessionResourceModifyRequestTransfer builds the N2 SM Information for a
 // PDU Session Resource Modify Request (TS 38.413).
 func BuildPDUSessionResourceModifyRequestTransfer(ambr *models.Ambr, qosData *models.QosData) ([]byte, error) {
-	transfer := ngapType.PDUSessionResourceModifyRequestTransfer{}
+	var transfer libngap.PDUSessionResourceModifyRequestTransfer
 
 	if ambr != nil {
-		ie := ngapType.PDUSessionResourceModifyRequestTransferIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value = ngapType.PDUSessionResourceModifyRequestTransferIEsValue{
-			Present: ngapType.PDUSessionResourceModifyRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
-			PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
-				PDUSessionAggregateMaximumBitRateDL: ngapType.BitRate{
-					Value: ngapConvert.UEAmbrToInt64(ambr.Downlink),
-				},
-				PDUSessionAggregateMaximumBitRateUL: ngapType.BitRate{
-					Value: ngapConvert.UEAmbrToInt64(ambr.Uplink),
-				},
-			},
+		sessionAMBR, err := sessionAMBR(ambr)
+		if err != nil {
+			return nil, err
 		}
-		transfer.ProtocolIEs.List = append(transfer.ProtocolIEs.List, ie)
+
+		transfer.PDUSessionAggregateMaximumBitRate = sessionAMBR
 	}
 
 	if qosData != nil {
-		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if qosData.Arp != nil && qosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
-			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
+		params, err := qosFlowLevelQosParameters(qosData)
+		if err != nil {
+			return nil, err
 		}
 
-		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if qosData.Arp != nil && qosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
-			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
-		}
-
-		arpLevel := int64(1)
-		if qosData.Arp != nil {
-			arpLevel = int64(qosData.Arp.PriorityLevel)
-		}
-
-		qosFlowItem := ngapType.QosFlowAddOrModifyRequestItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosData.QFI)},
-			QosFlowLevelQosParameters: &ngapType.QosFlowLevelQosParameters{
-				QosCharacteristics: ngapType.QosCharacteristics{
-					Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
-					NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
-						FiveQI: ngapType.FiveQI{
-							Value: int64(qosData.Var5qi),
-						},
-					},
-				},
-				AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
-					PriorityLevelARP: ngapType.PriorityLevelARP{
-						Value: arpLevel,
-					},
-					PreEmptionCapability: ngapType.PreEmptionCapability{
-						Value: arpPreemptCap,
-					},
-					PreEmptionVulnerability: ngapType.PreEmptionVulnerability{
-						Value: arpPreemptVul,
-					},
-				},
-			},
-		}
-
-		ie := ngapType.PDUSessionResourceModifyRequestTransferIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDQosFlowAddOrModifyRequestList
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value = ngapType.PDUSessionResourceModifyRequestTransferIEsValue{
-			Present: ngapType.PDUSessionResourceModifyRequestTransferIEsPresentQosFlowAddOrModifyRequestList,
-			QosFlowAddOrModifyRequestList: &ngapType.QosFlowAddOrModifyRequestList{
-				List: []ngapType.QosFlowAddOrModifyRequestItem{qosFlowItem},
-			},
-		}
-		transfer.ProtocolIEs.List = append(transfer.ProtocolIEs.List, ie)
+		transfer.QosFlowAddOrModifyRequest = libngap.QosFlowAddOrModifyRequestList{{
+			QosFlowIdentifier:         libngap.QosFlowIdentifier(qosData.QFI),
+			QosFlowLevelQosParameters: &params,
+		}}
 	}
 
-	if len(transfer.ProtocolIEs.List) == 0 {
+	if ambr == nil && qosData == nil {
 		return nil, fmt.Errorf("no IEs to encode in PDU Session Resource Modify Request Transfer")
 	}
 
-	buf, err := aper.MarshalWithParams(transfer, "valueExt")
+	buf, err := transfer.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("encode PDU Session Resource Modify Request Transfer: %w", err)
 	}

@@ -77,4 +77,44 @@ var transferParsers = []messageParser{
 		_, err := ParsePDUSessionResourceSetupResponseTransfer(v)
 		return err
 	}},
+	{"ParsePDUSessionResourceReleaseCommandTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceReleaseCommandTransfer(v)
+		return err
+	}},
+	{"ParsePDUSessionResourceModifyRequestTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceModifyRequestTransfer(v)
+		return err
+	}},
+	{"ParsePDUSessionResourceModifyConfirmTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceModifyConfirmTransfer(v)
+		return err
+	}},
+	{"ParsePDUSessionResourceModifyIndicationTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceModifyIndicationTransfer(v)
+		return err
+	}},
+	{"ParseHandoverCommandTransfer", func(v []byte) error {
+		_, err := ParseHandoverCommandTransfer(v)
+		return err
+	}},
+	{"ParseHandoverRequestAcknowledgeTransfer", func(v []byte) error {
+		_, err := ParseHandoverRequestAcknowledgeTransfer(v)
+		return err
+	}},
+	{"ParseHandoverRequiredTransfer", func(v []byte) error {
+		_, err := ParseHandoverRequiredTransfer(v)
+		return err
+	}},
+	{"ParsePathSwitchRequestTransfer", func(v []byte) error {
+		_, err := ParsePathSwitchRequestTransfer(v)
+		return err
+	}},
+	{"ParsePathSwitchRequestAcknowledgeTransfer", func(v []byte) error {
+		_, err := ParsePathSwitchRequestAcknowledgeTransfer(v)
+		return err
+	}},
+	{"ParsePathSwitchRequestSetupFailedTransfer", func(v []byte) error {
+		_, err := ParsePathSwitchRequestSetupFailedTransfer(v)
+		return err
+	}},
 }

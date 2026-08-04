@@ -6,33 +6,25 @@
 package ngap
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 func BuildHandoverCommandTransfer(teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr) ([]byte, error) {
-	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, teid)
-
-	handoverCommandTransfer := ngapType.HandoverCommandTransfer{}
-
-	handoverCommandTransfer.DLForwardingUPTNLInformation = new(ngapType.UPTransportLayerInformation)
-	handoverCommandTransfer.DLForwardingUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
-	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel.GTPTEID.Value = teidOct
-
 	tla, err := encodeTransportLayerAddress(n3IPv4, n3IPv6)
 	if err != nil {
 		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
 	}
 
-	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = tla
+	transfer := libngap.HandoverCommandTransfer{
+		DLForwardingUPTNLInformation: &libngap.UPTransportLayerInformation{
+			GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
+		},
+	}
 
-	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")
+	buf, err := transfer.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("could not encode handover command transfer: %s", err)
 	}

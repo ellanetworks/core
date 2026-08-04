@@ -113,6 +113,68 @@ type UPTransportLayerInformationItem struct {
 // session, so the bound excludes the first.
 type UPTransportLayerInformationList []UPTransportLayerInformationItem
 
+// UPTransportLayerInformationPairItem ::= SEQUENCE { uL-NGU-UP-TNLInformation,
+// dL-NGU-UP-TNLInformation, iE-Extensions OPTIONAL } (extensible).
+type UPTransportLayerInformationPairItem struct {
+	_                     [0]struct{} `per:"extseq"`
+	ULNGUUPTNLInformation UPTransportLayerInformation
+	DLNGUUPTNLInformation UPTransportLayerInformation
+	_                     ieExtensions `per:",skip"`
+}
+
+// UPTransportLayerInformationPairList ::= SEQUENCE
+// (SIZE(1..maxnoofMultiConnectivityMinusOne)) OF
+// UPTransportLayerInformationPairItem.
+type UPTransportLayerInformationPairList []UPTransportLayerInformationPairItem
+
+// ULNGUUPTNLModifyItem ::= SEQUENCE { uL-NGU-UP-TNLInformation,
+// dL-NGU-UP-TNLInformation, iE-Extensions OPTIONAL } (extensible). Structurally
+// identical to UPTransportLayerInformationPairItem but a distinct ASN.1 type,
+// and its list is bounded by maxnoofMultiConnectivity rather than one less.
+type ULNGUUPTNLModifyItem struct {
+	_                     [0]struct{} `per:"extseq"`
+	ULNGUUPTNLInformation UPTransportLayerInformation
+	DLNGUUPTNLInformation UPTransportLayerInformation
+	_                     ieExtensions `per:",skip"`
+}
+
+// ULNGUUPTNLModifyList ::= SEQUENCE (SIZE(1..maxnoofMultiConnectivity)) OF
+// UL-NGU-UP-TNLModifyItem.
+type ULNGUUPTNLModifyList []ULNGUUPTNLModifyItem
+
+// DRBID ::= INTEGER (1..32, ...) — TS 38.413 §9.3.1.53.
+type DRBID uint8
+
+func (d DRBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeExtensibleInt(w, enc, 1, 32, int64(d))
+}
+
+func (d *DRBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeExtensibleInt(r, enc, 1, 32, "DRB-ID")
+	if err != nil {
+		return err
+	}
+
+	*d = DRBID(v)
+
+	return nil
+}
+
+// DataForwardingResponseDRBItem ::= SEQUENCE { dRB-ID,
+// dLForwardingUP-TNLInformation OPTIONAL, uLForwardingUP-TNLInformation
+// OPTIONAL, iE-Extensions OPTIONAL } (extensible).
+type DataForwardingResponseDRBItem struct {
+	_                            [0]struct{} `per:"extseq"`
+	DRBID                        DRBID
+	DLForwardingUPTNLInformation *UPTransportLayerInformation `per:",optional"`
+	ULForwardingUPTNLInformation *UPTransportLayerInformation `per:",optional"`
+	_                            ieExtensions                 `per:",skip"`
+}
+
+// DataForwardingResponseDRBList ::= SEQUENCE (SIZE(1..maxnoofDRBs)) OF
+// DataForwardingResponseDRBItem.
+type DataForwardingResponseDRBList []DataForwardingResponseDRBItem
+
 // encodeExtensibleInt encodes an INTEGER whose constraint carries an extension
 // marker but defines no extension additions: X.691 §13.1 spends one bit, then
 // the root value follows. A value outside the root is refused rather than sent

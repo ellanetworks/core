@@ -10,6 +10,8 @@ const (
 	maxnoofPDUSessions    = 256
 	maxnoofQosFlows       = 64
 
+	maxnoofDRBs                      = 32
+	maxnoofMultiConnectivity         = 4
 	maxnoofMultiConnectivityMinusOne = 3
 )
 
