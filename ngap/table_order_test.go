@@ -24,7 +24,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"NGSetupResponse", tableIDs(nGSetupResponseIEs), []ProtocolIEID{idAMFName, idServedGUAMIList, idRelativeAMFCapacity, idPLMNSupportList, idCriticalityDiagnostics, idUERetentionInformation}},
 		{"NGSetupFailure", tableIDs(nGSetupFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
 		{"NASNonDeliveryIndication", tableIDs(nASNonDeliveryIndicationIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idNASPDU, idCause}},
-		{"InitialUEMessage", tableIDs(initialUEMessageIEs), []ProtocolIEID{idRANUENGAPID, idNASPDU, idUserLocationInformation, idRRCEstablishmentCause, idFiveGSTMSI, idAMFSetID, idUEContextRequest}},
+		{"InitialUEMessage", tableIDs(initialUEMessageIEs), []ProtocolIEID{idRANUENGAPID, idNASPDU, idUserLocationInformation, idRRCEstablishmentCause, idFiveGSTMSI, idAMFSetID, idUEContextRequest, idAllowedNSSAI}},
 		{"DownlinkNASTransport", tableIDs(downlinkNASTransportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idNASPDU}},
 		{"UplinkNASTransport", tableIDs(uplinkNASTransportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idNASPDU, idUserLocationInformation}},
 		{"Paging", tableIDs(pagingIEs), []ProtocolIEID{idUEPagingIdentity, idPagingDRX, idTAIListForPaging, idPagingPriority, idUERadioCapabilityForPaging, idPagingOrigin}},

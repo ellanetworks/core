@@ -61,7 +61,7 @@ func TestUplinkNASTransportRoundTrip(t *testing.T) {
 	}
 
 	if out.AMFUENGAPID != in.AMFUENGAPID || out.RANUENGAPID != in.RANUENGAPID ||
-		deref(out.UserLocationInformation) != deref(in.UserLocationInformation) ||
+		!sameLocation(deref(out.UserLocationInformation), deref(in.UserLocationInformation)) ||
 		!bytes.Equal(out.NASPDU, in.NASPDU) {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
@@ -194,10 +194,10 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 }
 
 // TS 38.413 §9.3.1.16 closes UserLocationInformation with a choice-Extensions
-// alternative, and its N3IWF alternative is not modeled. Either must be an
-// explicit error, not a zero location that reads as one the peer reported.
+// alternative. Selecting it must be an explicit error, not a zero location that
+// reads as one the peer reported.
 func TestUserLocationInformationUnsupportedAlternatives(t *testing.T) {
-	for _, alt := range []int64{userLocationInformationN3IWF, userLocationInformationChoiceExtensions} {
+	for _, alt := range []int64{userLocationInformationChoiceExtensions} {
 		w := per.NewWriter()
 		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, userLocationInformationAlternatives-1, alt); err != nil {
 			t.Fatal(err)
@@ -212,11 +212,7 @@ func TestUserLocationInformationUnsupportedAlternatives(t *testing.T) {
 			t.Fatalf("alternative %d decoded to %+v, want an error", alt, uli)
 		}
 
-		if alt == userLocationInformationN3IWF && !errors.Is(err, errNotComprehended) {
-			t.Errorf("alternative %d: err = %v, want errNotComprehended (§10.3.1 case 6)", alt, err)
-		}
-
-		if uli != (UserLocationInformation{}) {
+		if !sameLocation(uli, UserLocationInformation{}) {
 			t.Errorf("alternative %d left a partial value %+v", alt, uli)
 		}
 	}
@@ -351,6 +347,15 @@ func TestDownlinkNASTransportMissingIEs(t *testing.T) {
 	}
 }
 
+// sameLocation compares two locations; UserLocationInformation holds a slice
+// for the N3IWF alternative, so it is not comparable with ==.
+func sameLocation(a, b UserLocationInformation) bool {
+	return a.Kind == b.Kind && a.PLMNIdentity == b.PLMNIdentity &&
+		a.CellIdentity == b.CellIdentity && a.TAI == b.TAI &&
+		deref(a.TimeStamp) == deref(b.TimeStamp) &&
+		bytes.Equal(a.IPAddress, b.IPAddress) && a.PortNumber == b.PortNumber
+}
+
 func goldInitialULI() UserLocationInformation {
 	return UserLocationInformation{
 		Kind: UserLocationNR, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
@@ -411,7 +416,7 @@ func TestInitialUEMessageGolden(t *testing.T) {
 			}
 
 			if out.RANUENGAPID != tt.msg.RANUENGAPID || !bytes.Equal(out.NASPDU, tt.msg.NASPDU) ||
-				out.UserLocationInformation != tt.msg.UserLocationInformation ||
+				!sameLocation(out.UserLocationInformation, tt.msg.UserLocationInformation) ||
 				deref(out.RRCEstablishmentCause) != deref(tt.msg.RRCEstablishmentCause) ||
 				deref(out.FiveGSTMSI) != deref(tt.msg.FiveGSTMSI) ||
 				deref(out.AMFSetID) != deref(tt.msg.AMFSetID) ||
@@ -488,5 +493,84 @@ func TestRRCEstablishmentCauseNGAPOnlyValues(t *testing.T) {
 	var got RRCEstablishmentCause
 	if err := got.UnmarshalPER(per.NewReader(raw), per.Aligned); !errors.Is(err, errNotComprehended) {
 		t.Errorf("extension addition: err = %v, want errNotComprehended", err)
+	}
+}
+
+// Golden INITIAL UE MESSAGE PDUs for the two IEs a conformant NG-RAN node may
+// send that this AMF does not act on. Both are reject criticality, so failing
+// to model them would reject the whole message (§10.3.4.2) and no UE on that
+// node could ever register. From pycrate's NGAP module.
+const (
+	goldenInitialUEMessageN3IWF = "000f402100000400550002000100260003027e000079000880f8c0a801011f90005a400118"
+	goldenInitialUEMessageNSSAI = "000f403100000500550002000100260003027e000079000f4000f110123456789000f110000001005a40011800000005020100007b"
+)
+
+// TS 38.413 §9.3.1.16's N3IWF alternative. Ella Core serves no non-3GPP access
+// and does not act on the location, but the IE is mandatory-reject, so it must
+// decode rather than reject the UE's first message.
+func TestInitialUEMessageN3IWFLocation(t *testing.T) {
+	pdu, err := Unmarshal(mustHex(t, goldenInitialUEMessageN3IWF))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := ParseInitialUEMessage(pdu.value())
+	if err != nil {
+		t.Fatalf("an N3IWF location was rejected: %v", err)
+	}
+
+	uli := msg.UserLocationInformation
+	if uli.Kind != UserLocationN3IWF {
+		t.Fatalf("Kind = %d, want UserLocationN3IWF", uli.Kind)
+	}
+
+	if !bytes.Equal(uli.IPAddress, []byte{0xc0, 0xa8, 0x01, 0x01}) {
+		t.Errorf("IPAddress = %x, want c0a80101", uli.IPAddress)
+	}
+
+	if uli.PortNumber != 0x1f90 {
+		t.Errorf("PortNumber = %#x, want 0x1f90", uli.PortNumber)
+	}
+
+	got, err := msg.Marshal()
+	if err != nil {
+		t.Fatalf("re-encode: %v", err)
+	}
+
+	if want := mustHex(t, goldenInitialUEMessageN3IWF); !bytes.Equal(got, want) {
+		t.Fatalf("re-encode mismatch:\n  got  %x\n  want %x", got, want)
+	}
+}
+
+// §8.6.1.2 has the NG-RAN node include the Allowed NSSAI it has stored for the
+// UE. Ella Core derives the UE's slices from subscription data and does not act
+// on this, but the IE is reject criticality, so a slicing-aware gNB that sends
+// it must not have every registration refused.
+func TestInitialUEMessageAllowedNSSAI(t *testing.T) {
+	pdu, err := Unmarshal(mustHex(t, goldenInitialUEMessageNSSAI))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg, err := ParseInitialUEMessage(pdu.value())
+	if err != nil {
+		t.Fatalf("an Allowed NSSAI was rejected: %v", err)
+	}
+
+	if len(msg.AllowedNSSAI) != 1 {
+		t.Fatalf("AllowedNSSAI = %+v, want one item", msg.AllowedNSSAI)
+	}
+
+	if got := msg.AllowedNSSAI[0].SNSSAI; got.SST != 1 || deref(got.SD) != (SD{0x00, 0x00, 0x7b}) {
+		t.Errorf("S-NSSAI = %+v, want SST 1 / SD 00007b", got)
+	}
+
+	got, err := msg.Marshal()
+	if err != nil {
+		t.Fatalf("re-encode: %v", err)
+	}
+
+	if want := mustHex(t, goldenInitialUEMessageNSSAI); !bytes.Equal(got, want) {
+		t.Fatalf("re-encode mismatch:\n  got  %x\n  want %x", got, want)
 	}
 }

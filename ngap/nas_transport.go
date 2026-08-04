@@ -25,6 +25,7 @@ type InitialUEMessage struct {
 	FiveGSTMSI       *FiveGSTMSI
 	AMFSetID         *AMFSetID
 	UEContextRequest *UEContextRequest
+	AllowedNSSAI     AllowedNSSAI
 
 	messageMeta
 }
@@ -139,6 +140,21 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 			}
 
 			return m.UEContextRequest, true
+		},
+	},
+	{
+		// Modeled but not acted on: the IE is reject, so not comprehending it
+		// would reject an otherwise valid INITIAL UE MESSAGE (§10.3.4.2).
+		id: idAllowedNSSAI, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AllowedNSSAI)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.AllowedNSSAI == nil {
+				return nil, false
+			}
+
+			return m.AllowedNSSAI, true
 		},
 	},
 }

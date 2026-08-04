@@ -7,6 +7,7 @@ import "fmt"
 
 // ProtocolIE-ID names from TS 38.413 §9.4.5. IDs are unique protocol-wide.
 var protocolIENames = map[ProtocolIEID]string{
+	idAllowedNSSAI:                        "AllowedNSSAI",
 	idAMFName:                             "AMFName",
 	idAMFSetID:                            "AMFSetID",
 	idAMFUENGAPID:                         "AMFUENGAPID",

@@ -181,6 +181,24 @@ var userLocationCellIDBits = map[UserLocationInformationKind]struct {
 }
 
 func (u UserLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if u.Kind == UserLocationN3IWF {
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, userLocationInformationAlternatives-1, userLocationInformationN3IWF); err != nil {
+			return err
+		}
+
+		// SEQUENCE { iPAddress, portNumber, iE-Extensions OPTIONAL, ... }:
+		// extension bit, then the one OPTIONAL field's presence bit.
+		w.WriteBit(false)
+		w.WriteBit(false)
+
+		if err := u.IPAddress.MarshalPER(w, enc); err != nil {
+			return err
+		}
+
+		return per.EncodeOctetString(w, enc, 2, 2, true, true, false,
+			[]byte{byte(u.PortNumber >> 8), byte(u.PortNumber)})
+	}
+
 	shape, ok := userLocationCellIDBits[u.Kind]
 	if !ok {
 		return fmt.Errorf("ngap: invalid UserLocationInformation kind %d", u.Kind)
@@ -239,6 +257,8 @@ func (u *UserLocationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 		kind = UserLocationEUTRA
 	case userLocationInformationNR:
 		kind = UserLocationNR
+	case userLocationInformationN3IWF:
+		return u.unmarshalN3IWF(r, enc)
 	case userLocationInformationChoiceExtensions:
 		return decodeChoiceExtension(r, enc, "UserLocationInformation")
 	default:
@@ -306,6 +326,41 @@ func (u *UserLocationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 
 		out.TimeStamp = &ts
 	}
+
+	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+		return err
+	}
+
+	*u = out
+
+	return nil
+}
+
+func (u *UserLocationInformation) unmarshalN3IWF(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	extContainer, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	var out UserLocationInformation
+
+	out.Kind = UserLocationN3IWF
+
+	if err := out.IPAddress.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	port, err := per.DecodeOctetString(r, enc, 2, 2, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	out.PortNumber = PortNumber(uint16(port[0])<<8 | uint16(port[1]))
 
 	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
 		return err
@@ -437,6 +492,21 @@ func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	*p = PagingDRX(idx)
+
+	return nil
+}
+
+func (a AllowedNSSAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofAllowedSNSSAIs, []AllowedNSSAIItem(a))
+}
+
+func (a *AllowedNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AllowedNSSAIItem](r, enc, 1, maxnoofAllowedSNSSAIs)
+	if err != nil {
+		return err
+	}
+
+	*a = items
 
 	return nil
 }

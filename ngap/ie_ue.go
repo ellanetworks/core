@@ -145,7 +145,13 @@ const (
 	UserLocationEUTRA UserLocationInformationKind = iota
 	// UserLocationNR is userLocationInformationNR: NR-CGI, 36 bits.
 	UserLocationNR
+	// UserLocationN3IWF is userLocationInformationN3IWF-with-PortNumber: an IP
+	// address and port instead of a cell.
+	UserLocationN3IWF
 )
+
+// PortNumber ::= OCTET STRING (SIZE(2)).
+type PortNumber uint16
 
 // TimeStamp ::= OCTET STRING (SIZE(4)) — TS 38.413 §9.3.1.16. No S1AP
 // counterpart: the S1AP User Location Information carries no timestamp.
@@ -155,20 +161,29 @@ type TimeStamp [4]byte
 // userLocationInformationNR, userLocationInformationN3IWF-with-PortNumber,
 // choice-Extensions } — TS 38.413 §9.3.1.16.
 //
-// Both 3GPP-access alternatives are an extensible SEQUENCE of a CGI, a TAI and
-// an optional timeStamp, so they flatten into one struct: Kind says which CGI
-// CellIdentity came from and therefore how wide it is. The N3IWF alternative is
-// not modeled — Ella Core serves no non-3GPP access.
+// The two 3GPP-access alternatives are an extensible SEQUENCE of a CGI, a TAI
+// and an optional timeStamp, so they flatten into one struct: Kind says which
+// CGI CellIdentity came from and therefore how wide it is. The N3IWF
+// alternative reports an IP address and port instead, and uses IPAddress and
+// PortNumber; Ella Core does not serve non-3GPP access, but the alternative is
+// modeled so an N3IWF's messages decode rather than being rejected — the IE is
+// mandatory-reject in INITIAL UE MESSAGE (§10.3.4.2).
 //
 // S1AP carries the same information as two separate mandatory IEs, E-UTRAN CGI
 // and TAI, with no CHOICE and no timestamp.
 type UserLocationInformation struct {
-	Kind         UserLocationInformationKind
+	Kind UserLocationInformationKind
+
+	// Set for UserLocationEUTRA and UserLocationNR.
 	PLMNIdentity PLMNIdentity
 	// CellIdentity is right-aligned in the width Kind implies.
 	CellIdentity uint64
 	TAI          TAI
 	TimeStamp    *TimeStamp
+
+	// Set for UserLocationN3IWF.
+	IPAddress  TransportLayerAddress
+	PortNumber PortNumber
 }
 
 // NASPDU ::= OCTET STRING (unbounded), carried opaquely (TS 24.501).

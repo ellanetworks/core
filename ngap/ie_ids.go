@@ -5,6 +5,7 @@ package ngap
 
 // ProtocolIE-ID values (TS 38.413, NGAP-Constants).
 const (
+	idAllowedNSSAI                        ProtocolIEID = 0
 	idAMFName                             ProtocolIEID = 1
 	idAMFSetID                            ProtocolIEID = 3
 	idAMFUENGAPID                         ProtocolIEID = 10
