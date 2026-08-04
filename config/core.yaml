@@ -71,11 +71,15 @@ interfaces:
     #   # The path to the TLS key file (optional).
     #   key: "/etc/ella/key.pem"
 
-# The XDP configuration.
-xdp:
-  # The XDP attach mode. Options are native and generic. native is the most
-  # performant option and only works on supported drivers.
-  attach-mode: "generic"
+# The datapath configuration.
+datapath:
+  # Where the datapath attaches in the kernel. Omit this setting to use
+  # driver-level XDP where the NIC supports it and TCX otherwise.
+  #   xdp-native  - driver-level XDP; the most performant option, and only
+  #                 works on supported drivers.
+  #   tcx         - TCX ingress; works on any interface, needs kernel 6.6+.
+  #   xdp-generic - generic XDP; unsupported, development only.
+  attach-mode: "tcx"
 
 # The telemetry configuration.
 telemetry:

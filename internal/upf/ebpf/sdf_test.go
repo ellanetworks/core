@@ -14,10 +14,10 @@ import (
 // TestSDFFilterEnforcement checks that uplink SDF rules drop denied traffic and
 // pass everything else.
 //
-// A deny returns XDP_DROP before routing, so a denied packet is unambiguously
-// XDP_DROP. An allowed packet is decapsulated and continues into the routing
-// tail; it must not be XDP_DROP (routing returns XDP_TX/XDP_REDIRECT, or
-// XDP_PASS with no route, but not XDP_DROP absent blackhole/unreachable routes)
+// A deny returns ActionDrop before routing, so a denied packet is unambiguously
+// ActionDrop. An allowed packet is decapsulated and continues into the routing
+// tail; it must not be ActionDrop (routing returns ActionTx/ActionRedirect, or
+// ActionPass with no route, but not ActionDrop absent blackhole/unreachable routes)
 // and its decapsulated inner packet must be intact. The verdict and output
 // packet come from the program; BPF_PROG_TEST_RUN does not surface counters.
 func TestSDFFilterEnforcement(t *testing.T) {
@@ -65,14 +65,14 @@ func TestSDFFilterEnforcement(t *testing.T) {
 			action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(tc.teid, inner))
 
 			if tc.wantDrop {
-				if action != XDP_DROP {
-					t.Fatalf("denied packet: got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
+				if action != ActionDrop {
+					t.Fatalf("denied packet: got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
 				}
 
 				return
 			}
 
-			if action == XDP_DROP {
+			if action == ActionDrop {
 				t.Fatal("allowed packet was dropped")
 			}
 
@@ -85,7 +85,7 @@ func TestSDFFilterEnforcement(t *testing.T) {
 
 // TestSDFRuleMatching exercises the uplink SDF rule-matching dimensions:
 // protocol (wildcard/match/mismatch), port range, address prefix (CIDR and
-// wildcard), and first-match ordering. Deny => XDP_DROP; allow => forwarded with
+// wildcard), and first-match ordering. Deny => ActionDrop; allow => forwarded with
 // the inner packet intact.
 func TestSDFRuleMatching(t *testing.T) {
 	requireProgTestRun(t)
@@ -130,14 +130,14 @@ func TestSDFRuleMatching(t *testing.T) {
 			action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, tc.inner))
 
 			if tc.wantDrop {
-				if action != XDP_DROP {
-					t.Fatalf("got XDP action %d, want XDP_DROP", action)
+				if action != ActionDrop {
+					t.Fatalf("got XDP action %d, want ActionDrop", action)
 				}
 
 				return
 			}
 
-			if action == XDP_DROP {
+			if action == ActionDrop {
 				t.Fatal("allowed packet was dropped")
 			}
 
@@ -174,8 +174,8 @@ func TestSDFDownlinkDirection(t *testing.T) {
 		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv4(server, 32, 0, 0, 17, SdfActionDeny)})
 
 		action, _ := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
-		if action != XDP_DROP {
-			t.Fatalf("got XDP action %d, want XDP_DROP", action)
+		if action != ActionDrop {
+			t.Fatalf("got XDP action %d, want ActionDrop", action)
 		}
 	})
 
@@ -183,7 +183,7 @@ func TestSDFDownlinkDirection(t *testing.T) {
 		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv4([4]byte{1, 1, 1, 1}, 32, 0, 0, 17, SdfActionDeny)})
 
 		action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
-		if action == XDP_DROP {
+		if action == ActionDrop {
 			t.Fatal("allowed downlink packet was dropped")
 		}
 
@@ -226,14 +226,14 @@ func TestSDFIPv6(t *testing.T) {
 			action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
 			if tc.wantDrop {
-				if action != XDP_DROP {
-					t.Fatalf("got XDP action %d, want XDP_DROP", action)
+				if action != ActionDrop {
+					t.Fatalf("got XDP action %d, want ActionDrop", action)
 				}
 
 				return
 			}
 
-			if action == XDP_DROP {
+			if action == ActionDrop {
 				t.Fatal("allowed packet was dropped")
 			}
 
@@ -273,8 +273,8 @@ func TestSDFDownlinkIPv6(t *testing.T) {
 		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv6(serverV6, 128, 0, 0, 17, SdfActionDeny)})
 
 		action, _ := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
-		if action != XDP_DROP {
-			t.Fatalf("got XDP action %d, want XDP_DROP", action)
+		if action != ActionDrop {
+			t.Fatalf("got XDP action %d, want ActionDrop", action)
 		}
 	})
 
@@ -283,7 +283,7 @@ func TestSDFDownlinkIPv6(t *testing.T) {
 		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv6(other, 128, 0, 0, 17, SdfActionDeny)})
 
 		action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
-		if action == XDP_DROP {
+		if action == ActionDrop {
 			t.Fatal("allowed downlink packet was dropped")
 		}
 

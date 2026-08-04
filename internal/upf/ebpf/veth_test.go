@@ -12,8 +12,6 @@ import (
 	"net/netip"
 	"testing"
 	"time"
-
-	"github.com/cilium/ebpf/link"
 )
 
 const (
@@ -37,7 +35,7 @@ func TestVethRAEncapsulation(t *testing.T) {
 
 	injPeer, n3Peer, vobj := setupVethRA(t)
 
-	addAddr(t, vethN3Dev, addrCIDR(testUPFN3IP, 24))
+	addAddr(t, vethN3Dev, addrCIDR(testUPFN3IP))
 	addNeigh(t, vethN3Dev, testGNBIP, "02:00:00:00:00:aa")
 
 	ueDst := netip.MustParseAddr("fe80::1")
@@ -52,7 +50,7 @@ func TestVethRAEncapsulation(t *testing.T) {
 
 	capFD := openCapture(t, n3Peer.Index)
 
-	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement())
+	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
 	inject(t, injPeer.Index, ethFrame(0x86DD, ra))
 
 	got := captureMatching(capFD, time.Second, isGTPv4Outer)
@@ -122,7 +120,7 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 
 	capFD := openCapture(t, n3Peer.Index)
 
-	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement())
+	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
 	inject(t, injPeer.Index, ethFrame(0x86DD, ra))
 
 	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
@@ -179,18 +177,9 @@ func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *BpfObjects
 
 	injDev := ifByName(t, vethInjDev)
 
-	obj := loadProgramConfig(t, false, false, ifByName(t, vethN3Dev).Index, 0, 0, 0)
+	obj := loadAttachedProgramConfig(t, false, false, ifByName(t, vethN3Dev).Index, 0, 0, 0)
 
-	l, err := link.AttachXDP(link.XDPOptions{
-		Program:   obj.VethXdpFunc,
-		Interface: injDev.Index,
-		Flags:     link.XDPGenericMode,
-	})
-	if err != nil {
-		t.Fatalf("attach XDP to veth: %v", err)
-	}
-
-	t.Cleanup(func() { _ = l.Close() })
+	attachDatapath(t, obj, obj.VethXdpFunc, injDev.Index)
 
 	return ifByName(t, vethInjPeer), ifByName(t, vethN3Peer), obj
 }
@@ -205,9 +194,12 @@ func isGTPv4Outer(fr []byte) bool {
 
 // routerAdvertisement builds a minimal ICMPv6 Router Advertisement message
 // (type 134). The veth program treats it as opaque inner payload.
-func routerAdvertisement() []byte {
+// Carries a valid ICMPv6 checksum, as buildRAPacket emits: the datapath
+// derives the outer checksum from the inner one, so an invalid inner packet
+// would prove nothing.
+func routerAdvertisement(src, dst [16]byte) []byte {
 	ra := make([]byte, 16)
 	ra[0] = 134 // Router Advertisement
 
-	return ra
+	return icmpv6Checksummed(src, dst, ra)
 }

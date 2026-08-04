@@ -65,7 +65,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{interface=\"n3\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{interface=\"n3\",stage=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "N3 Average",
           "range": false,
@@ -120,7 +120,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{interface=\"n6\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{interface=\"n6\",stage=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "N6 Average",
           "range": false,
@@ -181,7 +181,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{interface=\"n3\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{interface=\"n3\",stage!=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage!=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -242,7 +242,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "(app_upf_pipeline_latency_nanoseconds_total{interface=\"n6\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{interface=\"n6\",stage!=\"total\"}) > 0",
+          "expr": "(app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage!=\"total\"}) > 0",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -327,7 +327,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{interface=\"n3\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{interface=\"n3\",stage!=\"total\"}) > 0)",
+          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage!=\"total\"}) > 0)",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -412,7 +412,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{interface=\"n6\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{interface=\"n6\",stage!=\"total\"}) > 0)",
+          "expr": "sort_desc((app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage!=\"total\"} / app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage!=\"total\"}) > 0)",
           "instant": true,
           "legendFormat": "{{stage}}",
           "range": false,
@@ -491,7 +491,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{interface=\"n3\",stage!=\"total\"}[5m]) / rate(app_upf_pipeline_latency_calls_total{interface=\"n3\",stage!=\"total\"}[5m])",
+          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{direction=\"uplink\",stage!=\"total\"}[5m]) / rate(app_upf_pipeline_latency_calls_total{direction=\"uplink\",stage!=\"total\"}[5m])",
           "instant": false,
           "legendFormat": "{{stage}}",
           "range": true,
@@ -570,7 +570,7 @@
             "uid": "mimir"
           },
           "editorMode": "code",
-          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{interface=\"n6\",stage!=\"total\"}[5m]) / rate(app_upf_pipeline_latency_calls_total{interface=\"n6\",stage!=\"total\"}[5m])",
+          "expr": "rate(app_upf_pipeline_latency_nanoseconds_total{direction=\"downlink\",stage!=\"total\"}[5m]) / rate(app_upf_pipeline_latency_calls_total{direction=\"downlink\",stage!=\"total\"}[5m])",
           "instant": false,
           "legendFormat": "{{stage}}",
           "range": true,

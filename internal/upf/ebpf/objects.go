@@ -1,5 +1,21 @@
+// Copyright 2023 Edgecom LLC
 // SPDX-FileCopyrightText: Ella Networks Inc.
+//
 // SPDX-License-Identifier: Apache-2.0
+//
+// Modified by Ella Networks.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package ebpf
 
@@ -16,20 +32,13 @@ import (
 	"go.uber.org/zap"
 )
 
-//
-// Supported BPF_CFLAGS:
-// 	- ENABLE_LOG:
-//		- enables debug output to tracepipe (`bpftool prog tracelog`)
-// 	- ENABLE_PROFILING:
-//		- enables per-packet latency profiling via profiling_map (per-CPU array).
-//		- each bpf_ktime_get_ns() call adds ~600-900 ns overhead per sample.
-//		- read results with ReadProfilingStats() in stats.go.
-//
-// Usage: export BPF_CFLAGS="-DENABLE_LOG"
-// Usage: export BPF_CFLAGS="-DENABLE_PROFILING"
-// Usage: export BPF_CFLAGS="-DENABLE_LOG -DENABLE_PROFILING"
+// BPF_CFLAGS selects optional instrumentation: -DENABLE_LOG for debug output
+// on the trace pipe, -DENABLE_PROFILING for per-packet latency in
+// profiling_map, read back by ReadProfilingStats. Profiling costs ~600-900 ns
+// per sample.
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint xdp/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint bpf/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6EntrypointTc bpf/n3n6_bpf.c -- -DCTX_TC -I. -O2 -Wall -Werror -g
 
 // Masquerade source-port range, held below the kernel's default ephemeral
 // floor so an allocation cannot name a port a host socket is using.
@@ -61,8 +70,13 @@ type BpfObjects struct {
 	// without a compile error when profiling is absent.
 	ProfilingMap *ebpf.Map
 
-	FlowAccounting   bool
-	Masquerade       bool
+	FlowAccounting bool
+	Masquerade     bool
+	// UseTCX selects the SCHED_CLS build of the datapath. Its spec carries
+	// the same map, program, and variable names as the XDP build (one C
+	// source), so it loads into N3N6EntrypointObjects through the ebpf
+	// struct tags.
+	UseTCX           bool
 	N3InterfaceIndex uint32
 	N6InterfaceIndex uint32
 	N3Vlan           uint32
@@ -84,7 +98,7 @@ func NewBpfObjects(flowact bool, masquerade bool, n3ifindex int, n6ifindex int, 
 }
 
 // Tail-call indices in the upf_calls PROG_ARRAY; must match UPF_CALL_* in
-// xdp/n3n6_bpf.c.
+// bpf/n3n6_bpf.c.
 const (
 	upfCallUplink      = 0
 	upfCallDownlink    = 1
@@ -110,8 +124,16 @@ func populateTailCalls(objs *N3N6EntrypointObjects) error {
 	return nil
 }
 
+func (bpfObjects *BpfObjects) loadSpec() (*ebpf.CollectionSpec, error) {
+	if bpfObjects.UseTCX {
+		return LoadN3N6EntrypointTc()
+	}
+
+	return LoadN3N6Entrypoint()
+}
+
 func (bpfObjects *BpfObjects) Load() error {
-	n3n6Spec, err := LoadN3N6Entrypoint()
+	n3n6Spec, err := bpfObjects.loadSpec()
 	if err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
 		return err
@@ -246,7 +268,7 @@ func (bpfObjects *BpfObjects) preservedMaps() map[string]*ebpf.Map {
 // The caller must call link.Update() with the new program to atomically
 // swap the XDP program on the interface.
 func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
-	spec, err := LoadN3N6Entrypoint()
+	spec, err := bpfObjects.loadSpec()
 	if err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
 		return err

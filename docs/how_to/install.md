@@ -109,8 +109,8 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
             api:
               address: "0.0.0.0"
               port: 5002
-          xdp:
-            attach-mode: "generic"
+          datapath:
+            attach-mode: "tcx"
 
     services:
       ella-core:
@@ -143,7 +143,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     Edit the file to match your network interfaces and desired configuration.
 
     !!! note
-        This example uses `generic` XDP mode so it runs on any driver. For production, use `native` mode — see [XDP configuration](../explanation/user_plane_packet_processing_with_ebpf.md#configuration).
+        This example uses `tcx` mode, which works on the veth interfaces containers get. On a host whose driver supports it, use `xdp-native` mode for the highest performance — see [Config file](../reference/config_file.md).
 
     Start the Ella Core container:
 

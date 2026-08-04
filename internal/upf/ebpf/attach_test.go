@@ -7,14 +7,15 @@ package ebpf
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"golang.org/x/sys/unix"
 )
@@ -45,6 +46,10 @@ const (
 	t2N6Peer = "ellt2n6p"
 
 	t2VethMTU = "3000" // headroom for the payload sweep plus GTP encapsulation
+
+	// The IPv6 counterpart of natPublicIP, and the server's prefix.
+	t2N6IPv6         = "2001:db8:6::1"
+	t2ServerV6Prefix = "2001:4860:4860::/48"
 )
 
 var (
@@ -86,17 +91,28 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 
 	// N3 side: the UPF's N3 address and a neighbor for the gNB, so a
 	// re-encapsulated downlink packet routes out toward the gNB.
-	addAddr(t, t2N3Dev, addrCIDR(testUPFN3IP, 24))
+	addAddr(t, t2N3Dev, addrCIDR(testUPFN3IP))
 	addNeigh(t, t2N3Dev, testGNBIP, "02:00:00:00:00:aa")
 
 	// N6 side: the source-NAT egress address, a route to the server, and a
 	// neighbor, so an uplink packet routes out with src = natPublicIP.
-	addAddr(t, t2N6Dev, addrCIDR(natPublicIP, 24))
+	addAddr(t, t2N6Dev, addrCIDR(natPublicIP))
 	addRoute(t, "198.51.100.0/24", t2N6Dev, natPublicIP)
 	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
 
+	// A self-generated ICMP error is sourced from the address the FIB picks;
+	// without these it would be whatever global address the host has.
+	if out, err := ipCmd("addr", "add", t2N6IPv6+"/64", "dev", t2N6Dev, "nodad"); err != nil {
+		t.Fatalf("add N6 IPv6 addr: %v: %s", err, out)
+	}
+
+	if out, err := ipCmd("route", "add", t2ServerV6Prefix, "dev", t2N6Dev,
+		"src", t2N6IPv6); err != nil {
+		t.Fatalf("add N6 IPv6 route: %v: %s", err, out)
+	}
+
 	f := &t2{
-		obj:    loadProgramConfig(t, false, masquerade, ifByName(t, t2N3Dev).Index, ifByName(t, t2N6Dev).Index, 0, 0),
+		obj:    loadAttachedProgramConfig(t, false, masquerade, ifByName(t, t2N3Dev).Index, ifByName(t, t2N6Dev).Index, 0, 0),
 		n3Dev:  ifByName(t, t2N3Dev),
 		n3Peer: ifByName(t, t2N3Peer),
 		n6Dev:  ifByName(t, t2N6Dev),
@@ -106,7 +122,44 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	attachXDP(t, f.obj, f.n3Dev.Index)
 	attachXDP(t, f.obj, f.n6Dev.Index)
 
+	// A test that captured nothing cannot tell a drop from a missed capture.
+	t.Cleanup(func() {
+		if t.Failed() {
+			logDropReasons(t, f.obj)
+		}
+	})
+
 	return f
+}
+
+// logDropReasons prints the non-zero counters in both directions.
+func logDropReasons(t *testing.T, obj *BpfObjects) {
+	t.Helper()
+
+	names := DropReasonNames()
+
+	for dir, counters := range GetDatapathCounters(obj) {
+		var lines []string
+
+		for i, n := range counters.Dropped {
+			if n != 0 && i < len(names) {
+				lines = append(lines, fmt.Sprintf("%s=%d", names[i], n))
+			}
+		}
+
+		for _, a := range []struct {
+			label string
+			index int
+		}{{"pass", ActionPass}, {"tx", ActionTx}, {"redirect", ActionRedirect}} {
+			if v := counters.Forwarded[a.index]; v != 0 {
+				lines = append(lines, fmt.Sprintf("%s=%d", a.label, v))
+			}
+		}
+
+		if len(lines) > 0 {
+			t.Logf("%s datapath: %s", dir, strings.Join(lines, " "))
+		}
+	}
 }
 
 func (f *t2) injectUplink(t *testing.T, frame []byte)   { inject(t, f.n3Peer.Index, frame) }
@@ -164,13 +217,34 @@ func addNeigh(t *testing.T, dev string, addr [4]byte, lladdr string) {
 func attachXDP(t *testing.T, obj *BpfObjects, ifindex int) {
 	t.Helper()
 
-	l, err := link.AttachXDP(link.XDPOptions{
-		Program:   obj.UpfEntryFunc,
-		Interface: ifindex,
-		Flags:     link.XDPGenericMode,
-	})
+	attachDatapath(t, obj, obj.UpfEntryFunc, ifindex)
+}
+
+// TCX ingress for the SCHED_CLS build, generic XDP for the XDP build.
+func attachDatapath(t *testing.T, obj *BpfObjects, prog *ebpf.Program, ifindex int) {
+	t.Helper()
+
+	var (
+		l   link.Link
+		err error
+	)
+
+	if obj.UseTCX {
+		l, err = link.AttachTCX(link.TCXOptions{
+			Program:   prog,
+			Attach:    ebpf.AttachTCXIngress,
+			Interface: ifindex,
+		})
+	} else {
+		l, err = link.AttachXDP(link.XDPOptions{
+			Program:   prog,
+			Interface: ifindex,
+			Flags:     link.XDPGenericMode,
+		})
+	}
+
 	if err != nil {
-		t.Fatalf("attach XDP to ifindex %d: %v", ifindex, err)
+		t.Fatalf("attach datapath to ifindex %d: %v", ifindex, err)
 	}
 
 	t.Cleanup(func() { _ = l.Close() })
@@ -252,7 +326,7 @@ func ifByName(t *testing.T, name string) *net.Interface {
 
 func ip4String(a [4]byte) string { return net.IP(a[:]).String() }
 
-func addrCIDR(a [4]byte, prefix int) string { return ip4String(a) + "/" + strconv.Itoa(prefix) }
+func addrCIDR(a [4]byte) string { return ip4String(a) + "/24" }
 
 // TestDownlinkStatisticsAttached checks that downlink byte accounting lands in
 // downlink_statistics on a real attach. It is the N6-side counterpart to

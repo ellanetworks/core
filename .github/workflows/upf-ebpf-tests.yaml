@@ -30,7 +30,24 @@ jobs:
       - name: Kernel version
         run: uname -a
 
-      - name: Run UPF eBPF datapath and engine tests
-        run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED" ./internal/upf/ebpf/... ./internal/upf/engine/...
+      # The fixtures create veth pairs and set forwarding sysctls, which are
+      # per-namespace: running each test binary in a private netns keeps them
+      # off the runner. `go test -exec` splits its value on spaces, so the
+      # unshare invocation cannot be written inline.
+      - name: Write network namespace wrapper
+        run: |
+          cat > "$RUNNER_TEMP/netns-exec.sh" <<'WRAPPER'
+          #!/bin/sh
+          exec unshare --net sh -c 'ip link set lo up && exec "$@"' -- "$@"
+          WRAPPER
+          chmod +x "$RUNNER_TEMP/netns-exec.sh"
+
+      - name: Run UPF eBPF datapath and engine tests (XDP fixtures)
+        run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED $RUNNER_TEMP/netns-exec.sh" ./internal/upf/ebpf/... ./internal/upf/... ./internal/upf/engine/...
+        env:
+          EBPF_REQUIRE_PRIVILEGED: "1"
+
+      - name: Run UPF eBPF datapath tests (TCX fixtures)
+        run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED $RUNNER_TEMP/netns-exec.sh env ELLA_TEST_ATTACH_MODE=tcx" ./internal/upf/ebpf/...
         env:
           EBPF_REQUIRE_PRIVILEGED: "1"

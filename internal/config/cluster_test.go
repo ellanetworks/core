@@ -27,8 +27,8 @@ interfaces:
   n3: { name: "lo" }
   n6: { name: "lo" }
   api: { address: "127.0.0.1", port: 5002 }
-xdp:
-  attach-mode: native
+datapath:
+  attach-mode: xdp-native
 logging:
   system: { level: info, output: stdout }
   audit: { output: stdout }

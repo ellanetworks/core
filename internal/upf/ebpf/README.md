@@ -1,8 +1,10 @@
-Ella Core UPF XDP implementation
-================================
+Ella Core UPF datapath implementation
+=====================================
 
-This directory contains the XDP implementation of the UPF. It contains
-both the userspace go code and the kernel space XDP code.
+This directory contains the UPF datapath: the userspace Go code and the
+kernel-space eBPF code under `bpf/`. One C source builds two objects, one
+for the XDP hook and one for TCX; `bpf/ctx/` holds the shim that selects
+between them.
 
 Compilation
 ===========
@@ -52,7 +54,7 @@ regardless of the transport address family.
 
 ### FAR struct layout
 
-`far_info` in `xdp/utils/pdr.h` stores tunnel addresses as `struct in6_addr`
+`far_info` in `bpf/utils/pdr.h` stores tunnel addresses as `struct in6_addr`
 (16 bytes) for both `remoteip` and `localip`:
 
 - **IPv4 transport** — address stored as IPv4-mapped IPv6 (`::ffff:x.x.x.x`),

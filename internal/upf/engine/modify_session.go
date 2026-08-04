@@ -293,6 +293,10 @@ func farInfoFromMerge(far models.FAR, localIPv4 netip.Addr, localIPv6 netip.Addr
 	if fp := far.ForwardingParameters; fp != nil {
 		if ohc := fp.OuterHeaderCreation; ohc != nil {
 			existing.OuterHeaderCreation = uint8(ohc.Description >> 8)
+			if ohc.S1U {
+				existing.OuterHeaderCreation |= ohcNoPSC
+			}
+
 			existing.TeID = ohc.TEID
 
 			if ohc.Description == models.OuterHeaderCreationGtpUUdpIpv6 && ohc.IPv6Address != nil {

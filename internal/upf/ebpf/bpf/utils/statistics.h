@@ -21,6 +21,9 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
+#include "bpf/ctx/ctx.h"
+#include "bpf/utils/drop_reason.h"
+
 struct byte_counter {
 	__u64 bytes;
 };
@@ -30,18 +33,15 @@ struct packet_counters {
 	__u64 tx;
 };
 
-#define EUPF_MAX_XDP_ACTION 8
-#define EUPF_MAX_XDP_ACTION_MASK 0x07
+#define UPF_MAX_ACTION 8
+#define UPF_ACTION_MASK 0x07
 
 struct upf_statistic {
 	struct byte_counter byte_counter;
 	struct packet_counters packet_counters;
-	__u64 xdp_actions[EUPF_MAX_XDP_ACTION];
-	__u64 source_spoof_drop_ip4;
-	__u64 source_spoof_drop_ip6;
-	__u64 nat_unsolicited_drop_ip4;
-	__u64 nat_fragment_drop_ip4;
-	__u64 nat_port_exhausted_drop_ip4;
-	__u64 nat_unsupported_proto_drop_ip4;
-	__u64 nat_malformed_drop_ip4;
+	/* Indexed by enum ctx_action, forwarding actions only: the two arrays
+	 * are disjoint and sum to the frames handled. */
+	__u64 forwarded_actions[UPF_MAX_ACTION];
+	/* Indexed by enum upf_drop_reason; aborts land here too. */
+	__u64 drop_reasons[UPF_DROP_REASON_MAX];
 };

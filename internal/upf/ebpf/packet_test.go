@@ -184,6 +184,26 @@ func validICMPv6Checksum(src, dst [16]byte, icmp6 []byte) bool {
 	return onesComplement16(pseudo) == 0
 }
 
+// icmpv6Checksummed returns the ICMPv6 message with its checksum filled in
+// for the given addresses.
+func icmpv6Checksummed(src, dst [16]byte, icmp6 []byte) []byte {
+	out := make([]byte, len(icmp6))
+	copy(out, icmp6)
+	out[2], out[3] = 0, 0
+
+	pseudo := make([]byte, 40+len(out))
+
+	copy(pseudo[0:16], src[:])
+	copy(pseudo[16:32], dst[:])
+	binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(out)))
+	pseudo[39] = 58
+	copy(pseudo[40:], out)
+
+	binary.BigEndian.PutUint16(out[2:4], onesComplement16(pseudo))
+
+	return out
+}
+
 // ipv4Packet builds an IPv4 packet (with a valid header checksum) carrying
 // payload.
 func ipv4Packet(src, dst [4]byte, proto uint8, payload []byte) []byte {

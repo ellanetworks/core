@@ -36,6 +36,9 @@ type Status struct {
 	Ready         bool           `json:"ready"`
 	SchemaVersion int            `json:"schemaVersion"`
 	Cluster       *ClusterStatus `json:"cluster,omitempty"`
+
+	// Empty until the data plane is up.
+	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
 }
 
 // GetStatus retrieves the current status of the system.

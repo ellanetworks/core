@@ -193,7 +193,7 @@ func TestNATIPv6PassThrough(t *testing.T) {
 	inner := innerIPv6UDP(testUEv6, 53)
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
-	if action == XDP_DROP || action == XDP_ABORTED {
+	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("IPv6 uplink with NAT enabled got XDP action %d, want a forwarding action", action)
 	}
 
@@ -371,7 +371,7 @@ func TestNATUnsolicitedInboundDrop(t *testing.T) {
 		t.Run(proto.name, func(t *testing.T) {
 			capFD := f.captureN3(t)
 
-			before := GetN6NatUnsolicitedDropIPv4(f.obj)
+			before := DropCount(f.obj, Downlink, "nat_unsolicited")
 
 			l4 := proto.build(serverIP, ueIP, proto.dport, proto.sport, []byte{1, 2})
 			f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, ueIP, proto.num, l4)))
@@ -382,7 +382,7 @@ func TestNATUnsolicitedInboundDrop(t *testing.T) {
 				t.Fatalf("unsolicited %s packet egressed on N3: %x", proto.name, got)
 			}
 
-			if after := GetN6NatUnsolicitedDropIPv4(f.obj); after != before+1 {
+			if after := DropCount(f.obj, Downlink, "nat_unsolicited"); after != before+1 {
 				t.Errorf("nat_unsolicited_drop_ip4 = %d, want %d", after, before+1)
 			}
 		})
@@ -570,7 +570,7 @@ func TestNATDropsFragments(t *testing.T) {
 	t.Run("uplink", func(t *testing.T) {
 		capFD := f.captureN6(t)
 
-		before := GetNatDrops(f.obj).Fragment
+		before := DropCount(f.obj, Uplink, "nat_fragment")
 
 		inner := asFragment(ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(64))))
 		f.injectUplink(t, uplinkGPDU(ulTEID, inner))
@@ -581,7 +581,7 @@ func TestNATDropsFragments(t *testing.T) {
 			t.Errorf("uplink fragment egressed on N6: %x", got)
 		}
 
-		if after := GetNatDrops(f.obj).Fragment; after != before+1 {
+		if after := DropCount(f.obj, Uplink, "nat_fragment"); after != before+1 {
 			t.Errorf("fragment drop counter = %d, want %d", after, before+1)
 		}
 	})
@@ -589,7 +589,7 @@ func TestNATDropsFragments(t *testing.T) {
 	t.Run("downlink to ue", func(t *testing.T) {
 		capFD := f.captureN3(t)
 
-		before := GetNatDrops(f.obj).Fragment
+		before := DropCount(f.obj, Downlink, "nat_fragment")
 
 		reply := asFragment(ipv4Packet(serverIP, ueIP, 6, tcpSegmentChecksummed(serverIP, ueIP, srvDP, ueSP, bytesOf(64))))
 		f.injectDownlink(t, ethFrame(0x0800, reply))
@@ -600,21 +600,21 @@ func TestNATDropsFragments(t *testing.T) {
 			t.Errorf("downlink fragment egressed on N3: %x", got)
 		}
 
-		if after := GetNatDrops(f.obj).Fragment; after != before+1 {
+		if after := DropCount(f.obj, Downlink, "nat_fragment"); after != before+1 {
 			t.Errorf("fragment drop counter = %d, want %d", after, before+1)
 		}
 	})
 
 	// A fragment addressed to this host belongs to the stack.
 	t.Run("downlink to host", func(t *testing.T) {
-		before := GetNatDrops(f.obj).Fragment
+		before := DropCount(f.obj, Downlink, "nat_fragment")
 
 		reply := asFragment(ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, ueSP, bytesOf(64))))
 		f.injectDownlink(t, ethFrame(0x0800, reply))
 
 		time.Sleep(200 * time.Millisecond)
 
-		if after := GetNatDrops(f.obj).Fragment; after != before {
+		if after := DropCount(f.obj, Downlink, "nat_fragment"); after != before {
 			t.Errorf("fragment drop counter = %d, want %d", after, before)
 		}
 	})
@@ -1102,7 +1102,7 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			capFD := f.captureN6(t)
 
-			before := GetNatDrops(f.obj).Malformed
+			before := DropCount(f.obj, Uplink, "nat_malformed")
 
 			f.injectUplink(t, uplinkGPDU(teid, tc.build()))
 
@@ -1114,7 +1114,7 @@ func TestNATRejectsMalformedSegments(t *testing.T) {
 				t.Errorf("malformed segment egressed on N6: %x", got)
 			}
 
-			if after := GetNatDrops(f.obj).Malformed; after != before+1 {
+			if after := DropCount(f.obj, Uplink, "nat_malformed"); after != before+1 {
 				t.Errorf("malformed drop counter = %d, want %d", after, before+1)
 			}
 		})

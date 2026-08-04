@@ -30,12 +30,9 @@ These metrics are used to monitor the health of the system and the performance o
 | app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` (5G PDU sessions, 4G EPS sessions) and `result`. | Counter |
 | app_ip_addresses_allocated_total | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses_total | The total number of IP addresses available for subscribers. | Gauge |
-| app_xdp_action_total | The total number of packets, with labels for the interface (n3, n6), and action taken. | Counter |
-| app_xdp_fib_lookup_total | FIB lookup outcomes in the XDP data plane, with labels for interface (n3, n6) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
-| app_xdp_ifindex_mismatch_total | Packets dropped because the FIB-resolved interface did not match the expected N3/N6 interface, with label for interface (n3, n6). | Counter |
-| app_xdp_source_spoof_drop_total | Uplink packets dropped because the inner source address was not one of the session's authorized UE or framed addresses, with label for address family (ipv4, ipv6). | Counter |
-| app_xdp_nat_unsolicited_drop_total | Downlink packets dropped because NAT is enabled and the UE destination address had no conntrack translation, with label for address family (ipv4). | Counter |
-| app_xdp_nat_drop_total | Packets dropped by the NAT engine, with label for reason (fragment, port_exhausted, unsupported_proto, malformed). | Counter |
+| app_upf_datapath_forward_total | Packets the data plane forwarded, with labels for direction (uplink, downlink) and the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in `xdp-native`, `xdp-generic` and `tcx`. | Counter |
+| app_upf_datapath_drop_total | Packets the data plane did not forward, with labels for direction (uplink, downlink) and reason. | Counter |
+| app_upf_datapath_fib_lookup_total | FIB lookup outcomes in the data plane, with labels for direction (uplink, downlink) and result matching kernel return codes (success, no_neigh, blackhole, unreachable, prohibit, no_src_addr, frag_needed, not_fwded, fwd_disabled, unsupp_lwt), plus error_ipv4 and error_ipv6 for a lookup the kernel rejected. | Counter |
 | app_uplink_bytes | The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. | Counter |
 | app_downlink_bytes | The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header. | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
@@ -108,9 +105,9 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 
 | Alert | Severity | Condition |
 |-------|----------|-----------|
-| High XDP Packet Drop Rate | Warning | More than 10 packets/s dropped by XDP for 5 minutes |
+| High Data Plane Packet Drop Rate | Warning | More than 10 packets/s dropped by the data plane for 5 minutes |
 | No Data Plane Traffic | Critical | Radios connected but zero throughput for 10 minutes |
-| XDP Aborted Actions | Critical | Any XDP_ABORTED events for 2 minutes (indicates eBPF program errors) |
+| Data Plane Aborted Actions | Critical | Any aborted actions for 2 minutes (indicates eBPF program errors) |
 
 ### API Health
 

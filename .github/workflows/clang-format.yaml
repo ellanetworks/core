@@ -20,4 +20,4 @@ jobs:
       - name: Check code formatting
         run: |
           cd internal/upf/ebpf
-          find xdp -name "*.[ch]" | xargs clang-format --dry-run --verbose
+          find bpf -name "*.[ch]" | xargs clang-format --dry-run --verbose

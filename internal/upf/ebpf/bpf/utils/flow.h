@@ -3,12 +3,12 @@
 
 #pragma once
 
-#include "xdp/utils/ip_addr.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/ip_addr.h"
+#include "bpf/utils/packet_context.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-#include "xdp/utils/nat.h"
+#include "bpf/utils/nat.h"
 #include <linux/icmp.h>
 #include <linux/in.h>
 #include <sys/cdefs.h>
@@ -66,7 +66,7 @@ static __always_inline void account_flow(struct packet_context *ctx,
 		return;
 
 	struct flow f = {};
-	f.ingress_ifindex = ctx->xdp_ctx->ingress_ifindex;
+	f.ingress_ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
 	f.egress_ifindex = egress_ifindex;
 	f.imsi = imsi;
 	f.action = action;
@@ -136,7 +136,7 @@ static __always_inline void account_flow(struct packet_context *ctx,
 	}
 
 	__u64 ts = bpf_ktime_get_ns();
-	__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	__u64 packet_size = ctx_full_len(ctx->ctx_buff);
 
 	struct flow_stats *flow_entry = bpf_map_lookup_elem(&flow_stats, &f);
 	if (flow_entry) {

@@ -5,9 +5,9 @@
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
-#include "xdp/utils/pdr.h"
-#include "xdp/utils/trace.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/pdr.h"
+#include "bpf/utils/trace.h"
+#include "bpf/utils/packet_context.h"
 
 /* Up to two URRs (uplink, downlink) per session. */
 #define URR_MAP_SIZE (2 * MAX_PDU_SESSIONS)
@@ -42,6 +42,6 @@ static __always_inline void update_urr_bytes(struct packet_context *ctx,
 		upf_printk("upf: no URR found for urr_id:%d", urr_id);
 		return;
 	}
-	__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+	__u64 packet_size = ctx_full_len(ctx->ctx_buff);
 	__sync_fetch_and_add(byte_count, packet_size);
 }

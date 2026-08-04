@@ -39,6 +39,7 @@ type HandlerConfig struct {
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
 	LMF                 *lmf.LMF
+	DatapathAttachMode  func() string
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -65,7 +66,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		ready.Store(true)
 	}
 
-	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, cfg.DatapathAttachMode).ServeHTTP)
 
 	// OpenAPI Specification (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
@@ -309,7 +310,8 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 		ready.Store(true)
 	}
 
-	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready).ServeHTTP)
+	// The datapath is not attached during discovery, so the mode is absent.
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, nil).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 

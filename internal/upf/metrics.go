@@ -32,91 +32,55 @@ func RegisterMetrics() {
 		return float64(ebpf.GetN6DownlinkThroughputStats(bpfObjects))
 	})
 
-	// XDP action metrics with labels for interface and action
-	xdpActionDesc := prometheus.NewDesc(
-		"app_xdp_action_total",
-		"XDP action per packet.",
-		[]string{"interface", "action"},
+	// Every frame is counted exactly once across the two families:
+	// forwarded, by action, or dropped, by reason.
+	datapathForwardDesc := prometheus.NewDesc(
+		"app_upf_datapath_forward_total",
+		"Packets the data plane forwarded, by direction and by the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in every attach mode.",
+		[]string{"direction", "action"},
 		nil,
 	)
 
-	// FIB lookup result metrics with labels for interface and result
-	xdpFibLookupDesc := prometheus.NewDesc(
-		"app_xdp_fib_lookup_total",
-		"FIB lookup outcomes in the XDP data plane.",
-		[]string{"interface", "result"},
+	datapathDropDesc := prometheus.NewDesc(
+		"app_upf_datapath_drop_total",
+		`Packets the data plane did not forward, by direction and reason. Reasons prefixed internal_ are datapath failures and should stay at zero; reason="unspecified" means a drop site recorded no cause, which is a bug.`,
+		[]string{"direction", "reason"},
 		nil,
 	)
 
-	// Ifindex mismatch metrics with label for interface
-	xdpIfindexMismatchDesc := prometheus.NewDesc(
-		"app_xdp_ifindex_mismatch_total",
-		"Packets dropped because the FIB-resolved interface did not match the expected N3/N6 interface.",
-		[]string{"interface"},
-		nil,
-	)
-
-	// Source-spoofing drops (uplink/N3 only) with label for address family
-	xdpSourceSpoofDropDesc := prometheus.NewDesc(
-		"app_xdp_source_spoof_drop_total",
-		"Uplink packets dropped because the inner source address was not one of the session's authorized UE or framed addresses.",
-		[]string{"family"},
-		nil,
-	)
-
-	xdpNatUnsolicitedDropDesc := prometheus.NewDesc(
-		"app_xdp_nat_unsolicited_drop_total",
-		"Downlink packets dropped because NAT is enabled and the UE destination address had no conntrack translation.",
-		[]string{"family"},
-		nil,
-	)
-
-	xdpNatDropDesc := prometheus.NewDesc(
-		"app_xdp_nat_drop_total",
-		"Packets dropped by the NAT engine, by reason (fragment, port_exhausted, unsupported_proto, malformed).",
-		[]string{"reason"},
+	// The full distribution, including outcomes that are not drops.
+	datapathFibLookupDesc := prometheus.NewDesc(
+		"app_upf_datapath_fib_lookup_total",
+		"FIB lookup outcomes in the data plane.",
+		[]string{"direction", "result"},
 		nil,
 	)
 
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
-	// Register XDP action collector that produces metrics with labels
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Pass(bpfObjects)), "n3", "XDP_PASS")
+		for dir, counters := range ebpf.GetDatapathCounters(bpfObjects) {
+			for _, a := range []struct {
+				label string
+				index int
+			}{
+				{"pass", ebpf.ActionPass},
+				{"tx", ebpf.ActionTx},
+				{"redirect", ebpf.ActionRedirect},
+			} {
+				ch <- prometheus.MustNewConstMetric(datapathForwardDesc,
+					prometheus.CounterValue, float64(counters.Forwarded[a.index]),
+					string(dir), a.label)
+			}
 
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Drop(bpfObjects)), "n3", "XDP_DROP")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Tx(bpfObjects)), "n3", "XDP_TX")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Aborted(bpfObjects)), "n3", "XDP_ABORTED")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN3Redirect(bpfObjects)), "n3", "XDP_REDIRECT")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Pass(bpfObjects)), "n6", "XDP_PASS")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Drop(bpfObjects)), "n6", "XDP_DROP")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Tx(bpfObjects)), "n6", "XDP_TX")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Aborted(bpfObjects)), "n6", "XDP_ABORTED")
-
-		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Redirect(bpfObjects)), "n6", "XDP_REDIRECT")
-
-		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv4(bpfObjects)), "ipv4")
-
-		ch <- prometheus.MustNewConstMetric(xdpSourceSpoofDropDesc, prometheus.CounterValue, float64(ebpf.GetN3SourceSpoofDropIPv6(bpfObjects)), "ipv6")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatUnsolicitedDropDesc, prometheus.CounterValue, float64(ebpf.GetN6NatUnsolicitedDropIPv4(bpfObjects)), "ipv4")
-
-		natDrops := ebpf.GetNatDrops(bpfObjects)
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Fragment), "fragment")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.PortExhausted), "port_exhausted")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.UnsupportedProto), "unsupported_proto")
-
-		ch <- prometheus.MustNewConstMetric(xdpNatDropDesc, prometheus.CounterValue, float64(natDrops.Malformed), "malformed")
+			// Publish every reason, including those at zero: an absent
+			// series cannot be told apart from one never instrumented.
+			for reason, name := range ebpf.DropReasonNames() {
+				ch <- prometheus.MustNewConstMetric(datapathDropDesc,
+					prometheus.CounterValue, float64(counters.Dropped[reason]),
+					string(dir), name)
+			}
+		}
 	}))
 
 	// Register FIB lookup result and ifindex mismatch collector
@@ -125,37 +89,35 @@ func RegisterMetrics() {
 		n6 := ebpf.GetN6RouteStats(bpfObjects)
 
 		for _, entry := range []struct {
-			iface string
-			stats ebpf.RouteStats
+			direction string
+			stats     ebpf.RouteStats
 		}{
-			{"n3", n3},
-			{"n6", n6},
+			{"uplink", n3},
+			{"downlink", n6},
 		} {
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.iface, "success")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.direction, "success")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.iface, "no_neigh")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.direction, "no_neigh")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.iface, "blackhole")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.direction, "blackhole")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.iface, "unreachable")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.direction, "unreachable")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.iface, "prohibit")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.direction, "prohibit")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.iface, "no_src_addr")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.direction, "no_src_addr")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.iface, "frag_needed")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.direction, "frag_needed")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.iface, "not_fwded")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.direction, "not_fwded")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.iface, "fwd_disabled")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.direction, "fwd_disabled")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.iface, "unsupp_lwt")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.direction, "unsupp_lwt")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.iface, "error_ipv4")
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError4), entry.direction, "error_ipv4")
 
-			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.iface, "error_ipv6")
-
-			ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(entry.stats.IfindexMismatch), entry.iface)
+			ch <- prometheus.MustNewConstMetric(datapathFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibError6), entry.direction, "error_ipv6")
 		}
 	}))
 
@@ -166,40 +128,40 @@ func RegisterMetrics() {
 	// metrics simply do not appear in the scrape output.
 	profilingNsDesc := prometheus.NewDesc(
 		"app_upf_pipeline_latency_nanoseconds_total",
-		"Total accumulated nanoseconds spent in each XDP UPF pipeline stage. Only present when compiled with -DENABLE_PROFILING.",
-		[]string{"interface", "stage"},
+		"Total accumulated nanoseconds spent in each pipeline stage. Only present when compiled with -DENABLE_PROFILING.",
+		[]string{"direction", "stage"},
 		nil,
 	)
 	profilingCallsDesc := prometheus.NewDesc(
 		"app_upf_pipeline_latency_calls_total",
-		"Total number of times each XDP UPF pipeline stage was measured. Only present when compiled with -DENABLE_PROFILING.",
-		[]string{"interface", "stage"},
+		"Total number of times each pipeline stage was measured. Only present when compiled with -DENABLE_PROFILING.",
+		[]string{"direction", "stage"},
 		nil,
 	)
 
 	type profilingStageInfo struct {
-		iface string
-		stage string
+		direction string
+		stage     string
 	}
 
 	// Index order must match the profile_index enum in profiling.h.
 	profilingStages := [ebpf.ProfNumEntries]profilingStageInfo{
-		ebpf.ProfN3Total:        {"n3", "total"},
-		ebpf.ProfN6Total:        {"n6", "total"},
-		ebpf.ProfN3PdrLookup:    {"n3", "pdr_lookup"},
-		ebpf.ProfN6PdrLookup:    {"n6", "pdr_lookup"},
-		ebpf.ProfN3MtuCheck:     {"n3", "mtu_check"},
-		ebpf.ProfN6MtuCheck:     {"n6", "mtu_check"},
-		ebpf.ProfN3QerRatelimit: {"n3", "qer_ratelimit"},
-		ebpf.ProfN6QerRatelimit: {"n6", "qer_ratelimit"},
-		ebpf.ProfN3GtpManip:     {"n3", "gtp_manip"},
-		ebpf.ProfN6GtpManip:     {"n6", "gtp_manip"},
-		ebpf.ProfN3SdfFilter:    {"n3", "sdf_filter"},
-		ebpf.ProfN6SdfFilter:    {"n6", "sdf_filter"},
-		ebpf.ProfN3Nat:          {"n3", "nat"},
-		ebpf.ProfN6Nat:          {"n6", "nat"},
-		ebpf.ProfN3FibRouting:   {"n3", "fib_routing"},
-		ebpf.ProfN6FibRouting:   {"n6", "fib_routing"},
+		ebpf.ProfN3Total:        {"uplink", "total"},
+		ebpf.ProfN6Total:        {"downlink", "total"},
+		ebpf.ProfN3PdrLookup:    {"uplink", "pdr_lookup"},
+		ebpf.ProfN6PdrLookup:    {"downlink", "pdr_lookup"},
+		ebpf.ProfN3MtuCheck:     {"uplink", "mtu_check"},
+		ebpf.ProfN6MtuCheck:     {"downlink", "mtu_check"},
+		ebpf.ProfN3QerRatelimit: {"uplink", "qer_ratelimit"},
+		ebpf.ProfN6QerRatelimit: {"downlink", "qer_ratelimit"},
+		ebpf.ProfN3GtpManip:     {"uplink", "gtp_manip"},
+		ebpf.ProfN6GtpManip:     {"downlink", "gtp_manip"},
+		ebpf.ProfN3SdfFilter:    {"uplink", "sdf_filter"},
+		ebpf.ProfN6SdfFilter:    {"downlink", "sdf_filter"},
+		ebpf.ProfN3Nat:          {"uplink", "nat"},
+		ebpf.ProfN6Nat:          {"downlink", "nat"},
+		ebpf.ProfN3FibRouting:   {"uplink", "fib_routing"},
+		ebpf.ProfN6FibRouting:   {"downlink", "fib_routing"},
 	}
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
@@ -210,9 +172,9 @@ func RegisterMetrics() {
 
 		for i, entry := range stats {
 			info := profilingStages[i]
-			ch <- prometheus.MustNewConstMetric(profilingNsDesc, prometheus.CounterValue, float64(entry.TotalNs), info.iface, info.stage)
+			ch <- prometheus.MustNewConstMetric(profilingNsDesc, prometheus.CounterValue, float64(entry.TotalNs), info.direction, info.stage)
 
-			ch <- prometheus.MustNewConstMetric(profilingCallsDesc, prometheus.CounterValue, float64(entry.Count), info.iface, info.stage)
+			ch <- prometheus.MustNewConstMetric(profilingCallsDesc, prometheus.CounterValue, float64(entry.Count), info.direction, info.stage)
 		}
 	}))
 }

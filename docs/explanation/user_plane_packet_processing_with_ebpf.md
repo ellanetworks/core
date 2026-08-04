@@ -4,17 +4,19 @@ description: Data Plane Packet Processing with eBPF explanation - Definitions, c
 
 # Data Plane Packet processing with eBPF
 
-This document explains the key concepts behind packet Ella Core's packet processing. It covers the components, workflow, and technologies used in the data plane. We refer to the data plane as the part of Ella Core that processes subscriber data packets.
+This document explains the key concepts behind packet Ella Core's subscriber data packet processing, between the **N3 / S1-U** and **N6 / SGi** interfaces. It covers the components, workflow, and technologies used in the data plane.
 
-## eBPF and XDP
+## eBPF, XDP, and TCX
 
 [eBPF](https://ebpf.io/) is a technology that allows custom programs to run in the Linux kernel. eBPF is used in various networking, security, and performance monitoring applications.
 
-[XDP](https://www.iovisor.org/technology/xdp) provides a framework for eBPF that enables high-performance programmable packet processing in the Linux kernel.
+[XDP](https://www.iovisor.org/technology/xdp) provides a framework for eBPF that enables high-performance programmable packet processing in the Linux kernel. XDP runs in the network driver, before the kernel builds a socket buffer for the packet.
+
+TCX is a second attach point, added in kernel 6.6. It runs later, on the socket buffer, and is available on every interface regardless of driver support.
 
 ## Data Plane Packet processing in Ella Core
 
-Ella Core's data plane uses XDP to achieve high throughput and low latency. Key features include:
+Ella Core's data plane uses eBPF to achieve high throughput and low latency. Key features include:
 
 - **Policy rules enforcement**: Evaluating ordered per-policy uplink and downlink rules to allow or deny traffic based on remote prefix, protocol, and port range.
 - **Encapsulation and decapsulation**: Managing GTP-U (GPRS Tunneling Protocol-User Plane) headers for data transmission.
@@ -22,8 +24,6 @@ Ella Core's data plane uses XDP to achieve high throughput and low latency. Key 
 - **Flow reporting**: Recording per-flow traffic details including source, destination, protocol, port, and whether the flow was allowed or dropped.
 - **Usage reporting**: Aggregating per-subscriber byte counts for data usage tracking.
 - **Statistics collection**: Monitoring metrics such as packet counts, drops, and processing times.
-
-Data plane processing in Ella Core occurs between the **N3 / S1-U** and **N6 / SGi** interfaces.
 
 <figure markdown="span">
   ![eBPF Ella Core](../images/ebpf.svg){ width="800" }
@@ -36,36 +36,41 @@ Ella Core currently relies on the kernel to make routing decisions for incoming 
 
 ### NAT
 
-Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. Inbound traffic is only delivered to a subscriber when it belongs to a connection the subscriber initiated; packets addressed directly to a subscriber's IP address are dropped and counted in the `app_xdp_nat_unsolicited_drop_total` metric. To reach subscribers from the data network, disable NAT and route the UE pool instead. NAT is IPv4-only and does not apply to IPv6 traffic. Enabling NAT adds processing overhead, and traffic it cannot translate is dropped and counted in `app_xdp_nat_drop_total`: IP fragments, and protocols without ports (for example ESP, GRE and SCTP). Some niche protocols won't work either (e.g., FTP active mode). Source ports are allocated from 1024-32767. You can enable NAT in Ella Core by navigating to the `Networking` page in the UI and enabling the `NAT` option or by using the [Networking API](../reference/api/networking.md).
+Network Address Translation (NAT) lets subscribers use private addresses without an external router: uplink traffic leaves N6 sourced from Ella Core's own address, and the return traffic is translated back. The trade-off is reachability. A subscriber is reachable only through a flow it started itself, and traffic that cannot be translated is dropped rather than forwarded. To reach subscribers from the data network, turn NAT off and route the UE pool instead.
+
+See [Connectivity](../reference/connectivity.md#nat) for what NAT translates and what it drops.
 
 ### Performance
 
 Detailed performance results are available [here](../reference/performance.md).
 
-### Configuration
+### Attach modes
 
-Ella Core supports the following XDP attach modes:
+The data plane can attach at either of two kernel hooks, and the choice decides
+how much of the kernel's own processing has already happened when it sees a
+packet.
 
-- **Native**: The production-grade option. It offers the highest performance but is only supported on [compatible drivers](https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md#xdp).
-- **Generic**: A driver-independent fallback intended for prototyping and test/development only. It has lower performance and can be less reliable (see [Checksum offload on veth pairs](#checksum-offload-on-veth-pairs)). Do not use it in production.
+- **xdp-native** runs in the network driver, before the kernel builds a socket buffer. Nothing has been merged, offloaded or annotated yet, so the data plane sees exactly what arrived on the wire. That is why it is the fastest option, and why it needs a driver that supports the hook.
 
-For more information on configuring XDP attach modes, refer to the [Configuration File](../reference/config_file.md) documentation.
+- **tcx** runs on the socket buffer, after the kernel's receive path. It is available on every interface, including the veth pairs used in containers and [co-hosted deployments](../how_to/co_host_with_ocudu.md), which is what makes it the option that always works.
 
-### XDP redirect on veth pairs
+- **xdp-generic** presents the XDP interface but runs late in the receive path, like TCX. It should only be used for testing and prototyping.
 
-When Ella Core's N3 interface is a veth pair (e.g. in [co-hosted deployments](../how_to/co_host_with_ocudu.md)), the XDP data plane uses `bpf_redirect()` to forward downlink packets from N6 to N3. In **native XDP mode**, this requires an XDP program on **both sides** of the veth pair.
+### Merged packets
 
-Without an XDP program on the receiving peer, the veth driver will not deliver redirected frames through the native path and the frames will be dropped.
+Both hooks that run on the socket buffer can be handed one holding several packets merged together — merged by the kernel's receive path, or handed over already merged by a veth or virtio peer that offloads segmentation. Neither encapsulation nor decapsulation can produce valid GTP-U from that. Encapsulation writes one tunnel header for the whole buffer, and when the kernel splits it back into wire-sized packets it copies that header onto each one unchanged: every packet then claims the merged buffer's GTP-U payload length rather than its own, and with an IPv6 outer header its checksum as well. Decapsulation strips only the first packet's outer headers and leaves the rest in the payload.
 
-The solution is to attach a minimal XDP program that returns `XDP_PASS` to the peer veth. This satisfies the kernel's requirement and keeps packets on the fast native XDP path. See [Use native XDP with veth interfaces](../how_to/native_xdp_veth.md) for setup instructions.
+TCX can see that the buffer is merged and drops it. Generic XDP cannot: a merged buffer over the MTU is answered with a spurious ICMP "fragmentation needed" and its payload is destroyed, and one under the MTU leaves as the malformed GTP-U above. Either way the remedy is to [disable merged packets](../how_to/disable_merged_packets.md) on N3 and N6.
 
 ### Checksum offload on veth pairs
 
-When an application transmits over a veth interface, the kernel defers computing the transport checksum: the packet carries `CHECKSUM_PARTIAL` metadata recording where the egress NIC should write the checksum later. GTP-U traffic sent by a co-hosted radio therefore reaches Ella Core's N3 interface with an incomplete outer UDP checksum.
+An application transmitting over a veth leaves the transport checksum for the egress NIC to complete, recording where to write it in the packet's metadata. In `xdp-generic` mode the kernel does not update that metadata when the data plane removes the GTP-U header, so the checksum is later written at the stale offset, corrupting the decapsulated packet at a position that depends on the header removed. Nothing detects it: neither the data plane counters nor a capture on the host. Disabling TX checksum offload on both ends of the pair (`ethtool -K <veth> tx off`) forces the checksum to be completed before the packet reaches the data plane.
 
-In **generic XDP mode**, the kernel does not update this metadata when the data plane removes the GTP-U header. The egress path then completes the checksum at the stale offset, corrupting the decapsulated frame at a position that depends on the removed header length. The failure is invisible to the XDP counters and to packet captures on the host.
+`xdp-native` forwards redirected frames as raw packets, which carry no such metadata. TCX drops the request when it removes the header, because the kernel invalidates it once the checksum's start offset falls outside the packet — that covers decapsulation only, not a frame the data plane encapsulates.
 
-The remedy is to disable TX checksum offload on both ends of the veth pair (`ethtool -K <veth> tx off`), forcing checksums to be completed in software before packets reach the data plane. Native XDP mode is not affected: redirected frames are forwarded as raw packets and carry no checksum-offload metadata.
+### XDP redirect on veth pairs
+
+When Ella Core's N3 interface is a veth pair, the data plane forwards downlink packets from N6 to N3 with `bpf_redirect()`. In `xdp-native` mode the veth driver delivers redirected frames through the native path only when the receiving peer also has an XDP program attached; without one, the frames are dropped. Attaching a minimal `XDP_PASS` program to the peer satisfies that requirement — see [Use native XDP with veth interfaces](../how_to/native_xdp_veth.md).
 
 ### IPv6 GTP-U transport
 

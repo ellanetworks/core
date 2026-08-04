@@ -8,8 +8,8 @@ package ebpf
 import "testing"
 
 // TestMalformedL3FailsClosed checks that malformed or truncated L3 headers do
-// not abort the data path: each is passed to the kernel (XDP_PASS) rather than
-// returning XDP_ABORTED.
+// not abort the data path: each is passed to the kernel (ActionPass) rather than
+// returning ActionAborted.
 func TestMalformedL3FailsClosed(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -26,8 +26,8 @@ func TestMalformedL3FailsClosed(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if action := runXDP(t, obj.UpfEntryFunc, tc.packet); action != XDP_PASS {
-				t.Fatalf("got XDP action %d, want XDP_PASS (fail closed to kernel)", action)
+			if action := runXDP(t, obj.UpfEntryFunc, tc.packet); action != ActionPass {
+				t.Fatalf("got XDP action %d, want ActionPass (fail closed to kernel)", action)
 			}
 		})
 	}

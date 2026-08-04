@@ -43,11 +43,11 @@ func TestUplinkSourceOwnIPv4Accepted(t *testing.T) {
 
 	action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action == XDP_DROP {
+	if action == ActionDrop {
 		t.Fatal("UE-own IPv4 source was dropped")
 	}
 
-	if got := GetN3SourceSpoofDropIPv4(obj); got != 0 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv4"); got != 0 {
 		t.Errorf("source_spoof_drop_ip4 = %d, want 0", got)
 	}
 }
@@ -67,11 +67,11 @@ func TestUplinkSourceSpoofedIPv4Dropped(t *testing.T) {
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action != XDP_DROP {
-		t.Fatalf("spoofed IPv4 source got action %d, want XDP_DROP (%d)", action, XDP_DROP)
+	if action != ActionDrop {
+		t.Fatalf("spoofed IPv4 source got action %d, want ActionDrop (%d)", action, ActionDrop)
 	}
 
-	if got := GetN3SourceSpoofDropIPv4(obj); got != 1 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv4"); got != 1 {
 		t.Errorf("source_spoof_drop_ip4 = %d, want 1", got)
 	}
 }
@@ -92,11 +92,11 @@ func TestUplinkSourceOwnIPv6DifferentIIDAccepted(t *testing.T) {
 
 	action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action == XDP_DROP {
+	if action == ActionDrop {
 		t.Fatal("UE-own IPv6 /64 source (different IID) was dropped")
 	}
 
-	if got := GetN3SourceSpoofDropIPv6(obj); got != 0 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv6"); got != 0 {
 		t.Errorf("source_spoof_drop_ip6 = %d, want 0", got)
 	}
 }
@@ -116,11 +116,11 @@ func TestUplinkSourceSpoofedIPv6Dropped(t *testing.T) {
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action != XDP_DROP {
-		t.Fatalf("spoofed IPv6 source got action %d, want XDP_DROP (%d)", action, XDP_DROP)
+	if action != ActionDrop {
+		t.Fatalf("spoofed IPv6 source got action %d, want ActionDrop (%d)", action, ActionDrop)
 	}
 
-	if got := GetN3SourceSpoofDropIPv6(obj); got != 1 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv6"); got != 1 {
 		t.Errorf("source_spoof_drop_ip6 = %d, want 1", got)
 	}
 }
@@ -145,11 +145,11 @@ func TestUplinkSourceFramedAccepted(t *testing.T) {
 
 	action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action == XDP_DROP {
+	if action == ActionDrop {
 		t.Fatal("framed-subnet source was dropped")
 	}
 
-	if got := GetN3SourceSpoofDropIPv4(obj); got != 0 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv4"); got != 0 {
 		t.Errorf("source_spoof_drop_ip4 = %d, want 0", got)
 	}
 }
@@ -174,11 +174,11 @@ func TestUplinkSourceFramedIPv6Accepted(t *testing.T) {
 
 	action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action == XDP_DROP {
+	if action == ActionDrop {
 		t.Fatal("IPv6 framed-subnet source was dropped")
 	}
 
-	if got := GetN3SourceSpoofDropIPv6(obj); got != 0 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv6"); got != 0 {
 		t.Errorf("source_spoof_drop_ip6 = %d, want 0", got)
 	}
 }
@@ -204,11 +204,11 @@ func TestUplinkSourceFramedRejectedOtherSession(t *testing.T) {
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action != XDP_DROP {
-		t.Fatalf("framed prefix owned by another session got action %d, want XDP_DROP (%d)", action, XDP_DROP)
+	if action != ActionDrop {
+		t.Fatalf("framed prefix owned by another session got action %d, want ActionDrop (%d)", action, ActionDrop)
 	}
 
-	if got := GetN3SourceSpoofDropIPv4(obj); got != 1 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv4"); got != 1 {
 		t.Errorf("source_spoof_drop_ip4 = %d, want 1", got)
 	}
 }
@@ -228,11 +228,11 @@ func TestUplinkSourceLinkLocalDropped(t *testing.T) {
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action != XDP_DROP {
-		t.Fatalf("link-local IPv6 source got action %d, want XDP_DROP (%d)", action, XDP_DROP)
+	if action != ActionDrop {
+		t.Fatalf("link-local IPv6 source got action %d, want ActionDrop (%d)", action, ActionDrop)
 	}
 
-	if got := GetN3SourceSpoofDropIPv6(obj); got != 1 {
+	if got := DropCount(obj, Uplink, "source_spoof_ipv6"); got != 1 {
 		t.Errorf("source_spoof_drop_ip6 = %d, want 1", got)
 	}
 }
@@ -251,11 +251,11 @@ func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 		src := netip.MustParseAddr("2001:db8::9").As16()
 		inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
 
-		if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != XDP_DROP {
-			t.Fatalf("IPv6 uplink on IPv4-only session got action %d, want XDP_DROP", action)
+		if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != ActionDrop {
+			t.Fatalf("IPv6 uplink on IPv4-only session got action %d, want ActionDrop", action)
 		}
 
-		if got := GetN3SourceSpoofDropIPv6(obj); got != 1 {
+		if got := DropCount(obj, Uplink, "source_spoof_ipv6"); got != 1 {
 			t.Errorf("source_spoof_drop_ip6 = %d, want 1", got)
 		}
 	})
@@ -268,11 +268,11 @@ func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 
 		inner := ipv4Packet(canonicalUEv4.As4(), [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 
-		if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != XDP_DROP {
-			t.Fatalf("IPv4 uplink on IPv6-only session got action %d, want XDP_DROP", action)
+		if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != ActionDrop {
+			t.Fatalf("IPv4 uplink on IPv6-only session got action %d, want ActionDrop", action)
 		}
 
-		if got := GetN3SourceSpoofDropIPv4(obj); got != 1 {
+		if got := DropCount(obj, Uplink, "source_spoof_ipv4"); got != 1 {
 			t.Errorf("source_spoof_drop_ip4 = %d, want 1", got)
 		}
 	})
@@ -291,8 +291,8 @@ func TestUplinkSpoofDropNoFlowEntry(t *testing.T) {
 
 	inner := ipv4Packet([4]byte{10, 0, 0, 99}, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 
-	if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != XDP_DROP {
-		t.Fatalf("spoofed packet got action %d, want XDP_DROP", action)
+	if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != ActionDrop {
+		t.Fatalf("spoofed packet got action %d, want ActionDrop", action)
 	}
 
 	var (

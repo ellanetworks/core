@@ -21,7 +21,9 @@
 
 #pragma once
 
-#include "xdp/utils/trace.h"
+#include "bpf/ctx/ctx.h"
+#include "bpf/utils/common.h"
+#include "bpf/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
 #include <linux/icmp.h>
@@ -109,7 +111,7 @@ static __always_inline void recompute_ipv4_csum(struct iphdr *ip)
 	for (int i = 0; i < (int)sizeof(*ip) >> 1; i++) {
 		csum += *word++;
 	}
-	ip->check = ~((csum & 0xffff) + (csum >> 16));
+	ip->check = csum_fold_helper(csum);
 }
 
 static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
@@ -120,7 +122,7 @@ static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
 	for (int i = 0; i < len >> 1; i++) {
 		csum += *word++;
 	}
-	icmp->checksum = ~((csum & 0xffff) + (csum >> 16));
+	icmp->checksum = csum_fold_helper(csum);
 }
 
 /*
@@ -128,7 +130,7 @@ static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
  *
  * bpf_csum_diff() cannot operate on packet memory with a variable length
  * (the BPF verifier rejects the access).  We work around this by first
- * copying the UDP datagram into this per-CPU map with bpf_xdp_load_bytes(),
+ * copying the UDP datagram into this per-CPU map with ctx_load_bytes(),
  * then running bpf_csum_diff() on the map value.  Both helpers are O(1)
  * in verified instructions, so this approach keeps the verifier cost
  * minimal regardless of packet size.
@@ -245,12 +247,204 @@ static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 	return csum_fold_helper((__u64)c.sum);
 }
 
+/* A valid L4 region — header, payload and its own check field — sums to
+ * ~pseudo_header: with F = ~fold(pseudo + S), the region sums to S + F. That
+ * is true of the bytes on the wire whether the sender wrote F or the kernel
+ * completes it at egress, so an outer checksum built by substituting
+ * ~pseudo_inner for the whole inner L4 region needs no access to ip_summed,
+ * which BPF cannot read. */
+
+/* In the order the checksum covers it. */
+struct ip4_pseudo {
+	__be32 saddr;
+	__be32 daddr;
+	__u8 zero;
+	__u8 proto;
+	__be16 l4_len;
+};
+
+struct ip6_pseudo {
+	struct in6_addr src;
+	struct in6_addr dst;
+	__be32 upper_len;
+	__u8 zero[3];
+	__u8 next_hdr;
+};
+
+/* SCTP carries a CRC32c rather than a ones-complement checksum, so the
+ * identity does not hold for it. */
+static __always_inline int inner_l4_is_summable(__u8 proto)
+{
+	return proto == IPPROTO_TCP || proto == IPPROTO_UDP ||
+	       proto == IPPROTO_ICMPV6;
+}
+
+/* ~pseudo_inner for an inner IPv4 packet, or -1 when the identity does not
+ * apply: a fragment has no L4 header of its own, and UDP with a zero checksum
+ * has nothing to substitute. Both are always CHECKSUM_NONE, so the caller's
+ * byte sum is correct for them. */
+static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
+					      const struct iphdr *ip4,
+					      const void *data_end)
+{
+	if ((const void *)(ip4 + 1) > data_end)
+		return -1;
+
+	if (ip4->ihl != 5 || (ip4->frag_off & bpf_htons(0x3fff)) != 0)
+		return -1;
+
+	if (!inner_l4_is_summable(ip4->protocol))
+		return -1;
+
+	__u32 tot_len = bounded_u16(bpf_ntohs(ip4->tot_len));
+	if (tot_len < sizeof(struct iphdr))
+		return -1;
+
+	/* The declared length has to be backed by real bytes. The outer
+	 * headers were sized from it, so a shorter frame is already
+	 * self-inconsistent; falling back to the byte sum turns that into a
+	 * failed read and a drop. */
+	if (!ctx_frame_holds(ctx, data_end, ip4, tot_len))
+		return -1;
+
+	if (ip4->protocol == IPPROTO_UDP) {
+		const struct udphdr *udp = (const struct udphdr *)(ip4 + 1);
+
+		if ((const void *)(udp + 1) > data_end)
+			return -1;
+
+		if (udp->check == 0)
+			return -1;
+	}
+
+	struct ip4_pseudo pseudo = {
+		.saddr = ip4->saddr,
+		.daddr = ip4->daddr,
+		.zero = 0,
+		.proto = ip4->protocol,
+		.l4_len = bpf_htons((__u16)(tot_len - sizeof(struct iphdr))),
+	};
+
+	return (__s32)csum_fold_helper(
+		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
+}
+
+/* Extension headers are not walked: an inner next-header that is not the L4
+ * protocol falls back. */
+static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
+					      const struct ipv6hdr *ip6,
+					      const void *data_end)
+{
+	if ((const void *)(ip6 + 1) > data_end)
+		return -1;
+
+	if (!inner_l4_is_summable(ip6->nexthdr))
+		return -1;
+
+	__u32 payload_len = bounded_u16(bpf_ntohs(ip6->payload_len));
+
+	/* As in inner_pseudo_ip4. */
+	if (!ctx_frame_holds(ctx, data_end, ip6, sizeof(*ip6) + payload_len))
+		return -1;
+
+	if (ip6->nexthdr == IPPROTO_UDP) {
+		const struct udphdr *udp = (const struct udphdr *)(ip6 + 1);
+
+		if ((const void *)(udp + 1) > data_end)
+			return -1;
+
+		if (udp->check == 0)
+			return -1;
+	}
+
+	struct ip6_pseudo pseudo = {
+		.upper_len = bpf_htonl(payload_len),
+		.zero = { 0, 0, 0 },
+		.next_hdr = ip6->nexthdr,
+	};
+
+	__builtin_memcpy(&pseudo.src, &ip6->saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&pseudo.dst, &ip6->daddr, sizeof(struct in6_addr));
+
+	return (__s32)csum_fold_helper(
+		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
+}
+
+/* Outer UDP-over-IPv6 checksum built from headers only. `tunnel_len` is the
+ * GTP-U header including any extension chain, and must be a compile-time
+ * constant so the bounded read is provable. Returns -1 when the inner packet
+ * does not satisfy the identity, leaving the caller to sum the bytes. */
+static __always_inline int
+udpv6_csum_from_headers(struct __ctx_buff *ctx, const struct in6_addr *saddr,
+			const struct in6_addr *daddr, const struct udphdr *udp,
+			__u32 udp_len, const void *tunnel, __u32 tunnel_len,
+			int inner_is_ip6, const void *data_end)
+{
+	const void *inner = (const void *)((const __u8 *)tunnel + tunnel_len);
+
+	__s32 not_pseudo_inner =
+		inner_is_ip6 ? inner_pseudo_ip6(ctx, inner, data_end) :
+			       inner_pseudo_ip4(ctx, inner, data_end);
+	if (not_pseudo_inner < 0)
+		return -1;
+
+	struct ip6_pseudo pseudo = {
+		.upper_len = bpf_htonl(udp_len),
+		.zero = { 0, 0, 0 },
+		.next_hdr = IPPROTO_UDP,
+	};
+
+	__builtin_memcpy(&pseudo.src, saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&pseudo.dst, daddr, sizeof(struct in6_addr));
+
+	__s64 sum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
+	if (sum < 0)
+		return -1;
+
+	/* udp->check is still zero here; the caller writes the result. */
+	if ((const void *)(udp + 1) > data_end)
+		return -1;
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)udp, sizeof(*udp), (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	if ((const void *)((const __u8 *)tunnel + tunnel_len) > data_end)
+		return -1;
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)tunnel, tunnel_len, (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	__u32 inner_hdr_len = inner_is_ip6 ? sizeof(struct ipv6hdr) :
+					     sizeof(struct iphdr);
+	if (inner + inner_hdr_len > data_end)
+		return -1;
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)inner, inner_hdr_len, (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	/* The inner L4 region, as one 16-bit word. */
+	__be16 substitute[2] = { (__be16)not_pseudo_inner, 0 };
+
+	sum = bpf_csum_diff(0, 0, (__be32 *)substitute, sizeof(substitute),
+			    (__wsum)sum);
+	if (sum < 0)
+		return -1;
+
+	__u16 check = csum_fold_helper((__u64)sum);
+
+	/* RFC 8200: a zero checksum is invalid over IPv6. */
+	return check == 0 ? 0xFFFF : check;
+}
+
 // udpv6_csum computes the full UDP-over-IPv6 checksum from packet bytes via the
 // chunked bpf_loop helper above. The IPv6 UDP checksum is mandatory, so it is
 // computed fresh over the payload during GTP-over-IPv6 encapsulation (gtp.h).
 __attribute__((noinline, used)) static int
 udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
-	   __u32 udp_off, __u32 udp_len, struct xdp_md *xdp_ctx)
+	   __u32 udp_off, __u32 udp_len, struct __ctx_buff *ctx_buff)
 {
 	struct {
 		struct in6_addr src;
@@ -279,7 +473,7 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 
 	// Two-sided conditional-assignment clamp: an early return leaves
 	// the verifier without a tracked bound on the value used later by
-	// bpf_xdp_load_bytes. A malformed-short length is clamped to the
+	// ctx_load_bytes. A malformed-short length is clamped to the
 	// header size rather than rejected — produces a wrong checksum
 	// that the receiver drops, no worse than the malformed packet.
 	if (udp_len > MAX_L4_DATAGRAM)
@@ -289,35 +483,59 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 
 	*(__u32 *)(scratch + udp_len) = 0;
 
-	if (bpf_xdp_load_bytes(xdp_ctx, udp_off, scratch, udp_len) < 0) {
+	if (ctx_load_bytes(ctx_buff, udp_off, scratch, udp_len) < 0) {
 		upf_printk("upf: couldn't load packet into scratch buffer");
 		return -1;
 	}
 
 	__u32 aligned_len = (udp_len + 3) & ~3U;
-	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
+
+	int check = l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
+	if (check < 0)
+		return -1;
+
+	/* RFC 768: a computed zero is transmitted as all ones. Over IPv6 a zero
+	 * checksum is not "no checksum" but invalid, and the receiver drops the
+	 * datagram (RFC 8200). */
+	return check == 0 ? 0xFFFF : check;
 }
+
+/* Bytes of the trigger quoted back in an ICMP error, starting at its IP
+ * header; a compile-time constant because the checksum helpers walk it with an
+ * unrolled loop. Well within RFC 792's 576 bytes and RFC 4443's minimum MTU.
+ *
+ * The size is what clears the floor bpf_skb_change_tail enforces on a
+ * CHECKSUM_PARTIAL skb: __bpf_skb_min_len (net/core/filter.c) refuses a trim
+ * below csum_start + csum_offset + 2, 80 bytes for an IPv4 TCP trigger and 120
+ * for IPv6. At 28 the resize failed and no error was emitted at all.
+ *
+ * The reply still carries the trigger's csum_start, now inside the quote, and
+ * no helper clears CHECKSUM_PARTIAL: bpf_skb_adjust_room resets only
+ * CHECKSUM_UNNECESSARY, bpf_skb_change_tail only CHECKSUM_COMPLETE. An egress
+ * that completes the checksum therefore corrupts the quote. A partial trigger
+ * implies a sender on this host, so the reply is delivered here, where
+ * skb_csum_unnecessary() holds for CHECKSUM_PARTIAL and nothing completes
+ * it. */
+#define ICMP_QUOTE_LEN 128
 
 /*
  * icmpv6_ptb_csum - compute the ICMPv6 checksum for a Packet Too Big message.
  *
  * The ICMPv6 checksum covers an IPv6 pseudo-header (40 bytes) plus the entire
  * ICMPv6 message.  For the Packet Too Big message we include:
- *   icmp6hdr (8) + original ipv6hdr (40) + first 8 bytes of original payload
- * = 56 bytes total ICMPv6 message.
+ *   icmp6hdr (8) + ICMP_QUOTE_LEN bytes of the original packet.
  *
  * @saddr / @daddr: source and destination addresses on the *new* IPv6 header
  *                  (already swapped relative to the original packet).
  * @icmp6: pointer to the ICMPv6 header in packet memory; must be followed by
- *         at least (sizeof(ipv6hdr) + 8) bytes within packet bounds.
+ *         at least ICMP_QUOTE_LEN bytes within packet bounds.
  */
 static __always_inline __u16 icmpv6_ptb_csum(const struct in6_addr *saddr,
 					     const struct in6_addr *daddr,
 					     struct icmp6hdr *icmp6)
 {
-	/* Fixed ICMPv6 message length: 8 + 40 + 8 = 56 bytes */
 	static const __u32 icmp6_msg_len =
-		sizeof(struct icmp6hdr) + sizeof(struct ipv6hdr) + 8;
+		sizeof(struct icmp6hdr) + ICMP_QUOTE_LEN;
 
 	/* Build the IPv6 pseudo-header on the BPF stack (40 bytes) */
 	struct {

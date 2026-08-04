@@ -185,3 +185,21 @@ func TestFarInfoFromMerge_NoUpdate(t *testing.T) {
 		t.Errorf("RemoteIP preserved: got %v, want %v", merged.RemoteIP, existing.RemoteIP)
 	}
 }
+
+func TestFarInfoFromMerge_S1UKeepsNoPSC(t *testing.T) {
+	establishFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
+	establishFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
+
+	existing := farInfoFromModel(establishFAR, localIPv4, localIPv6)
+	if existing.OuterHeaderCreation != 0x11 {
+		t.Fatalf("OuterHeaderCreation after establish: got %#x, want 0x11", existing.OuterHeaderCreation)
+	}
+
+	updateFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 84, "10.0.0.1", "")
+	updateFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
+
+	merged := farInfoFromMerge(updateFAR, localIPv4, localIPv6, existing)
+	if merged.OuterHeaderCreation != 0x11 {
+		t.Errorf("OuterHeaderCreation after modify: got %#x, want 0x11", merged.OuterHeaderCreation)
+	}
+}

@@ -6,8 +6,8 @@
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
-#include "xdp/utils/common.h"
-#include "xdp/utils/packet_context.h"
+#include "bpf/utils/common.h"
+#include "bpf/utils/packet_context.h"
 
 /* Stage programs, populated at load. */
 #define UPF_CALL_UPLINK 0
@@ -22,10 +22,10 @@ struct {
 } upf_calls SEC(".maps");
 
 /* Returns only if the tail call fails, i.e. the stage program is missing. */
-static __always_inline enum xdp_action
+static __always_inline enum ctx_action
 gtpu_control_tail_call(struct packet_context *ctx)
 {
-	bpf_tail_call(ctx->xdp_ctx, &upf_calls, UPF_CALL_GTPU_CONTROL);
+	bpf_tail_call(ctx->ctx_buff, &upf_calls, UPF_CALL_GTPU_CONTROL);
 
-	return DEFAULT_XDP_ACTION;
+	return DEFAULT_CTX_ACTION;
 }

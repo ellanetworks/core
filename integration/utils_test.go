@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -172,9 +173,25 @@ func waitForEllaCoreReady(ctx context.Context, cl *client.Client) error {
 				continue
 			}
 
-			return nil
+			return checkDatapathAttachMode(status.DatapathAttachMode)
 		}
 	}
+}
+
+// A compose file that stopped forwarding ELLA_CORE_ATTACH_MODE would collapse
+// every leg of the matrix onto one mode with all tests still green. Fixtures
+// that pin the mode in their config file leave it unset and are not checked.
+func checkDatapathAttachMode(got string) error {
+	want := os.Getenv("ELLA_CORE_ATTACH_MODE")
+	if want == "" {
+		return nil
+	}
+
+	if got != want {
+		return fmt.Errorf("datapath attached as %q, want %q (ELLA_CORE_ATTACH_MODE)", got, want)
+	}
+
+	return nil
 }
 
 func waitForPatternInContainer(

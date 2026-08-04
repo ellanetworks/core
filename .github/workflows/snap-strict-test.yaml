@@ -7,7 +7,7 @@ on:
   workflow_call:
 
 jobs:
-  snap-strict-test:
+  snap-build:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -16,9 +16,28 @@ jobs:
         uses: snapcore/action-build@3bdaa03e1ba6bf59a65f84a751d943d549a54e79 #v1.3.0
         id: build
 
+      - name: Upload the snap
+        uses: actions/upload-artifact@v7
+        with:
+          name: ella-core-snap
+          path: ${{ steps.build.outputs.snap }}
+
+  snap-install:
+    needs: snap-build
+    strategy:
+      fail-fast: false
+      matrix:
+        attach_mode: [xdp-generic, tcx]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download the snap
+        uses: actions/download-artifact@v8
+        with:
+          name: ella-core-snap
+
       - name: Install the snap under strict confinement
         run: |
-          sudo snap install --dangerous "${{ steps.build.outputs.snap }}"
+          sudo snap install --dangerous ./*.snap
           snap list ella-core
 
       - name: Require strict confinement to be enforced
@@ -50,12 +69,14 @@ jobs:
           for dev in ella-n3 ella-n3-peer ella-n6 ella-n6-peer; do
             sudo ip link set "${dev}" up
           done
+          # The snap ships xdp-native, which cannot attach to a veth, so the
+          # mode is overridden here.
           cfg=/var/snap/ella-core/common/core.yaml
           sudo yq -i '
             .interfaces.n2.address = "10.3.0.2" |
             .interfaces.n3.name = "ella-n3" |
             .interfaces.n6.name = "ella-n6" |
-            .xdp."attach-mode" = "generic" |
+            .datapath."attach-mode" = "${{ matrix.attach_mode }}" |
             .logging.system.level = "debug"
           ' "${cfg}"
 
@@ -77,6 +98,17 @@ jobs:
           status="$(curl -sk --max-time 10 https://127.0.0.1:5002/api/v1/status)"
           echo "status: ${status}"
           echo "${status}" | grep -q '"ready":true'
+
+      - name: Assert the datapath attached at the requested hook
+        run: |
+          status="$(curl -sk --max-time 10 https://127.0.0.1:5002/api/v1/status)"
+          mode="$(echo "${status}" | jq -r '.result.datapathAttachMode // ""')"
+          echo "datapath attach mode: ${mode}"
+          if [ "${mode}" != "${{ matrix.attach_mode }}" ]; then
+            echo "::error::datapath attached as '${mode}', want '${{ matrix.attach_mode }}'"
+            sudo snap logs ella-core.cored -n 200 || true
+            exit 1
+          fi
 
       - name: Dump daemon logs
         if: always()
