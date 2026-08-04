@@ -7,15 +7,25 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceSetupResponse) {
-	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+// HandlePDUSessionResourceSetupResponse hands each session outcome to the SMF
+// (TS 38.413 §8.2.1).
+func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.PDUSessionResourceSetupResponse) {
+	// Both identities are mandatory but ignore criticality, so an absent one
+	// still reaches the handler and leaves nothing to resolve by (§10.3.5).
+	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
+	}
+
+	reportDiagnostics(ctx, ran, ngap.ProcPDUSessionResourceSetup, ngap.TriggeringSuccessfulOutcome, ueAssociated(*msg.AMFUENGAPID, *msg.RANUENGAPID), msg.Diagnostics())
+
+	if msg.UserLocationInformation != nil {
+		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
 	ueConn.TouchLastSeen()
@@ -26,17 +36,12 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf
 		return
 	}
 
-	if len(msg.SetupItems) > 0 {
+	if len(msg.PDUSessionResourceSetup) > 0 {
 		logger.WithTrace(ctx, ueConn.Log).Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
 
-		for _, item := range msg.SetupItems {
-			pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
-			if !ok {
-				logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-				continue
-			}
-
-			transfer := item.PDUSessionResourceSetupResponseTransfer
+		for _, item := range msg.PDUSessionResourceSetup {
+			pduSessionID := uint8(item.PDUSessionID)
+			transfer := []byte(item.Transfer)
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
@@ -51,17 +56,12 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf
 		}
 	}
 
-	if len(msg.FailedToSetupItems) > 0 {
+	if len(msg.PDUSessionResourceFailed) > 0 {
 		logger.WithTrace(ctx, ueConn.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
-		for _, item := range msg.FailedToSetupItems {
-			pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
-			if !ok {
-				logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-				continue
-			}
-
-			transfer := item.PDUSessionResourceSetupUnsuccessfulTransfer
+		for _, item := range msg.PDUSessionResourceFailed {
+			pduSessionID := uint8(item.PDUSessionID)
+			transfer := []byte(item.Transfer)
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {

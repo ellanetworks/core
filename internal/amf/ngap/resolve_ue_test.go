@@ -84,11 +84,9 @@ func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 	legitimateRan, attackerRan, ueConn, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	amfID := int64(10)
-	ranID := int64(1)
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, attackerRan, decode.PDUSessionResourceSetupResponse{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
+	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, attackerRan, &libngap.PDUSessionResourceSetupResponse{
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {
@@ -110,9 +108,9 @@ func TestCrossRadio_PDUSessionResourceModifyResponse(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	amfID := int64(10)
-	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, decode.PDUSessionResourceModifyResponse{
-		AMFUENGAPID: &amfID,
+	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, &libngap.PDUSessionResourceModifyResponse{
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {
@@ -205,11 +203,9 @@ func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.Conn.(*fakeNGAPSender)
 
-	ranID := int64(1)
-	wrongAmfID := int64(999)
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, decode.PDUSessionResourceSetupResponse{
-		RANUENGAPID: &ranID,
-		AMFUENGAPID: &wrongAmfID,
+	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, &libngap.PDUSessionResourceSetupResponse{
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(999)),
 	})
 
 	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
@@ -223,11 +219,9 @@ func TestResolveUE_InconsistentRanUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.Conn.(*fakeNGAPSender)
 
-	amfID := int64(10)
-	wrongRanID := int64(2)
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, decode.PDUSessionResourceSetupResponse{
-		RANUENGAPID: &wrongRanID,
-		AMFUENGAPID: &amfID,
+	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, &libngap.PDUSessionResourceSetupResponse{
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(2)),
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
 	})
 
 	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)

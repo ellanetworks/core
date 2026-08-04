@@ -9,9 +9,9 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -20,8 +20,8 @@ func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, decode.PDUSessionResourceModifyIndication{
-		RANUENGAPID: 99,
+	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID: libngap.RANUENGAPID(99),
 	})
 
 	if len(sender.SentErrorIndications) != 1 {
@@ -45,9 +45,9 @@ func TestPDUSessionResourceModifyIndication_UnknownAmfUeNgapID(t *testing.T) {
 
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, decode.PDUSessionResourceModifyIndication{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 99999,
+	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID: libngap.RANUENGAPID(1),
+		AMFUENGAPID: libngap.AMFUENGAPID(99999),
 	})
 
 	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
@@ -77,15 +77,10 @@ func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	msg := decode.PDUSessionResourceModifyIndication{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		PDUSessionResourceItems: []ngapType.PDUSessionResourceModifyItemModInd{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceModifyIndicationTransfer: []byte{0xaa, 0xbb},
-			},
-		},
+	msg := &libngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID:              libngap.RANUENGAPID(1),
+		AMFUENGAPID:              libngap.AMFUENGAPID(10),
+		PDUSessionResourceModify: libngap.PDUSessionResourceModifyListModInd{{PDUSessionID: 1, Transfer: []byte{0xaa, 0xbb}}},
 	}
 
 	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, msg)
@@ -126,15 +121,10 @@ func TestPDUSessionResourceModifyIndication_SmContextNotFound(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	msg := decode.PDUSessionResourceModifyIndication{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		PDUSessionResourceItems: []ngapType.PDUSessionResourceModifyItemModInd{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceModifyIndicationTransfer: []byte{0xaa},
-			},
-		},
+	msg := &libngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID:              libngap.RANUENGAPID(1),
+		AMFUENGAPID:              libngap.AMFUENGAPID(10),
+		PDUSessionResourceModify: libngap.PDUSessionResourceModifyListModInd{{PDUSessionID: 1, Transfer: []byte{0xaa}}},
 	}
 
 	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, msg)

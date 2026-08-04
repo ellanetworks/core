@@ -49,6 +49,7 @@ const (
 	CauseRadioNetworkInconsistentRemoteUEID           = 15 // inconsistent-remote-UE-NGAP-ID
 	CauseRadioNetworkUserInactivity                   = 20 // user-inactivity
 	CauseRadioNetworkRadioConnectionWithUELost        = 21 // radio-connection-with-ue-lost
+	CauseRadioNetworkUnknownPDUSessionID              = 26 // unknown-PDU-session-ID
 	CauseRadioNetworkMultiplePDUSessionIDs            = 28 // multiple-PDU-session-ID-instances
 	CauseRadioNetworkSliceNotSupported                = 39 // slice-not-supported
 

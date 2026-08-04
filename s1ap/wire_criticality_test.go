@@ -112,6 +112,124 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"ERABModificationIndication §9.1.3.7",
+			(&ERABModificationIndication{
+				MMEUES1APID:  1,
+				ENBUES1APID:  2,
+				ToBeModified: []ERABToBeModifiedItemBearerModInd{{ERABID: 1, TransportLayerAddress: goldTLA(), DLGTPTEID: 1}},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idERABToBeModifiedListBearerModInd, CriticalityReject},
+			},
+		},
+		{
+			"ERABModificationConfirm §9.1.3.8",
+			(&ERABModificationConfirm{
+				MMEUES1APID: Ptr(MMEUES1APID(1)),
+				ENBUES1APID: Ptr(ENBUES1APID(2)),
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityIgnore},
+				{idENBUES1APID, CriticalityIgnore},
+			},
+		},
+		{
+			"ERABModifyRequest §9.1.3.3",
+			(&ERABModifyRequest{
+				MMEUES1APID:               1,
+				ENBUES1APID:               2,
+				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{},
+				ERABToBeModified:          []ERABToBeModifiedItemBearerModReq{{ERABID: 1, QoS: goldQoS(), NASPDU: NASPDU{0x07}}},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idUEAggregateMaximumBitrate, CriticalityReject},
+				{idERABToBeModifiedListBearerModReq, CriticalityReject},
+			},
+		},
+		{
+			"ERABModifyResponse §9.1.3.4",
+			(&ERABModifyResponse{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				ERABModify:             []ERABModifyItemBearerModRes{{ERABID: 1}},
+				ERABFailedToModify:     []ERABItem{goldERABItem()},
+				CriticalityDiagnostics: &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityIgnore},
+				{idENBUES1APID, CriticalityIgnore},
+				{idERABModifyListBearerModRes, CriticalityIgnore},
+				{idERABFailedToModifyList, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"ERABSetupRequest §9.1.3.1",
+			(&ERABSetupRequest{
+				MMEUES1APID:               1,
+				ENBUES1APID:               2,
+				UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{},
+				ERABToBeSetup:             []ERABToBeSetupItemBearerSUReq{{ERABID: 1, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idUEAggregateMaximumBitrate, CriticalityReject},
+				{idERABToBeSetupListBearerSUReq, CriticalityReject},
+			},
+		},
+		{
+			"ERABSetupResponse §9.1.3.2",
+			(&ERABSetupResponse{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				ERABSetup:              []ERABSetupItemBearerSURes{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1}},
+				ERABFailedToSetup:      []ERABItem{goldERABItem()},
+				CriticalityDiagnostics: &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityIgnore},
+				{idENBUES1APID, CriticalityIgnore},
+				{idERABSetupListBearerSURes, CriticalityIgnore},
+				{idERABFailedToSetupListBearerSURes, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"ERABReleaseCommand §9.1.3.5",
+			(&ERABReleaseCommand{
+				MMEUES1APID:      1,
+				ENBUES1APID:      2,
+				ERABToBeReleased: []ERABItem{goldERABItem()},
+				NASPDU:           NASPDU{0x07},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idERABToBeReleasedList, CriticalityIgnore},
+				{idNASPDU, CriticalityIgnore},
+			},
+		},
+		{
+			"ERABReleaseResponse §9.1.3.6",
+			(&ERABReleaseResponse{
+				MMEUES1APID:         Ptr(MMEUES1APID(1)),
+				ENBUES1APID:         Ptr(ENBUES1APID(2)),
+				ERABReleased:        []ERABReleaseItemBearerRelComp{{ERABID: 1}},
+				ERABFailedToRelease: []ERABItem{goldERABItem()},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityIgnore},
+				{idENBUES1APID, CriticalityIgnore},
+				{idERABReleaseListBearerRelComp, CriticalityIgnore},
+				{idERABFailedToReleaseList, CriticalityIgnore},
+			},
+		},
+		{
 			"InitialContextSetupRequest §9.1.4.1",
 			(&InitialContextSetupRequest{
 				MMEUES1APID:       1,

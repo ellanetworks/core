@@ -18,23 +18,22 @@ import (
 func handleERABModifyResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	resp, err := s1ap.ParseERABModifyResponse(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode E-RAB Modify Response", zap.Error(err))
+		handleParseError(m, radio.Conn, s1ap.ProcERABModify, err)
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, nodeLevel(), resp.Diagnostics())
-
-	if resp.MMEUES1APID == nil {
-		logger.MmeLog.Warn("E-RAB Modify Response without an MME-UE-S1AP-ID")
-		sendErrorIndication(m, radio.Conn, nil, resp.ENBUES1APID, causeMissingUES1APID)
-
+	// Both identities are mandatory but ignore criticality, so an absent one
+	// still reaches the handler. resolveUEIDs also rejects a response naming a
+	// UE on another radio.
+	ue, ok := resolveUEIDs(m, radio.Conn, resp.MMEUES1APID, resp.ENBUES1APID)
+	if !ok {
 		return
 	}
 
-	if ue, ok := m.LookupUe(*resp.MMEUES1APID); ok {
-		ue.TouchLastSeen()
-		captureUserLocation(ue, resp.UserLocationInformation)
-	}
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), resp.Diagnostics())
+
+	ue.TouchLastSeen()
+	captureUserLocation(ue, resp.UserLocationInformation)
 
 	if len(resp.ERABFailedToModify) > 0 {
 		logger.MmeLog.Warn("eNB failed to modify E-RAB(s)",

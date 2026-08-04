@@ -30,6 +30,11 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		goldenInitialContextSetupRequest, goldenInitialContextSetupRequestNoSessions,
 		goldenInitialContextSetupResponse, goldenInitialContextSetupFailure,
 		goldenUERadioCapabilityInfoIndication, goldenUERadioCapabilityInfoIndicationFull,
+		goldenPDUSessionResourceSetupRequest, goldenPDUSessionResourceSetupResponse,
+		goldenPDUSessionResourceReleaseCommand, goldenPDUSessionResourceReleaseResponse,
+		goldenPDUSessionResourceModifyRequest, goldenPDUSessionResourceModifyResponse,
+		goldenPDUSessionResourceModifyIndication, goldenPDUSessionResourceModifyConfirm,
+		goldenPDUSessionResourceNotify,
 	} {
 		b, err := hex.DecodeString(g)
 		if err != nil {

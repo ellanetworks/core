@@ -7,30 +7,27 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceReleaseResponse) {
-	if msg.AMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in PDUSessionResourceReleaseResponse")
+// HandlePDUSessionResourceReleaseResponse hands each release outcome to the SMF
+// (TS 38.413 §8.2.3).
+func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.PDUSessionResourceReleaseResponse) {
+	// Both identities are mandatory but ignore criticality, so an absent one
+	// still reaches the handler and leaves nothing to resolve by (§10.3.5).
+	// resolveUEIDs also rejects a response naming a UE on another radio.
+	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
+	if !ok {
 		return
 	}
 
-	if msg.RANUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in PDUSessionResourceReleaseResponse")
-		return
-	}
+	reportDiagnostics(ctx, ran, ngap.ProcPDUSessionResourceRelease, ngap.TriggeringSuccessfulOutcome, ueAssociated(*msg.AMFUENGAPID, *msg.RANUENGAPID), msg.Diagnostics())
 
-	ueConn := amfInstance.FindUEByRanUeNgapID(ran, models.RanUeNgapID(*msg.RANUENGAPID))
-	if ueConn == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Uint64("amf-ue-id", uint64(*msg.AMFUENGAPID)), zap.Uint32("ran-ue-id", uint32(*msg.RANUENGAPID)))
-		return
+	if msg.UserLocationInformation != nil {
+		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
-
-	ueConn.UpdateDecodedLocation(ctx, amfInstance, msg.UserLocationInformation)
 
 	ueConn.TouchLastSeen()
 
@@ -40,15 +37,11 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 		return
 	}
 
-	if len(msg.PDUSessionResourceReleasedItems) > 0 {
+	if len(msg.PDUSessionResourceReleased) > 0 {
 		logger.WithTrace(ctx, ueConn.Log).Debug("Send PDUSessionResourceReleaseResponseTransfer to SMF")
 
-		for _, item := range msg.PDUSessionResourceReleasedItems {
-			pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
-			if !ok {
-				logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-				continue
-			}
+		for _, item := range msg.PDUSessionResourceReleased {
+			pduSessionID := uint8(item.PDUSessionID)
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {

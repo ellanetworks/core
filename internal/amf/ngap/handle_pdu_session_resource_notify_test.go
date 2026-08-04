@@ -9,9 +9,9 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -20,9 +20,9 @@ func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
-		RANUENGAPID: 99,
-		AMFUENGAPID: 999,
+	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceNotify{
+		RANUENGAPID: libngap.RANUENGAPID(99),
+		AMFUENGAPID: libngap.AMFUENGAPID(999),
 	})
 
 	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
@@ -34,9 +34,9 @@ func TestPDUSessionResourceNotify_NilUeContext(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
+	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceNotify{
+		RANUENGAPID: libngap.RANUENGAPID(1),
+		AMFUENGAPID: libngap.AMFUENGAPID(10),
 	})
 }
 
@@ -54,15 +54,10 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemNot{
-			{
-				PDUSessionID:                             ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceNotifyReleasedTransfer: []byte{0x01},
-			},
-		},
+	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceNotify{
+		RANUENGAPID:                libngap.RANUENGAPID(1),
+		AMFUENGAPID:                libngap.AMFUENGAPID(10),
+		PDUSessionResourceReleased: libngap.PDUSessionResourceReleasedListNot{{PDUSessionID: 1, Transfer: []byte{0x01}}},
 	})
 
 	if len(fakeSmf.DeactivateSmContextCalls) != 1 {
@@ -93,15 +88,10 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemNot{
-			{
-				PDUSessionID:                             ngapType.PDUSessionID{Value: 5},
-				PDUSessionResourceNotifyReleasedTransfer: []byte{0x01},
-			},
-		},
+	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceNotify{
+		RANUENGAPID:                libngap.RANUENGAPID(1),
+		AMFUENGAPID:                libngap.AMFUENGAPID(10),
+		PDUSessionResourceReleased: libngap.PDUSessionResourceReleasedListNot{{PDUSessionID: 5, Transfer: []byte{0x01}}},
 	})
 
 	if len(fakeSmf.DeactivateSmContextCalls) != 0 {
@@ -119,15 +109,10 @@ func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemNot{
-			{
-				PDUSessionID:                             ngapType.PDUSessionID{Value: 0},
-				PDUSessionResourceNotifyReleasedTransfer: []byte{0x01},
-			},
-		},
+	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceNotify{
+		RANUENGAPID:                libngap.RANUENGAPID(1),
+		AMFUENGAPID:                libngap.AMFUENGAPID(10),
+		PDUSessionResourceReleased: libngap.PDUSessionResourceReleasedListNot{{PDUSessionID: 0, Transfer: []byte{0x01}}},
 	})
 
 	if len(fakeSmf.DeactivateSmContextCalls) != 0 {
@@ -145,10 +130,10 @@ func TestPDUSessionResourceNotify_NotifyListLogsWarning(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
-		RANUENGAPID:   1,
-		AMFUENGAPID:   10,
-		HasNotifyList: true,
+	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceNotify{
+		RANUENGAPID:              1,
+		AMFUENGAPID:              10,
+		PDUSessionResourceNotify: libngap.PDUSessionResourceNotifyList{{PDUSessionID: 1, Transfer: libngap.TransferContainer{0x01}}},
 	})
 
 	if len(fakeSmf.DeactivateSmContextCalls) != 0 {

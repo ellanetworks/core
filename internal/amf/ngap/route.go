@@ -26,14 +26,19 @@ const (
 
 	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
 
-	nasNonDeliveryIndicationMessageType        send.NGAPProcedure = "NASNonDeliveryIndication"
-	uplinkNASTransportMessageType              send.NGAPProcedure = "UplinkNASTransport"
-	initialUEMessageMessageType                send.NGAPProcedure = "InitialUEMessage"
-	ueContextReleaseRequestMessageType         send.NGAPProcedure = "UEContextReleaseRequest"
-	ueContextReleaseCompleteMessageType        send.NGAPProcedure = "UEContextReleaseComplete"
-	initialContextSetupResponseMessageType     send.NGAPProcedure = "InitialContextSetupResponse"
-	initialContextSetupFailureMessageType      send.NGAPProcedure = "InitialContextSetupFailure"
-	ueRadioCapabilityInfoIndicationMessageType send.NGAPProcedure = "UERadioCapabilityInfoIndication"
+	nasNonDeliveryIndicationMessageType           send.NGAPProcedure = "NASNonDeliveryIndication"
+	uplinkNASTransportMessageType                 send.NGAPProcedure = "UplinkNASTransport"
+	initialUEMessageMessageType                   send.NGAPProcedure = "InitialUEMessage"
+	ueContextReleaseRequestMessageType            send.NGAPProcedure = "UEContextReleaseRequest"
+	ueContextReleaseCompleteMessageType           send.NGAPProcedure = "UEContextReleaseComplete"
+	initialContextSetupResponseMessageType        send.NGAPProcedure = "InitialContextSetupResponse"
+	initialContextSetupFailureMessageType         send.NGAPProcedure = "InitialContextSetupFailure"
+	ueRadioCapabilityInfoIndicationMessageType    send.NGAPProcedure = "UERadioCapabilityInfoIndication"
+	pduSessionResourceSetupResponseMessageType    send.NGAPProcedure = "PDUSessionResourceSetupResponse"
+	pduSessionResourceReleaseResponseMessageType  send.NGAPProcedure = "PDUSessionResourceReleaseResponse"
+	pduSessionResourceModifyResponseMessageType   send.NGAPProcedure = "PDUSessionResourceModifyResponse"
+	pduSessionResourceModifyIndicationMessageType send.NGAPProcedure = "PDUSessionResourceModifyIndication"
+	pduSessionResourceNotifyMessageType           send.NGAPProcedure = "PDUSessionResourceNotify"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -96,6 +101,10 @@ func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receiveUEContextReleaseRequest(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcUERadioCapabilityInfoIndication:
 		receiveUERadioCapabilityInfoIndication(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcPDUSessionResourceModifyIndication:
+		receivePDUSessionResourceModifyIndication(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcPDUSessionResourceNotify:
+		receivePDUSessionResourceNotify(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -113,6 +122,12 @@ func routeSuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receiveUEContextReleaseComplete(ctx, amfInstance, ran, msg, so, span)
 	case ngap.ProcInitialContextSetup:
 		receiveInitialContextSetupResponse(ctx, amfInstance, ran, msg, so, span)
+	case ngap.ProcPDUSessionResourceSetup:
+		receivePDUSessionResourceSetupResponse(ctx, amfInstance, ran, msg, so, span)
+	case ngap.ProcPDUSessionResourceRelease:
+		receivePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, msg, so, span)
+	case ngap.ProcPDUSessionResourceModify:
+		receivePDUSessionResourceModifyResponse(ctx, amfInstance, ran, msg, so, span)
 	default:
 		return false
 	}
@@ -412,4 +427,86 @@ func receiveUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *am
 	}
 
 	HandleUERadioCapabilityInfoIndication(ctx, amfInstance, ran, ind)
+}
+
+// receivePDUSessionResourceSetupResponse parses and handles a PDU SESSION
+// RESOURCE SETUP RESPONSE. A failed parse is answered with an Error Indication:
+// the AMF started the procedure, so it cannot report the fault through the
+// unsuccessful outcome (TS 38.413 §10.3.5).
+func receivePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, pduSessionResourceSetupResponseMessageType, span)
+
+	resp, err := ngap.ParsePDUSessionResourceSetupResponse(so.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Setup Response", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceSetup, err)
+
+		return
+	}
+
+	HandlePDUSessionResourceSetupResponse(ctx, amfInstance, ran, resp)
+}
+
+// receivePDUSessionResourceReleaseResponse parses and handles a PDU SESSION
+// RESOURCE RELEASE RESPONSE (TS 38.413 §10.3.5).
+func receivePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, pduSessionResourceReleaseResponseMessageType, span)
+
+	resp, err := ngap.ParsePDUSessionResourceReleaseResponse(so.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Release Response", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceRelease, err)
+
+		return
+	}
+
+	HandlePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, resp)
+}
+
+// receivePDUSessionResourceModifyResponse parses and handles a PDU SESSION
+// RESOURCE MODIFY RESPONSE (TS 38.413 §10.3.5).
+func receivePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, pduSessionResourceModifyResponseMessageType, span)
+
+	resp, err := ngap.ParsePDUSessionResourceModifyResponse(so.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Modify Response", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceModify, err)
+
+		return
+	}
+
+	HandlePDUSessionResourceModifyResponse(ctx, amfInstance, ran, resp)
+}
+
+// receivePDUSessionResourceModifyIndication parses and handles a PDU SESSION
+// RESOURCE MODIFY INDICATION (TS 38.413 §10.3.5).
+func receivePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, pduSessionResourceModifyIndicationMessageType, span)
+
+	ind, err := ngap.ParsePDUSessionResourceModifyIndication(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Modify Indication", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceModifyIndication, err)
+
+		return
+	}
+
+	HandlePDUSessionResourceModifyIndication(ctx, amfInstance, ran, ind)
+}
+
+// receivePDUSessionResourceNotify parses and handles a PDU SESSION RESOURCE
+// NOTIFY (TS 38.413 §10.3.5).
+func receivePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, pduSessionResourceNotifyMessageType, span)
+
+	notify, err := ngap.ParsePDUSessionResourceNotify(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Notify", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceNotify, err)
+
+		return
+	}
+
+	HandlePDUSessionResourceNotify(ctx, amfInstance, ran, notify)
 }

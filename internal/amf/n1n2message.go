@@ -16,13 +16,11 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -63,11 +61,14 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 	if !ueConn.ClaimICS() {
 		// Context already set up (or in progress): deliver the PDU session standalone.
-		list := ngapType.PDUSessionResourceSetupListSUReq{}
+		item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
+		if err != nil {
+			return fmt.Errorf("could not build PDU session setup item: %w", err)
+		}
 
-		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
+		list := ngap.PDUSessionResourceSetupListSUReq{item}
 
-		err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -221,15 +222,11 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 
 	// The PDUSessionResourceModifyRequestTransfer IE is mandatory per
 	// TS 38.413, so this path must only be taken when n2Msg is set.
-	list := ngapType.PDUSessionResourceModifyListModReq{
-		List: []ngapType.PDUSessionResourceModifyItemModReq{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)},
-				NASPDU: &ngapType.NASPDU{
-					Value: nasPdu,
-				},
-				PDUSessionResourceModifyRequestTransfer: n2Msg,
-			},
+	list := ngap.PDUSessionResourceModifyListModReq{
+		{
+			PDUSessionID: ngap.PDUSessionID(pduSessionID),
+			NASPDU:       ngap.Ptr(ngap.NASPDU(nasPdu)),
+			Transfer:     ngap.TransferContainer(n2Msg),
 		},
 	}
 
@@ -272,13 +269,8 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	list := ngapType.PDUSessionResourceToReleaseListRelCmd{
-		List: []ngapType.PDUSessionResourceToReleaseItemRelCmd{
-			{
-				PDUSessionID:                             ngapType.PDUSessionID{Value: int64(pduSessionID)},
-				PDUSessionResourceReleaseCommandTransfer: n2Transfer,
-			},
-		},
+	list := ngap.PDUSessionResourceToReleaseListRelCmd{
+		{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Transfer)},
 	}
 
 	if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, nasPdu, list); err != nil {
@@ -329,10 +321,14 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 	if !ueConn.ClaimICS() {
 		// Context already set up (or in progress): deliver the PDU session standalone.
-		list := ngapType.PDUSessionResourceSetupListSUReq{}
-		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+		item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+		if err != nil {
+			return fmt.Errorf("could not build PDU session setup item: %w", err)
+		}
 
-		err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		list := ngap.PDUSessionResourceSetupListSUReq{item}
+
+		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}

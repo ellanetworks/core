@@ -7,21 +7,25 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
 // HandlePDUSessionResourceModifyIndication forwards each Modify Indication Transfer
 // to its SMF and returns the Modify Confirm; sessions the SMF cannot modify go in
 // the Failed to Modify list with a cause (TS 38.413 §8.2.5.2).
-func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceModifyIndication) {
-	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.PDUSessionResourceModifyIndication) {
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
+	}
+
+	reportDiagnostics(ctx, ran, ngap.ProcPDUSessionResourceModifyIndication, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
+
+	if msg.UserLocationInformation != nil {
+		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
 	logger.WithTrace(ctx, ueConn.Log).Debug("UE Context", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
@@ -34,40 +38,43 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 	}
 
 	var (
-		modifyList ngapType.PDUSessionResourceModifyListModCfm
-		failedList ngapType.PDUSessionResourceFailedToModifyListModCfm
+		modifyList ngap.PDUSessionResourceModifyListModCfm
+		failedList ngap.PDUSessionResourceFailedToModifyListModCfm
 	)
 
-	for _, item := range msg.PDUSessionResourceItems {
-		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
-		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-			continue
-		}
+	for _, item := range msg.PDUSessionResourceModify {
+		pduSessionID := uint8(item.PDUSessionID)
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
 			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-			appendFailedToModify(ctx, ueConn, &failedList, item.PDUSessionID, ngapType.CauseRadioNetworkPresentUnknownPDUSessionID)
+			failedList = appendFailedToModify(ctx, ueConn, failedList, item.PDUSessionID, ngap.CauseRadioNetworkUnknownPDUSessionID)
 
 			continue
 		}
 
-		confirmTransfer, err := amfInstance.Session.UpdateSmContextN2ModifyIndication(ctx, smContext.Ref, item.PDUSessionResourceModifyIndicationTransfer)
+		confirmTransfer, err := amfInstance.Session.UpdateSmContextN2ModifyIndication(ctx, smContext.Ref, []byte(item.Transfer))
 		if err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error("UpdateSmContextN2ModifyIndication error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
-			appendFailedToModify(ctx, ueConn, &failedList, item.PDUSessionID, ngapType.CauseRadioNetworkPresentUnspecified)
+			failedList = appendFailedToModify(ctx, ueConn, failedList, item.PDUSessionID, ngap.CauseRadioNetworkUnspecified)
 
 			continue
 		}
 
-		modifyList.List = append(modifyList.List, ngapType.PDUSessionResourceModifyItemModCfm{
-			PDUSessionID:                            item.PDUSessionID,
-			PDUSessionResourceModifyConfirmTransfer: confirmTransfer,
+		modifyList = append(modifyList, ngap.PDUSessionResourceModifyItemModCfm{
+			PDUSessionID: item.PDUSessionID,
+			Transfer:     ngap.TransferContainer(confirmTransfer),
 		})
 	}
 
-	pkt, err := send.BuildPDUSessionResourceModifyConfirm(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), modifyList, failedList)
+	confirm := &ngap.PDUSessionResourceModifyConfirm{
+		AMFUENGAPID:              ngap.Ptr(ngap.AMFUENGAPID(ueConn.AmfUeNgapID)),
+		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(ueConn.RanUeNgapID)),
+		PDUSessionResourceModify: modifyList,
+		PDUSessionResourceFailed: failedList,
+	}
+
+	pkt, err := confirm.Marshal()
 	if err != nil {
 		logger.WithTrace(ctx, ueConn.Log).Error("error building pdu session resource modify confirm", zap.Error(err))
 		return
@@ -76,20 +83,22 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 	ran.SendToRadio(ctx, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
 }
 
-func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list *ngapType.PDUSessionResourceFailedToModifyListModCfm, pduSessionID ngapType.PDUSessionID, causeValue aper.Enumerated) {
-	transfer, err := aper.MarshalWithParams(ngapType.PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: causeValue},
-		},
-	}, "valueExt")
-	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("encode modify indication unsuccessful transfer", zap.Error(err))
-		return
+// appendFailedToModify records a session the AMF could not hand to the SMF,
+// carrying the reason in a Modify Indication Unsuccessful Transfer
+// (TS 38.413 §9.3.4.20).
+func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list ngap.PDUSessionResourceFailedToModifyListModCfm, pduSessionID ngap.PDUSessionID, causeValue int) ngap.PDUSessionResourceFailedToModifyListModCfm {
+	t := &ngap.PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
+		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},
 	}
 
-	list.List = append(list.List, ngapType.PDUSessionResourceFailedToModifyItemModCfm{
+	transfer, err := t.Marshal()
+	if err != nil {
+		logger.WithTrace(ctx, ueConn.Log).Error("encode modify indication unsuccessful transfer", zap.Error(err))
+		return list
+	}
+
+	return append(list, ngap.PDUSessionResourceFailedToModifyItemModCfm{
 		PDUSessionID: pduSessionID,
-		PDUSessionResourceModifyIndicationUnsuccessfulTransfer: transfer,
+		Transfer:     transfer,
 	})
 }

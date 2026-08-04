@@ -11,12 +11,10 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -25,7 +23,7 @@ func sendServiceAccept(
 	ue *amf.UeContext,
 	ueConn *amf.UeConn,
 	ctxList ngap.PDUSessionResourceSetupListCxtReq,
-	suList ngapType.PDUSessionResourceSetupListSUReq,
+	suList ngap.PDUSessionResourceSetupListSUReq,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID []uint8,
@@ -63,7 +61,7 @@ func sendServiceAccept(
 		}
 
 		logger.From(ctx, logger.AmfLog).Info("sent service accept with initial context setup request")
-	} else if len(suList.List) != 0 {
+	} else if len(suList) != 0 {
 		nasPdu, err := amf.BuildServiceAccept(ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return fmt.Errorf("error building service accept message: %v", err)
@@ -169,7 +167,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		targetPduSessionID                      uint8
 	)
 
-	suList := ngapType.PDUSessionResourceSetupListSUReq{}
+	var suList ngap.PDUSessionResourceSetupListSUReq
 	var ctxList ngap.PDUSessionResourceSetupListCxtReq
 
 	if serviceType == fgs.ServiceTypeEmergencyServices ||
@@ -233,7 +231,12 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 							ctxList = append(ctxList, item)
 						}
 					} else {
-						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+						item, err := amf.PDUSessionSetupItemSUReq(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+						if err != nil {
+							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+						} else {
+							suList = append(suList, item)
+						}
 					}
 				}
 			}
@@ -307,7 +310,12 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 						ctxList = append(ctxList, item)
 					}
 				} else {
-					send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					if err != nil {
+						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+					} else {
+						suList = append(suList, item)
+					}
 				}
 
 				logger.From(ctx, logger.AmfLog).Debug("sending service accept")

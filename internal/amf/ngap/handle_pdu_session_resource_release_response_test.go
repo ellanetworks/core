@@ -9,10 +9,9 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
@@ -20,12 +19,13 @@ func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.PDUSessionResourceReleaseResponse{}
+	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
+	// reaches the handler; without them the AMF cannot address a UE context and
+	// reports the fault (TS 38.413 §10.3.5).
+	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceReleaseResponse{})
 
-	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
-
-	if len(sender.SentErrorIndications) != 0 {
-		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }
 
@@ -43,17 +43,10 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	amfUeNgapID := int64(10)
-	ranUeNgapID := int64(1)
-	msg := decode.PDUSessionResourceReleaseResponse{
-		AMFUENGAPID: &amfUeNgapID,
-		RANUENGAPID: &ranUeNgapID,
-		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemRelRes{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceReleaseResponseTransfer: []byte{0x01},
-			},
-		},
+	msg := &libngap.PDUSessionResourceReleaseResponse{
+		AMFUENGAPID:                libngap.Ptr(libngap.AMFUENGAPID(10)),
+		RANUENGAPID:                libngap.Ptr(libngap.RANUENGAPID(1)),
+		PDUSessionResourceReleased: libngap.PDUSessionResourceReleasedListRelRes{{PDUSessionID: 1, Transfer: []byte{0x01}}},
 	}
 
 	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)

@@ -138,13 +138,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleUplinkRanStatusTransfer(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodePDUSessionResourceNotify:
-			decoded, report := decode.DecodePDUSessionResourceNotify(pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandlePDUSessionResourceNotify(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePathSwitchRequest:
 			decoded, report := decode.DecodePathSwitchRequest(pdu.InitiatingMessage.Value.PathSwitchRequest)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -159,13 +152,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleLocationReport(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
-			decoded, report := decode.DecodePDUSessionResourceModifyIndication(pdu.InitiatingMessage.Value.PDUSessionResourceModifyIndication)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandlePDUSessionResourceModifyIndication(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
 			HandleUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport)
 		default:
@@ -180,27 +166,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch successfulOutcome.ProcedureCode.Value {
-		case ngapType.ProcedureCodePDUSessionResourceRelease:
-			decoded, report := decode.DecodePDUSessionResourceReleaseResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandlePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodePDUSessionResourceSetup:
-			decoded, report := decode.DecodePDUSessionResourceSetupResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandlePDUSessionResourceSetupResponse(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodePDUSessionResourceModify:
-			decoded, report := decode.DecodePDUSessionResourceModifyResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceModifyResponse)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandlePDUSessionResourceModifyResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			decoded, report := decode.DecodeHandoverRequestAcknowledge(pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
 			if !handleDecodeReport(ctx, ran, report) {

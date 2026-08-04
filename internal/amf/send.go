@@ -627,13 +627,58 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 	})
 }
 
-func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp string, ambrDown string, nasPdu []byte, list ngapType.PDUSessionResourceSetupListSUReq) error {
+// PDUSessionSetupItemSUReq builds one item for a PDU SESSION RESOURCE SETUP
+// REQUEST (TS 38.413 §9.2.1.1). The transfer is the SMF's, carried opaquely.
+func PDUSessionSetupItemSUReq(pduSessionID uint8, snssai *models.Snssai, nasPDU, transfer []byte) (ngap.PDUSessionResourceSetupItemSUReq, error) {
+	if snssai == nil {
+		return ngap.PDUSessionResourceSetupItemSUReq{}, fmt.Errorf("S-NSSAI is required")
+	}
+
+	s, err := util.SNSSAIToNGAP(*snssai)
+	if err != nil {
+		return ngap.PDUSessionResourceSetupItemSUReq{}, fmt.Errorf("could not convert S-NSSAI: %w", err)
+	}
+
+	item := ngap.PDUSessionResourceSetupItemSUReq{
+		PDUSessionID: ngap.PDUSessionID(pduSessionID),
+		SNSSAI:       s,
+		Transfer:     ngap.TransferContainer(transfer),
+	}
+
+	if nasPDU != nil {
+		item.NASPDU = ngap.Ptr(ngap.NASPDU(nasPDU))
+	}
+
+	return item, nil
+}
+
+// pduSessionResourceSetupBytes builds a PDU SESSION RESOURCE SETUP REQUEST
+// (TS 38.413 §9.2.1.1).
+func pduSessionResourceSetupBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ambrUp, ambrDown string, nasPdu []byte, sessions ngap.PDUSessionResourceSetupListSUReq) ([]byte, error) {
+	msg := &ngap.PDUSessionResourceSetupRequest{
+		AMFUENGAPID:             amfID,
+		RANUENGAPID:             ranID,
+		PDUSessionResourceSetup: sessions,
+		UEAggregateMaximumBitRate: &ngap.UEAggregateMaximumBitRate{
+			DL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrDown)),
+			UL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrUp)),
+		},
+	}
+
+	if nasPdu != nil {
+		msg.NASPDU = ngap.Ptr(ngap.NASPDU(nasPdu))
+	}
+
+	return msg.Marshal()
+}
+
+func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp string, ambrDown string, nasPdu []byte, list ngap.PDUSessionResourceSetupListSUReq) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	pkt, err := send.BuildPDUSessionResourceSetupRequest(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), ambrUp, ambrDown, nasPdu, list)
+	pkt, err := pduSessionResourceSetupBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), ambrUp, ambrDown, nasPdu, list)
 	if err != nil {
 		return err
 	}
@@ -641,13 +686,29 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceSetupRequest, pkt)
 }
 
-func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, nasPdu []byte, list ngapType.PDUSessionResourceToReleaseListRelCmd) error {
+// pduSessionResourceReleaseBytes builds a PDU SESSION RESOURCE RELEASE COMMAND
+// (TS 38.413 §9.2.1.3).
+func pduSessionResourceReleaseBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, nasPdu []byte, sessions ngap.PDUSessionResourceToReleaseListRelCmd) ([]byte, error) {
+	msg := &ngap.PDUSessionResourceReleaseCommand{
+		AMFUENGAPID:               amfID,
+		RANUENGAPID:               ranID,
+		PDUSessionResourceRelease: sessions,
+	}
+
+	if nasPdu != nil {
+		msg.NASPDU = ngap.Ptr(ngap.NASPDU(nasPdu))
+	}
+
+	return msg.Marshal()
+}
+
+func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, nasPdu []byte, list ngap.PDUSessionResourceToReleaseListRelCmd) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	pkt, err := send.BuildPDUSessionResourceReleaseCommand(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), nasPdu, list)
+	pkt, err := pduSessionResourceReleaseBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), nasPdu, list)
 	if err != nil {
 		return err
 	}
@@ -787,41 +848,30 @@ func (ueConn *UeConn) SendInitialContextSetup(
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureInitialContextSetupRequest, pkt)
 }
 
-func (ueConn *UeConn) SendPDUSessionResourceModifyConfirm(
-	ctx context.Context,
-	pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm,
-	pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm,
-) error {
-	amfInstance, conn, err := ueConn.sendTarget()
-	if err != nil {
-		return err
+// pduSessionResourceModifyBytes builds a PDU SESSION RESOURCE MODIFY REQUEST
+// (TS 38.413 §9.2.1.5).
+func pduSessionResourceModifyBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, sessions ngap.PDUSessionResourceModifyListModReq) ([]byte, error) {
+	msg := &ngap.PDUSessionResourceModifyRequest{
+		AMFUENGAPID:              amfID,
+		RANUENGAPID:              ranID,
+		PDUSessionResourceModify: sessions,
 	}
 
-	pkt, err := send.BuildPDUSessionResourceModifyConfirm(
-		int64(ueConn.AmfUeNgapID),
-		int64(ueConn.RanUeNgapID),
-		pduSessionResourceModifyConfirmList,
-		pduSessionResourceFailedToModifyList,
-	)
-	if err != nil {
-		return err
-	}
-
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
+	return msg.Marshal()
 }
 
 func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 	ctx context.Context,
-	pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq,
+	pduSessionResourceModifyList ngap.PDUSessionResourceModifyListModReq,
 ) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	pkt, err := send.BuildPDUSessionResourceModifyRequest(
-		int64(ueConn.AmfUeNgapID),
-		int64(ueConn.RanUeNgapID),
+	pkt, err := pduSessionResourceModifyBytes(
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
+		ngap.RANUENGAPID(ueConn.RanUeNgapID),
 		pduSessionResourceModifyList,
 	)
 	if err != nil {

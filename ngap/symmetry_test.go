@@ -88,6 +88,17 @@ var renamedFiles = map[string]string{
 	"ng_setup_resp_test.go":    "s1_setup_resp_test.go",
 	"ng_setup_failure_test.go": "s1_setup_failure_test.go",
 
+	// TS 38.413 carries user plane in PDU sessions where TS 36.413 carries it in
+	// E-RABs, so each session-oriented procedure is named after its own bearer.
+	"pdu_session_resource_setup.go":                  "erab_setup.go",
+	"pdu_session_resource_release.go":                "erab_release.go",
+	"pdu_session_resource_modify.go":                 "erab_modify.go",
+	"pdu_session_resource_modify_indication.go":      "erab_modification.go",
+	"pdu_session_resource_modify_indication_test.go": "erab_modification_test.go",
+	"pdu_session_resource_modify_test.go":            "erab_modify_test.go",
+	"pdu_session_resource_release_test.go":           "erab_release_test.go",
+	"pdu_session_resource_setup_test.go":             "erab_setup_test.go",
+
 	// TS 38.413 names the procedure UE Radio Capability Info Indication where
 	// TS 36.413 names it UE Capability Info Indication.
 	"ue_radio_capability.go":      "ue_capability.go",
@@ -106,13 +117,15 @@ var renamedFiles = map[string]string{
 // NGAP-only IE vocabulary, and message files for procedures 3GPP defines only
 // for NGAP. Nothing else.
 var ngapOnlyFiles = map[string]string{
-	"ie_slice.go":                   "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
-	"ie_tnl.go":                     "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
-	"ie_tnl_test.go":                "tests for ie_tnl.go",
-	"amf_status_indication.go":      "TS 36.413 defines no procedure signalling that core-network identities are unavailable: mMEStatusTransfer is UE-associated handover status and Overload Start/Stop is overload control (TS 38.413 §8.7.6)",
-	"amf_status_indication_test.go": "tests for amf_status_indication.go",
-	"not_comprehended_test.go":      "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",
-	"symmetry_test.go":              "this file: the checker lives on one side",
+	"ie_slice.go":                         "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
+	"pdu_session_resource_notify.go":      "TS 36.413 defines no E-RAB Notify: an eNB reports a changed bearer through E-RAB Modification Indication and a self-initiated release through E-RAB Release Indication (TS 38.413 §8.2.6)",
+	"pdu_session_resource_notify_test.go": "tests for pdu_session_resource_notify.go",
+	"ie_tnl.go":                           "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
+	"ie_tnl_test.go":                      "tests for ie_tnl.go",
+	"amf_status_indication.go":            "TS 36.413 defines no procedure signalling that core-network identities are unavailable: mMEStatusTransfer is UE-associated handover status and Overload Start/Stop is overload control (TS 38.413 §8.7.6)",
+	"amf_status_indication_test.go":       "tests for amf_status_indication.go",
+	"not_comprehended_test.go":            "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",
+	"symmetry_test.go":                    "this file: the checker lives on one side",
 }
 
 // A type on both sides must live in the same-named file, so the two can be read
