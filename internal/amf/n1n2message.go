@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -83,9 +84,13 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	list := ngapType.PDUSessionResourceSetupListCxtReq{}
+	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
+	if err != nil {
+		ueConn.ResetICS()
+		return fmt.Errorf("could not build PDU session setup item: %w", err)
+	}
 
-	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
+	list := ngap.PDUSessionResourceSetupListCxtReq{item}
 
 	err = ueConn.SendInitialContextSetup(
 		ctx,
@@ -97,7 +102,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		ue.RadioCapabilityForPaging,
 		ue.ueSecurityCapability,
 		nil,
-		&list,
+		list,
 		operatorInfo.Guami,
 	)
 	if err != nil {
@@ -344,8 +349,12 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	list := ngapType.PDUSessionResourceSetupListCxtReq{}
-	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
+	if err != nil {
+		return fmt.Errorf("could not build PDU session setup item: %w", err)
+	}
+
+	list := ngap.PDUSessionResourceSetupListCxtReq{item}
 
 	err = ueConn.SendInitialContextSetup(
 		ctx,
@@ -357,7 +366,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		ue.RadioCapabilityForPaging,
 		ue.ueSecurityCapability,
 		nil,
-		&list,
+		list,
 		operatorInfo.Guami,
 	)
 	if err != nil {

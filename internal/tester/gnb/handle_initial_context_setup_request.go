@@ -7,61 +7,37 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handleInitialContextSetupRequest(gnb *GnodeB, initialContextSetupRequest *ngapType.InitialContextSetupRequest) error {
-	var (
-		amfueNGAPID                                   *ngapType.AMFUENGAPID
-		ranueNGAPID                                   *ngapType.RANUENGAPID
-		protocolIEIDPDUSessionResourceSetupListCxtReq *ngapType.PDUSessionResourceSetupListCxtReq
-		nasPDU                                        *ngapType.NASPDU
-		ueAggregateMaximumBitRate                     *ngapType.UEAggregateMaximumBitRate
-	)
-
-	for _, ie := range initialContextSetupRequest.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			amfueNGAPID = ie.Value.AMFUENGAPID
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ranueNGAPID = ie.Value.RANUENGAPID
-		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
-			protocolIEIDPDUSessionResourceSetupListCxtReq = ie.Value.PDUSessionResourceSetupListCxtReq
-		case ngapType.ProtocolIEIDNASPDU:
-			nasPDU = ie.Value.NASPDU
-		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-			ueAggregateMaximumBitRate = ie.Value.UEAggregateMaximumBitRate
-		}
+func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
+	req, err := ngap.ParseInitialContextSetupRequest(value)
+	if err != nil {
+		return fmt.Errorf("could not parse InitialContextSetupRequest: %w", err)
 	}
 
-	if amfueNGAPID == nil {
-		return fmt.Errorf("missing AMF UE NGAP ID in InitialContextSetupRequest")
-	}
-
-	if ranueNGAPID == nil {
-		return fmt.Errorf("missing RAN UE NGAP ID in InitialContextSetupRequest")
-	}
+	amfUEID, ranUEID := int64(req.AMFUENGAPID), int64(req.RANUENGAPID)
 
 	logger.GnbLogger.Debug("Received InitialContextSetupRequest",
-		zap.Int64("AMFUENGAPID", amfueNGAPID.Value),
-		zap.Int64("RANUENGAPID", ranueNGAPID.Value),
+		zap.Int64("AMFUENGAPID", amfUEID),
+		zap.Int64("RANUENGAPID", ranUEID),
 	)
 
-	gnb.UpdateNGAPIDs(ranueNGAPID.Value, amfueNGAPID.Value)
+	gnb.UpdateNGAPIDs(ranUEID, amfUEID)
 
-	if ueAggregateMaximumBitRate != nil {
-		gnb.StoreUEAmbr(ranueNGAPID.Value, &UEAmbrInformation{
-			UplinkBps:   ueAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
-			DownlinkBps: ueAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
+	if req.UEAggregateMaximumBitRate != nil {
+		gnb.StoreUEAmbr(ranUEID, &UEAmbrInformation{
+			UplinkBps:   int64(req.UEAggregateMaximumBitRate.UL),
+			DownlinkBps: int64(req.UEAggregateMaximumBitRate.DL),
 		})
 	}
 
-	if protocolIEIDPDUSessionResourceSetupListCxtReq != nil {
-		for _, pduSession := range protocolIEIDPDUSessionResourceSetupListCxtReq.List {
-			pduSessionID := pduSession.PDUSessionID.Value
+	{
+		for _, pduSession := range req.PDUSessionResourceSetup {
+			pduSessionID := int64(pduSession.PDUSessionID)
 
-			pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.PDUSessionResourceSetupRequestTransfer)
+			pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, []byte(pduSession.Transfer))
 			if err != nil {
 				return fmt.Errorf("could not validate PDU Session Resource Setup Transfer: %v", err)
 			}
@@ -71,8 +47,8 @@ func handleInitialContextSetupRequest(gnb *GnodeB, initialContextSetupRequest *n
 
 			logger.GnbLogger.Debug(
 				"Parsed PDU Session Resource Setup Request",
-				zap.Int64("AMFUENGAPID", amfueNGAPID.Value),
-				zap.Int64("RANUENGAPID", ranueNGAPID.Value),
+				zap.Int64("AMFUENGAPID", amfUEID),
+				zap.Int64("RANUENGAPID", ranUEID),
 				zap.Int64("PDU Session ID", pduSessionID),
 				zap.Uint32("UL TEID", pduSessionInfo.ULTeid),
 				zap.String("UPF Address", pduSessionInfo.UpfAddress),
@@ -82,14 +58,14 @@ func handleInitialContextSetupRequest(gnb *GnodeB, initialContextSetupRequest *n
 				zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
 			)
 
-			gnb.StorePDUSession(ranueNGAPID.Value, pduSessionInfo)
+			gnb.StorePDUSession(ranUEID, pduSessionInfo)
 		}
 	}
 
 	pduSessions := [16]*PDUSessionInformation{}
 
 	if gnb.N3Address.IsValid() {
-		sessions := gnb.GetPDUSessions(ranueNGAPID.Value)
+		sessions := gnb.GetPDUSessions(ranUEID)
 		for _, s := range sessions {
 			if s.PDUSessionID >= 1 && s.PDUSessionID <= 15 {
 				pduSessions[s.PDUSessionID] = &PDUSessionInformation{
@@ -106,9 +82,9 @@ func handleInitialContextSetupRequest(gnb *GnodeB, initialContextSetupRequest *n
 		}
 	}
 
-	err := gnb.SendInitialContextSetupResponse(&InitialContextSetupResponseOpts{
-		AMFUENGAPID: amfueNGAPID.Value,
-		RANUENGAPID: ranueNGAPID.Value,
+	err = gnb.SendInitialContextSetupResponse(&InitialContextSetupResponseOpts{
+		AMFUENGAPID: amfUEID,
+		RANUENGAPID: ranUEID,
 		PDUSessions: pduSessions,
 	})
 	if err != nil {
@@ -119,13 +95,18 @@ func handleInitialContextSetupRequest(gnb *GnodeB, initialContextSetupRequest *n
 		"Sent Initial Context Setup Response",
 	)
 
-	ue, err := gnb.LoadUE(ranueNGAPID.Value)
+	// The NAS-PDU is optional (TS 38.413 §9.2.2.1); a request that carries none
+	// sets up the context alone.
+	if req.NASPDU == nil {
+		return nil
+	}
+
+	ue, err := gnb.LoadUE(ranUEID)
 	if err != nil {
 		return fmt.Errorf("cannot find UE for DownlinkNASTransport message: %v", err)
 	}
 
-	err = ue.SendDownlinkNAS(nasPDU.Value, amfueNGAPID.Value, ranueNGAPID.Value)
-	if err != nil {
+	if err := ue.SendDownlinkNAS([]byte(*req.NASPDU), amfUEID, ranUEID); err != nil {
 		return fmt.Errorf("HandleDownlinkNASTransport failed: %v", err)
 	}
 

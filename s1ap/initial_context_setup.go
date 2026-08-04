@@ -15,7 +15,7 @@ type InitialContextSetupRequest struct {
 	ERABToBeSetup             []ERABToBeSetupItemCtxtSUReq
 	UESecurityCapabilities    UESecurityCapabilities
 	SecurityKey               SecurityKey
-	UERadioCapability         []byte
+	UERadioCapability         UERadioCapability
 
 	messageMeta
 }
@@ -74,20 +74,14 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 	{
 		id: idUERadioCapability, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			var err error
-
-			m.UERadioCapability, err = per.DecodeOctetString(per.NewReader(raw), enc, 0, 0, true, false, false)
-
-			return err
+			return perIEDecode(raw, &m.UERadioCapability)
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
-			if len(m.UERadioCapability) == 0 {
+			if m.UERadioCapability == nil {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapability)
-			}), true
+			return m.UERadioCapability, true
 		},
 	},
 }

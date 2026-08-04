@@ -269,6 +269,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 
 		u.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+		u.SetKgnbForTest(make([]byte, 32))
 	})
 
 	radio := &amf.Radio{Conn: sender}

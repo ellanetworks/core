@@ -129,6 +129,54 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"InitialContextSetupRequest §9.2.2.1",
+			goldInitialContextSetupRequest().encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idUEAggregateMaximumBitRate, CriticalityReject},
+				{idGUAMI, CriticalityReject},
+				{idPDUSessionResourceSetupListCxtReq, CriticalityReject},
+				{idAllowedNSSAI, CriticalityReject},
+				{idUESecurityCapabilities, CriticalityReject},
+				{idSecurityKey, CriticalityReject},
+			},
+		},
+		{
+			"InitialContextSetupResponse §9.2.2.2",
+			(&InitialContextSetupResponse{
+				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:              Ptr(RANUENGAPID(2)),
+				PDUSessionResourceSetup:  PDUSessionResourceSetupListCxtRes{{PDUSessionID: 5}},
+				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListCxtRes{{PDUSessionID: 9}},
+				CriticalityDiagnostics:   &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceSetupListCxtRes, CriticalityIgnore},
+				{idPDUSessionResourceFailedToSetupListCxtRes, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialContextSetupFailure §9.2.2.3",
+			(&InitialContextSetupFailure{
+				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:              Ptr(RANUENGAPID(2)),
+				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListCxtFail{{PDUSessionID: 5}},
+				Cause:                    Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+				CriticalityDiagnostics:   &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceFailedToSetupListCxtFail, CriticalityIgnore},
+				{idCause, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
 			"UEContextReleaseRequest §9.2.2.4",
 			(&UEContextReleaseRequest{
 				AMFUENGAPID:            1,

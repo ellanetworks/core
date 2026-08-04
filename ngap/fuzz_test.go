@@ -27,6 +27,8 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		goldenUEContextReleaseRequest, goldenUEContextReleaseRequestMin,
 		goldenUEContextReleaseCommandPair, goldenUEContextReleaseCommandAMF,
 		goldenUEContextReleaseComplete, goldenUEContextReleaseCompleteMin,
+		goldenInitialContextSetupRequest, goldenInitialContextSetupRequestNoSessions,
+		goldenInitialContextSetupResponse, goldenInitialContextSetupFailure,
 	} {
 		b, err := hex.DecodeString(g)
 		if err != nil {
@@ -47,6 +49,9 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		_, _ = unmarshalPERValue[ResetType](data)
 		_, _ = unmarshalPERValue[UserLocationInformation](data)
 		_, _ = unmarshalPERValue[UENGAPIDs](data)
+		_, _ = unmarshalPERValue[UESecurityCapabilities](data)
+		_, _ = unmarshalPERValue[UEAggregateMaximumBitRate](data)
+		_, _ = unmarshalPERValue[PDUSessionResourceSetupListCxtReq](data)
 		_, _ = unmarshalPERValue[PDUSessionResourceListCxtRelCpl](data)
 
 		pdu, err := Unmarshal(data)

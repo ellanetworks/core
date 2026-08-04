@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -171,4 +172,82 @@ func AMFIDToModels(region ngap.AMFRegionID, set ngap.AMFSetID, pointer ngap.AMFP
 		byte(set >> 2),
 		byte(set&0x3)<<6 | byte(pointer&0x3f),
 	})
+}
+
+// AllowedNSSAIToNGAP converts the UE's allowed slices. The IE is mandatory in an
+// INITIAL CONTEXT SETUP REQUEST and bounded at maxnoofAllowedS-NSSAIs
+// (TS 38.413 §9.3.1.31).
+func AllowedNSSAIToNGAP(allowed []models.Snssai) (ngap.AllowedNSSAI, error) {
+	if len(allowed) == 0 {
+		return nil, fmt.Errorf("allowed NSSAI is empty")
+	}
+
+	if len(allowed) > 8 {
+		return nil, fmt.Errorf("allowed NSSAI has %d entries, want at most 8", len(allowed))
+	}
+
+	out := make(ngap.AllowedNSSAI, 0, len(allowed))
+
+	for _, s := range allowed {
+		v, err := SNSSAIToNGAP(s)
+		if err != nil {
+			return nil, fmt.Errorf("could not convert S-NSSAI: %w", err)
+		}
+
+		out = append(out, ngap.AllowedNSSAIItem{SNSSAI: v})
+	}
+
+	return out, nil
+}
+
+// SecurityCapabilitiesToNGAP maps the UE's 5GS security capability onto the NGAP
+// IE. Only 5G-EA1..3 and 5G-IA1..3 are signalled, in bits 8..6 of the first
+// octet; Ella Core supports no E-UTRA algorithms, so those two fields stay zero
+// (TS 38.413 §9.3.1.86).
+func SecurityCapabilitiesToNGAP(sc *fgs.UESecurityCapability) ngap.UESecurityCapabilities {
+	var out ngap.UESecurityCapabilities
+
+	for n := uint8(1); n <= 3; n++ {
+		bit := uint16(1) << (15 - n + 1)
+
+		if sc.SupportsEA(n) {
+			out.NREncryptionAlgorithms |= bit
+		}
+
+		if sc.SupportsIA(n) {
+			out.NRIntegrityProtectionAlgorithms |= bit
+		}
+	}
+
+	return out
+}
+
+// RadioCapabilityForPagingToNGAP converts the UE's stored paging capability,
+// returning nil when the UE has none.
+func RadioCapabilityForPagingToNGAP(c *models.UERadioCapabilityForPaging) (*ngap.UERadioCapabilityForPaging, error) {
+	if c == nil || (c.NR == "" && c.EUTRA == "") {
+		return nil, nil
+	}
+
+	out := &ngap.UERadioCapabilityForPaging{}
+
+	if c.NR != "" {
+		b, err := hex.DecodeString(c.NR)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode NR paging capability: %w", err)
+		}
+
+		out.NR = (*ngap.UERadioCapabilityForPagingOfNR)(&b)
+	}
+
+	if c.EUTRA != "" {
+		b, err := hex.DecodeString(c.EUTRA)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode E-UTRA paging capability: %w", err)
+		}
+
+		out.EUTRA = (*ngap.UERadioCapabilityForPagingOfEUTRA)(&b)
+	}
+
+	return out, nil
 }

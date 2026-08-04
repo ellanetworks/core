@@ -18,7 +18,7 @@ import (
 func handleInitialContextSetupFailure(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupFailure(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode Initial Context Setup Failure", zap.Error(err))
+		handleParseError(m, radio.Conn, s1ap.ProcInitialContextSetup, err)
 		return
 	}
 

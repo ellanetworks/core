@@ -511,6 +511,66 @@ func (a *AllowedNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (l PDUSessionResourceSetupListCxtReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemCxtReq(l))
+}
+
+func (l *PDUSessionResourceSetupListCxtReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemCxtReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSetupListCxtRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemCxtRes(l))
+}
+
+func (l *PDUSessionResourceSetupListCxtRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemCxtRes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListCxtRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemCxtRes(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListCxtRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemCxtRes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListCxtFail) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemCxtFail(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListCxtFail) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemCxtFail](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 func (l PDUSessionResourceListCxtRelReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceItemCxtRelReq(l))
 }

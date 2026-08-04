@@ -34,6 +34,26 @@ func (n *Name) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+// TransferContainer is an OCTET STRING (CONTAINING XxxTransfer): a nested PER
+// encoding NGAP carries opaquely between the NG-RAN node and the SMF. S1AP has
+// no such construct.
+type TransferContainer []byte
+
+func (c TransferContainer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, c)
+}
+
+func (c *TransferContainer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*c = TransferContainer(b)
+
+	return nil
+}
+
 // TransportLayerAddress ::= BIT STRING (SIZE(1..160, ...)). Holds the address
 // octets (IPv4 = 4, IPv6 = 16).
 type TransportLayerAddress []byte

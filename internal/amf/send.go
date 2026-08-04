@@ -14,12 +14,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -254,7 +256,7 @@ func SendRegistrationAccept(
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
-	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
+	pduSessionResourceSetupList ngap.PDUSessionResourceSetupListCxtReq,
 	equivalentPlmnID models.PlmnID,
 	supportedGUAMI *models.Guami,
 ) {
@@ -653,6 +655,103 @@ func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, 
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
 }
 
+// PDUSessionSetupItem builds one PDU Session Resource Setup Request item for an
+// INITIAL CONTEXT SETUP REQUEST (TS 38.413 §9.2.2.1). The transfer is the
+// SMF's, carried opaquely.
+func PDUSessionSetupItem(pduSessionID uint8, snssai *models.Snssai, nasPDU, transfer []byte) (ngap.PDUSessionResourceSetupItemCxtReq, error) {
+	if snssai == nil {
+		return ngap.PDUSessionResourceSetupItemCxtReq{}, fmt.Errorf("S-NSSAI is required")
+	}
+
+	s, err := util.SNSSAIToNGAP(*snssai)
+	if err != nil {
+		return ngap.PDUSessionResourceSetupItemCxtReq{}, fmt.Errorf("could not convert S-NSSAI: %w", err)
+	}
+
+	item := ngap.PDUSessionResourceSetupItemCxtReq{
+		PDUSessionID: ngap.PDUSessionID(pduSessionID),
+		SNSSAI:       s,
+		Transfer:     ngap.TransferContainer(transfer),
+	}
+
+	if nasPDU != nil {
+		item.NASPDU = ngap.Ptr(ngap.NASPDU(nasPDU))
+	}
+
+	return item, nil
+}
+
+// initialContextSetupBytes builds an INITIAL CONTEXT SETUP REQUEST
+// (TS 38.413 §9.2.2.1).
+func initialContextSetupBytes(
+	amfID ngap.AMFUENGAPID,
+	ranID ngap.RANUENGAPID,
+	ambrUp, ambrDown string,
+	allowedNssai []models.Snssai,
+	kgnb []byte,
+	ueRadioCapability []byte,
+	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
+	ueSecurityCapability *fgs.UESecurityCapability,
+	nasPdu []byte,
+	sessions ngap.PDUSessionResourceSetupListCxtReq,
+	supportedGUAMI *models.Guami,
+) ([]byte, error) {
+	if ueSecurityCapability == nil {
+		return nil, fmt.Errorf("UE security capability is required")
+	}
+
+	if supportedGUAMI == nil || supportedGUAMI.PlmnID == nil {
+		return nil, fmt.Errorf("GUAMI is required")
+	}
+
+	guami, err := util.GUAMIToNGAP(*supportedGUAMI)
+	if err != nil {
+		return nil, fmt.Errorf("could not convert GUAMI: %w", err)
+	}
+
+	allowed, err := util.AllowedNSSAIToNGAP(allowedNssai)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(kgnb) != 32 {
+		return nil, fmt.Errorf("K_gNB is %d octets, want 32", len(kgnb))
+	}
+
+	msg := &ngap.InitialContextSetupRequest{
+		AMFUENGAPID:            amfID,
+		RANUENGAPID:            ranID,
+		GUAMI:                  guami,
+		AllowedNSSAI:           allowed,
+		UESecurityCapabilities: util.SecurityCapabilitiesToNGAP(ueSecurityCapability),
+		UERadioCapability:      ngap.UERadioCapability(ueRadioCapability),
+	}
+
+	copy(msg.SecurityKey[:], kgnb)
+
+	// §9.2.2.1 makes the UE Aggregate Maximum Bit Rate conditional on the PDU
+	// session list, so the two travel together.
+	if len(sessions) > 0 {
+		msg.PDUSessionResourceSetup = sessions
+		msg.UEAggregateMaximumBitRate = &ngap.UEAggregateMaximumBitRate{
+			DL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrDown)),
+			UL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrUp)),
+		}
+	}
+
+	if nasPdu != nil {
+		msg.NASPDU = ngap.Ptr(ngap.NASPDU(nasPdu))
+	}
+
+	if paging, err := util.RadioCapabilityForPagingToNGAP(ueRadioCapabilityForPaging); err != nil {
+		return nil, err
+	} else if paging != nil {
+		msg.UERadioCapabilityForPaging = paging
+	}
+
+	return msg.Marshal()
+}
+
 func (ueConn *UeConn) SendInitialContextSetup(
 	ctx context.Context,
 	ambrUp string,
@@ -663,7 +762,7 @@ func (ueConn *UeConn) SendInitialContextSetup(
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
 	ueSecurityCapability *fgs.UESecurityCapability,
 	nasPdu []byte,
-	pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq,
+	sessions ngap.PDUSessionResourceSetupListCxtReq,
 	supportedGUAMI *models.Guami,
 ) error {
 	amfInstance, conn, err := ueConn.sendTarget()
@@ -671,9 +770,9 @@ func (ueConn *UeConn) SendInitialContextSetup(
 		return err
 	}
 
-	pkt, err := send.BuildInitialContextSetupRequest(
-		int64(ueConn.AmfUeNgapID),
-		int64(ueConn.RanUeNgapID),
+	pkt, err := initialContextSetupBytes(
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
+		ngap.RANUENGAPID(ueConn.RanUeNgapID),
 		ambrUp,
 		ambrDown,
 		allowedNssai,
@@ -682,7 +781,7 @@ func (ueConn *UeConn) SendInitialContextSetup(
 		ueRadioCapabilityForPaging,
 		ueSecurityCapability,
 		nasPdu,
-		pduSessionResourceSetupRequestList,
+		sessions,
 		supportedGUAMI,
 	)
 	if err != nil {

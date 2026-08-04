@@ -82,7 +82,7 @@ func BuildPDUSessionResourceSetupResponse(opts *PDUSessionResourceSetupResponseO
 			return pdu, fmt.Errorf("failed to get PDUSessionResourceSetupResponseTransfer: %v", err)
 		}
 
-		pDUSessionResourceSetupItemSURes.PDUSessionResourceSetupResponseTransfer = respTransf
+		pDUSessionResourceSetupItemSURes.PDUSessionResourceSetupResponseTransfer = []byte(respTransf)
 
 		pDUSessionResourceSetupListSURes.List = append(pDUSessionResourceSetupListSURes.List, pDUSessionResourceSetupItemSURes)
 	}

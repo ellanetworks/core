@@ -7,18 +7,28 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialContextSetupFailure) {
-	logger.WithTrace(ctx, ran.Log).Warn("Initial Context Setup Failure received", logger.Cause(causeToString(msg.Cause)))
+// HandleInitialContextSetupFailure abandons the UE context setup and hands each
+// failed session to the SMF (TS 38.413 §8.3.1.4).
+func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.InitialContextSetupFailure) {
+	// The Cause is mandatory but ignore criticality, so it may be absent.
+	cause := "absent"
+	if msg.Cause != nil {
+		cause = msg.Cause.String()
+	}
 
-	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	logger.WithTrace(ctx, ran.Log).Warn("Initial Context Setup Failure received", logger.Cause(cause))
+
+	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}
+
+	reportDiagnostics(ctx, ran, ngap.ProcInitialContextSetup, ngap.TriggeringUnsuccessfulOutcome, ueAssociated(*msg.AMFUENGAPID, *msg.RANUENGAPID), msg.Diagnostics())
 
 	ueConn.TouchLastSeen()
 
@@ -35,20 +45,15 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 		amfUe.ClearRegistrationRequestData()
 	}
 
-	if msg.PDUSessionResourceFailedToSetupItems == nil {
+	if msg.PDUSessionResourceFailed == nil {
 		return
 	}
 
 	logger.WithTrace(ctx, ueConn.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
-	for _, item := range msg.PDUSessionResourceFailedToSetupItems {
-		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
-		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-			continue
-		}
-
-		transfer := item.PDUSessionResourceSetupUnsuccessfulTransfer
+	for _, item := range msg.PDUSessionResourceFailed {
+		pduSessionID := uint8(item.PDUSessionID)
+		transfer := []byte(item.Transfer)
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {

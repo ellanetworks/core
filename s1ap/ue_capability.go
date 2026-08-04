@@ -11,8 +11,8 @@ import (
 type UECapabilityInfoIndication struct {
 	MMEUES1APID                MMEUES1APID
 	ENBUES1APID                ENBUES1APID
-	UERadioCapability          []byte
-	UERadioCapabilityForPaging []byte // paging-specific capability (TS 36.413), when present
+	UERadioCapability          UERadioCapability
+	UERadioCapabilityForPaging UERadioCapabilityForPaging
 
 	messageMeta
 }
@@ -35,39 +35,27 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 	{
 		id: idUERadioCapability, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			var err error
-
-			m.UERadioCapability, err = per.DecodeOctetString(per.NewReader(raw), enc, 0, 0, true, false, false)
-
-			return err
+			return perIEDecode(raw, &m.UERadioCapability)
 		},
 		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
 			if m.UERadioCapability == nil {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapability)
-			}), true
+			return m.UERadioCapability, true
 		},
 	},
 	{
 		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			var err error
-
-			m.UERadioCapabilityForPaging, err = per.DecodeOctetString(per.NewReader(raw), enc, 0, 0, true, false, false)
-
-			return err
+			return perIEDecode(raw, &m.UERadioCapabilityForPaging)
 		},
 		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
 			if m.UERadioCapabilityForPaging == nil {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeOctetString(w, enc, 0, 0, true, false, false, m.UERadioCapabilityForPaging)
-			}), true
+			return m.UERadioCapabilityForPaging, true
 		},
 	},
 }

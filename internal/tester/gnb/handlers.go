@@ -72,7 +72,7 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU, raw []byte)
 	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
 		return handleDownlinkNASTransport(gnb, pdu.InitiatingMessage.Value.DownlinkNASTransport)
 	case ngapType.InitiatingMessagePresentInitialContextSetupRequest:
-		return handleInitialContextSetupRequest(gnb, pdu.InitiatingMessage.Value.InitialContextSetupRequest)
+		return handleInitialContextSetupRequest(gnb, outcomeValue(raw))
 	case ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest:
 		return handlePDUSessionResourceSetupRequest(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceSetupRequest)
 	case ngapType.InitiatingMessagePresentPDUSessionResourceModifyRequest:

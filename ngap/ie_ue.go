@@ -230,3 +230,142 @@ func (p *PDUSessionID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 	return nil
 }
+
+// BitRate ::= INTEGER (0..4000000000000, ...) (extensible, where S1AP's is a
+// plain INTEGER (0..10000000000)).
+const bitRateMax = 4000000000000
+
+type BitRate uint64
+
+func (b BitRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+
+	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: bitRateMax, HasUB: true}, int64(b))
+}
+
+func (b *BitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	ext, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	if ext {
+		return fmt.Errorf("%w: BitRate extension value", errNotComprehended)
+	}
+
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: bitRateMax, HasUB: true})
+	if err != nil {
+		return err
+	}
+
+	*b = BitRate(v)
+
+	return nil
+}
+
+// UEAggregateMaximumBitRate ::= SEQUENCE { ...DL, ...UL, iE-Extensions OPTIONAL }
+// (extensible) — TS 38.413 §9.3.1.58.
+type UEAggregateMaximumBitRate struct {
+	_  [0]struct{} `per:"extseq"`
+	DL BitRate
+	UL BitRate
+	_  ieExtensions `per:",skip"`
+}
+
+// SecurityKey ::= BIT STRING (SIZE(256)) — the K_gNB.
+type SecurityKey [32]byte
+
+func (k SecurityKey) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeBitString(w, enc, 256, 256, true, true, false, k[:], 256)
+}
+
+func (k *SecurityKey) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, _, err := per.DecodeBitString(r, enc, 256, 256, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	copy(k[:], b)
+
+	return nil
+}
+
+// UESecurityCapabilities ::= SEQUENCE { four algorithm bit strings,
+// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.86. Each field is
+// BIT STRING (SIZE(16, ...)). S1AP carries only the E-UTRA pair.
+type UESecurityCapabilities struct {
+	NREncryptionAlgorithms             uint16
+	NRIntegrityProtectionAlgorithms    uint16
+	EUTRAEncryptionAlgorithms          uint16
+	EUTRAIntegrityProtectionAlgorithms uint16
+}
+
+func (c UESecurityCapabilities) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+
+	for _, v := range [4]uint16{
+		c.NREncryptionAlgorithms, c.NRIntegrityProtectionAlgorithms,
+		c.EUTRAEncryptionAlgorithms, c.EUTRAIntegrityProtectionAlgorithms,
+	} {
+		if err := per.EncodeBitString(w, enc, 16, 16, true, true, true, uintToBits(uint64(v), 16), 16); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *UESecurityCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	extContainer, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	var algs [4]uint16
+
+	for i := range algs {
+		b, nbits, err := per.DecodeBitString(r, enc, 16, 16, true, true, true)
+		if err != nil {
+			return err
+		}
+
+		algs[i] = uint16(bitsToUint(b, nbits))
+	}
+
+	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+		return err
+	}
+
+	*c = UESecurityCapabilities{
+		NREncryptionAlgorithms:             algs[0],
+		NRIntegrityProtectionAlgorithms:    algs[1],
+		EUTRAEncryptionAlgorithms:          algs[2],
+		EUTRAIntegrityProtectionAlgorithms: algs[3],
+	}
+
+	return nil
+}
+
+// UERadioCapability ::= OCTET STRING (unconstrained).
+type UERadioCapability []byte
+
+func (c UERadioCapability) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, c)
+}
+
+func (c *UERadioCapability) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*c = UERadioCapability(b)
+
+	return nil
+}

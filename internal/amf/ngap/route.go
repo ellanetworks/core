@@ -26,11 +26,13 @@ const (
 
 	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
 
-	nasNonDeliveryIndicationMessageType send.NGAPProcedure = "NASNonDeliveryIndication"
-	uplinkNASTransportMessageType       send.NGAPProcedure = "UplinkNASTransport"
-	initialUEMessageMessageType         send.NGAPProcedure = "InitialUEMessage"
-	ueContextReleaseRequestMessageType  send.NGAPProcedure = "UEContextReleaseRequest"
-	ueContextReleaseCompleteMessageType send.NGAPProcedure = "UEContextReleaseComplete"
+	nasNonDeliveryIndicationMessageType    send.NGAPProcedure = "NASNonDeliveryIndication"
+	uplinkNASTransportMessageType          send.NGAPProcedure = "UplinkNASTransport"
+	initialUEMessageMessageType            send.NGAPProcedure = "InitialUEMessage"
+	ueContextReleaseRequestMessageType     send.NGAPProcedure = "UEContextReleaseRequest"
+	ueContextReleaseCompleteMessageType    send.NGAPProcedure = "UEContextReleaseComplete"
+	initialContextSetupResponseMessageType send.NGAPProcedure = "InitialContextSetupResponse"
+	initialContextSetupFailureMessageType  send.NGAPProcedure = "InitialContextSetupFailure"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -51,6 +53,8 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		return routeInitiating(ctx, amfInstance, ran, msg, p, span)
 	case *ngap.SuccessfulOutcome:
 		return routeSuccessful(ctx, amfInstance, ran, msg, p, span)
+	case *ngap.UnsuccessfulOutcome:
+		return routeUnsuccessful(ctx, amfInstance, ran, msg, p, span)
 	default:
 		return false
 	}
@@ -104,6 +108,23 @@ func routeSuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 	switch so.ProcedureCode {
 	case ngap.ProcUEContextRelease:
 		receiveUEContextReleaseComplete(ctx, amfInstance, ran, msg, so, span)
+	case ngap.ProcInitialContextSetup:
+		receiveInitialContextSetupResponse(ctx, amfInstance, ran, msg, so, span)
+	default:
+		return false
+	}
+
+	return true
+}
+
+func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, uo *ngap.UnsuccessfulOutcome, span trace.Span) bool {
+	if !setupComplete(ctx, ran, uo.ProcedureCode) {
+		return true
+	}
+
+	switch uo.ProcedureCode {
+	case ngap.ProcInitialContextSetup:
+		receiveInitialContextSetupFailure(ctx, amfInstance, ran, msg, uo, span)
 	default:
 		return false
 	}
@@ -337,4 +358,38 @@ func receiveUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, 
 	}
 
 	HandleUEContextReleaseComplete(ctx, amfInstance, ran, cpl)
+}
+
+// receiveInitialContextSetupResponse parses and handles an INITIAL CONTEXT
+// SETUP RESPONSE. A failed parse is answered with an Error Indication: the
+// unsuccessful outcome reports the NG-RAN node's failure, not the AMF's
+// (TS 38.413 §10.3.5).
+func receiveInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, initialContextSetupResponseMessageType, span)
+
+	resp, err := ngap.ParseInitialContextSetupResponse(so.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Initial Context Setup Response", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcInitialContextSetup, err)
+
+		return
+	}
+
+	HandleInitialContextSetupResponse(ctx, amfInstance, ran, resp)
+}
+
+// receiveInitialContextSetupFailure parses and handles an INITIAL CONTEXT SETUP
+// FAILURE.
+func receiveInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, uo *ngap.UnsuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, initialContextSetupFailureMessageType, span)
+
+	fail, err := ngap.ParseInitialContextSetupFailure(uo.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Initial Context Setup Failure", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcInitialContextSetup, err)
+
+		return
+	}
+
+	HandleInitialContextSetupFailure(ctx, amfInstance, ran, fail)
 }

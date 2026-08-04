@@ -10,9 +10,9 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -20,9 +20,9 @@ func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
-	msg := decode.InitialContextSetupFailure{
-		AMFUENGAPID: 1,
-		RANUENGAPID: 1,
+	msg := &libngap.InitialContextSetupFailure{
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(1)),
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
 	}
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
@@ -37,13 +37,10 @@ func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.InitialContextSetupFailure{
-		AMFUENGAPID: 999,
-		RANUENGAPID: 99,
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnspecified},
-		},
+	msg := &libngap.InitialContextSetupFailure{
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(999)),
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(99)),
+		Cause:       &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnspecified},
 	}
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
@@ -58,13 +55,10 @@ func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	msg := decode.InitialContextSetupFailure{
-		AMFUENGAPID: 10,
-		RANUENGAPID: 1,
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnspecified},
-		},
+	msg := &libngap.InitialContextSetupFailure{
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
+		Cause:       &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnspecified},
 	}
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
@@ -84,13 +78,10 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	conn := amfUe.Conn()
 	conn.NASGuardForTest().Arm(time.Hour, 4, func(int32) {}, func() {})
 
-	msg := decode.InitialContextSetupFailure{
-		AMFUENGAPID: 10,
-		RANUENGAPID: 1,
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnspecified},
-		},
+	msg := &libngap.InitialContextSetupFailure{
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
+		Cause:       &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnspecified},
 	}
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
@@ -120,19 +111,11 @@ func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *tes
 
 	transfer := []byte{0xEE, 0xFF}
 
-	msg := decode.InitialContextSetupFailure{
-		AMFUENGAPID: 10,
-		RANUENGAPID: 1,
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnspecified},
-		},
-		PDUSessionResourceFailedToSetupItems: []ngapType.PDUSessionResourceFailedToSetupItemCxtFail{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceSetupUnsuccessfulTransfer: transfer,
-			},
-		},
+	msg := &libngap.InitialContextSetupFailure{
+		AMFUENGAPID:              libngap.Ptr(libngap.AMFUENGAPID(10)),
+		RANUENGAPID:              libngap.Ptr(libngap.RANUENGAPID(1)),
+		Cause:                    &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnspecified},
+		PDUSessionResourceFailed: libngap.PDUSessionResourceFailedToSetupListCxtFail{{PDUSessionID: 1, Transfer: transfer}},
 	}
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)

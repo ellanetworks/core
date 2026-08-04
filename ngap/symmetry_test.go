@@ -67,8 +67,6 @@ var pendingNGAPMigration = map[string]struct{}{
 	"handover_test.go":                {},
 	"ie_erab.go":                      {},
 	"ie_handover.go":                  {},
-	"initial_context_setup.go":        {},
-	"initial_context_setup_test.go":   {},
 	"location_report.go":              {},
 	"location_report_test.go":         {},
 	"lppa_transport.go":               {},

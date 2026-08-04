@@ -9,10 +9,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -21,9 +21,9 @@ func TestInitialContextSetupResponse_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
-		RANUENGAPID: 99,
-		AMFUENGAPID: 999,
+	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &libngap.InitialContextSetupResponse{
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(99)),
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(999)),
 	})
 
 	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
@@ -35,9 +35,9 @@ func TestInitialContextSetupResponse_NilUeContext(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
+	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &libngap.InitialContextSetupResponse{
+		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
 	})
 }
 
@@ -66,15 +66,10 @@ func TestInitialContextSetupResponse_SetupItemsForwardedToSmf(t *testing.T) {
 
 	transfer := []byte{0xAA, 0xBB}
 
-	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		SetupItems: []ngapType.PDUSessionResourceSetupItemCxtRes{
-			{
-				PDUSessionID:                            ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceSetupResponseTransfer: transfer,
-			},
-		},
+	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &libngap.InitialContextSetupResponse{
+		RANUENGAPID:             libngap.Ptr(libngap.RANUENGAPID(1)),
+		AMFUENGAPID:             libngap.Ptr(libngap.AMFUENGAPID(10)),
+		PDUSessionResourceSetup: libngap.PDUSessionResourceSetupListCxtRes{{PDUSessionID: 1, Transfer: transfer}},
 	})
 
 	if len(fakeSmf.PduResSetupRspCalls) != 1 {
@@ -106,15 +101,10 @@ func TestInitialContextSetupResponse_FailedItemsForwardedToSmf(t *testing.T) {
 
 	transfer := []byte{0xCC, 0xDD}
 
-	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		FailedToSetupItems: []ngapType.PDUSessionResourceFailedToSetupItemCxtRes{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceSetupUnsuccessfulTransfer: transfer,
-			},
-		},
+	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &libngap.InitialContextSetupResponse{
+		RANUENGAPID:              libngap.Ptr(libngap.RANUENGAPID(1)),
+		AMFUENGAPID:              libngap.Ptr(libngap.AMFUENGAPID(10)),
+		PDUSessionResourceFailed: libngap.PDUSessionResourceFailedToSetupListCxtRes{{PDUSessionID: 1, Transfer: transfer}},
 	})
 
 	if len(fakeSmf.PduResSetupFailCalls) != 1 {
@@ -136,15 +126,10 @@ func TestInitialContextSetupResponse_SetupItemSmContextNotFound(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		SetupItems: []ngapType.PDUSessionResourceSetupItemCxtRes{
-			{
-				PDUSessionID:                            ngapType.PDUSessionID{Value: 5},
-				PDUSessionResourceSetupResponseTransfer: []byte{0x01},
-			},
-		},
+	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &libngap.InitialContextSetupResponse{
+		RANUENGAPID:             libngap.Ptr(libngap.RANUENGAPID(1)),
+		AMFUENGAPID:             libngap.Ptr(libngap.AMFUENGAPID(10)),
+		PDUSessionResourceSetup: libngap.PDUSessionResourceSetupListCxtRes{{PDUSessionID: 5, Transfer: []byte{0x01}}},
 	})
 
 	if len(fakeSmf.PduResSetupRspCalls) != 0 {
@@ -166,15 +151,10 @@ func TestInitialContextSetupResponse_InvalidPDUSessionID(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		SetupItems: []ngapType.PDUSessionResourceSetupItemCxtRes{
-			{
-				PDUSessionID:                            ngapType.PDUSessionID{Value: 0},
-				PDUSessionResourceSetupResponseTransfer: []byte{0x01},
-			},
-		},
+	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &libngap.InitialContextSetupResponse{
+		RANUENGAPID:             libngap.Ptr(libngap.RANUENGAPID(1)),
+		AMFUENGAPID:             libngap.Ptr(libngap.AMFUENGAPID(10)),
+		PDUSessionResourceSetup: libngap.PDUSessionResourceSetupListCxtRes{{PDUSessionID: 0, Transfer: []byte{0x01}}},
 	})
 
 	if len(fakeSmf.PduResSetupRspCalls) != 0 {
@@ -200,21 +180,11 @@ func TestInitialContextSetupResponse_MixedSetupAndFailedItems(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
-		RANUENGAPID: 1,
-		AMFUENGAPID: 10,
-		SetupItems: []ngapType.PDUSessionResourceSetupItemCxtRes{
-			{
-				PDUSessionID:                            ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceSetupResponseTransfer: []byte{0xAA},
-			},
-		},
-		FailedToSetupItems: []ngapType.PDUSessionResourceFailedToSetupItemCxtRes{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 2},
-				PDUSessionResourceSetupUnsuccessfulTransfer: []byte{0xBB},
-			},
-		},
+	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, &libngap.InitialContextSetupResponse{
+		RANUENGAPID:              libngap.Ptr(libngap.RANUENGAPID(1)),
+		AMFUENGAPID:              libngap.Ptr(libngap.AMFUENGAPID(10)),
+		PDUSessionResourceSetup:  libngap.PDUSessionResourceSetupListCxtRes{{PDUSessionID: 1, Transfer: []byte{0xAA}}},
+		PDUSessionResourceFailed: libngap.PDUSessionResourceFailedToSetupListCxtRes{{PDUSessionID: 2, Transfer: []byte{0xBB}}},
 	})
 
 	if len(fakeSmf.PduResSetupRspCalls) != 1 {

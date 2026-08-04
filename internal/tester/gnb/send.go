@@ -110,12 +110,12 @@ func (g *GnodeB) SendUplinkNASTransport(opts *UplinkNasTransportOpts) error {
 }
 
 func (g *GnodeB) SendInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) error {
-	pdu, err := BuildInitialContextSetupResponse(opts)
+	pkt, err := BuildInitialContextSetupResponse(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build InitialContextSetupResponse: %s", err.Error())
 	}
 
-	return g.SendMessage(pdu, NGAPProcedureInitialContextSetupResponse)
+	return g.SendToRan(pkt, NGAPProcedureInitialContextSetupResponse)
 }
 
 func (g *GnodeB) SendPDUSessionResourceSetupResponse(opts *PDUSessionResourceSetupResponseOpts) error {

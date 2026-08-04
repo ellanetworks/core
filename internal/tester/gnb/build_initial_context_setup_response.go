@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/netip"
 
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
@@ -19,76 +20,36 @@ type InitialContextSetupResponseOpts struct {
 	PDUSessions [16]*PDUSessionInformation
 }
 
-func BuildInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) (ngapType.NGAPPDU, error) {
-	pdu := ngapType.NGAPPDU{}
+func BuildInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) ([]byte, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("InitialContextSetupResponseOpts is nil")
+	}
 
-	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
-	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
-
-	successfulOutcome := pdu.SuccessfulOutcome
-	successfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodeInitialContextSetup
-	successfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
-
-	successfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentInitialContextSetupResponse
-	successfulOutcome.Value.InitialContextSetupResponse = new(ngapType.InitialContextSetupResponse)
-
-	ies := &successfulOutcome.Value.InitialContextSetupResponse.ProtocolIEs
-
-	amfIE := ngapType.InitialContextSetupResponseIEs{}
-	amfIE.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	amfIE.Criticality.Value = ngapType.CriticalityPresentReject
-	amfIE.Value.Present = ngapType.HandoverRequiredIEsPresentAMFUENGAPID
-	amfIE.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-
-	aMFUENGAPID := amfIE.Value.AMFUENGAPID
-	aMFUENGAPID.Value = opts.AMFUENGAPID
-
-	ies.List = append(ies.List, amfIE)
-
-	ranIE := ngapType.InitialContextSetupResponseIEs{}
-	ranIE.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ranIE.Criticality.Value = ngapType.CriticalityPresentReject
-	ranIE.Value.Present = ngapType.HandoverRequiredIEsPresentRANUENGAPID
-	ranIE.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-
-	rANUENGAPID := ranIE.Value.RANUENGAPID
-	rANUENGAPID.Value = opts.RANUENGAPID
-
-	ies.List = append(ies.List, ranIE)
-
-	setupListIE := ngapType.InitialContextSetupResponseIEs{}
-	setupListIE.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes
-	setupListIE.Criticality.Value = ngapType.CriticalityPresentIgnore
-	setupListIE.Value.Present = ngapType.InitialContextSetupResponseIEsPresentPDUSessionResourceSetupListCxtRes
-	setupListIE.Value.PDUSessionResourceSetupListCxtRes = new(ngapType.PDUSessionResourceSetupListCxtRes)
-
-	PDUSessionResourceSetupListCxtRes := setupListIE.Value.PDUSessionResourceSetupListCxtRes
+	msg := &ngap.InitialContextSetupResponse{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
+	}
 
 	for _, pduSession := range opts.PDUSessions {
 		if pduSession == nil {
 			continue
 		}
 
-		pDUSessionResourceSetupItemCxtRes := ngapType.PDUSessionResourceSetupItemCxtRes{}
-
-		transferData, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTeid, pduSession.QFI)
+		transfer, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTeid, pduSession.QFI)
 		if err != nil {
-			return pdu, fmt.Errorf("failed to get PDUSessionResourceSetupResponseTransfer: %v", err)
+			return nil, fmt.Errorf("failed to get PDUSessionResourceSetupResponseTransfer: %v", err)
 		}
 
-		pDUSessionResourceSetupItemCxtRes.PDUSessionID.Value = pduSession.PDUSessionID
-		pDUSessionResourceSetupItemCxtRes.PDUSessionResourceSetupResponseTransfer = transferData
-		PDUSessionResourceSetupListCxtRes.List = append(PDUSessionResourceSetupListCxtRes.List, pDUSessionResourceSetupItemCxtRes)
+		msg.PDUSessionResourceSetup = append(msg.PDUSessionResourceSetup, ngap.PDUSessionResourceSetupItemCxtRes{
+			PDUSessionID: ngap.PDUSessionID(pduSession.PDUSessionID),
+			Transfer:     transfer,
+		})
 	}
 
-	if len(PDUSessionResourceSetupListCxtRes.List) > 0 {
-		ies.List = append(ies.List, setupListIE)
-	}
-
-	return pdu, nil
+	return msg.Marshal()
 }
 
-func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosId int64) ([]byte, error) {
+func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosId int64) (ngap.TransferContainer, error) {
 	data, err := buildPDUSessionResourceSetupResponseTransfer(ip, teid, qosId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build PDUSessionResourceSetupResponseTransfer: %v", err)

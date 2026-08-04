@@ -194,13 +194,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandlePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeInitialContextSetup:
-			decoded, report := decode.DecodeInitialContextSetupResponse(pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleInitialContextSetupResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
 			decoded, report := decode.DecodePDUSessionResourceSetupResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -233,13 +226,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch unsuccessfulOutcome.ProcedureCode.Value {
-		case ngapType.ProcedureCodeInitialContextSetup:
-			decoded, report := decode.DecodeInitialContextSetupFailure(pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleInitialContextSetupFailure(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
 			decoded, report := decode.DecodeHandoverFailure(pdu.UnsuccessfulOutcome.Value.HandoverFailure)
 			if !handleDecodeReport(ctx, ran, report) {

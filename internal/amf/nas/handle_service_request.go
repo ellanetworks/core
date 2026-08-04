@@ -24,7 +24,7 @@ func sendServiceAccept(
 	ctx context.Context,
 	ue *amf.UeContext,
 	ueConn *amf.UeConn,
-	ctxList ngapType.PDUSessionResourceSetupListCxtReq,
+	ctxList ngap.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
@@ -55,7 +55,7 @@ func sendServiceAccept(
 			ue.RadioCapabilityForPaging,
 			ue.UESecCap(),
 			nasPdu,
-			&ctxList,
+			ctxList,
 			supportedGUAMI,
 		)
 		if err != nil {
@@ -170,7 +170,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	)
 
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
-	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
+	var ctxList ngap.PDUSessionResourceSetupListCxtReq
 
 	if serviceType == fgs.ServiceTypeEmergencyServices ||
 		serviceType == fgs.ServiceTypeEmergencyServicesFallback {
@@ -226,7 +226,12 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 						cause := fgs.GMMCauseProtocolErrorUnspecified
 						errCause = append(errCause, uint8(cause))
 					} else if ueConn.UeContextRequest {
-						send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+						item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+						if err != nil {
+							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+						} else {
+							ctxList = append(ctxList, item)
+						}
 					} else {
 						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 					}
@@ -295,7 +300,12 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 				}
 
 				if ueConn.UeContextRequest {
-					send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					item, err := amf.PDUSessionSetupItem(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					if err != nil {
+						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+					} else {
+						ctxList = append(ctxList, item)
+					}
 				} else {
 					send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 				}

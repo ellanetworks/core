@@ -97,6 +97,56 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"InitialContextSetupRequest §9.1.4.1",
+			(&InitialContextSetupRequest{
+				MMEUES1APID:       1,
+				ENBUES1APID:       2,
+				ERABToBeSetup:     []ERABToBeSetupItemCtxtSUReq{{ERABID: 1, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}},
+				UERadioCapability: UERadioCapability{0x01},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idUEAggregateMaximumBitrate, CriticalityReject},
+				{idERABToBeSetupListCtxtSUReq, CriticalityReject},
+				{idUESecurityCapabilities, CriticalityReject},
+				{idSecurityKey, CriticalityReject},
+				{idUERadioCapability, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialContextSetupResponse §9.1.4.2",
+			(&InitialContextSetupResponse{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				ERABSetup:              []ERABSetupItemCtxtSURes{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1}},
+				ERABFailedToSetup:      []ERABItem{goldERABItem()},
+				CriticalityDiagnostics: &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityIgnore},
+				{idENBUES1APID, CriticalityIgnore},
+				{idERABSetupListCtxtSURes, CriticalityIgnore},
+				{idERABFailedToSetupListCtxtSU, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialContextSetupFailure §9.1.4.3",
+			(&InitialContextSetupFailure{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				Cause:                  cause,
+				CriticalityDiagnostics: &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityIgnore},
+				{idENBUES1APID, CriticalityIgnore},
+				{idCause, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
 			"UEContextReleaseRequest §9.1.4.5",
 			(&UEContextReleaseRequest{
 				MMEUES1APID: 1,
