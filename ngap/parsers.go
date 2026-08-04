@@ -30,6 +30,9 @@ var messageParsers = []messageParser{
 	{"ParseNASNonDeliveryIndication", func(v []byte) error { _, err := ParseNASNonDeliveryIndication(v); return err }},
 	{"ParsePaging", func(v []byte) error { _, err := ParsePaging(v); return err }},
 	{"ParseUplinkNASTransport", func(v []byte) error { _, err := ParseUplinkNASTransport(v); return err }},
+	{"ParseUEContextReleaseCommand", func(v []byte) error { _, err := ParseUEContextReleaseCommand(v); return err }},
+	{"ParseUEContextReleaseComplete", func(v []byte) error { _, err := ParseUEContextReleaseComplete(v); return err }},
+	{"ParseUEContextReleaseRequest", func(v []byte) error { _, err := ParseUEContextReleaseRequest(v); return err }},
 	{"ParseRANConfigurationUpdate", func(v []byte) error { _, err := ParseRANConfigurationUpdate(v); return err }},
 	{"ParseRANConfigurationUpdateAcknowledge", func(v []byte) error {
 		_, err := ParseRANConfigurationUpdateAcknowledge(v)

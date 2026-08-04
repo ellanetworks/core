@@ -9,10 +9,9 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 // TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe verifies that
@@ -39,9 +38,9 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
-	amfID := int64(200)
-	ranID := int64(2)
-	msg := decode.UEContextReleaseComplete{
+	amfID := libngap.AMFUENGAPID(200)
+	ranID := libngap.RANUENGAPID(2)
+	msg := &libngap.UEContextReleaseComplete{
 		AMFUENGAPID: &amfID,
 		RANUENGAPID: &ranID,
 	}
@@ -68,23 +67,35 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
-	amfID := int64(100)
-	ranID := int64(1)
-	msg := decode.UEContextReleaseComplete{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
-		PDUSessionResourceList: &ngapType.PDUSessionResourceListCxtRelCpl{
-			List: []ngapType.PDUSessionResourceItemCxtRelCpl{
-				{
-					PDUSessionID: ngapType.PDUSessionID{Value: 5},
-				},
-			},
-		},
+	amfID := libngap.AMFUENGAPID(100)
+	ranID := libngap.RANUENGAPID(1)
+	msg := &libngap.UEContextReleaseComplete{
+		AMFUENGAPID:            &amfID,
+		RANUENGAPID:            &ranID,
+		PDUSessionResourceList: libngap.PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
 	}
 
 	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
 	if amfInstance.FindUEByRanUeNgapID(ran, ueConn.RanUeNgapID) != nil {
 		t.Fatal("expected UeConn to be removed after release complete")
+	}
+}
+
+// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
+// reaches the handler. The procedure has no unsuccessful outcome, so the
+// rejection is reported with an ERROR INDICATION (TS 38.413 §10.3.5).
+func TestHandleUEContextReleaseComplete_MissingUENGAPIDs(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
+
+	amfID := libngap.AMFUENGAPID(1)
+
+	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran,
+		&libngap.UEContextReleaseComplete{AMFUENGAPID: &amfID})
+
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }

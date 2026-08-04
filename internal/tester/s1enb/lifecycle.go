@@ -211,5 +211,12 @@ func (e *ENB) completeContextRelease(enbUEID int64, timeout time.Duration) error
 		return fmt.Errorf("await UE Context Release Command: %w", err)
 	}
 
+	// The MME may address the UE by the pair or by the MME UE S1AP ID alone
+	// (TS 36.413 §9.1.4.6); only the pair names an eNB UE this simulator can
+	// answer for.
+	if !cmd.UES1APIDs.Pair {
+		return fmt.Errorf("UE Context Release Command carries no eNB UE S1AP ID")
+	}
+
 	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID))
 }

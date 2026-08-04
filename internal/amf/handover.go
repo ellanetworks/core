@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -128,8 +128,7 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 		targetUe.ReleaseAction = UeContextReleaseHandover
 
 		targetUe.SendUEContextReleaseCommand(cctx,
-			ngapType.CausePresentRadioNetwork,
-			ngapType.CauseRadioNetworkPresentTngrelocoverallExpiry)
+			ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTNGRelocOverallExpiry})
 
 		return nil
 	}

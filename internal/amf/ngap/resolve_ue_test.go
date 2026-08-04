@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -125,7 +126,7 @@ func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, attackerRan, decode.UEContextReleaseRequest{
+	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, attackerRan, &libngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
 	})
@@ -145,9 +146,9 @@ func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	amfID := int64(10)
-	ranID := int64(1)
-	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, attackerRan, decode.UEContextReleaseComplete{
+	amfID := libngap.AMFUENGAPID(10)
+	ranID := libngap.RANUENGAPID(1)
+	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, attackerRan, &libngap.UEContextReleaseComplete{
 		AMFUENGAPID: &amfID,
 		RANUENGAPID: &ranID,
 	})

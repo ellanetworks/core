@@ -117,13 +117,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleHandoverCancel(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUEContextReleaseRequest:
-			decoded, report := decode.DecodeUEContextReleaseRequest(pdu.InitiatingMessage.Value.UEContextReleaseRequest)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUEContextReleaseRequest(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
 			decoded, report := decode.DecodeUERadioCapabilityInfoIndication(pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -194,13 +187,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch successfulOutcome.ProcedureCode.Value {
-		case ngapType.ProcedureCodeUEContextRelease:
-			decoded, report := decode.DecodeUEContextReleaseComplete(pdu.SuccessfulOutcome.Value.UEContextReleaseComplete)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUEContextReleaseComplete(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
 			decoded, report := decode.DecodePDUSessionResourceReleaseResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
 			if !handleDecodeReport(ctx, ran, report) {

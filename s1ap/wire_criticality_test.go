@@ -97,6 +97,45 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UEContextReleaseRequest §9.1.4.5",
+			(&UEContextReleaseRequest{
+				MMEUES1APID: 1,
+				ENBUES1APID: 2,
+				Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseCommand §9.1.4.6",
+			(&UEContextReleaseCommand{
+				UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 2, Pair: true},
+				Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: 0}),
+			}).encodeBody,
+			[]wireIE{
+				{idUES1APIDs, CriticalityReject},
+				{idCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseComplete §9.1.4.7",
+			(&UEContextReleaseComplete{
+				MMEUES1APID:             Ptr(MMEUES1APID(1)),
+				ENBUES1APID:             Ptr(ENBUES1APID(2)),
+				CriticalityDiagnostics:  &CriticalityDiagnostics{},
+				UserLocationInformation: &UserLocationInformation{},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityIgnore},
+				{idENBUES1APID, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+				{idUserLocationInformation, CriticalityIgnore},
+			},
+		},
+		{
 			"InitialUEMessage §9.1.7.1",
 			(&InitialUEMessage{
 				ENBUES1APID:           1,

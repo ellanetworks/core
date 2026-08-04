@@ -80,7 +80,7 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU, raw []byte)
 	case ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand:
 		return handlePDUSessionResourceReleaseCommand(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceReleaseCommand)
 	case ngapType.InitiatingMessagePresentUEContextReleaseCommand:
-		return handleUEContextReleaseCommand(gnb, pdu.InitiatingMessage.Value.UEContextReleaseCommand)
+		return handleUEContextReleaseCommand(gnb, outcomeValue(raw))
 	case ngapType.InitiatingMessagePresentPaging:
 		return handlePaging(gnb, pdu.InitiatingMessage.Value.Paging)
 	case ngapType.InitiatingMessagePresentErrorIndication:

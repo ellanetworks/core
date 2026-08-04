@@ -157,7 +157,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		// survived core-side preparation. Its resources are reclaimed only by a
 		// CN-initiated UE Context Release (TS 38.413 §8.4.2).
 		targetUe.ReleaseAction = amf.UeContextReleaseHandover
-		targetUe.SendUEContextReleaseCommand(ctx, cause.Present, cause.RadioNetwork.Value)
+		targetUe.SendUEContextReleaseCommand(ctx, libCause(&cause))
 
 		return
 	}

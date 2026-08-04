@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -158,6 +157,5 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	// The release command still takes the reference decoder's cause constants;
 	// it moves when UE Context Release migrates.
-	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork,
-		ngapType.CauseRadioNetworkPresentUnspecified)
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified})
 }

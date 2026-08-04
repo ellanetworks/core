@@ -83,13 +83,12 @@ func (g *GnodeB) SendNGReset(opts *NGResetOpts) error {
 }
 
 func (g *GnodeB) SendUEContextReleaseRequest(opts *UEContextReleaseRequestOpts) error {
-	pdu, err := BuildUEContextReleaseRequest(opts)
+	pkt, err := BuildUEContextReleaseRequest(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build UEContextReleaseRequest: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureUEContextReleaseRequest)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureUEContextReleaseRequest); err != nil {
 		return fmt.Errorf("couldn't send UEContextReleaseRequest: %s", err.Error())
 	}
 
@@ -171,13 +170,12 @@ func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
 }
 
 func (g *GnodeB) SendUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts) error {
-	pdu, err := BuildUEContextReleaseComplete(opts)
+	pkt, err := BuildUEContextReleaseComplete(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build UEContextReleaseComplete: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureUEContextReleaseComplete)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureUEContextReleaseComplete); err != nil {
 		return fmt.Errorf("couldn't send UEContextReleaseComplete: %s", err.Error())
 	}
 

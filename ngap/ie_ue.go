@@ -212,3 +212,21 @@ type TAI struct {
 	TAC          TAC
 	_            ieExtensions `per:",skip"`
 }
+
+// PDUSessionID ::= INTEGER (0..255) — TS 38.413 §9.3.1.50.
+type PDUSessionID uint8
+
+func (p PDUSessionID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64(p))
+}
+
+func (p *PDUSessionID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
+	if err != nil {
+		return err
+	}
+
+	*p = PDUSessionID(v)
+
+	return nil
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -22,19 +23,15 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	logger.WithTrace(ctx, sourceUe.Log).Debug("Handle Handover Cancel", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)))
 	sourceUe.TouchLastSeen()
 
-	causePresent := ngapType.CausePresentRadioNetwork
-	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
+	cause := ngap.Cause{
+		Group: ngap.CauseGroupRadioNetwork,
+		Value: int(ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem),
+	}
 
 	if msg.Cause != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Debug("Handover Cancel Cause", logger.Cause(causeToString(*msg.Cause)))
 
-		// A malformed cause does not abort the procedure: keep the default and still
-		// acknowledge, since HANDOVER CANCEL ACKNOWLEDGE is mandatory (TS 38.413 §8.4.5).
-		if p, v, err := getCause(msg.Cause); err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("Get Cause from Handover Cancel Error", zap.Error(err))
-		} else {
-			causePresent, causeValue = p, v
-		}
+		cause = libCause(msg.Cause)
 	}
 
 	amfUe := sourceUe.UeContext()
@@ -46,7 +43,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	if aborted && target != nil {
 		target.ReleaseAction = amf.UeContextReleaseHandover
 
-		target.SendUEContextReleaseCommand(ctx, causePresent, causeValue)
+		target.SendUEContextReleaseCommand(ctx, cause)
 	}
 
 	// The acknowledge is mandatory, so it is sent regardless of the target-release

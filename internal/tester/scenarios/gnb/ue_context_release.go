@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/ngap"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -67,7 +67,7 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID)),
 		RANUENGAPID:   int64(scenarios.DefaultRANUENGAPID),
 		PDUSessionIDs: pduSessionStatus,
-		Cause:         ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason,
+		Cause:         ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkReleaseDueToNGRANGeneratedReason},
 	})
 	if err != nil {
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)
@@ -85,13 +85,10 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
 
-	err = validateUEContextReleaseCommand(fr, &ngapType.Cause{
-		Present: ngapType.CausePresentRadioNetwork,
-		RadioNetwork: &ngapType.CauseRadioNetwork{
-			Value: ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason,
-		},
-	},
-	)
+	err = validateUEContextReleaseCommand(fr, ngaplib.Cause{
+		Group: ngaplib.CauseGroupRadioNetwork,
+		Value: ngaplib.CauseRadioNetworkReleaseDueToNGRANGeneratedReason,
+	})
 	if err != nil {
 		return fmt.Errorf("UEContextRelease validation failed: %v", err)
 	}
@@ -99,65 +96,43 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 	return nil
 }
 
-func validateUEContextReleaseCommand(fr gnb.SCTPFrame, ca *ngapType.Cause) error {
+func validateUEContextReleaseCommand(fr gnb.SCTPFrame, want ngaplib.Cause) error {
 	err := testutil.ValidateSCTP(fr.Info, 60, 1)
 	if err != nil {
 		return fmt.Errorf("SCTP validation failed: %v", err)
 	}
 
-	pdu, err := ngap.Decoder(fr.Data)
+	pdu, err := ngaplib.Unmarshal(fr.Data)
 	if err != nil {
 		return fmt.Errorf("could not decode NGAP: %v", err)
 	}
 
-	if pdu.InitiatingMessage == nil {
-		return fmt.Errorf("NGAP PDU is not a InitiatingMessage")
+	im, ok := pdu.(*ngaplib.InitiatingMessage)
+	if !ok {
+		return fmt.Errorf("NGAP PDU is not an InitiatingMessage")
 	}
 
-	if pdu.InitiatingMessage.ProcedureCode.Value != ngapType.ProcedureCodeUEContextRelease {
-		return fmt.Errorf("NGAP ProcedureCode is not UEContextRelease (%d), received %d", ngapType.ProcedureCodeUEContextRelease, pdu.InitiatingMessage.ProcedureCode.Value)
+	if im.ProcedureCode != ngaplib.ProcUEContextRelease {
+		return fmt.Errorf("NGAP ProcedureCode is not UEContextRelease (%d), received %d", ngaplib.ProcUEContextRelease, im.ProcedureCode)
 	}
 
-	ueContextReleaseCommand := pdu.InitiatingMessage.Value.UEContextReleaseCommand
-	if ueContextReleaseCommand == nil {
-		return fmt.Errorf("UE Context Release Command is nil")
+	cmd, err := ngaplib.ParseUEContextReleaseCommand(im.Value)
+	if err != nil {
+		return fmt.Errorf("could not parse UE Context Release Command: %v", err)
 	}
 
-	var (
-		ueNGAPIDs *ngapType.UENGAPIDs
-		cause     *ngapType.Cause
-	)
-
-	for _, ie := range ueContextReleaseCommand.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDUENGAPIDs:
-			ueNGAPIDs = ie.Value.UENGAPIDs
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-		default:
-			return fmt.Errorf("UEContextReleaseCommand IE ID (%d) not supported", ie.Id.Value)
-		}
+	if cmd.Cause == nil {
+		return fmt.Errorf("Cause is absent")
 	}
 
-	if cause.Present != ca.Present {
-		return fmt.Errorf("unexpected Cause Present: got %d, want %d", cause.Present, ca.Present)
+	if *cmd.Cause != want {
+		return fmt.Errorf("unexpected Cause: got %+v, want %+v", *cmd.Cause, want)
 	}
 
-	switch cause.Present {
-	case ngapType.CausePresentRadioNetwork:
-		if cause.RadioNetwork.Value != ca.RadioNetwork.Value {
-			return fmt.Errorf("unexpected RadioNetwork Cause value: got %d, want %d", cause.RadioNetwork.Value, ca.RadioNetwork.Value)
-		}
-	case ngapType.CausePresentNas:
-		if cause.Nas.Value != ca.Nas.Value {
-			return fmt.Errorf("unexpected NAS Cause value: got %d, want %d", cause.Nas.Value, ca.Nas.Value)
-		}
-	default:
-		return fmt.Errorf("unexpected Cause Present type: %d", cause.Present)
-	}
-
-	if ueNGAPIDs == nil {
-		return fmt.Errorf("UENGAPIDs is nil")
+	// The AMF addresses a UE it has a RAN UE NGAP ID for by the pair
+	// (TS 38.413 §9.2.2.5).
+	if !cmd.UENGAPIDs.Pair {
+		return fmt.Errorf("UE-NGAP-IDs carries no RAN UE NGAP ID")
 	}
 
 	return nil

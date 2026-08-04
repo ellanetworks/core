@@ -22,6 +22,24 @@ func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID 
 	return resolveDecodedUE(ctx, amfInstance, ran, &r, &a)
 }
 
+// causeMissingUENGAPIDs answers a UE-associated message that omitted a UE NGAP
+// ID: without it the AMF cannot address a UE context, so the procedure is
+// rejected (TS 38.413 §10.3.5).
+var causeMissingUENGAPIDs = ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolAbstractSyntaxErrorReject}
+
+// resolveUEIDs is resolveUE for a message whose UE NGAP IDs carry ignore
+// criticality and may therefore be absent.
+func resolveUEIDs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID *ngap.AMFUENGAPID, ranID *ngap.RANUENGAPID) (*amf.UeConn, bool) {
+	if amfID == nil || ranID == nil {
+		logger.WithTrace(ctx, ran.Log).Warn("UE-associated NGAP message without both UE NGAP IDs")
+		sendErrorIndication(ctx, ran, amfID, ranID, causeMissingUENGAPIDs)
+
+		return nil, false
+	}
+
+	return resolveUE(ctx, amfInstance, ran, *amfID, *ranID)
+}
+
 // resolveUE looks up a UE context on the sending radio per TS 38.413 (Handling
 // of AP ID). At the AMF the local AP ID is the AMF UE NGAP ID and
 // the remote AP ID is the RAN UE NGAP ID, so the connection is identified by the

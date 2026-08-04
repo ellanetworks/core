@@ -9,7 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/ue"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type UEContextReleaseOpts struct {
@@ -25,7 +25,7 @@ func UEContextRelease(opts *UEContextReleaseOpts) error {
 		AMFUENGAPID:   opts.AMFUENGAPID,
 		RANUENGAPID:   opts.RANUENGAPID,
 		PDUSessionIDs: opts.PDUSessionIDs,
-		Cause:         ngapType.CauseRadioNetworkPresentReleaseDueToNgranGeneratedReason,
+		Cause:         ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReleaseDueToNGRANGeneratedReason},
 	})
 	if err != nil {
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)

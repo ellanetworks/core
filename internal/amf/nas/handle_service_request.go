@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -348,5 +349,5 @@ func rejectService(ctx context.Context, ueConn *amf.UeConn, cause fgs.GMMCause) 
 	amf.SendServiceReject(ctx, ueConn, cause)
 
 	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
-	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 }

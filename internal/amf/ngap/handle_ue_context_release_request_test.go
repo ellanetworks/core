@@ -9,8 +9,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -19,13 +19,10 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.UEContextReleaseRequest{
+	msg := &libngap.UEContextReleaseRequest{
 		AMFUENGAPID: 999999,
 		RANUENGAPID: 888888,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUserInactivity},
-		},
+		Cause:       &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUserInactivity},
 	}
 
 	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -59,13 +56,10 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	msg := decode.UEContextReleaseRequest{
+	msg := &libngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUserInactivity},
-		},
+		Cause:       &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUserInactivity},
 	}
 
 	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -92,8 +86,8 @@ func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
-	ueConn.SendUEContextReleaseCommand(context.Background(), ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	ueConn.SendUEContextReleaseCommand(context.Background(), libngap.Cause{Group: libngap.CauseGroupNAS, Value: libngap.CauseNASNormalRelease})
+	ueConn.SendUEContextReleaseCommand(context.Background(), libngap.Cause{Group: libngap.CauseGroupNAS, Value: libngap.CauseNASNormalRelease})
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected a single UE Context Release Command, got %d", len(sender.SentUEContextReleaseCommands))

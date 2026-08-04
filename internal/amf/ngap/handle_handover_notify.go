@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -82,5 +82,5 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
 
-	sourceUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork, ngapType.CauseRadioNetworkPresentSuccessfulHandover)
+	sourceUe.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 }

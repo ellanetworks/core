@@ -13,6 +13,7 @@ type UECapabilityInfoIndication struct {
 	ENBUES1APID                ENBUES1APID
 	UERadioCapability          []byte
 	UERadioCapabilityForPaging []byte // paging-specific capability (TS 36.413), when present
+
 	messageMeta
 }
 

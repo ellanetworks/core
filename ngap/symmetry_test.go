@@ -78,8 +78,6 @@ var pendingNGAPMigration = map[string]struct{}{
 	"status_transfer.go":              {},
 	"ue_capability.go":                {},
 	"ue_capability_test.go":           {},
-	"ue_context_release.go":           {},
-	"ue_context_release_test.go":      {},
 }
 
 // Same thing, different name per spec. Both sides must still exist.

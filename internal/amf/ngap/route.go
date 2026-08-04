@@ -29,6 +29,8 @@ const (
 	nasNonDeliveryIndicationMessageType send.NGAPProcedure = "NASNonDeliveryIndication"
 	uplinkNASTransportMessageType       send.NGAPProcedure = "UplinkNASTransport"
 	initialUEMessageMessageType         send.NGAPProcedure = "InitialUEMessage"
+	ueContextReleaseRequestMessageType  send.NGAPProcedure = "UEContextReleaseRequest"
+	ueContextReleaseCompleteMessageType send.NGAPProcedure = "UEContextReleaseComplete"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -44,10 +46,17 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		return false
 	}
 
-	im, ok := pdu.(*ngap.InitiatingMessage)
-	if !ok {
+	switch p := pdu.(type) {
+	case *ngap.InitiatingMessage:
+		return routeInitiating(ctx, amfInstance, ran, msg, p, span)
+	case *ngap.SuccessfulOutcome:
+		return routeSuccessful(ctx, amfInstance, ran, msg, p, span)
+	default:
 		return false
 	}
+}
+
+func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) bool {
 
 	// TS 38.413 §8.7.1.1: "This procedure shall be the first NGAP procedure
 	// triggered after the TNL association has become operational." The reference
@@ -57,10 +66,7 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 	// Update would let it claim a Global RAN Node ID and open the gate for
 	// everything else. The MME gates the same way (its dispatcher drops
 	// everything but S1 Setup until SetupComplete).
-	if im.ProcedureCode != ngap.ProcNGSetup && ran.RanID == nil {
-		logger.From(ctx, ran.Log).Warn("NGAP message before NG Setup, dropping",
-			zap.String("procedure", im.ProcedureCode.String()))
-
+	if !setupComplete(ctx, ran, im.ProcedureCode) {
 		return true
 	}
 
@@ -81,6 +87,23 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		receiveUplinkNASTransport(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcInitialUEMessage:
 		receiveInitialUEMessage(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcUEContextReleaseRequest:
+		receiveUEContextReleaseRequest(ctx, amfInstance, ran, msg, im, span)
+	default:
+		return false
+	}
+
+	return true
+}
+
+func routeSuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) bool {
+	if !setupComplete(ctx, ran, so.ProcedureCode) {
+		return true
+	}
+
+	switch so.ProcedureCode {
+	case ngap.ProcUEContextRelease:
+		receiveUEContextReleaseComplete(ctx, amfInstance, ran, msg, so, span)
 	default:
 		return false
 	}
@@ -268,4 +291,50 @@ func receiveInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	HandleInitialUEMessage(ctx, amfInstance, ran, req)
+}
+
+// setupComplete reports whether proc may be handled on this association.
+func setupComplete(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode) bool {
+	if proc == ngap.ProcNGSetup || ran.RanID != nil {
+		return true
+	}
+
+	logger.From(ctx, ran.Log).Warn("NGAP message before NG Setup, dropping",
+		zap.String("procedure", proc.String()))
+
+	return false
+}
+
+// receiveUEContextReleaseRequest parses and handles a UE CONTEXT RELEASE
+// REQUEST. The procedure defines no unsuccessful outcome, so a failed parse is
+// answered with an Error Indication (TS 38.413 §10.3.5).
+func receiveUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, ueContextReleaseRequestMessageType, span)
+
+	req, err := ngap.ParseUEContextReleaseRequest(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode UE Context Release Request", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcUEContextReleaseRequest, err)
+
+		return
+	}
+
+	HandleUEContextReleaseRequest(ctx, amfInstance, ran, req)
+}
+
+// receiveUEContextReleaseComplete parses and handles a UE CONTEXT RELEASE
+// COMPLETE. It is the successful outcome of a procedure the AMF itself started,
+// so a failed parse is answered with an Error Indication (TS 38.413 §10.3.5).
+func receiveUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, ueContextReleaseCompleteMessageType, span)
+
+	cpl, err := ngap.ParseUEContextReleaseComplete(so.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode UE Context Release Complete", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcUEContextRelease, err)
+
+		return
+	}
+
+	HandleUEContextReleaseComplete(ctx, amfInstance, ran, cpl)
 }

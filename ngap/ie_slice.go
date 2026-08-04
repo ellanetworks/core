@@ -7,6 +7,7 @@ package ngap
 const (
 	maxnoofSliceItems     = 1024
 	maxnoofAllowedSNSSAIs = 8
+	maxnoofPDUSessions    = 256
 )
 
 // SST ::= OCTET STRING (SIZE(1)).

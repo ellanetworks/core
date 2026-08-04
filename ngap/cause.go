@@ -41,12 +41,16 @@ var causeGroupRootCount = [causeRootGroups]int{
 // Root ENUMERATED values of each Cause group (TS 38.413 §9.3.1.2). A value is
 // an index within its own group, so the same number differs across groups.
 const (
-	CauseRadioNetworkUnspecified               = 0  // unspecified
-	CauseRadioNetworkUnknownLocalUENGAPID      = 14 // unknown-local-UE-NGAP-ID
-	CauseRadioNetworkInconsistentRemoteUEID    = 15 // inconsistent-remote-UE-NGAP-ID
-	CauseRadioNetworkRadioConnectionWithUELost = 21 // radio-connection-with-ue-lost
-	CauseRadioNetworkMultiplePDUSessionIDs     = 28 // multiple-PDU-session-ID-instances
-	CauseRadioNetworkSliceNotSupported         = 39 // slice-not-supported
+	CauseRadioNetworkUnspecified                      = 0  // unspecified
+	CauseRadioNetworkSuccessfulHandover               = 2  // successful-handover
+	CauseRadioNetworkReleaseDueToNGRANGeneratedReason = 3  // release-due-to-ngran-generated-reason
+	CauseRadioNetworkTNGRelocOverallExpiry            = 9  // tngrelocoverall-expiry
+	CauseRadioNetworkUnknownLocalUENGAPID             = 14 // unknown-local-UE-NGAP-ID
+	CauseRadioNetworkInconsistentRemoteUEID           = 15 // inconsistent-remote-UE-NGAP-ID
+	CauseRadioNetworkUserInactivity                   = 20 // user-inactivity
+	CauseRadioNetworkRadioConnectionWithUELost        = 21 // radio-connection-with-ue-lost
+	CauseRadioNetworkMultiplePDUSessionIDs            = 28 // multiple-PDU-session-ID-instances
+	CauseRadioNetworkSliceNotSupported                = 39 // slice-not-supported
 
 	CauseTransportResourceUnavailable = 0 // transport-resource-unavailable
 	CauseTransportUnspecified         = 1 // unspecified

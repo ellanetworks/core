@@ -7,31 +7,31 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handleUEContextReleaseCommand(gnb *GnodeB, uEContextReleaseCommand *ngapType.UEContextReleaseCommand) error {
-	var (
-		cause     *ngapType.Cause
-		ueNgapIDs *ngapType.UENGAPIDs
-	)
-
-	for _, ie := range uEContextReleaseCommand.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-		case ngapType.ProtocolIEIDUENGAPIDs:
-			ueNgapIDs = ie.Value.UENGAPIDs
-		}
+func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
+	cmd, err := ngap.ParseUEContextReleaseCommand(value)
+	if err != nil {
+		return fmt.Errorf("could not parse UEContextReleaseCommand: %w", err)
 	}
 
+	// The AMF may address the UE by the pair or by the AMF UE NGAP ID alone
+	// (TS 38.413 §9.2.2.5); only the pair names a RAN UE this gNB can resolve.
+	if !cmd.UENGAPIDs.Pair {
+		return fmt.Errorf("UEContextReleaseCommand carries no RAN UE NGAP ID")
+	}
+
+	amfUEID, ranUEID := int64(cmd.UENGAPIDs.AMFUENGAPID), int64(cmd.UENGAPIDs.RANUENGAPID)
+
 	logger.GnbLogger.Debug("Received UE Context Release Command",
-		zap.String("Cause", causeToString(*cause)),
-		zap.Any("UE NGAP IDs", ueNgapIDs),
+		zap.String("Cause", causeName(cmd.Cause)),
+		zap.Int64("RAN UE NGAP ID", ranUEID),
+		zap.Int64("AMF UE NGAP ID", amfUEID),
 	)
 
-	ue, err := gnb.LoadUE(ueNgapIDs.UENGAPIDPair.RANUENGAPID.Value)
+	ue, err := gnb.LoadUE(ranUEID)
 	if err != nil {
 		return fmt.Errorf("cannot find UE for UEContextReleaseCommand message: %v", err)
 	}
@@ -39,8 +39,8 @@ func handleUEContextReleaseCommand(gnb *GnodeB, uEContextReleaseCommand *ngapTyp
 	ue.RRCRelease()
 
 	err = gnb.SendUEContextReleaseComplete(&UEContextReleaseCompleteOpts{
-		AMFUENGAPID: ueNgapIDs.UENGAPIDPair.AMFUENGAPID.Value,
-		RANUENGAPID: ueNgapIDs.UENGAPIDPair.RANUENGAPID.Value,
+		AMFUENGAPID: amfUEID,
+		RANUENGAPID: ranUEID,
 	})
 	if err != nil {
 		return fmt.Errorf("could not send UEContextReleaseComplete: %v", err)
@@ -48,9 +48,18 @@ func handleUEContextReleaseCommand(gnb *GnodeB, uEContextReleaseCommand *ngapTyp
 
 	logger.GnbLogger.Debug(
 		"Sent UE Context Release Complete",
-		zap.Int64("RAN UE NGAP ID", ueNgapIDs.UENGAPIDPair.RANUENGAPID.Value),
-		zap.Int64("AMF UE NGAP ID", ueNgapIDs.UENGAPIDPair.AMFUENGAPID.Value),
+		zap.Int64("RAN UE NGAP ID", ranUEID),
+		zap.Int64("AMF UE NGAP ID", amfUEID),
 	)
 
 	return nil
+}
+
+// causeName renders a Cause the AMF may legitimately omit (ignore criticality).
+func causeName(cause *ngap.Cause) string {
+	if cause == nil {
+		return "absent"
+	}
+
+	return cause.String()
 }

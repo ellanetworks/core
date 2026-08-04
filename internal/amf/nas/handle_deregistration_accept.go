@@ -9,7 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // TS 23.502
@@ -28,7 +28,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) nasreply
 
 	ueConn.ReleaseAction = amf.UeContextReleaseDueToNwInitiatedDeregistraion
 
-	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASDeregister})
 
 	return nasreply.Handled()
 }

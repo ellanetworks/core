@@ -10,8 +10,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/sctp"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 // supersedeOntoNewConnection registers a UE on a first NG connection, then has it
@@ -73,9 +73,9 @@ func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 
 	before := len(sender.SentErrorIndications)
 
-	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, decode.UEContextReleaseRequest{
-		AMFUENGAPID: oldAmfID,
-		RANUENGAPID: oldRanID,
+	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, &libngap.UEContextReleaseRequest{
+		AMFUENGAPID: libngap.AMFUENGAPID(oldAmfID),
+		RANUENGAPID: libngap.RANUENGAPID(oldRanID),
 	})
 
 	if len(sender.SentErrorIndications) != before {

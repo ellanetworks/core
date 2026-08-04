@@ -20,7 +20,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -575,7 +574,18 @@ func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID 
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
 }
 
-func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePresent int, cause aper.Enumerated) {
+// ueContextReleaseCommandBytes builds a UE Context Release Command for the given
+// NGAP identities (TS 38.413 §9.2.2.5).
+func ueContextReleaseCommandBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause) ([]byte, error) {
+	msg := &ngap.UEContextReleaseCommand{
+		UENGAPIDs: ngap.UENGAPIDs{AMFUENGAPID: amfID, RANUENGAPID: ranID, Pair: true},
+		Cause:     &cause,
+	}
+
+	return msg.Marshal()
+}
+
+func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause ngap.Cause) {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		logger.From(ctx, ueConn.Log).Error("failed to resolve send target for UE Context Release Command", zap.Error(err))
@@ -590,7 +600,7 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, causePres
 		return
 	}
 
-	pkt, err := send.BuildUEContextReleaseCommand(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), causePresent, cause)
+	pkt, err := ueContextReleaseCommandBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), cause)
 	if err != nil {
 		// The command cannot be sent, so no Release Complete will arrive; release
 		// locally now to avoid leaking the UeConn and its claim.
@@ -804,6 +814,6 @@ func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err e
 		zap.String("message", what), zap.Error(err))
 
 	if conn := ue.Conn(); conn != nil {
-		conn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		conn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	}
 }

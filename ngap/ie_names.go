@@ -17,6 +17,8 @@ var protocolIENames = map[ProtocolIEID]string{
 	idFiveGSTMSI:                          "FiveGSTMSI",
 	idGlobalRANNodeID:                     "GlobalRANNodeID",
 	idNASPDU:                              "NASPDU",
+	idPDUSessionResourceListCxtRelCpl:     "PDUSessionResourceListCxtRelCpl",
+	idPDUSessionResourceListCxtRelReq:     "PDUSessionResourceListCxtRelReq",
 	idPLMNSupportList:                     "PLMNSupportList",
 	idRANNodeName:                         "RANNodeName",
 	idRANUENGAPID:                         "RANUENGAPID",
@@ -40,6 +42,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idNGRANTNLAssociationToRemoveList:     "NGRANTNLAssociationToRemoveList",
 	idUEAssociatedLogicalNGConnectionList: "UEAssociatedLogicalNGConnectionList",
 	idUEContextRequest:                    "UEContextRequest",
+	idUENGAPIDs:                           "UENGAPIDs",
 	idUERetentionInformation:              "UERetentionInformation",
 }
 

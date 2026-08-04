@@ -15,6 +15,8 @@ const (
 	idFiveGSTMSI                          ProtocolIEID = 26
 	idGlobalRANNodeID                     ProtocolIEID = 27
 	idNASPDU                              ProtocolIEID = 38
+	idPDUSessionResourceListCxtRelCpl     ProtocolIEID = 60
+	idPDUSessionResourceListCxtRelReq     ProtocolIEID = 133
 	idPLMNSupportList                     ProtocolIEID = 80
 	idPagingDRX                           ProtocolIEID = 50
 	idPagingOrigin                        ProtocolIEID = 51
@@ -34,6 +36,7 @@ const (
 	idNGRANTNLAssociationToRemoveList     ProtocolIEID = 167
 	idUEAssociatedLogicalNGConnectionList ProtocolIEID = 111
 	idUEContextRequest                    ProtocolIEID = 112
+	idUENGAPIDs                           ProtocolIEID = 114
 	idUEPagingIdentity                    ProtocolIEID = 115
 	idUnavailableGUAMIList                ProtocolIEID = 120
 	idUserLocationInformation             ProtocolIEID = 121

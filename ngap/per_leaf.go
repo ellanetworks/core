@@ -511,6 +511,36 @@ func (a *AllowedNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (l PDUSessionResourceListCxtRelReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceItemCxtRelReq(l))
+}
+
+func (l *PDUSessionResourceListCxtRelReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceItemCxtRelReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceListCxtRelCpl) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceItemCxtRelCpl(l))
+}
+
+func (l *PDUSessionResourceListCxtRelCpl) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceItemCxtRelCpl](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 func (s SliceSupportList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return marshalSeqOf(w, enc, 1, maxnoofSliceItems, []SliceSupportItem(s))
 }

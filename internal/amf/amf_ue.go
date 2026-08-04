@@ -25,7 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -261,7 +261,7 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	// Complete reaps it, so the gNB can reference it until then.
 	if displaced != nil {
 		displaced.SendUEContextReleaseCommand(context.Background(),
-			ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+			ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	}
 
 	a.clearPagingSuppression(context.Background(), ue)

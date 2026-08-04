@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -482,8 +483,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 			target.ReleaseAction = UeContextReleaseHandover
 
 			target.SendUEContextReleaseCommand(ctx,
-				ngapType.CausePresentRadioNetwork,
-				ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost)
+				ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost})
 		}
 
 		logger.WithTrace(ctx, ueConn.Log).Info("released prepared N2 handover target: source association removed")

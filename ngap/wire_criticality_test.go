@@ -129,6 +129,49 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UEContextReleaseRequest §9.2.2.4",
+			(&UEContextReleaseRequest{
+				AMFUENGAPID:            1,
+				RANUENGAPID:            2,
+				PDUSessionResourceList: PDUSessionResourceListCxtRelReq{{PDUSessionID: 5}},
+				Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}),
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idPDUSessionResourceListCxtRelReq, CriticalityReject},
+				{idCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseCommand §9.2.2.5",
+			(&UEContextReleaseCommand{
+				UENGAPIDs: UENGAPIDs{AMFUENGAPID: 1, RANUENGAPID: 2, Pair: true},
+				Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: CauseNASNormalRelease}),
+			}).encodeBody,
+			[]wireIE{
+				{idUENGAPIDs, CriticalityReject},
+				{idCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseComplete §9.2.2.6",
+			(&UEContextReleaseComplete{
+				AMFUENGAPID:             Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:             Ptr(RANUENGAPID(2)),
+				UserLocationInformation: &UserLocationInformation{Kind: UserLocationNR},
+				PDUSessionResourceList:  PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
+				CriticalityDiagnostics:  &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idUserLocationInformation, CriticalityIgnore},
+				{idPDUSessionResourceListCxtRelCpl, CriticalityReject},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
 			"NASNonDeliveryIndication §9.2.5.4",
 			(&NASNonDeliveryIndication{
 				AMFUENGAPID: 1,
