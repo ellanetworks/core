@@ -9,9 +9,11 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -42,8 +44,11 @@ func (amf *AMF) operatorInfoFrom(operator *db.Operator) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
 
-	// 3GPP TS 23.003: AMF Identifier = <AMF Region ID><AMF Set ID><AMF Pointer>
-	amfID := fmt.Sprintf("%06x", (operator.AmfRegionID<<16)|(operator.AmfSetID<<6)|amf.DBInstance.NodeID())
+	amfID := util.AMFIDToModels(
+		ngap.AMFRegionID(operator.AmfRegionID),
+		ngap.AMFSetID(operator.AmfSetID),
+		ngap.AMFPointer(amf.DBInstance.NodeID()),
+	)
 
 	return &OperatorInfo{
 		Tais: supportedTAIs,

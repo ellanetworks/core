@@ -176,8 +176,8 @@ var userLocationCellIDBits = map[UserLocationInformationKind]struct {
 	alt  int64
 	bits int
 }{
-	UserLocationEUTRA: {userLocationInformationEUTRA, eutraCellIdentityBits},
-	UserLocationNR:    {userLocationInformationNR, nrCellIdentityBits},
+	UserLocationEUTRA: {userLocationInformationEUTRA, EUTRACellIdentityBits},
+	UserLocationNR:    {userLocationInformationNR, NRCellIdentityBits},
 }
 
 func (u UserLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {

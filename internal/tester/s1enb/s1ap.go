@@ -72,10 +72,20 @@ func parseTAC(s string) (uint16, error) {
 	return uint16(v), nil
 }
 
-// eutranCellID derives a 28-bit E-UTRAN Cell Identity from the macro eNB ID
-// (the high 20 bits) plus a cell index in the low 8 bits.
+// eutranCellID is this eNB's cell 1. The library places the eNB ID and the cell
+// index at the widths its kind implies, so neither is shifted here.
 func (e *ENB) eutranCellID() uint32 {
-	return e.enbID<<8 | 0x01
+	id, err := e.enbNodeID().CellIdentity(1)
+	if err != nil {
+		// enbID is simulator configuration, not peer input.
+		panic(fmt.Sprintf("s1enb: cell identity for eNB %#x: %v", e.enbID, err))
+	}
+
+	return id
+}
+
+func (e *ENB) enbNodeID() s1ap.ENBID {
+	return s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: e.enbID}
 }
 
 func (e *ENB) tai() s1ap.TAI {
@@ -90,7 +100,7 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 	req := &s1ap.S1SetupRequest{
 		GlobalENBID: s1ap.GlobalENBID{
 			PLMNIdentity: e.plmn,
-			ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: e.enbID},
+			ENBID:        e.enbNodeID(),
 		},
 		ENBName: new(e.name),
 		SupportedTAs: s1ap.SupportedTAs{

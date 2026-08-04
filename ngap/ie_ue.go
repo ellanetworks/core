@@ -4,6 +4,8 @@
 package ngap
 
 import (
+	"fmt"
+
 	"github.com/ellanetworks/core/per"
 )
 
@@ -50,11 +52,75 @@ func (id *RANUENGAPID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+// RRCEstablishmentCause ::= ENUMERATED { emergency, highPriorityAccess,
+// mt-Access, mo-Signalling, mo-Data, mo-VoiceCall, mo-VideoCall, mo-SMS,
+// mps-PriorityAccess, mcs-PriorityAccess, ... } (extensible).
+//
+// The first five match S1AP's root, which stops there; the rest have no S1AP
+// counterpart (TS 38.413 §9.3.1.111 vs TS 36.413 §9.2.1.3a).
+type RRCEstablishmentCause uint8
+
+const (
+	RRCCauseEmergency RRCEstablishmentCause = iota
+	RRCCauseHighPriorityAccess
+	RRCCauseMTAccess
+	RRCCauseMOSignalling
+	RRCCauseMOData
+	RRCCauseMOVoiceCall
+	RRCCauseMOVideoCall
+	RRCCauseMOSMS
+	RRCCauseMPSPriorityAccess
+	RRCCauseMCSPriorityAccess
+
+	rrcEstablishmentCauseRootCount = 10
+)
+
+func (c RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeEnumerated(w, enc, rrcEstablishmentCauseRootCount, true, int64(c))
+}
+
+func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, rrcEstablishmentCauseRootCount, "RRCEstablishmentCause")
+	if err != nil {
+		return fmt.Errorf("ngap: rrc establishment cause: %w", err)
+	}
+
+	*c = RRCEstablishmentCause(idx)
+
+	return nil
+}
+
+// UEContextRequest ::= ENUMERATED { requested, ... } (extensible). No S1AP
+// counterpart: only NGAP lets the NG-RAN node ask for a UE context alongside
+// the initial NAS message (TS 38.413 §9.2.5.1).
+type UEContextRequest uint8
+
+const (
+	UEContextRequested UEContextRequest = iota
+
+	ueContextRequestRootCount = 1
+)
+
+func (u UEContextRequest) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeEnumerated(w, enc, ueContextRequestRootCount, true, int64(u))
+}
+
+func (u *UEContextRequest) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, ueContextRequestRootCount, "UEContextRequest")
+	if err != nil {
+		return err
+	}
+
+	*u = UEContextRequest(idx)
+
+	return nil
+}
+
 // Cell identity widths of the two 3GPP-access CGIs (TS 38.413 §9.3.1.7,
 // §9.3.1.9). S1AP has one, 28 bits wide.
 const (
-	eutraCellIdentityBits = 28
-	nrCellIdentityBits    = 36
+	EUTRACellIdentityBits = 28
+	NRCellIdentityBits    = 36
 )
 
 // UserLocationInformation CHOICE alternatives (TS 38.413 §9.3.1.16). The CHOICE

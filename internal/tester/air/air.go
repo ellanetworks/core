@@ -4,7 +4,7 @@
 package air
 
 import (
-	"github.com/free5gc/aper"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type DownlinkSender interface {
@@ -14,5 +14,5 @@ type DownlinkSender interface {
 
 type UplinkSender interface {
 	SendUplinkNAS(nasPDU []byte, amfUENGAPID int64, ranUENGAPID int64) error
-	SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause aper.Enumerated) error
+	SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause ngap.RRCEstablishmentCause) error
 }

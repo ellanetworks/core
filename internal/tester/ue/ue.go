@@ -20,7 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/openapi/models"
 	"go.uber.org/zap"
 )
@@ -709,7 +709,7 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 		}
 	}
 
-	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, gutiIE, ngapType.RRCEstablishmentCausePresentMoSignalling)
+	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, gutiIE, ngap.RRCCauseMOSignalling)
 	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
@@ -740,9 +740,9 @@ func (ue *UE) SendServiceRequest(ranUENGAPID int64, pduSessionStatus [16]bool, s
 		return fmt.Errorf("error encoding %s IMSI UE  NAS Security Mode Complete message: %v", ue.UeSecurity.Supi, err)
 	}
 
-	establishmentCause := ngapType.RRCEstablishmentCausePresentMoData
+	establishmentCause := ngap.RRCCauseMOData
 	if fgs.ServiceType(serviceType) == fgs.ServiceTypeMobileTerminatedServices {
-		establishmentCause = ngapType.RRCEstablishmentCausePresentMtAccess
+		establishmentCause = ngap.RRCCauseMTAccess
 	}
 
 	var gutiIE []byte

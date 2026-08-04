@@ -16,7 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/aper"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/ishidawataru/sctp"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
@@ -872,7 +872,7 @@ func (g *GnodeB) SendUplinkNAS(nasPDU []byte, amfUENGAPID int64, ranUENGAPID int
 	return nil
 }
 
-func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause aper.Enumerated) error {
+func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause ngap.RRCEstablishmentCause) error {
 	opts := &InitialUEMessageOpts{
 		Mcc:                   g.MCC,
 		Mnc:                   g.MNC,
@@ -884,12 +884,12 @@ func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G [
 		RRCEstablishmentCause: cause,
 	}
 
-	pdu, err := BuildInitialUEMessage(opts)
+	pkt, err := BuildInitialUEMessage(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build InitialUEMessage: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureInitialUEMessage)
+	err = g.SendToRan(pkt, NGAPProcedureInitialUEMessage)
 	if err != nil {
 		return fmt.Errorf("could not send InitialUEMessage: %v", err)
 	}

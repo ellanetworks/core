@@ -22,6 +22,12 @@ type NGSetupRequestOpts struct {
 	Sd    string
 }
 
+// ngENBIDBits is the macroNgENB-ID width this simulator advertises, and the
+// width the library uses to place the node in an E-UTRA cell identity. The two
+// must agree: a cell identity built from a wider value would not belong to the
+// node the setup announced.
+const ngENBIDBits = 20
+
 func BuildNGSetupRequest(opts *NGSetupRequestOpts) (ngapType.NGAPPDU, error) {
 	if opts.Mcc == "" {
 		return ngapType.NGAPPDU{}, fmt.Errorf("MCC is required to build NGSetupRequest")
@@ -90,7 +96,7 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) (ngapType.NGAPPDU, error) {
 
 	*globalNgENBID.NgENBID.MacroNgENBID = aper.BitString{
 		Bytes:     []byte{enbIDBytes[0], enbIDBytes[1], enbIDBytes[2] & 0xF0},
-		BitLength: 20,
+		BitLength: ngENBIDBits,
 	}
 
 	nGSetupRequestIEs.List = append(nGSetupRequestIEs.List, ie)

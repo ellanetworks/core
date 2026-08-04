@@ -7,6 +7,162 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
+// TS 38.413 §9.2.5.1.
+//
+// S1AP carries the location as TAI (mandatory reject) plus E-UTRAN CGI
+// (mandatory ignore); NGAP merges both into User Location Information, which is
+// mandatory reject and therefore a value type here — where UPLINK NAS TRANSPORT
+// marks the same IE ignore and it is nil-able.
+type InitialUEMessage struct {
+	RANUENGAPID             RANUENGAPID
+	NASPDU                  NASPDU
+	UserLocationInformation UserLocationInformation
+	RRCEstablishmentCause   *RRCEstablishmentCause
+	FiveGSTMSI              *FiveGSTMSI // present when the UE re-establishes with a 5G-S-TMSI
+	AMFSetID                *AMFSetID   // the gNB-selected AMF set, present when the gNB does not run NNSF
+	UEContextRequest        *UEContextRequest
+
+	messageMeta
+}
+
+var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
+	{
+		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.RANUENGAPID)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+	},
+	{
+		id: idNASPDU, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASPDU)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.NASPDU == nil {
+				return nil, false
+			}
+
+			return &m.NASPDU, true
+		},
+	},
+	{
+		id: idUserLocationInformation, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.UserLocationInformation)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.UserLocationInformation, true },
+	},
+	{
+		id: idRRCEstablishmentCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var v RRCEstablishmentCause
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.RRCEstablishmentCause = &v
+
+			return nil
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.RRCEstablishmentCause == nil {
+				return nil, false
+			}
+
+			return m.RRCEstablishmentCause, true
+		},
+	},
+	{
+		id: idFiveGSTMSI, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var v FiveGSTMSI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.FiveGSTMSI = &v
+
+			return nil
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.FiveGSTMSI == nil {
+				return nil, false
+			}
+
+			return m.FiveGSTMSI, true
+		},
+	},
+	{
+		id: idAMFSetID, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var v AMFSetID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.AMFSetID = &v
+
+			return nil
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.AMFSetID == nil {
+				return nil, false
+			}
+
+			return m.AMFSetID, true
+		},
+	},
+	{
+		id: idUEContextRequest, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var v UEContextRequest
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.UEContextRequest = &v
+
+			return nil
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.UEContextRequest == nil {
+				return nil, false
+			}
+
+			return m.UEContextRequest, true
+		},
+	},
+}
+
+func (m *InitialUEMessage) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcInitialUEMessage, initialUEMessageIEs, m)
+}
+
+func (m *InitialUEMessage) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcInitialUEMessage,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
+}
+
+func ParseInitialUEMessage(value []byte) (*InitialUEMessage, error) {
+	return parseMessageBody[InitialUEMessage](ProcInitialUEMessage, TriggeringInitiatingMessage, initialUEMessageIEs, value)
+}
+
 // TS 38.413 §9.2.5.3.
 //
 // S1AP carries the location as two mandatory IEs, E-UTRAN CGI and TAI; NGAP

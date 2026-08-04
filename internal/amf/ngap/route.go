@@ -28,6 +28,7 @@ const (
 
 	nasNonDeliveryIndicationMessageType send.NGAPProcedure = "NASNonDeliveryIndication"
 	uplinkNASTransportMessageType       send.NGAPProcedure = "UplinkNASTransport"
+	initialUEMessageMessageType         send.NGAPProcedure = "InitialUEMessage"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -78,6 +79,8 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		receiveNASNonDeliveryIndication(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcUplinkNASTransport:
 		receiveUplinkNASTransport(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcInitialUEMessage:
+		receiveInitialUEMessage(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -248,4 +251,21 @@ func receiveUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *a
 	}
 
 	HandleUplinkNASTransport(ctx, amfInstance, ran, req)
+}
+
+// receiveInitialUEMessage parses and handles an INITIAL UE MESSAGE. The
+// procedure defines no unsuccessful outcome, so a failed parse is answered with
+// an Error Indication (TS 38.413 §10.3.5).
+func receiveInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, initialUEMessageMessageType, span)
+
+	req, err := ngap.ParseInitialUEMessage(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Initial UE Message", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcInitialUEMessage, err)
+
+		return
+	}
+
+	HandleInitialUEMessage(ctx, amfInstance, ran, req)
 }

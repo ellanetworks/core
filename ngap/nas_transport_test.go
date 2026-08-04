@@ -18,6 +18,13 @@ const (
 	goldenUplinkNASTransportEUTRA  = "002e4027000004000a0002002a00550002000700260002017e0079400e0000f110abcde12000f110000001"
 )
 
+// Golden INITIAL UE MESSAGE PDUs. free5gc/ngap v1.1.3 and pycrate's NGAP
+// module, two independent implementations, encode these identically.
+const (
+	goldenInitialUEMessage     = "000f402900000400550002000100260004037e00410079000f4000f110123456789000f110000001005a400118"
+	goldenInitialUEMessageFull = "000f404300000700550005c0ffffffff00260005047e0041010079000f4000f110123456789000f110000001005a400148001a00070010c0deadbeef0003400200400070400100"
+)
+
 func goldULITAI() TAI {
 	return TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}
 }
@@ -222,8 +229,8 @@ func TestUserLocationInformationCellIdentityWidth(t *testing.T) {
 		kind UserLocationInformationKind
 		cell uint64
 	}{
-		{UserLocationEUTRA, 1 << eutraCellIdentityBits},
-		{UserLocationNR, 1 << nrCellIdentityBits},
+		{UserLocationEUTRA, 1 << EUTRACellIdentityBits},
+		{UserLocationNR, 1 << NRCellIdentityBits},
 	}
 
 	for _, tt := range tests {
@@ -341,5 +348,145 @@ func TestDownlinkNASTransportMissingIEs(t *testing.T) {
 		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
 	)); err == nil {
 		t.Error("decoded a message with no NAS-PDU, want it rejected")
+	}
+}
+
+func goldInitialULI() UserLocationInformation {
+	return UserLocationInformation{
+		Kind: UserLocationNR, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
+		CellIdentity: 0x123456789, TAI: goldULITAI(),
+	}
+}
+
+func TestInitialUEMessageGolden(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  *InitialUEMessage
+		want string
+	}{
+		{
+			"minimal",
+			&InitialUEMessage{
+				RANUENGAPID: 1, NASPDU: NASPDU{0x7e, 0x00, 0x41},
+				UserLocationInformation: goldInitialULI(),
+				RRCEstablishmentCause:   Ptr(RRCCauseMOSignalling),
+			},
+			goldenInitialUEMessage,
+		},
+		{
+			// Every modeled IE, and the RRC cause is one of the five values
+			// that exist only in NGAP's root.
+			"every modeled IE",
+			&InitialUEMessage{
+				RANUENGAPID: 0xffffffff, NASPDU: NASPDU{0x7e, 0x00, 0x41, 0x01},
+				UserLocationInformation: goldInitialULI(),
+				RRCEstablishmentCause:   Ptr(RRCCauseMCSPriorityAccess),
+				FiveGSTMSI:              &FiveGSTMSI{AMFSetID: 1, AMFPointer: 3, FiveGTMSI: 0xdeadbeef},
+				AMFSetID:                Ptr(AMFSetID(1)),
+				UEContextRequest:        Ptr(UEContextRequested),
+			},
+			goldenInitialUEMessageFull,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.msg.Marshal()
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+
+			if want := mustHex(t, tt.want); !bytes.Equal(got, want) {
+				t.Fatalf("encode mismatch:\n  got  %x\n  want %x", got, want)
+			}
+
+			pdu, err := Unmarshal(mustHex(t, tt.want))
+			if err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			out, err := ParseInitialUEMessage(pdu.value())
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+
+			if out.RANUENGAPID != tt.msg.RANUENGAPID || !bytes.Equal(out.NASPDU, tt.msg.NASPDU) ||
+				out.UserLocationInformation != tt.msg.UserLocationInformation ||
+				deref(out.RRCEstablishmentCause) != deref(tt.msg.RRCEstablishmentCause) ||
+				deref(out.FiveGSTMSI) != deref(tt.msg.FiveGSTMSI) ||
+				deref(out.AMFSetID) != deref(tt.msg.AMFSetID) ||
+				deref(out.UEContextRequest) != deref(tt.msg.UEContextRequest) {
+				t.Fatalf("decode mismatch:\n  got  %+v\n  want %+v", out, tt.msg)
+			}
+		})
+	}
+}
+
+// User Location Information is mandatory-reject here but mandatory-ignore in
+// UPLINK NAS TRANSPORT, so it is a value type in one message and nil-able in
+// the other. §10.3.5 stops this message when it is absent.
+func TestInitialUEMessageLocationIsRequired(t *testing.T) {
+	if _, err := ParseInitialUEMessage(container(t,
+		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
+		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
+	)); err == nil {
+		t.Error("decoded a message with no User Location Information, want it rejected")
+	}
+
+	// RRC Establishment Cause is mandatory-ignore, so its absence is reported
+	// and the message still delivered.
+	msg, err := ParseInitialUEMessage(container(t,
+		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
+		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
+		ieField{id: idUserLocationInformation, crit: CriticalityReject, val: goldInitialULI()},
+	))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.RRCEstablishmentCause != nil {
+		t.Errorf("absent RRC cause decoded to %v, want nil", *msg.RRCEstablishmentCause)
+	}
+
+	var missing int
+
+	for _, ie := range msg.Diagnostics().IEs {
+		if ie.TypeOfError == TypeOfErrorMissing && ie.ID == idRRCEstablishmentCause {
+			missing++
+		}
+	}
+
+	if missing != 1 {
+		t.Errorf("reported %d missing IEs, want 1: %+v", missing, msg.Diagnostics().IEs)
+	}
+}
+
+// The five RRC establishment causes above S1AP's root are NGAP-only, and the
+// extension additions past them must not alias onto a root value.
+func TestRRCEstablishmentCauseNGAPOnlyValues(t *testing.T) {
+	for _, c := range []RRCEstablishmentCause{RRCCauseMOVoiceCall, RRCCauseMOVideoCall, RRCCauseMOSMS, RRCCauseMPSPriorityAccess, RRCCauseMCSPriorityAccess} {
+		w := per.NewWriter()
+		if err := c.MarshalPER(w, per.Aligned); err != nil {
+			t.Fatalf("encode %d: %v", c, err)
+		}
+
+		w.AlignToByte()
+
+		var got RRCEstablishmentCause
+		if err := got.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned); err != nil {
+			t.Fatalf("decode %d: %v", c, err)
+		}
+
+		if got != c {
+			t.Errorf("round trip = %d, want %d", got, c)
+		}
+	}
+
+	// notAvailable and mo-ExceptionData are extension additions.
+	raw := extensionEnum(t, rrcEstablishmentCauseRootCount, 0)
+
+	var got RRCEstablishmentCause
+	if err := got.UnmarshalPER(per.NewReader(raw), per.Aligned); !errors.Is(err, errNotComprehended) {
+		t.Errorf("extension addition: err = %v, want errNotComprehended", err)
 	}
 }

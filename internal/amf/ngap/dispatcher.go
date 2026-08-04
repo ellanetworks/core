@@ -110,13 +110,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch initiatingMessage.ProcedureCode.Value {
-		case ngapType.ProcedureCodeInitialUEMessage:
-			decoded, report := decode.DecodeInitialUEMessage(pdu.InitiatingMessage.Value.InitialUEMessage)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleInitialUEMessage(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverCancel:
 			decoded, report := decode.DecodeHandoverCancel(pdu.InitiatingMessage.Value.HandoverCancel)
 			if !handleDecodeReport(ctx, ran, report) {

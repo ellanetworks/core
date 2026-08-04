@@ -37,18 +37,6 @@ type FiveGSTMSI struct {
 	FiveGTMSI  []byte
 }
 
-// InitialUEMessage is a decoded NGAP InitialUEMessage (3GPP TS 38.413).
-// Non-pointer fields are mandatory; pointer fields are optional and nil when
-// absent.
-type InitialUEMessage struct {
-	RANUENGAPID             int64
-	NASPDU                  []byte
-	UserLocationInformation UserLocationInformation
-	RRCEstablishmentCause   RRCEstablishmentCause
-	FiveGSTMSI              *FiveGSTMSI
-	UEContextRequest        bool
-}
-
 // PathSwitchRequest is a decoded NGAP PathSwitchRequest (3GPP TS 38.413).
 // RANUENGAPID, SourceAMFUENGAPID and PDUSessionResourceItems are
 // mandatory-reject. UserLocationInformation and UESecurityCapabilities are

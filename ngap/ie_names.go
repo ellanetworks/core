@@ -8,6 +8,7 @@ import "fmt"
 // ProtocolIE-ID names from TS 38.413 §9.4.5. IDs are unique protocol-wide.
 var protocolIENames = map[ProtocolIEID]string{
 	idAMFName:                             "AMFName",
+	idAMFSetID:                            "AMFSetID",
 	idAMFUENGAPID:                         "AMFUENGAPID",
 	idCause:                               "Cause",
 	idCriticalityDiagnostics:              "CriticalityDiagnostics",
@@ -18,6 +19,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idPLMNSupportList:                     "PLMNSupportList",
 	idRANNodeName:                         "RANNodeName",
 	idRANUENGAPID:                         "RANUENGAPID",
+	idRRCEstablishmentCause:               "RRCEstablishmentCause",
 	idRelativeAMFCapacity:                 "RelativeAMFCapacity",
 	idResetType:                           "ResetType",
 	idServedGUAMIList:                     "ServedGUAMIList",
@@ -36,6 +38,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idTimeToWait:                          "TimeToWait",
 	idNGRANTNLAssociationToRemoveList:     "NGRANTNLAssociationToRemoveList",
 	idUEAssociatedLogicalNGConnectionList: "UEAssociatedLogicalNGConnectionList",
+	idUEContextRequest:                    "UEContextRequest",
 	idUERetentionInformation:              "UERetentionInformation",
 }
 

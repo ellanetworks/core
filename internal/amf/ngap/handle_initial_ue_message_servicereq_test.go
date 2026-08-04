@@ -10,8 +10,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	amfnas "github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/nas/fgs"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 // realNASAdapter wires the actual NAS layer (not the fake) into the AMF, so a routing test
@@ -39,9 +39,9 @@ func TestHandleInitialUEMessage_MalformedServiceRequest_Rejects96(t *testing.T) 
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
+	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      []byte{0x7e, 0x00, 0x4c}, // plain SERVICE REQUEST header, truncated
+		NASPDU:      libngap.NASPDU{0x7e, 0x00, 0x4c}, // plain SERVICE REQUEST header, truncated
 	})
 
 	if len(sender.SentDownlinkNASTransport) != 1 {

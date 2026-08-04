@@ -96,27 +96,10 @@ func SNSSAIToNGAP(snssai models.Snssai) (ngap.SNSSAI, error) {
 	return out, nil
 }
 
-// ranNodeIDHex renders a RAN node identifier the way the models layer stores
-// it: the bit string's octets in hex, truncated to the hex digits the bit
-// length covers. The AMF keys radios on this string, so it must keep matching
-// what earlier releases wrote.
-func ranNodeIDHex(id ngap.GlobalRANNodeID) string {
-	octets := (id.Bits + 7) / 8
-	b := make([]byte, octets)
-
-	for i := range id.Bits {
-		if id.Value&(1<<uint(id.Bits-1-i)) != 0 {
-			b[i/8] |= 1 << uint(7-i%8)
-		}
-	}
-
-	return hex.EncodeToString(b)[:(id.Bits+3)/4]
-}
-
 // RANNodeIDToModels renders a Global RAN Node ID as the model form. The ng-eNB
 // prefixes distinguish the three macro variants, which share the models field.
 func RANNodeIDToModels(id ngap.GlobalRANNodeID) models.GlobalRanNodeID {
-	h := ranNodeIDHex(id)
+	h := id.Hex()
 
 	switch id.Kind {
 	case ngap.RANNodeIDGNB:
@@ -178,4 +161,14 @@ func AMFIDToNGAP(amfID string) (ngap.AMFRegionID, ngap.AMFSetID, ngap.AMFPointer
 		ngap.AMFSetID(uint16(b[1])<<2 | uint16(b[2])>>6),
 		ngap.AMFPointer(b[2] & 0x3f),
 		nil
+}
+
+// AMFIDToModels is AMFIDToNGAP's inverse: it packs the Region ID, Set ID and
+// Pointer back into the three-octet AMF identifier (TS 23.003 §2.10.1).
+func AMFIDToModels(region ngap.AMFRegionID, set ngap.AMFSetID, pointer ngap.AMFPointer) string {
+	return hex.EncodeToString([]byte{
+		byte(region),
+		byte(set >> 2),
+		byte(set&0x3)<<6 | byte(pointer&0x3f),
+	})
 }

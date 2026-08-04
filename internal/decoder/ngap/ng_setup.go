@@ -23,30 +23,16 @@ type SupportedTA struct {
 	BroadcastPLMNList []PLMN `json:"broadcast_plmn_list,omitempty"`
 }
 
-// ranNodeIDHex renders a RAN node identifier as the hex digits its bit length
-// covers, matching how the AMF stores it.
-func ranNodeIDHex(id ngap.GlobalRANNodeID) string {
-	b := make([]byte, (id.Bits+7)/8)
-
-	for i := range id.Bits {
-		if id.Value&(1<<uint(id.Bits-1-i)) != 0 {
-			b[i/8] |= 1 << uint(7-i%8)
-		}
-	}
-
-	return hex.EncodeToString(b)[:(id.Bits+3)/4]
-}
-
 func buildGlobalRANNodeID(id ngap.GlobalRANNodeID) GlobalRANNodeIDIE {
 	ie := GlobalRANNodeIDIE{PLMNIdentity: plmnIDToDecoder(id.PLMNIdentity)}
 
 	switch id.Kind {
 	case ngap.RANNodeIDGNB:
-		ie.GlobalGNBID = ranNodeIDHex(id)
+		ie.GlobalGNBID = id.Hex()
 	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
-		ie.GlobalNgENBID = ranNodeIDHex(id)
+		ie.GlobalNgENBID = id.Hex()
 	case ngap.RANNodeIDN3IWF:
-		ie.GlobalN3IWFID = ranNodeIDHex(id)
+		ie.GlobalN3IWFID = id.Hex()
 	}
 
 	return ie

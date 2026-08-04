@@ -32,6 +32,12 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
+	// An eNB may reuse an eNB-UE-S1AP-ID before its prior UE Context Release
+	// completes; drop any stale conn first so a deferred UEContextReleaseComplete
+	// cannot remove the fresh context (TS 36.413). Dropping before the new
+	// connection exists keeps this independent of DropStaleUe's own guards.
+	m.DropStaleUe(radio.Conn, msg.ENBUES1APID)
+
 	// A bare UE-associated S1-connection tracks the message. The NAS layer binds a
 	// persistent context only for an ATTACH REQUEST; a recognised resume is bound
 	// below. Anything else leaves the connection bare and releases it so an
@@ -50,8 +56,6 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	logger.From(ctx, c.Log).Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
 	)
-
-	m.DropStaleUe(radio.Conn, msg.ENBUES1APID)
 
 	// Optimistic S-TMSI resume: a security-protected message whose S-TMSI resolves a
 	// held, secured context is bound to that context only after the message verifies
