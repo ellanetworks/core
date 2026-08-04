@@ -30,6 +30,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"InitialContextSetupRequest", tableIDs(initialContextSetupRequestIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idUEAggregateMaximumBitRate, idGUAMI, idPDUSessionResourceSetupListCxtReq, idAllowedNSSAI, idUESecurityCapabilities, idSecurityKey, idUERadioCapability, idNASPDU, idUERadioCapabilityForPaging}},
 		{"InitialContextSetupResponse", tableIDs(initialContextSetupResponseIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idPDUSessionResourceSetupListCxtRes, idPDUSessionResourceFailedToSetupListCxtRes, idCriticalityDiagnostics}},
 		{"InitialContextSetupFailure", tableIDs(initialContextSetupFailureIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idPDUSessionResourceFailedToSetupListCxtFail, idCause, idCriticalityDiagnostics}},
+		{"UERadioCapabilityInfoIndication", tableIDs(uERadioCapabilityInfoIndicationIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idUERadioCapability, idUERadioCapabilityForPaging}},
 		{"UEContextReleaseRequest", tableIDs(uEContextReleaseRequestIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idPDUSessionResourceListCxtRelReq, idCause}},
 		{"UEContextReleaseCommand", tableIDs(uEContextReleaseCommandIEs), []ProtocolIEID{idUENGAPIDs, idCause}},
 		{"UEContextReleaseComplete", tableIDs(uEContextReleaseCompleteIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idUserLocationInformation, idPDUSessionResourceListCxtRelCpl, idCriticalityDiagnostics}},

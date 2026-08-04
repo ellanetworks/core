@@ -74,8 +74,6 @@ var pendingNGAPMigration = map[string]struct{}{
 	"path_switch.go":                  {},
 	"path_switch_test.go":             {},
 	"status_transfer.go":              {},
-	"ue_capability.go":                {},
-	"ue_capability_test.go":           {},
 }
 
 // Same thing, different name per spec. Both sides must still exist.
@@ -89,6 +87,11 @@ var renamedFiles = map[string]string{
 	"ng_setup_test.go":         "s1_setup_test.go",
 	"ng_setup_resp_test.go":    "s1_setup_resp_test.go",
 	"ng_setup_failure_test.go": "s1_setup_failure_test.go",
+
+	// TS 38.413 names the procedure UE Radio Capability Info Indication where
+	// TS 36.413 names it UE Capability Info Indication.
+	"ue_radio_capability.go":      "ue_capability.go",
+	"ue_radio_capability_test.go": "ue_capability_test.go",
 
 	// TS 38.413 names the NG-RAN node's update RAN Configuration Update where
 	// TS 36.413 names the eNB's ENB Configuration Update.

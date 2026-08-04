@@ -91,12 +91,16 @@ type UeContext struct {
 	kamf                 []uint8
 	abba                 []uint8
 
-	Ambr                     *models.Ambr
-	AllowedNssai             []models.Snssai
-	RegistrationArea         []models.Tai
-	RadioCapability          []byte
-	RadioCapabilityForPaging *models.UERadioCapabilityForPaging // free5gc NR/EUTRA split; the 4G MME stores the opaque S1AP octets as []byte
-	DRXParameter             fgs.DRXValue                       // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
+	Ambr             *models.Ambr
+	AllowedNssai     []models.Snssai
+	RegistrationArea []models.Tai
+	RadioCapability  []byte
+	// RadioCapabilityForPaging is the NG-RAN-reported paging-specific capability,
+	// included in PAGING so the node can apply paging optimisations
+	// (TS 38.413 §9.3.1.68). NGAP splits it into NR and E-UTRA where S1AP carries
+	// one opaque string, so the MME's counterpart is a plain []byte.
+	RadioCapabilityForPaging *models.UERadioCapabilityForPaging
+	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
 	SmContextList            map[uint8]*SmContext
 
 	// Idle-mode supervision (TS 24.501): the mobile reachable timer escalates to

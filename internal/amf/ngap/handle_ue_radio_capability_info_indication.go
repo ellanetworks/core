@@ -8,23 +8,26 @@
 package ngap
 
 import (
-	gocontext "context"
-	"encoding/hex"
+	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UERadioCapabilityInfoIndication) {
-	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+// HandleUERadioCapabilityInfoIndication stores the UE Radio Capability reported
+// by the NG-RAN node (TS 38.413 §8.5.1), replayed in later INITIAL CONTEXT SETUP
+// REQUEST messages so the node need not re-fetch it from the UE (TS 23.502).
+func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.UERadioCapabilityInfoIndication) {
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Radio Capability Info Indication", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
+	reportDiagnostics(ctx, ran, ngap.ProcUERadioCapabilityInfoIndication, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
+
 	ueConn.TouchLastSeen()
 
 	amfUe := ueConn.UeContext()
@@ -33,20 +36,25 @@ func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, amfInstance *a
 		return
 	}
 
+	// §10.3.5: an absent IE leaves the stored capability standing.
 	if msg.UERadioCapability != nil {
 		amfUe.RadioCapability = msg.UERadioCapability
 	}
 
-	if msg.UERadioCapabilityForPaging != nil {
-		amfUe.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
-		if msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR != nil {
-			amfUe.RadioCapabilityForPaging.NR = hex.EncodeToString(
-				msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value)
+	if p := msg.UERadioCapabilityForPaging; p != nil {
+		stored := &models.UERadioCapabilityForPaging{}
+
+		if p.NR != nil {
+			stored.NR = *p.NR
 		}
 
-		if msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA != nil {
-			amfUe.RadioCapabilityForPaging.EUTRA = hex.EncodeToString(
-				msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value)
+		if p.EUTRA != nil {
+			stored.EUTRA = *p.EUTRA
 		}
+
+		amfUe.RadioCapabilityForPaging = stored
 	}
+
+	logger.WithTrace(ctx, ueConn.Log).Info("stored UE Radio Capability",
+		zap.Int("bytes", len(amfUe.RadioCapability)))
 }

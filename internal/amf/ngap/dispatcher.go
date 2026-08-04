@@ -117,13 +117,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandleHandoverCancel(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
-			decoded, report := decode.DecodeUERadioCapabilityInfoIndication(pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUERadioCapabilityInfoIndication(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverNotification:
 			decoded, report := decode.DecodeHandoverNotify(pdu.InitiatingMessage.Value.HandoverNotify)
 			if !handleDecodeReport(ctx, ran, report) {

@@ -26,13 +26,14 @@ const (
 
 	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
 
-	nasNonDeliveryIndicationMessageType    send.NGAPProcedure = "NASNonDeliveryIndication"
-	uplinkNASTransportMessageType          send.NGAPProcedure = "UplinkNASTransport"
-	initialUEMessageMessageType            send.NGAPProcedure = "InitialUEMessage"
-	ueContextReleaseRequestMessageType     send.NGAPProcedure = "UEContextReleaseRequest"
-	ueContextReleaseCompleteMessageType    send.NGAPProcedure = "UEContextReleaseComplete"
-	initialContextSetupResponseMessageType send.NGAPProcedure = "InitialContextSetupResponse"
-	initialContextSetupFailureMessageType  send.NGAPProcedure = "InitialContextSetupFailure"
+	nasNonDeliveryIndicationMessageType        send.NGAPProcedure = "NASNonDeliveryIndication"
+	uplinkNASTransportMessageType              send.NGAPProcedure = "UplinkNASTransport"
+	initialUEMessageMessageType                send.NGAPProcedure = "InitialUEMessage"
+	ueContextReleaseRequestMessageType         send.NGAPProcedure = "UEContextReleaseRequest"
+	ueContextReleaseCompleteMessageType        send.NGAPProcedure = "UEContextReleaseComplete"
+	initialContextSetupResponseMessageType     send.NGAPProcedure = "InitialContextSetupResponse"
+	initialContextSetupFailureMessageType      send.NGAPProcedure = "InitialContextSetupFailure"
+	ueRadioCapabilityInfoIndicationMessageType send.NGAPProcedure = "UERadioCapabilityInfoIndication"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -93,6 +94,8 @@ func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receiveInitialUEMessage(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcUEContextReleaseRequest:
 		receiveUEContextReleaseRequest(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcUERadioCapabilityInfoIndication:
+		receiveUERadioCapabilityInfoIndication(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -392,4 +395,21 @@ func receiveInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF
 	}
 
 	HandleInitialContextSetupFailure(ctx, amfInstance, ran, fail)
+}
+
+// receiveUERadioCapabilityInfoIndication parses and handles a UE RADIO
+// CAPABILITY INFO INDICATION. The procedure defines no outcome, so a failed
+// parse is answered with an Error Indication (TS 38.413 §10.3.5).
+func receiveUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, ueRadioCapabilityInfoIndicationMessageType, span)
+
+	ind, err := ngap.ParseUERadioCapabilityInfoIndication(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode UE Radio Capability Info Indication", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcUERadioCapabilityInfoIndication, err)
+
+		return
+	}
+
+	HandleUERadioCapabilityInfoIndication(ctx, amfInstance, ran, ind)
 }

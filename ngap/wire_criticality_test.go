@@ -177,6 +177,21 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UERadioCapabilityInfoIndication §9.2.3.1",
+			func() func(*per.Writer, per.Encoding) error {
+				m := goldUERadioCapabilityInfoIndication()
+				m.UERadioCapabilityForPaging = &UERadioCapabilityForPaging{NR: &UERadioCapabilityForPagingOfNR{0x0a}}
+
+				return m.encodeBody
+			}(),
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idUERadioCapability, CriticalityIgnore},
+				{idUERadioCapabilityForPaging, CriticalityIgnore},
+			},
+		},
+		{
 			"UEContextReleaseRequest §9.2.2.4",
 			(&UEContextReleaseRequest{
 				AMFUENGAPID:            1,

@@ -743,11 +743,7 @@ func initialContextSetupBytes(
 		msg.NASPDU = ngap.Ptr(ngap.NASPDU(nasPdu))
 	}
 
-	if paging, err := util.RadioCapabilityForPagingToNGAP(ueRadioCapabilityForPaging); err != nil {
-		return nil, err
-	} else if paging != nil {
-		msg.UERadioCapabilityForPaging = paging
-	}
+	msg.UERadioCapabilityForPaging = util.RadioCapabilityForPagingToNGAP(ueRadioCapabilityForPaging)
 
 	return msg.Marshal()
 }

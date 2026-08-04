@@ -9,9 +9,11 @@ import (
 
 // TS 36.413 §9.1.10.
 type UECapabilityInfoIndication struct {
-	MMEUES1APID                MMEUES1APID
-	ENBUES1APID                ENBUES1APID
-	UERadioCapability          UERadioCapability
+	MMEUES1APID       MMEUES1APID
+	ENBUES1APID       ENBUES1APID
+	UERadioCapability UERadioCapability
+	// One opaque OCTET STRING, where NGAP's counterpart is a SEQUENCE of
+	// separate NR and E-UTRA capabilities (§9.2.1.98).
 	UERadioCapabilityForPaging UERadioCapabilityForPaging
 
 	messageMeta

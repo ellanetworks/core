@@ -30,6 +30,7 @@ var messageParsers = []messageParser{
 	{"ParseInitialContextSetupRequest", func(v []byte) error { _, err := ParseInitialContextSetupRequest(v); return err }},
 	{"ParseInitialContextSetupResponse", func(v []byte) error { _, err := ParseInitialContextSetupResponse(v); return err }},
 	{"ParseInitialContextSetupFailure", func(v []byte) error { _, err := ParseInitialContextSetupFailure(v); return err }},
+	{"ParseUERadioCapabilityInfoIndication", func(v []byte) error { _, err := ParseUERadioCapabilityInfoIndication(v); return err }},
 	{"ParseNASNonDeliveryIndication", func(v []byte) error { _, err := ParseNASNonDeliveryIndication(v); return err }},
 	{"ParsePaging", func(v []byte) error { _, err := ParsePaging(v); return err }},
 	{"ParseUplinkNASTransport", func(v []byte) error { _, err := ParseUplinkNASTransport(v); return err }},

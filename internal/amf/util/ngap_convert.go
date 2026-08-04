@@ -224,30 +224,20 @@ func SecurityCapabilitiesToNGAP(sc *fgs.UESecurityCapability) ngap.UESecurityCap
 
 // RadioCapabilityForPagingToNGAP converts the UE's stored paging capability,
 // returning nil when the UE has none.
-func RadioCapabilityForPagingToNGAP(c *models.UERadioCapabilityForPaging) (*ngap.UERadioCapabilityForPaging, error) {
-	if c == nil || (c.NR == "" && c.EUTRA == "") {
-		return nil, nil
+func RadioCapabilityForPagingToNGAP(c *models.UERadioCapabilityForPaging) *ngap.UERadioCapabilityForPaging {
+	if c == nil || (len(c.NR) == 0 && len(c.EUTRA) == 0) {
+		return nil
 	}
 
 	out := &ngap.UERadioCapabilityForPaging{}
 
-	if c.NR != "" {
-		b, err := hex.DecodeString(c.NR)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode NR paging capability: %w", err)
-		}
-
-		out.NR = (*ngap.UERadioCapabilityForPagingOfNR)(&b)
+	if len(c.NR) > 0 {
+		out.NR = ngap.Ptr(ngap.UERadioCapabilityForPagingOfNR(c.NR))
 	}
 
-	if c.EUTRA != "" {
-		b, err := hex.DecodeString(c.EUTRA)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode E-UTRA paging capability: %w", err)
-		}
-
-		out.EUTRA = (*ngap.UERadioCapabilityForPagingOfEUTRA)(&b)
+	if len(c.EUTRA) > 0 {
+		out.EUTRA = ngap.Ptr(ngap.UERadioCapabilityForPagingOfEUTRA(c.EUTRA))
 	}
 
-	return out, nil
+	return out
 }

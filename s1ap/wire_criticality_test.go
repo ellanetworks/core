@@ -97,6 +97,21 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UECapabilityInfoIndication §9.1.10",
+			(&UECapabilityInfoIndication{
+				MMEUES1APID:                1,
+				ENBUES1APID:                2,
+				UERadioCapability:          UERadioCapability{0x01, 0x02, 0x03},
+				UERadioCapabilityForPaging: UERadioCapabilityForPaging{0x0a},
+			}).encodeBody,
+			[]wireIE{
+				{idMMEUES1APID, CriticalityReject},
+				{idENBUES1APID, CriticalityReject},
+				{idUERadioCapability, CriticalityIgnore},
+				{idUERadioCapabilityForPaging, CriticalityIgnore},
+			},
+		},
+		{
 			"InitialContextSetupRequest §9.1.4.1",
 			(&InitialContextSetupRequest{
 				MMEUES1APID:       1,
