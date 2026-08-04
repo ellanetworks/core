@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
-
 	"github.com/ellanetworks/core/ngap"
 )
 

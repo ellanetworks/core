@@ -64,4 +64,14 @@ const (
 	idUserLocationInformation                    ProtocolIEID = 121
 	idUERadioCapabilityForPaging                 ProtocolIEID = 118
 	idUERetentionInformation                     ProtocolIEID = 147
+
+	// Carried inside the §9.3.4 PDU session transfers rather than a message body.
+	idAdditionalULNGUUPTNLInformation   ProtocolIEID = 126
+	idDataForwardingNotPossible         ProtocolIEID = 127
+	idNetworkInstance                   ProtocolIEID = 129
+	idPDUSessionAggregateMaximumBitRate ProtocolIEID = 130
+	idPDUSessionType                    ProtocolIEID = 134
+	idQosFlowSetupRequestList           ProtocolIEID = 136
+	idSecurityIndication                ProtocolIEID = 138
+	idULNGUUPTNLInformation             ProtocolIEID = 139
 )

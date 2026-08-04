@@ -167,8 +167,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		targetPduSessionID                      uint8
 	)
 
-	var suList ngap.PDUSessionResourceSetupListSUReq
-	var ctxList ngap.PDUSessionResourceSetupListCxtReq
+	var (
+		suList  ngap.PDUSessionResourceSetupListSUReq
+		ctxList ngap.PDUSessionResourceSetupListCxtReq
+	)
 
 	if serviceType == fgs.ServiceTypeEmergencyServices ||
 		serviceType == fgs.ServiceTypeEmergencyServicesFallback {

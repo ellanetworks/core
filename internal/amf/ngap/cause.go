@@ -4,9 +4,8 @@
 package ngap
 
 import (
-	"github.com/ellanetworks/core/ngap"
-
 	"github.com/ellanetworks/core/internal/ngapcause"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 

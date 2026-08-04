@@ -513,6 +513,21 @@ const (
 	pduSessionTypeRootCount = 5
 )
 
+func (p PDUSessionType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, pduSessionTypeRootCount, int64(p), "PDUSessionType")
+}
+
+func (p *PDUSessionType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, pduSessionTypeRootCount, "PDUSessionType")
+	if err != nil {
+		return err
+	}
+
+	*p = PDUSessionType(idx)
+
+	return nil
+}
+
 // NetworkInstance ::= INTEGER (1..256, ...) — TS 38.413 §9.3.1.113.
 type NetworkInstance uint16
 

@@ -99,6 +99,20 @@ func (u *UPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encodi
 	return u.GTPTunnel.UnmarshalPER(r, enc)
 }
 
+// UPTransportLayerInformationItem ::= SEQUENCE { nGU-UP-TNLInformation,
+// iE-Extensions OPTIONAL } (extensible).
+type UPTransportLayerInformationItem struct {
+	_                   [0]struct{} `per:"extseq"`
+	NGUUPTNLInformation UPTransportLayerInformation
+	_                   ieExtensions `per:",skip"`
+}
+
+// UPTransportLayerInformationList ::= SEQUENCE
+// (SIZE(1..maxnoofMultiConnectivityMinusOne)) OF
+// UPTransportLayerInformationItem — the additional legs of a multi-connectivity
+// session, so the bound excludes the first.
+type UPTransportLayerInformationList []UPTransportLayerInformationItem
+
 // encodeExtensibleInt encodes an INTEGER whose constraint carries an extension
 // marker but defines no extension additions: X.691 §13.1 spends one bit, then
 // the root value follows. A value outside the root is refused rather than sent

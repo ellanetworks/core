@@ -89,8 +89,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		errPduSessionID, errCause []uint8
 	)
 
-	var ctxList ngap.PDUSessionResourceSetupListCxtReq
-	var suList ngap.PDUSessionResourceSetupListSUReq
+	var (
+		ctxList ngap.PDUSessionResourceSetupListCxtReq
+		suList  ngap.PDUSessionResourceSetupListSUReq
+	)
 
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := conn.RegistrationRequest.UplinkDataStatus.PSI

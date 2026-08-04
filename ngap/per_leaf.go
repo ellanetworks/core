@@ -1120,3 +1120,18 @@ func (l *QosFlowPerTNLInformationList) UnmarshalPER(r *per.Reader, enc per.Encod
 
 	return nil
 }
+
+func (l UPTransportLayerInformationList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivityMinusOne, []UPTransportLayerInformationItem(l))
+}
+
+func (l *UPTransportLayerInformationList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[UPTransportLayerInformationItem](r, enc, 1, maxnoofMultiConnectivityMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}

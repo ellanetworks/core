@@ -345,3 +345,236 @@ func (m *PDUSessionResourceSetupResponse) Marshal() ([]byte, error) {
 func ParsePDUSessionResourceSetupResponse(value []byte) (*PDUSessionResourceSetupResponse, error) {
 	return parseMessageBody[PDUSessionResourceSetupResponse](ProcPDUSessionResourceSetup, TriggeringSuccessfulOutcome, pDUSessionResourceSetupResponseIEs, value)
 }
+
+// DataForwardingNotPossible ::= ENUMERATED { data-forwarding-not-possible,
+// ... }.
+type DataForwardingNotPossible uint8
+
+const (
+	DataForwardingNotPossibleTrue DataForwardingNotPossible = iota
+
+	dataForwardingNotPossibleRootCount = 1
+)
+
+func (d DataForwardingNotPossible) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, dataForwardingNotPossibleRootCount, int64(d), "DataForwardingNotPossible")
+}
+
+func (d *DataForwardingNotPossible) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, dataForwardingNotPossibleRootCount, "DataForwardingNotPossible")
+	if err != nil {
+		return err
+	}
+
+	*d = DataForwardingNotPossible(idx)
+
+	return nil
+}
+
+// PDUSessionResourceSetupRequestTransfer ::= SEQUENCE { protocolIEs
+// ProtocolIE-Container } (extensible) — TS 38.413 §9.3.4.1. Unlike the
+// unsuccessful transfers this one is an IE container, not a plain SEQUENCE, so
+// it carries per-IE criticality and reuses the message-body engine. The SMF
+// builds it; the NG-RAN node consumes it.
+type PDUSessionResourceSetupRequestTransfer struct {
+	PDUSessionAggregateMaximumBitRate *PDUSessionAggregateMaximumBitRate
+	ULNGUUPTNLInformation             UPTransportLayerInformation
+	AdditionalULNGUUPTNLInformation   UPTransportLayerInformationList
+	DataForwardingNotPossible         *DataForwardingNotPossible
+	PDUSessionType                    PDUSessionType
+	SecurityIndication                *SecurityIndication
+	NetworkInstance                   *NetworkInstance
+	QosFlowSetupRequest               QosFlowSetupRequestList
+
+	messageMeta
+}
+
+var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetupRequestTransfer]{
+	{
+		id: idPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			var v PDUSessionAggregateMaximumBitRate
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.PDUSessionAggregateMaximumBitRate = &v
+
+			return nil
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			if m.PDUSessionAggregateMaximumBitRate == nil {
+				return nil, false
+			}
+
+			return m.PDUSessionAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: idULNGUUPTNLInformation, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ULNGUUPTNLInformation)
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			return &m.ULNGUUPTNLInformation, true
+		},
+	},
+	{
+		id: idAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AdditionalULNGUUPTNLInformation)
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			if m.AdditionalULNGUUPTNLInformation == nil {
+				return nil, false
+			}
+
+			return m.AdditionalULNGUUPTNLInformation, true
+		},
+	},
+	{
+		id: idDataForwardingNotPossible, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			var d DataForwardingNotPossible
+
+			if err := perIEDecode(raw, &d); err != nil {
+				return err
+			}
+
+			m.DataForwardingNotPossible = &d
+
+			return nil
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			if m.DataForwardingNotPossible == nil {
+				return nil, false
+			}
+
+			return m.DataForwardingNotPossible, true
+		},
+	},
+	{
+		id: idPDUSessionType, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.PDUSessionType)
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			return &m.PDUSessionType, true
+		},
+	},
+	{
+		id: idSecurityIndication, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			var v SecurityIndication
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.SecurityIndication = &v
+
+			return nil
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			if m.SecurityIndication == nil {
+				return nil, false
+			}
+
+			return m.SecurityIndication, true
+		},
+	},
+	{
+		id: idNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			var v NetworkInstance
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.NetworkInstance = &v
+
+			return nil
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			if m.NetworkInstance == nil {
+				return nil, false
+			}
+
+			return m.NetworkInstance, true
+		},
+	},
+	{
+		id: idQosFlowSetupRequestList, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.QosFlowSetupRequest)
+		},
+		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+			if m.QosFlowSetupRequest == nil {
+				return nil, false
+			}
+
+			return m.QosFlowSetupRequest, true
+		},
+	},
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceSetupRequestTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := encodeMessageBody(w, per.Aligned, ProcPDUSessionResourceSetup, pDUSessionResourceSetupRequestTransferIEs, t); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceSetupRequestTransfer decodes the transfer the SMF
+// sends for a session the NG-RAN node is to set up. Errors carry the enclosing
+// procedure, which is what the AMF reports in Criticality Diagnostics.
+func ParsePDUSessionResourceSetupRequestTransfer(b TransferContainer) (*PDUSessionResourceSetupRequestTransfer, error) {
+	return parseMessageBody[PDUSessionResourceSetupRequestTransfer](ProcPDUSessionResourceSetup, TriggeringInitiatingMessage, pDUSessionResourceSetupRequestTransferIEs, b)
+}
+
+// PDUSessionResourceSetupResponseTransfer ::= SEQUENCE {
+// dLQosFlowPerTNLInformation, additionalDLQosFlowPerTNLInformation OPTIONAL,
+// securityResult OPTIONAL, qosFlowFailedToSetupList OPTIONAL, iE-Extensions
+// OPTIONAL } (extensible) — TS 38.413 §9.3.4.2. A plain SEQUENCE, unlike the
+// request transfer. The NG-RAN node builds it; the SMF consumes it.
+type PDUSessionResourceSetupResponseTransfer struct {
+	_                                    [0]struct{} `per:"extseq"`
+	DLQosFlowPerTNLInformation           QosFlowPerTNLInformation
+	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:",optional"`
+	SecurityResult                       *SecurityResult              `per:",optional"`
+	QosFlowFailedToSetup                 QosFlowListWithCause         `per:",optional"`
+	_                                    ieExtensions                 `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceSetupResponseTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceSetupResponseTransfer decodes the transfer an NG-RAN
+// node returns for a session it set up.
+func ParsePDUSessionResourceSetupResponseTransfer(b TransferContainer) (*PDUSessionResourceSetupResponseTransfer, error) {
+	var t PDUSessionResourceSetupResponseTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}

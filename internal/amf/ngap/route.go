@@ -67,7 +67,6 @@ func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 }
 
 func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) bool {
-
 	// TS 38.413 §8.7.1.1: "This procedure shall be the first NGAP procedure
 	// triggered after the TNL association has become operational." The reference
 	// decoder's path enforces that further down the dispatcher, but this one

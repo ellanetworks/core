@@ -69,4 +69,12 @@ var transferParsers = []messageParser{
 		_, err := ParsePDUSessionResourceModifyIndicationUnsuccessfulTransfer(v)
 		return err
 	}},
+	{"ParsePDUSessionResourceSetupRequestTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceSetupRequestTransfer(v)
+		return err
+	}},
+	{"ParsePDUSessionResourceSetupResponseTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceSetupResponseTransfer(v)
+		return err
+	}},
 }

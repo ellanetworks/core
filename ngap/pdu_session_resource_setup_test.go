@@ -208,3 +208,179 @@ func TestPDUSessionResourceSetupUnsuccessfulTransferRejectsTruncated(t *testing.
 		t.Fatal("parsed an empty transfer")
 	}
 }
+
+// The request transfer is an IE container, so its golden carries IE ids and
+// criticality: 0x8b=139 UL-NGU-UP-TNLInformation, 0x86=134 PDUSessionType,
+// 0x88=136 QosFlowSetupRequestList, each reject (criticality 0). The response
+// transfer is a plain SEQUENCE and is dual-verified against free5gc.
+const (
+	goldenSetupRequestTransferMin  = "000003008b000a01f0c0a801010000000100860001000088000700010000090000"
+	goldenSetupResponseTransferMin = "0003e0c0a80101000000010003"
+	// Two optionals present: securityResult and qosFlowFailedToSetupList.
+	goldenSetupResponseTransferFull = "3003e0c0a8010100000001000304001000"
+)
+
+func setupTransferTunnel() UPTransportLayerInformation {
+	return UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+		TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1},
+		GTPTEID:               1,
+	}}
+}
+
+func TestPDUSessionResourceSetupRequestTransferGolden(t *testing.T) {
+	in := PDUSessionResourceSetupRequestTransfer{
+		ULNGUUPTNLInformation: setupTransferTunnel(),
+		PDUSessionType:        PDUSessionTypeIPv4,
+		QosFlowSetupRequest: QosFlowSetupRequestList{{
+			QosFlowIdentifier: 1,
+			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
+				QosCharacteristics: QosCharacteristics{
+					Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+				},
+				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
+			},
+		}},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := hex.EncodeToString(b); got != goldenSetupRequestTransferMin {
+		t.Fatalf("encoded %s, want %s", got, goldenSetupRequestTransferMin)
+	}
+
+	out, err := ParsePDUSessionResourceSetupRequestTransfer(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.PDUSessionType != PDUSessionTypeIPv4 {
+		t.Errorf("PDUSessionType = %d, want %d", out.PDUSessionType, PDUSessionTypeIPv4)
+	}
+
+	if len(out.QosFlowSetupRequest) != 1 || out.QosFlowSetupRequest[0].QosFlowIdentifier != 1 {
+		t.Errorf("QosFlowSetupRequest = %+v, want one flow with identifier 1", out.QosFlowSetupRequest)
+	}
+
+	ipv4, _ := out.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.IPs()
+	if ipv4.String() != "192.168.1.1" || out.ULNGUUPTNLInformation.GTPTunnel.GTPTEID != 1 {
+		t.Errorf("tunnel = %s/%d, want 192.168.1.1/1", ipv4, out.ULNGUUPTNLInformation.GTPTunnel.GTPTEID)
+	}
+}
+
+// UL-NGU-UP-TNLInformation, PDUSessionType and QosFlowSetupRequestList are all
+// mandatory with reject criticality, so a transfer missing one is rejected
+// rather than delivered half-built (§10.3.5).
+func TestPDUSessionResourceSetupRequestTransferRequiresMandatoryIEs(t *testing.T) {
+	in := PDUSessionResourceSetupRequestTransfer{
+		ULNGUUPTNLInformation: setupTransferTunnel(),
+		PDUSessionType:        PDUSessionTypeIPv4,
+	}
+
+	if _, err := in.Marshal(); err == nil {
+		t.Error("encoded a request transfer with no QosFlowSetupRequestList")
+	}
+}
+
+func TestPDUSessionResourceSetupResponseTransferGolden(t *testing.T) {
+	tnl := QosFlowPerTNLInformation{
+		UPTransportLayerInformation: setupTransferTunnel(),
+		AssociatedQosFlowList:       AssociatedQosFlowList{{QosFlowIdentifier: 3}},
+	}
+
+	integrity := IntegrityProtectionPerformed
+	confidentiality := ConfidentialityProtectionNotPerformed
+
+	for _, c := range []struct {
+		name   string
+		in     PDUSessionResourceSetupResponseTransfer
+		golden string
+	}{
+		{"Min", PDUSessionResourceSetupResponseTransfer{
+			DLQosFlowPerTNLInformation: tnl,
+		}, goldenSetupResponseTransferMin},
+		{"Full", PDUSessionResourceSetupResponseTransfer{
+			DLQosFlowPerTNLInformation: tnl,
+			SecurityResult: &SecurityResult{
+				IntegrityProtectionResult:       integrity,
+				ConfidentialityProtectionResult: confidentiality,
+			},
+			QosFlowFailedToSetup: QosFlowListWithCause{{
+				QosFlowIdentifier: 2,
+				Cause:             Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+			}},
+		}, goldenSetupResponseTransferFull},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := c.in.Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := hex.EncodeToString(b); got != c.golden {
+				t.Fatalf("encoded %s, want %s", got, c.golden)
+			}
+
+			out, err := ParsePDUSessionResourceSetupResponseTransfer(b)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(out.DLQosFlowPerTNLInformation.AssociatedQosFlowList) != 1 ||
+				out.DLQosFlowPerTNLInformation.AssociatedQosFlowList[0].QosFlowIdentifier != 3 {
+				t.Errorf("AssociatedQosFlowList = %+v, want one flow with identifier 3",
+					out.DLQosFlowPerTNLInformation.AssociatedQosFlowList)
+			}
+
+			if (c.in.SecurityResult == nil) != (out.SecurityResult == nil) {
+				t.Errorf("SecurityResult presence not round-tripped")
+			}
+
+			if out.SecurityResult != nil && out.SecurityResult.ConfidentialityProtectionResult != confidentiality {
+				t.Errorf("ConfidentialityProtectionResult = %d, want %d",
+					out.SecurityResult.ConfidentialityProtectionResult, confidentiality)
+			}
+
+			if len(out.QosFlowFailedToSetup) != len(c.in.QosFlowFailedToSetup) {
+				t.Errorf("QosFlowFailedToSetup length %d, want %d",
+					len(out.QosFlowFailedToSetup), len(c.in.QosFlowFailedToSetup))
+			}
+		})
+	}
+}
+
+// UL-NGU-UP-TNLInformation is mandatory with reject criticality, and its Go
+// type is a struct that is never nil, so the encoder cannot catch its absence.
+// Only the decode path can, and §10.3.5 requires the procedure be rejected with
+// the missing IE named in Criticality Diagnostics.
+func TestPDUSessionResourceSetupRequestTransferMissingTunnel(t *testing.T) {
+	value := container(t,
+		ieField{id: idPDUSessionType, crit: CriticalityReject, raw: ieRaw(t, Ptr(PDUSessionTypeIPv4))},
+		ieField{id: idQosFlowSetupRequestList, crit: CriticalityReject, raw: ieRaw(t, QosFlowSetupRequestList{{
+			QosFlowIdentifier: 1,
+			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
+				QosCharacteristics: QosCharacteristics{
+					Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+				},
+				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
+			},
+		}})},
+	)
+
+	_, err := ParsePDUSessionResourceSetupRequestTransfer(value)
+	if err == nil {
+		t.Fatal("parsed a request transfer with no UL-NGU-UP-TNLInformation")
+	}
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
+	}
+
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idULNGUUPTNLInformation ||
+		ase.IEs[0].TypeOfError != TypeOfErrorMissing {
+		t.Errorf("diagnostics = %+v, want one missing entry for UL-NGU-UP-TNLInformation", ase.IEs)
+	}
+}
