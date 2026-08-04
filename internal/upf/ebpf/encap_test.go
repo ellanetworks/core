@@ -52,8 +52,8 @@ func TestGTPEncapsulationDownlinkS1U(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("S1-U downlink packet got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("S1-U downlink packet got ActionAborted; encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV4EncapLenS1U+len(inner) {
@@ -117,8 +117,8 @@ func TestGTPEncapsulationDownlinkIPv4(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("downlink packet got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink packet got ActionAborted; encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV4EncapLen+len(inner) {
@@ -194,8 +194,8 @@ func TestGTPEncapsulationDownlinkInnerIPv6(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("downlink IPv6 packet got XDP_ABORTED; encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink IPv6 packet got ActionAborted; encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV4EncapLen+len(inner) {
@@ -249,8 +249,8 @@ func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("downlink packet got XDP_ABORTED; IPv6-transport encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink packet got ActionAborted; IPv6-transport encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+gtpV6EncapLen+len(inner) {
@@ -292,6 +292,49 @@ func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 	}
 }
 
+// The outer IP, UDP and GTP-U lengths are all derived from the inner packet's
+// declared length, so a frame that does not carry it would leave with headers
+// describing bytes that are not there. The header-derived outer checksum reads
+// no payload, so nothing else would catch it.
+func TestDownlinkIPv6TransportRejectsOverDeclaredInnerLength(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgram(t, 1, 0)
+
+	ueIP := [4]byte{10, 45, 0, 2}
+	server := [4]byte{8, 8, 8, 8}
+	local := netip.MustParseAddr("2001:db8:33::1").As16()
+	remote := netip.MustParseAddr("2001:db8:33::9").As16()
+
+	const (
+		teid = 0x77778888
+		qfi  = 7
+	)
+
+	putDownlinkPDRv6Outer(t, obj, ueIP, teid, local, remote, qfi)
+
+	// A non-zero inner UDP checksum is what puts the encapsulation on the
+	// header-derived path; a zero one falls back to summing the bytes.
+	inner := ipv4Packet(server, ueIP, 17,
+		udpDatagramChecksummed(server, ueIP, 4000, 4001, []byte{0x01, 0x02, 0x03, 0x04}))
+
+	binary.BigEndian.PutUint16(inner[2:4], uint16(len(inner)+200))
+	binary.BigEndian.PutUint16(inner[10:12], 0)
+	binary.BigEndian.PutUint16(inner[10:12], ipv4HeaderChecksum(inner[:20]))
+
+	before := DropCount(obj, Downlink, "internal_encap_failed")
+
+	action, _ := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
+	if action != ActionAborted {
+		t.Fatalf("action = %d, want ActionAborted (%d): the frame left with outer lengths it does not carry",
+			action, ActionAborted)
+	}
+
+	if after := DropCount(obj, Downlink, "internal_encap_failed"); after != before+1 {
+		t.Errorf("internal_encap_failed = %d, want %d", after, before+1)
+	}
+}
+
 // TestTransportLevelMarking checks that a FAR's transport-level marking is
 // written to the outer IPv4 TOS byte of the encapsulated downlink packet.
 func TestTransportLevelMarking(t *testing.T) {
@@ -315,8 +358,8 @@ func TestTransportLevelMarking(t *testing.T) {
 	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
-	if action == XDP_ABORTED {
-		t.Fatal("downlink packet got XDP_ABORTED")
+	if action == ActionAborted {
+		t.Fatal("downlink packet got ActionAborted")
 	}
 
 	if tos := out[ethHdrLen+1]; tos != wantTOS {
@@ -393,32 +436,10 @@ func ipv6OuterDownlinkPDR(teid uint32, local, remote [16]byte, qfi uint8) PdrInf
 
 // putDownlinkPDRv6Outer installs a downlink PDR (IPv4 UE) that encapsulates into
 // an IPv6 transport.
-func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [16]byte, qfi uint8) {
+func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [16]byte, qfi uint8) { //nolint:unparam // signature mirrors putDownlinkPDR
 	t.Helper()
 
 	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), ipv6OuterDownlinkPDR(teid, local, remote, qfi)); err != nil {
 		t.Fatalf("install downlink IPv6-transport PDR: %v", err)
-	}
-}
-
-// putForwardingUplinkPDRGTP installs an uplink PDR keyed by lookupTEID that
-// re-encapsulates (GTP-to-GTP) toward remote with outerTEID instead of
-// decapsulating.
-func putForwardingUplinkPDRGTP(t *testing.T, obj *BpfObjects, lookupTEID uint32, local, remote [4]byte, outerTEID uint32) {
-	t.Helper()
-
-	pdr := PdrInfo{
-		IMSI: "001010000000001",
-		Far: FarInfo{
-			Action:              0x02, // FAR_FORW
-			OuterHeaderCreation: 0x01, // OHC_GTP_U_UDP_IPv4
-			TeID:                outerTEID,
-			LocalIP:             IPToIn6Addr(netip.AddrFrom4(local)),
-			RemoteIP:            IPToIn6Addr(netip.AddrFrom4(remote)),
-		},
-		Qer: QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
-	}
-	if err := obj.PutPdrUplink(lookupTEID, pdr); err != nil {
-		t.Fatalf("install uplink GTP-forward PDR: %v", err)
 	}
 }

@@ -39,8 +39,10 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `tls` (object): The TLS configuration (optional).
             - `cert` (string): The path to the TLS certificate file (optional).
             - `key` (string): The path to the TLS key file (optional).
-- `xdp` (object): The XDP configuration.
-    - `attach-mode` (string): The XDP attach mode. `native` is the production option (highest performance) and requires a compatible driver; `generic` is a driver-independent fallback for prototyping and test/development.
+- `datapath` (object, optional): The datapath configuration. When omitted, the datapath attaches at the XDP hook in driver mode where the network interface supports it, and at the TCX hook otherwise.
+    - `attach-mode` (string, optional): The kernel hook the datapath attaches to: `xdp-native`, `tcx`, or `xdp-generic`. See [the eBPF attach mode explanation](../explanation/user_plane_packet_processing_with_ebpf.md).
+- `xdp` (object, deprecated): Replaced by `datapath`. Cannot be set together with `datapath`.
+    - `attach-mode` (string): `native` is equivalent to `datapath.attach-mode: xdp-native`, `generic` to `xdp-generic`.
 - `telemetry` (object): The telemetry configuration.
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
@@ -86,8 +88,8 @@ interfaces:
     tls:
       cert: "/etc/ella/cert.pem"
       key: "/etc/ella/key.pem"
-xdp:
-  attach-mode: "native"
+datapath:
+  attach-mode: "xdp-native"
 telemetry:
   enabled: true
   otlp-endpoint: "localhost:4317"

@@ -38,8 +38,8 @@ func TestVLANDownlinkInsertion(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x0800, inner))
 
-	if action == XDP_ABORTED {
-		t.Fatal("downlink packet got XDP_ABORTED; VLAN encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink packet got ActionAborted; VLAN encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+vlanLen+gtpV4EncapLen+len(inner) {
@@ -87,8 +87,8 @@ func TestVLANDownlinkInsertionInnerIPv6(t *testing.T) {
 	inner := ipv6Packet(server, testUEv6, 17, udpDatagram(4000, 53, nil))
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, inner))
-	if action == XDP_ABORTED {
-		t.Fatal("downlink IPv6 packet got XDP_ABORTED; VLAN encapsulation failed")
+	if action == ActionAborted {
+		t.Fatal("downlink IPv6 packet got ActionAborted; VLAN encapsulation failed")
 	}
 
 	if len(out) != ethHdrLen+vlanLen+gtpV4EncapLen+len(inner) {
@@ -121,7 +121,7 @@ func TestVLANUplinkStrip(t *testing.T) {
 	gtp := ipv4Packet(testGNBIP, testUPFN3IP, 17, udpDatagram(GTPUDPPort, GTPUDPPort, gtpHeader(teid, inner)))
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, vlanFrame(vlanID, 0x0800, gtp))
-	if action == XDP_DROP || action == XDP_ABORTED {
+	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("VLAN-tagged uplink got XDP action %d, want a forwarding action", action)
 	}
 
@@ -147,7 +147,7 @@ func TestVLANUplinkN6Insertion(t *testing.T) {
 	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
-	if action == XDP_DROP || action == XDP_ABORTED {
+	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("uplink got XDP action %d, want a forwarding action", action)
 	}
 

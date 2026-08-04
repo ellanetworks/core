@@ -3,7 +3,7 @@
 
 package ebpf
 
-// veth_tunnels programming; the map and its program live in xdp/n3n6_bpf.c.
+// veth_tunnels programming; the map and its program live in bpf/n3n6_bpf.c.
 
 import (
 	"net/netip"

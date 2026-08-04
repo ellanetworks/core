@@ -32,8 +32,8 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
-#include "xdp/utils/packet_context.h"
-#include "xdp/utils/trace.h"
+#include "bpf/utils/packet_context.h"
+#include "bpf/utils/trace.h"
 #include <sys/cdefs.h>
 
 #define ETH_P_IPV6_BE 0xDD86
@@ -300,9 +300,17 @@ static __always_inline void context_reset(struct packet_context *ctx,
 	ctx->ip4 = NULL;
 	ctx->ip6 = NULL;
 	ctx->udp = NULL;
+	ctx->tcp = NULL;
 	ctx->gtp = NULL;
 	ctx->icmp = NULL;
+	ctx->gtp_hdr_len = 0;
 }
+
+/* Make the headers linear and writable for the paths that rewrite them, and
+ * re-derive the context the pull invalidated. Only traffic the datapath owns
+ * reaches this: pulling mutates the skb, and a frame that is merely passed to
+ * the stack must reach it exactly as it arrived. */
+static __always_inline long own_packet_pull(struct packet_context *ctx);
 
 static __always_inline long context_reinit(struct packet_context *ctx,
 					   void *data, const void *data_end)
@@ -332,4 +340,16 @@ static __always_inline long context_reinit(struct packet_context *ctx,
 			   ethertype);
 		return -1;
 	}
+}
+
+static __always_inline long own_packet_pull(struct packet_context *ctx)
+{
+	if (!CTX_NEEDS_PULL)
+		return 0;
+
+	if (ctx_pull(ctx->ctx_buff, CTX_PULL_LEN) < 0)
+		return -1;
+
+	return context_reinit(ctx, ctx_data(ctx->ctx_buff),
+			      ctx_data_end(ctx->ctx_buff));
 }

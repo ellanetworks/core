@@ -43,7 +43,7 @@ func TestUplinkStatistics(t *testing.T) {
 	}
 
 	if actionsSum != packets {
-		t.Errorf("uplink xdp_actions total = %d, want %d", actionsSum, packets)
+		t.Errorf("uplink frames accounted = %d, want %d", actionsSum, packets)
 	}
 
 	// Nothing should have been classified as downlink.
@@ -77,11 +77,12 @@ func TestUplinkStatisticsIPv6(t *testing.T) {
 	}
 
 	if actionsSum != packets {
-		t.Errorf("uplink xdp_actions total = %d, want %d", actionsSum, packets)
+		t.Errorf("uplink frames accounted = %d, want %d", actionsSum, packets)
 	}
 }
 
-func sumStats(t *testing.T, m *ebpf.Map) (bytes, actions uint64) {
+// Forwarded plus dropped; the two are disjoint.
+func sumStats(t *testing.T, m *ebpf.Map) (bytes, frames uint64) {
 	t.Helper()
 
 	var stats []N3N6EntrypointUpfStatistic
@@ -91,10 +92,52 @@ func sumStats(t *testing.T, m *ebpf.Map) (bytes, actions uint64) {
 
 	for _, s := range stats {
 		bytes += s.ByteCounter.Bytes
-		for _, a := range s.XdpActions {
-			actions += a
+
+		for _, a := range s.ForwardedActions {
+			frames += a
+		}
+
+		for _, d := range s.DropReasons {
+			frames += d
 		}
 	}
 
-	return bytes, actions
+	return bytes, frames
+}
+
+// The invariant that makes app_upf_datapath_drop_total comparable against
+// app_upf_datapath_forward_total.
+func TestEveryFrameIsAccountedExactlyOnce(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x41434354
+
+	obj := loadProgramConfig(t, false, false, 1, 1, 0, 0)
+
+	// One forwarded flow and one dropped, so both families are exercised.
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+	const (
+		forwarded = 3
+		unknown   = 2 // no session for this TEID
+	)
+
+	for i := 0; i < forwarded; i++ {
+		runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+	}
+
+	for i := 0; i < unknown; i++ {
+		runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid+1, inner))
+	}
+
+	_, frames := sumStats(t, obj.UplinkStatistics)
+	if want := uint64(forwarded + unknown); frames != want {
+		t.Errorf("accounted %d frames, want %d: every frame must be counted once, in exactly one family", frames, want)
+	}
+
+	if got := DropCount(obj, Uplink, "unspecified"); got != 0 {
+		t.Errorf("%d frames were dropped without a recorded reason; every drop site must use drop_with()/abort_with()", got)
+	}
 }

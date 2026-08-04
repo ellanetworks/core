@@ -7,7 +7,7 @@
 #include <bpf/bpf_helpers.h>
 #include <linux/in6.h>
 
-#include "xdp/utils/pdr.h"
+#include "bpf/utils/pdr.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -51,7 +51,8 @@ struct {
 struct {
 	__uint(type, BPF_MAP_TYPE_LPM_TRIE);
 	__type(key, struct framed_ip6_key);
-	__type(value, struct in6_addr); /* owning UE IPv6, key into pdrs_downlink_ip6 */
+	__type(value,
+	       struct in6_addr); /* owning UE IPv6, key into pdrs_downlink_ip6 */
 	__uint(max_entries, FRAMED_MAP_IPV6_SIZE);
 	__uint(map_flags, BPF_F_NO_PREALLOC);
 } framed_downlink_ip6 SEC(".maps");

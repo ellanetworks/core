@@ -65,7 +65,7 @@ func assertEchoResponse(t *testing.T, gtp []byte, wantSeq uint16) {
 }
 
 // TestGTPControlMessages checks GTP-U control-message dispatch: an echo request
-// is answered (XDP_TX, addresses/ports swapped, type set to echo response);
+// is answered (ActionTx, addresses/ports swapped, type set to echo response);
 // other control messages are passed to the kernel.
 func TestGTPControlMessages(t *testing.T) {
 	requireProgTestRun(t)
@@ -84,8 +84,8 @@ func TestGTPControlMessages(t *testing.T) {
 
 		action, out := runXDPOut(t, obj.UpfEntryFunc, in)
 
-		if action != XDP_TX {
-			t.Fatalf("got XDP action %d, want XDP_TX (%d)", action, XDP_TX)
+		if action != ActionTx {
+			t.Fatalf("got XDP action %d, want ActionTx (%d)", action, ActionTx)
 		}
 
 		// The request carries an 8-byte header; the response is the 12-byte
@@ -120,8 +120,8 @@ func TestGTPControlMessages(t *testing.T) {
 
 	for _, tc := range passThrough {
 		t.Run(tc.name, func(t *testing.T) {
-			if action := runXDP(t, obj.UpfEntryFunc, gtpControlFrame(tc.msgType)); action != XDP_PASS {
-				t.Fatalf("got XDP action %d, want XDP_PASS (%d)", action, XDP_PASS)
+			if action := runXDP(t, obj.UpfEntryFunc, gtpControlFrame(tc.msgType)); action != ActionPass {
+				t.Fatalf("got XDP action %d, want ActionPass (%d)", action, ActionPass)
 			}
 		})
 	}
@@ -146,8 +146,8 @@ func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, in)
 
-	if action != XDP_TX {
-		t.Fatalf("Echo Request with a sequence number (S=1, no extension header) got XDP action %d, want XDP_TX (%d) — the UPF must answer it (TS 29.281 §7.2.1)", action, XDP_TX)
+	if action != ActionTx {
+		t.Fatalf("Echo Request with a sequence number (S=1, no extension header) got XDP action %d, want ActionTx (%d) — the UPF must answer it (TS 29.281 §7.2.1)", action, ActionTx)
 	}
 
 	// The Echo Response repeats the request's sequence number (TS 29.281 §7.2.2).
@@ -167,8 +167,8 @@ func TestGTPEchoResponseIPv6Checksum(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, gtpControlFrameV6(gtpEchoRequest))
 
-	if action != XDP_TX {
-		t.Fatalf("IPv6 echo request got XDP action %d, want XDP_TX (%d)", action, XDP_TX)
+	if action != ActionTx {
+		t.Fatalf("IPv6 echo request got XDP action %d, want ActionTx (%d)", action, ActionTx)
 	}
 
 	assertEchoResponse(t, out[ethHdrLen+40+8:], 0)
@@ -206,8 +206,8 @@ func TestRouterSolicitationIntercept(t *testing.T) {
 	defer func() { _ = rd.Close() }()
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, innerIPv6ICMPv6RS(testUEv6)))
-	if action != XDP_DROP {
-		t.Fatalf("Router Solicitation not intercepted: got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
+	if action != ActionDrop {
+		t.Fatalf("Router Solicitation not intercepted: got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
 	}
 
 	rd.SetDeadline(time.Now().Add(time.Second))

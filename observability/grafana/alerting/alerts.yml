@@ -549,7 +549,7 @@ groups:
     interval: 1m
     rules:
       - uid: ella-xdp-drops
-        title: High XDP Packet Drop Rate
+        title: High Data Plane Packet Drop Rate
         condition: C
         data:
           - refId: A
@@ -559,7 +559,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                sum(rate(app_xdp_action_total{action="XDP_DROP"}[5m]))
+                sum(rate(app_upf_datapath_drop_total[5m]))
               instant: true
               refId: A
           - refId: C
@@ -588,8 +588,8 @@ groups:
           severity: warning
           component: upf
         annotations:
-          summary: XDP is dropping more than 10 packets/sec.
-          description: "XDP drop rate is {{ $values.A | printf \"%.1f\" }} pkt/s. Check `app_xdp_action_total` by interface (n3/n6) to localize the issue."
+          summary: The data plane is dropping more than 10 packets/sec.
+          description: "Drop rate is {{ $values.A | printf \"%.1f\" }} pkt/s. Check `app_upf_datapath_drop_total` by reason and direction to localize the issue."
 
       - uid: ella-no-traffic-flow
         title: No Data Plane Traffic
@@ -631,8 +631,8 @@ groups:
           summary: Radios are connected but no data is flowing through the user plane.
           description: "Radios are connected (app_connected_radios > 0) but uplink + downlink throughput has been zero for 10 minutes. The data plane may be broken."
 
-      - uid: ella-xdp-aborted
-        title: XDP Aborted Actions Detected
+      - uid: ella-datapath-aborted
+        title: Data Plane Aborted Actions Detected
         condition: C
         data:
           - refId: A
@@ -642,7 +642,7 @@ groups:
             datasourceUid: mimir
             model:
               expr: |
-                sum(rate(app_xdp_action_total{action="XDP_ABORTED"}[5m]))
+                sum(rate(app_upf_datapath_drop_total{reason=~"internal_.*"}[5m]))
               instant: true
               refId: A
           - refId: C
@@ -671,8 +671,8 @@ groups:
           severity: critical
           component: upf
         annotations:
-          summary: XDP_ABORTED actions detected — the eBPF program is hitting errors.
-          description: "XDP_ABORTED rate is {{ $values.A | printf \"%.1f\" }} pkt/s. This indicates the eBPF/XDP program encountered an unrecoverable error during packet processing."
+          summary: Aborted actions detected — the eBPF program is hitting errors.
+          description: "Abort rate is {{ $values.A | printf \"%.1f\" }} pkt/s. A reason prefixed internal_ means the data plane itself failed; break it down by reason to find which step."
 
       - uid: ella-flow-reports-dropped
         title: Flow Reports Being Dropped

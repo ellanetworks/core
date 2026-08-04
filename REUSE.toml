@@ -24,7 +24,7 @@ SPDX-License-Identifier = "Apache-2.0"
 # Verbatim third-party file kept pristine (eUPF) — carries only the upstream
 # notice, no Ella header. See the attribution review.
 [[annotations]]
-path = "internal/upf/ebpf/xdp/utils/types.h"
+path = "internal/upf/ebpf/bpf/utils/types.h"
 precedence = "override"
 SPDX-FileCopyrightText = "2023 Edgecom LLC"
 SPDX-License-Identifier = "Apache-2.0"

@@ -1633,7 +1633,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "XDP action rate for packets arriving on the N3 interface (from the radio network).",
+      "description": "Data plane action rate for packets arriving on the N3 interface (from the radio network).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1719,7 +1719,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_PASS\"}[$__rate_interval])",
+          "expr": "rate(app_upf_datapath_forward_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",action=\"pass\"}[$__rate_interval])",
           "interval": "1m",
           "legendFormat": "PASS - Forwarded to network stack",
           "range": true,
@@ -1731,7 +1731,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_TX\"}[$__rate_interval])",
+          "expr": "rate(app_upf_datapath_forward_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",action=\"tx\"}[$__rate_interval])",
           "hide": false,
           "instant": false,
           "interval": "1m",
@@ -1745,7 +1745,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_REDIRECT\"}[$__rate_interval])",
+          "expr": "rate(app_upf_datapath_forward_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",action=\"redirect\"}[$__rate_interval])",
           "hide": false,
           "instant": false,
           "interval": "1m",
@@ -1759,11 +1759,11 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_DROP\"}[$__rate_interval])",
+          "expr": "sum(rate(app_upf_datapath_drop_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1m",
-          "legendFormat": "DROP - Packet dropped",
+          "legendFormat": "DROP - all reasons",
           "range": true,
           "refId": "D"
         },
@@ -1773,16 +1773,16 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_ABORTED\"}[$__rate_interval])",
+          "expr": "sum(rate(app_upf_datapath_drop_total{job=~\"$job\",instance=~\"$instance\",direction=\"uplink\",reason=~\"internal_.*\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1m",
-          "legendFormat": "ABORTED - Processing error",
+          "legendFormat": "DROP - datapath failures",
           "range": true,
           "refId": "E"
         }
       ],
-      "title": "XDP Actions - N3",
+      "title": "Data Plane Actions - N3",
       "type": "timeseries"
     },
     {
@@ -1790,7 +1790,7 @@
         "type": "prometheus",
         "uid": "${DS_MIMIR}"
       },
-      "description": "XDP action rate for packets arriving on the N6 interface (from the data network).",
+      "description": "Data plane action rate for packets arriving on the N6 interface (from the data network).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1876,7 +1876,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_PASS\"}[$__rate_interval])",
+          "expr": "rate(app_upf_datapath_forward_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",action=\"pass\"}[$__rate_interval])",
           "interval": "1m",
           "legendFormat": "PASS - Forwarded to network stack",
           "range": true,
@@ -1888,7 +1888,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_TX\"}[$__rate_interval])",
+          "expr": "rate(app_upf_datapath_forward_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",action=\"tx\"}[$__rate_interval])",
           "hide": false,
           "instant": false,
           "interval": "1m",
@@ -1902,7 +1902,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_REDIRECT\"}[$__rate_interval])",
+          "expr": "rate(app_upf_datapath_forward_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",action=\"redirect\"}[$__rate_interval])",
           "hide": false,
           "instant": false,
           "interval": "1m",
@@ -1916,11 +1916,11 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_DROP\"}[$__rate_interval])",
+          "expr": "sum(rate(app_upf_datapath_drop_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1m",
-          "legendFormat": "DROP - Packet dropped",
+          "legendFormat": "DROP - all reasons",
           "range": true,
           "refId": "D"
         },
@@ -1930,16 +1930,16 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_ABORTED\"}[$__rate_interval])",
+          "expr": "sum(rate(app_upf_datapath_drop_total{job=~\"$job\",instance=~\"$instance\",direction=\"downlink\",reason=~\"internal_.*\"}[$__rate_interval]))",
           "hide": false,
           "instant": false,
           "interval": "1m",
-          "legendFormat": "ABORTED - Processing error",
+          "legendFormat": "DROP - datapath failures",
           "range": true,
           "refId": "E"
         }
       ],
-      "title": "XDP Actions - N6",
+      "title": "Data Plane Actions - N6",
       "type": "timeseries"
     },
     {

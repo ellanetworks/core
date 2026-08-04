@@ -21,4 +21,4 @@ jobs:
         run: |
           cd internal/upf/ebpf
           cmake .
-          find xdp -name "*.[ch]" | xargs clang-tidy
+          find bpf -name "*.[ch]" | xargs clang-tidy

@@ -36,8 +36,8 @@ interfaces:
   api:
     address: "10.0.0.1"
     port: 5002
-xdp:
-  attach-mode: "native"
+datapath:
+  attach-mode: "xdp-native"
 cluster:
   enabled: true
   node-id: 1

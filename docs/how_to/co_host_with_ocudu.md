@@ -45,12 +45,11 @@ ip -n n3ns addr add 10.202.0.5/24 dev n3-ran-veth
 ip -n n3ns link set lo up
 ip -n n3ns link set dev n3-ran-veth up
 ip link set dev n3-upf-veth up
-ethtool -K n3-upf-veth tx off
-ip netns exec n3ns ethtool -K n3-ran-veth tx off
 ethtool -K eth0 gro off
+ip netns exec n3ns ethtool -K n3-ran-veth tso off gso off
 ```
 
-Disabling TX checksum offload on both veth endpoints is required in `generic` XDP mode — see [Checksum offload on veth pairs](../explanation/user_plane_packet_processing_with_ebpf.md#checksum-offload-on-veth-pairs).
+`tcx` mode requires both interfaces to deliver unmerged packets — see [Disable merged packets](disable_merged_packets.md).
 
 ## 3. Configure Ella Core
 
@@ -76,14 +75,14 @@ interfaces:
   api:
     address: "0.0.0.0"
     port: 5002
-xdp:
-  attach-mode: "generic"
+datapath:
+  attach-mode: "tcx"
 telemetry:
   enabled: false
 ```
 
 !!! note
-    We use `generic` mode here because the Raspberry Pi 5's built-in NIC does not support native XDP. If your host's NIC supports native XDP, set `attach-mode` to `native` and follow the [Use native XDP with veth interfaces](native_xdp_veth.md) guide to attach an XDP program to the peer veth.
+    We use `tcx` mode here because the Raspberry Pi 5's built-in NIC does not support native XDP. If your host's NIC supports native XDP, set `attach-mode` to `xdp-native` and follow the [Use native XDP with veth interfaces](native_xdp_veth.md) guide to attach an XDP program to the peer veth.
 
 Start Ella Core:
 

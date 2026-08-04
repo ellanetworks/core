@@ -17,7 +17,7 @@ INTEGRATION=1 go test ./integration/... -v      # Integration tests (requires Do
 golangci-lint run ./...                         # Lint (must pass after any Go changes, use --fix to auto-fix)
 ```
 
-**Gotchas**: eBPF C changes require `go generate ./...` before building. Frontend changes require `npm run build --prefix ui` before the Go binary includes them. **Always run `golangci-lint run ./...` after making Go code changes** and fix any issues before considering the task complete.
+**Gotchas**: eBPF C changes require `go generate ./...` before building; one C source compiles into both an XDP and a TCX (SCHED_CLS) object through the `bpf/ctx/` shim, so both must keep working. The datapath must not mutate packets it does not own (no pulling or rewriting before a session matches): other traffic, including N2 SCTP, shares the interface. Frontend changes require `npm run build --prefix ui` before the Go binary includes them. **Always run `golangci-lint run ./...` after making Go code changes** and fix any issues before considering the task complete.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ golangci-lint run ./...                         # Lint (must pass after any Go c
 |-----------|---------|
 | `internal/amf/` | Access & Mobility Management (NGAP/NAS) |
 | `internal/smf/` | Session Management (PDU sessions, IP assignment) |
-| `internal/upf/` | User Plane with eBPF/XDP data plane |
+| `internal/upf/` | User Plane with eBPF data plane, attached at XDP or TCX |
 | `internal/ausf/` | Authentication (5G AKA, Milenage) |
 | `internal/api/` | REST API + embedded UI serving |
 | `internal/db/` | SQLite via [sqlair](https://github.com/canonical/sqlair) ORM |
@@ -123,7 +123,7 @@ Zap structured logging. Component loggers: `logger.AMFLog`, `logger.SMFLog`, `lo
 
 ## Configuration
 
-Single YAML file parsed in `internal/config/`. Key sections: `interfaces` (n2/n3/n6/api), `db.path`, `xdp.attach-mode`, `logging`, `telemetry`. Validation is imperative (not struct tags). Network interface resolution supports either name or IP. Testable via swappable `var` function pointers.
+Single YAML file parsed in `internal/config/`. Key sections: `interfaces` (n2/n3/n6/api), `db.path`, `datapath.attach-mode` (`xdp-native`, `tcx`, `xdp-generic`), `logging`, `telemetry`. Validation is imperative (not struct tags). Network interface resolution supports either name or IP. Testable via swappable `var` function pointers.
 
 ## Background Jobs
 

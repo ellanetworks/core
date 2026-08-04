@@ -57,8 +57,11 @@ func TestDownlinkPMTU(t *testing.T) {
 	ip := got[ethHdrLen : ethHdrLen+20]
 	icmp := got[ethHdrLen+20:]
 
-	if !bytes.Equal(ip[12:16], ueIP[:]) {
-		t.Errorf("ICMP source = %v, want %v (the address the sender targeted)", ip[12:16], ueIP)
+	// A router sources an ICMP error from its own address (RFC 792), not from
+	// the destination the sender was trying to reach: the UE address is
+	// private here and would not survive BCP38 filtering on N6.
+	if !bytes.Equal(ip[12:16], natPublicIP[:]) {
+		t.Errorf("ICMP source = %v, want %v (the UPF's N6 address)", ip[12:16], natPublicIP)
 	}
 
 	if !validIPv4Checksum(ip) {
@@ -194,8 +197,12 @@ func TestDownlinkPMTUIPv6(t *testing.T) {
 	copy(dst[:], got[ethHdrLen+24:ethHdrLen+40])
 	icmp6 := got[ethHdrLen+40:]
 
-	if src != testUEv6 {
-		t.Errorf("ICMPv6 source = %x, want %x (the address the sender targeted)", src, testUEv6)
+	// RFC 4443 §2.2: the source must be a unicast address belonging to the
+	// node. The UE address the sender targeted is neither ours nor routable
+	// back through N6.
+	wantSrc := netip.MustParseAddr(t2N6IPv6).As16()
+	if src != wantSrc {
+		t.Errorf("ICMPv6 source = %x, want %x (the UPF's N6 address)", src, wantSrc)
 	}
 
 	if dst != serverV6 {

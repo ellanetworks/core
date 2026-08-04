@@ -69,6 +69,7 @@ nav:
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
     - Use VLANs: how_to/vlan.md
     - Use native XDP with veth: how_to/native_xdp_veth.md
+    - Disable Merged Packets: how_to/disable_merged_packets.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Backup and Restore: how_to/backup_and_restore.md
     - Scale Up a High Availability Cluster: how_to/scale_up_ha_cluster.md

@@ -27,7 +27,7 @@ var (
 
 // TestParseGTPTruncatedExtension checks that a malformed GTP-U packet fails
 // closed: the parser rejects it and the packet is passed to the kernel
-// (XDP_PASS) rather than aborting the data path, whether or not its TEID matches
+// (ActionPass) rather than aborting the data path, whether or not its TEID matches
 // an installed PDR.
 func TestParseGTPTruncatedExtension(t *testing.T) {
 	requireProgTestRun(t)
@@ -48,8 +48,8 @@ func TestParseGTPTruncatedExtension(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			action := runXDP(t, obj.UpfEntryFunc, malformedUplinkGTPv4(tc.teid))
 
-			if action != XDP_PASS {
-				t.Fatalf("teid=%#x: malformed GTP-U packet got XDP action %d, want XDP_PASS (%d)", tc.teid, action, XDP_PASS)
+			if action != ActionPass {
+				t.Fatalf("teid=%#x: malformed GTP-U packet got XDP action %d, want ActionPass (%d)", tc.teid, action, ActionPass)
 			}
 		})
 	}
@@ -67,8 +67,8 @@ func TestEntrypointClassifiesByPacketType(t *testing.T) {
 
 	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)))
 
-	if action != XDP_PASS {
-		t.Fatalf("plain downlink packet with no session got XDP action %d, want XDP_PASS (%d)", action, XDP_PASS)
+	if action != ActionPass {
+		t.Fatalf("plain downlink packet with no session got XDP action %d, want ActionPass (%d)", action, ActionPass)
 	}
 }
 
@@ -118,6 +118,32 @@ func loadProgramFlow(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	t.Helper()
 
 	return loadProgramConfig(t, true, false, n3Ifindex, n6Ifindex, 0, 0)
+}
+
+// Selects the SCHED_CLS build and TCX attach for the real-attach fixtures, so
+// the same suites run per mode. BPF_PROG_TEST_RUN suites always exercise the
+// XDP build; tc_test.go covers the TC build there.
+func testAttachModeTCX() bool { return os.Getenv("ELLA_TEST_ATTACH_MODE") == "tcx" }
+
+// loadAttachedProgramConfig is loadProgramConfig at the fixture attach mode.
+func loadAttachedProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
+	t.Helper()
+
+	obj := NewBpfObjects(flowAccounting, masquerade, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
+	obj.UseTCX = testAttachModeTCX()
+
+	if err := obj.Load(); err != nil {
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			t.Fatalf("load N3/N6 objects: verifier error: %+v", ve)
+		}
+
+		t.Fatalf("load N3/N6 objects: %v", err)
+	}
+
+	t.Cleanup(func() { _ = obj.Close() })
+
+	return obj
 }
 
 func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
@@ -233,9 +259,9 @@ func TestGTPDecapsulation(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	// The exact forwarding code (XDP_TX vs XDP_REDIRECT) depends on the host
+	// The exact forwarding code (ActionTx vs ActionRedirect) depends on the host
 	// FIB, but the decapsulated packet must not be dropped or aborted.
-	if action == XDP_DROP || action == XDP_ABORTED {
+	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
 	}
 
@@ -270,7 +296,7 @@ func TestGTPDecapsulationStackedExtHeaders(t *testing.T) {
 	action, out := runXDPOut(t, obj.UpfEntryFunc,
 		gtpHeaderTwoExtHeaders(teid, inner))
 
-	if action == XDP_DROP || action == XDP_ABORTED {
+	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
 	}
 
@@ -299,8 +325,8 @@ func TestGTPErrorIndicationOnUnknownTEID(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, in)
 
-	if action != XDP_TX {
-		t.Fatalf("unknown-TEID G-PDU got XDP action %d, want XDP_TX (%d) — the UPF must return a GTP-U Error Indication (TS 29.281 §7.3.1)", action, XDP_TX)
+	if action != ActionTx {
+		t.Fatalf("unknown-TEID G-PDU got XDP action %d, want ActionTx (%d) — the UPF must return a GTP-U Error Indication (TS 29.281 §7.3.1)", action, ActionTx)
 	}
 
 	const gtpErrorIndication = 26
@@ -365,8 +391,8 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, in)
 
-	if action != XDP_TX {
-		t.Fatalf("unknown-TEID G-PDU over IPv6 transport got XDP action %d, want XDP_TX (%d) — the UPF must return a GTP-U Error Indication (TS 29.281 §7.3.1)", action, XDP_TX)
+	if action != ActionTx {
+		t.Fatalf("unknown-TEID G-PDU over IPv6 transport got XDP action %d, want ActionTx (%d) — the UPF must return a GTP-U Error Indication (TS 29.281 §7.3.1)", action, ActionTx)
 	}
 
 	const gtpErrorIndication = 26
@@ -434,7 +460,7 @@ func TestGTPDecapsulationInnerIPv6(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
 
-	if action == XDP_DROP || action == XDP_ABORTED {
+	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
 	}
 
@@ -448,59 +474,6 @@ func TestGTPDecapsulationInnerIPv6(t *testing.T) {
 
 	if !bytes.Equal(out[ethHdrLen:], inner) {
 		t.Fatalf("inner packet altered by decapsulation:\n got %x\nwant %x", out[ethHdrLen:], inner)
-	}
-}
-
-// TestGTPForwardIPv4 checks GTP-to-GTP forwarding: when the uplink FAR requests
-// outer-header creation, the packet is not decapsulated but its outer IPv4
-// source/destination and TEID are rewritten to the FAR's values, with a valid
-// outer checksum and the inner packet preserved.
-func TestGTPForwardIPv4(t *testing.T) {
-	requireProgTestRun(t)
-
-	const (
-		lookupTEID = 0x11112222
-		outerTEID  = 0x33334444
-	)
-
-	local := [4]byte{192, 168, 50, 1}
-	remote := [4]byte{203, 0, 113, 9}
-
-	obj := loadN3N6Program(t)
-	putForwardingUplinkPDRGTP(t, obj, lookupTEID, local, remote, outerTEID)
-
-	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
-
-	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(lookupTEID, inner))
-
-	if action == XDP_ABORTED {
-		t.Fatal("forwarded packet got XDP_ABORTED")
-	}
-
-	if len(out) != ethHdrLen+gtpV4EncapLen+len(inner) {
-		t.Fatalf("forwarded frame length = %d, want %d (no decap)", len(out), ethHdrLen+gtpV4EncapLen+len(inner))
-	}
-
-	f := parseGTPv4Frame(t, out)
-
-	if !f.outerChecksumOK {
-		t.Error("outer IPv4 header checksum is invalid after tunnel rewrite")
-	}
-
-	if f.outerSrc != local {
-		t.Errorf("outer src IP = %v, want %v (FAR localip)", f.outerSrc, local)
-	}
-
-	if f.outerDst != remote {
-		t.Errorf("outer dst IP = %v, want %v (FAR remoteip)", f.outerDst, remote)
-	}
-
-	if f.teid != outerTEID {
-		t.Errorf("rewritten TEID = %#x, want %#x", f.teid, uint32(outerTEID))
-	}
-
-	if !bytes.Equal(f.inner, inner) {
-		t.Errorf("inner packet altered by tunnel rewrite:\n got %x\nwant %x", f.inner, inner)
 	}
 }
 
@@ -518,7 +491,7 @@ func TestGTPDecapsulationIPv6Transport(t *testing.T) {
 
 	action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDUv6(teid, inner))
 
-	if action == XDP_DROP || action == XDP_ABORTED {
+	if action == ActionDrop || action == ActionAborted {
 		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
 	}
 

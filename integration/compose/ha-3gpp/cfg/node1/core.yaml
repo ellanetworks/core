@@ -17,8 +17,8 @@ interfaces:
   api:
     address: "10.100.0.11"
     port: 5002
-xdp:
-  attach-mode: "generic"
+datapath:
+  attach-mode: "xdp-generic"
 cluster:
   enabled: true
   node-id: 1

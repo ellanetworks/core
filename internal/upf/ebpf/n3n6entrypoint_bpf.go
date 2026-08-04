@@ -171,14 +171,8 @@ type N3N6EntrypointUpfStatistic struct {
 		Rx uint64
 		Tx uint64
 	}
-	XdpActions                 [8]uint64
-	SourceSpoofDropIp4         uint64
-	SourceSpoofDropIp6         uint64
-	NatUnsolicitedDropIp4      uint64
-	NatFragmentDropIp4         uint64
-	NatPortExhaustedDropIp4    uint64
-	NatUnsupportedProtoDropIp4 uint64
-	NatMalformedDropIp4        uint64
+	ForwardedActions [8]uint64
+	DropReasons      [64]uint64
 }
 
 type N3N6EntrypointUrrKey struct {

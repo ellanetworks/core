@@ -70,9 +70,14 @@ type StatusResponse struct {
 	Ready         bool                   `json:"ready"`
 	SchemaVersion int                    `json:"schemaVersion"`
 	Cluster       *ClusterStatusResponse `json:"cluster,omitempty"`
+
+	// One of the config.Datapath* values, absent until the UPF is up.
+	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
 }
 
-func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
+// datapathMode is a function because the handler is built before the UPF
+// exists; nil means never available.
+func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -92,6 +97,10 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
 			Initialized:   initialized,
 			Ready:         ready.Load(),
 			SchemaVersion: db.SchemaVersion(),
+		}
+
+		if datapathMode != nil {
+			statusResponse.DatapathAttachMode = datapathMode()
 		}
 
 		if dbInstance.ClusterEnabled() {

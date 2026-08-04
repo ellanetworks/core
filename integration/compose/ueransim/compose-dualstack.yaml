@@ -19,8 +19,8 @@ configs:
         api:
           name: "eth0"
           port: 5002
-      xdp:
-        attach-mode: "generic"
+      datapath:
+        attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
   gnb_config:
     content: |
       mcc: '001'
