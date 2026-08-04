@@ -1,7 +1,7 @@
 FROM golang:1.24-bookworm AS builder
 
-RUN go install github.com/osrg/gobgp/v4/cmd/gobgpd@latest && \
-    go install github.com/osrg/gobgp/v4/cmd/gobgp@latest
+RUN go install github.com/osrg/gobgp/v4/cmd/gobgpd@v4.7.0 && \
+    go install github.com/osrg/gobgp/v4/cmd/gobgp@v4.7.0
 
 FROM debian:bookworm-slim
 
