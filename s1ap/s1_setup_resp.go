@@ -52,7 +52,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			return perIEDecode(raw, &m.ServedGUMMEIs)
 		},
 		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
-			if m.ServedGUMMEIs == nil {
+			if len(m.ServedGUMMEIs) == 0 {
 				return nil, false
 			}
 

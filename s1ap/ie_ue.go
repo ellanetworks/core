@@ -151,7 +151,7 @@ const (
 )
 
 func (c RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, rrcEstablishmentCauseRootCount, true, int64(c))
+	return encodeRootEnumerated(w, enc, rrcEstablishmentCauseRootCount, int64(c), "RRCEstablishmentCause")
 }
 
 func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {

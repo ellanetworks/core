@@ -76,7 +76,7 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) MarshalPER(w *
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(criticalityDiagnosticsIEItem.IEID)); err != nil {
 		return err
 	}
-	if err := per.EncodeEnumerated(w, enc, 2, true, int64(criticalityDiagnosticsIEItem.TypeOfError)); err != nil {
+	if err := encodeRootEnumerated(w, enc, 2, int64(criticalityDiagnosticsIEItem.TypeOfError), "TypeOfError"); err != nil {
 		return err
 	}
 	return nil

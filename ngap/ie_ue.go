@@ -56,8 +56,10 @@ func (id *RANUENGAPID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // mt-Access, mo-Signalling, mo-Data, mo-VoiceCall, mo-VideoCall, mo-SMS,
 // mps-PriorityAccess, mcs-PriorityAccess, ... } (extensible).
 //
-// The first five match S1AP's root, which stops there; the rest have no S1AP
-// counterpart (TS 38.413 §9.3.1.111 vs TS 36.413 §9.2.1.3a).
+// The first five match S1AP's root, which stops there. S1AP reaches mo-VoiceCall
+// as an extension addition; mo-VideoCall, mo-SMS and the two priority-access
+// values have no S1AP counterpart at all (TS 38.413 §9.3.1.111 vs
+// TS 36.413 §9.2.1.3a).
 type RRCEstablishmentCause uint8
 
 const (
@@ -76,7 +78,7 @@ const (
 )
 
 func (c RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, rrcEstablishmentCauseRootCount, true, int64(c))
+	return encodeRootEnumerated(w, enc, rrcEstablishmentCauseRootCount, int64(c), "RRCEstablishmentCause")
 }
 
 func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -102,7 +104,7 @@ const (
 )
 
 func (u UEContextRequest) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, ueContextRequestRootCount, true, int64(u))
+	return encodeRootEnumerated(w, enc, ueContextRequestRootCount, int64(u), "UEContextRequest")
 }
 
 func (u *UEContextRequest) UnmarshalPER(r *per.Reader, enc per.Encoding) error {

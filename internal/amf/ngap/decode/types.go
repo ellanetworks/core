@@ -8,8 +8,6 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-type RRCEstablishmentCause aper.Enumerated
-
 type UserLocationKind uint8
 
 const (

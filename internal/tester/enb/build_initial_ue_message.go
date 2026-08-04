@@ -111,7 +111,16 @@ func NgENBNodeID(mcc, mnc, enbID string) (ngap.GlobalRANNodeID, error) {
 		v = v<<8 | uint64(o)
 	}
 
+	// TS 38.413 §9.3.1.8: the Macro ng-eNB ID is "the 20 leftmost bits of the
+	// E-UTRA Cell Identity". BuildNGSetupRequest reads the configured hex string
+	// the same way — the top ngENBIDBits of its octets — so the node this
+	// announces and the node the cell identity below belongs to are the same one.
+	if 8*len(b) < ngENBIDBits {
+		return ngap.GlobalRANNodeID{}, fmt.Errorf("ng-eNB id %q is %d octets, too few for a %d-bit node id", enbID, len(b), ngENBIDBits)
+	}
+
 	return ngap.GlobalRANNodeID{
-		Kind: ngap.RANNodeIDMacroNgENB, PLMNIdentity: plmn, Value: uint32(v), Bits: ngENBIDBits,
+		Kind: ngap.RANNodeIDMacroNgENB, PLMNIdentity: plmn,
+		Value: uint32(v >> uint(8*len(b)-ngENBIDBits)), Bits: ngENBIDBits,
 	}, nil
 }

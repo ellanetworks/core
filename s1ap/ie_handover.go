@@ -25,7 +25,7 @@ const (
 )
 
 func (t HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, handoverTypeRootCount, true, int64(t))
+	return encodeRootEnumerated(w, enc, handoverTypeRootCount, int64(t), "HandoverType")
 }
 
 func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {

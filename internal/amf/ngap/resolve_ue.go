@@ -98,7 +98,7 @@ func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, r
 
 // decodedUEIDs converts the dispatcher's raw AP IDs into the library's identifier
 // types, leaving an absent id absent so the Error Indication does not claim
-// one the sender never gave (TS 38.413 §8.4.4.2).
+// one the sender never gave (TS 38.413 §8.7.5.2).
 func decodedUEIDs(amfID, ranID *int64) (*ngap.AMFUENGAPID, *ngap.RANUENGAPID) {
 	var (
 		a *ngap.AMFUENGAPID

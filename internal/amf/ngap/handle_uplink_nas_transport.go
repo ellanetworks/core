@@ -13,7 +13,7 @@ import (
 )
 
 // HandleUplinkNASTransport routes an uplink NAS message to its UE context
-// (TS 38.413 §8.6.2).
+// (TS 38.413 §8.6.3).
 func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.UplinkNASTransport) {
 	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {

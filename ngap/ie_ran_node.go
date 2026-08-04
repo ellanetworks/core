@@ -110,6 +110,9 @@ func (g GlobalRANNodeID) EUTRACellIdentity(cellID uint64) (uint64, error) {
 }
 
 func (g GlobalRANNodeID) cellIdentity(cellID uint64, width int, kind string) (uint64, error) {
+	// Unlike S1AP, whose 28-bit Home eNB ID is itself the cell identity, no NGAP
+	// node kind is as wide as either cell identity (gNB-ID tops out at 32 of 36,
+	// ng-eNB at 21 of 28), so a node filling it is always an error.
 	if g.Bits <= 0 || g.Bits >= width {
 		return 0, fmt.Errorf("ngap: node id of %d bits leaves no room in a %d-bit %s cell identity", g.Bits, width, kind)
 	}

@@ -192,7 +192,15 @@ func (g *generator) emitFieldMarshal(r *bytes.Buffer, _ string, fi fieldInfo, ex
 		fmt.Fprintf(r, "%s\treturn err\n", prefix)
 		fmt.Fprintf(r, "%s}\n", prefix)
 	case kindEnum:
-		fmt.Fprintf(r, "%sif err := per.EncodeEnumerated(w, enc, %d, %t, int64(%s)); err != nil {\n", prefix, fi.enumRoot, fi.enumExt, expr)
+		// An extensible ENUMERATED goes through encodeRootEnumerated, which
+		// refuses a value outside the root rather than emitting it as an
+		// extension addition 3GPP has not defined.
+		if fi.enumExt {
+			fmt.Fprintf(r, "%sif err := encodeRootEnumerated(w, enc, %d, int64(%s), %q); err != nil {\n", prefix, fi.enumRoot, expr, fi.typeStr)
+		} else {
+			fmt.Fprintf(r, "%sif err := per.EncodeEnumerated(w, enc, %d, false, int64(%s)); err != nil {\n", prefix, fi.enumRoot, expr)
+		}
+
 		fmt.Fprintf(r, "%s\treturn err\n", prefix)
 		fmt.Fprintf(r, "%s}\n", prefix)
 	case kindOctetString:

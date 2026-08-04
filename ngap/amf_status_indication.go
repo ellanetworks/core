@@ -4,8 +4,6 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -21,11 +19,7 @@ const (
 )
 
 func (t TimerApproachForGUAMIRemoval) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if int(t) >= timerApproachForGUAMIRemovalRootCount {
-		return fmt.Errorf("ngap: TimerApproachForGUAMIRemoval %d outside the root values", t)
-	}
-
-	return per.EncodeEnumerated(w, enc, timerApproachForGUAMIRemovalRootCount, true, int64(t))
+	return encodeRootEnumerated(w, enc, timerApproachForGUAMIRemovalRootCount, int64(t), "TimerApproachForGUAMIRemoval")
 }
 
 func (t *TimerApproachForGUAMIRemoval) UnmarshalPER(r *per.Reader, enc per.Encoding) error {

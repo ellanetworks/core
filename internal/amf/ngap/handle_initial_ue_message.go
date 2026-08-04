@@ -33,7 +33,8 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
-	reportDiagnostics(ctx, ran, ngap.ProcInitialUEMessage, ngap.TriggeringInitiatingMessage, ueIDs{ran: &msg.RANUENGAPID}, msg.Diagnostics())
+	reportDiagnostics(ctx, ran, ngap.ProcInitialUEMessage, ngap.TriggeringInitiatingMessage,
+		ueAssociated(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), msg.RANUENGAPID), msg.Diagnostics())
 
 	ueConn.UpdateLocation(msg.UserLocationInformation)
 

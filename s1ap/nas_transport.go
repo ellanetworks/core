@@ -193,6 +193,10 @@ var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
+		// NAS-PDU is an unconstrained OCTET STRING, so a zero-length value is a
+		// legal thing to carry and nil means absent, not empty: the guard below
+		// must test the slice's nil-ness, not its length, or a relayed empty
+		// container would be dropped.
 		id: idNASPDU, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)

@@ -355,7 +355,7 @@ func TestDownlinkNASTransportGolden(t *testing.T) {
 	}
 }
 
-// Every modeled IE is mandatory-reject, so §10.3.3 refuses to encode any unset
+// Every modeled IE is mandatory-reject, so §9.1.2.1 refuses to encode any unset
 // one and §10.3.5 stops an arriving message that omits one.
 func TestDownlinkNASTransportMissingIEs(t *testing.T) {
 	if _, err := (&DownlinkNASTransport{}).Marshal(); err == nil {

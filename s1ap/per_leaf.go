@@ -171,7 +171,7 @@ func decodeBitStringUint(r *per.Reader, enc per.Encoding, nbits int) (uint64, er
 }
 
 func (u UERetentionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, ueRetentionInformationRootCount, true, int64(u))
+	return encodeRootEnumerated(w, enc, ueRetentionInformationRootCount, int64(u), "UERetentionInformation")
 }
 
 func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -186,7 +186,7 @@ func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 }
 
 func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, pagingDRXRootCount, true, int64(p))
+	return encodeRootEnumerated(w, enc, pagingDRXRootCount, int64(p), "PagingDRX")
 }
 
 func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {

@@ -237,7 +237,7 @@ var pagingIEs = []ieSpec[Paging]{
 					return fmt.Errorf("s1ap: PagingPriority %d outside the root values", *m.PagingPriority)
 				}
 
-				return per.EncodeEnumerated(w, enc, pagingPriorityRootCount, true, int64(*m.PagingPriority))
+				return encodeRootEnumerated(w, enc, pagingPriorityRootCount, int64(*m.PagingPriority), "PagingPriority")
 			}), true
 		},
 	},

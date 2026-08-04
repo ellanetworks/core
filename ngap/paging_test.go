@@ -114,7 +114,7 @@ func TestPagingGoldenDecode(t *testing.T) {
 }
 
 // Every Paging IE is ignore criticality, so §10.3.5 still delivers a message
-// missing a mandatory one. §10.3.3 still binds the sender.
+// missing a mandatory one. §9.1.1 still obliges the sender.
 func TestPagingMissingMandatoryIEs(t *testing.T) {
 	if _, err := (&Paging{}).Marshal(); err == nil {
 		t.Error("Marshal() = nil error, want a required-IE error")

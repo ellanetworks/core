@@ -88,7 +88,7 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) MarshalPER(w *
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(criticalityDiagnosticsIEItem.IEID)); err != nil {
 		return err
 	}
-	if err := per.EncodeEnumerated(w, enc, 2, true, int64(criticalityDiagnosticsIEItem.TypeOfError)); err != nil {
+	if err := encodeRootEnumerated(w, enc, 2, int64(criticalityDiagnosticsIEItem.TypeOfError), "TypeOfError"); err != nil {
 		return err
 	}
 	return nil
@@ -1244,10 +1244,10 @@ func (globalENBID *GlobalENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 func (requestType *RequestType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
-	if err := per.EncodeEnumerated(w, enc, 3, true, int64(requestType.EventType)); err != nil {
+	if err := encodeRootEnumerated(w, enc, 3, int64(requestType.EventType), "EventType"); err != nil {
 		return err
 	}
-	if err := per.EncodeEnumerated(w, enc, 1, true, int64(requestType.ReportArea)); err != nil {
+	if err := encodeRootEnumerated(w, enc, 1, int64(requestType.ReportArea), "ReportArea"); err != nil {
 		return err
 	}
 	return nil

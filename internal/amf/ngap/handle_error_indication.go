@@ -16,16 +16,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// emitErrorIndication marshals and sends an ERROR INDICATION.
-// ueIDs names the association a report concerns (TS 38.413 §8.4.4.2); both
+// ueIDs names the association a report concerns: §8.7.5.2 requires both UE
+// NGAP IDs on an Error Indication triggered by UE-associated signalling. Both
 // fields are nil for node-level signalling.
 type ueIDs struct {
 	amf *ngap.AMFUENGAPID
 	ran *ngap.RANUENGAPID
 }
-
-// nodeLevel is the empty association, for procedures with no UE context.
-func nodeLevel() ueIDs { return ueIDs{} }
 
 func ueAssociated(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID) ueIDs {
 	return ueIDs{amf: &amfID, ran: &ranID}
@@ -57,6 +54,7 @@ func reportDiagnostics(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureC
 	})
 }
 
+// emitErrorIndication marshals and sends an ERROR INDICATION.
 func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorIndication) {
 	b, err := ind.Marshal()
 	if err != nil {

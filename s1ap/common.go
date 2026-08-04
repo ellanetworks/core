@@ -10,7 +10,7 @@
 //
 // A field is a value type only where §10.3.5 stops the message reaching the
 // caller without it, which is exactly the required IEs of reject criticality;
-// every other IE is nil-able. Marshal applies the stricter §10.3.3 rule and
+// every other IE is nil-able. Marshal applies the stricter §9.1.2.1 rule and
 // fails on any unset required IE.
 //
 // Decoding returns no message with either [TransferSyntaxError] or
@@ -51,6 +51,17 @@ func (c Criticality) String() string {
 	default:
 		return fmt.Sprintf("Criticality(%d)", uint8(c))
 	}
+}
+
+// encodeRootEnumerated refuses to encode a value outside the root.
+// per.EncodeEnumerated would take it as the (v-nRoot)'th extension addition and
+// put a value 3GPP has not defined on the wire.
+func encodeRootEnumerated(w *per.Writer, enc per.Encoding, nRoot, v int64, name string) error {
+	if v < 0 || v >= nRoot {
+		return fmt.Errorf("s1ap: %s %d outside the root values", name, v)
+	}
+
+	return per.EncodeEnumerated(w, enc, nRoot, true, v)
 }
 
 // An extension value decodes as nRoot+k, which narrows back onto a root value

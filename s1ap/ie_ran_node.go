@@ -46,15 +46,18 @@ type GlobalENBID struct {
 // encodes. Both widths live here, and only their combination is correct.
 
 // CellIdentity composes this eNB's E-UTRAN Cell Identity: the eNB ID in the
-// leftmost bits of its kind, cellID in the rest (TS 23.003 §19.4.2.3).
+// leftmost bits of its kind, cellID in the rest (TS 36.413 §9.2.1.37). A Home
+// eNB ID is itself 28 bits — "Equal to the Cell Identity IE contained in the
+// E-UTRAN CGI IE of the cell served by the eNB" — so it leaves a zero-width
+// cell part and only cell 0 exists.
 func (e ENBID) CellIdentity(cellID uint32) (uint32, error) {
 	nodeBits, ok := enbIDBits[e.Kind]
 	if !ok {
 		return 0, fmt.Errorf("s1ap: invalid ENB-ID kind %d", e.Kind)
 	}
 
-	if nodeBits >= cellIDBits {
-		return 0, fmt.Errorf("s1ap: eNB id of %d bits leaves no room in a %d-bit cell identity", nodeBits, cellIDBits)
+	if nodeBits > cellIDBits {
+		return 0, fmt.Errorf("s1ap: eNB id of %d bits does not fit a %d-bit cell identity", nodeBits, cellIDBits)
 	}
 
 	cellBits := cellIDBits - nodeBits
@@ -72,7 +75,7 @@ func (e ENBID) CellIdentity(cellID uint32) (uint32, error) {
 // SplitCellIdentity is CellIdentity's inverse for a cell of this eNB.
 func (e ENBID) SplitCellIdentity(eci uint32) (cellID uint32, ok bool) {
 	nodeBits, known := enbIDBits[e.Kind]
-	if !known || nodeBits >= cellIDBits {
+	if !known || nodeBits > cellIDBits {
 		return 0, false
 	}
 

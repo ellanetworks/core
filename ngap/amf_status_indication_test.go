@@ -112,8 +112,8 @@ func TestAMFStatusIndicationOptionalsStayAbsent(t *testing.T) {
 	}
 }
 
-// The Unavailable GUAMI List is mandatory with reject criticality, so §10.3.3
-// binds the sender and §10.3.4.2 has the receiver reject the procedure rather
+// The Unavailable GUAMI List is mandatory with reject criticality, so §9.1.1
+// obliges the sender and §10.3.4.2 has the receiver reject the procedure rather
 // than act on a message naming no GUAMI.
 func TestAMFStatusIndicationRequiresGUAMIList(t *testing.T) {
 	if _, err := (&AMFStatusIndication{}).Marshal(); err == nil {

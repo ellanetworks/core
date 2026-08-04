@@ -146,7 +146,7 @@ func TestAbsentRejectIEStopsDelivery(t *testing.T) {
 	}
 }
 
-// TS 36.413 §10.3.3: the sender is bound even where §10.3.5 lets a receiver
+// TS 36.413 §9.1.2.1 obliges the sender even where §10.3.5 lets a receiver
 // carry on, so encoding an unset required IE fails.
 func TestEncodeRejectsUnsetRequiredIE(t *testing.T) {
 	msg := &UplinkNASTransport{

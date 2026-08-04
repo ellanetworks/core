@@ -5,7 +5,7 @@ package s1ap
 
 import "testing"
 
-// TS 23.003 §19.4.2.3: the eNB ID occupies the leftmost bits of the 28-bit ECI
+// TS 36.413 §9.2.1.37: the eNB ID occupies the leftmost bits of the 28-bit ECI
 // and the cell id the rest. The shift is the eNB id's own width, which its kind
 // fixes — the fact a caller cannot see, and the one this API keeps out of them.
 func TestCellIdentityComposition(t *testing.T) {
@@ -17,21 +17,13 @@ func TestCellIdentityComposition(t *testing.T) {
 	}{
 		{ENBIDMacro, 0x1a2b3, 1, 0x1a2b301}, // 20-bit macro, 8-bit cell
 		{ENBIDMacro, 0x00010, 0, 0x1000},
-		{ENBIDHome, 0xabcdef1, 0, 0xabcdef1}, // 28-bit home fills the identity
+		{ENBIDHome, 0xabcdef1, 0, 0xabcdef1}, // 28-bit home eNB: the ECI is the eNB id itself
 	}
 
 	for _, tt := range tests {
 		id := ENBID{Kind: tt.kind, Value: tt.enbID}
 
 		got, err := id.CellIdentity(tt.cellID)
-		if tt.kind == ENBIDHome {
-			if err == nil {
-				t.Errorf("a home eNB id fills all %d bits, leaving no cell space; want an error", cellIDBits)
-			}
-
-			continue
-		}
-
 		if err != nil {
 			t.Fatalf("kind %d id %#x: %v", tt.kind, tt.enbID, err)
 		}
@@ -61,6 +53,11 @@ func TestCellIdentityRejectsOverflow(t *testing.T) {
 
 	if _, err := (ENBID{Kind: 99, Value: 1}).CellIdentity(0); err == nil {
 		t.Error("an unknown eNB id kind was accepted")
+	}
+
+	// A home eNB ID is itself the 28-bit cell identity, so only cell 0 exists.
+	if _, err := (ENBID{Kind: ENBIDHome, Value: 0xabcdef1}).CellIdentity(1); err == nil {
+		t.Error("a non-zero cell id on a home eNB was accepted")
 	}
 }
 

@@ -96,7 +96,7 @@ func TestENBConfigurationUpdateFailureRoundTrips(t *testing.T) {
 }
 
 // The Cause is mandatory but carries ignore criticality, which binds the two
-// ends differently. TS 36.413 §10.3.3 binds the sender, so encoding an unset
+// ends differently. TS 36.413 §9.1.2.1 obliges the sender, so encoding an unset
 // Cause fails. §10.3.5 keys the receiver's reaction to the IE's criticality
 // rather than to its being mandatory, so an arriving message that omits it is
 // still delivered, with the omission reported in Criticality Diagnostics — the
