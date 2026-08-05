@@ -16,6 +16,10 @@ linters:
     - whitespace
     - govet
     - wsl_v5
+  exclusions:
+    # Installed by npm, not part of this repository.
+    paths:
+      - ui/node_modules
 issues:
   new-from-rev: ""
   new: false
