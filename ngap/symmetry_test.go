@@ -50,22 +50,12 @@ var s1apOnlyFiles = map[string]string{}
 
 // S1AP files whose NGAP counterparts are not written yet — outstanding work,
 // not a mandated asymmetry. Entries are deleted as counterparts appear, so the
-// list empties itself.
+// list empties itself. A file that exists on both sides under different names
+// belongs in renamedFiles, which is consulted first and actually verifies the
+// counterpart; an entry here would never be reached.
 var pendingNGAPMigration = map[string]struct{}{
-	"erab_modification.go":      {},
-	"erab_modification_test.go": {},
-	"erab_modify.go":            {},
-	"erab_modify_test.go":       {},
-	"erab_release.go":           {},
-	"erab_release_test.go":      {},
-	"erab_setup.go":             {},
-	"erab_setup_test.go":        {},
-	"location_report.go":        {},
-	"location_report_test.go":   {},
-	"lppa_transport.go":         {},
-	"lppa_transport_test.go":    {},
-	"path_switch.go":            {},
-	"path_switch_test.go":       {},
+	"lppa_transport.go":      {},
+	"lppa_transport_test.go": {},
 }
 
 // Same thing, different name per spec. Both sides must still exist.

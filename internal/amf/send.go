@@ -902,8 +902,19 @@ func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause 
 	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverPreparationFailure, pkt)
 }
 
+// handoverCancelAcknowledgeBytes builds a Handover Cancel Acknowledge for the
+// given NGAP identities (TS 38.413 §9.2.3.14).
+func handoverCancelAcknowledgeBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID) ([]byte, error) {
+	msg := &ngap.HandoverCancelAcknowledge{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+	}
+
+	return msg.Marshal()
+}
+
 func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
-	pkt, err := send.BuildHandoverCancelAcknowledge(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID))
+	pkt, err := handoverCancelAcknowledgeBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID))
 	if err != nil {
 		logger.From(ctx, ueConn.Log).Error("failed to build Handover Cancel Acknowledge", zap.Error(err))
 		return
@@ -912,10 +923,6 @@ func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
 	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverCancelAcknowledge, pkt)
 }
 
-// LegacyHandoverType renders a HandoverType for the Handover Resource
-// Allocation builders, which are still on the reference codec. Both
-// enumerations index TS 38.413 §9.3.1.22 in the same order, so the value
-// carries across unchanged. It goes when those builders are migrated.
 // PDUSessionSetupItemHOReq builds one item for a HANDOVER REQUEST
 // (TS 38.413 §9.2.3.4). The transfer is the SMF's, carried opaquely.
 func PDUSessionSetupItemHOReq(pduSessionID uint8, snssai *models.Snssai, transfer []byte) (ngap.PDUSessionResourceSetupItemHOReq, error) {
@@ -1109,4 +1116,96 @@ func (ueConn *UeConn) SendDownlinkRANStatusTransfer(ctx context.Context, contain
 	}
 
 	ueConn.SendNGAP(ctx, send.NGAPProcedureDownlinkRANStatusTransfer, pkt)
+}
+
+// pathSwitchRequestAcknowledgeBytes builds a PATH SWITCH REQUEST ACKNOWLEDGE
+// (TS 38.413 §9.2.3.11). The {NH, NCC} pair is the AS key chain the target
+// derives its next keys from (TS 33.501 §6.9.5).
+func pathSwitchRequestAcknowledgeBytes(
+	amfID ngap.AMFUENGAPID,
+	ranID ngap.RANUENGAPID,
+	ueSecurityCapability *fgs.UESecurityCapability,
+	ncc uint8,
+	nh []byte,
+	switched ngap.PDUSessionResourceSwitchedList,
+	released ngap.PDUSessionResourceReleasedListPSAck,
+	allowedNSSAI ngap.AllowedNSSAI,
+) ([]byte, error) {
+	var nextHop ngap.SecurityKey
+
+	if len(nh) != len(nextHop) {
+		return nil, fmt.Errorf("next hop is %d octets, want %d", len(nh), len(nextHop))
+	}
+
+	copy(nextHop[:], nh)
+
+	msg := &ngap.PathSwitchRequestAcknowledge{
+		AMFUENGAPID:                    &amfID,
+		RANUENGAPID:                    &ranID,
+		SecurityContext:                ngap.SecurityContext{NextHopChainingCount: ncc, NextHopNH: nextHop},
+		PDUSessionResourceSwitchedList: switched,
+		PDUSessionResourceReleased:     released,
+		AllowedNSSAI:                   allowedNSSAI,
+	}
+
+	if ueSecurityCapability != nil {
+		msg.UESecurityCapabilities = ngap.Ptr(util.SecurityCapabilitiesToNGAP(ueSecurityCapability))
+	}
+
+	return msg.Marshal()
+}
+
+func (ueConn *UeConn) SendPathSwitchRequestAcknowledge(
+	ctx context.Context,
+	ueSecurityCapability *fgs.UESecurityCapability,
+	ncc uint8,
+	nh []byte,
+	switched ngap.PDUSessionResourceSwitchedList,
+	released ngap.PDUSessionResourceReleasedListPSAck,
+	snssaiList []models.Snssai,
+) {
+	allowed, err := util.AllowedNSSAIToNGAP(snssaiList)
+	if err != nil {
+		logger.From(ctx, ueConn.Log).Error("could not convert Allowed NSSAI", zap.Error(err))
+		return
+	}
+
+	pkt, err := pathSwitchRequestAcknowledgeBytes(
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ueSecurityCapability, ncc, nh, switched, released, allowed,
+	)
+	if err != nil {
+		logger.From(ctx, ueConn.Log).Error("failed to build Path Switch Request Acknowledge", zap.Error(err))
+		return
+	}
+
+	ueConn.SendNGAP(ctx, send.NGAPProcedurePathSwitchRequestAcknowledge, pkt)
+}
+
+// locationReportingControlBytes builds a LOCATION REPORTING CONTROL
+// (TS 38.413 §9.2.8.1).
+func locationReportingControlBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, eventType ngap.EventType) ([]byte, error) {
+	msg := &ngap.LocationReportingControl{
+		AMFUENGAPID: amfID,
+		RANUENGAPID: ranID,
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  eventType,
+			ReportArea: ngap.ReportAreaCell,
+		},
+	}
+
+	return msg.Marshal()
+}
+
+// SendLocationReportingControl asks the NG-RAN node to start, change or stop
+// reporting this UE's location (TS 38.413 §8.12.1).
+func (ueConn *UeConn) SendLocationReportingControl(ctx context.Context, eventType ngap.EventType) error {
+	pkt, err := locationReportingControlBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), eventType)
+	if err != nil {
+		return fmt.Errorf("build LocationReportingControl: %w", err)
+	}
+
+	ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt)
+
+	return nil
 }

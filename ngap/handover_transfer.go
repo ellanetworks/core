@@ -356,3 +356,36 @@ func ParsePathSwitchRequestSetupFailedTransfer(b TransferContainer) (*PathSwitch
 
 	return &t, nil
 }
+
+// PathSwitchRequestUnsuccessfulTransfer ::= SEQUENCE { cause, iE-Extensions
+// OPTIONAL } (extensible) — TS 38.413 §9.3.4.7.
+type PathSwitchRequestUnsuccessfulTransfer struct {
+	_     [0]struct{} `per:"extseq"`
+	Cause Cause
+	_     ieExtensions `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PathSwitchRequestUnsuccessfulTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePathSwitchRequestUnsuccessfulTransfer decodes the transfer naming why a
+// session's path could not be switched.
+func ParsePathSwitchRequestUnsuccessfulTransfer(b TransferContainer) (*PathSwitchRequestUnsuccessfulTransfer, error) {
+	var t PathSwitchRequestUnsuccessfulTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}

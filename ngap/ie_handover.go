@@ -261,3 +261,68 @@ type PDUSessionResourceFailedToSetupItemHOAck struct {
 // PDUSessionResourceFailedToSetupListHOAck ::= SEQUENCE
 // (SIZE(1..maxnoofPDUSessions)) OF PDUSessionResourceFailedToSetupItemHOAck.
 type PDUSessionResourceFailedToSetupListHOAck []PDUSessionResourceFailedToSetupItemHOAck
+
+// PDUSessionResourceToBeSwitchedDLItem ::= SEQUENCE { pDUSessionID,
+// pathSwitchRequestTransfer, iE-Extensions OPTIONAL } (extensible).
+type PDUSessionResourceToBeSwitchedDLItem struct {
+	_            [0]struct{} `per:"extseq"`
+	PDUSessionID PDUSessionID
+	Transfer     TransferContainer
+	_            ieExtensions `per:",skip"`
+}
+
+// PDUSessionResourceToBeSwitchedDLList ::= SEQUENCE
+// (SIZE(1..maxnoofPDUSessions)) OF PDUSessionResourceToBeSwitchedDLItem.
+type PDUSessionResourceToBeSwitchedDLList []PDUSessionResourceToBeSwitchedDLItem
+
+// PDUSessionResourceFailedToSetupItemPSReq ::= SEQUENCE { pDUSessionID,
+// pathSwitchRequestSetupFailedTransfer, iE-Extensions OPTIONAL } (extensible).
+type PDUSessionResourceFailedToSetupItemPSReq struct {
+	_            [0]struct{} `per:"extseq"`
+	PDUSessionID PDUSessionID
+	Transfer     TransferContainer
+	_            ieExtensions `per:",skip"`
+}
+
+// PDUSessionResourceFailedToSetupListPSReq ::= SEQUENCE
+// (SIZE(1..maxnoofPDUSessions)) OF PDUSessionResourceFailedToSetupItemPSReq.
+type PDUSessionResourceFailedToSetupListPSReq []PDUSessionResourceFailedToSetupItemPSReq
+
+// PDUSessionResourceSwitchedItem ::= SEQUENCE { pDUSessionID,
+// pathSwitchRequestAcknowledgeTransfer, iE-Extensions OPTIONAL } (extensible).
+type PDUSessionResourceSwitchedItem struct {
+	_            [0]struct{} `per:"extseq"`
+	PDUSessionID PDUSessionID
+	Transfer     TransferContainer
+	_            ieExtensions `per:",skip"`
+}
+
+// PDUSessionResourceSwitchedList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
+// PDUSessionResourceSwitchedItem.
+type PDUSessionResourceSwitchedList []PDUSessionResourceSwitchedItem
+
+// PDUSessionResourceReleasedItemPSAck ::= SEQUENCE { pDUSessionID,
+// pathSwitchRequestUnsuccessfulTransfer, iE-Extensions OPTIONAL } (extensible).
+type PDUSessionResourceReleasedItemPSAck struct {
+	_            [0]struct{} `per:"extseq"`
+	PDUSessionID PDUSessionID
+	Transfer     TransferContainer
+	_            ieExtensions `per:",skip"`
+}
+
+// PDUSessionResourceReleasedListPSAck ::= SEQUENCE
+// (SIZE(1..maxnoofPDUSessions)) OF PDUSessionResourceReleasedItemPSAck.
+type PDUSessionResourceReleasedListPSAck []PDUSessionResourceReleasedItemPSAck
+
+// PDUSessionResourceReleasedItemPSFail ::= SEQUENCE { pDUSessionID,
+// pathSwitchRequestUnsuccessfulTransfer, iE-Extensions OPTIONAL } (extensible).
+type PDUSessionResourceReleasedItemPSFail struct {
+	_            [0]struct{} `per:"extseq"`
+	PDUSessionID PDUSessionID
+	Transfer     TransferContainer
+	_            ieExtensions `per:",skip"`
+}
+
+// PDUSessionResourceReleasedListPSFail ::= SEQUENCE
+// (SIZE(1..maxnoofPDUSessions)) OF PDUSessionResourceReleasedItemPSFail.
+type PDUSessionResourceReleasedListPSFail []PDUSessionResourceReleasedItemPSFail

@@ -12,12 +12,10 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/db"
 	coremodels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -549,7 +547,10 @@ func TestDetermineLocation_DefaultMaxAge(t *testing.T) {
 func TestRefreshLocation_Success(t *testing.T) {
 	// NR Cell Identity is 28 bits: 0x00000004 -> hex "0000000" (7 chars)
 	amfInstance := amf.New(nil, nil, nil)
-	lmfInstance := New(amfInstance, nil, testDBWithCell(t, db.RATNR, "262", "01", "0000000"))
+	// NR Cell Identity is 36 bits, so it renders as nine hex digits. The old
+	// fixture was "0000000": the reference test built a 28-bit identity — the
+	// EUTRA width, not NR — and the hex conversion truncated it to seven.
+	lmfInstance := New(amfInstance, nil, testDBWithCell(t, db.RATNR, "262", "01", "000000004"))
 	lmfInstance.maxLocationAge = 10
 
 	supi, err := etsi.NewSUPIFromIMSI("123456789012348")
@@ -593,40 +594,20 @@ func TestRefreshLocation_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to decode PLMN bytes: %v", err)
 	}
-	// NR Cell Identity is 28 bits: 0x00000004 -> bytes {0x00, 0x00, 0x00, 0x04}
-	// BitStringToHex truncates to 7 chars: "0000000"
-	nrLoc := ngapType.UserLocationInformationNR{
-		TAI: ngapType.TAI{
-			PLMNIdentity: ngapType.PLMNIdentity{
-				Value: plmnBytes,
-			},
-			TAC: ngapType.TAC{
-				Value: []byte{0x00, 0x1a},
-			},
-		},
-		NRCGI: ngapType.NRCGI{
-			PLMNIdentity: ngapType.PLMNIdentity{
-				Value: plmnBytes,
-			},
-			NRCellIdentity: ngapType.NRCellIdentity{
-				Value: aper.BitString{Bytes: []byte{0x00, 0x00, 0x00, 0x04}, BitLength: 28},
-			},
-		},
-	}
-	msg := decode.LocationReport{
+	// NR Cell Identity is 36 bits; the low 28 carry the cell, matching what the
+	// reference encoding of 0x00000004 produced.
+	msg := &ngaplib.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		UserLocationInformation: &ngapType.UserLocationInformation{
-			Present:                   ngapType.UserLocationInformationPresentUserLocationInformationNR,
-			UserLocationInformationNR: &nrLoc,
+		UserLocationInformation: &ngaplib.UserLocationInformation{
+			Kind:         ngaplib.UserLocationNR,
+			PLMNIdentity: ngaplib.PLMNIdentity(plmnBytes),
+			CellIdentity: 4,
+			TAI:          ngaplib.TAI{PLMNIdentity: ngaplib.PLMNIdentity(plmnBytes), TAC: 0x1a},
 		},
-		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-			EventType: ngapType.EventType{
-				Value: ngapType.EventTypePresentDirect,
-			},
-			ReportArea: ngapType.ReportArea{
-				Value: ngapType.ReportAreaPresentCell,
-			},
+		LocationReportingRequestType: &ngaplib.LocationReportingRequestType{
+			EventType:  ngaplib.EventTypeDirect,
+			ReportArea: ngaplib.ReportAreaCell,
 		},
 	}
 
@@ -651,7 +632,7 @@ func TestRefreshLocation_Success(t *testing.T) {
 		loc.NrLocation.Ncgi.NrCellID, loc.NrLocation, loc.NrLocation.Ncgi, loc.NrLocation.Ncgi.PlmnID)
 
 	// Verify the database has the cell position.
-	rat, mcc, mnc, cellID := "nr", "262", "01", "0000000"
+	rat, mcc, mnc, cellID := "nr", "262", "01", "000000004"
 
 	cp, err := lmfInstance.db.GetCellPositionByCell(context.Background(), rat, mcc, mnc, cellID)
 	if err != nil {

@@ -7,7 +7,6 @@ package util
 
 import (
 	"encoding/hex"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
@@ -22,23 +21,4 @@ func SNssaiToModels(ngapSnssai ngapType.SNSSAI) models.Snssai {
 	}
 
 	return modelsSnssai
-}
-
-func SNssaiToNgap(modelsSnssai *models.Snssai) (ngapType.SNSSAI, error) {
-	var ngapSnssai ngapType.SNSSAI
-
-	ngapSnssai.SST.Value = []byte{byte(modelsSnssai.Sst)}
-
-	if modelsSnssai.Sd != "" {
-		ngapSnssai.SD = new(ngapType.SD)
-
-		sdTmp, err := hex.DecodeString(modelsSnssai.Sd)
-		if err != nil {
-			return ngapSnssai, fmt.Errorf("could not decode SD: %+v", err)
-		}
-
-		ngapSnssai.SD.Value = sdTmp
-	}
-
-	return ngapSnssai, nil
 }

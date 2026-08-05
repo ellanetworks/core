@@ -45,6 +45,8 @@ const (
 	handoverRequestAcknowledgeMessageType         send.NGAPProcedure = "HandoverRequestAcknowledge"
 	handoverFailureMessageType                    send.NGAPProcedure = "HandoverFailure"
 	uplinkRANStatusTransferMessageType            send.NGAPProcedure = "UplinkRANStatusTransfer"
+	pathSwitchRequestMessageType                  send.NGAPProcedure = "PathSwitchRequest"
+	locationReportMessageType                     send.NGAPProcedure = "LocationReport"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -118,6 +120,10 @@ func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receiveHandoverRequired(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcUplinkRANStatusTransfer:
 		receiveUplinkRANStatusTransfer(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcPathSwitchRequest:
+		receivePathSwitchRequest(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcLocationReport:
+		receiveLocationReport(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -569,6 +575,51 @@ func receiveHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	HandleHandoverRequired(ctx, amfInstance, ran, required)
+}
+
+// receiveLocationReport parses and handles a LOCATION REPORT. The procedure
+// defines no unsuccessful outcome, so a failed parse is answered with an Error
+// Indication (TS 38.413 §10.3.5).
+func receiveLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, locationReportMessageType, span)
+
+	report, err := ngap.ParseLocationReport(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Location Report", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcLocationReport, err)
+
+		return
+	}
+
+	HandleLocationReport(ctx, amfInstance, ran, report)
+}
+
+// receivePathSwitchRequest parses and handles a PATH SWITCH REQUEST. Path
+// Switch defines an unsuccessful outcome, so §10.3.4.2 answers a rejected
+// message with PATH SWITCH REQUEST FAILURE when the rejected message still
+// yielded the UE NGAP IDs that message needs.
+func receivePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, pathSwitchRequestMessageType, span)
+
+	req, err := ngap.ParsePathSwitchRequest(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Path Switch Request", zap.Error(err))
+
+		var ase *ngap.AbstractSyntaxError
+		if errors.As(err, &ase) {
+			if amfID, ranID := ase.UEIDs(); amfID != nil && ranID != nil {
+				sendPathSwitchProtocolFailure(ctx, ran, *amfID, *ranID, ase)
+
+				return
+			}
+		}
+
+		sendParseErrorIndication(ctx, ran, ngap.ProcPathSwitchRequest, err)
+
+		return
+	}
+
+	HandlePathSwitchRequest(ctx, amfInstance, ran, req)
 }
 
 // receiveUplinkRANStatusTransfer parses and handles an UPLINK RAN STATUS

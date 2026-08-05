@@ -3,7 +3,7 @@
 
 package ngap
 
-import "github.com/free5gc/ngap/ngapType"
+import "github.com/ellanetworks/core/ngap"
 
 func validPDUSessionID(id int64) (uint8, bool) {
 	if id < 1 || id > 15 {
@@ -16,11 +16,11 @@ func validPDUSessionID(id int64) (uint8, bool) {
 // duplicatePDUSessionID returns the first PDU Session ID appearing more than once
 // in the to-be-switched downlink list; TS 38.413 requires the AMF to reject such a
 // Path Switch Request with a Failure.
-func duplicatePDUSessionID(items []ngapType.PDUSessionResourceToBeSwitchedDLItem) (int64, bool) {
+func duplicatePDUSessionID(items ngap.PDUSessionResourceToBeSwitchedDLList) (int64, bool) {
 	seen := make(map[int64]struct{}, len(items))
 
 	for _, item := range items {
-		id := item.PDUSessionID.Value
+		id := int64(item.PDUSessionID)
 		if _, ok := seen[id]; ok {
 			return id, true
 		}

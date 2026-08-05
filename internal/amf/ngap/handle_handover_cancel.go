@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -24,7 +23,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	cause := ngap.Cause{
 		Group: ngap.CauseGroupRadioNetwork,
-		Value: int(ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem),
+		Value: ngap.CauseRadioNetworkHOFailureInTarget,
 	}
 
 	if msg.Cause != nil {

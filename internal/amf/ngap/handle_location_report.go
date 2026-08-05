@@ -11,84 +11,69 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.LocationReport) {
-	if msg.LocationReportingRequestType == nil {
-		logger.WithTrace(ctx, ran.Log).Error("LocationReportingRequestType IE (mandatory) is missing in LocationReport")
-		return
-	}
-
-	ueConn, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+// HandleLocationReport records the UE's serving cell from an NG-RAN node
+// LOCATION REPORT (TS 38.413 §8.12.3).
+func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.LocationReport) {
+	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, &msg.AMFUENGAPID, &msg.RANUENGAPID)
 	if !ok {
 		return
 	}
 
-	ueConn.UpdateDecodedLocation(ctx, amfInstance, msg.UserLocationInformation)
 	ueConn.TouchLastSeen()
 
-	// UserLocationInformationNR carries NRCGI/TAI only; RSRP/RSRQ/TA measurements
-	// arrive separately via NRPPa UEPositioningInformation.
 	if msg.UserLocationInformation != nil {
-		if nr := msg.UserLocationInformation.UserLocationInformationNR; nr != nil {
-			_ = nr
-		}
+		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Location Report", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Any("ReportArea", msg.LocationReportingRequestType.ReportArea))
+	// LocationReportingRequestType is ignore criticality, so §10.3.5 delivers a
+	// report without it; the location above is recorded either way.
+	if msg.LocationReportingRequestType == nil {
+		logger.WithTrace(ctx, ueConn.Log).Warn("Location Report carries no LocationReportingRequestType")
+		return
+	}
 
-	switch msg.LocationReportingRequestType.EventType.Value {
-	case ngapType.EventTypePresentDirect:
+	logger.WithTrace(ctx, ueConn.Log).Debug("Handle Location Report",
+		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
+		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
+		zap.Int("report-area", int(msg.LocationReportingRequestType.ReportArea)))
+
+	switch msg.LocationReportingRequestType.EventType {
+	case ngap.EventTypeDirect:
 		logger.WithTrace(ctx, ueConn.Log).Debug("To report directly")
 
-	case ngapType.EventTypePresentChangeOfServeCell:
+	case ngap.EventTypeChangeOfServeCell:
 		logger.WithTrace(ctx, ueConn.Log).Debug("To report upon change of serving cell")
 
-	case ngapType.EventTypePresentUePresenceInAreaOfInterest:
-		logger.WithTrace(ctx, ueConn.Log).Debug("To report UE presence in the area of interest")
-
-		if msg.UEPresenceInAreaOfInterestList == nil {
-			logger.WithTrace(ctx, ueConn.Log).Warn("UEPresenceInAreaOfInterestList is nil, skipping area of interest processing")
-			break
+	case ngap.EventTypeUEPresenceInAreaOfInterest:
+		// This AMF never requests area-of-interest reporting, so the library
+		// refuses an areaOfInterestList and there is nothing to match against;
+		// the presences are reported for the record only.
+		for _, item := range msg.UEPresenceInAreaOfInterestList {
+			logger.WithTrace(ctx, ueConn.Log).Debug("UE presence in an area this AMF did not request",
+				zap.Int("reference-id", int(item.LocationReportingReferenceID)),
+				zap.Int("ue-presence", int(item.UEPresence)))
 		}
 
-		if msg.LocationReportingRequestType.AreaOfInterestList == nil {
-			logger.WithTrace(ctx, ueConn.Log).Warn("AreaOfInterestList is nil, skipping area matching")
-			break
+	case ngap.EventTypeStopChangeOfServeCell:
+		if err := ueConn.SendLocationReportingControl(ctx, msg.LocationReportingRequestType.EventType); err != nil {
+			logger.WithTrace(ctx, ueConn.Log).Error("error sending location reporting control", zap.Error(err))
 		}
 
-		for _, uEPresenceInAreaOfInterestItem := range msg.UEPresenceInAreaOfInterestList.List {
-			uEPresence := uEPresenceInAreaOfInterestItem.UEPresence.Value
-			referenceID := uEPresenceInAreaOfInterestItem.LocationReportingReferenceID.Value
-
-			for _, AOIitem := range msg.LocationReportingRequestType.AreaOfInterestList.List {
-				if referenceID == AOIitem.LocationReportingReferenceID.Value {
-					logger.WithTrace(ctx, ueConn.Log).Debug("To report UE presence in the area of interest", zap.Int("uEPresence", int(uEPresence)), zap.Int("AOI ReferenceID", int(referenceID)))
-				}
-			}
-		}
-
-	case ngapType.EventTypePresentStopChangeOfServeCell:
-		pkt, err := send.BuildLocationReportingControl(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), msg.LocationReportingRequestType.EventType)
-		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("error building location reporting control", zap.Error(err))
-		} else {
-			ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt)
-		}
-	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
+	case ngap.EventTypeStopUEPresenceInAreaOfInterest:
 		if msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled == nil {
-			logger.WithTrace(ctx, ueConn.Log).Warn("LocationReportingReferenceIDToBeCancelled is nil, skipping")
+			logger.WithTrace(ctx, ueConn.Log).Warn("stop-ue-presence-in-area-of-interest with no reference id to cancel")
 			break
 		}
 
-		logger.WithTrace(ctx, ueConn.Log).Debug("To stop reporting UE presence in the area of interest", zap.Int64("ReferenceID", msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled.Value))
+		logger.WithTrace(ctx, ueConn.Log).Debug("To stop reporting UE presence in the area of interest",
+			zap.Int("reference-id", int(*msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled)))
 
-	case ngapType.EventTypePresentCancelLocationReportingForTheUe:
+	case ngap.EventTypeCancelLocationReportingForTheUE:
 		logger.WithTrace(ctx, ueConn.Log).Debug("To cancel location reporting for the UE")
 	}
 }

@@ -79,6 +79,26 @@ var messageParsers = []messageParser{
 		_, err := ParseDownlinkRANStatusTransfer(v)
 		return err
 	}},
+	{"ParseLocationReport", func(v []byte) error {
+		_, err := ParseLocationReport(v)
+		return err
+	}},
+	{"ParseLocationReportingControl", func(v []byte) error {
+		_, err := ParseLocationReportingControl(v)
+		return err
+	}},
+	{"ParsePathSwitchRequest", func(v []byte) error {
+		_, err := ParsePathSwitchRequest(v)
+		return err
+	}},
+	{"ParsePathSwitchRequestAcknowledge", func(v []byte) error {
+		_, err := ParsePathSwitchRequestAcknowledge(v)
+		return err
+	}},
+	{"ParsePathSwitchRequestFailure", func(v []byte) error {
+		_, err := ParsePathSwitchRequestFailure(v)
+		return err
+	}},
 	{"ParseHandoverNotify", func(v []byte) error {
 		_, err := ParseHandoverNotify(v)
 		return err
@@ -159,6 +179,10 @@ var transferParsers = []messageParser{
 	}},
 	{"ParsePathSwitchRequestTransfer", func(v []byte) error {
 		_, err := ParsePathSwitchRequestTransfer(v)
+		return err
+	}},
+	{"ParsePathSwitchRequestUnsuccessfulTransfer", func(v []byte) error {
+		_, err := ParsePathSwitchRequestUnsuccessfulTransfer(v)
 		return err
 	}},
 	{"ParsePathSwitchRequestAcknowledgeTransfer", func(v []byte) error {

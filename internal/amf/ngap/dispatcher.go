@@ -12,7 +12,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/ngap"
@@ -110,20 +109,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch initiatingMessage.ProcedureCode.Value {
-		case ngapType.ProcedureCodePathSwitchRequest:
-			decoded, report := decode.DecodePathSwitchRequest(pdu.InitiatingMessage.Value.PathSwitchRequest)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandlePathSwitchRequest(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeLocationReport:
-			decoded, report := decode.DecodeLocationReport(pdu.InitiatingMessage.Value.LocationReport)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleLocationReport(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
 			HandleUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport)
 		default:

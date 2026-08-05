@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
@@ -27,7 +26,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -735,20 +733,9 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 		return fmt.Errorf("UE has no active RAN connection")
 	}
 
-	eventType := ngapType.EventType{
-		Value: ngapType.EventTypePresentDirect,
+	if err := ueConn.SendLocationReportingControl(ctx, ngap.EventTypeDirect); err != nil {
+		return err
 	}
-
-	pkt, err := send.BuildLocationReportingControl(
-		int64(ueConn.AmfUeNgapID),
-		int64(ueConn.RanUeNgapID),
-		eventType,
-	)
-	if err != nil {
-		return fmt.Errorf("build LocationReportingControl: %w", err)
-	}
-
-	ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt)
 
 	logger.AmfLog.Info("location refresh triggered via LocationReportingControl(Direct)",
 		logger.SUPI(supi.String()),

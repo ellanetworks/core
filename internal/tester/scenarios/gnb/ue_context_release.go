@@ -122,7 +122,7 @@ func validateUEContextReleaseCommand(fr gnb.SCTPFrame, want ngaplib.Cause) error
 	}
 
 	if cmd.Cause == nil {
-		return fmt.Errorf("Cause is absent")
+		return fmt.Errorf("cause is absent")
 	}
 
 	if *cmd.Cause != want {

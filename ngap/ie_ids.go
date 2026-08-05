@@ -80,6 +80,13 @@ const (
 	idPDUSessionResourceSetupListHOReq           ProtocolIEID = 73
 	idSecurityContext                            ProtocolIEID = 93
 	idRANStatusTransferTransparentContainer      ProtocolIEID = 84
+	idPDUSessionResourceFailedToSetupListPSReq   ProtocolIEID = 57
+	idPDUSessionResourceReleasedListPSAck        ProtocolIEID = 68
+	idPDUSessionResourceReleasedListPSFail       ProtocolIEID = 69
+	idPDUSessionResourceToBeSwitchedDLList       ProtocolIEID = 76
+	idPDUSessionResourceSwitchedList             ProtocolIEID = 77
+	idLocationReportingRequestType               ProtocolIEID = 33
+	idUEPresenceInAreaOfInterestList             ProtocolIEID = 116
 
 	// Carried inside the §9.3.4 PDU session transfers rather than a message body.
 	idAdditionalULNGUUPTNLInformation   ProtocolIEID = 126

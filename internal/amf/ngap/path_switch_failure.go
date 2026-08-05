@@ -8,24 +8,28 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-// sendPathSwitchRequestFailure rejects a Path Switch Request. The AMF itself
-// generates the Path Switch Request Unsuccessful Transfer for each distinct
-// requested PDU session (TS 38.413).
-func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decode.PathSwitchRequest, causeValue aper.Enumerated) {
-	released, err := pathSwitchReleasedList(msg.PDUSessionResourceItems, causeValue)
+// sendPathSwitchRequestFailure refuses a path switch. TS 38.413 §9.2.3.12 has
+// no Cause IE for the message as a whole — unlike TS 36.413 §9.1.5.10 — so the
+// reason is reported per session, once for every session the request named.
+func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap.PathSwitchRequest, causeValue int) {
+	released, err := pathSwitchReleasedList(msg.PDUSessionResourceToBeSwitchedDLList, causeValue)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error building path switch released list", zap.Error(err))
 	}
 
-	pkt, err := send.BuildPathSwitchRequestFailure(msg.SourceAMFUENGAPID, msg.RANUENGAPID, released, nil)
+	amfID, ranID := msg.SourceAMFUENGAPID, msg.RANUENGAPID
+
+	pkt, err := (&ngap.PathSwitchRequestFailure{
+		AMFUENGAPID:                &amfID,
+		RANUENGAPID:                &ranID,
+		PDUSessionResourceReleased: released,
+	}).Marshal()
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error building path switch request failure", zap.Error(err))
 		return
@@ -36,44 +40,60 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg decod
 
 // pathSwitchReleasedList builds the released list with one item per distinct
 // requested PDU session (TS 38.413).
-func pathSwitchReleasedList(items []ngapType.PDUSessionResourceToBeSwitchedDLItem, causeValue aper.Enumerated) (*ngapType.PDUSessionResourceReleasedListPSFail, error) {
+func pathSwitchReleasedList(items ngap.PDUSessionResourceToBeSwitchedDLList, causeValue int) (ngap.PDUSessionResourceReleasedListPSFail, error) {
 	transfer, err := buildPathSwitchRequestUnsuccessfulTransfer(causeValue)
 	if err != nil {
 		return nil, err
 	}
 
-	list := &ngapType.PDUSessionResourceReleasedListPSFail{}
-	seen := make(map[int64]struct{}, len(items))
+	list := make(ngap.PDUSessionResourceReleasedListPSFail, 0, len(items))
+	seen := make(map[ngap.PDUSessionID]struct{}, len(items))
 
 	for _, item := range items {
-		id := item.PDUSessionID.Value
-		if _, dup := seen[id]; dup {
+		if _, dup := seen[item.PDUSessionID]; dup {
 			continue
 		}
 
-		seen[id] = struct{}{}
+		seen[item.PDUSessionID] = struct{}{}
 
-		list.List = append(list.List, ngapType.PDUSessionResourceReleasedItemPSFail{
-			PDUSessionID:                          ngapType.PDUSessionID{Value: id},
-			PathSwitchRequestUnsuccessfulTransfer: transfer,
+		list = append(list, ngap.PDUSessionResourceReleasedItemPSFail{
+			PDUSessionID: item.PDUSessionID,
+			Transfer:     transfer,
 		})
 	}
 
 	return list, nil
 }
 
-func buildPathSwitchRequestUnsuccessfulTransfer(causeValue aper.Enumerated) ([]byte, error) {
-	transfer := ngapType.PathSwitchRequestUnsuccessfulTransfer{
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: causeValue},
-		},
-	}
-
-	buf, err := aper.MarshalWithParams(transfer, "valueExt")
+func buildPathSwitchRequestUnsuccessfulTransfer(causeValue int) (ngap.TransferContainer, error) {
+	b, err := (&ngap.PathSwitchRequestUnsuccessfulTransfer{
+		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},
+	}).Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("encode path switch request unsuccessful transfer: %w", err)
 	}
 
-	return buf, nil
+	return b, nil
+}
+
+// sendPathSwitchProtocolFailure reports a PATH SWITCH REQUEST the AMF rejected
+// on criticality grounds, using the procedure's own unsuccessful outcome as
+// §10.3.4.2 requires. The released list is empty: the rejected message never
+// yielded a session list to name.
+func sendPathSwitchProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ase *ngap.AbstractSyntaxError) {
+	diagnostics := ase.OutcomeDiagnostics()
+
+	pkt, err := (&ngap.PathSwitchRequestFailure{
+		AMFUENGAPID:            &amfID,
+		RANUENGAPID:            &ranID,
+		CriticalityDiagnostics: &diagnostics,
+	}).Marshal()
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("failed to marshal Path Switch Request Failure", zap.Error(err))
+		return
+	}
+
+	ran.SendToRadio(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt)
+
+	logger.WithTrace(ctx, ran.Log).Warn("Path Switch rejected", zap.Error(ase))
 }
