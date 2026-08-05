@@ -317,10 +317,11 @@ func encCGINR(w *per.Writer, c CGINR) error {
 	return per.EncodeBitString(w, per.Aligned, 36, 36, true, true, false, uintToBits(c.NRCellIdentity, 36), 36)
 }
 
-// NG-RANAccessPointPosition (TS 38.455 §9.2.2), extensible with no optional
-// root field. Field for field the E-UTRAN position of TS 36.455 §9.2.1.
+// NG-RANAccessPointPosition (TS 38.455 §9.2.2). The ten position fields are
+// those of the E-UTRAN position of TS 36.455 §9.2.1, but NRPPa adds an
+// iE-Extensions field, so this SEQUENCE carries a presence bit LPPa's does not.
 func encAPPosition(w *per.Writer, p *APPosition) error {
-	writeSeqPreamble(w, false, nil)
+	writeSeqPreamble(w, false, []bool{false})
 
 	if err := per.EncodeEnumerated(w, per.Aligned, 2, false, int64(p.LatitudeSign)); err != nil {
 		return err

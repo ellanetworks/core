@@ -349,7 +349,7 @@ func decodeCGINR(r *per.Reader) (*CGINR, error) {
 }
 
 func decodeAPPosition(r *per.Reader) (*APPosition, error) {
-	extPresent, _, err := readSeqPreamble(r, 0)
+	extPresent, opt, err := readSeqPreamble(r, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +397,7 @@ func decodeAPPosition(r *per.Reader) (*APPosition, error) {
 		}
 	}
 
-	if err := skipSequenceTail(r, false, extPresent); err != nil {
+	if err := skipSequenceTail(r, opt[0], extPresent); err != nil {
 		return nil, err
 	}
 
