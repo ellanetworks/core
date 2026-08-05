@@ -23,10 +23,10 @@ func TestModelsToSessionAMBR_ValueBounds(t *testing.T) {
 		{"999 Mbps (current UI cap)", models.MustParseBitRate("999 Mbps"), false},
 		{"1500 Mbps", models.MustParseBitRate("1500 Mbps"), false},
 		{"65535 Mbps (max encodable)", models.MustParseBitRate("65535 Mbps"), false},
-		{"65536 Mbps (one past the field)", models.MustParseBitRate("65536 Mbps"), true},
-		{"100000 Mbps", models.MustParseBitRate("100000 Mbps"), true},
-		{"1000000 Mbps (backend's stated max)", models.MustParseBitRate("1000000 Mbps"), true},
-		{"1000000 Gbps (backend's stated max, larger unit)", models.MustParseBitRate("1000000 Gbps"), true},
+		{"65536 Mbps: no wider unit divides it evenly", models.MustParseBitRate("65536 Mbps"), true},
+		{"100000 Mbps re-scales to 100 Gbps", models.MustParseBitRate("100000 Mbps"), false},
+		{"1000000 Mbps re-scales to 1000 Gbps", models.MustParseBitRate("1000000 Mbps"), false},
+		{"1000000 Gbps (backend's stated max, larger unit)", models.MustParseBitRate("1000000 Gbps"), false},
 	}
 
 	for _, tc := range tests {

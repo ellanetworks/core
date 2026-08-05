@@ -172,7 +172,7 @@ func (fakeBearerStore) GetDefaultPolicyByProfile(_ context.Context, _ string) (*
 func (fakeBearerStore) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
 		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
-		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn-ims"},
+		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn-ims", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 	}, nil
 }
 
