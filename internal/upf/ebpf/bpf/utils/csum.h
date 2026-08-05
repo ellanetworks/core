@@ -27,6 +27,7 @@
 #include "bpf/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
+#include <stdbool.h>
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>
 #include <linux/in.h>
