@@ -5,7 +5,6 @@ package smf_test
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"net/netip"
@@ -14,8 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 // buildPDUSessionEstRequestWithType builds a NAS PDU Session Establishment
@@ -40,7 +38,7 @@ func buildPDUSessionEstRequestWithType(pduSessionType fgs.PDUSessionType) []byte
 func ipv6Fakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	pcf := &fakePCF{
 		policy: &smf.Policy{
-			Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+			Ambr: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 			QosData: models.QosData{
 				Var5qi: 9,
 				Arp:    &models.Arp{PriorityLevel: 1},
@@ -70,34 +68,26 @@ func ipv6Fakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 }
 
 func buildPDUSessionResourceSetupResponseTransferIPv6(teid uint32, ip net.IP) ([]byte, error) {
-	transfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
-
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel = &ngapType.GTPTunnel{}
-
-	teidBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidBytes, teid)
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel.GTPTEID.Value = teidBytes
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     ip.To16(),
-		BitLength: 128,
+	transfer := libngap.PDUSessionResourceSetupResponseTransfer{
+		DLQosFlowPerTNLInformation: libngap.QosFlowPerTNLInformation{
+			UPTransportLayerInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
+				TransportLayerAddress: libngap.TransportLayerAddress(ip.To16()),
+				GTPTEID:               libngap.GTPTEID(teid),
+			}},
+			AssociatedQosFlowList: libngap.AssociatedQosFlowList{{QosFlowIdentifier: 1}},
+		},
 	}
 
-	transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List = append(
-		transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List,
-		ngapType.AssociatedQosFlowItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
-		},
-	)
+	b, err := transfer.Marshal()
 
-	return aper.MarshalWithParams(transfer, "valueExt")
+	return b, err
 }
 
 // dualStackFakes returns fakes configured for IPv4v6 dual-stack session tests.
 func dualStackFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	pcf := &fakePCF{
 		policy: &smf.Policy{
-			Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+			Ambr: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 			QosData: models.QosData{
 				Var5qi: 9,
 				Arp:    &models.Arp{PriorityLevel: 1},
@@ -520,7 +510,7 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	smCtx.PDUSessionType = uint8(fgs.PDUSessionTypeIPv6)
 
 	smCtx.PolicyData = &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 

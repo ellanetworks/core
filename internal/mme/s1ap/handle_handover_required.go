@@ -122,11 +122,11 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 }
 
 func handoverUEAMBR(ue *mme.UeContext) s1ap.UEAggregateMaximumBitRate {
-	ambrUL, ambrDL := ue.AmbrStrings()
+	ambrUL, ambrDL := ue.AmbrRates()
 
 	return s1ap.UEAggregateMaximumBitRate{
-		DL: s1ap.BitRate(mme.BitRateToBps(ambrDL)),
-		UL: s1ap.BitRate(mme.BitRateToBps(ambrUL)),
+		DL: s1ap.BitRate(ambrDL.Bps()),
+		UL: s1ap.BitRate(ambrUL.Bps()),
 	}
 }
 

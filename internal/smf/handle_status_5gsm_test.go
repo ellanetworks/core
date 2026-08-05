@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -125,7 +126,7 @@ func TestStatus5GSM_UnrelatedCauseKeepsSessionAndDiscardsPendingPolicy(t *testin
 	dl := smCtx.PolicyData.Ambr.Downlink
 	smCtx.Mutex.Unlock()
 
-	if dl != "200 Mbps" {
+	if dl != models.MustParseBitRate("200 Mbps") {
 		t.Fatalf("AMBR downlink = %q after a 5GSM STATUS aborted the modification, want \"200 Mbps\"", dl)
 	}
 }

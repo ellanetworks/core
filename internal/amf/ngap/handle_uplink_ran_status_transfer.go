@@ -7,18 +7,16 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // HandleUplinkRanStatusTransfer relays the source NG-RAN's PDCP SN/HFN status container
 // to the handover target as a DOWNLINK RAN STATUS TRANSFER (TS 38.413 §8.4.6/§8.4.7),
 // so an N2 handover of PDCP-SN-preserving DRBs is lossless. The transfer is optional
 // (the source may omit it) and non-gating: a missing in-progress handover just drops it.
-func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UplinkRANStatusTransfer) {
-	ueConn, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.UplinkRANStatusTransfer) {
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}
@@ -31,11 +29,5 @@ func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ra
 		return
 	}
 
-	pkt, err := send.BuildDownlinkRanStatusTransfer(int64(target.AmfUeNgapID), int64(target.RanUeNgapID), msg.Container)
-	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("failed to build Downlink RAN Status Transfer", zap.Error(err))
-		return
-	}
-
-	target.SendNGAP(ctx, send.NGAPProcedureDownlinkRanStatusTransfer, pkt)
+	target.SendDownlinkRANStatusTransfer(ctx, msg.Container)
 }

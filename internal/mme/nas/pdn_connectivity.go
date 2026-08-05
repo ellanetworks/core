@@ -103,8 +103,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		EPSBearerIdentity: p.Ebi,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
-		AMBRUplink:        qos.SessAmbrULStr,
-		AMBRDownlink:      qos.SessAmbrDLStr,
+		AMBRUplink:        qos.SessAmbrUL,
+		AMBRDownlink:      qos.SessAmbrDL,
 		IPv4Pool:          qos.IPv4Pool,
 		IPv6Pool:          qos.IPv6Pool,
 		DNS:               qos.DNS,
@@ -157,7 +157,7 @@ func sendERABSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, p *mme.Pd
 		return
 	}
 
-	ambr := s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL), UL: s1ap.BitRate(qos.AMBRUL)}
+	ambr := s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL.Bps()), UL: s1ap.BitRate(qos.AMBRUL.Bps())}
 
 	reqMsg := &s1ap.ERABSetupRequest{
 		UEAggregateMaximumBitRate: &ambr,

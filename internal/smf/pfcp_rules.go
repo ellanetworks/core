@@ -252,8 +252,8 @@ func NewQER(policy *Policy, qerID uint32) *QER {
 			DLGate: models.GateOpen,
 		},
 		MBR: &models.MBR{
-			ULMBR: bitRateTokbps(policy.Ambr.Uplink),
-			DLMBR: bitRateTokbps(policy.Ambr.Downlink),
+			ULMBR: policy.Ambr.Uplink.Kbps(),
+			DLMBR: policy.Ambr.Downlink.Kbps(),
 		},
 	}
 }

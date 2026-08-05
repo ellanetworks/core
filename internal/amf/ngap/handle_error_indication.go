@@ -8,13 +8,49 @@ import (
 	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
+
+// ueIDs names the association a report concerns: §8.7.5.2 requires both UE
+// NGAP IDs on an Error Indication triggered by UE-associated signalling. Both
+// fields are nil for node-level signalling.
+type ueIDs struct {
+	amf *ngap.AMFUENGAPID
+	ran *ngap.RANUENGAPID
+}
+
+func ueAssociated(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID) ueIDs {
+	return ueIDs{amf: &amfID, ran: &ranID}
+}
+
+// reportDiagnostics tells the sender about abstract syntax errors the message
+// survived. TS 38.413 §10.3.4.2 requires reporting a not-comprehended IE
+// marked notify; ignore-criticality entries are carried silently and
+// §9.3.1.3 forbids naming them.
+func reportDiagnostics(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode,
+	trigger ngap.TriggeringMessage, ids ueIDs, diag ngap.Diagnostics,
+) {
+	if !diag.ReportRequired() {
+		return
+	}
+
+	crit := ngap.ProcedureCriticality(proc)
+
+	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
+		AMFUENGAPID: ids.amf,
+		RANUENGAPID: ids.ran,
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
+		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
+			ProcedureCode:             &proc,
+			TriggeringMessage:         &trigger,
+			ProcedureCriticality:      &crit,
+			IEsCriticalityDiagnostics: diag.Report(),
+		},
+	})
+}
 
 // emitErrorIndication marshals and sends an ERROR INDICATION.
 func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorIndication) {
@@ -25,7 +61,7 @@ func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorInd
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, b)
+	ran.SendToRadio(ctx, amf.NGAPProcedureErrorIndication, b)
 }
 
 // sendErrorIndication answers a UE-associated message the AMF cannot act on,
@@ -43,6 +79,8 @@ func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID *ngap.AMFUEN
 // that did not decode at all leave nothing to cite beyond the procedure
 // (§10.2).
 func sendParseErrorIndication(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode, err error) {
+	// §10.3.4.2, §10.3.5 and §10.3.6 leave a rejected response to local error
+	// handling, so every message that reaches here initiated its procedure.
 	trigger := ngap.TriggeringInitiatingMessage
 
 	var ase *ngap.AbstractSyntaxError
@@ -118,8 +156,5 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
 
-	// The release command still takes the reference decoder's cause constants;
-	// it moves when UE Context Release migrates.
-	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentRadioNetwork,
-		ngapType.CauseRadioNetworkPresentUnspecified)
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified})
 }

@@ -748,8 +748,8 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 	}
 
 	if pdu.PolicyData != nil && pdu.PolicyData.Ambr != nil {
-		s.AMBRUplink = pdu.PolicyData.Ambr.Uplink
-		s.AMBRDownlink = pdu.PolicyData.Ambr.Downlink
+		s.AMBRUplink = pdu.PolicyData.Ambr.Uplink.String()
+		s.AMBRDownlink = pdu.PolicyData.Ambr.Downlink.String()
 	}
 
 	return s

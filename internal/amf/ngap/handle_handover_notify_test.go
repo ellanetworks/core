@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
@@ -9,10 +9,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
@@ -24,9 +22,9 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 99}
+	msg := &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 99}
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
+	HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -37,12 +35,9 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 		t.Fatal("expected Cause in ErrorIndication, got nil")
 	}
 
-	if errInd.Cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatalf("expected RadioNetwork cause, got present=%d", errInd.Cause.Present)
-	}
-
-	if errInd.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID {
-		t.Fatalf("expected UnknownLocalUENGAPID, got %d", errInd.Cause.RadioNetwork.Value)
+	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
+	if errInd.Cause == nil || *errInd.Cause != wantRadioNetworkCause {
+		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errInd.Cause)
 	}
 
 	if len(sender.SentUEContextReleaseCommands) != 0 {
@@ -62,9 +57,9 @@ func TestHandoverNotify_NilUeContext(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
+	HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentUEContextReleaseCommands) != 0 {
 		t.Fatalf("expected no UEContextReleaseCommand, got %d", len(sender.SentUEContextReleaseCommands))
@@ -87,9 +82,9 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
+	HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentUEContextReleaseCommands) != 0 {
 		t.Fatalf("expected no UEContextReleaseCommand, got %d", len(sender.SentUEContextReleaseCommands))
@@ -128,9 +123,9 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	// Handover Notify requires a prepared handover (the acknowledge step ran).
 	amfInstance.MarkHandoverPrepared(amfUe, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
+	HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
 
 	if len(sourceNGAPSender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand to source RAN, got %d", len(sourceNGAPSender.SentUEContextReleaseCommands))
@@ -138,20 +133,17 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 	cmd := sourceNGAPSender.SentUEContextReleaseCommands[0]
 
-	if cmd.AmfUeNgapID != 100 {
-		t.Errorf("expected AmfUeNgapID=100 (source), got %d", cmd.AmfUeNgapID)
+	if cmd.UENGAPIDs.AMFUENGAPID != 100 {
+		t.Errorf("expected AmfUeNgapID=100 (source), got %d", cmd.UENGAPIDs.AMFUENGAPID)
 	}
 
-	if cmd.RanUeNgapID != 10 {
-		t.Errorf("expected RanUeNgapID=10 (source), got %d", cmd.RanUeNgapID)
+	if cmd.UENGAPIDs.RANUENGAPID != 10 {
+		t.Errorf("expected RanUeNgapID=10 (source), got %d", cmd.UENGAPIDs.RANUENGAPID)
 	}
 
-	if cmd.CausePresent != ngapType.CausePresentRadioNetwork {
-		t.Errorf("expected CausePresent=RadioNetwork, got %d", cmd.CausePresent)
-	}
-
-	if cmd.Cause != ngapType.CauseRadioNetworkPresentSuccessfulHandover {
-		t.Errorf("expected Cause=SuccessfulHandover, got %d", cmd.Cause)
+	wantCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover}
+	if cmd.Cause == nil || *cmd.Cause != wantCause {
+		t.Errorf("cause = %v, want successful-handover", cmd.Cause)
 	}
 
 	if sourceUe.ReleaseAction != amf.UeContextReleaseHandover {
@@ -197,7 +189,7 @@ func TestHandoverNotify_ReleasesRejectedSessions(t *testing.T) {
 	// The target admitted session 1 only; session 2 was rejected at the acknowledge.
 	amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2})
+	HandleHandoverNotify(context.Background(), amfInstance, targetRan, &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2})
 
 	if len(fakeSmf.N2HandoverCompleteCalls) != 1 || fakeSmf.N2HandoverCompleteCalls[0] != "ref-1" {
 		t.Fatalf("expected only the admitted session ref-1 completed, got %v", fakeSmf.N2HandoverCompleteCalls)
@@ -252,7 +244,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 
 	releasesBeforeNotify := len(sourceNGAPSender.SentUEContextReleaseCommands)
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, decode.HandoverNotify{AMFUENGAPID: 4, RANUENGAPID: 3})
+	HandleHandoverNotify(context.Background(), amfInstance, targetRan, &ngap.HandoverNotify{AMFUENGAPID: 4, RANUENGAPID: 3})
 
 	if len(fakeSmf.N2HandoverCompleteCalls) != 0 || len(fakeSmf.ReleaseSmContextCalls) != 0 {
 		t.Fatalf("a notify from a non-target must not touch any SM context (complete=%v release=%v)",
@@ -308,9 +300,9 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	}
 	amfInstance.Session = fakeSmf
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
+	HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
 
 	if len(sourceNGAPSender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand to source RAN even when SMF fails, got %d", len(sourceNGAPSender.SentUEContextReleaseCommands))

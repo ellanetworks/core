@@ -13,8 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -50,8 +48,8 @@ func runNGReset(_ context.Context, env scenarios.Env, _ any) error {
 	defer node.Close()
 
 	if _, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngaplib.ProcNGSetup,
 		200*time.Millisecond,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)
@@ -69,8 +67,8 @@ func runNGReset(_ context.Context, env scenarios.Env, _ any) error {
 	logger.Logger.Debug("sent NGReset", zap.String("Cause", "unspecified"), zap.Bool("ResetAll", true))
 
 	frame, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGResetAcknowledge,
+		gnb.Successful,
+		ngaplib.ProcNGReset,
 		200*time.Millisecond,
 	)
 	if err != nil {
@@ -81,21 +79,8 @@ func runNGReset(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("SCTP validation: %w", err)
 	}
 
-	pdu, err := ngap.Decoder(frame.Data)
-	if err != nil {
-		return fmt.Errorf("decode NGAP: %w", err)
-	}
-
-	if pdu.SuccessfulOutcome == nil {
-		return fmt.Errorf("NGAP PDU is not SuccessfulOutcome")
-	}
-
-	if pdu.SuccessfulOutcome.ProcedureCode.Value != ngapType.ProcedureCodeNGReset {
-		return fmt.Errorf("NGAP ProcedureCode is not NGReset (%d)", ngapType.ProcedureCodeNGReset)
-	}
-
-	if pdu.SuccessfulOutcome.Value.NGResetAcknowledge == nil {
-		return fmt.Errorf("NGResetAcknowledge is nil")
+	if _, err := ngaplib.ParseNGResetAcknowledge(frame.Value); err != nil {
+		return fmt.Errorf("parse NGResetAcknowledge: %w", err)
 	}
 
 	return nil

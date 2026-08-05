@@ -4,12 +4,10 @@
 package smf
 
 import (
-	"encoding/binary"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 const testHandoverTEID = 0x1234
@@ -19,21 +17,15 @@ const testHandoverTEID = 0x1234
 func validHandoverRequestAcknowledgeTransfer(t *testing.T) []byte {
 	t.Helper()
 
-	teid := make([]byte, 4)
-	binary.BigEndian.PutUint32(teid, testHandoverTEID)
-
-	transfer := ngapType.HandoverRequestAcknowledgeTransfer{}
-	transfer.DLNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	transfer.DLNGUUPTNLInformation.GTPTunnel = &ngapType.GTPTunnel{
-		TransportLayerAddress: ngapType.TransportLayerAddress{
-			Value: aper.BitString{Bytes: []byte{10, 0, 0, 1}, BitLength: 32},
-		},
-		GTPTEID: ngapType.GTPTEID{Value: teid},
+	transfer := libngap.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
+			TransportLayerAddress: libngap.TransportLayerAddress{10, 0, 0, 1},
+			GTPTEID:               libngap.GTPTEID(testHandoverTEID),
+		}},
+		QosFlowSetupResponse: libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
 	}
-	transfer.QosFlowSetupResponseList.List = append(transfer.QosFlowSetupResponseList.List,
-		ngapType.QosFlowItemWithDataForwarding{QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1}})
 
-	b, err := aper.MarshalWithParams(transfer, "valueExt")
+	b, err := transfer.Marshal()
 	if err != nil {
 		t.Fatalf("marshal transfer: %v", err)
 	}

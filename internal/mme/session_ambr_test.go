@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // TestQosForPolicyDNSeparatesUEAndSessionAMBR verifies the 4G QoS resolution
@@ -17,14 +18,17 @@ func TestQosForPolicyDNSeparatesUEAndSessionAMBR(t *testing.T) {
 	pol := &db.Policy{ID: "p1", Var5qi: 7, Arp: 15, SessionAmbrUplink: "30 Mbps", SessionAmbrDownlink: "60 Mbps"}
 	dn := &db.DataNetwork{Name: "enterprise", IPv4Pool: "10.46.0.0/16"}
 
-	qos := qosForPolicyDN(profile, pol, dn)
-
-	if qos.AMBRUL != 500_000_000 || qos.AMBRDL != 500_000_000 {
-		t.Errorf("UE-AMBR (S1AP) = %d/%d bps, want 500/500 Mbps from the profile", qos.AMBRUL, qos.AMBRDL)
+	qos, err := qosForPolicyDN(profile, pol, dn)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	if qos.SessAmbrULStr != "30 Mbps" || qos.SessAmbrDLStr != "60 Mbps" {
-		t.Errorf("Session-AMBR = %q/%q, want 30/60 Mbps from the policy", qos.SessAmbrULStr, qos.SessAmbrDLStr)
+	if qos.AMBRUL.Bps() != 500_000_000 || qos.AMBRDL.Bps() != 500_000_000 {
+		t.Errorf("UE-AMBR (S1AP) = %d/%d bps, want 500/500 Mbps from the profile", qos.AMBRUL.Bps(), qos.AMBRDL.Bps())
+	}
+
+	if !qos.SessAmbrUL.Equal(models.MustParseBitRate("30 Mbps")) || !qos.SessAmbrDL.Equal(models.MustParseBitRate("60 Mbps")) {
+		t.Errorf("Session-AMBR = %q/%q, want 30/60 Mbps from the policy", qos.SessAmbrUL, qos.SessAmbrDL)
 	}
 
 	if qos.QCI != 7 || qos.APN != "enterprise" {

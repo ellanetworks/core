@@ -6,42 +6,23 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
-func buildAMFStatusIndication(amfStatusIndication ngapType.AMFStatusIndication) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(amfStatusIndication.ProtocolIEs.List); i++ {
-		ie := amfStatusIndication.ProtocolIEs.List[i]
-
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDUnavailableGUAMIList:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUnavailableGuamiList(*ie.Value.UnavailableGUAMIList),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
+// AMF Status Indication tells the NG-RAN node which GUAMIs this AMF can no
+// longer serve (TS 38.413 §8.7.6). TS 36.413 defines no counterpart.
+func buildAMFStatusIndication(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseAMFStatusIndication(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse AMF Status Indication: %v", err)}
 	}
 
-	return NGAPMessageValue{
-		IEs: ies,
-	}
-}
-
-func buildUnavailableGuamiList(list ngapType.UnavailableGUAMIList) []Guami {
-	guamis := make([]Guami, 0)
-
-	for _, item := range list.List {
-		guamis = append(guamis, buildGUAMI(item.GUAMI))
+	guamis := make([]Guami, 0, len(m.UnavailableGUAMIList))
+	for _, item := range m.UnavailableGUAMIList {
+		guamis = append(guamis, guami(item.GUAMI))
 	}
 
-	return guamis
+	ies := []IE{ie(idUnavailableGUAMIList, ngap.CriticalityReject, guamis)}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

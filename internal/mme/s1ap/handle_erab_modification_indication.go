@@ -30,12 +30,11 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	ue, ok := m.LookupUe(msg.MMEUES1APID)
+	// resolveUE checks both identities and the sending eNB. The procedure has no
+	// failure message, so an unresolvable UE is reported with an Error
+	// Indication (TS 36.413 §10.3.5).
+	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
-		// The procedure has no failure message; an unresolvable UE is dropped.
-		logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication for unknown UE",
-			zap.Uint32("mme-ue-id", uint32(msg.MMEUES1APID)))
-
 		return
 	}
 

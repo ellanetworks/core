@@ -18,10 +18,7 @@ import (
 // Layer Address (TS 36.413): IPv4 (4 octets), IPv6 (16), or dual-stack (20),
 // preferring IPv6. It reports false when no address is present.
 func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
-	v4, v6, err := models.DecodeTransportLayerAddress([]byte(tla))
-	if err != nil {
-		return netip.Addr{}, false
-	}
+	v4, v6 := tla.IPs()
 
 	switch {
 	case v6.IsValid():
@@ -39,7 +36,7 @@ func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupResponse(value)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to decode Initial Context Setup Response", zap.Error(err))
+		handleParseError(m, radio.Conn, s1ap.ProcInitialContextSetup, err)
 		return
 	}
 

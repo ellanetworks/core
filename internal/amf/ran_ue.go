@@ -10,20 +10,16 @@ package amf
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +50,7 @@ const releaseGuardTimeout = 5 * time.Second
 type UeConn struct {
 	RanUeNgapID  models.RanUeNgapID
 	AmfUeNgapID  models.AmfUeNgapID
-	HandOverType ngapType.HandoverType
+	HandOverType ngap.HandoverType
 	Tai          models.Tai
 	Location     models.UserLocation
 	ue           *UeContext
@@ -482,8 +478,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 			target.ReleaseAction = UeContextReleaseHandover
 
 			target.SendUEContextReleaseCommand(ctx,
-				ngapType.CausePresentRadioNetwork,
-				ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost)
+				ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost})
 		}
 
 		logger.WithTrace(ctx, ueConn.Log).Info("released prepared N2 handover target: source association removed")
@@ -510,8 +505,8 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 
 	for _, ueConn := range stale {
 		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
-			zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)),
-			zap.Int64("AmfUeNgapID", int64(ueConn.AmfUeNgapID)))
+			zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
+			zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
@@ -537,8 +532,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
 
 	logger.AmfLog.Info("ran ue removed",
-		zap.Int64("amfUeNgapID", int64(ueConn.AmfUeNgapID)),
-		zap.Int64("ranUeNgapID", int64(ueConn.RanUeNgapID)),
+		zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)),
+		zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
 	)
 
 	return nil
@@ -571,133 +566,9 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 	a.mu.Unlock()
 
 	ueConn.Log = ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID))
-	ueConn.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+	ueConn.Log.Info("ran ue switched to new Ran", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
 	return true
-}
-
-func (ueConn *UeConn) UpdateLocation(ctx context.Context, amf *AMF, userLocationInformation *ngapType.UserLocationInformation) {
-	if userLocationInformation == nil {
-		return
-	}
-
-	curTime := time.Now().UTC()
-
-	switch userLocationInformation.Present {
-	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
-		locationInfoEUTRA := userLocationInformation.UserLocationInformationEUTRA
-
-		tAI := locationInfoEUTRA.TAI
-		plmnID := util.PlmnIDToModels(tAI.PLMNIdentity)
-
-		eUTRACGI := locationInfoEUTRA.EUTRACGI
-		ePlmnID := util.PlmnIDToModels(eUTRACGI.PLMNIdentity)
-
-		// Rebuilt fresh each call so the snapshot published under ue.mu is never
-		// mutated after concurrent readers alias it.
-		eutra := &models.EutraLocation{
-			Tai: &models.Tai{
-				PlmnID: &plmnID,
-				Tac:    hex.EncodeToString(tAI.TAC.Value),
-			},
-			Ecgi: &models.Ecgi{
-				PlmnID:      &ePlmnID,
-				EutraCellID: ngapConvert.BitStringToHex(&eUTRACGI.EUTRACellIdentity.Value),
-			},
-			UeLocationTimestamp: &curTime,
-		}
-
-		if locationInfoEUTRA.TimeStamp != nil {
-			eutra.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoEUTRA.TimeStamp.Value)
-		}
-
-		ueConn.Location.EutraLocation = eutra
-		ueConn.Tai = *eutra.Tai
-
-		if ueConn.ue != nil {
-			ueConn.ue.mu.Lock()
-			ueConn.ue.Location = ueConn.Location
-			ueConn.ue.Tai = *eutra.Tai
-			ueConn.ue.mu.Unlock()
-		}
-	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
-		locationInfoNR := userLocationInformation.UserLocationInformationNR
-
-		tAI := locationInfoNR.TAI
-		plmnID := util.PlmnIDToModels(tAI.PLMNIdentity)
-
-		nRCGI := locationInfoNR.NRCGI
-		nRPlmnID := util.PlmnIDToModels(nRCGI.PLMNIdentity)
-
-		// Rebuilt fresh each call so the snapshot published under ue.mu is never
-		// mutated after concurrent readers alias it.
-		nr := &models.NrLocation{
-			Tai: &models.Tai{
-				PlmnID: &plmnID,
-				Tac:    hex.EncodeToString(tAI.TAC.Value),
-			},
-			Ncgi: &models.Ncgi{
-				PlmnID:   &nRPlmnID,
-				NrCellID: ngapConvert.BitStringToHex(&nRCGI.NRCellIdentity.Value),
-			},
-			UeLocationTimestamp: &curTime,
-		}
-
-		if locationInfoNR.TimeStamp != nil {
-			nr.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
-		}
-
-		ueConn.Location.NrLocation = nr
-		ueConn.Tai = *nr.Tai
-
-		if ueConn.ue != nil {
-			ueConn.ue.mu.Lock()
-			ueConn.ue.Location = ueConn.Location
-			ueConn.ue.Tai = *nr.Tai
-			ueConn.ue.mu.Unlock()
-		}
-	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
-		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
-
-		ip := locationInfoN3IWF.IPAddress
-		port := locationInfoN3IWF.PortNumber
-
-		ipv4Addr, ipv6Addr := ngapConvert.IPAddressToString(ip)
-
-		operatorInfo, err := amf.OperatorInfo(ctx)
-		if err != nil {
-			logger.AmfLog.Error("Error getting supported TAI list", zap.Error(err))
-			return
-		}
-
-		tmp, err := strconv.ParseUint(operatorInfo.Tais[0].Tac, 16, 32)
-		if err != nil {
-			logger.AmfLog.Error("Error parsing TAC", zap.String("Tac", operatorInfo.Tais[0].Tac), zap.Error(err))
-		}
-
-		// Rebuilt fresh each call so the snapshot published under ue.mu is never
-		// mutated after concurrent readers alias it.
-		n3ga := &models.N3gaLocation{
-			UeIpv4Addr: ipv4Addr,
-			UeIpv6Addr: ipv6Addr,
-			PortNumber: ngapConvert.PortNumberToInt(port),
-			N3gppTai: &models.Tai{
-				PlmnID: operatorInfo.Tais[0].PlmnID,
-				Tac:    fmt.Sprintf("%06x", tmp),
-			},
-		}
-
-		ueConn.Location.N3gaLocation = n3ga
-		ueConn.Tai = *n3ga.N3gppTai
-
-		if ueConn.ue != nil {
-			ueConn.ue.mu.Lock()
-			ueConn.ue.Location = ueConn.Location
-			ueConn.ue.Tai = *n3ga.N3gppTai
-			ueConn.ue.mu.Unlock()
-		}
-	case ngapType.UserLocationInformationPresentNothing:
-	}
 }
 
 // NewUeConnForTest creates a UeConn and registers it in the AMF's conns index.

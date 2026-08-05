@@ -214,8 +214,8 @@ func (amf *AMF) fetchSessionPolicy(smContextRef string) (*models.SessionPolicyDe
 	}
 
 	delta := &models.SessionPolicyDelta{
-		SessionAmbrUplink:   policy.Ambr.Uplink,
-		SessionAmbrDownlink: policy.Ambr.Downlink,
+		SessionAmbrUplink:   policy.Ambr.Uplink.String(),
+		SessionAmbrDownlink: policy.Ambr.Downlink.String(),
 		Var5qi:              policy.QosData.Var5qi,
 		DNS:                 dnsStr,
 		MTU:                 policy.MTU,

@@ -4,11 +4,11 @@
 package enb
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type InitialUEMessageOpts struct {
@@ -19,147 +19,108 @@ type InitialUEMessageOpts struct {
 	Mnc                   string
 	Tac                   string
 	EnbID                 string
-	RRCEstablishmentCause aper.Enumerated
+	RRCEstablishmentCause ngap.RRCEstablishmentCause
 }
 
-func BuildInitialUEMessage(opts *InitialUEMessageOpts) (ngapType.NGAPPDU, error) {
+func BuildInitialUEMessage(opts *InitialUEMessageOpts) ([]byte, error) {
 	if opts.Mcc == "" {
-		return ngapType.NGAPPDU{}, fmt.Errorf("MCC is required to build InitialUEMessage")
+		return nil, fmt.Errorf("MCC is required to build InitialUEMessage")
 	}
 
 	if opts.Mnc == "" {
-		return ngapType.NGAPPDU{}, fmt.Errorf("MNC is required to build InitialUEMessage")
+		return nil, fmt.Errorf("MNC is required to build InitialUEMessage")
 	}
 
 	if opts.Tac == "" {
-		return ngapType.NGAPPDU{}, fmt.Errorf("TAC is required to build InitialUEMessage")
+		return nil, fmt.Errorf("TAC is required to build InitialUEMessage")
 	}
 
 	if opts.EnbID == "" {
-		return ngapType.NGAPPDU{}, fmt.Errorf("ENB ID is required to build InitialUEMessage")
+		return nil, fmt.Errorf("ENB ID is required to build InitialUEMessage")
 	}
 
 	if opts.NasPDU == nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("NAS PDU is required to build InitialUEMessage")
+		return nil, fmt.Errorf("NAS PDU is required to build InitialUEMessage")
 	}
 
 	if opts.RanUENGAPID == 0 {
-		return ngapType.NGAPPDU{}, fmt.Errorf("RAN UE NGAP ID is required to build InitialUEMessage")
+		return nil, fmt.Errorf("RAN UE NGAP ID is required to build InitialUEMessage")
 	}
 
-	plmnID, err := gnb.GetMccAndMncInOctets(opts.Mcc, opts.Mnc)
+	plmn, err := gnb.PLMNIdentity(opts.Mcc, opts.Mnc)
 	if err != nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("failed to get plmnID: %+v", err)
+		return nil, err
 	}
 
-	plmnIdentity := gnb.GetPLMNIdentity(opts.Mcc, opts.Mnc)
-
-	tac, err := gnb.GetTacInBytes(opts.Tac)
+	tac, err := gnb.TACValue(opts.Tac)
 	if err != nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("failed to get tac: %+v", err)
+		return nil, err
 	}
 
-	eutraCellID, err := GetEUTRACellIdentity(opts.EnbID)
+	node, err := NgENBNodeID(opts.Mcc, opts.Mnc, opts.EnbID)
 	if err != nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("failed to get eutraCellID: %+v", err)
+		return nil, err
 	}
 
-	pdu := ngapType.NGAPPDU{}
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+	cellID, err := node.EUTRACellIdentity(0)
+	if err != nil {
+		return nil, fmt.Errorf("could not build E-UTRA cell identity: %w", err)
+	}
 
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeInitialUEMessage
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
+	msg := &ngap.InitialUEMessage{
+		RANUENGAPID: ngap.RANUENGAPID(opts.RanUENGAPID),
+		NASPDU:      ngap.NASPDU(opts.NasPDU),
+		UserLocationInformation: ngap.UserLocationInformation{
+			Kind:         ngap.UserLocationEUTRA,
+			PLMNIdentity: plmn,
+			CellIdentity: cellID,
+			TAI:          ngap.TAI{PLMNIdentity: plmn, TAC: tac},
+		},
+		RRCEstablishmentCause: ngap.Ptr(opts.RRCEstablishmentCause),
+		UEContextRequest:      ngap.Ptr(ngap.UEContextRequested),
+	}
 
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentInitialUEMessage
-	initiatingMessage.Value.InitialUEMessage = new(ngapType.InitialUEMessage)
-
-	initialUEMessage := initiatingMessage.Value.InitialUEMessage
-	initialUEMessageIEs := &initialUEMessage.ProtocolIEs
-
-	ie := ngapType.InitialUEMessageIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.InitialUEMessageIEsPresentRANUENGAPID
-	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-
-	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = opts.RanUENGAPID
-
-	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
-
-	ie = ngapType.InitialUEMessageIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDNASPDU
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.InitialUEMessageIEsPresentNASPDU
-	ie.Value.NASPDU = new(ngapType.NASPDU)
-
-	nASPDU := ie.Value.NASPDU
-	nASPDU.Value = opts.NasPDU
-
-	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
-
-	ie = ngapType.InitialUEMessageIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDUserLocationInformation
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.InitialUEMessageIEsPresentUserLocationInformation
-	ie.Value.UserLocationInformation = new(ngapType.UserLocationInformation)
-
-	userLocationInformation := ie.Value.UserLocationInformation
-	userLocationInformation.Present = ngapType.UserLocationInformationPresentUserLocationInformationEUTRA
-	userLocationInformation.UserLocationInformationEUTRA = new(ngapType.UserLocationInformationEUTRA)
-
-	userLocationInformationEUTRA := userLocationInformation.UserLocationInformationEUTRA
-	userLocationInformationEUTRA.EUTRACGI.PLMNIdentity = plmnIdentity
-	userLocationInformationEUTRA.EUTRACGI.EUTRACellIdentity = eutraCellID
-
-	userLocationInformationEUTRA.TAI.PLMNIdentity.Value = plmnID
-	userLocationInformationEUTRA.TAI.TAC.Value = tac
-
-	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
-
-	ie = ngapType.InitialUEMessageIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRRCEstablishmentCause
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.InitialUEMessageIEsPresentRRCEstablishmentCause
-	ie.Value.RRCEstablishmentCause = new(ngapType.RRCEstablishmentCause)
-
-	rRCEstablishmentCause := ie.Value.RRCEstablishmentCause
-	rRCEstablishmentCause.Value = opts.RRCEstablishmentCause
-
-	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
-
+	// The AMF Set ID (10 bits) and AMF Pointer (6 bits) sit in octets 6-7 of the
+	// 5G-GUTI value, and the 5G-TMSI in octets 8-11 (TS 24.501 §9.11.3.4).
 	if len(opts.Guti5g) >= 11 {
-		ie = ngapType.InitialUEMessageIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDFiveGSTMSI
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.InitialUEMessageIEsPresentFiveGSTMSI
-		ie.Value.FiveGSTMSI = new(ngapType.FiveGSTMSI)
-
-		// The AMF Set ID (10 bits) and AMF Pointer (6 bits) sit in octets 6-7 of the
-		// 5G-GUTI value, and the 5G-TMSI in octets 8-11 (TS 24.501 §9.11.3.4).
-		fiveGSTMSI := ie.Value.FiveGSTMSI
-		fiveGSTMSI.AMFSetID.Value = aper.BitString{
-			Bytes:     []byte{opts.Guti5g[5], opts.Guti5g[6]},
-			BitLength: 10,
+		msg.FiveGSTMSI = &ngap.FiveGSTMSI{
+			AMFSetID:   ngap.AMFSetID(uint16(opts.Guti5g[5])<<2 | uint16(opts.Guti5g[6])>>6),
+			AMFPointer: ngap.AMFPointer(opts.Guti5g[6] & 0x3f),
+			FiveGTMSI:  ngap.FiveGTMSI(binary.BigEndian.Uint32(opts.Guti5g[7:11])),
 		}
-		fiveGSTMSI.AMFPointer.Value = aper.BitString{
-			Bytes:     []byte{(opts.Guti5g[6] & 0x3f) << 2},
-			BitLength: 6,
-		}
-		fiveGSTMSI.FiveGTMSI.Value = append([]byte(nil), opts.Guti5g[7:11]...)
-
-		initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
 	}
 
-	ie = ngapType.InitialUEMessageIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDUEContextRequest
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.InitialUEMessageIEsPresentUEContextRequest
-	ie.Value.UEContextRequest = new(ngapType.UEContextRequest)
-	ie.Value.UEContextRequest.Value = ngapType.UEContextRequestPresentRequested
-	initialUEMessageIEs.List = append(initialUEMessageIEs.List, ie)
+	return msg.Marshal()
+}
 
-	return pdu, nil
+// NgENBNodeID builds this simulator's Global RAN Node ID, whose ng-eNB-ID width
+// the library needs to place the node in a cell identity.
+func NgENBNodeID(mcc, mnc, enbID string) (ngap.GlobalRANNodeID, error) {
+	plmn, err := gnb.PLMNIdentity(mcc, mnc)
+	if err != nil {
+		return ngap.GlobalRANNodeID{}, err
+	}
+
+	b, err := gnb.GetGnbIdInBytes(enbID)
+	if err != nil {
+		return ngap.GlobalRANNodeID{}, fmt.Errorf("could not decode ng-eNB id: %w", err)
+	}
+
+	var v uint64
+	for _, o := range b {
+		v = v<<8 | uint64(o)
+	}
+
+	// TS 38.413 §9.3.1.8: the Macro ng-eNB ID is "the 20 leftmost bits of the
+	// E-UTRA Cell Identity". BuildNGSetupRequest reads the configured hex string
+	// the same way — the top ngENBIDBits of its octets — so the node this
+	// announces and the node the cell identity below belongs to are the same one.
+	if 8*len(b) < ngENBIDBits {
+		return ngap.GlobalRANNodeID{}, fmt.Errorf("ng-eNB id %q is %d octets, too few for a %d-bit node id", enbID, len(b), ngENBIDBits)
+	}
+
+	return ngap.GlobalRANNodeID{
+		Kind: ngap.RANNodeIDMacroNgENB, PLMNIdentity: plmn,
+		Value: uint32(v >> uint(8*len(b)-ngENBIDBits)), Bits: ngENBIDBits,
+	}, nil
 }

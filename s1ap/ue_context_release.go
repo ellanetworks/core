@@ -9,8 +9,18 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// UE-S1AP-IDs ::= CHOICE { uE-S1AP-ID-pair, mME-UE-S1AP-ID, ... }. An MME
-// sends the pair.
+// UE-S1AP-IDs CHOICE alternatives. The CHOICE is extensible, so the count is of
+// its root alternatives.
+const (
+	ues1apIDsPair = iota
+	ues1apIDsMMEUES1APID
+
+	ues1apIDsChoiceRootCount = 2
+)
+
+// UE-S1AP-IDs ::= CHOICE { uE-S1AP-ID-pair, mME-UE-S1AP-ID, ... }. Pair selects
+// uE-S1AP-ID-pair, which the MME sends once the eNB has assigned an eNB UE S1AP
+// ID; otherwise only MMEUES1APID is carried.
 type UES1APIDs struct {
 	MMEUES1APID MMEUES1APID
 	ENBUES1APID ENBUES1APID
@@ -21,14 +31,14 @@ func (u UES1APIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 
 	if !u.Pair {
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, 1); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, ues1apIDsMMEUES1APID); err != nil {
 			return err
 		}
 
 		return u.MMEUES1APID.MarshalPER(w, enc)
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, 0); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, ues1apIDsPair); err != nil {
 		return err
 	}
 
@@ -62,7 +72,7 @@ func (u *UES1APIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	switch idx {
-	case 0:
+	case ues1apIDsPair:
 		extBit, err := r.ReadBit()
 		if err != nil {
 			return err
@@ -102,12 +112,11 @@ func (u *UES1APIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 }
 
-const ues1apIDsChoiceRootCount = 2
-
 // TS 36.413 §9.1.4.6.
 type UEContextReleaseCommand struct {
 	UES1APIDs UES1APIDs
 	Cause     *Cause
+
 	messageMeta
 }
 

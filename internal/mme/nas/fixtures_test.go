@@ -34,8 +34,8 @@ func connectedBearerUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) 
 	p.Apn = "internet"
 
 	if qos, err := mme.ResolveQoSByAPN(context.Background(), m, ue.IMSI(), p.Apn); err == nil {
-		p.SessAmbrDLBps = mme.BitRateToBps(qos.SessAmbrDLStr)
-		p.SessAmbrULBps = mme.BitRateToBps(qos.SessAmbrULStr)
+		p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
+		p.SessAmbrULBps = qos.SessAmbrUL.Bps()
 		p.Qci = qos.QCI
 		p.Arp = qos.ARP
 	}
@@ -110,7 +110,7 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uin
 	return nil
 }
 
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, _, _ string) error {
+func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, _, _ models.BitRate) error {
 	return nil
 }
 
@@ -172,7 +172,7 @@ func (fakeBearerStore) GetDefaultPolicyByProfile(_ context.Context, _ string) (*
 func (fakeBearerStore) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
 		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
-		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn-ims"},
+		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn-ims", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 	}, nil
 }
 

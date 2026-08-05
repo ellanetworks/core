@@ -17,7 +17,7 @@ import (
 func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.Radio, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseComplete(value)
 	if err != nil {
-		logger.MmeLog.Warn("failed to decode UE Context Release Complete", zap.Error(err))
+		handleParseError(m, radio.Conn, s1ap.ProcUEContextRelease, err)
 		return
 	}
 

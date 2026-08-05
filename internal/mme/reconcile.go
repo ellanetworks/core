@@ -137,8 +137,8 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	newFingerprint := qos.DnFingerprint()
 	dnChanged := newFingerprint != curDNConfig
 
-	ambrChanged := BitRateToBps(qos.SessAmbrDLStr) != curSessAmbrDLBps ||
-		BitRateToBps(qos.SessAmbrULStr) != curSessAmbrULBps
+	ambrChanged := qos.SessAmbrDL.Bps() != curSessAmbrDLBps ||
+		qos.SessAmbrUL.Bps() != curSessAmbrULBps
 
 	qosChanged := qos.QCI != curQCI || qos.ARP != curARP
 
@@ -227,14 +227,14 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 		// Update the UPF QER (the enforcement point) before signalling the AMBR, and
 		// abort on failure: signalling anyway commits the new AMBR on UE-accept while
 		// the UPF stays behind, and reconcile then sees no diff to retry.
-		if err := m.Session.UpdateEPSSessionAMBR(ctx, ue.IMSI(), p.Ebi, qos.SessAmbrULStr, qos.SessAmbrDLStr); err != nil {
+		if err := m.Session.UpdateEPSSessionAMBR(ctx, ue.IMSI(), p.Ebi, qos.SessAmbrUL, qos.SessAmbrDL); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to update UPF Session-AMBR; deferring EPS bearer modification to the next reconcile",
 				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
 
 			return
 		}
 
-		apnAMBR, err := eps.APNAMBRFromKbps(BitRateToBps(qos.SessAmbrDLStr)/1000, BitRateToBps(qos.SessAmbrULStr)/1000)
+		apnAMBR, err := eps.APNAMBRFromKbps(qos.SessAmbrDL.Bps()/1000, qos.SessAmbrUL.Bps()/1000)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to encode APN-AMBR",
 				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
@@ -254,8 +254,8 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 	ue.mu.Lock()
 	p.Modifying = true
 	p.PendingDNConfig = qos.DnFingerprint()
-	p.PendingSessAmbrDLBps = BitRateToBps(qos.SessAmbrDLStr)
-	p.PendingSessAmbrULBps = BitRateToBps(qos.SessAmbrULStr)
+	p.PendingSessAmbrDLBps = qos.SessAmbrDL.Bps()
+	p.PendingSessAmbrULBps = qos.SessAmbrUL.Bps()
 	p.PendingQCI = qos.QCI
 	p.PendingARP = qos.ARP
 

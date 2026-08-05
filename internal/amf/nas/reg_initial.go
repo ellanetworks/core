@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -38,7 +38,7 @@ func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
 	ueConn.ReleaseAction = amf.UeContextReleaseAbortRegistration
 
 	// SendUEContextReleaseCommand releases locally on a send failure and logs it.
-	ueConn.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentUnspecified)
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
 }
 
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {

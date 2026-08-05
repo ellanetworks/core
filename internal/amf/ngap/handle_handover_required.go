@@ -7,16 +7,14 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverRequired) {
-	sourceUe, ok := resolveUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverRequired) {
+	sourceUe, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}
@@ -29,23 +27,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	sourceUe.TouchLastSeen()
 
-	if msg.TargetID.Present != ngapType.TargetIDPresentTargetRANNodeID {
-		// A validly-decoded but unservable TargetID: fail preparation explicitly so the
-		// source gNB does not wait out its own TNGRELOCprep timer (TS 38.413 §8.4.1.3).
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [unsupported TargetID type]", zap.Int("targetID", msg.TargetID.Present))
-
-		failureCause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentHoTargetNotAllowed,
-			},
-		}
-
-		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
-
-		return
-	}
-
 	conn := amfUe.Conn()
 	if conn == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("no active NAS connection")
@@ -55,19 +36,26 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
 
-		failureCause := ngapType.Cause{
-			Present: ngapType.CausePresentNas,
-			Nas: &ngapType.CauseNas{
-				Value: ngapType.CauseNasPresentAuthenticationFailure,
-			},
-		}
-
-		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASAuthenticationFailure}, nil, nil)
 
 		return
 	}
 
-	targetRanNodeID := util.RanIDToModels(msg.TargetID.TargetRANNodeID.GlobalRANNodeID)
+	// Only intra5gs reaches an NG-RAN target. fivegs-to-eps needs the NAS
+	// security parameters HANDOVER COMMAND makes conditional on it (§9.2.3.2
+	// iftoEPSUTRA) and which this AMF does not derive, and eps-to-5gs describes
+	// an eNB source. Either would run preparation to completion and then fail to
+	// encode the command, leaving the source waiting on TNGRELOCprep.
+	if msg.HandoverType != ngap.HandoverTypeIntra5GS {
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [unsupported Handover Type]",
+			zap.Uint8("handoverType", uint8(msg.HandoverType)))
+
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}, nil, nil)
+
+		return
+	}
+
+	targetRanNodeID := util.RANNodeIDToModels(msg.TargetID.TargetRANNodeID.GlobalRANNodeID)
 
 	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
 	if !ok {
@@ -75,14 +63,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		// leave the source not waiting (TS 38.413).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
 
-		failureCause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentUnknownTargetID,
-			},
-		}
-
-		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownTargetID}, nil, nil)
 
 		return
 	}
@@ -92,51 +73,46 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		// handled in the RAN and never reaches the core, so reject it (TS 38.413).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [target gNB is the source]")
 
-		failureCause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentHoTargetNotAllowed,
-			},
-		}
-
-		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}, nil, nil)
 
 		return
 	}
 
-	sourceUe.HandOverType.Value = msg.HandoverType.Value
+	sourceUe.HandOverType = msg.HandoverType
 
-	var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
+	var sessions ngap.PDUSessionResourceSetupListHOReq
 
-	for _, pDUSessionResourceHoItem := range msg.PDUSessionResourceItems {
-		pduSessionIDUint8, ok := validPDUSessionID(pDUSessionResourceHoItem.PDUSessionID.Value)
+	for _, item := range msg.PDUSessionResourceListHORqd {
+		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pDUSessionResourceHoItem.PDUSessionID.Value))
+			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
 			continue
 		}
 
-		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
-			if err != nil {
-				logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
-				continue
-			}
-
-			send.AppendPDUSessionResourceSetupListHOReq(&pduSessionReqList, pduSessionIDUint8, smContext.Snssai, n2Rsp)
+		smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionID)
+		if !exist {
+			continue
 		}
+
+		n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, item.Transfer)
+		if err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			continue
+		}
+
+		item, err := amf.PDUSessionSetupItemHOReq(pduSessionID, smContext.Snssai, n2Rsp)
+		if err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("could not build the handover request item", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			continue
+		}
+
+		sessions = append(sessions, item)
 	}
 
-	if len(pduSessionReqList.List) == 0 {
+	if len(sessions) == 0 {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 
-		failureCause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
-			},
-		}
-
-		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 
 		return
 	}
@@ -155,16 +131,17 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetUe, nh, ncc, ok := amfInstance.PrepareHandover(ctx, amfUe, sourceUe, targetRan)
 	if !ok {
-		failureCause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
-			},
-		}
-
-		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 
 		return
+	}
+
+	// A HANDOVER REQUIRED with no Cause is delivered anyway: the IE is ignore
+	// criticality, so §10.3.5 has the AMF carry on without it. The relayed Cause is
+	// mandatory in the HANDOVER REQUEST, so an absent one becomes unspecified.
+	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified}
+	if msg.Cause != nil {
+		cause = *msg.Cause
 	}
 
 	// The HANDOVER REQUEST carries the AS key chain {NH, NCC} staged at preparation; it
@@ -177,8 +154,8 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		amfUe.UESecCap(),
 		ncc,
 		nh[:],
-		msg.Cause,
-		pduSessionReqList,
+		cause,
+		sessions,
 		msg.SourceToTargetTransparentContainer,
 		snssaiList,
 		operatorInfo.Guami,
@@ -194,14 +171,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			logger.WithTrace(ctx, sourceUe.Log).Error("error removing target ue after failed handover request", zap.Error(rerr))
 		}
 
-		failureCause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
-			},
-		}
-
-		sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 
 		return
 	}
@@ -209,4 +179,33 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	// Arm the guard only now the HANDOVER REQUEST is sent, so the timer can never race
 	// the outbound request (TS 38.413 §8.4).
 	amfInstance.SuperviseHandover(amfUe, sourceUe, targetUe)
+}
+
+// causeHoFailureInTarget names the target side as the reason preparation could
+// not complete: no session survived core-side preparation, or the AMF could not
+// stage the target context (TS 38.413 §9.3.1.2).
+var causeHoFailureInTarget = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget}
+
+// sendHandoverPreparationProtocolFailure reports a HANDOVER REQUIRED the AMF
+// rejected on criticality grounds, using the procedure's own unsuccessful
+// outcome as §10.3.4.2 requires. It is sent on the radio rather than through a
+// UeConn: the message is rejected before any UE is resolved, and the UE NGAP
+// IDs the reply needs come from the rejected message itself.
+func sendHandoverPreparationProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ase *ngap.AbstractSyntaxError) {
+	diagnostics := ase.OutcomeDiagnostics()
+
+	b, err := (&ngap.HandoverPreparationFailure{
+		AMFUENGAPID:            &amfID,
+		RANUENGAPID:            &ranID,
+		Cause:                  &ase.Cause,
+		CriticalityDiagnostics: &diagnostics,
+	}).Marshal()
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("failed to marshal Handover Preparation Failure", zap.Error(err))
+		return
+	}
+
+	ran.SendToRadio(ctx, amf.NGAPProcedureHandoverPreparationFailure, b)
+
+	logger.WithTrace(ctx, ran.Log).Warn("Handover Preparation rejected", zap.Error(ase))
 }

@@ -25,24 +25,27 @@ import (
 // validateEPSBearerRequest rejects inputs the data path would otherwise accept
 // and degrade: a zero AMBR programs a zero-rate QER, and a non-IP DNS drops the
 // DNS option. An EBI outside 5..15 is not a valid default bearer (TS 24.007).
-func validateEPSBearerRequest(req models.EPSBearerRequest) error {
+// It returns the parsed AMBR so the caller does not re-read the text form.
+func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) {
+	var ambr models.Ambr
+
 	if req.EPSBearerIdentity < 5 || req.EPSBearerIdentity > 15 {
-		return fmt.Errorf("EPS bearer identity %d out of range (5..15)", req.EPSBearerIdentity)
+		return ambr, fmt.Errorf("EPS bearer identity %d out of range (5..15)", req.EPSBearerIdentity)
 	}
 
-	if bitRateTokbps(req.AMBRUplink) == 0 {
-		return fmt.Errorf("invalid uplink AMBR %q", req.AMBRUplink)
+	if req.AMBRUplink.Kbps() == 0 {
+		return ambr, fmt.Errorf("uplink AMBR %s is below 1 Kbps", req.AMBRUplink)
 	}
 
-	if bitRateTokbps(req.AMBRDownlink) == 0 {
-		return fmt.Errorf("invalid downlink AMBR %q", req.AMBRDownlink)
+	if req.AMBRDownlink.Kbps() == 0 {
+		return ambr, fmt.Errorf("downlink AMBR %s is below 1 Kbps", req.AMBRDownlink)
 	}
 
 	if req.DNS != "" && net.ParseIP(req.DNS) == nil {
-		return fmt.Errorf("invalid DNS address %q", req.DNS)
+		return ambr, fmt.Errorf("invalid DNS address %q", req.DNS)
 	}
 
-	return nil
+	return models.Ambr{Uplink: req.AMBRUplink, Downlink: req.AMBRDownlink}, nil
 }
 
 // CreateEPSSession programs the user plane for a 4G default EPS bearer with the
@@ -66,13 +69,14 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return models.EPSBearer{}, fmt.Errorf("invalid imsi %q: %w", req.IMSI, err)
 	}
 
-	if err = validateEPSBearerRequest(req); err != nil {
+	ambr, err := validateEPSBearerRequest(req)
+	if err != nil {
 		return models.EPSBearer{}, err
 	}
 
 	policy := &Policy{
 		PolicyID: req.PolicyID,
-		Ambr:     models.Ambr{Uplink: req.AMBRUplink, Downlink: req.AMBRDownlink},
+		Ambr:     ambr,
 		IPv4Pool: req.IPv4Pool,
 		IPv6Pool: req.IPv6Pool,
 		DNS:      net.ParseIP(req.DNS),
@@ -210,7 +214,7 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 // UpdateEPSSessionAMBR updates an established session's Session-AMBR in the UPF
 // QER so the data plane enforces the new per-session rate limit. The AMBR is
 // given in the "<n> <unit>" form used at session creation.
-func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink string) error {
+func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink models.BitRate) error {
 	ctx, span := tracer.Start(ctx, "smf/update_eps_session_ambr",
 		trace.WithAttributes(
 			attribute.String("ue.imsi", imsi),

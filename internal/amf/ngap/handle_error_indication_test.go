@@ -1,16 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
-	ngaplib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
@@ -18,7 +17,7 @@ func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, &ngaplib.ErrorIndication{})
+	HandleErrorIndication(context.Background(), amfInstance, ran, &ngap.ErrorIndication{})
 
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -30,13 +29,13 @@ func TestHandleErrorIndication_WithCause(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := &ngaplib.ErrorIndication{
-		Cause: ngaplib.Ptr(ngaplib.Cause{
-			Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkUnspecified,
+	msg := &ngap.ErrorIndication{
+		Cause: ngap.Ptr(ngap.Cause{
+			Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified,
 		}),
 	}
 
-	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)
+	HandleErrorIndication(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication sent back, got %d", len(sender.SentErrorIndications))
@@ -52,15 +51,15 @@ func TestHandleErrorIndication_ReleasesNamedUE(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 	ueConn := amf.NewUeConnForTest(ran, 2, 10, logger.AmfLog)
 
-	amfID := ngaplib.AMFUENGAPID(10)
-	msg := &ngaplib.ErrorIndication{
+	amfID := ngap.AMFUENGAPID(10)
+	msg := &ngap.ErrorIndication{
 		AMFUENGAPID: &amfID,
-		Cause: ngaplib.Ptr(ngaplib.Cause{
-			Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkUnspecified,
+		Cause: ngap.Ptr(ngap.Cause{
+			Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified,
 		}),
 	}
 
-	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)
+	HandleErrorIndication(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected the named UE released, got %d UEContextReleaseCommands", len(sender.SentUEContextReleaseCommands))
@@ -78,15 +77,15 @@ func TestHandleErrorIndication_UnknownUENoRelease(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	amfID := ngaplib.AMFUENGAPID(999)
-	msg := &ngaplib.ErrorIndication{
+	amfID := ngap.AMFUENGAPID(999)
+	msg := &ngap.ErrorIndication{
 		AMFUENGAPID: &amfID,
-		Cause: ngaplib.Ptr(ngaplib.Cause{
-			Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkUnspecified,
+		Cause: ngap.Ptr(ngap.Cause{
+			Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified,
 		}),
 	}
 
-	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)
+	HandleErrorIndication(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentUEContextReleaseCommands) != 0 {
 		t.Fatalf("expected no release for an unknown UE, got %d", len(sender.SentUEContextReleaseCommands))
@@ -98,11 +97,11 @@ func TestHandleErrorIndication_WithCriticalityDiagnostics(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := &ngaplib.ErrorIndication{
-		CriticalityDiagnostics: &ngaplib.CriticalityDiagnostics{},
+	msg := &ngap.ErrorIndication{
+		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{},
 	}
 
-	ngap.HandleErrorIndication(context.Background(), amfInstance, ran, msg)
+	HandleErrorIndication(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication sent back, got %d", len(sender.SentErrorIndications))

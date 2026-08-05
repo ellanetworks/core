@@ -6,6 +6,7 @@ package amf_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -31,20 +32,23 @@ type fakeNGAPSender struct {
 }
 
 // WriteMsg counts the sent NGAP PDU by procedure, standing in for a gNB
-// association. The NGAP-PDU APER header is byte 0 = outcome choice (0x00 is an
-// InitiatingMessage) and byte 1 = procedure code (TS 38.413); the transparent N2
-// payloads carried here are opaque, so the message is identified from the header
-// without a full decode.
+// association. Only the envelope is decoded: these tests care which procedure
+// the AMF started, not what the transparent N2 payloads carry.
 func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
-	if len(b) >= 2 && b[0] == 0x00 {
-		switch int64(b[1]) {
-		case ngapType.ProcedureCodePaging:
+	pdu, err := ngap.Unmarshal(b)
+	if err != nil {
+		panic(fmt.Sprintf("fakeNGAPSender: unmarshal NGAP PDU: %v", err))
+	}
+
+	if m, ok := pdu.(*ngap.InitiatingMessage); ok {
+		switch m.ProcedureCode {
+		case ngap.ProcPaging:
 			f.pagingCalls++
-		case ngapType.ProcedureCodePDUSessionResourceSetup:
+		case ngap.ProcPDUSessionResourceSetup:
 			f.pduSessionSetupCalls++
-		case ngapType.ProcedureCodeInitialContextSetup:
+		case ngap.ProcInitialContextSetup:
 			f.initialContextSetupCalls++
-		case ngapType.ProcedureCodeDownlinkNASTransport:
+		case ngap.ProcDownlinkNASTransport:
 			f.downlinkNasTransportCalls++
 		}
 	}
@@ -234,7 +238,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
 	})
 
 	radio := &amf.Radio{Conn: sender}
@@ -264,11 +268,12 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
 		u.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 
 		u.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+		u.SetKgnbForTest(make([]byte, 32))
 	})
 
 	radio := &amf.Radio{Conn: sender}
@@ -514,7 +519,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
 	})
 
 	radio := &amf.Radio{Conn: sender}
@@ -635,5 +640,36 @@ func TestTransferN1Msg_Success(t *testing.T) {
 
 	if sender.downlinkNasTransportCalls != 1 {
 		t.Fatalf("expected 1 DownlinkNasTransport, got %d", sender.downlinkNasTransportCalls)
+	}
+}
+
+// The Initial Context Setup claim is a CAS from ICSNotStarted to ICSPending, so
+// a path that claims it and then fails before sending must hand it back:
+// otherwise the connection never gets a UE context and every later transfer
+// takes the already-claimed branch, sending a standalone PDU SESSION RESOURCE
+// SETUP REQUEST to an NG-RAN node that has none (TS 38.413 §8.3.1).
+func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000021", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+	})
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	req := newReq()
+	req.SNssai = nil
+
+	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), req); err == nil {
+		t.Fatal("expected an error building the PDU session setup item")
+	}
+
+	if got := ueConn.ICS(); got != amf.ICSNotStarted {
+		t.Fatalf("ICS = %v, want %v: the claim was not released", got, amf.ICSNotStarted)
 	}
 }

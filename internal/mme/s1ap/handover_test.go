@@ -36,7 +36,7 @@ func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captur
 
 	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}, nil, mme.MintAuthProofForAttachRequest())
 
-	ue.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	ue.SetNCCForTest(1)
 
 	var nh [32]byte

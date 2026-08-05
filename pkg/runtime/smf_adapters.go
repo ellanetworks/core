@@ -285,12 +285,20 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 
 	dns := net.ParseIP(dn.DNS)
 
+	// The stored policy text becomes a rate here, at the edge of the DB layer.
+	ambrUL, err := models.ParseBitRate(pol.SessionAmbrUplink)
+	if err != nil {
+		return nil, fmt.Errorf("policy %s Session-AMBR uplink: %w", pol.ID, err)
+	}
+
+	ambrDL, err := models.ParseBitRate(pol.SessionAmbrDownlink)
+	if err != nil {
+		return nil, fmt.Errorf("policy %s Session-AMBR downlink: %w", pol.ID, err)
+	}
+
 	policy := &smf.Policy{
 		PolicyID: pol.ID,
-		Ambr: models.Ambr{
-			Uplink:   pol.SessionAmbrUplink,
-			Downlink: pol.SessionAmbrDownlink,
-		},
+		Ambr:     models.Ambr{Uplink: ambrUL, Downlink: ambrDL},
 		QosData: models.QosData{
 			QFI:    1,
 			Var5qi: pol.Var5qi,

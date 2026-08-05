@@ -53,7 +53,7 @@ func (t ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 			return err
 		}
 
-		return per.EncodeEnumerated(w, enc, resetAllRootCount, true, 0)
+		return encodeRootEnumerated(w, enc, resetAllRootCount, 0, "ResetAll")
 	}
 
 	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeAlternatives-1, resetTypePartOfNGInterface); err != nil {

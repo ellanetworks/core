@@ -26,8 +26,8 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	// Record the QoS a real activation would, so a reconcile against an unchanged
 	// policy is a no-op.
 	if qos, err := ResolveQoSByAPN(context.Background(), m, ue.imsiOrEmpty(), p.Apn); err == nil {
-		p.SessAmbrDLBps = BitRateToBps(qos.SessAmbrDLStr)
-		p.SessAmbrULBps = BitRateToBps(qos.SessAmbrULStr)
+		p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
+		p.SessAmbrULBps = qos.SessAmbrUL.Bps()
 		p.Qci = qos.QCI
 		p.Arp = qos.ARP
 	}
@@ -252,8 +252,8 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wantDL := BitRateToBps(qos.SessAmbrDLStr)
-	wantUL := BitRateToBps(qos.SessAmbrULStr)
+	wantDL := qos.SessAmbrDL.Bps()
+	wantUL := qos.SessAmbrUL.Bps()
 
 	// DN config unchanged; only the stored Session-AMBR differs from the policy.
 	p.DnConfig = qos.DnFingerprint()
@@ -273,8 +273,8 @@ func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
 	}
 
 	fsm := m.Session.(*fakeSessionManager)
-	if !fsm.ambrUpdated || fsm.ambrUplink != qos.SessAmbrULStr || fsm.ambrDownlink != qos.SessAmbrDLStr {
-		t.Fatalf("UPF Session-AMBR not updated to %s/%s, got %+v", qos.SessAmbrULStr, qos.SessAmbrDLStr, fsm)
+	if !fsm.ambrUpdated || fsm.ambrUplink != qos.SessAmbrUL || fsm.ambrDownlink != qos.SessAmbrDL {
+		t.Fatalf("UPF Session-AMBR not updated to %s/%s, got %+v", qos.SessAmbrUL, qos.SessAmbrDL, fsm)
 	}
 
 	if len(cc.sent) != 1 {
@@ -323,8 +323,8 @@ func TestReconcileDataNetworkDefersAMBROnQERFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	staleDL := BitRateToBps(qos.SessAmbrDLStr) / 2
-	staleUL := BitRateToBps(qos.SessAmbrULStr) / 2
+	staleDL := qos.SessAmbrDL.Bps() / 2
+	staleUL := qos.SessAmbrUL.Bps() / 2
 
 	p.DnConfig = qos.DnFingerprint()
 	p.SessAmbrDLBps = staleDL
@@ -364,8 +364,8 @@ func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
 
 	// DN and Session-AMBR unchanged; only the QCI/ARP differ from the stored values.
 	p.DnConfig = qos.DnFingerprint()
-	p.SessAmbrDLBps = BitRateToBps(qos.SessAmbrDLStr)
-	p.SessAmbrULBps = BitRateToBps(qos.SessAmbrULStr)
+	p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
+	p.SessAmbrULBps = qos.SessAmbrUL.Bps()
 	p.Qci = qos.QCI + 1
 	p.Arp = qos.ARP + 1
 
@@ -445,8 +445,8 @@ func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	wantDL := BitRateToBps(qos.SessAmbrDLStr)
-	wantUL := BitRateToBps(qos.SessAmbrULStr)
+	wantDL := qos.SessAmbrDL.Bps()
+	wantUL := qos.SessAmbrUL.Bps()
 
 	p.DnConfig = qos.DnFingerprint()
 	p.SessAmbrDLBps = wantDL / 2 // Session-AMBR changed

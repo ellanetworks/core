@@ -42,7 +42,7 @@ func pagingTestUE(t *testing.T) *UeContext {
 func TestBuildPaging(t *testing.T) {
 	amfInstance := New(nil, nil, nil)
 	ue := pagingTestUE(t)
-	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{NR: "aabbcc"}
+	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{NR: []byte{0xaa, 0xbb, 0xcc}}
 
 	paging, err := amfInstance.buildPaging(pagingTestGuami(), ue)
 	if err != nil {

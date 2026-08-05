@@ -189,3 +189,183 @@ func roundTripInitialUE(t *testing.T, in *InitialUEMessage) (*InitialUEMessage, 
 
 	return ParseInitialUEMessage(pdu.(*InitiatingMessage).Value)
 }
+
+const (
+	goldenUplinkNASTransport        = "000d402c000005000000020001000800020001001a0003020741006440080000f1100abcde10004340060000f1100001"
+	goldenUplinkNASTransportWideIDs = "000d403400000500000005c0ffffffff0008000480ffffff001a0006050741010bf6006440080000f110fffffff0004340060000f110ffff"
+)
+
+func TestUplinkNASTransportGolden(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  *UplinkNASTransport
+		want string
+	}{
+		{
+			"minimal",
+			&UplinkNASTransport{
+				MMEUES1APID: 1, ENBUES1APID: 1, NASPDU: NASPDU{0x07, 0x41},
+				EUTRANCGI: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1},
+				TAI:       &TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
+			},
+			goldenUplinkNASTransport,
+		},
+		{
+			// The widest ids either field can carry: MME-UE-S1AP-ID is 32 bits,
+			// eNB-UE-S1AP-ID 24, and the cell identity 28.
+			"wide ids",
+			&UplinkNASTransport{
+				MMEUES1APID: 0xffffffff, ENBUES1APID: 0xffffff, NASPDU: NASPDU{0x07, 0x41, 0x01, 0x0b, 0xf6},
+				EUTRANCGI: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0xfffffff},
+				TAI:       &TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 0xffff},
+			},
+			goldenUplinkNASTransportWideIDs,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.msg.Marshal()
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+
+			if want := mustHex(t, tt.want); !bytes.Equal(got, want) {
+				t.Fatalf("encode mismatch:\n  got  %x\n  want %x", got, want)
+			}
+
+			pdu, err := Unmarshal(mustHex(t, tt.want))
+			if err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			out, err := ParseUplinkNASTransport(pdu.value())
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+
+			if out.MMEUES1APID != tt.msg.MMEUES1APID || out.ENBUES1APID != tt.msg.ENBUES1APID ||
+				deref(out.EUTRANCGI) != deref(tt.msg.EUTRANCGI) || deref(out.TAI) != deref(tt.msg.TAI) ||
+				!bytes.Equal(out.NASPDU, tt.msg.NASPDU) {
+				t.Fatalf("decode mismatch:\n  got  %+v\n  want %+v", out, tt.msg)
+			}
+		})
+	}
+}
+
+// The three UE-addressing IEs are mandatory-reject, so §10.3.5 stops the
+// message; E-UTRAN CGI and TAI are mandatory-ignore, so their absence is
+// reported and the message still delivered.
+func TestUplinkNASTransportMissingIEs(t *testing.T) {
+	if _, err := (&UplinkNASTransport{}).Marshal(); err == nil {
+		t.Error("Marshal() = nil error, want a required-IE error")
+	}
+
+	if _, err := ParseUplinkNASTransport(container(t,
+		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
+		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+	)); err == nil {
+		t.Error("decoded a message with no NAS-PDU, want it rejected")
+	}
+
+	msg, err := ParseUplinkNASTransport(container(t,
+		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
+		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x07}},
+	))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.EUTRANCGI != nil || msg.TAI != nil {
+		t.Errorf("absent IEs decoded to non-nil: %+v", msg)
+	}
+
+	var missing int
+
+	for _, ie := range msg.Diagnostics().IEs {
+		if ie.TypeOfError == TypeOfErrorMissing && (ie.ID == idEUTRANCGI || ie.ID == idTAI) {
+			missing++
+		}
+	}
+
+	if missing != 2 {
+		t.Errorf("reported %d missing IEs, want 2: %+v", missing, msg.Diagnostics().IEs)
+	}
+}
+
+const (
+	goldenDownlinkNASTransport        = "000b4016000003000000020001000800020001001a0003020742"
+	goldenDownlinkNASTransportWideIDs = "000b401e00000300000005c0ffffffff0008000480ffffff001a0006050742010203"
+)
+
+func TestDownlinkNASTransportGolden(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  *DownlinkNASTransport
+		want string
+	}{
+		{
+			"minimal",
+			&DownlinkNASTransport{MMEUES1APID: 1, ENBUES1APID: 1, NASPDU: NASPDU{0x07, 0x42}},
+			goldenDownlinkNASTransport,
+		},
+		{
+			// The widest ids either field can carry: MME-UE-S1AP-ID is 32 bits,
+			// eNB-UE-S1AP-ID 24.
+			"wide ids",
+			&DownlinkNASTransport{
+				MMEUES1APID: 0xffffffff, ENBUES1APID: 0xffffff,
+				NASPDU: NASPDU{0x07, 0x42, 0x01, 0x02, 0x03},
+			},
+			goldenDownlinkNASTransportWideIDs,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.msg.Marshal()
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+
+			if want := mustHex(t, tt.want); !bytes.Equal(got, want) {
+				t.Fatalf("encode mismatch:\n  got  %x\n  want %x", got, want)
+			}
+
+			pdu, err := Unmarshal(mustHex(t, tt.want))
+			if err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			out, err := ParseDownlinkNASTransport(pdu.value())
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+
+			if out.MMEUES1APID != tt.msg.MMEUES1APID || out.ENBUES1APID != tt.msg.ENBUES1APID ||
+				!bytes.Equal(out.NASPDU, tt.msg.NASPDU) {
+				t.Fatalf("decode mismatch:\n  got  %+v\n  want %+v", out, tt.msg)
+			}
+		})
+	}
+}
+
+// Every modeled IE is mandatory-reject, so §9.1.2.1 refuses to encode any unset
+// one and §10.3.5 stops an arriving message that omits one.
+func TestDownlinkNASTransportMissingIEs(t *testing.T) {
+	if _, err := (&DownlinkNASTransport{}).Marshal(); err == nil {
+		t.Error("Marshal() = nil error, want a required-IE error")
+	}
+
+	if _, err := (&DownlinkNASTransport{MMEUES1APID: 1, ENBUES1APID: 1}).Marshal(); err == nil {
+		t.Error("Marshal() with no NAS-PDU = nil error, want a required-IE error")
+	}
+
+	if _, err := ParseDownlinkNASTransport(container(t,
+		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
+		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+	)); err == nil {
+		t.Error("decoded a message with no NAS-PDU, want it rejected")
+	}
+}

@@ -3,7 +3,11 @@
 
 package s1ap
 
-import "github.com/ellanetworks/core/per"
+import (
+	"testing"
+
+	"github.com/ellanetworks/core/per"
+)
 
 func unmarshalPERValue[T any](b []byte) (T, error) {
 	var v T
@@ -11,6 +15,18 @@ func unmarshalPERValue[T any](b []byte) (T, error) {
 	err := any(&v).(per.Unmarshaler).UnmarshalPER(per.NewReader(b), per.Aligned)
 
 	return v, err
+}
+
+// ieRaw encodes one IE value, as it appears inside a ProtocolIE-Field open type.
+func ieRaw(t *testing.T, m per.Marshaler) []byte {
+	t.Helper()
+
+	w := per.NewWriter()
+	if err := m.MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	return perBytes(w)
 }
 
 // perBytes applies the padding implicit in a complete PER encoding.

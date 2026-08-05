@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -74,8 +74,8 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	defer gNodeB.Close()
 
 	if _, err := gNodeB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngap.ProcNGSetup,
 		2*time.Second,
 	); err != nil {
 		return fmt.Errorf("phase1: NG Setup Response: %w", err)
@@ -125,8 +125,8 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	// Consume the new peer's NG Setup Response so its AMF is handshaken and
 	// ready before UE signalling begins.
 	if _, err := gNodeB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngap.ProcNGSetup,
 		10*time.Second,
 	); err != nil {
 		return fmt.Errorf("phase2: wait for NG Setup Response on new peer: %w", err)

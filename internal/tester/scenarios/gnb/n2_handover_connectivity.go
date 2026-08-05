@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/ngap/ngapType"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -71,8 +71,8 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	defer sourceGNB.Close()
 
 	if _, err := sourceGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngaplib.ProcNGSetup,
 		2*time.Second,
 	); err != nil {
 		return fmt.Errorf("source gNB: wait NGSetupResponse: %w", err)
@@ -98,8 +98,8 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	defer targetGNB.Close()
 
 	if _, err := targetGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngaplib.ProcNGSetup,
 		2*time.Second,
 	); err != nil {
 		return fmt.Errorf("target gNB: wait NGSetupResponse: %w", err)
@@ -160,7 +160,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	err = sourceGNB.SendHandoverRequired(&gnb.HandoverRequiredOpts{
 		AMFUENGAPID:  amfUENGAPID,
 		RANUENGAPID:  ranUENGAPID,
-		HandoverType: int64(ngapType.HandoverTypePresentIntra5gs),
+		HandoverType: ngaplib.HandoverTypeIntra5GS,
 		TargetGnbID:  "000002",
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
@@ -171,8 +171,8 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	hoReqFrame, err := targetGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentInitiatingMessage,
-		ngapType.InitiatingMessagePresentHandoverRequest,
+		gnb.Initiating,
+		ngaplib.ProcHandoverResourceAllocation,
 		5*time.Second,
 	)
 	if err != nil {
@@ -204,8 +204,8 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	_, err = sourceGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentHandoverCommand,
+		gnb.Successful,
+		ngaplib.ProcHandoverPreparation,
 		5*time.Second,
 	)
 	if err != nil {
@@ -221,8 +221,8 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	_, err = sourceGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentInitiatingMessage,
-		ngapType.InitiatingMessagePresentUEContextReleaseCommand,
+		gnb.Initiating,
+		ngaplib.ProcUEContextRelease,
 		5*time.Second,
 	)
 	if err != nil {

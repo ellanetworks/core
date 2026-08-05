@@ -4,12 +4,9 @@
 package ngap
 
 import (
-	"encoding/binary"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type DLQosFlowPerTNLInformation struct {
@@ -22,8 +19,8 @@ type AssociatedQosFlow struct {
 }
 
 type QosFlowFailedToSetupItem struct {
-	QosFlowIdentifier int64           `json:"qos_flow_identifier"`
-	Cause             utils.EnumField `json:"cause"`
+	QosFlowIdentifier int64 `json:"qos_flow_identifier"`
+	Cause             Cause `json:"cause"`
 }
 
 type PDUSessionResourceSetupResponseTransferDecoded struct {
@@ -32,7 +29,7 @@ type PDUSessionResourceSetupResponseTransferDecoded struct {
 }
 
 type PDUSessionResourceSetupUnsuccessfulTransferDecoded struct {
-	Cause utils.EnumField `json:"cause"`
+	Cause Cause `json:"cause"`
 }
 
 type PDUSessionResourceSetupSURes struct {
@@ -49,159 +46,106 @@ type PDUSessionResourceFailedToSetupSURes struct {
 	Error string `json:"error,omitempty"`
 }
 
-func buildPDUSessionResourceSetupResponse(pduSessionResourceSetupResponse ngapType.PDUSessionResourceSetupResponse) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(pduSessionResourceSetupResponse.ProtocolIEs.List); i++ {
-		ie := pduSessionResourceSetupResponse.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildPDUSessionResourceSetupListSUResIE(*ie.Value.PDUSessionResourceSetupListSURes),
-			})
-		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildPDUSessionResourceFailedToSetupListSUResIE(*ie.Value.PDUSessionResourceFailedToSetupListSURes),
-			})
-		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
-	}
-
-	return NGAPMessageValue{
-		IEs: ies,
-	}
-}
-
-func buildPDUSessionResourceSetupListSUResIE(pduList ngapType.PDUSessionResourceSetupListSURes) []PDUSessionResourceSetupSURes {
-	pduSessionList := make([]PDUSessionResourceSetupSURes, 0)
-
-	for i := 0; i < len(pduList.List); i++ {
-		item := pduList.List[i]
-		entry := PDUSessionResourceSetupSURes{
-			PDUSessionID: item.PDUSessionID.Value,
-		}
-
-		transfer, err := decodeSetupResponseTransfer(item.PDUSessionResourceSetupResponseTransfer)
-		if err != nil {
-			entry.Error = fmt.Sprintf("failed to decode response transfer: %v", err)
-		} else {
-			entry.PDUSessionResourceSetupResponseTransfer = transfer
-		}
-
-		pduSessionList = append(pduSessionList, entry)
-	}
-
-	return pduSessionList
-}
-
-func buildPDUSessionResourceFailedToSetupListSUResIE(pduList ngapType.PDUSessionResourceFailedToSetupListSURes) []PDUSessionResourceFailedToSetupSURes {
-	pduSessionList := make([]PDUSessionResourceFailedToSetupSURes, 0)
-
-	for i := 0; i < len(pduList.List); i++ {
-		item := pduList.List[i]
-		entry := PDUSessionResourceFailedToSetupSURes{
-			PDUSessionID: item.PDUSessionID.Value,
-		}
-
-		transfer, err := decodeSetupUnsuccessfulTransfer(item.PDUSessionResourceSetupUnsuccessfulTransfer)
-		if err != nil {
-			entry.Error = fmt.Sprintf("failed to decode unsuccessful transfer: %v", err)
-		} else {
-			entry.PDUSessionResourceSetupUnsuccessfulTransfer = transfer
-		}
-
-		pduSessionList = append(pduSessionList, entry)
-	}
-
-	return pduSessionList
-}
-
-func decodeSetupResponseTransfer(transfer aper.OctetString) (*PDUSessionResourceSetupResponseTransferDecoded, error) {
-	if transfer == nil {
-		return nil, fmt.Errorf("transfer is nil")
-	}
-
-	pdu := &ngapType.PDUSessionResourceSetupResponseTransfer{}
-
-	err := aper.UnmarshalWithParams(transfer, pdu, "valueExt")
+// PDU Session Resource Setup Response reports, per session, the tunnel the
+// NG-RAN node bound and any QoS flows it could not set up (TS 38.413 §9.2.1.2).
+func buildPDUSessionResourceSetupResponse(value []byte) NGAPMessageValue {
+	m, err := ngap.ParsePDUSessionResourceSetupResponse(value)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal response transfer: %v", err)
+		return NGAPMessageValue{Error: fmt.Sprintf("parse PDU Session Resource Setup Response: %v", err)}
 	}
 
-	result := &PDUSessionResourceSetupResponseTransferDecoded{}
+	var ies []IE
 
-	dlInfo := &pdu.DLQosFlowPerTNLInformation
-	if dlInfo.UPTransportLayerInformation.GTPTunnel != nil {
-		tunnel := dlInfo.UPTransportLayerInformation.GTPTunnel
-		teid := binary.BigEndian.Uint32(tunnel.GTPTEID.Value)
-		addr := tunnel.TransportLayerAddress.Value.Bytes
-		ip := transportLayerAddressToString(addr)
+	if m.AMFUENGAPID != nil {
+		ies = append(ies, ie(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
+	}
 
-		result.DLQosFlowPerTNLInformation.GTPTunnel = GTPTunnel{
-			GTPTEID:               teid,
-			TransportLayerAddress: ip,
+	if m.RANUENGAPID != nil {
+		ies = append(ies, ie(idRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
+	}
+
+	if m.PDUSessionResourceSetup != nil {
+		out := make([]PDUSessionResourceSetupSURes, 0, len(m.PDUSessionResourceSetup))
+
+		for _, item := range m.PDUSessionResourceSetup {
+			entry := PDUSessionResourceSetupSURes{PDUSessionID: int64(item.PDUSessionID)}
+
+			transfer, err := ngap.ParsePDUSessionResourceSetupResponseTransfer(item.Transfer)
+			if err != nil {
+				entry.Error = fmt.Sprintf("failed to decode response transfer: %v", err)
+			} else {
+				entry.PDUSessionResourceSetupResponseTransfer = libSetupResponseTransfer(transfer)
+			}
+
+			out = append(out, entry)
 		}
+
+		ies = append(ies, ie(idPDUSessionResourceSetupListSURes, ngap.CriticalityIgnore, out))
 	}
 
-	for _, flow := range dlInfo.AssociatedQosFlowList.List {
-		result.DLQosFlowPerTNLInformation.AssociatedQosFlows = append(
-			result.DLQosFlowPerTNLInformation.AssociatedQosFlows,
-			AssociatedQosFlow{QosFlowIdentifier: flow.QosFlowIdentifier.Value},
+	if m.PDUSessionResourceFailed != nil {
+		out := make([]PDUSessionResourceFailedToSetupSURes, 0, len(m.PDUSessionResourceFailed))
+
+		for _, item := range m.PDUSessionResourceFailed {
+			entry := PDUSessionResourceFailedToSetupSURes{PDUSessionID: int64(item.PDUSessionID)}
+
+			transfer, err := ngap.ParsePDUSessionResourceSetupUnsuccessfulTransfer(item.Transfer)
+			if err != nil {
+				entry.Error = fmt.Sprintf("failed to decode unsuccessful transfer: %v", err)
+			} else {
+				entry.PDUSessionResourceSetupUnsuccessfulTransfer = &PDUSessionResourceSetupUnsuccessfulTransferDecoded{
+					Cause: cause(transfer.Cause),
+				}
+			}
+
+			out = append(out, entry)
+		}
+
+		ies = append(ies, ie(idPDUSessionResourceFailedToSetupListSURes, ngap.CriticalityIgnore, out))
+	}
+
+	if m.UserLocationInformation != nil {
+		ies = append(ies, ie(idUserLocationInformation, ngap.CriticalityIgnore,
+			userLocationInformation(*m.UserLocationInformation)))
+	}
+
+	if m.CriticalityDiagnostics != nil {
+		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+			criticalityDiagnostics(*m.CriticalityDiagnostics)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
+}
+
+func libSetupResponseTransfer(t *ngap.PDUSessionResourceSetupResponseTransfer) *PDUSessionResourceSetupResponseTransferDecoded {
+	out := &PDUSessionResourceSetupResponseTransferDecoded{
+		DLQosFlowPerTNLInformation: DLQosFlowPerTNLInformation{
+			GTPTunnel: libGTPTunnel(t.DLQosFlowPerTNLInformation.UPTransportLayerInformation),
+		},
+	}
+
+	for _, flow := range t.DLQosFlowPerTNLInformation.AssociatedQosFlowList {
+		out.DLQosFlowPerTNLInformation.AssociatedQosFlows = append(
+			out.DLQosFlowPerTNLInformation.AssociatedQosFlows,
+			AssociatedQosFlow{QosFlowIdentifier: int64(flow.QosFlowIdentifier)},
 		)
 	}
 
-	if pdu.QosFlowFailedToSetupList != nil {
-		for _, flow := range pdu.QosFlowFailedToSetupList.List {
-			result.QosFlowFailedToSetupList = append(result.QosFlowFailedToSetupList, QosFlowFailedToSetupItem{
-				QosFlowIdentifier: flow.QosFlowIdentifier.Value,
-				Cause:             causeToEnum(flow.Cause),
-			})
-		}
+	for _, flow := range t.QosFlowFailedToSetup {
+		out.QosFlowFailedToSetupList = append(out.QosFlowFailedToSetupList, QosFlowFailedToSetupItem{
+			QosFlowIdentifier: int64(flow.QosFlowIdentifier),
+			Cause:             cause(flow.Cause),
+		})
 	}
 
-	return result, nil
+	return out
 }
 
-func decodeSetupUnsuccessfulTransfer(transfer aper.OctetString) (*PDUSessionResourceSetupUnsuccessfulTransferDecoded, error) {
-	if transfer == nil {
-		return nil, fmt.Errorf("transfer is nil")
+// libGTPTunnel renders the only UPTransportLayerInformation alternative the
+// library models; the CHOICE is closed by choice-Extensions (TS 38.413 §9.3.2.1).
+func libGTPTunnel(u ngap.UPTransportLayerInformation) GTPTunnel {
+	return GTPTunnel{
+		GTPTEID:               uint32(u.GTPTunnel.GTPTEID),
+		TransportLayerAddress: transportLayerAddressToString(u.GTPTunnel.TransportLayerAddress),
 	}
-
-	pdu := &ngapType.PDUSessionResourceSetupUnsuccessfulTransfer{}
-
-	err := aper.UnmarshalWithParams(transfer, pdu, "valueExt")
-	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal unsuccessful transfer: %v", err)
-	}
-
-	return &PDUSessionResourceSetupUnsuccessfulTransferDecoded{
-		Cause: causeToEnum(pdu.Cause),
-	}, nil
 }

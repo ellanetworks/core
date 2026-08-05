@@ -18,7 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
@@ -106,12 +106,12 @@ func runRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ any) e
 		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
 
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentInitiatingMessage, ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
 
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentInitiatingMessage, ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

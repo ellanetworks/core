@@ -7,213 +7,77 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type PathSwitchRequestOpts struct {
-	RANUENGAPID            int64
-	SourceAMFUENGAPID      int64
-	PDUSessions            [16]*PDUSessionInformation
-	N3GnbIp                netip.Addr
-	UESecurityCapabilities *ngapType.UESecurityCapabilities
+	RANUENGAPID       int64
+	SourceAMFUENGAPID int64
+	PDUSessions       [16]*PDUSessionInformation
+	N3GnbIp           netip.Addr
+	// UESecurityCapabilities is mandatory in a PATH SWITCH REQUEST
+	// (TS 38.413 §9.2.3.8), so it is a value and not an optional pointer.
+	// internal/tester/s1enb passes its S1AP counterpart by value too.
+	UESecurityCapabilities ngap.UESecurityCapabilities
 	Mcc                    string
 	Mnc                    string
 	Tac                    string
 	GnbID                  string
 }
 
-func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) (ngapType.NGAPPDU, error) {
-	pdu := ngapType.NGAPPDU{}
-
-	if opts.Mcc == "" {
-		return pdu, fmt.Errorf("MCC is required to build PathSwitchRequest")
-	}
-
-	if opts.Mnc == "" {
-		return pdu, fmt.Errorf("MNC is required to build PathSwitchRequest")
-	}
-
-	if opts.Tac == "" {
-		return pdu, fmt.Errorf("TAC is required to build PathSwitchRequest")
-	}
-
-	if opts.GnbID == "" {
-		return pdu, fmt.Errorf("GNB ID is required to build PathSwitchRequest")
-	}
-
-	plmnID, err := GetMccAndMncInOctets(opts.Mcc, opts.Mnc)
+// BuildPathSwitchRequest encodes a PATH SWITCH REQUEST PDU (TS 38.413 §8.4.4),
+// which the target NG-RAN node sends after an Xn handover to move the downlink
+// tunnels of every session it took over.
+func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
 	if err != nil {
-		return pdu, fmt.Errorf("failed to get plmnID: %+v", err)
+		return nil, err
 	}
 
-	plmnIdentity := GetPLMNIdentity(opts.Mcc, opts.Mnc)
-
-	tac, err := GetTacInBytes(opts.Tac)
+	addr, err := transportLayerAddress(opts.N3GnbIp)
 	if err != nil {
-		return pdu, fmt.Errorf("failed to get tac: %+v", err)
+		return nil, err
 	}
 
-	nrCellID, err := GetNRCellIdentity(opts.GnbID)
-	if err != nil {
-		return pdu, fmt.Errorf("failed to get nrCellID: %+v", err)
-	}
-
-	ranUeNgapID := &ngapType.RANUENGAPID{Value: opts.RANUENGAPID}
-	sourceAmfUeNgapID := &ngapType.AMFUENGAPID{Value: opts.SourceAMFUENGAPID}
-
-	userLocationInformation := &ngapType.UserLocationInformation{
-		Present:                   ngapType.UserLocationInformationPresentUserLocationInformationNR,
-		UserLocationInformationNR: &ngapType.UserLocationInformationNR{},
-	}
-	userLocationInformation.UserLocationInformationNR.NRCGI.PLMNIdentity = plmnIdentity
-	userLocationInformation.UserLocationInformationNR.NRCGI.NRCellIdentity = nrCellID
-	userLocationInformation.UserLocationInformationNR.TAI.PLMNIdentity.Value = plmnID
-	userLocationInformation.UserLocationInformationNR.TAI.TAC.Value = tac
-
-	pduSessionDLList := &ngapType.PDUSessionResourceToBeSwitchedDLList{}
+	var dlList ngap.PDUSessionResourceToBeSwitchedDLList
 
 	for _, pduSession := range opts.PDUSessions {
 		if pduSession == nil {
 			continue
 		}
 
-		var ipBytes []byte
-
-		if opts.N3GnbIp.Is4() {
-			ip4 := opts.N3GnbIp.As4()
-			ipBytes = ip4[:]
-		} else {
-			ip6 := opts.N3GnbIp.As16()
-			ipBytes = ip6[:]
-		}
-
-		transfer, err := buildPathSwitchRequestTransfer(pduSession.DLTeid, ipBytes)
+		transfer, err := buildPathSwitchRequestTransfer(pduSession.DLTeid, addr)
 		if err != nil {
-			return pdu, fmt.Errorf("failed to build PathSwitchRequestTransfer: %v", err)
+			return nil, fmt.Errorf("failed to build PathSwitchRequestTransfer: %w", err)
 		}
 
-		item := ngapType.PDUSessionResourceToBeSwitchedDLItem{
-			PDUSessionID:              ngapType.PDUSessionID{Value: pduSession.PDUSessionID},
-			PathSwitchRequestTransfer: transfer,
-		}
-		pduSessionDLList.List = append(pduSessionDLList.List, item)
+		dlList = append(dlList, ngap.PDUSessionResourceToBeSwitchedDLItem{
+			PDUSessionID: ngap.PDUSessionID(pduSession.PDUSessionID),
+			Transfer:     transfer,
+		})
 	}
 
-	msg := buildPathSwitchRequest(
-		sourceAmfUeNgapID,
-		ranUeNgapID,
-		pduSessionDLList,
-		nil, // no failed list
-		opts.UESecurityCapabilities,
-		userLocationInformation,
-	)
+	msg := &ngap.PathSwitchRequest{
+		RANUENGAPID:                          ngap.RANUENGAPID(opts.RANUENGAPID),
+		SourceAMFUENGAPID:                    ngap.AMFUENGAPID(opts.SourceAMFUENGAPID),
+		UserLocationInformation:              &uli,
+		UESecurityCapabilities:               &opts.UESecurityCapabilities,
+		PDUSessionResourceToBeSwitchedDLList: dlList,
+	}
 
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-	pdu.InitiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodePathSwitchRequest
-	pdu.InitiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
-	pdu.InitiatingMessage.Value.Present = ngapType.InitiatingMessagePresentPathSwitchRequest
-	pdu.InitiatingMessage.Value.PathSwitchRequest = msg
-
-	return pdu, nil
+	return msg.Marshal()
 }
 
-func buildPathSwitchRequestTransfer(teid uint32, ip []byte) ([]byte, error) {
-	transfer := ngapType.PathSwitchRequestTransfer{}
-	transfer.DLNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	transfer.DLNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
-
-	teidBytes := make([]byte, 4)
-	teidBytes[0] = byte(teid >> 24)
-	teidBytes[1] = byte(teid >> 16)
-	teidBytes[2] = byte(teid >> 8)
-	teidBytes[3] = byte(teid)
-	transfer.DLNGUUPTNLInformation.GTPTunnel.GTPTEID.Value = teidBytes
-	transfer.DLNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     ip,
-		BitLength: uint64(len(ip) * 8),
-	}
-
-	// QosFlowAcceptedList is mandatory (sizeLB:1)
-	transfer.QosFlowAcceptedList.List = append(transfer.QosFlowAcceptedList.List,
-		ngapType.QosFlowAcceptedItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
+// buildPathSwitchRequestTransfer encodes the per-session transfer naming the
+// downlink tunnel the target node has set up (TS 38.413 §9.3.4.9). One accepted
+// QoS flow is reported: the list is mandatory and this simulator serves one.
+func buildPathSwitchRequestTransfer(teid uint32, addr ngap.TransportLayerAddress) (ngap.TransferContainer, error) {
+	transfer := &ngap.PathSwitchRequestTransfer{
+		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{
+			GTPTunnel: ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
 		},
-	)
-
-	buf, err := aper.MarshalWithParams(transfer, "valueExt")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal PathSwitchRequestTransfer: %v", err)
+		QosFlowAccepted: ngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}
 
-	return buf, nil
-}
-
-func buildPathSwitchRequest(
-	sourceAmfUeNgapID *ngapType.AMFUENGAPID,
-	ranUeNgapID *ngapType.RANUENGAPID,
-	pduSessionDLList *ngapType.PDUSessionResourceToBeSwitchedDLList,
-	failedList *ngapType.PDUSessionResourceFailedToSetupListPSReq,
-	uESecurityCapabilities *ngapType.UESecurityCapabilities,
-	userLocationInformation *ngapType.UserLocationInformation,
-) *ngapType.PathSwitchRequest {
-	msg := &ngapType.PathSwitchRequest{}
-	ies := &msg.ProtocolIEs
-
-	if ranUeNgapID != nil {
-		ie := ngapType.PathSwitchRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.PathSwitchRequestIEsPresentRANUENGAPID
-		ie.Value.RANUENGAPID = ranUeNgapID
-		ies.List = append(ies.List, ie)
-	}
-
-	if sourceAmfUeNgapID != nil {
-		ie := ngapType.PathSwitchRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDSourceAMFUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.PathSwitchRequestIEsPresentSourceAMFUENGAPID
-		ie.Value.SourceAMFUENGAPID = sourceAmfUeNgapID
-		ies.List = append(ies.List, ie)
-	}
-
-	if userLocationInformation != nil {
-		ie := ngapType.PathSwitchRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDUserLocationInformation
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.PathSwitchRequestIEsPresentUserLocationInformation
-		ie.Value.UserLocationInformation = userLocationInformation
-		ies.List = append(ies.List, ie)
-	}
-
-	if pduSessionDLList != nil {
-		ie := ngapType.PathSwitchRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceToBeSwitchedDLList
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.PathSwitchRequestIEsPresentPDUSessionResourceToBeSwitchedDLList
-		ie.Value.PDUSessionResourceToBeSwitchedDLList = pduSessionDLList
-		ies.List = append(ies.List, ie)
-	}
-
-	if failedList != nil {
-		ie := ngapType.PathSwitchRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListPSReq
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.PathSwitchRequestIEsPresentPDUSessionResourceFailedToSetupListPSReq
-		ie.Value.PDUSessionResourceFailedToSetupListPSReq = failedList
-		ies.List = append(ies.List, ie)
-	}
-
-	if uESecurityCapabilities != nil {
-		ie := ngapType.PathSwitchRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDUESecurityCapabilities
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.PathSwitchRequestIEsPresentUESecurityCapabilities
-		ie.Value.UESecurityCapabilities = uESecurityCapabilities
-		ies.List = append(ies.List, ie)
-	}
-
-	return msg
+	return transfer.Marshal()
 }

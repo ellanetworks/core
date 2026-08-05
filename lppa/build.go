@@ -293,7 +293,7 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 		v := *res.AngleOfArrival
 
 		entries = append(entries, func(w *per.Writer) error {
-			return encMeasuredChoiceInt(w, 0, v, 0, 719)
+			return encMeasuredChoiceInt(w, 0, v, 719)
 		})
 	}
 
@@ -301,7 +301,7 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 		v := *res.TimingAdvanceType1
 
 		entries = append(entries, func(w *per.Writer) error {
-			return encMeasuredChoiceInt(w, 1, v, 0, 7690)
+			return encMeasuredChoiceInt(w, 1, v, 7690)
 		})
 	}
 
@@ -309,7 +309,7 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 		v := *res.TimingAdvanceType2
 
 		entries = append(entries, func(w *per.Writer) error {
-			return encMeasuredChoiceInt(w, 2, v, 0, 7690)
+			return encMeasuredChoiceInt(w, 2, v, 7690)
 		})
 	}
 
@@ -349,8 +349,8 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 const measuredResultsRootCount = 5
 
 // encMeasuredChoiceInt covers the valueAngleOfArrival and
-// valueTimingAdvanceType1/2 alternatives.
-func encMeasuredChoiceInt(w *per.Writer, index int, v, lb, ub int64) error {
+// valueTimingAdvanceType1/2 alternatives, whose ranges all start at 0.
+func encMeasuredChoiceInt(w *per.Writer, index int, v, ub int64) error {
 	if err := func() error {
 		w.WriteBit(false)
 		return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, measuredResultsRootCount-1, int64(index))
@@ -358,7 +358,7 @@ func encMeasuredChoiceInt(w *per.Writer, index int, v, lb, ub int64) error {
 		return err
 	}
 
-	return per.EncodeConstrainedWholeNumber(w, per.Aligned, lb, ub, v)
+	return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, ub, v)
 }
 
 // encMeasuredChoiceList covers the resultRSRP and resultRSRQ alternatives.

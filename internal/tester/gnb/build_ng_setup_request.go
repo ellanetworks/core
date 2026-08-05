@@ -110,7 +110,12 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) ([]byte, error) {
 }
 
 func sliceToNGAP(s SliceOpt) (ngap.SNSSAI, error) {
-	sst, sd, err := GetSliceInBytes(s.Sst, s.Sd)
+	return SliceToNGAP(s.Sst, s.Sd)
+}
+
+// SliceToNGAP renders an S-NSSAI from its configured SST and hex SD.
+func SliceToNGAP(sstValue int32, sdValue string) (ngap.SNSSAI, error) {
+	sst, sd, err := GetSliceInBytes(sstValue, sdValue)
 	if err != nil {
 		return ngap.SNSSAI{}, fmt.Errorf("could not get slice info in bytes: %v", err)
 	}

@@ -80,8 +80,9 @@ func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
 
 // TS 36.413 §9.1.5.12.
 type HandoverCancelAcknowledge struct {
-	MMEUES1APID *MMEUES1APID
-	ENBUES1APID *ENBUES1APID
+	MMEUES1APID            *MMEUES1APID
+	ENBUES1APID            *ENBUES1APID
+	CriticalityDiagnostics *CriticalityDiagnostics
 
 	messageMeta
 }
@@ -127,6 +128,27 @@ var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
 			}
 
 			return m.ENBUES1APID, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
+			var cd CriticalityDiagnostics
+
+			if err := perIEDecode(raw, &cd); err != nil {
+				return err
+			}
+
+			m.CriticalityDiagnostics = &cd
+
+			return nil
+		},
+		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
 		},
 	},
 }

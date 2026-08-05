@@ -3,7 +3,12 @@
 
 package s1ap
 
-import "testing"
+import (
+	"errors"
+	"testing"
+
+	"github.com/ellanetworks/core/per"
+)
 
 func TestUEContextReleaseRoundTrips(t *testing.T) {
 	cause := Cause{Group: CauseGroupRadioNetwork, Value: 0}
@@ -119,4 +124,42 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
+}
+
+// UE-S1AP-IDs is extensible, so an unmodeled alternative arrives as the
+// extension bit rather than NGAP's choice-Extensions container. It is still
+// §10.3.1 case 6, handled on the IE's criticality: reject, so no message is
+// delivered.
+func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
+	w := per.NewWriter()
+	w.WriteBit(true) // extension alternative
+
+	if err := per.EncodeNormallySmall(w, per.Aligned, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
+		t.Fatal(err)
+	}
+
+	value := container(t, ieField{id: idUES1APIDs, crit: CriticalityReject, raw: perBytes(w)})
+
+	_, err := ParseUEContextReleaseCommand(value)
+	if err == nil {
+		t.Fatal("parse succeeded, want a rejection")
+	}
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
+	}
+
+	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorReject {
+		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
+	}
+
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idUES1APIDs ||
+		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-S1AP-IDs", ase.IEs)
+	}
 }

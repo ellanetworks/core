@@ -51,7 +51,13 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ServedGUMMEIs)
 		},
-		encode: func(m *S1SetupResponse) (per.Marshaler, bool) { return &m.ServedGUMMEIs, true },
+		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+			if len(m.ServedGUMMEIs) == 0 {
+				return nil, false
+			}
+
+			return &m.ServedGUMMEIs, true
+		},
 	},
 	{
 		id: idRelativeMMECapacity, presence: presenceMandatory, crit: CriticalityIgnore,

@@ -6,9 +6,9 @@ package ue
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/openapi/models"
 	"go.uber.org/zap"
 )
 
@@ -26,9 +26,9 @@ func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGA
 
 	ksi := int32(smc.NgKSI.Value)
 
-	tsc := models.ScType_NATIVE
+	tsc := models.ScTypeNative
 	if smc.NgKSI.Mapped {
-		tsc = models.ScType_MAPPED
+		tsc = models.ScTypeMapped
 	}
 
 	ue.UeSecurity.NgKsi.Ksi = ksi

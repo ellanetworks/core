@@ -55,13 +55,12 @@ func (allocationAndRetentionPriority *AllocationAndRetentionPriority) UnmarshalP
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -88,7 +87,7 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) MarshalPER(w *
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(criticalityDiagnosticsIEItem.IEID)); err != nil {
 		return err
 	}
-	if err := per.EncodeEnumerated(w, enc, 2, true, int64(criticalityDiagnosticsIEItem.TypeOfError)); err != nil {
+	if err := encodeRootEnumerated(w, enc, 2, int64(criticalityDiagnosticsIEItem.TypeOfError), "TypeOfError"); err != nil {
 		return err
 	}
 	return nil
@@ -128,13 +127,12 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -259,13 +257,130 @@ func (eRABAdmittedItem *ERABAdmittedItem) UnmarshalPER(r *per.Reader, enc per.En
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (eRABDataForwardingItem *ERABDataForwardingItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(eRABDataForwardingItem.DLTransportLayerAddr != nil)
+	w.WriteBit(eRABDataForwardingItem.DLGTPTEID != nil)
+	w.WriteBit(eRABDataForwardingItem.ULTransportLayerAddr != nil)
+	w.WriteBit(eRABDataForwardingItem.ULGTPTEID != nil)
+	w.WriteBit(false)
+	if err := eRABDataForwardingItem.ERABID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if eRABDataForwardingItem.DLTransportLayerAddr != nil {
+		if err := eRABDataForwardingItem.DLTransportLayerAddr.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABDataForwardingItem.DLGTPTEID != nil {
+		if err := (*eRABDataForwardingItem.DLGTPTEID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABDataForwardingItem.ULTransportLayerAddr != nil {
+		if err := eRABDataForwardingItem.ULTransportLayerAddr.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABDataForwardingItem.ULGTPTEID != nil {
+		if err := (*eRABDataForwardingItem.ULGTPTEID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLTransportLayerAddr, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLGTPTEID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ULTransportLayerAddr, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ULGTPTEID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f5, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&eRABDataForwardingItem.ERABID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLTransportLayerAddr {
+		if err := (&eRABDataForwardingItem.DLTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_DLGTPTEID {
+		var v GTPTEID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABDataForwardingItem.DLGTPTEID = &v
+	}
+	if p_ULTransportLayerAddr {
+		if err := (&eRABDataForwardingItem.ULTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ULGTPTEID {
+		var v GTPTEID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABDataForwardingItem.ULGTPTEID = &v
+	}
+	if p_f5 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -320,13 +435,12 @@ func (eRABItem *ERABItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -398,13 +512,12 @@ func (eRABLevelQoSParameters *ERABLevelQoSParameters) UnmarshalPER(r *per.Reader
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -453,13 +566,12 @@ func (eRABModifyItemBearerModRes *ERABModifyItemBearerModRes) UnmarshalPER(r *pe
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -508,13 +620,12 @@ func (eRABReleaseItemBearerRelComp *ERABReleaseItemBearerRelComp) UnmarshalPER(r
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -575,13 +686,12 @@ func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) UnmarshalPER(r *per.Reader
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -642,13 +752,12 @@ func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) Unmars
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -709,13 +818,12 @@ func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) Unmars
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -788,13 +896,12 @@ func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) UnmarshalPER(r
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -876,13 +983,12 @@ func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) UnmarshalPER(r *pe
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -949,13 +1055,12 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) UnmarshalPER(r *per.Reader
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1016,13 +1121,12 @@ func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) UnmarshalPER(r *per.Reader
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1089,13 +1193,12 @@ func (gBRQosInformation *GBRQosInformation) UnmarshalPER(r *per.Reader, enc per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1156,13 +1259,12 @@ func (gUMMEI *GUMMEI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1217,13 +1319,12 @@ func (globalENBID *GlobalENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1244,10 +1345,10 @@ func (globalENBID *GlobalENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 func (requestType *RequestType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
-	if err := per.EncodeEnumerated(w, enc, 3, true, int64(requestType.EventType)); err != nil {
+	if err := encodeRootEnumerated(w, enc, 3, int64(requestType.EventType), "EventType"); err != nil {
 		return err
 	}
-	if err := per.EncodeEnumerated(w, enc, 1, true, int64(requestType.ReportArea)); err != nil {
+	if err := encodeRootEnumerated(w, enc, 1, int64(requestType.ReportArea), "ReportArea"); err != nil {
 		return err
 	}
 	return nil
@@ -1282,13 +1383,12 @@ func (requestType *RequestType) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1343,13 +1443,12 @@ func (sTMSI *STMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1406,13 +1505,12 @@ func (securityContext *SecurityContext) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1533,13 +1631,12 @@ func (servedGUMMEIsItem *ServedGUMMEIsItem) UnmarshalPER(r *per.Reader, enc per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1594,13 +1691,12 @@ func (supportedTAItem *SupportedTAItem) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1655,13 +1751,12 @@ func (tAI *TAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1716,13 +1811,12 @@ func (targeteNBID *TargeteNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1777,13 +1871,12 @@ func (uEAggregateMaximumBitRate *UEAggregateMaximumBitRate) UnmarshalPER(r *per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1860,13 +1953,12 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1921,13 +2013,12 @@ func (userLocationInformation *UserLocationInformation) UnmarshalPER(r *per.Read
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1976,13 +2067,12 @@ func (erabModifyItemBearerModConf *erabModifyItemBearerModConf) UnmarshalPER(r *
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2031,13 +2121,12 @@ func (taiItem *taiItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {

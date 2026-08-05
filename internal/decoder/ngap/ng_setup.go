@@ -23,18 +23,38 @@ type SupportedTA struct {
 	BroadcastPLMNList []PLMN `json:"broadcast_plmn_list,omitempty"`
 }
 
-// ranNodeIDHex renders a RAN node identifier as the hex digits its bit length
-// covers, matching how the AMF stores it.
-func ranNodeIDHex(id ngap.GlobalRANNodeID) string {
-	b := make([]byte, (id.Bits+7)/8)
+type Cause struct {
+	Group utils.EnumField `json:"group"`
+	Value utils.EnumField `json:"value"`
+}
 
-	for i := range id.Bits {
-		if id.Value&(1<<uint(id.Bits-1-i)) != 0 {
-			b[i/8] |= 1 << uint(7-i%8)
-		}
+func causeGroupToEnum(g ngap.CauseGroup) utils.EnumField {
+	switch g {
+	case ngap.CauseGroupRadioNetwork:
+		return utils.MakeEnum(uint64(g), "radioNetwork", false)
+	case ngap.CauseGroupTransport:
+		return utils.MakeEnum(uint64(g), "transport", false)
+	case ngap.CauseGroupNAS:
+		return utils.MakeEnum(uint64(g), "nas", false)
+	case ngap.CauseGroupProtocol:
+		return utils.MakeEnum(uint64(g), "protocol", false)
+	case ngap.CauseGroupMisc:
+		return utils.MakeEnum(uint64(g), "misc", false)
+	default:
+		return utils.MakeEnum(uint64(g), "", true)
 	}
+}
 
-	return hex.EncodeToString(b)[:(id.Bits+3)/4]
+// The library owns the cause vocabulary, including which values are extension
+// additions and where their numbering resumes, so the index it reports is the
+// one to display rather than the raw per-group value.
+func cause(c ngap.Cause) Cause {
+	name, index := c.ValueName()
+
+	return Cause{
+		Group: causeGroupToEnum(c.Group),
+		Value: utils.MakeEnum(int64(index), name, name == "unknown"),
+	}
 }
 
 func buildGlobalRANNodeID(id ngap.GlobalRANNodeID) GlobalRANNodeIDIE {
@@ -42,11 +62,11 @@ func buildGlobalRANNodeID(id ngap.GlobalRANNodeID) GlobalRANNodeIDIE {
 
 	switch id.Kind {
 	case ngap.RANNodeIDGNB:
-		ie.GlobalGNBID = ranNodeIDHex(id)
+		ie.GlobalGNBID = id.Hex()
 	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
-		ie.GlobalNgENBID = ranNodeIDHex(id)
+		ie.GlobalNgENBID = id.Hex()
 	case ngap.RANNodeIDN3IWF:
-		ie.GlobalN3IWFID = ranNodeIDHex(id)
+		ie.GlobalN3IWFID = id.Hex()
 	}
 
 	return ie
@@ -125,10 +145,6 @@ func buildUERetention(uri ngap.UERetentionInformation) utils.EnumField {
 // buildNGSetupRequest renders an NG SETUP REQUEST. Absent IEs are omitted
 // rather than rendered as a zero value, and IEs this version does not model
 // are reported with their id, criticality and octets rather than dropped.
-
-// buildNGSetupRequest renders an NG SETUP REQUEST. Absent IEs are omitted
-// rather than rendered as a zero value, and IEs this version does not model
-// are reported with their id, criticality and octets rather than dropped.
 func buildNGSetupRequest(value []byte) NGAPMessageValue {
 	req, err := ngap.ParseNGSetupRequest(value)
 	if err != nil {
@@ -137,27 +153,27 @@ func buildNGSetupRequest(value []byte) NGAPMessageValue {
 
 	ies := make([]IE, 0, 5)
 
-	ies = append(ies, libIE(idGlobalRANNodeID, ngap.CriticalityReject, buildGlobalRANNodeID(req.GlobalRANNodeID)))
+	ies = append(ies, ie(idGlobalRANNodeID, ngap.CriticalityReject, buildGlobalRANNodeID(req.GlobalRANNodeID)))
 
 	if req.RANNodeName != nil {
-		ies = append(ies, libIE(idRANNodeName, ngap.CriticalityIgnore, *req.RANNodeName))
+		ies = append(ies, ie(idRANNodeName, ngap.CriticalityIgnore, *req.RANNodeName))
 	}
 
-	ies = append(ies, libIE(idSupportedTAList, ngap.CriticalityReject, buildSupportedTAList(req.SupportedTAList)))
+	ies = append(ies, ie(idSupportedTAList, ngap.CriticalityReject, buildSupportedTAList(req.SupportedTAList)))
 
 	if req.DefaultPagingDRX != nil {
-		ies = append(ies, libIE(idDefaultPagingDRX, ngap.CriticalityIgnore, buildPagingDRX(*req.DefaultPagingDRX)))
+		ies = append(ies, ie(idDefaultPagingDRX, ngap.CriticalityIgnore, buildPagingDRX(*req.DefaultPagingDRX)))
 	}
 
 	if req.UERetentionInformation != nil {
-		ies = append(ies, libIE(idUERetentionInformation, ngap.CriticalityIgnore,
+		ies = append(ies, ie(idUERetentionInformation, ngap.CriticalityIgnore,
 			buildUERetention(*req.UERetentionInformation)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(req.UnknownIEs())...)}
 }
 
-func buildLibGUAMI(g ngap.GUAMI) Guami {
+func guami(g ngap.GUAMI) Guami {
 	return Guami{
 		PLMNID:      plmnIDToDecoder(g.PLMNIdentity),
 		AMFRegionID: bitsHex(uint64(g.AMFRegionID), 8),
@@ -169,7 +185,7 @@ func buildLibGUAMI(g ngap.GUAMI) Guami {
 func buildServedGUAMIList(list ngap.ServedGUAMIList) []Guami {
 	out := make([]Guami, len(list))
 	for i, item := range list {
-		out[i] = buildLibGUAMI(item.GUAMI)
+		out[i] = guami(item.GUAMI)
 	}
 
 	return out
@@ -193,9 +209,6 @@ func buildPLMNSupportList(list ngap.PLMNSupportList) []PLMN {
 
 // buildNGSetupResponse renders an NG SETUP RESPONSE. Absent optional IEs are
 // omitted, and IEs this version does not model keep their id and octets.
-
-// buildNGSetupResponse renders an NG SETUP RESPONSE. Absent optional IEs are
-// omitted, and IEs this version does not model keep their id and octets.
 func buildNGSetupResponse(value []byte) NGAPMessageValue {
 	resp, err := ngap.ParseNGSetupResponse(value)
 	if err != nil {
@@ -203,23 +216,23 @@ func buildNGSetupResponse(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		libIE(idAMFName, ngap.CriticalityReject, resp.AMFName),
-		libIE(idServedGUAMIList, ngap.CriticalityReject, buildServedGUAMIList(resp.ServedGUAMIList)),
+		ie(idAMFName, ngap.CriticalityReject, resp.AMFName),
+		ie(idServedGUAMIList, ngap.CriticalityReject, buildServedGUAMIList(resp.ServedGUAMIList)),
 	}
 
 	if resp.RelativeAMFCapacity != nil {
-		ies = append(ies, libIE(idRelativeAMFCapacity, ngap.CriticalityIgnore, int64(*resp.RelativeAMFCapacity)))
+		ies = append(ies, ie(idRelativeAMFCapacity, ngap.CriticalityIgnore, int64(*resp.RelativeAMFCapacity)))
 	}
 
-	ies = append(ies, libIE(idPLMNSupportList, ngap.CriticalityReject, buildPLMNSupportList(resp.PLMNSupportList)))
+	ies = append(ies, ie(idPLMNSupportList, ngap.CriticalityReject, buildPLMNSupportList(resp.PLMNSupportList)))
 
 	if resp.CriticalityDiagnostics != nil {
-		ies = append(ies, libIE(idCriticalityDiagnostics, ngap.CriticalityIgnore,
-			buildLibCriticalityDiagnostics(*resp.CriticalityDiagnostics)))
+		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+			criticalityDiagnostics(*resp.CriticalityDiagnostics)))
 	}
 
 	if resp.UERetentionInformation != nil {
-		ies = append(ies, libIE(idUERetentionInformation, ngap.CriticalityIgnore,
+		ies = append(ies, ie(idUERetentionInformation, ngap.CriticalityIgnore,
 			buildUERetention(*resp.UERetentionInformation)))
 	}
 
@@ -238,16 +251,16 @@ func buildNGSetupFailure(value []byte) NGAPMessageValue {
 	ies := make([]IE, 0, 3)
 
 	if fail.Cause != nil {
-		ies = append(ies, libIE(idCause, ngap.CriticalityIgnore, libCause(*fail.Cause)))
+		ies = append(ies, ie(idCause, ngap.CriticalityIgnore, cause(*fail.Cause)))
 	}
 
 	if fail.TimeToWait != nil {
-		ies = append(ies, libIE(idTimeToWait, ngap.CriticalityIgnore, buildTimeToWait(*fail.TimeToWait)))
+		ies = append(ies, ie(idTimeToWait, ngap.CriticalityIgnore, buildTimeToWait(*fail.TimeToWait)))
 	}
 
 	if fail.CriticalityDiagnostics != nil {
-		ies = append(ies, libIE(idCriticalityDiagnostics, ngap.CriticalityIgnore,
-			buildLibCriticalityDiagnostics(*fail.CriticalityDiagnostics)))
+		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+			criticalityDiagnostics(*fail.CriticalityDiagnostics)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(fail.UnknownIEs())...)}

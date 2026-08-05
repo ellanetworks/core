@@ -16,28 +16,28 @@ import (
 func TestModelsToSessionAMBR_ValueBounds(t *testing.T) {
 	tests := []struct {
 		name    string
-		bitrate string
+		rate    models.BitRate
 		wantErr bool
 	}{
-		{"1 Mbps", "1 Mbps", false},
-		{"999 Mbps (current UI cap)", "999 Mbps", false},
-		{"1500 Mbps", "1500 Mbps", false},
-		{"65535 Mbps (max encodable)", "65535 Mbps", false},
-		{"65536 Mbps (one past the field)", "65536 Mbps", true},
-		{"100000 Mbps", "100000 Mbps", true},
-		{"1000000 Mbps (backend's stated max)", "1000000 Mbps", true},
-		{"1000000 Gbps (backend's stated max, larger unit)", "1000000 Gbps", true},
+		{"1 Mbps", models.MustParseBitRate("1 Mbps"), false},
+		{"999 Mbps (current UI cap)", models.MustParseBitRate("999 Mbps"), false},
+		{"1500 Mbps", models.MustParseBitRate("1500 Mbps"), false},
+		{"65535 Mbps (max encodable)", models.MustParseBitRate("65535 Mbps"), false},
+		{"65536 Mbps: no wider unit divides it evenly", models.MustParseBitRate("65536 Mbps"), true},
+		{"100000 Mbps re-scales to 100 Gbps", models.MustParseBitRate("100000 Mbps"), false},
+		{"1000000 Mbps re-scales to 1000 Gbps", models.MustParseBitRate("1000000 Mbps"), false},
+		{"1000000 Gbps (backend's stated max, larger unit)", models.MustParseBitRate("1000000 Gbps"), false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := nas.ModelsToSessionAMBR(&models.Ambr{Uplink: tc.bitrate, Downlink: tc.bitrate})
+			_, err := nas.ModelsToSessionAMBR(&models.Ambr{Uplink: tc.rate, Downlink: tc.rate})
 			if tc.wantErr && err == nil {
-				t.Errorf("%q: expected an encoding error, got none", tc.bitrate)
+				t.Errorf("%q: expected an encoding error, got none", tc.rate)
 			}
 
 			if !tc.wantErr && err != nil {
-				t.Errorf("%q: expected success, got %v", tc.bitrate, err)
+				t.Errorf("%q: expected success, got %v", tc.rate, err)
 			}
 		})
 	}

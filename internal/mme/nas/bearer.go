@@ -73,8 +73,8 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		EPSBearerIdentity: mme.DefaultERABID,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
-		AMBRUplink:        qos.SessAmbrULStr,
-		AMBRDownlink:      qos.SessAmbrDLStr,
+		AMBRUplink:        qos.SessAmbrUL,
+		AMBRDownlink:      qos.SessAmbrDL,
 		IPv4Pool:          qos.IPv4Pool,
 		IPv6Pool:          qos.IPv6Pool,
 		DNS:               qos.DNS,
@@ -194,7 +194,7 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 	}
 
 	ics := &s1ap.InitialContextSetupRequest{
-		UEAggregateMaximumBitRate: s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL), UL: s1ap.BitRate(qos.AMBRUL)},
+		UEAggregateMaximumBitRate: s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL.Bps()), UL: s1ap.BitRate(qos.AMBRUL.Bps())},
 		ERABToBeSetup:             erabs,
 		UESecurityCapabilities:    mme.S1apSecurityCapabilities(uecap),
 		SecurityKey:               kenb,
@@ -365,7 +365,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) (
 		pdnAddr = eps.PDNAddress{PDNType: eps.PDNTypeIPv4, IPv4: p.UeIP.As4()}
 	}
 
-	apnAMBR, err := eps.APNAMBRFromKbps(mme.BitRateToBps(qos.SessAmbrDLStr)/1000, mme.BitRateToBps(qos.SessAmbrULStr)/1000)
+	apnAMBR, err := eps.APNAMBRFromKbps(qos.SessAmbrDL.Bps()/1000, qos.SessAmbrUL.Bps()/1000)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode APN-AMBR: %w", err)
 	}

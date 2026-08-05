@@ -642,7 +642,10 @@ func frameENBUEID(f Frame) int64 {
 			return int64(m.ENBUES1APID)
 		}
 	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcUEContextRelease:
-		if m, err := s1ap.ParseUEContextReleaseCommand(f.Value); err == nil {
+		// Only the pair alternative names an eNB UE S1AP ID; a Command
+		// addressed by the MME id alone cannot be demultiplexed per UE
+		// (TS 36.413 §9.1.4.6).
+		if m, err := s1ap.ParseUEContextReleaseCommand(f.Value); err == nil && m.UES1APIDs.Pair {
 			return int64(m.UES1APIDs.ENBUES1APID)
 		}
 	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcERABSetup:

@@ -45,14 +45,14 @@ func (ue *UeContext) imsiOrEmpty() string {
 	return ue.supi.IMSI()
 }
 
-// AmbrStrings returns the UE-AMBR uplink/downlink bit-rate strings, empty when the
+// AmbrRates returns the UE-AMBR uplink/downlink rates, both zero when the
 // UE-AMBR has not been set.
-func (ue *UeContext) AmbrStrings() (uplink, downlink string) {
+func (ue *UeContext) AmbrRates() (uplink, downlink models.BitRate) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	if ue.Ambr == nil {
-		return "", ""
+		return models.BitRate{}, models.BitRate{}
 	}
 
 	return ue.Ambr.Uplink, ue.Ambr.Downlink

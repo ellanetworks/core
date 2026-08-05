@@ -22,7 +22,7 @@ const (
 )
 
 func (t TimeToWait) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, timeToWaitRootCount, true, int64(t))
+	return encodeRootEnumerated(w, enc, timeToWaitRootCount, int64(t), "TimeToWait")
 }
 
 func (t *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {

@@ -133,7 +133,7 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uin
 	return nil
 }
 
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, _, _ string) error {
+func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, _, _ models.BitRate) error {
 	return nil
 }
 

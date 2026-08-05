@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -140,8 +141,8 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 
 	// On slice mismatch the SMF releases with cause #39 "reactivation requested".
 	_, err = gNodeB.WaitForMessage(
-		ngapType.NGAPPDUPresentInitiatingMessage,
-		ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand,
+		gnb.Initiating,
+		ngap.ProcPDUSessionResourceRelease,
 		15*time.Second,
 	)
 	if err != nil {

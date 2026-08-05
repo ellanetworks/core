@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/enb"
+	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
 )
@@ -71,7 +72,7 @@ func runEnbMultiUERegistration(_ context.Context, env scenarios.Env, _ any) erro
 
 	defer ngeNB.Close()
 
-	_, err = ngeNB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
+	_, err = ngeNB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

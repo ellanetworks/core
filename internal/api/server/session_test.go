@@ -19,7 +19,7 @@ func TestSessionFrom5G_AllFields(t *testing.T) {
 		PDUIPV6Prefix:  "2001:db8:ad50:8500::",
 		DNN:            "internet",
 		Snssai:         &models.Snssai{Sst: 1, Sd: "000001"},
-		PolicyData:     &amf.PolicyDataExport{Ambr: &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}},
+		PolicyData:     &amf.PolicyDataExport{Ambr: &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}},
 	})
 
 	if s.RadioAccessType != "5G" || s.ID != 1 || s.Status != "active" {

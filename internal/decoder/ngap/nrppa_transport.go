@@ -5,10 +5,10 @@ package ngap
 
 import (
 	"encoding/hex"
+	"fmt"
 
 	nrppadec "github.com/ellanetworks/core/internal/decoder/nrppa"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // NRPPaPDU is the decoder view of an NRPPa PDU carried inside an NGAP
@@ -30,148 +30,62 @@ func decodeNRPPaPDU(raw []byte) NRPPaPDU {
 	}
 }
 
-func buildDownlinkUEAssociatedNRPPaTransport(msg ngapType.DownlinkUEAssociatedNRPPaTransport) NGAPMessageValue {
-	return buildUEAssociatedNRPPaTransportIEs(msg.ProtocolIEs.List)
+// ueAssociatedNRPPaIEs renders the four IEs both UE-associated transports
+// carry; they differ only in procedure code (TS 38.413 §9.2.9.1, §9.2.9.2).
+func ueAssociatedNRPPaIEs(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, routing ngap.RoutingID, pdu ngap.NRPPaPDU, unknown []ngap.RawIE) NGAPMessageValue {
+	ies := []IE{
+		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(amfID)),
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(ranID)),
+		ie(idRoutingID, ngap.CriticalityReject, hex.EncodeToString(routing)),
+		ie(idNRPPaPDU, ngap.CriticalityReject, decodeNRPPaPDU(pdu)),
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(unknown)...)}
 }
 
-func buildUplinkUEAssociatedNRPPaTransport(msg ngapType.UplinkUEAssociatedNRPPaTransport) NGAPMessageValue {
-	ies := make([]IE, 0, len(msg.ProtocolIEs.List))
-
-	for i := range msg.ProtocolIEs.List {
-		ie := &msg.ProtocolIEs.List[i]
-
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, nrppaAMFUENGAPIDIE(ie.Criticality.Value, ie.Value.AMFUENGAPID))
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, nrppaRANUENGAPIDIE(ie.Criticality.Value, ie.Value.RANUENGAPID))
-		case ngapType.ProtocolIEIDRoutingID:
-			ies = append(ies, nrppaRoutingIDIE(ie.Criticality.Value, ie.Value.RoutingID))
-		case ngapType.ProtocolIEIDNRPPaPDU:
-			ies = append(ies, nrppaPDUIE(ie.Criticality.Value, ie.Value.NRPPaPDU))
-		default:
-			ies = append(ies, unsupportedIE(ie.Id.Value, ie.Criticality.Value))
-		}
+// nonUEAssociatedNRPPaIEs renders the two IEs both non-UE-associated transports
+// carry (TS 38.413 §9.2.9.3, §9.2.9.4).
+func nonUEAssociatedNRPPaIEs(routing ngap.RoutingID, pdu ngap.NRPPaPDU, unknown []ngap.RawIE) NGAPMessageValue {
+	ies := []IE{
+		ie(idRoutingID, ngap.CriticalityReject, hex.EncodeToString(routing)),
+		ie(idNRPPaPDU, ngap.CriticalityReject, decodeNRPPaPDU(pdu)),
 	}
 
-	return NGAPMessageValue{IEs: ies}
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(unknown)...)}
 }
 
-func buildUEAssociatedNRPPaTransportIEs(list []ngapType.DownlinkUEAssociatedNRPPaTransportIEs) NGAPMessageValue {
-	ies := make([]IE, 0, len(list))
-
-	for i := range list {
-		ie := &list[i]
-
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, nrppaAMFUENGAPIDIE(ie.Criticality.Value, ie.Value.AMFUENGAPID))
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, nrppaRANUENGAPIDIE(ie.Criticality.Value, ie.Value.RANUENGAPID))
-		case ngapType.ProtocolIEIDRoutingID:
-			ies = append(ies, nrppaRoutingIDIE(ie.Criticality.Value, ie.Value.RoutingID))
-		case ngapType.ProtocolIEIDNRPPaPDU:
-			ies = append(ies, nrppaPDUIE(ie.Criticality.Value, ie.Value.NRPPaPDU))
-		default:
-			ies = append(ies, unsupportedIE(ie.Id.Value, ie.Criticality.Value))
-		}
+func buildDownlinkUEAssociatedNRPPaTransport(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseDownlinkUEAssociatedNRPPaTransport(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Downlink UE-associated NRPPa Transport: %v", err)}
 	}
 
-	return NGAPMessageValue{IEs: ies}
+	return ueAssociatedNRPPaIEs(m.AMFUENGAPID, m.RANUENGAPID, m.RoutingID, m.NRPPaPDU, m.UnknownIEs())
 }
 
-func buildDownlinkNonUEAssociatedNRPPaTransport(msg ngapType.DownlinkNonUEAssociatedNRPPaTransport) NGAPMessageValue {
-	ies := make([]IE, 0, len(msg.ProtocolIEs.List))
-
-	for i := range msg.ProtocolIEs.List {
-		ie := &msg.ProtocolIEs.List[i]
-
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDRoutingID:
-			ies = append(ies, nrppaRoutingIDIE(ie.Criticality.Value, ie.Value.RoutingID))
-		case ngapType.ProtocolIEIDNRPPaPDU:
-			ies = append(ies, nrppaPDUIE(ie.Criticality.Value, ie.Value.NRPPaPDU))
-		default:
-			ies = append(ies, unsupportedIE(ie.Id.Value, ie.Criticality.Value))
-		}
+func buildUplinkUEAssociatedNRPPaTransport(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseUplinkUEAssociatedNRPPaTransport(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Uplink UE-associated NRPPa Transport: %v", err)}
 	}
 
-	return NGAPMessageValue{IEs: ies}
+	return ueAssociatedNRPPaIEs(m.AMFUENGAPID, m.RANUENGAPID, m.RoutingID, m.NRPPaPDU, m.UnknownIEs())
 }
 
-func buildUplinkNonUEAssociatedNRPPaTransport(msg ngapType.UplinkNonUEAssociatedNRPPaTransport) NGAPMessageValue {
-	ies := make([]IE, 0, len(msg.ProtocolIEs.List))
-
-	for i := range msg.ProtocolIEs.List {
-		ie := &msg.ProtocolIEs.List[i]
-
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDRoutingID:
-			ies = append(ies, nrppaRoutingIDIE(ie.Criticality.Value, ie.Value.RoutingID))
-		case ngapType.ProtocolIEIDNRPPaPDU:
-			ies = append(ies, nrppaPDUIE(ie.Criticality.Value, ie.Value.NRPPaPDU))
-		default:
-			ies = append(ies, unsupportedIE(ie.Id.Value, ie.Criticality.Value))
-		}
+func buildDownlinkNonUEAssociatedNRPPaTransport(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseDownlinkNonUEAssociatedNRPPaTransport(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Downlink non-UE-associated NRPPa Transport: %v", err)}
 	}
 
-	return NGAPMessageValue{IEs: ies}
+	return nonUEAssociatedNRPPaIEs(m.RoutingID, m.NRPPaPDU, m.UnknownIEs())
 }
 
-// --- shared IE builders ---
-
-func nrppaAMFUENGAPIDIE(crit aper.Enumerated, v *ngapType.AMFUENGAPID) IE {
-	ie := IE{
-		ID:          protocolIEIDToEnum(ngapType.ProtocolIEIDAMFUENGAPID),
-		Criticality: criticalityToEnum(crit),
-	}
-	if v != nil {
-		ie.Value = v.Value
+func buildUplinkNonUEAssociatedNRPPaTransport(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseUplinkNonUEAssociatedNRPPaTransport(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Uplink non-UE-associated NRPPa Transport: %v", err)}
 	}
 
-	return ie
-}
-
-func nrppaRANUENGAPIDIE(crit aper.Enumerated, v *ngapType.RANUENGAPID) IE {
-	ie := IE{
-		ID:          protocolIEIDToEnum(ngapType.ProtocolIEIDRANUENGAPID),
-		Criticality: criticalityToEnum(crit),
-	}
-	if v != nil {
-		ie.Value = v.Value
-	}
-
-	return ie
-}
-
-func nrppaRoutingIDIE(crit aper.Enumerated, v *ngapType.RoutingID) IE {
-	ie := IE{
-		ID:          protocolIEIDToEnum(ngapType.ProtocolIEIDRoutingID),
-		Criticality: criticalityToEnum(crit),
-	}
-	if v != nil {
-		ie.Value = hex.EncodeToString(v.Value)
-	}
-
-	return ie
-}
-
-func nrppaPDUIE(crit aper.Enumerated, v *ngapType.NRPPaPDU) IE {
-	ie := IE{
-		ID:          protocolIEIDToEnum(ngapType.ProtocolIEIDNRPPaPDU),
-		Criticality: criticalityToEnum(crit),
-	}
-	if v != nil {
-		ie.Value = decodeNRPPaPDU(v.Value)
-	}
-
-	return ie
-}
-
-func unsupportedIE(id int64, crit aper.Enumerated) IE {
-	return IE{
-		ID:          protocolIEIDToEnum(id),
-		Criticality: criticalityToEnum(crit),
-		Error:       "unsupported ie type",
-	}
+	return nonUEAssociatedNRPPaIEs(m.RoutingID, m.NRPPaPDU, m.UnknownIEs())
 }

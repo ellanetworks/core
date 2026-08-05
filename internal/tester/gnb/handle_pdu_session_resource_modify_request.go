@@ -7,102 +7,77 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handlePDUSessionResourceModifyRequest(gnb *GnodeB, req *ngapType.PDUSessionResourceModifyRequest) error {
-	var (
-		amfueNGAPID *ngapType.AMFUENGAPID
-		ranueNGAPID *ngapType.RANUENGAPID
-		modifyList  *ngapType.PDUSessionResourceModifyListModReq
-	)
-
-	for _, ie := range req.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			amfueNGAPID = ie.Value.AMFUENGAPID
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ranueNGAPID = ie.Value.RANUENGAPID
-		case ngapType.ProtocolIEIDPDUSessionResourceModifyListModReq:
-			modifyList = ie.Value.PDUSessionResourceModifyListModReq
-		}
+func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
+	req, err := ngap.ParsePDUSessionResourceModifyRequest(value)
+	if err != nil {
+		return fmt.Errorf("undecodable PDUSessionResourceModifyRequest: %w", err)
 	}
 
-	if amfueNGAPID == nil {
-		return fmt.Errorf("missing AMF UE NGAP ID in PDUSessionResourceModifyRequest")
-	}
-
-	if ranueNGAPID == nil {
-		return fmt.Errorf("missing RAN UE NGAP ID in PDUSessionResourceModifyRequest")
-	}
-
-	if modifyList == nil {
-		return fmt.Errorf("missing PDU Session Resource Modify List in PDUSessionResourceModifyRequest")
-	}
+	amfUeNgapID, ranUeNgapID := int64(req.AMFUENGAPID), int64(req.RANUENGAPID)
 
 	logger.GnbLogger.Debug(
 		"Received PDU Session Resource Modify Request",
 		zap.String("GNB ID", gnb.GnbID),
-		zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
-		zap.Int64("AMF UE NGAP ID", amfueNGAPID.Value),
+		zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+		zap.Int64("AMF UE NGAP ID", amfUeNgapID),
 	)
 
-	ue, err := gnb.LoadUE(ranueNGAPID.Value)
+	ue, err := gnb.LoadUE(ranUeNgapID)
 	if err != nil {
-		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %v", ranueNGAPID.Value, err)
+		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
-	for _, item := range modifyList.List {
-		pduSessionID := item.PDUSessionID.Value
+	ids := make([]int64, 0, len(req.PDUSessionResourceModify))
+
+	for _, item := range req.PDUSessionResourceModify {
+		pduSessionID := int64(item.PDUSessionID)
+		ids = append(ids, pduSessionID)
 
 		if item.NASPDU != nil {
-			if err := ue.SendDownlinkNAS(item.NASPDU.Value, amfueNGAPID.Value, ranueNGAPID.Value); err != nil {
-				return fmt.Errorf("forward NAS PDU for PDU session %d: %v", pduSessionID, err)
+			if err := ue.SendDownlinkNAS(*item.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
+				return fmt.Errorf("forward NAS PDU for PDU session %d: %w", pduSessionID, err)
 			}
 		}
 
-		if item.PDUSessionResourceModifyRequestTransfer != nil {
-			modInfo, err := getPDUSessionInfoFromModifyRequestTransfer(item.PDUSessionResourceModifyRequestTransfer)
-			if err != nil {
-				logger.GnbLogger.Debug("could not parse PDU Session Resource Modify Request Transfer",
-					zap.Error(err),
-					zap.Int64("PDU Session ID", pduSessionID),
-				)
-			} else {
-				gnb.UpdatePDUSessionQoS(ranueNGAPID.Value, pduSessionID, modInfo)
+		modInfo, err := getPDUSessionInfoFromModifyRequestTransfer(item.Transfer)
+		if err != nil {
+			logger.GnbLogger.Debug("could not parse PDU Session Resource Modify Request Transfer",
+				zap.Error(err),
+				zap.Int64("PDU Session ID", pduSessionID),
+			)
 
-				logger.GnbLogger.Debug(
-					"Updated PDU session QoS from Modify Request Transfer",
-					zap.Int64("PDU Session ID", pduSessionID),
-					zap.Int64("5QI", modInfo.FiveQi),
-					zap.Int64("ARP", modInfo.PriArp),
-					zap.Int64("AMBR DL", modInfo.AmbrDownlink),
-					zap.Int64("AMBR UL", modInfo.AmbrUplink),
-				)
-			}
+			continue
 		}
-	}
 
-	pduSessionIDs := make([]int64, 0, len(modifyList.List))
-	for _, item := range modifyList.List {
-		pduSessionIDs = append(pduSessionIDs, item.PDUSessionID.Value)
+		gnb.UpdatePDUSessionQoS(ranUeNgapID, pduSessionID, modInfo)
+
+		logger.GnbLogger.Debug(
+			"Updated PDU session QoS from Modify Request Transfer",
+			zap.Int64("PDU Session ID", pduSessionID),
+			zap.Int64("5QI", modInfo.FiveQi),
+			zap.Int64("ARP", modInfo.PriArp),
+			zap.Int64("AMBR DL", modInfo.AmbrDownlink),
+			zap.Int64("AMBR UL", modInfo.AmbrUplink),
+		)
 	}
 
 	if err := gnb.SendPDUSessionResourceModifyResponse(&PDUSessionResourceModifyResponseOpts{
-		AMFUENGAPID:   amfueNGAPID.Value,
-		RANUENGAPID:   ranueNGAPID.Value,
-		PDUSessionIDs: pduSessionIDs,
+		AMFUENGAPID:   amfUeNgapID,
+		RANUENGAPID:   ranUeNgapID,
+		PDUSessionIDs: ids,
 	}); err != nil {
-		return fmt.Errorf("failed to send PDUSessionResourceModifyResponse: %v", err)
+		return fmt.Errorf("failed to send PDUSessionResourceModifyResponse: %w", err)
 	}
 
 	logger.GnbLogger.Debug(
 		"Sent PDU Session Resource Modify Response",
 		zap.String("GNB ID", gnb.GnbID),
-		zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
-		zap.Int64("AMF UE NGAP ID", amfueNGAPID.Value),
+		zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+		zap.Int64("AMF UE NGAP ID", amfUeNgapID),
 	)
 
 	return nil
@@ -116,39 +91,34 @@ type PDUSessionModifyInfo struct {
 	AmbrDownlink int64
 }
 
-func getPDUSessionInfoFromModifyRequestTransfer(transfer aper.OctetString) (*PDUSessionModifyInfo, error) {
-	if transfer == nil {
-		return nil, fmt.Errorf("modify request transfer is nil")
+// getPDUSessionInfoFromModifyRequestTransfer reads the QoS the SMF asks the
+// NG-RAN node to apply (TS 38.413 §9.3.4.6).
+func getPDUSessionInfoFromModifyRequestTransfer(transfer ngap.TransferContainer) (*PDUSessionModifyInfo, error) {
+	if len(transfer) == 0 {
+		return nil, fmt.Errorf("modify request transfer is empty")
 	}
 
-	pdu := &ngapType.PDUSessionResourceModifyRequestTransfer{}
-
-	if err := aper.UnmarshalWithParams(transfer, pdu, "valueExt"); err != nil {
-		return nil, fmt.Errorf("could not unmarshal Modify Request Transfer: %v", err)
+	t, err := ngap.ParsePDUSessionResourceModifyRequestTransfer(transfer)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse Modify Request Transfer: %w", err)
 	}
 
 	info := &PDUSessionModifyInfo{}
 
-	for _, ie := range pdu.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate:
-			if ie.Value.PDUSessionAggregateMaximumBitRate != nil {
-				info.AmbrUplink = ie.Value.PDUSessionAggregateMaximumBitRate.PDUSessionAggregateMaximumBitRateUL.Value
-				info.AmbrDownlink = ie.Value.PDUSessionAggregateMaximumBitRate.PDUSessionAggregateMaximumBitRateDL.Value
-			}
-		case ngapType.ProtocolIEIDQosFlowAddOrModifyRequestList:
-			if ie.Value.QosFlowAddOrModifyRequestList != nil {
-				for _, qosItem := range ie.Value.QosFlowAddOrModifyRequestList.List {
-					info.QFI = qosItem.QosFlowIdentifier.Value
-					if qosItem.QosFlowLevelQosParameters != nil {
-						if qosItem.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI != nil {
-							info.FiveQi = qosItem.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI.Value
-						}
+	if ambr := t.PDUSessionAggregateMaximumBitRate; ambr != nil {
+		info.AmbrUplink = int64(ambr.UL)
+		info.AmbrDownlink = int64(ambr.DL)
+	}
 
-						info.PriArp = qosItem.QosFlowLevelQosParameters.AllocationAndRetentionPriority.PriorityLevelARP.Value
-					}
-				}
+	for _, qos := range t.QosFlowAddOrModifyRequest {
+		info.QFI = int64(qos.QosFlowIdentifier)
+
+		if p := qos.QosFlowLevelQosParameters; p != nil {
+			if p.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
+				info.FiveQi = int64(p.QosCharacteristics.NonDynamic5QI.FiveQI)
 			}
+
+			info.PriArp = int64(p.AllocationAndRetentionPriority.PriorityLevelARP)
 		}
 	}
 

@@ -41,7 +41,7 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 		t.Fatalf("expected 1 downlink (SERVICE REJECT), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
+	pdu := ngapSender.SentDownlinkNASTransport[0].NASPDU
 	if len(pdu) < 4 || pdu[2] != uint8(fgs.MsgServiceReject) {
 		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
 	}
@@ -79,7 +79,7 @@ func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
 		t.Fatalf("expected 1 downlink (SERVICE REJECT), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
+	pdu := ngapSender.SentDownlinkNASTransport[0].NASPDU
 	if len(pdu) < 4 || pdu[2] != uint8(fgs.MsgServiceReject) {
 		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
 	}

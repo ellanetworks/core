@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -224,8 +225,8 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 	logger.Logger.Info("Policy updated, waiting for session modification signalling")
 
 	_, err = gNodeB.WaitForMessage(
-		ngapType.NGAPPDUPresentInitiatingMessage,
-		ngapType.InitiatingMessagePresentPDUSessionResourceModifyRequest,
+		gnb.Initiating,
+		ngap.ProcPDUSessionResourceModify,
 		15*time.Second,
 	)
 	if err != nil {

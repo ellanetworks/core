@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	"go.opentelemetry.io/otel"
@@ -29,7 +28,7 @@ type NGAPWriter interface {
 // node-level, fire-and-forget path: a send failure is logged at the chokepoint and not
 // returned. Callers that must act on the send outcome (session/ICS setup) use
 // (*AMF).SendToRadio directly.
-func (r *Radio) SendToRadio(ctx context.Context, msgType send.NGAPProcedure, packet []byte) {
+func (r *Radio) SendToRadio(ctx context.Context, msgType NGAPProcedure, packet []byte) {
 	if r == nil || r.amf == nil {
 		logger.From(ctx, logger.AmfLog).Error("cannot send NGAP message: radio is not bound to an amf", zap.String("message_type", string(msgType)))
 		return
@@ -42,7 +41,7 @@ func (r *Radio) SendToRadio(ctx context.Context, msgType send.NGAPProcedure, pac
 // SendToRadio writes a complete NGAP PDU to a gNB association, selecting the SCTP
 // stream from the procedure (TS 38.412). It takes the connection (the send target)
 // directly — a UE sends through ueConn.conn.
-func (a *AMF) SendToRadio(ctx context.Context, conn NGAPWriter, msgType send.NGAPProcedure, packet []byte) error {
+func (a *AMF) SendToRadio(ctx context.Context, conn NGAPWriter, msgType NGAPProcedure, packet []byte) error {
 	ctx, span := ngapSendTracer.Start(ctx, "ngap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
@@ -62,14 +61,14 @@ func (a *AMF) SendToRadio(ctx context.Context, conn NGAPWriter, msgType send.NGA
 		return fmt.Errorf("packet len is 0")
 	}
 
-	sid, err := send.GetSCTPStreamID(msgType)
+	sid, err := GetSCTPStreamID(msgType)
 	if err != nil {
 		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %w", msgType, err)
 	}
 
 	info := sctp.SndRcvInfo{
 		Stream: sid,
-		PPID:   sctp.PPIDWireOrder(send.NGAPPPID),
+		PPID:   sctp.PPIDWireOrder(NGAPPPID),
 	}
 	if _, err := conn.WriteMsg(packet, &info); err != nil {
 		span.RecordError(err)

@@ -1,16 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/ellanetworks/core/internal/nrppa"
-	freengap "github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/nrppa"
 )
 
 // buildDownlinkUEAssociatedNRPPaTransportRaw assembles a raw NGAP
@@ -18,46 +16,12 @@ import (
 func buildDownlinkUEAssociatedNRPPaTransportRaw(t *testing.T, amfUeNgapID, ranUeNgapID int64, nrppaPdu []byte) []byte {
 	t.Helper()
 
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-	pdu.InitiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeDownlinkUEAssociatedNRPPaTransport
-	pdu.InitiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-	pdu.InitiatingMessage.Value.Present = ngapType.InitiatingMessagePresentDownlinkUEAssociatedNRPPaTransport
-	pdu.InitiatingMessage.Value.DownlinkUEAssociatedNRPPaTransport = new(ngapType.DownlinkUEAssociatedNRPPaTransport)
-
-	ies := &pdu.InitiatingMessage.Value.DownlinkUEAssociatedNRPPaTransport.ProtocolIEs
-
-	amfIE := ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
-	amfIE.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	amfIE.Criticality.Value = ngapType.CriticalityPresentReject
-	amfIE.Value.Present = ngapType.DownlinkUEAssociatedNRPPaTransportIEsPresentAMFUENGAPID
-	amfIE.Value.AMFUENGAPID = &ngapType.AMFUENGAPID{Value: amfUeNgapID}
-	ies.List = append(ies.List, amfIE)
-
-	ranIE := ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
-	ranIE.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ranIE.Criticality.Value = ngapType.CriticalityPresentReject
-	ranIE.Value.Present = ngapType.DownlinkUEAssociatedNRPPaTransportIEsPresentRANUENGAPID
-	ranIE.Value.RANUENGAPID = &ngapType.RANUENGAPID{Value: ranUeNgapID}
-	ies.List = append(ies.List, ranIE)
-
-	routingIE := ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
-	routingIE.Id.Value = ngapType.ProtocolIEIDRoutingID
-	routingIE.Criticality.Value = ngapType.CriticalityPresentReject
-	routingIE.Value.Present = ngapType.DownlinkUEAssociatedNRPPaTransportIEsPresentRoutingID
-	routingIE.Value.RoutingID = &ngapType.RoutingID{Value: []byte{0x00}}
-	ies.List = append(ies.List, routingIE)
-
-	nrppaIE := ngapType.DownlinkUEAssociatedNRPPaTransportIEs{}
-	nrppaIE.Id.Value = ngapType.ProtocolIEIDNRPPaPDU
-	nrppaIE.Criticality.Value = ngapType.CriticalityPresentReject
-	nrppaIE.Value.Present = ngapType.DownlinkUEAssociatedNRPPaTransportIEsPresentNRPPaPDU
-	nrppaIE.Value.NRPPaPDU = &ngapType.NRPPaPDU{Value: nrppaPdu}
-	ies.List = append(ies.List, nrppaIE)
-
-	raw, err := freengap.Encoder(pdu)
+	raw, err := (&lib.DownlinkUEAssociatedNRPPaTransport{
+		AMFUENGAPID: lib.AMFUENGAPID(amfUeNgapID),
+		RANUENGAPID: lib.RANUENGAPID(ranUeNgapID),
+		RoutingID:   lib.RoutingID{0x00},
+		NRPPaPDU:    nrppaPdu,
+	}).Marshal()
 	if err != nil {
 		t.Fatalf("encode NGAP: %v", err)
 	}
@@ -73,7 +37,7 @@ func TestDecodeNGAPMessage_DownlinkUEAssociatedNRPPaTransport(t *testing.T) {
 
 	raw := buildDownlinkUEAssociatedNRPPaTransportRaw(t, 5, 4, nrppaPdu)
 
-	msg := ngap.DecodeNGAPMessage(raw)
+	msg := DecodeNGAPMessage(raw)
 
 	if msg.PDUType != "InitiatingMessage" {
 		t.Errorf("PDUType: got %q, want InitiatingMessage", msg.PDUType)
@@ -88,7 +52,7 @@ func TestDecodeNGAPMessage_DownlinkUEAssociatedNRPPaTransport(t *testing.T) {
 		t.Errorf("summary %q missing %q", msg.Summary, want)
 	}
 
-	var nrppaIE *ngap.IE
+	var nrppaIE *IE
 
 	for i := range msg.Value.IEs {
 		if msg.Value.IEs[i].ID.Label == "NRPPaPDU" {
@@ -100,9 +64,9 @@ func TestDecodeNGAPMessage_DownlinkUEAssociatedNRPPaTransport(t *testing.T) {
 		t.Fatal("NRPPaPDU IE not found")
 	}
 
-	decoded, ok := nrppaIE.Value.(ngap.NRPPaPDU)
+	decoded, ok := nrppaIE.Value.(NRPPaPDU)
 	if !ok {
-		t.Fatalf("NRPPaPDU value type: got %T, want ngap.NRPPaPDU", nrppaIE.Value)
+		t.Fatalf("NRPPaPDU value type: got %T, want NRPPaPDU", nrppaIE.Value)
 	}
 
 	if decoded.Protocol != "NRPPa" {

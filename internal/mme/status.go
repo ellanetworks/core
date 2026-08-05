@@ -58,11 +58,11 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		IntegrityAlgorithm: snap.IntegrityAlgorithm,
 	}
 
-	ambrUL, ambrDL := ue.AmbrStrings()
+	ambrUL, ambrDL := ue.AmbrRates()
 
 	for _, s := range m.pdnSessionViews(ue) {
-		s.AMBRUplink = ambrUL
-		s.AMBRDownlink = ambrDL
+		s.AMBRUplink = ambrUL.String()
+		s.AMBRDownlink = ambrDL.String()
 		cs.Sessions = append(cs.Sessions, s)
 	}
 

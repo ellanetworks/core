@@ -10,10 +10,13 @@ const (
 	idCause                                     ProtocolIEID = 2
 	idTargetID                                  ProtocolIEID = 4
 	idENBUES1APID                               ProtocolIEID = 8
+	idERABSubjecttoDataForwardingList           ProtocolIEID = 12
 	idERABtoReleaseListHOCmd                    ProtocolIEID = 13
+	idERABDataForwardingItem                    ProtocolIEID = 14
 	idERABReleaseItemBearerRelComp              ProtocolIEID = 15
 	idERABAdmittedList                          ProtocolIEID = 18
 	idERABFailedToSetupListHOReqAck             ProtocolIEID = 19
+	idERABFailedtoSetupItemHOReqAck             ProtocolIEID = 21
 	idERABAdmittedItem                          ProtocolIEID = 20
 	idERABToBeSetupItemHOReq                    ProtocolIEID = 27
 	idERABToBeSetupListBearerSUReq              ProtocolIEID = 16
@@ -77,6 +80,8 @@ const (
 	idUERadioCapabilityForPaging                ProtocolIEID = 198
 	idRequestType                               ProtocolIEID = 98
 	idRRCEstablishmentCause                     ProtocolIEID = 134
+	idNASSecurityParametersfromEUTRAN           ProtocolIEID = 135
+	idNASSecurityParameterstoEUTRAN             ProtocolIEID = 136
 	idDefaultPagingDRX                          ProtocolIEID = 137
 	idLPPaPDU                                   ProtocolIEID = 147
 	idRoutingID                                 ProtocolIEID = 148

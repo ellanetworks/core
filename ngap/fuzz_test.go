@@ -22,6 +22,19 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		goldenNGSetupRequest, goldenNGSetupResponse, goldenNGSetupFailure,
 		goldenErrorIndication, goldenErrorIndicationFull,
 		goldenNGResetAll, goldenNGResetPart, goldenNGResetAcknowledge,
+		goldenUplinkNASTransportNR, goldenUplinkNASTransportNRTime, goldenUplinkNASTransportEUTRA,
+		goldenInitialUEMessage, goldenInitialUEMessageFull,
+		goldenUEContextReleaseRequest, goldenUEContextReleaseRequestMin,
+		goldenUEContextReleaseCommandPair, goldenUEContextReleaseCommandAMF,
+		goldenUEContextReleaseComplete, goldenUEContextReleaseCompleteMin,
+		goldenInitialContextSetupRequest, goldenInitialContextSetupRequestNoSessions,
+		goldenInitialContextSetupResponse, goldenInitialContextSetupFailure,
+		goldenUERadioCapabilityInfoIndication, goldenUERadioCapabilityInfoIndicationFull,
+		goldenPDUSessionResourceSetupRequest, goldenPDUSessionResourceSetupResponse,
+		goldenPDUSessionResourceReleaseCommand, goldenPDUSessionResourceReleaseResponse,
+		goldenPDUSessionResourceModifyRequest, goldenPDUSessionResourceModifyResponse,
+		goldenPDUSessionResourceModifyIndication, goldenPDUSessionResourceModifyConfirm,
+		goldenPDUSessionResourceNotify,
 	} {
 		b, err := hex.DecodeString(g)
 		if err != nil {
@@ -40,6 +53,12 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		_, _ = unmarshalPERValue[PLMNSupportList](data)
 		_, _ = unmarshalPERValue[FiveGSTMSI](data)
 		_, _ = unmarshalPERValue[ResetType](data)
+		_, _ = unmarshalPERValue[UserLocationInformation](data)
+		_, _ = unmarshalPERValue[UENGAPIDs](data)
+		_, _ = unmarshalPERValue[UESecurityCapabilities](data)
+		_, _ = unmarshalPERValue[UEAggregateMaximumBitRate](data)
+		_, _ = unmarshalPERValue[PDUSessionResourceSetupListCxtReq](data)
+		_, _ = unmarshalPERValue[PDUSessionResourceListCxtRelCpl](data)
 
 		pdu, err := Unmarshal(data)
 		if err != nil {
@@ -52,6 +71,12 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		// message cannot silently escape the no-panic guarantee.
 		for _, mp := range messageParsers {
 			_ = mp.Parse(pdu.value())
+		}
+
+		// Transfers arrive inside an OCTET STRING, so they see the raw octets
+		// rather than a decoded PDU body.
+		for _, tp := range transferParsers {
+			_ = tp.Parse(data)
 		}
 	})
 }

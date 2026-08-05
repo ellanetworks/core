@@ -42,6 +42,12 @@ var mandatedDeviations = map[string]string{
 	// for (TS 36.413 §9.1.3 vs TS 38.413 §9.3.1).
 	"s1ap only: func encodeSingleContainerList": "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
 	"s1ap only: func decodeItemList":            "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
+
+	// PATH SWITCH REQUEST FAILURE reports a mandatory released session list in
+	// NGAP (TS 38.413 §9.2.3.10) and a mandatory Cause with no list in S1AP
+	// (TS 36.413 §9.1.5.10), so only NGAP has to recover the sessions from a
+	// rejected request to build the message at all.
+	"ngap only: func (AbstractSyntaxError) PathSwitchSessions": "NGAP PathSwitchRequestFailure released list is mandatory (TS 38.413 §9.2.3.10)",
 }
 
 // ngapOnlyFiles' mirror, so a file added to one side and forgotten on the other
@@ -50,41 +56,10 @@ var s1apOnlyFiles = map[string]string{}
 
 // S1AP files whose NGAP counterparts are not written yet — outstanding work,
 // not a mandated asymmetry. Entries are deleted as counterparts appear, so the
-// list empties itself.
-var pendingNGAPMigration = map[string]struct{}{
-	"erab_modification.go":            {},
-	"erab_modification_test.go":       {},
-	"erab_modify.go":                  {},
-	"erab_modify_test.go":             {},
-	"erab_release.go":                 {},
-	"erab_release_test.go":            {},
-	"erab_setup.go":                   {},
-	"erab_setup_test.go":              {},
-	"handover_cancel.go":              {},
-	"handover_notify.go":              {},
-	"handover_preparation.go":         {},
-	"handover_resource_allocation.go": {},
-	"handover_test.go":                {},
-	"ie_erab.go":                      {},
-	"ie_handover.go":                  {},
-	"initial_context_setup.go":        {},
-	"initial_context_setup_test.go":   {},
-	"location_report.go":              {},
-	"location_report_test.go":         {},
-	"lppa_transport.go":               {},
-	"lppa_transport_test.go":          {},
-	"nas_non_delivery.go":             {},
-	"nas_non_delivery_test.go":        {},
-	"nas_transport.go":                {},
-	"nas_transport_test.go":           {},
-	"path_switch.go":                  {},
-	"path_switch_test.go":             {},
-	"status_transfer.go":              {},
-	"ue_capability.go":                {},
-	"ue_capability_test.go":           {},
-	"ue_context_release.go":           {},
-	"ue_context_release_test.go":      {},
-}
+// list empties itself. A file that exists on both sides under different names
+// belongs in renamedFiles, which is consulted first and actually verifies the
+// counterpart; an entry here would never be reached.
+var pendingNGAPMigration = map[string]struct{}{}
 
 // Same thing, different name per spec. Both sides must still exist.
 var renamedFiles = map[string]string{
@@ -98,6 +73,27 @@ var renamedFiles = map[string]string{
 	"ng_setup_resp_test.go":    "s1_setup_resp_test.go",
 	"ng_setup_failure_test.go": "s1_setup_failure_test.go",
 
+	// TS 38.413 carries user plane in PDU sessions where TS 36.413 carries it in
+	// E-RABs, so each session-oriented procedure is named after its own bearer.
+	"pdu_session_resource_setup.go":                  "erab_setup.go",
+	"pdu_session_resource_release.go":                "erab_release.go",
+	"pdu_session_resource_modify.go":                 "erab_modify.go",
+	"pdu_session_resource_modify_indication.go":      "erab_modification.go",
+	"pdu_session_resource_modify_indication_test.go": "erab_modification_test.go",
+	"pdu_session_resource_modify_test.go":            "erab_modify_test.go",
+	"pdu_session_resource_release_test.go":           "erab_release_test.go",
+	"pdu_session_resource_setup_test.go":             "erab_setup_test.go",
+
+	// TS 38.413 names the procedure UE Radio Capability Info Indication where
+	// TS 36.413 names it UE Capability Info Indication.
+	"ue_radio_capability.go":      "ue_capability.go",
+	"ue_radio_capability_test.go": "ue_capability_test.go",
+
+	// TS 38.413 carries LMF signalling as NRPPa where TS 36.413 carries the
+	// E-SMLC's as LPPa (TS 38.455 / TS 36.455).
+	"nrppa_transport.go":      "lppa_transport.go",
+	"nrppa_transport_test.go": "lppa_transport_test.go",
+
 	// TS 38.413 names the NG-RAN node's update RAN Configuration Update where
 	// TS 36.413 names the eNB's ENB Configuration Update.
 	"ran_config_update.go":      "enb_config_update.go",
@@ -106,18 +102,29 @@ var renamedFiles = map[string]string{
 	// GUAMI replaces GUMMEI and is bit-string rather than octet shaped
 	// (TS 38.413 §9.3.3.3).
 	"ie_guami.go": "ie_gummei.go",
+
+	// 3GPP scopes these QoS parameters to E-RABs in TS 36.413 and to QoS flows
+	// in TS 38.413, so each library names the file after its own bearer.
+	"ie_qos.go":      "ie_erab.go",
+	"ie_qos_test.go": "ie_erab_test.go",
 }
 
 // NGAP-only IE vocabulary, and message files for procedures 3GPP defines only
 // for NGAP. Nothing else.
 var ngapOnlyFiles = map[string]string{
-	"ie_slice.go":                   "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
-	"ie_tnl.go":                     "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
-	"ie_tnl_test.go":                "tests for ie_tnl.go",
-	"amf_status_indication.go":      "TS 36.413 defines no procedure signalling that core-network identities are unavailable: mMEStatusTransfer is UE-associated handover status and Overload Start/Stop is overload control (TS 38.413 §8.7.6)",
-	"amf_status_indication_test.go": "tests for amf_status_indication.go",
-	"not_comprehended_test.go":      "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",
-	"symmetry_test.go":              "this file: the checker lives on one side",
+	"ie_slice.go":                    "S-NSSAI and the slice support lists have no S1AP counterpart (TS 38.413 §9.3.1.24)",
+	"pdu_session_resource_notify.go": "TS 36.413 defines no E-RAB Notify: an eNB reports a changed bearer through E-RAB Modification Indication and a self-initiated release through E-RAB Release Indication (TS 38.413 §8.2.6)",
+
+	"pdu_session_resource_notify_test.go": "tests for pdu_session_resource_notify.go",
+	"handover_transfer.go":                "the §9.3.4 transfers have no S1AP counterpart: TS 36.413 defines no OCTET STRING (CONTAINING ...) at all and carries the forwarding tunnels as plain IEs in the message body (TS 38.413 §9.3.4)",
+	"handover_transfer_test.go":           "tests for handover_transfer.go",
+	"ie_tnl.go":                           "NG-RAN TNL association removal has no S1AP counterpart: ENB CONFIGURATION UPDATE cannot remove SCTP endpoints (TS 38.413 §9.3.2.6, §9.2.6.4)",
+	"ie_tnl_test.go":                      "tests for ie_tnl.go",
+	"ie_transport_test.go":                "UPTransportLayerInformation is a CHOICE closed by choice-Extensions; S1AP carries the user-plane endpoint as a bare address and GTP-TEID pair inside each E-RAB item (TS 38.413 §9.3.2.1)",
+	"amf_status_indication.go":            "TS 36.413 defines no procedure signalling that core-network identities are unavailable: mMEStatusTransfer is UE-associated handover status and Overload Start/Stop is overload control (TS 38.413 §8.7.6)",
+	"amf_status_indication_test.go":       "tests for amf_status_indication.go",
+	"not_comprehended_test.go":            "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",
+	"symmetry_test.go":                    "this file: the checker lives on one side",
 }
 
 // A type on both sides must live in the same-named file, so the two can be read

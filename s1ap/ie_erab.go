@@ -4,60 +4,20 @@
 package s1ap
 
 import (
-	"fmt"
+	"net/netip"
 
 	"github.com/ellanetworks/core/per"
 )
-
-// BitRate ::= INTEGER (0..10000000000).
-const bitRateMax = 10000000000
-
-type BitRate uint64
-
-func (b BitRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: bitRateMax, HasUB: true}, int64(b))
-}
-
-func (b *BitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: bitRateMax, HasUB: true})
-	if err != nil {
-		return err
-	}
-
-	*b = BitRate(v)
-
-	return nil
-}
-
-// UEAggregateMaximumBitRate ::= SEQUENCE { ...DL, ...UL, iE-Extensions OPTIONAL }
-// (extensible).
-type UEAggregateMaximumBitRate struct {
-	_  [0]struct{} `per:"extseq"`
-	DL BitRate
-	UL BitRate
-	_  ieExtensions `per:",skip"`
-}
 
 // ERABID ::= INTEGER (0..15, ...) (extensible).
 type ERABID uint8
 
 func (id ERABID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	return per.EncodeConstrainedWholeNumber(w, enc, 0, 15, int64(id))
+	return encodeExtensibleInt(w, enc, 0, 15, int64(id))
 }
 
 func (id *ERABID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	ext, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	if ext {
-		return fmt.Errorf("%w: E-RAB-ID extension value", errNotComprehended)
-	}
-
-	v, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 15)
+	v, err := decodeExtensibleInt(r, enc, 0, 15, "E-RAB-ID")
 	if err != nil {
 		return err
 	}
@@ -152,6 +112,23 @@ func (a *TransportLayerAddress) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	return nil
 }
 
+// IPs returns the addresses the bit string carries. TS 36.414 §5.1 packs an
+// IPv4 address, an IPv6 address, or both with the IPv4 one first; a return is
+// invalid when that address is absent.
+func (a TransportLayerAddress) IPs() (ipv4, ipv6 netip.Addr) {
+	switch len(a) {
+	case 4:
+		ipv4, _ = netip.AddrFromSlice(a)
+	case 16:
+		ipv6, _ = netip.AddrFromSlice(a)
+	case 20:
+		ipv4, _ = netip.AddrFromSlice(a[:4])
+		ipv6, _ = netip.AddrFromSlice(a[4:])
+	}
+
+	return ipv4, ipv6
+}
+
 // GTPTEID ::= OCTET STRING (SIZE(4)).
 type GTPTEID uint32
 
@@ -166,76 +143,6 @@ func (t *GTPTEID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	*t = GTPTEID(uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]))
-
-	return nil
-}
-
-// SecurityKey ::= BIT STRING (SIZE(256)).
-type SecurityKey [32]byte
-
-func (k SecurityKey) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeBitString(w, enc, 256, 256, true, true, false, k[:], 256)
-}
-
-func (k *SecurityKey) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	b, _, err := per.DecodeBitString(r, enc, 256, 256, true, true, false)
-	if err != nil {
-		return err
-	}
-
-	copy(k[:], b)
-
-	return nil
-}
-
-// UESecurityCapabilities ::= SEQUENCE { encryptionAlgorithms,
-// integrityProtectionAlgorithms, iE-Extensions OPTIONAL } (extensible). Each
-// algorithm field is BIT STRING (SIZE(16, ...)).
-type UESecurityCapabilities struct {
-	EncryptionAlgorithms          uint16
-	IntegrityProtectionAlgorithms uint16
-}
-
-func (c UESecurityCapabilities) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-
-	if err := per.EncodeBitString(w, enc, 16, 16, true, true, true, uintToBits(uint64(c.EncryptionAlgorithms), 16), 16); err != nil {
-		return err
-	}
-
-	return per.EncodeBitString(w, enc, 16, 16, true, true, true, uintToBits(uint64(c.IntegrityProtectionAlgorithms), 16), 16)
-}
-
-func (c *UESecurityCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	extContainer, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	encAlgs, encBits, err := per.DecodeBitString(r, enc, 16, 16, true, true, true)
-	if err != nil {
-		return err
-	}
-
-	integ, integBits, err := per.DecodeBitString(r, enc, 16, 16, true, true, true)
-	if err != nil {
-		return err
-	}
-
-	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
-		return err
-	}
-
-	*c = UESecurityCapabilities{
-		EncryptionAlgorithms:          uint16(bitsToUint(encAlgs, encBits)),
-		IntegrityProtectionAlgorithms: uint16(bitsToUint(integ, integBits)),
-	}
 
 	return nil
 }

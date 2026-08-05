@@ -3,6 +3,11 @@
 
 package ngap
 
+import (
+	"encoding/hex"
+	"fmt"
+)
+
 // GlobalRANNodeID ::= CHOICE { globalGNB-ID, globalNgENB-ID, globalN3IWF-ID,
 // choice-Extensions } root alternatives (TS 38.413 §9.3.1.5). The CHOICE is
 // not extensible, so choice-Extensions is a plain alternative index.
@@ -84,4 +89,79 @@ type GlobalRANNodeID struct {
 	// Only RANNodeIDGNB has a range to choose from (22..32); every other kind
 	// has one legal length, and encoding rejects anything else.
 	Bits int
+}
+
+// The library owns every conversion between a wire field and the sub-fields
+// 3GPP defines it as, so a caller never shifts or masks a value the library
+// encodes. The cell-identity widths and the node-id width both live here, and
+// only their combination is correct.
+
+// NRCellIdentity composes this node's NR Cell Identity: the gNB ID in the
+// leftmost Bits, cellID in the remaining NRCellIdentityBits-Bits (TS 23.003
+// §19.6). The split point is the gNB ID's own length, which only this type
+// carries — which is why composing by hand goes wrong.
+func (g GlobalRANNodeID) NRCellIdentity(cellID uint64) (uint64, error) {
+	return g.cellIdentity(cellID, NRCellIdentityBits, "NR")
+}
+
+// EUTRACellIdentity is NRCellIdentity for an ng-eNB's E-UTRA cell.
+func (g GlobalRANNodeID) EUTRACellIdentity(cellID uint64) (uint64, error) {
+	return g.cellIdentity(cellID, EUTRACellIdentityBits, "E-UTRA")
+}
+
+func (g GlobalRANNodeID) cellIdentity(cellID uint64, width int, kind string) (uint64, error) {
+	// Unlike S1AP, whose 28-bit Home eNB ID is itself the cell identity, no NGAP
+	// node kind is as wide as either cell identity (gNB-ID tops out at 32 of 36,
+	// ng-eNB at 21 of 28), so a node filling it is always an error.
+	if g.Bits <= 0 || g.Bits >= width {
+		return 0, fmt.Errorf("ngap: node id of %d bits leaves no room in a %d-bit %s cell identity", g.Bits, width, kind)
+	}
+
+	cellBits := width - g.Bits
+	if cellID >= 1<<uint(cellBits) {
+		return 0, fmt.Errorf("ngap: cell id %d exceeds the %d bits left by a %d-bit node id", cellID, cellBits, g.Bits)
+	}
+
+	if g.Bits < 64 && uint64(g.Value) >= 1<<uint(g.Bits) {
+		return 0, fmt.Errorf("ngap: node id %d exceeds its own %d bits", g.Value, g.Bits)
+	}
+
+	return uint64(g.Value)<<uint(cellBits) | cellID, nil
+}
+
+// SplitNRCellIdentity is NRCellIdentity's inverse for a cell of this node.
+func (g GlobalRANNodeID) SplitNRCellIdentity(nci uint64) (cellID uint64, ok bool) {
+	return g.splitCellIdentity(nci, NRCellIdentityBits)
+}
+
+// SplitEUTRACellIdentity is EUTRACellIdentity's inverse.
+func (g GlobalRANNodeID) SplitEUTRACellIdentity(eci uint64) (cellID uint64, ok bool) {
+	return g.splitCellIdentity(eci, EUTRACellIdentityBits)
+}
+
+func (g GlobalRANNodeID) splitCellIdentity(id uint64, width int) (uint64, bool) {
+	if g.Bits <= 0 || g.Bits >= width {
+		return 0, false
+	}
+
+	cellBits := width - g.Bits
+	if id>>uint(cellBits) != uint64(g.Value) {
+		return 0, false
+	}
+
+	return id & (1<<uint(cellBits) - 1), true
+}
+
+// Hex renders the node identifier as the hex digits its bit length covers,
+// left-aligned in the bit string as the wire carries it.
+func (g GlobalRANNodeID) Hex() string {
+	b := make([]byte, (g.Bits+7)/8)
+
+	for i := range g.Bits {
+		if g.Value&(1<<uint(g.Bits-1-i)) != 0 {
+			b[i/8] |= 1 << uint(7-i%8)
+		}
+	}
+
+	return hex.EncodeToString(b)[:(g.Bits+3)/4]
 }

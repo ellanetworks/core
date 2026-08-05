@@ -4,12 +4,10 @@
 package gnb
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type HandoverRequestAcknowledgeOpts struct {
@@ -28,118 +26,52 @@ type HandoverAdmittedPDUSession struct {
 	DLIP         netip.Addr
 }
 
-func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) (ngapType.NGAPPDU, error) {
-	pdu := ngapType.NGAPPDU{}
-
-	msg := &ngapType.HandoverRequestAcknowledge{}
-	ies := &msg.ProtocolIEs
-
-	{
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentAMFUENGAPID
-		ie.Value.AMFUENGAPID = &ngapType.AMFUENGAPID{Value: opts.AMFUENGAPID}
-		ies.List = append(ies.List, ie)
+func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]byte, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("HandoverRequestAcknowledgeOpts is nil")
 	}
 
-	{
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentRANUENGAPID
-		ie.Value.RANUENGAPID = &ngapType.RANUENGAPID{Value: opts.RANUENGAPID}
-		ies.List = append(ies.List, ie)
-	}
+	admitted := make(ngap.PDUSessionResourceAdmittedList, 0, len(opts.PDUSessions))
 
-	{
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceAdmittedList
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentPDUSessionResourceAdmittedList
-
-		list := &ngapType.PDUSessionResourceAdmittedList{}
-
-		for _, ps := range opts.PDUSessions {
-			transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTeid, ps.DLIP)
-			if err != nil {
-				return pdu, fmt.Errorf("build transfer for session %d: %v", ps.PDUSessionID, err)
-			}
-
-			item := ngapType.PDUSessionResourceAdmittedItem{
-				PDUSessionID:                       ngapType.PDUSessionID{Value: ps.PDUSessionID},
-				HandoverRequestAcknowledgeTransfer: transfer,
-			}
-			list.List = append(list.List, item)
+	for _, ps := range opts.PDUSessions {
+		transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTeid, ps.DLIP)
+		if err != nil {
+			return nil, fmt.Errorf("build transfer for session %d: %w", ps.PDUSessionID, err)
 		}
 
-		ie.Value.PDUSessionResourceAdmittedList = list
-		ies.List = append(ies.List, ie)
+		admitted = append(admitted, ngap.PDUSessionResourceAdmittedItem{
+			PDUSessionID: ngap.PDUSessionID(ps.PDUSessionID),
+			Transfer:     transfer,
+		})
 	}
 
-	{
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDTargetToSourceTransparentContainer
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentTargetToSourceTransparentContainer
-
-		container := opts.TargetToSourceTransparentContainer
-		if container == nil {
-			container = []byte{0x00}
-		}
-
-		ie.Value.TargetToSourceTransparentContainer = &ngapType.TargetToSourceTransparentContainer{Value: container}
-		ies.List = append(ies.List, ie)
+	container := opts.TargetToSourceTransparentContainer
+	if container == nil {
+		container = []byte{0x00}
 	}
 
-	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
-	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
-	pdu.SuccessfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodeHandoverResourceAllocation
-	pdu.SuccessfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
-	pdu.SuccessfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentHandoverRequestAcknowledge
-	pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge = msg
+	msg := &ngap.HandoverRequestAcknowledge{
+		AMFUENGAPID:                        ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
+		RANUENGAPID:                        ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
+		PDUSessionResourceAdmittedList:     admitted,
+		TargetToSourceTransparentContainer: container,
+	}
 
-	return pdu, nil
+	return msg.Marshal()
 }
 
-func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr) ([]byte, error) {
-	transfer := ngapType.HandoverRequestAcknowledgeTransfer{}
-
-	var ipBytes []byte
-
-	if ip.Is4() {
-		v4 := ip.As4()
-		ipBytes = v4[:]
-	} else {
-		v6 := ip.As16()
-		ipBytes = v6[:]
-	}
-
-	teidBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidBytes, teid)
-
-	transfer.DLNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	transfer.DLNGUUPTNLInformation.GTPTunnel = &ngapType.GTPTunnel{
-		TransportLayerAddress: ngapType.TransportLayerAddress{
-			Value: aper.BitString{
-				Bytes:     ipBytes,
-				BitLength: uint64(len(ipBytes) * 8),
-			},
-		},
-		GTPTEID: ngapType.GTPTEID{Value: teidBytes},
-	}
-
-	// QosFlowSetupResponseList is mandatory.
-	transfer.QosFlowSetupResponseList.List = append(transfer.QosFlowSetupResponseList.List,
-		ngapType.QosFlowItemWithDataForwarding{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
-		},
-	)
-
-	buf, err := aper.MarshalWithParams(transfer, "valueExt")
+func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr) (ngap.TransferContainer, error) {
+	addr, err := transportLayerAddress(ip)
 	if err != nil {
-		return nil, fmt.Errorf("marshal HandoverRequestAcknowledgeTransfer: %v", err)
+		return nil, err
 	}
 
-	return buf, nil
+	return (&ngap.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
+			TransportLayerAddress: addr,
+			GTPTEID:               ngap.GTPTEID(teid),
+		}},
+		// QosFlowSetupResponseList is mandatory.
+		QosFlowSetupResponse: ngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
+	}).Marshal()
 }

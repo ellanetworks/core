@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
@@ -422,7 +421,7 @@ func notifyRANsUnavailable(ctx context.Context, amfInstance *amf.AMF, timeout ti
 	}
 
 	for _, ran := range amfInstance.ConnectedRadios() {
-		if err := amfInstance.SendToRadio(sendCtx, ran.Conn, send.NGAPProcedureAMFStatusIndication, pkt); err != nil {
+		if err := amfInstance.SendToRadio(sendCtx, ran.Conn, amf.NGAPProcedureAMFStatusIndication, pkt); err != nil {
 			logger.APILog.Warn("failed to send AMF Status Indication to RAN during drain", zap.Error(err))
 			continue
 		}

@@ -3,8 +3,9 @@
 
 // Package nrppa provides a labeled, JSON-serializable decoder view of NRPPa
 // PDUs (TS 38.455 E-CID Measurement Initiation procedures) for the radio-event
-// inspector. It wraps the internal/nrppa codec and renders enums as
-// utils.EnumField so the UI shows "Label (value)", matching the NAS decoder.
+// inspector. It wraps the github.com/ellanetworks/core/nrppa codec and renders
+// enums as utils.EnumField so the UI shows "Label (value)", matching the NAS
+// decoder.
 package nrppa
 
 import (
@@ -12,7 +13,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	corenrppa "github.com/ellanetworks/core/internal/nrppa"
+	corenrppa "github.com/ellanetworks/core/nrppa"
 )
 
 // Message is the decoder view of a parsed NRPPa PDU.
@@ -99,15 +100,25 @@ type AoA struct {
 
 // RSItem is a per-cell SS-RSRP/SS-RSRQ report (raw on-wire report value).
 type RSItem struct {
-	NRPCI int64 `json:"nr_pci"`
+	NRPCI   int64      `json:"nr_pci"`
+	NRARFCN int64      `json:"nr_arfcn"`
+	Value   *int64     `json:"value,omitempty"`
+	PerSSB  []BeamItem `json:"per_ssb,omitempty"`
+}
+
+// BeamItem is one SSB- or CSI-RS-indexed reading of a per-cell result. The
+// per-cell value and the per-beam list are each optional (TS 38.455 §9.2.32).
+type BeamItem struct {
+	Index int64 `json:"index"`
 	Value int64 `json:"value"`
 }
 
 // CSIRSItem is a per-resource CSI-RSRP/CSI-RSRQ report (raw report value).
 type CSIRSItem struct {
-	NRPCI      int64 `json:"nr_pci"`
-	CSIRSIndex int64 `json:"csi_rs_index"`
-	Value      int64 `json:"value"`
+	NRPCI    int64      `json:"nr_pci"`
+	NRARFCN  int64      `json:"nr_arfcn"`
+	Value    *int64     `json:"value,omitempty"`
+	PerCSIRS []BeamItem `json:"per_csi_rs,omitempty"`
 }
 
 // Decode parses a raw NRPPa PDU into the labeled view. It applies the same
@@ -204,34 +215,47 @@ func mapResult(r *corenrppa.ECIDResult) *Result {
 		out.AoA = &AoA{AzimuthDegrees: r.AoA.AzimuthDegrees, ZenithDegrees: r.AoA.ZenithDegrees}
 	}
 
-	if r.ResultSSRSRP != nil {
-		for _, it := range r.ResultSSRSRP.Items {
-			out.SSRSRP = append(out.SSRSRP, RSItem{NRPCI: it.NRPCI, Value: it.Value})
-		}
+	for _, it := range r.SSRSRP {
+		out.SSRSRP = append(out.SSRSRP, mapRSItem(it.NRPCI, it.NRARFCN, it.Value, it.PerSSB, ssbBeam))
 	}
 
-	if r.ResultSSRSRQ != nil {
-		for _, it := range r.ResultSSRSRQ.Items {
-			out.SSRSRQ = append(out.SSRSRQ, RSItem{NRPCI: it.NRPCI, Value: it.Value})
-		}
+	for _, it := range r.SSRSRQ {
+		out.SSRSRQ = append(out.SSRSRQ, mapRSItem(it.NRPCI, it.NRARFCN, it.Value, it.PerSSB, ssbBeam))
 	}
 
-	if r.ResultCSIRSRP != nil {
-		for _, it := range r.ResultCSIRSRP.Items {
-			out.CSIRSRP = append(out.CSIRSRP, CSIRSItem{NRPCI: it.NRPCI, CSIRSIndex: it.CSIRSIndex, Value: it.Value})
-		}
+	for _, it := range r.CSIRSRP {
+		rs := mapRSItem(it.NRPCI, it.NRARFCN, it.Value, it.PerCSIRS, csiRSBeam)
+		out.CSIRSRP = append(out.CSIRSRP, CSIRSItem{NRPCI: rs.NRPCI, NRARFCN: rs.NRARFCN, Value: rs.Value, PerCSIRS: rs.PerSSB})
 	}
 
-	if r.ResultCSIRSRQ != nil {
-		for _, it := range r.ResultCSIRSRQ.Items {
-			out.CSIRSRQ = append(out.CSIRSRQ, CSIRSItem{NRPCI: it.NRPCI, CSIRSIndex: it.CSIRSIndex, Value: it.Value})
-		}
+	for _, it := range r.CSIRSRQ {
+		rs := mapRSItem(it.NRPCI, it.NRARFCN, it.Value, it.PerCSIRS, csiRSBeam)
+		out.CSIRSRQ = append(out.CSIRSRQ, CSIRSItem{NRPCI: rs.NRPCI, NRARFCN: rs.NRARFCN, Value: rs.Value, PerCSIRS: rs.PerSSB})
 	}
 
 	return out
 }
 
-func mapServingCell(sc corenrppa.ServingCell) ServingCell {
+// mapRSItem renders one per-cell NR result. The four result types differ only
+// in what a beam is indexed by, which beam supplies.
+func mapRSItem[B any](pci, arfcn int64, value *int64, beams []B, beam func(B) BeamItem) RSItem {
+	out := RSItem{NRPCI: pci, NRARFCN: arfcn, Value: value}
+	for _, b := range beams {
+		out.PerSSB = append(out.PerSSB, beam(b))
+	}
+
+	return out
+}
+
+func ssbBeam(it corenrppa.SSBResultItem) BeamItem {
+	return BeamItem{Index: it.SSBIndex, Value: it.Value}
+}
+
+func csiRSBeam(it corenrppa.CSIRSResultItem) BeamItem {
+	return BeamItem{Index: it.CSIRSIndex, Value: it.Value}
+}
+
+func mapServingCell(sc corenrppa.NGRANCGI) ServingCell {
 	out := ServingCell{PLMNIdentity: hex.EncodeToString(sc.PLMNIdentity)}
 
 	if sc.NRCellIdentity != nil {

@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
@@ -54,7 +54,7 @@ func runRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) error {
 
 	defer gNodeB.Close()
 
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 1*time.Second)
+	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 1*time.Second)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

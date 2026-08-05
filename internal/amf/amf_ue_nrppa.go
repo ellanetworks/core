@@ -38,8 +38,9 @@ func (ue *UeContext) GetRadioMeasurements() *lmfmodels.RadioMeasurements {
 
 // NRPPaMessage holds a raw NRPPa PDU received from the RAN. The PDU is an
 // opaque octet string carried over NGAP UE-associated transport; it is decoded
-// by the LMF (internal/nrppa). Correlation is by the LMF-UE-Measurement-ID
-// carried inside the decoded PDU, not by any AMF-side field.
+// by the LMF (github.com/ellanetworks/core/nrppa). Correlation is by the
+// LMF-UE-Measurement-ID carried inside the decoded PDU, not by any AMF-side
+// field.
 type NRPPaMessage struct {
 	Payload   []byte
 	Timestamp time.Time
@@ -72,4 +73,36 @@ func (ue *UeContext) GetNRPPaMessages() []NRPPaMessage {
 	copy(result, ue.nrppaMessages)
 
 	return result
+}
+
+// RecordNRPPaRoutingID notes an LMF this AMF has addressed for this UE, so an
+// uplink transport naming it can be recognised (TS 38.413 §8.10.4).
+func (ue *UeContext) RecordNRPPaRoutingID(routingID int64) {
+	ue.nrppaMu.Lock()
+	defer ue.nrppaMu.Unlock()
+
+	if ue.nrppaRoutingIDs == nil {
+		ue.nrppaRoutingIDs = make(map[int64]struct{}, 1)
+	}
+
+	ue.nrppaRoutingIDs[routingID] = struct{}{}
+}
+
+// KnownNRPPaRoutingID reports whether the four octets address an LMF this AMF
+// has sent a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT to for this UE. §9.3.3.13
+// leaves Routing ID an unconstrained OCTET STRING, so anything that is not the
+// four-octet form this AMF emits is unknown by construction.
+func (ue *UeContext) KnownNRPPaRoutingID(routingID []byte) bool {
+	if len(routingID) != 4 {
+		return false
+	}
+
+	id := int64(routingID[0])<<24 | int64(routingID[1])<<16 | int64(routingID[2])<<8 | int64(routingID[3])
+
+	ue.nrppaMu.RLock()
+	defer ue.nrppaMu.RUnlock()
+
+	_, ok := ue.nrppaRoutingIDs[id]
+
+	return ok
 }

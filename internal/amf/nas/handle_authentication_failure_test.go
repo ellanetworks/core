@@ -100,7 +100,7 @@ func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *tes
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationReject))
 }
 
 func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsReject(t *testing.T) {
@@ -125,7 +125,7 @@ func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsRe
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationReject))
 }
 
 func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthRequest(t *testing.T) {
@@ -162,7 +162,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing.T) {
@@ -237,7 +237,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing.T) {
@@ -289,7 +289,7 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationReject))
 }
 
 func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParameter(t *testing.T) {

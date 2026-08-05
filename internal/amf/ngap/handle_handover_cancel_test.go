@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // TestHandleHandoverCancel_UnknownRanUeNgapID verifies that a HandoverCancel
@@ -23,28 +21,23 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.HandoverCancel{
+	msg := &ngap.HandoverCancel{
 		AMFUENGAPID: 1099511627775,
 		RANUENGAPID: 99,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem},
-		},
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), amfInstance, ran, msg)
+	HandleHandoverCancel(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 
 	errInd := sender.SentErrorIndications[0]
-	if errInd.Cause == nil || errInd.Cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatal("expected RadioNetwork cause in ErrorIndication")
-	}
 
-	if errInd.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID {
-		t.Fatalf("expected UnknownLocalUENGAPID, got %d", errInd.Cause.RadioNetwork.Value)
+	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
+	if errInd.Cause == nil || *errInd.Cause != wantRadioNetworkCause {
+		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errInd.Cause)
 	}
 }
 
@@ -62,18 +55,15 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 
 	amf.NewUeConnForTest(sourceRan, 1, 10, logger.AmfLog)
 
-	msg := decode.HandoverCancel{
+	msg := &ngap.HandoverCancel{
 		AMFUENGAPID: 999, // does not match the source UE's AmfUeNgapID (10)
 		RANUENGAPID: 1,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem},
-		},
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
+	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
 
-	errInd := assertSingleErrorIndication(t, sourceSender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	errInd := assertSingleErrorIndication(t, sourceSender, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 1)
 
 	if len(sourceSender.SentHandoverCancelAcknowledges) != 0 {
@@ -109,16 +99,13 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 		t.Fatal("MarkHandoverPrepared")
 	}
 
-	msg := decode.HandoverCancel{
+	msg := &ngap.HandoverCancel{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem},
-		},
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
 	}
 
-	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
+	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetSender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand on target, got %d", len(targetSender.SentUEContextReleaseCommands))
@@ -133,8 +120,8 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	}
 
 	ack := sourceSender.SentHandoverCancelAcknowledges[0]
-	if ack.AmfUeNgapID != 10 || ack.RanUeNgapID != 1 {
-		t.Errorf("HandoverCancelAcknowledge IDs = (%d, %d), want (10, 1)", ack.AmfUeNgapID, ack.RanUeNgapID)
+	if ack.AMFUENGAPID == nil || *ack.AMFUENGAPID != 10 || ack.RANUENGAPID == nil || *ack.RANUENGAPID != 1 {
+		t.Errorf("HandoverCancelAcknowledge IDs = (%v, %v), want (10, 1)", ack.AMFUENGAPID, ack.RANUENGAPID)
 	}
 }
 
@@ -161,7 +148,7 @@ func TestHandleHandoverCancel_Preparing_ReleasesTarget(t *testing.T) {
 	}
 
 	// No MarkHandoverPrepared: the handover is still hoPreparing.
-	ngap.HandleHandoverCancel(context.Background(), amfInstance, sourceRan, decode.HandoverCancel{AMFUENGAPID: 10, RANUENGAPID: 1})
+	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{AMFUENGAPID: 10, RANUENGAPID: 1})
 
 	// TS 38.413 §8.4.5: the target's reserved resources must be released even in the
 	// preparation window, so a cancel does not orphan the target context.

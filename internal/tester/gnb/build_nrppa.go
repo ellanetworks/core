@@ -6,8 +6,8 @@ package gnb
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/nrppa"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/nrppa"
 )
 
 // Sample serving-cell parameters used in the gNB tester's E-CID response. These
@@ -21,6 +21,10 @@ const (
 	sampleUERxTxTimeDiff  int64 = 1200 // UE Rx-Tx Time Difference (0..61565)
 	sampleAoAAzimuth      int64 = 900  // 0.1° units → 90.0°
 	sampleAoAZenith       int64 = 450  // 0.1° units → 45.0°
+	sampleNRPCI           int64 = 1    // NR-PCI (0..1007)
+	sampleNRARFCN         int64 = 368410
+	sampleSSRSRP          int64 = 59 // 0..127 (TS 38.133 §10.1.6)
+	sampleSSRSRQ          int64 = 66 // 0..127 (TS 38.133 §10.1.11)
 )
 
 var (
@@ -38,22 +42,24 @@ type NRPPaECIDResponseOpts struct {
 	LMFUEMeasurementID int64
 	RANUEMeasurementID int64
 	TimingAdvance      int64 // valueTimingAdvanceType1-EUTRA
+	// RoutingID names the LMF that asked, echoed from the request.
+	RoutingID ngap.RoutingID
 }
 
 // BuildNRPPaECIDMeasurementResponse creates an NGAP UplinkUEAssociatedNRPPaTransport
 // carrying an NRPPa E-CIDMeasurementInitiationResponse with a sample serving
 // NR-CGI, TAC, NG-RANAccessPointPosition and timing-advance measured result.
-func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NGAPPDU, error) {
+func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) ([]byte, error) {
 	if opts == nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("NRPPaECIDResponseOpts is nil")
+		return nil, fmt.Errorf("NRPPaECIDResponseOpts is nil")
 	}
 
 	if opts.AMFUeNgapID == 0 {
-		return ngapType.NGAPPDU{}, fmt.Errorf("AMF UE NGAP ID is required")
+		return nil, fmt.Errorf("AMF UE NGAP ID is required")
 	}
 
 	if opts.RANUeNgapID == 0 {
-		return ngapType.NGAPPDU{}, fmt.Errorf("RAN UE NGAP ID is required")
+		return nil, fmt.Errorf("RAN UE NGAP ID is required")
 	}
 
 	nrCell := sampleNRCellIdentity
@@ -61,9 +67,11 @@ func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NG
 	nrTA := sampleNRTimingAdvance
 	rxTx := sampleUERxTxTimeDiff
 	zenith := sampleAoAZenith
+	ssRSRP := sampleSSRSRP
+	ssRSRQ := sampleSSRSRQ
 
 	result := &nrppa.ECIDResult{
-		ServingCell: nrppa.ServingCell{
+		ServingCell: nrppa.NGRANCGI{
 			PLMNIdentity:   samplePLMNIdentity,
 			NRCellIdentity: &nrCell,
 		},
@@ -76,6 +84,8 @@ func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NG
 			AzimuthRaw: sampleAoAAzimuth,
 			ZenithRaw:  &zenith,
 		},
+		SSRSRP: []nrppa.SSRSRPItem{{NRPCI: sampleNRPCI, NRARFCN: sampleNRARFCN, Value: &ssRSRP}},
+		SSRSRQ: []nrppa.SSRSRQItem{{NRPCI: sampleNRPCI, NRARFCN: sampleNRARFCN, Value: &ssRSRQ}},
 	}
 
 	nrppaPdu, err := nrppa.BuildECIDMeasurementInitiationResponse(
@@ -84,10 +94,10 @@ func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NG
 		result,
 	)
 	if err != nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("failed to build NRPPa E-CID response: %w", err)
+		return nil, fmt.Errorf("failed to build NRPPa E-CID response: %w", err)
 	}
 
-	return buildUplinkUEAssociatedNRPPaTransport(opts.AMFUeNgapID, opts.RANUeNgapID, nrppaPdu), nil
+	return buildUplinkUEAssociatedNRPPaTransport(opts.AMFUeNgapID, opts.RANUeNgapID, opts.RoutingID, nrppaPdu)
 }
 
 // sampleAccessPointPosition returns a mock NG-RANAccessPointPosition near
@@ -108,49 +118,14 @@ func sampleAccessPointPosition() *nrppa.APPosition {
 }
 
 // buildUplinkUEAssociatedNRPPaTransport wraps an NRPPa PDU octet string in an
-// NGAP UplinkUEAssociatedNRPPaTransport initiating message.
-func buildUplinkUEAssociatedNRPPaTransport(amfUeNgapID, ranUeNgapID int64, nrppaPdu []byte) ngapType.NGAPPDU {
-	var pdu ngapType.NGAPPDU
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentUplinkUEAssociatedNRPPaTransport
-	initiatingMessage.Value.UplinkUEAssociatedNRPPaTransport = new(ngapType.UplinkUEAssociatedNRPPaTransport)
-
-	uplinkNRPPaTransport := initiatingMessage.Value.UplinkUEAssociatedNRPPaTransport
-	uplinkNRPPaTransportIEs := &uplinkNRPPaTransport.ProtocolIEs
-
-	// AMF UE NGAP ID
-	ie := ngapType.UplinkUEAssociatedNRPPaTransportIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.UplinkUEAssociatedNRPPaTransportIEsPresentAMFUENGAPID
-	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-	ie.Value.AMFUENGAPID.Value = amfUeNgapID
-	uplinkNRPPaTransportIEs.List = append(uplinkNRPPaTransportIEs.List, ie)
-
-	// RAN UE NGAP ID
-	ie = ngapType.UplinkUEAssociatedNRPPaTransportIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.UplinkUEAssociatedNRPPaTransportIEsPresentRANUENGAPID
-	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-	ie.Value.RANUENGAPID.Value = ranUeNgapID
-	uplinkNRPPaTransportIEs.List = append(uplinkNRPPaTransportIEs.List, ie)
-
-	// NRPPa PDU
-	ie = ngapType.UplinkUEAssociatedNRPPaTransportIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDNRPPaPDU
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.UplinkUEAssociatedNRPPaTransportIEsPresentNRPPaPDU
-	ie.Value.NRPPaPDU = new(ngapType.NRPPaPDU)
-	ie.Value.NRPPaPDU.Value = nrppaPdu
-	uplinkNRPPaTransportIEs.List = append(uplinkNRPPaTransportIEs.List, ie)
-
-	return pdu
+// NGAP UPLINK UE-ASSOCIATED NRPPA TRANSPORT (TS 38.413 §9.2.9.2). The Routing
+// ID is echoed from the request so the AMF can route the answer back to the LMF
+// that asked; internal/tester/s1enb echoes its LPPa Routing ID the same way.
+func buildUplinkUEAssociatedNRPPaTransport(amfUeNgapID, ranUeNgapID int64, routingID ngap.RoutingID, nrppaPdu []byte) ([]byte, error) {
+	return (&ngap.UplinkUEAssociatedNRPPaTransport{
+		AMFUENGAPID: ngap.AMFUENGAPID(amfUeNgapID),
+		RANUENGAPID: ngap.RANUENGAPID(ranUeNgapID),
+		RoutingID:   routingID,
+		NRPPaPDU:    nrppaPdu,
+	}).Marshal()
 }

@@ -1,14 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 // Captured from a live deployment: an Error Indication naming the UE-NGAP-ID
@@ -21,7 +19,7 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.Value.Error != "" {
 		t.Fatalf("expected no decode error, got %q", ngapMsg.Value.Error)
@@ -35,8 +33,8 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Errorf("expected ProcedureCode=ErrorIndication, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeErrorIndication {
-		t.Errorf("expected ProcedureCode value=%d, got %d", ngapType.ProcedureCodeErrorIndication, ngapMsg.ProcedureCode.Value)
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcErrorIndication) {
+		t.Errorf("expected ProcedureCode value=%d, got %d", lib.ProcErrorIndication, ngapMsg.ProcedureCode.Value)
 	}
 
 	// Error Indication is ignore at both the message and the IE level
@@ -55,8 +53,8 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
-		t.Errorf("expected ID value=%d, got %d", ngapType.ProtocolIEIDAMFUENGAPID, item0.ID.Value)
+	if item0.ID.Value != int64(idAMFUENGAPID) {
+		t.Errorf("expected ID value=%d, got %d", idAMFUENGAPID, item0.ID.Value)
 	}
 
 	amfUeNgapID, ok := item0.Value.(int64)
@@ -74,8 +72,8 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
-		t.Errorf("expected ID value=%d, got %d", ngapType.ProtocolIEIDRANUENGAPID, item1.ID.Value)
+	if item1.ID.Value != int64(idRANUENGAPID) {
+		t.Errorf("expected ID value=%d, got %d", idRANUENGAPID, item1.ID.Value)
 	}
 
 	ranUeNgapID, ok := item1.Value.(int64)
@@ -95,24 +93,28 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Errorf("expected ID=Cause, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != ngapType.ProtocolIEIDCause {
-		t.Errorf("expected ID value=%d, got %d", ngapType.ProtocolIEIDCause, item2.ID.Value)
+	if item2.ID.Value != int64(idCause) {
+		t.Errorf("expected ID value=%d, got %d", idCause, item2.ID.Value)
 	}
 
-	cause, ok := item2.Value.(utils.EnumField)
+	cause, ok := item2.Value.(Cause)
 	if !ok {
-		t.Fatalf("expected Cause value type=utils.EnumField, got %T", item2.Value)
+		t.Fatalf("expected Cause value type=Cause, got %T", item2.Value)
 	}
 
-	if cause.Label != "UnknownLocalUENGAPID" {
-		t.Errorf("expected Cause=UnknownLocalUENGAPID, got %s", cause.Label)
+	if cause.Group.Label != "radioNetwork" {
+		t.Errorf("expected Cause group=radioNetwork, got %s", cause.Group.Label)
 	}
 
-	if cause.Value != int64(ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID) {
-		t.Errorf("expected Cause value=%d, got %d", ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID, cause.Value)
+	if cause.Value.Label != "unknown-local-UE-NGAP-ID" {
+		t.Errorf("expected Cause=unknown-local-UE-NGAP-ID, got %s", cause.Value.Label)
 	}
 
-	if cause.Unknown {
+	if cause.Value.Value != int64(lib.CauseRadioNetworkUnknownLocalUENGAPID) {
+		t.Errorf("expected Cause value=%d, got %d", lib.CauseRadioNetworkUnknownLocalUENGAPID, cause.Value.Value)
+	}
+
+	if cause.Value.Unknown {
 		t.Errorf("expected Cause to be a known enum value")
 	}
 }
@@ -123,9 +125,9 @@ func TestDecodeNGAPMessage_ErrorIndicationSummary(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
-	expected := "ErrorIndication, AMF-UE=2, RAN-UE=92, Cause=UnknownLocalUENGAPID"
+	expected := "ErrorIndication, AMF-UE=2, RAN-UE=92, Cause=unknown-local-UE-NGAP-ID"
 	if ngapMsg.Summary != expected {
 		t.Errorf("expected Summary=%q, got %q", expected, ngapMsg.Summary)
 	}

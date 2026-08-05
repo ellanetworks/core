@@ -170,6 +170,207 @@ func decodeBitStringUint(r *per.Reader, enc per.Encoding, nbits int) (uint64, er
 	return bitsToUint(b, nbits), nil
 }
 
+// userLocationCellIDBits is the CGI cell-identity width for each kind, and the
+// CHOICE alternative that selects it.
+var userLocationCellIDBits = map[UserLocationInformationKind]struct {
+	alt  int64
+	bits int
+}{
+	UserLocationEUTRA: {userLocationInformationEUTRA, EUTRACellIdentityBits},
+	UserLocationNR:    {userLocationInformationNR, NRCellIdentityBits},
+}
+
+func (u UserLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if u.Kind == UserLocationN3IWF {
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, userLocationInformationAlternatives-1, userLocationInformationN3IWF); err != nil {
+			return err
+		}
+
+		// SEQUENCE { iPAddress, portNumber, iE-Extensions OPTIONAL, ... }:
+		// extension bit, then the one OPTIONAL field's presence bit.
+		w.WriteBit(false)
+		w.WriteBit(false)
+
+		if err := u.IPAddress.MarshalPER(w, enc); err != nil {
+			return err
+		}
+
+		return per.EncodeOctetString(w, enc, 2, 2, true, true, false,
+			[]byte{byte(u.PortNumber >> 8), byte(u.PortNumber)})
+	}
+
+	shape, ok := userLocationCellIDBits[u.Kind]
+	if !ok {
+		return fmt.Errorf("ngap: invalid UserLocationInformation kind %d", u.Kind)
+	}
+
+	if shape.bits < 64 && u.CellIdentity >= 1<<uint(shape.bits) {
+		return fmt.Errorf("ngap: cell identity %d exceeds the %d-bit field of kind %d",
+			u.CellIdentity, shape.bits, u.Kind)
+	}
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, userLocationInformationAlternatives-1, shape.alt); err != nil {
+		return err
+	}
+
+	// UserLocationInformationXxx ::= SEQUENCE { <CGI>, tAI, timeStamp OPTIONAL,
+	// iE-Extensions OPTIONAL, ... }: extension bit, then a presence bit each for
+	// timeStamp and iE-Extensions.
+	w.WriteBit(false)
+	w.WriteBit(u.TimeStamp != nil)
+	w.WriteBit(false)
+
+	// Xxx-CGI ::= SEQUENCE { pLMNIdentity, <cell identity>, iE-Extensions
+	// OPTIONAL, ... }: its own extension bit and presence bit.
+	w.WriteBit(false)
+	w.WriteBit(false)
+
+	if err := u.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+
+	if err := encodeBitStringUint(w, enc, u.CellIdentity, shape.bits); err != nil {
+		return err
+	}
+
+	if err := u.TAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+
+	if u.TimeStamp != nil {
+		return per.EncodeOctetString(w, enc, 4, 4, true, true, false, u.TimeStamp[:])
+	}
+
+	return nil
+}
+
+func (u *UserLocationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	alt, err := per.DecodeConstrainedWholeNumber(r, enc, 0, userLocationInformationAlternatives-1)
+	if err != nil {
+		return fmt.Errorf("ngap: UserLocationInformation choice: %w", err)
+	}
+
+	var kind UserLocationInformationKind
+
+	switch alt {
+	case userLocationInformationEUTRA:
+		kind = UserLocationEUTRA
+	case userLocationInformationNR:
+		kind = UserLocationNR
+	case userLocationInformationN3IWF:
+		return u.unmarshalN3IWF(r, enc)
+	case userLocationInformationChoiceExtensions:
+		return decodeChoiceExtension(r, enc, "UserLocationInformation")
+	default:
+		// Leave the value untouched: a zero location must not read as one the
+		// peer reported.
+		return fmt.Errorf("%w: UserLocationInformation alternative %d", errNotComprehended, alt)
+	}
+
+	bits := userLocationCellIDBits[kind].bits
+
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	hasTimeStamp, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	extContainer, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	cgiExtBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	cgiExtContainer, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	var out UserLocationInformation
+
+	out.Kind = kind
+
+	if err := out.PLMNIdentity.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	if out.CellIdentity, err = decodeBitStringUint(r, enc, bits); err != nil {
+		return err
+	}
+
+	if err := skipSequenceExtensionsPER(r, enc, cgiExtContainer, cgiExtBit); err != nil {
+		return err
+	}
+
+	if err := out.TAI.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	if hasTimeStamp {
+		b, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+		if err != nil {
+			return err
+		}
+
+		var ts TimeStamp
+
+		copy(ts[:], b)
+
+		out.TimeStamp = &ts
+	}
+
+	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+		return err
+	}
+
+	*u = out
+
+	return nil
+}
+
+func (u *UserLocationInformation) unmarshalN3IWF(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	extContainer, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	var out UserLocationInformation
+
+	out.Kind = UserLocationN3IWF
+
+	if err := out.IPAddress.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	port, err := per.DecodeOctetString(r, enc, 2, 2, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	out.PortNumber = PortNumber(uint16(port[0])<<8 | uint16(port[1]))
+
+	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
+		return err
+	}
+
+	*u = out
+
+	return nil
+}
+
 func (g GlobalRANNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	shape, ok := ranNodeIDShapes[g.Kind]
 	if !ok {
@@ -266,7 +467,7 @@ func (g *GlobalRANNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 }
 
 func (u UERetentionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, ueRetentionInformationRootCount, true, int64(u))
+	return encodeRootEnumerated(w, enc, ueRetentionInformationRootCount, int64(u), "UERetentionInformation")
 }
 
 func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -281,7 +482,7 @@ func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 }
 
 func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, pagingDRXRootCount, true, int64(p))
+	return encodeRootEnumerated(w, enc, pagingDRXRootCount, int64(p), "PagingDRX")
 }
 
 func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -291,6 +492,306 @@ func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	*p = PagingDRX(idx)
+
+	return nil
+}
+
+func (a AllowedNSSAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofAllowedSNSSAIs, []AllowedNSSAIItem(a))
+}
+
+func (a *AllowedNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AllowedNSSAIItem](r, enc, 1, maxnoofAllowedSNSSAIs)
+	if err != nil {
+		return err
+	}
+
+	*a = items
+
+	return nil
+}
+
+func (l PDUSessionResourceNotifyList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceNotifyItem(l))
+}
+
+func (l *PDUSessionResourceNotifyList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceNotifyItem](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceReleasedListNot) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceReleasedItemNot(l))
+}
+
+func (l *PDUSessionResourceReleasedListNot) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceReleasedItemNot](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceModifyListModInd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceModifyItemModInd(l))
+}
+
+func (l *PDUSessionResourceModifyListModInd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceModifyItemModInd](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceModifyListModCfm) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceModifyItemModCfm(l))
+}
+
+func (l *PDUSessionResourceModifyListModCfm) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceModifyItemModCfm](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToModifyListModCfm) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToModifyItemModCfm(l))
+}
+
+func (l *PDUSessionResourceFailedToModifyListModCfm) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToModifyItemModCfm](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceModifyListModReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceModifyItemModReq(l))
+}
+
+func (l *PDUSessionResourceModifyListModReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceModifyItemModReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceModifyListModRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceModifyItemModRes(l))
+}
+
+func (l *PDUSessionResourceModifyListModRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceModifyItemModRes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToModifyListModRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToModifyItemModRes(l))
+}
+
+func (l *PDUSessionResourceFailedToModifyListModRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToModifyItemModRes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceToReleaseListRelCmd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceToReleaseItemRelCmd(l))
+}
+
+func (l *PDUSessionResourceToReleaseListRelCmd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceToReleaseItemRelCmd](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceReleasedListRelRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceReleasedItemRelRes(l))
+}
+
+func (l *PDUSessionResourceReleasedListRelRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceReleasedItemRelRes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSetupListSUReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemSUReq(l))
+}
+
+func (l *PDUSessionResourceSetupListSUReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemSUReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSetupListSURes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemSURes(l))
+}
+
+func (l *PDUSessionResourceSetupListSURes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemSURes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListSURes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemSURes(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListSURes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemSURes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSetupListCxtReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemCxtReq(l))
+}
+
+func (l *PDUSessionResourceSetupListCxtReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemCxtReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSetupListCxtRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemCxtRes(l))
+}
+
+func (l *PDUSessionResourceSetupListCxtRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemCxtRes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListCxtRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemCxtRes(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListCxtRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemCxtRes](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListCxtFail) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemCxtFail(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListCxtFail) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemCxtFail](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceListCxtRelReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceItemCxtRelReq(l))
+}
+
+func (l *PDUSessionResourceListCxtRelReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceItemCxtRelReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceListCxtRelCpl) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceItemCxtRelCpl(l))
+}
+
+func (l *PDUSessionResourceListCxtRelCpl) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceItemCxtRelCpl](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
 
 	return nil
 }
@@ -479,15 +980,16 @@ func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, ex
 
 	var present []bool
 
+	// A bitmap wider than 64 bits arrives fragmented (X.691 §19.7 via §11.9.3),
+	// so the callback runs once per fragment and the bits accumulate.
 	err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-		present = make([]bool, count)
-		for i := range present {
+		for range count {
 			b, err := r.ReadBit()
 			if err != nil {
 				return err
 			}
 
-			present[i] = b
+			present = append(present, b)
 		}
 
 		return nil
@@ -558,4 +1060,394 @@ func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, 
 
 func perIEDecode(b []byte, u per.Unmarshaler) error {
 	return u.UnmarshalPER(per.NewReader(b), per.Aligned)
+}
+
+func (l QosFlowSetupRequestList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowSetupRequestItem(l))
+}
+
+func (l *QosFlowSetupRequestList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowSetupRequestItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowAddOrModifyResponseList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowAddOrModifyResponseItem(l))
+}
+
+func (l *QosFlowAddOrModifyResponseList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowAddOrModifyResponseItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowListWithCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowWithCauseItem(l))
+}
+
+func (l *QosFlowListWithCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowWithCauseItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l AssociatedQosFlowList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []AssociatedQosFlowItem(l))
+}
+
+func (l *AssociatedQosFlowList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AssociatedQosFlowItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowPerTNLInformationList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivityMinusOne, []QosFlowPerTNLInformationItem(l))
+}
+
+func (l *QosFlowPerTNLInformationList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowPerTNLInformationItem](r, enc, 1, maxnoofMultiConnectivityMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l UPTransportLayerInformationList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivityMinusOne, []UPTransportLayerInformationItem(l))
+}
+
+func (l *UPTransportLayerInformationList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[UPTransportLayerInformationItem](r, enc, 1, maxnoofMultiConnectivityMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l UPTransportLayerInformationPairList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivityMinusOne, []UPTransportLayerInformationPairItem(l))
+}
+
+func (l *UPTransportLayerInformationPairList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[UPTransportLayerInformationPairItem](r, enc, 1, maxnoofMultiConnectivityMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l ULNGUUPTNLModifyList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivity, []ULNGUUPTNLModifyItem(l))
+}
+
+func (l *ULNGUUPTNLModifyList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[ULNGUUPTNLModifyItem](r, enc, 1, maxnoofMultiConnectivity)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowModifyConfirmList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowModifyConfirmItem(l))
+}
+
+func (l *QosFlowModifyConfirmList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowModifyConfirmItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowAddOrModifyRequestList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowAddOrModifyRequestItem(l))
+}
+
+func (l *QosFlowAddOrModifyRequestList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowAddOrModifyRequestItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowAcceptedList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowAcceptedItem(l))
+}
+
+func (l *QosFlowAcceptedList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowAcceptedItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowToBeForwardedList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowToBeForwardedItem(l))
+}
+
+func (l *QosFlowToBeForwardedList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowToBeForwardedItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l QosFlowListWithDataForwarding) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowItemWithDataForwarding(l))
+}
+
+func (l *QosFlowListWithDataForwarding) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowItemWithDataForwarding](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l DataForwardingResponseDRBList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofDRBs, []DataForwardingResponseDRBItem(l))
+}
+
+func (l *DataForwardingResponseDRBList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[DataForwardingResponseDRBItem](r, enc, 1, maxnoofDRBs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceListHORqd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceItemHORqd(l))
+}
+
+func (l *PDUSessionResourceListHORqd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceItemHORqd](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceHandoverList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceHandoverItem(l))
+}
+
+func (l *PDUSessionResourceHandoverList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceHandoverItem](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSetupListHOReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemHOReq(l))
+}
+
+func (l *PDUSessionResourceSetupListHOReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemHOReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceAdmittedList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceAdmittedItem(l))
+}
+
+func (l *PDUSessionResourceAdmittedList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceAdmittedItem](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListHOAck) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemHOAck(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListHOAck) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemHOAck](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceToBeSwitchedDLList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceToBeSwitchedDLItem(l))
+}
+
+func (l *PDUSessionResourceToBeSwitchedDLList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceToBeSwitchedDLItem](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListPSReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemPSReq(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListPSReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemPSReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSwitchedList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSwitchedItem(l))
+}
+
+func (l *PDUSessionResourceSwitchedList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSwitchedItem](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceReleasedListPSAck) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceReleasedItemPSAck(l))
+}
+
+func (l *PDUSessionResourceReleasedListPSAck) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceReleasedItemPSAck](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceReleasedListPSFail) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceReleasedItemPSFail(l))
+}
+
+func (l *PDUSessionResourceReleasedListPSFail) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceReleasedItemPSFail](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l UEPresenceInAreaOfInterestList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofAoI, []UEPresenceInAreaOfInterestItem(l))
+}
+
+func (l *UEPresenceInAreaOfInterestList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[UEPresenceInAreaOfInterestItem](r, enc, 1, maxnoofAoI)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceToReleaseListHOCmd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceToReleaseItemHOCmd(l))
+}
+
+func (l *PDUSessionResourceToReleaseListHOCmd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceToReleaseItemHOCmd](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
 }

@@ -1,19 +1,17 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
@@ -21,9 +19,11 @@ func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.PDUSessionResourceSetupResponse{}
-
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
+	// reaches the handler. §10.3.5 has the receiver ignore it and carry on, and
+	// §9.3.1.3 makes an ignore-criticality IE unreportable, so the message is
+	// dropped without a reply.
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceSetupResponse{})
 
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -34,14 +34,12 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
-	amfID := int64(1099511627775)
-	ranID := int64(99)
-	msg := decode.PDUSessionResourceSetupResponse{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
+	msg := &ngap.PDUSessionResourceSetupResponse{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(1099511627775)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(99)),
 	}
 
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 1 {
@@ -49,20 +47,24 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 	}
 }
 
+// An absent AMF UE NGAP ID leaves nothing to look the connection up by, and the
+// IE's ignore criticality makes it unreportable (§9.3.1.3), so the message is
+// dropped. Contrast TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID,
+// where the id is present but names no connection: that is the unknown local AP
+// ID of §10.6, which does draw an Error Indication.
 func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
-	ranID := int64(42)
-	msg := decode.PDUSessionResourceSetupResponse{
-		RANUENGAPID: &ranID,
+	msg := &ngap.PDUSessionResourceSetupResponse{
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(42)),
 	}
 
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }
 
@@ -82,21 +84,13 @@ func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	transfer := []byte{0xAA, 0xBB}
-	amfUeNgapID := int64(10)
-	ranUeNgapID := int64(1)
-
-	msg := decode.PDUSessionResourceSetupResponse{
-		AMFUENGAPID: &amfUeNgapID,
-		RANUENGAPID: &ranUeNgapID,
-		SetupItems: []ngapType.PDUSessionResourceSetupItemSURes{
-			{
-				PDUSessionID:                            ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceSetupResponseTransfer: transfer,
-			},
-		},
+	msg := &ngap.PDUSessionResourceSetupResponse{
+		AMFUENGAPID:             ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID:             ngap.Ptr(ngap.RANUENGAPID(1)),
+		PDUSessionResourceSetup: ngap.PDUSessionResourceSetupListSURes{{PDUSessionID: 1, Transfer: ngap.TransferContainer(transfer)}},
 	}
 
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeSmf.PduResSetupRspCalls) != 1 {
 		t.Fatalf("expected 1 PduResSetupRsp call, got %d", len(fakeSmf.PduResSetupRspCalls))
@@ -123,21 +117,13 @@ func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testi
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
 	transfer := []byte{0xCC, 0xDD}
-	amfUeNgapID := int64(10)
-	ranUeNgapID := int64(1)
-
-	msg := decode.PDUSessionResourceSetupResponse{
-		AMFUENGAPID: &amfUeNgapID,
-		RANUENGAPID: &ranUeNgapID,
-		FailedToSetupItems: []ngapType.PDUSessionResourceFailedToSetupItemSURes{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceSetupUnsuccessfulTransfer: transfer,
-			},
-		},
+	msg := &ngap.PDUSessionResourceSetupResponse{
+		AMFUENGAPID:              ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(1)),
+		PDUSessionResourceFailed: ngap.PDUSessionResourceFailedToSetupListSURes{{PDUSessionID: 1, Transfer: ngap.TransferContainer(transfer)}},
 	}
 
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeSmf.PduResSetupFailCalls) != 1 {
 		t.Fatalf("expected 1 PduResSetupFail call, got %d", len(fakeSmf.PduResSetupFailCalls))
@@ -145,5 +131,32 @@ func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testi
 
 	if fakeSmf.PduResSetupFailCalls[0].SmContextRef != "ref-session-1" {
 		t.Errorf("SmContextRef = %q, want %q", fakeSmf.PduResSetupFailCalls[0].SmContextRef, "ref-session-1")
+	}
+}
+
+// The NG-RAN node may report the UE's serving cell with the setup outcome; the
+// AMF records it so a later location query is answered from where the UE is
+// (TS 38.413 §9.2.1.2).
+func TestHandlePDUSessionResourceSetupResponse_RecordsUserLocation(t *testing.T) {
+	amfInstance := newTestAMF()
+	ran := newTestRadio(amfInstance)
+
+	amfUe := amf.NewUeContext()
+	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
+	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
+
+	plmn := ngap.PLMNIdentity{0x00, 0xf1, 0x10}
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceSetupResponse{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
+		UserLocationInformation: &ngap.UserLocationInformation{
+			Kind: ngap.UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
+			TAI: ngap.TAI{PLMNIdentity: plmn, TAC: 7},
+		},
+	})
+
+	loc := ueConn.Location.NrLocation
+	if loc == nil || loc.Ncgi == nil || loc.Ncgi.NrCellID != "123456789" {
+		t.Fatalf("serving cell not recorded: %+v", loc)
 	}
 }

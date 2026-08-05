@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
@@ -9,9 +9,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	amfnas "github.com/ellanetworks/core/internal/amf/nas"
-	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // realNASAdapter wires the actual NAS layer (not the fake) into the AMF, so a routing test
@@ -39,16 +38,16 @@ func TestHandleInitialUEMessage_MalformedServiceRequest_Rejects96(t *testing.T) 
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      []byte{0x7e, 0x00, 0x4c}, // plain SERVICE REQUEST header, truncated
+		NASPDU:      ngap.NASPDU{0x7e, 0x00, 0x4c}, // plain SERVICE REQUEST header, truncated
 	})
 
 	if len(sender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("a recognizable service request must never be dropped: want 1 downlink (SERVICE REJECT), got %d", len(sender.SentDownlinkNASTransport))
 	}
 
-	pdu := sender.SentDownlinkNASTransport[0].NasPdu
+	pdu := sender.SentDownlinkNASTransport[0].NASPDU
 	if len(pdu) < 4 || pdu[2] != uint8(fgs.MsgServiceReject) {
 		t.Fatalf("downlink is not a plain SERVICE REJECT: % x", pdu)
 	}

@@ -178,7 +178,7 @@ func TestRANConfigurationUpdateFailureGoldenDecode(t *testing.T) {
 	}
 }
 
-// Cause is mandatory but ignore, which binds the two ends differently: §10.3.3
+// Cause is mandatory but ignore, which binds the two ends differently: §9.1.1
 // refuses to encode it unset, §10.3.5 still delivers it absent. Hence nil-able.
 func TestRANConfigurationUpdateFailureMissingCause(t *testing.T) {
 	if _, err := (&RANConfigurationUpdateFailure{TimeToWait: Ptr(TimeToWaitV10s)}).Marshal(); err == nil {

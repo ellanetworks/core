@@ -5,13 +5,11 @@ package smf
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf/ngap"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -83,26 +81,20 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 // address in the Modify Indication Transfer and returns the associated QoS
 // flows (TS 38.413 §8.2.5.2).
 func handleModifyIndicationTransfer(b []byte, smContext *SMContext) ([]int64, error) {
-	transfer := ngapType.PDUSessionResourceModifyIndicationTransfer{}
-
-	if err := aper.UnmarshalWithParams(b, &transfer, "valueExt"); err != nil {
+	transfer, err := libngap.ParsePDUSessionResourceModifyIndicationTransfer(b)
+	if err != nil {
 		return nil, err
 	}
 
-	tnl := transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation
-	if tnl.Present != ngapType.UPTransportLayerInformationPresentGTPTunnel {
-		return nil, errors.New("modify indication transfer DL QoS flow per TNL information is not a GTP tunnel")
-	}
-
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(tnl.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel))
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
 	}
 
-	qfis := make([]int64, 0, len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List))
-	for _, item := range transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List {
-		qfis = append(qfis, item.QosFlowIdentifier.Value)
+	qfis := make([]int64, 0, len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList))
+	for _, item := range transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList {
+		qfis = append(qfis, int64(item.QosFlowIdentifier))
 	}
 
 	return qfis, nil

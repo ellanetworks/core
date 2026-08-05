@@ -226,7 +226,7 @@ var pagingIEs = []ieSpec[Paging]{
 					return fmt.Errorf("ngap: PagingPriority %d outside the root values", *m.PagingPriority)
 				}
 
-				return per.EncodeEnumerated(w, enc, pagingPriorityRootCount, true, int64(*m.PagingPriority))
+				return encodeRootEnumerated(w, enc, pagingPriorityRootCount, int64(*m.PagingPriority), "PagingPriority")
 			}), true
 		},
 	},
@@ -274,7 +274,7 @@ var pagingIEs = []ieSpec[Paging]{
 					return fmt.Errorf("ngap: PagingOrigin %d outside the root values", *m.PagingOrigin)
 				}
 
-				return per.EncodeEnumerated(w, enc, pagingOriginRootCount, true, int64(*m.PagingOrigin))
+				return encodeRootEnumerated(w, enc, pagingOriginRootCount, int64(*m.PagingOrigin), "PagingOrigin")
 			}), true
 		},
 	},

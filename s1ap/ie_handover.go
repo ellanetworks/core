@@ -25,7 +25,7 @@ const (
 )
 
 func (t HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, handoverTypeRootCount, true, int64(t))
+	return encodeRootEnumerated(w, enc, handoverTypeRootCount, int64(t), "HandoverType")
 }
 
 func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -56,6 +56,55 @@ func (c *TransparentContainer) UnmarshalPER(r *per.Reader, enc per.Encoding) err
 	*c = TransparentContainer(b)
 
 	return nil
+}
+
+// NASSecurityParametersfromE-UTRAN ::= OCTET STRING (TS 36.413 §9.2.3.30). The
+// octets are the NAS security parameters TS 33.401 §9.2 defines for a handover
+// out of E-UTRAN; S1AP relays them without looking inside.
+type NASSecurityParametersfromEUTRAN []byte
+
+func (p NASSecurityParametersfromEUTRAN) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, p)
+}
+
+func (p *NASSecurityParametersfromEUTRAN) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*p = NASSecurityParametersfromEUTRAN(b)
+
+	return nil
+}
+
+// NASSecurityParameterstoE-UTRAN ::= OCTET STRING (TS 36.413 §9.2.3.31). The
+// mirror of the from-E-UTRAN parameters, sent on a handover into E-UTRAN.
+type NASSecurityParameterstoEUTRAN []byte
+
+func (p NASSecurityParameterstoEUTRAN) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, p)
+}
+
+func (p *NASSecurityParameterstoEUTRAN) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*p = NASSecurityParameterstoEUTRAN(b)
+
+	return nil
+}
+
+// SecurityContext ::= SEQUENCE { nextHopChainingCount, nextHopParameter,
+// iE-Extensions OPTIONAL } (extensible) (TS 36.413 §9.2.1.26). The {NH, NCC}
+// pair the target derives the next KeNB from (TS 33.401).
+type SecurityContext struct {
+	_                    [0]struct{} `per:"extseq"`
+	NextHopChainingCount uint8       `per:",range:0..7"`
+	NextHopParameter     SecurityKey
+	_                    ieExtensions `per:",skip"`
 }
 
 // TargeteNB-ID ::= SEQUENCE { global-ENB-ID, selected-TAI, iE-Extensions
@@ -133,4 +182,19 @@ type ERABAdmittedItem struct {
 	ULTransportLayerAddr  TransportLayerAddress `per:",optional"`
 	ULGTPTEID             *GTPTEID              `per:",optional"`
 	_                     ieExtensions          `per:",skip"`
+}
+
+// E-RABDataForwardingItem ::= SEQUENCE { e-RAB-ID, dL-transportLayerAddress
+// OPTIONAL, dL-gTP-TEID OPTIONAL, uL-TransportLayerAddress OPTIONAL, uL-GTP-TEID
+// OPTIONAL, iE-Extensions OPTIONAL } (extensible) (TS 36.413). The 5G
+// counterpart is not an IE of the message body: NGAP carries the same tunnels
+// inside the per-session HandoverCommandTransfer.
+type ERABDataForwardingItem struct {
+	_                    [0]struct{} `per:"extseq"`
+	ERABID               ERABID
+	DLTransportLayerAddr TransportLayerAddress `per:",optional"`
+	DLGTPTEID            *GTPTEID              `per:",optional"`
+	ULTransportLayerAddr TransportLayerAddress `per:",optional"`
+	ULGTPTEID            *GTPTEID              `per:",optional"`
+	_                    ieExtensions          `per:",skip"`
 }

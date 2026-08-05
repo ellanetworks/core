@@ -209,7 +209,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000002"},
 		}
 		ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "000001"}}
-		ue.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "2000000"}
+		ue.Ambr = &models.Ambr{Uplink: models.BitRateFromBps(1000000), Downlink: models.BitRateFromBps(2000000)}
 		ue.SmContextList[5] = &amf.SmContext{
 			Ref:    "imsi-001010000000002-5",
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
@@ -334,12 +334,12 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	}
 
 	ambr := jsonMap(t, subscription, "ambr")
-	if uplink, ok := ambr["Uplink"].(string); !ok || uplink != "1000000" {
-		t.Fatalf("expected subscription.ambr.Uplink to be '1000000', got %v", ambr["Uplink"])
+	if uplink, ok := ambr["Uplink"].(string); !ok || uplink != "1 Mbps" {
+		t.Fatalf("expected subscription.ambr.Uplink to be '1 Mbps', got %v", ambr["Uplink"])
 	}
 
-	if downlink, ok := ambr["Downlink"].(string); !ok || downlink != "2000000" {
-		t.Fatalf("expected subscription.ambr.Downlink to be '2000000', got %v", ambr["Downlink"])
+	if downlink, ok := ambr["Downlink"].(string); !ok || downlink != "2 Mbps" {
+		t.Fatalf("expected subscription.ambr.Downlink to be '2 Mbps', got %v", ambr["Downlink"])
 	}
 
 	ranConn := jsonMap(t, ueExport, "ran_connection")

@@ -1,27 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	decngap "github.com/ellanetworks/core/internal/decoder/ngap"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/ellanetworks/core/ngap"
-)
-
-// ProtocolIE-ID values these assertions cite (TS 38.413, NGAP-Constants).
-const (
-	idAMFName             int64 = 1
-	idCause               int64 = 15
-	idDefaultPagingDRX    int64 = 21
-	idGlobalRANNodeID     int64 = 27
-	idPLMNSupportList     int64 = 80
-	idRANNodeName         int64 = 82
-	idRelativeAMFCapacity int64 = 86
-	idServedGUAMIList     int64 = 96
-	idSupportedTAList     int64 = 102
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
@@ -32,7 +18,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := decngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
@@ -42,7 +28,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int64(ngap.ProcNGSetup) {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
 		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -64,7 +50,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=GlobalRANNodeID, got %v", item0.ID)
 	}
 
-	if item0.ID.Value != (idGlobalRANNodeID) {
+	if item0.ID.Value != int64(idGlobalRANNodeID) {
 		t.Errorf("expected ID value=27, got %d", item0.ID.Value)
 	}
 
@@ -76,7 +62,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	globalRANNodeID, ok := item0.Value.(decngap.GlobalRANNodeIDIE)
+	globalRANNodeID, ok := item0.Value.(GlobalRANNodeIDIE)
 	if !ok {
 		t.Fatalf("expected GlobalRANNodeIDIE, got %T", item0.Value)
 	}
@@ -107,7 +93,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=RANNodeName, got %v", item1.ID)
 	}
 
-	if item1.ID.Value != (idRANNodeName) {
+	if item1.ID.Value != int64(idRANNodeName) {
 		t.Errorf("expected ID value=82, got %d", item1.ID.Value)
 	}
 
@@ -134,7 +120,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=SupportedTAList, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != (idSupportedTAList) {
+	if item2.ID.Value != int64(idSupportedTAList) {
 		t.Errorf("expected ID value=102, got %d", item2.ID.Value)
 	}
 
@@ -146,7 +132,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
-	supportedTAList, ok := item2.Value.([]decngap.SupportedTA)
+	supportedTAList, ok := item2.Value.([]SupportedTA)
 	if !ok {
 		t.Fatalf("expected SupportedTAList, got %T", item2.Value)
 	}
@@ -197,7 +183,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=DefaultPagingDRX, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != (idDefaultPagingDRX) {
+	if item3.ID.Value != int64(idDefaultPagingDRX) {
 		t.Errorf("expected ID value=21, got %d", item3.ID.Value)
 	}
 
@@ -218,7 +204,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected DefaultPagingDRX=v128, got %s", defaultPagingDRX.Label)
 	}
 
-	if defaultPagingDRX.Value != int64(ngap.PagingDRXv128) {
+	if defaultPagingDRX.Value != int64(lib.PagingDRXv128) {
 		t.Errorf("expected DefaultPagingDRX value=2, got %d", defaultPagingDRX.Value)
 	}
 }
@@ -231,7 +217,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := decngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "SuccessfulOutcome" {
 		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
@@ -241,7 +227,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int64(ngap.ProcNGSetup) {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
 		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -263,7 +249,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=AMFName, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != (idAMFName) {
+	if item0.ID.Value != int64(idAMFName) {
 		t.Errorf("expected ID value=1, got %d", item0.ID.Value)
 	}
 
@@ -290,7 +276,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=ServedGUAMIList, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != (idServedGUAMIList) {
+	if item1.ID.Value != int64(idServedGUAMIList) {
 		t.Errorf("expected ID value=96, got %d", item1.ID.Value)
 	}
 
@@ -302,7 +288,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
 	}
 
-	servedGUAMIList, ok := item1.Value.([]decngap.Guami)
+	servedGUAMIList, ok := item1.Value.([]Guami)
 	if !ok {
 		t.Fatalf("expected ServedGUAMIList, got %T", item1.Value)
 	}
@@ -343,7 +329,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=RelativeAMFCapacity, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != (idRelativeAMFCapacity) {
+	if item2.ID.Value != int64(idRelativeAMFCapacity) {
 		t.Errorf("expected ID value=86, got %d", item2.ID.Value)
 	}
 
@@ -370,7 +356,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=PLMNSupportList, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != (idPLMNSupportList) {
+	if item3.ID.Value != int64(idPLMNSupportList) {
 		t.Errorf("expected ID value=80, got %d", item3.ID.Value)
 	}
 
@@ -382,7 +368,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item3.Criticality.Value)
 	}
 
-	plmnSupportList, ok := item3.Value.([]decngap.PLMN)
+	plmnSupportList, ok := item3.Value.([]PLMN)
 	if !ok {
 		t.Fatalf("expected PLMNSupportList, got %T", item3.Value)
 	}
@@ -428,7 +414,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := decngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "UnsuccessfulOutcome" {
 		t.Errorf("expected PDUType=UnsuccessfulOutcome, got %v", ngapMsg.PDUType)
@@ -438,7 +424,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != int64(ngap.ProcNGSetup) {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
 		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -460,7 +446,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected ID=Cause, got %v", item0.ID)
 	}
 
-	if item0.ID.Value != (idCause) {
+	if item0.ID.Value != int64(idCause) {
 		t.Errorf("expected ID value=15, got %d", item0.ID.Value)
 	}
 
@@ -472,16 +458,16 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
-	cause, ok := item0.Value.(utils.EnumField)
+	cause, ok := item0.Value.(Cause)
 	if !ok {
 		t.Fatalf("expected Cause, got %T", item0.Value)
 	}
 
-	if cause.Label != "UnknownPLMN" {
-		t.Errorf("expected Cause=UnknownPLMN, got %v", cause.Label)
+	if cause.Value.Label != "unknown-PLMN-or-SNPN" {
+		t.Errorf("expected Cause=unknown-PLMN-or-SNPN, got %v", cause.Value.Label)
 	}
 
-	if cause.Value != int64(ngap.CauseMiscUnknownPLMNOrSNPN) {
-		t.Errorf("expected Cause value=%d, got %d", int64(ngap.CauseMiscUnknownPLMNOrSNPN), cause.Value)
+	if cause.Value.Value != int64(lib.CauseMiscUnknownPLMNOrSNPN) {
+		t.Errorf("expected Cause value=%d, got %d", int64(lib.CauseMiscUnknownPLMNOrSNPN), cause.Value.Value)
 	}
 }

@@ -151,11 +151,11 @@ func GmmDecodeFailureCause(body []byte) uint8 {
 	return nasreply.CauseInvalidMandatoryInfo
 }
 
-// DecodePlainGmm validates a plain NAS message and reports its 5GMM message type,
-// mirroring the classification of free5gc's PlainNasDecode: it errors on an empty
-// body, a disallowed extended protocol discriminator, an unassigned 5GMM message
-// type, or an Ella-parsed uplink type whose mandatory content is malformed. isGMM
-// is false for a standalone 5GSM message (EPD 0x2E), which the caller discards.
+// DecodePlainGmm validates a plain NAS message and reports its 5GMM message
+// type: it errors on an empty body, a disallowed extended protocol
+// discriminator, an unassigned 5GMM message type, or an Ella-parsed uplink type
+// whose mandatory content is malformed. isGMM is false for a standalone 5GSM
+// message (EPD 0x2E), which the caller discards.
 func DecodePlainGmm(body []byte) (msgType uint8, isGMM bool, err error) {
 	if len(body) == 0 {
 		return 0, false, fmt.Errorf("empty NAS message")
@@ -175,7 +175,7 @@ func DecodePlainGmm(body []byte) (msgType uint8, isGMM bool, err error) {
 
 	if !isGMM {
 		// A standalone 5GSM message is not processed on N1; the caller drops it. Its
-		// body is not validated here (free5gc decodes it only to discard it).
+		// body is not validated here.
 		return msgType, false, nil
 	}
 

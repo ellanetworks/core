@@ -5,35 +5,25 @@ package smf_test
 
 import (
 	"context"
-	"encoding/binary"
 	"net"
 	"testing"
 
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 func buildModifyIndicationTransfer(teid uint32, ip net.IP, qfi int64) ([]byte, error) {
-	transfer := ngapType.PDUSessionResourceModifyIndicationTransfer{}
-
-	tnl := &transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation
-	tnl.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	tnl.GTPTunnel = new(ngapType.GTPTunnel)
-
-	teidBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidBytes, teid)
-	tnl.GTPTunnel.GTPTEID.Value = teidBytes
-	tnl.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     ip.To4(),
-		BitLength: 32,
+	transfer := libngap.PDUSessionResourceModifyIndicationTransfer{
+		DLQosFlowPerTNLInformation: libngap.QosFlowPerTNLInformation{
+			UPTransportLayerInformation: testTunnel(teid, ip),
+			AssociatedQosFlowList: libngap.AssociatedQosFlowList{
+				{QosFlowIdentifier: libngap.QosFlowIdentifier(qfi)},
+			},
+		},
 	}
 
-	transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List = append(
-		transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List,
-		ngapType.AssociatedQosFlowItem{QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: qfi}},
-	)
+	b, err := transfer.Marshal()
 
-	return aper.MarshalWithParams(transfer, "valueExt")
+	return b, err
 }
 
 func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
@@ -77,13 +67,13 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 		t.Fatalf("expected DL FAR TEID %d, got %d", teid, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
 	}
 
-	confirm := ngapType.PDUSessionResourceModifyConfirmTransfer{}
-	if err := aper.UnmarshalWithParams(n2Rsp, &confirm, "valueExt"); err != nil {
+	confirm, err := libngap.ParsePDUSessionResourceModifyConfirmTransfer(n2Rsp)
+	if err != nil {
 		t.Fatalf("decode confirm transfer: %v", err)
 	}
 
-	if len(confirm.QosFlowModifyConfirmList.List) != 1 || confirm.QosFlowModifyConfirmList.List[0].QosFlowIdentifier.Value != 1 {
-		t.Fatalf("expected confirm list naming QFI 1, got %v", confirm.QosFlowModifyConfirmList.List)
+	if len(confirm.QosFlowModifyConfirm) != 1 || confirm.QosFlowModifyConfirm[0].QosFlowIdentifier != 1 {
+		t.Fatalf("expected confirm list naming QFI 1, got %v", confirm.QosFlowModifyConfirm)
 	}
 
 	upf.mu.Lock()

@@ -6,7 +6,7 @@ package gnb
 import (
 	"fmt"
 
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type UEContextReleaseCompleteOpts struct {
@@ -15,68 +15,24 @@ type UEContextReleaseCompleteOpts struct {
 	PDUSessionIDs [16]bool
 }
 
-func BuildUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts) (ngapType.NGAPPDU, error) {
+func BuildUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts) ([]byte, error) {
 	if opts == nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("UEContextReleaseCompleteOpts is nil")
+		return nil, fmt.Errorf("UEContextReleaseCompleteOpts is nil")
 	}
 
-	pdu := ngapType.NGAPPDU{}
-	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
-	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
+	var list ngap.PDUSessionResourceListCxtRelCpl
 
-	successfulOutcome := pdu.SuccessfulOutcome
-	successfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodeUEContextRelease
-	successfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
-
-	successfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentUEContextReleaseComplete
-	successfulOutcome.Value.UEContextReleaseComplete = new(ngapType.UEContextReleaseComplete)
-
-	ueContextReleaseComplete := successfulOutcome.Value.UEContextReleaseComplete
-	ueContextReleaseCompleteIEs := &ueContextReleaseComplete.ProtocolIEs
-
-	ie := ngapType.UEContextReleaseCompleteIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.UEContextReleaseCompleteIEsPresentAMFUENGAPID
-	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-
-	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = opts.AMFUENGAPID
-
-	ueContextReleaseCompleteIEs.List = append(ueContextReleaseCompleteIEs.List, ie)
-
-	ie = ngapType.UEContextReleaseCompleteIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.UEContextReleaseCompleteIEsPresentRANUENGAPID
-	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-
-	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = opts.RANUENGAPID
-
-	ueContextReleaseCompleteIEs.List = append(ueContextReleaseCompleteIEs.List, ie)
-
-	ie = ngapType.UEContextReleaseCompleteIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceListCxtRelCpl
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.UEContextReleaseCompleteIEsPresentPDUSessionResourceListCxtRelCpl
-	ie.Value.PDUSessionResourceListCxtRelCpl = new(ngapType.PDUSessionResourceListCxtRelCpl)
-
-	pDUSessionResourceListCxtRelCompl := ie.Value.PDUSessionResourceListCxtRelCpl
-
-	for i, pduSessionID := range opts.PDUSessionIDs {
-		if !pduSessionID {
-			continue
+	for id, active := range opts.PDUSessionIDs {
+		if active {
+			list = append(list, ngap.PDUSessionResourceItemCxtRelCpl{PDUSessionID: ngap.PDUSessionID(id)})
 		}
-
-		pDUSessionResourceItem := ngapType.PDUSessionResourceItemCxtRelCpl{}
-		pDUSessionResourceItem.PDUSessionID.Value = int64(i)
-		pDUSessionResourceListCxtRelCompl.List = append(pDUSessionResourceListCxtRelCompl.List, pDUSessionResourceItem)
 	}
 
-	if len(pDUSessionResourceListCxtRelCompl.List) > 0 {
-		ueContextReleaseCompleteIEs.List = append(ueContextReleaseCompleteIEs.List, ie)
+	msg := &ngap.UEContextReleaseComplete{
+		AMFUENGAPID:            ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
+		RANUENGAPID:            ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
+		PDUSessionResourceList: list,
 	}
 
-	return pdu, nil
+	return msg.Marshal()
 }

@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) {
@@ -20,12 +18,12 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := decode.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
@@ -41,18 +39,18 @@ func TestHandleLocationReport_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 999,
 		RANUENGAPID: 99,
-		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-			EventType:  ngapType.EventType{Value: ngapType.EventTypePresentDirect},
-			ReportArea: ngapType.ReportArea{Value: ngapType.ReportAreaPresentCell},
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeDirect,
+			ReportArea: ngap.ReportAreaCell,
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	errInd := assertSingleErrorIndication(t, sender, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
@@ -66,20 +64,16 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := decode.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-			EventType: ngapType.EventType{
-				Value: ngapType.EventTypePresentUePresenceInAreaOfInterest,
-			},
-			ReportArea: ngapType.ReportArea{
-				Value: ngapType.ReportAreaPresentCell,
-			},
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeUEPresenceInAreaOfInterest,
+			ReportArea: ngap.ReportAreaCell,
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
@@ -97,20 +91,16 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := decode.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-			EventType: ngapType.EventType{
-				Value: ngapType.EventTypePresentStopUePresenceInAreaOfInterest,
-			},
-			ReportArea: ngapType.ReportArea{
-				Value: ngapType.ReportAreaPresentCell,
-			},
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeStopUEPresenceInAreaOfInterest,
+			ReportArea: ngap.ReportAreaCell,
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
@@ -118,38 +108,29 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 	}
 }
 
-// TestHandleLocationReport_UePresence_NilAreaOfInterestList verifies that
-// a LocationReport with EventType=UePresenceInAreaOfInterest and a non-nil
-// UEPresenceInAreaOfInterestList but nil AreaOfInterestList does NOT panic.
-// Reproduces GHSA-f2f3-9cx3-wcmf Bug 2.
-func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
+// A LocationReport naming UE presences the AMF never asked about must not
+// panic. Originally GHSA-f2f3-9cx3-wcmf Bug 2, a nil AreaOfInterestList deref;
+// the library no longer models an areaOfInterestList at all, so the pairing
+// that crashed cannot be built — this now guards the presence walk itself.
+func TestHandleLocationReport_UEPresenceWithoutRequestedArea(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := decode.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-			EventType: ngapType.EventType{
-				Value: ngapType.EventTypePresentUePresenceInAreaOfInterest,
-			},
-			ReportArea: ngapType.ReportArea{
-				Value: ngapType.ReportAreaPresentCell,
-			},
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeUEPresenceInAreaOfInterest,
+			ReportArea: ngap.ReportAreaCell,
 		},
-		UEPresenceInAreaOfInterestList: &ngapType.UEPresenceInAreaOfInterestList{
-			List: []ngapType.UEPresenceInAreaOfInterestItem{
-				{
-					LocationReportingReferenceID: ngapType.LocationReportingReferenceID{Value: 1},
-					UEPresence:                   ngapType.UEPresence{Value: ngapType.UEPresencePresentIn},
-				},
-			},
+		UEPresenceInAreaOfInterestList: ngap.UEPresenceInAreaOfInterestList{
+			{LocationReportingReferenceID: 1, UEPresence: ngap.UEPresenceIn},
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {

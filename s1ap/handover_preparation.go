@@ -74,7 +74,13 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SourceToTarget)
 		},
-		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.SourceToTarget, true },
+		encode: func(m *HandoverRequired) (per.Marshaler, bool) {
+			if m.SourceToTarget == nil {
+				return nil, false
+			}
+
+			return &m.SourceToTarget, true
+		},
 	},
 }
 
@@ -102,15 +108,26 @@ func ParseHandoverRequired(value []byte) (*HandoverRequired, error) {
 	return parseMessageBody[HandoverRequired](ProcHandoverPreparation, TriggeringInitiatingMessage, handoverRequiredIEs, value)
 }
 
-// TS 36.413 §9.1.5.2.
+// TS 36.413 §9.1.5.2. The MME tells the source eNB that the target has
+// resources ready. TS 38.413 §9.2.3.2 carries the same shape; S1AP alone has a
+// second target container for SRVCC, which is not modelled.
 type HandoverCommand struct {
-	MMEUES1APID    MMEUES1APID
-	ENBUES1APID    ENBUES1APID
-	HandoverType   HandoverType
-	ERABToRelease  []ERABItem
-	TargetToSource TransparentContainer
+	MMEUES1APID                     MMEUES1APID
+	ENBUES1APID                     ENBUES1APID
+	HandoverType                    HandoverType
+	NASSecurityParametersfromEUTRAN NASSecurityParametersfromEUTRAN
+	ERABSubjecttoDataForwarding     []ERABDataForwardingItem
+	ERABToRelease                   []ERABItem
+	TargetToSource                  TransparentContainer
+	CriticalityDiagnostics          *CriticalityDiagnostics
 
 	messageMeta
+}
+
+// The NAS security parameters travel only when the UE leaves E-UTRAN: TS 36.413
+// §9.1.5.2 condition iftoUTRANGERAN.
+func handoverLeavesEUTRAN(m *HandoverCommand) bool {
+	return m.HandoverType == HandoverTypeLTEtoUTRAN || m.HandoverType == HandoverTypeLTEtoGERAN
 }
 
 var handoverCommandIEs = []ieSpec[HandoverCommand]{
@@ -136,6 +153,39 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.HandoverType, true },
 	},
 	{
+		id: idNASSecurityParametersfromEUTRAN, presence: presenceConditional, crit: CriticalityReject,
+		condition: handoverLeavesEUTRAN,
+		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASSecurityParametersfromEUTRAN)
+		},
+		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
+			if m.NASSecurityParametersfromEUTRAN == nil {
+				return nil, false
+			}
+
+			return m.NASSecurityParametersfromEUTRAN, true
+		},
+	},
+	{
+		id: idERABSubjecttoDataForwardingList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
+			var err error
+
+			m.ERABSubjecttoDataForwarding, err = decodeItemList[ERABDataForwardingItem](per.NewReader(raw), enc, maxnoofERABs)
+
+			return err
+		},
+		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
+			if len(m.ERABSubjecttoDataForwarding) == 0 {
+				return nil, false
+			}
+
+			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABDataForwardingItem, CriticalityIgnore, m.ERABSubjecttoDataForwarding)
+			}), true
+		},
+	},
+	{
 		id: idERABtoReleaseListHOCmd, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var err error
@@ -159,7 +209,34 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.TargetToSource)
 		},
-		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.TargetToSource, true },
+		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
+			if m.TargetToSource == nil {
+				return nil, false
+			}
+
+			return &m.TargetToSource, true
+		},
+	},
+	{
+		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
+			var v CriticalityDiagnostics
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.CriticalityDiagnostics = &v
+
+			return nil
+		},
+		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
+			if m.CriticalityDiagnostics == nil {
+				return nil, false
+			}
+
+			return m.CriticalityDiagnostics, true
+		},
 	},
 }
 

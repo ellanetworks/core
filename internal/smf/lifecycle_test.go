@@ -5,7 +5,6 @@ package smf_test
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"net/netip"
@@ -19,8 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 func TestMain(m *testing.M) {
@@ -93,7 +91,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	}
 
 	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
@@ -162,7 +160,7 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 	}
 
 	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 	pduAddr := netip.MustParseAddr("10.0.0.1")
@@ -222,7 +220,7 @@ func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
 // second downlink PDR.
 func TestActivateTunnelAndPDR_FixedRuleIDs(t *testing.T) {
 	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
@@ -1293,12 +1291,12 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	call := amfCb.modifyCalls[0]
 	amfCb.mu.Unlock()
 
-	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil)
+	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil)
 	if err != nil {
 		t.Fatalf("build old policy modification command: %v", err)
 	}
 
-	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "200 Mbps", Downlink: "300 Mbps"}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
+	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("300 Mbps")}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
 	if err != nil {
 		t.Fatalf("build new policy modification command: %v", err)
 	}
@@ -1317,7 +1315,7 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 		t.Fatalf("modification complete: %v", err)
 	}
 
-	if smCtx.PolicyData.Ambr.Uplink != "200 Mbps" || smCtx.PolicyData.Ambr.Downlink != "300 Mbps" {
+	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("200 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("300 Mbps")) {
 		t.Fatalf("stored AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
 
@@ -1352,7 +1350,7 @@ func TestReconcileSmContext_AmbrOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 300000/400000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "300 Mbps", Downlink: "400 Mbps"}, nil, nil)
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")}, nil, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -1499,7 +1497,7 @@ func TestReconcileSmContext_ModifyIdleUE_CommitsPolicy(t *testing.T) {
 	}
 
 	// Policy should have been committed despite N1N2 skip.
-	if smCtx.PolicyData.Ambr.Uplink != "500 Mbps" || smCtx.PolicyData.Ambr.Downlink != "600 Mbps" {
+	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("500 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("600 Mbps")) {
 		t.Fatalf("policy not committed: AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
 
@@ -2103,52 +2101,29 @@ func TestIncrementDailyUsage_DelegatesToStore(t *testing.T) {
 // buildPDUSessionResourceSetupResponseTransfer builds an APER-encoded
 // PDUSessionResourceSetupResponseTransfer with the given gNB DL GTP tunnel info.
 func buildPDUSessionResourceSetupResponseTransfer(teid uint32, ip net.IP) ([]byte, error) {
-	transfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
-
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel = &ngapType.GTPTunnel{}
-
-	teidBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidBytes, teid)
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel.GTPTEID.Value = teidBytes
-	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     ip.To4(),
-		BitLength: 32,
+	transfer := libngap.PDUSessionResourceSetupResponseTransfer{
+		DLQosFlowPerTNLInformation: libngap.QosFlowPerTNLInformation{
+			UPTransportLayerInformation: testTunnel(teid, ip),
+			AssociatedQosFlowList:       libngap.AssociatedQosFlowList{{QosFlowIdentifier: 1}},
+		},
 	}
 
-	transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List = append(
-		transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List,
-		ngapType.AssociatedQosFlowItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
-		},
-	)
+	b, err := transfer.Marshal()
 
-	return aper.MarshalWithParams(transfer, "valueExt")
+	return b, err
 }
 
 // buildPathSwitchRequestTransfer builds an APER-encoded PathSwitchRequestTransfer
 // with the given target gNB DL GTP tunnel info.
 func buildPathSwitchRequestTransfer(teid uint32, ip net.IP) ([]byte, error) {
-	transfer := ngapType.PathSwitchRequestTransfer{}
-
-	transfer.DLNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	transfer.DLNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
-
-	teidBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidBytes, teid)
-	transfer.DLNGUUPTNLInformation.GTPTunnel.GTPTEID.Value = teidBytes
-	transfer.DLNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     ip.To4(),
-		BitLength: 32,
+	transfer := libngap.PathSwitchRequestTransfer{
+		DLNGUUPTNLInformation: testTunnel(teid, ip),
+		QosFlowAccepted:       libngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}
 
-	transfer.QosFlowAcceptedList.List = append(transfer.QosFlowAcceptedList.List,
-		ngapType.QosFlowAcceptedItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
-		},
-	)
+	b, err := transfer.Marshal()
 
-	return aper.MarshalWithParams(transfer, "valueExt")
+	return b, err
 }
 
 // ===========================
@@ -2274,9 +2249,9 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 	smCtx, ref := setupSessionWithTunnel(t, s)
 
 	// Phase 1: "Preparing" — SMF receives HandoverRequiredTransfer.
-	hoRequiredTransfer := ngapType.HandoverRequiredTransfer{}
+	hoRequiredTransfer := libngap.HandoverRequiredTransfer{}
 
-	hoRequiredData, err := aper.MarshalWithParams(hoRequiredTransfer, "valueExt")
+	hoRequiredData, err := hoRequiredTransfer.Marshal()
 	if err != nil {
 		t.Fatalf("marshal HandoverRequiredTransfer: %v", err)
 	}
@@ -2356,34 +2331,14 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 // buildHandoverRequestAcknowledgeTransfer builds an APER-encoded
 // HandoverRequestAcknowledgeTransfer with the given target gNB DL GTP tunnel info.
 func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, error) {
-	teidBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidBytes, teid)
-
-	transfer := ngapType.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: ngapType.UPTransportLayerInformation{
-			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
-			GTPTunnel: &ngapType.GTPTunnel{
-				TransportLayerAddress: ngapType.TransportLayerAddress{
-					Value: aper.BitString{
-						Bytes:     ip.To4(),
-						BitLength: 32,
-					},
-				},
-				GTPTEID: ngapType.GTPTEID{
-					Value: teidBytes,
-				},
-			},
-		},
-		QosFlowSetupResponseList: ngapType.QosFlowListWithDataForwarding{
-			List: []ngapType.QosFlowItemWithDataForwarding{
-				{
-					QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
-				},
-			},
-		},
+	transfer := libngap.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: testTunnel(teid, ip),
+		QosFlowSetupResponse:  libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
 	}
 
-	return aper.MarshalWithParams(transfer, "valueExt")
+	b, err := transfer.Marshal()
+
+	return b, err
 }
 
 // TestUpdateSmContextN1Msg_ModificationRejected verifies that a UE-requested PDU
@@ -2623,4 +2578,17 @@ func TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) 
 	if s.GetSession(ref) == nil {
 		t.Error("an unimplemented message type released the session; it must be ignored")
 	}
+}
+
+// testTunnel builds the NG-U tunnel an NG-RAN node would report.
+func testTunnel(teid uint32, ip net.IP) libngap.UPTransportLayerInformation {
+	addr := ip.To4()
+	if addr == nil {
+		addr = ip.To16()
+	}
+
+	return libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
+		TransportLayerAddress: libngap.TransportLayerAddress(addr),
+		GTPTEID:               libngap.GTPTEID(teid),
+	}}
 }

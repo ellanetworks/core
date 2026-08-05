@@ -10,9 +10,8 @@ package nas
 import (
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net"
-	"strconv"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
@@ -116,48 +115,63 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	return m.MarshalBinary()
 }
 
-// ModelsToSessionAMBR converts a policy AMBR ("<value> <unit>" strings) to the
-// NAS session AMBR representation.
+// ModelsToSessionAMBR converts a policy AMBR to the NAS session AMBR
+// representation.
 func ModelsToSessionAMBR(ambr *models.Ambr) (fgs.SessionAMBR, error) {
 	var out fgs.SessionAMBR
 
-	uplink := strings.Split(ambr.Uplink, " ")
-
-	up, err := strconv.ParseUint(uplink[0], 10, 16)
+	up, upUnit, err := sessionAMBRFields(ambr.Uplink)
 	if err != nil {
-		return out, fmt.Errorf("failed to parse uplink bitrate: %v", err)
+		return out, fmt.Errorf("uplink session AMBR: %w", err)
 	}
 
-	downlink := strings.Split(ambr.Downlink, " ")
-
-	down, err := strconv.ParseUint(downlink[0], 10, 16)
+	down, downUnit, err := sessionAMBRFields(ambr.Downlink)
 	if err != nil {
-		return out, fmt.Errorf("failed to parse downlink bitrate: %v", err)
+		return out, fmt.Errorf("downlink session AMBR: %w", err)
 	}
 
-	out.Uplink = uint16(up)
-	out.UplinkUnit = strToAMBRUnit(uplink[1])
-	out.Downlink = uint16(down)
-	out.DownlinkUnit = strToAMBRUnit(downlink[1])
+	out.Uplink, out.UplinkUnit = up, upUnit
+	out.Downlink, out.DownlinkUnit = down, downUnit
 
 	return out, nil
 }
 
-func strToAMBRUnit(unit string) fgs.SessionAMBRUnit {
-	switch unit {
-	case "Kbps":
-		return fgs.SessionAMBRUnit1Kbps
-	case "Mbps":
-		return fgs.SessionAMBRUnit1Mbps
-	case "Gbps":
-		return fgs.SessionAMBRUnit1Gbps
-	case "Tbps":
-		return fgs.SessionAMBRUnit1Tbps
-	case "Pbps":
-		return fgs.SessionAMBRUnit1Pbps
+// sessionAMBRUnits are the TS 24.501 §9.11.4.14 unit codes, ascending.
+var sessionAMBRUnits = []struct {
+	multiplier uint64
+	code       fgs.SessionAMBRUnit
+}{
+	{1e3, fgs.SessionAMBRUnit1Kbps},
+	{1e6, fgs.SessionAMBRUnit1Mbps},
+	{1e9, fgs.SessionAMBRUnit1Gbps},
+	{1e12, fgs.SessionAMBRUnit1Tbps},
+	{1e15, fgs.SessionAMBRUnit1Pbps},
+}
+
+// sessionAMBRFields splits a rate into the value and unit of TS 24.501
+// §9.11.4.14. It picks the widest unit that divides the rate evenly and still
+// leaves a value inside the field's 16 bits; a rate below 1 Kbps, or one no
+// unit divides, has no representation.
+func sessionAMBRFields(r models.BitRate) (uint16, fgs.SessionAMBRUnit, error) {
+	bps := r.Bps()
+
+	value, unit := uint64(0), fgs.SessionAMBRUnitNotUsed
+
+	for _, u := range sessionAMBRUnits {
+		if bps%u.multiplier != 0 {
+			continue
+		}
+
+		if v := bps / u.multiplier; v >= 1 && v <= math.MaxUint16 {
+			value, unit = v, u.code
+		}
 	}
 
-	return fgs.SessionAMBRUnitNotUsed
+	if unit == fgs.SessionAMBRUnitNotUsed {
+		return 0, unit, fmt.Errorf("%s has no TS 24.501 §9.11.4.14 representation", r)
+	}
+
+	return uint16(value), unit, nil
 }
 
 func parseSD(sd string) (*[3]byte, error) {

@@ -11,7 +11,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
@@ -121,5 +120,5 @@ func sendNGResetAcknowledge(ctx context.Context, ran *amf.Radio, connectionList 
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureNGResetAcknowledge, b)
+	ran.SendToRadio(ctx, amf.NGAPProcedureNGResetAcknowledge, b)
 }

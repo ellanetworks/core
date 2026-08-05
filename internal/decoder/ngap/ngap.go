@@ -8,8 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type NGAPMessageValue struct {
@@ -25,54 +24,48 @@ type NGAPMessage struct {
 	Value         NGAPMessageValue `json:"value"`
 }
 
+// DecodeNGAPMessage decodes a raw NGAP PDU. A decode error is reported in the
+// returned message rather than surfaced as a Go error, matching the S1AP path.
 func DecodeNGAPMessage(raw []byte) NGAPMessage {
-	pdu, err := ngap.Decoder(raw)
+	pdu, err := ngap.Unmarshal(raw)
 	if err != nil {
 		return NGAPMessage{
-			Value: NGAPMessageValue{
-				Error: fmt.Sprintf("Could not decode raw ngap message: %v", err),
-			},
+			Value: NGAPMessageValue{Error: fmt.Sprintf("Could not decode raw ngap message: %v", err)},
 		}
 	}
 
 	var msg NGAPMessage
 
-	switch pdu.Present {
-	case ngapType.NGAPPDUPresentInitiatingMessage:
-		value := buildInitiatingMessage(*pdu.InitiatingMessage, raw)
-		setIEValueTypes(value.IEs)
+	switch p := pdu.(type) {
+	case *ngap.InitiatingMessage:
 		msg = NGAPMessage{
 			PDUType:       "InitiatingMessage",
-			ProcedureCode: procedureCodeToEnum(pdu.InitiatingMessage.ProcedureCode.Value),
-			Criticality:   criticalityToEnum(pdu.InitiatingMessage.Criticality.Value),
-			Value:         value,
+			ProcedureCode: procedureCodeToEnum(p.ProcedureCode),
+			Criticality:   criticalityToEnum(p.Criticality),
+			Value:         buildInitiatingMessage(p),
 		}
-	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		value := buildSuccessfulOutcome(*pdu.SuccessfulOutcome, raw)
-		setIEValueTypes(value.IEs)
+	case *ngap.SuccessfulOutcome:
 		msg = NGAPMessage{
 			PDUType:       "SuccessfulOutcome",
-			ProcedureCode: procedureCodeToEnum(pdu.SuccessfulOutcome.ProcedureCode.Value),
-			Criticality:   criticalityToEnum(pdu.SuccessfulOutcome.Criticality.Value),
-			Value:         value,
+			ProcedureCode: procedureCodeToEnum(p.ProcedureCode),
+			Criticality:   criticalityToEnum(p.Criticality),
+			Value:         buildSuccessfulOutcome(p),
 		}
-	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		value := buildUnsuccessfulOutcome(*pdu.UnsuccessfulOutcome, raw)
-		setIEValueTypes(value.IEs)
+	case *ngap.UnsuccessfulOutcome:
 		msg = NGAPMessage{
 			PDUType:       "UnsuccessfulOutcome",
-			ProcedureCode: procedureCodeToEnum(pdu.UnsuccessfulOutcome.ProcedureCode.Value),
-			Criticality:   criticalityToEnum(pdu.UnsuccessfulOutcome.Criticality.Value),
-			Value:         value,
+			ProcedureCode: procedureCodeToEnum(p.ProcedureCode),
+			Criticality:   criticalityToEnum(p.Criticality),
+			Value:         buildUnsuccessfulOutcome(p),
 		}
 	default:
 		return NGAPMessage{
 			PDUType: "Unknown",
-			Value: NGAPMessageValue{
-				Error: fmt.Sprintf("unknown NGAP PDU type: %d", pdu.Present),
-			},
+			Value:   NGAPMessageValue{Error: fmt.Sprintf("unknown NGAP PDU type: %T", pdu)},
 		}
 	}
+
+	setIEValueTypes(msg.Value.IEs)
 
 	msg.Summary = buildNGAPSummary(msg)
 
@@ -102,8 +95,8 @@ func buildNGAPSummary(msg NGAPMessage) string {
 				summary += ", NRPPa=" + nrppaPdu.Decoded.Kind.Label
 			}
 		case "Cause":
-			if causeEnum, ok := ie.Value.(utils.EnumField); ok {
-				summary += ", Cause=" + causeEnum.Label
+			if c, ok := ie.Value.(Cause); ok {
+				summary += ", Cause=" + c.Value.Label
 			}
 		}
 	}
@@ -129,81 +122,81 @@ func nasMessageTypeName(msg *nas.NASMessage) string {
 
 // raw is the PDU as captured. Procedures rendered from the in-house library
 // parse it themselves; the reference decode above still selects the branch.
-func buildInitiatingMessage(initMsg ngapType.InitiatingMessage, raw []byte) NGAPMessageValue {
-	switch initMsg.Value.Present {
-	case ngapType.InitiatingMessagePresentNGSetupRequest:
-		return buildNGSetupRequest(pduValue(raw))
-	case ngapType.InitiatingMessagePresentInitialUEMessage:
-		return buildInitialUEMessage(*initMsg.Value.InitialUEMessage)
-	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
-		return buildDownlinkNASTransport(*initMsg.Value.DownlinkNASTransport)
-	case ngapType.InitiatingMessagePresentUplinkNASTransport:
-		return buildUplinkNASTransport(*initMsg.Value.UplinkNASTransport)
-	case ngapType.InitiatingMessagePresentInitialContextSetupRequest:
-		return buildInitialContextSetupRequest(*initMsg.Value.InitialContextSetupRequest)
-	case ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest:
-		return buildPDUSessionResourceSetupRequest(*initMsg.Value.PDUSessionResourceSetupRequest)
-	case ngapType.InitiatingMessagePresentUEContextReleaseRequest:
-		return buildUEContextReleaseRequest(*initMsg.Value.UEContextReleaseRequest)
-	case ngapType.InitiatingMessagePresentUEContextReleaseCommand:
-		return buildUEContextReleaseCommand(*initMsg.Value.UEContextReleaseCommand)
-	case ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand:
-		return buildPDUSessionResourceReleaseCommand(*initMsg.Value.PDUSessionResourceReleaseCommand)
-	case ngapType.InitiatingMessagePresentUERadioCapabilityInfoIndication:
-		return buildUERadioCapabilityInfoIndication(*initMsg.Value.UERadioCapabilityInfoIndication)
-	case ngapType.InitiatingMessagePresentAMFStatusIndication:
-		return buildAMFStatusIndication(*initMsg.Value.AMFStatusIndication)
-	case ngapType.InitiatingMessagePresentPaging:
-		return buildPaging(*initMsg.Value.Paging)
-	case ngapType.InitiatingMessagePresentDownlinkUEAssociatedNRPPaTransport:
-		return buildDownlinkUEAssociatedNRPPaTransport(*initMsg.Value.DownlinkUEAssociatedNRPPaTransport)
-	case ngapType.InitiatingMessagePresentUplinkUEAssociatedNRPPaTransport:
-		return buildUplinkUEAssociatedNRPPaTransport(*initMsg.Value.UplinkUEAssociatedNRPPaTransport)
-	case ngapType.InitiatingMessagePresentDownlinkNonUEAssociatedNRPPaTransport:
-		return buildDownlinkNonUEAssociatedNRPPaTransport(*initMsg.Value.DownlinkNonUEAssociatedNRPPaTransport)
-	case ngapType.InitiatingMessagePresentUplinkNonUEAssociatedNRPPaTransport:
-		return buildUplinkNonUEAssociatedNRPPaTransport(*initMsg.Value.UplinkNonUEAssociatedNRPPaTransport)
-	case ngapType.InitiatingMessagePresentErrorIndication:
-		return buildErrorIndication(pduValue(raw))
-	case ngapType.InitiatingMessagePresentLocationReport:
-		return buildLocationReport(*initMsg.Value.LocationReport)
-	case ngapType.InitiatingMessagePresentLocationReportingControl:
-		return buildLocationReportingControl(*initMsg.Value.LocationReportingControl)
+func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
+	switch m.ProcedureCode {
+	case ngap.ProcNGSetup:
+		return buildNGSetupRequest(m.Value)
+	case ngap.ProcInitialUEMessage:
+		return buildInitialUEMessage(m.Value)
+	case ngap.ProcDownlinkNASTransport:
+		return buildDownlinkNASTransport(m.Value)
+	case ngap.ProcUplinkNASTransport:
+		return buildUplinkNASTransport(m.Value)
+	case ngap.ProcInitialContextSetup:
+		return buildInitialContextSetupRequest(m.Value)
+	case ngap.ProcPDUSessionResourceSetup:
+		return buildPDUSessionResourceSetupRequest(m.Value)
+	case ngap.ProcUEContextReleaseRequest:
+		return buildUEContextReleaseRequest(m.Value)
+	case ngap.ProcUEContextRelease:
+		return buildUEContextReleaseCommand(m.Value)
+	case ngap.ProcPDUSessionResourceRelease:
+		return buildPDUSessionResourceReleaseCommand(m.Value)
+	case ngap.ProcUERadioCapabilityInfoIndication:
+		return buildUERadioCapabilityInfoIndication(m.Value)
+	case ngap.ProcAMFStatusIndication:
+		return buildAMFStatusIndication(m.Value)
+	case ngap.ProcPaging:
+		return buildPaging(m.Value)
+	case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
+		return buildDownlinkUEAssociatedNRPPaTransport(m.Value)
+	case ngap.ProcUplinkUEAssociatedNRPPaTransport:
+		return buildUplinkUEAssociatedNRPPaTransport(m.Value)
+	case ngap.ProcDownlinkNonUEAssociatedNRPPaTransport:
+		return buildDownlinkNonUEAssociatedNRPPaTransport(m.Value)
+	case ngap.ProcUplinkNonUEAssociatedNRPPaTransport:
+		return buildUplinkNonUEAssociatedNRPPaTransport(m.Value)
+	case ngap.ProcErrorIndication:
+		return buildErrorIndication(m.Value)
+	case ngap.ProcLocationReport:
+		return buildLocationReport(m.Value)
+	case ngap.ProcLocationReportingControl:
+		return buildLocationReportingControl(m.Value)
 	default:
-		return NGAPMessageValue{
-			Error: fmt.Sprintf("Unsupported message %d", initMsg.Value.Present),
-		}
+		return unsupportedProcedure(m.ProcedureCode)
 	}
 }
 
-func buildSuccessfulOutcome(sucMsg ngapType.SuccessfulOutcome, raw []byte) NGAPMessageValue {
-	switch sucMsg.Value.Present {
-	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
-		return buildNGSetupResponse(pduValue(raw))
-	case ngapType.SuccessfulOutcomePresentInitialContextSetupResponse:
-		return buildInitialContextSetupResponse(*sucMsg.Value.InitialContextSetupResponse)
-	case ngapType.SuccessfulOutcomePresentPDUSessionResourceSetupResponse:
-		return buildPDUSessionResourceSetupResponse(*sucMsg.Value.PDUSessionResourceSetupResponse)
-	case ngapType.SuccessfulOutcomePresentUEContextReleaseComplete:
-		return buildUEContextReleaseComplete(*sucMsg.Value.UEContextReleaseComplete)
-	case ngapType.SuccessfulOutcomePresentPDUSessionResourceReleaseResponse:
-		return buildPDUSessionResourceReleaseResponse(*sucMsg.Value.PDUSessionResourceReleaseResponse)
+func buildSuccessfulOutcome(m *ngap.SuccessfulOutcome) NGAPMessageValue {
+	switch m.ProcedureCode {
+	case ngap.ProcNGSetup:
+		return buildNGSetupResponse(m.Value)
+	case ngap.ProcInitialContextSetup:
+		return buildInitialContextSetupResponse(m.Value)
+	case ngap.ProcPDUSessionResourceSetup:
+		return buildPDUSessionResourceSetupResponse(m.Value)
+	case ngap.ProcUEContextRelease:
+		return buildUEContextReleaseComplete(m.Value)
+	case ngap.ProcPDUSessionResourceRelease:
+		return buildPDUSessionResourceReleaseResponse(m.Value)
 	default:
-		return NGAPMessageValue{
-			Error: fmt.Sprintf("Unsupported message %d", sucMsg.Value.Present),
-		}
+		return unsupportedProcedure(m.ProcedureCode)
 	}
 }
 
-func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcome, raw []byte) NGAPMessageValue {
-	switch unsucMsg.Value.Present {
-	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
-		return buildNGSetupFailure(pduValue(raw))
-	case ngapType.UnsuccessfulOutcomePresentInitialContextSetupFailure:
-		return buildInitialContextSetupFailure(*unsucMsg.Value.InitialContextSetupFailure)
+func buildUnsuccessfulOutcome(m *ngap.UnsuccessfulOutcome) NGAPMessageValue {
+	switch m.ProcedureCode {
+	case ngap.ProcNGSetup:
+		return buildNGSetupFailure(m.Value)
+	case ngap.ProcInitialContextSetup:
+		return buildInitialContextSetupFailure(m.Value)
 	default:
-		return NGAPMessageValue{
-			Error: fmt.Sprintf("Unsupported message %d", unsucMsg.Value.Present),
-		}
+		return unsupportedProcedure(m.ProcedureCode)
 	}
+}
+
+// unsupportedProcedure reports a procedure this decoder does not render. The
+// message still shows its procedure code and criticality.
+func unsupportedProcedure(p ngap.ProcedureCode) NGAPMessageValue {
+	return NGAPMessageValue{Error: fmt.Sprintf("Unsupported message %s", p)}
 }

@@ -34,7 +34,7 @@ func wireIEs(t *testing.T, body func(*per.Writer, per.Encoding) error) []rawIE {
 	return fields
 }
 
-// TestWireCriticality pins each stamped criticality against TS 38.413 §9.2.6.
+// TestWireCriticality pins each stamped criticality against TS 38.413 §9.2.
 // A round-trip test cannot: encode and decode agree with each other while both
 // disagree with the spec.
 func TestWireCriticality(t *testing.T) {
@@ -79,6 +79,307 @@ func TestWireCriticality(t *testing.T) {
 				{idCause, CriticalityIgnore},
 				{idTimeToWait, CriticalityIgnore},
 				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialUEMessage §9.2.5.1",
+			(&InitialUEMessage{
+				RANUENGAPID:             1,
+				NASPDU:                  NASPDU{0x7e},
+				UserLocationInformation: UserLocationInformation{Kind: UserLocationNR},
+				RRCEstablishmentCause:   Ptr(RRCCauseEmergency),
+				FiveGSTMSI:              &FiveGSTMSI{},
+				AMFSetID:                Ptr(AMFSetID(1)),
+				UEContextRequest:        Ptr(UEContextRequested),
+				AllowedNSSAI:            AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1}}},
+			}).encodeBody,
+			[]wireIE{
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+				{idUserLocationInformation, CriticalityReject},
+				{idRRCEstablishmentCause, CriticalityIgnore},
+				{idFiveGSTMSI, CriticalityReject},
+				{idAMFSetID, CriticalityIgnore},
+				{idUEContextRequest, CriticalityIgnore},
+				{idAllowedNSSAI, CriticalityReject},
+			},
+		},
+		{
+			"DownlinkNASTransport §9.2.5.2",
+			(&DownlinkNASTransport{AMFUENGAPID: 1, RANUENGAPID: 2, NASPDU: NASPDU{0x7e}}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+			},
+		},
+		{
+			"UplinkNASTransport §9.2.5.3",
+			(&UplinkNASTransport{
+				AMFUENGAPID:             1,
+				RANUENGAPID:             2,
+				NASPDU:                  NASPDU{0x7e},
+				UserLocationInformation: &UserLocationInformation{Kind: UserLocationNR},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+				{idUserLocationInformation, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialContextSetupRequest §9.2.2.1",
+			goldInitialContextSetupRequest().encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idUEAggregateMaximumBitRate, CriticalityReject},
+				{idGUAMI, CriticalityReject},
+				{idPDUSessionResourceSetupListCxtReq, CriticalityReject},
+				{idAllowedNSSAI, CriticalityReject},
+				{idUESecurityCapabilities, CriticalityReject},
+				{idSecurityKey, CriticalityReject},
+			},
+		},
+		{
+			"InitialContextSetupResponse §9.2.2.2",
+			(&InitialContextSetupResponse{
+				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:              Ptr(RANUENGAPID(2)),
+				PDUSessionResourceSetup:  PDUSessionResourceSetupListCxtRes{{PDUSessionID: 5}},
+				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListCxtRes{{PDUSessionID: 9}},
+				CriticalityDiagnostics:   &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceSetupListCxtRes, CriticalityIgnore},
+				{idPDUSessionResourceFailedToSetupListCxtRes, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialContextSetupFailure §9.2.2.3",
+			(&InitialContextSetupFailure{
+				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:              Ptr(RANUENGAPID(2)),
+				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListCxtFail{{PDUSessionID: 5}},
+				Cause:                    Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+				CriticalityDiagnostics:   &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceFailedToSetupListCxtFail, CriticalityIgnore},
+				{idCause, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"PDUSessionResourceNotify §9.2.1.9",
+			func() func(*per.Writer, per.Encoding) error {
+				m := goldPDUSessionResourceNotify()
+				m.UserLocationInformation = &UserLocationInformation{Kind: UserLocationNR}
+
+				return m.encodeBody
+			}(),
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idPDUSessionResourceNotifyList, CriticalityReject},
+				{idPDUSessionResourceReleasedListNot, CriticalityIgnore},
+				{idUserLocationInformation, CriticalityIgnore},
+			},
+		},
+		{
+			"PDUSessionResourceModifyIndication §9.2.1.7",
+			func() func(*per.Writer, per.Encoding) error {
+				m := goldPDUSessionResourceModifyIndication()
+				m.UserLocationInformation = &UserLocationInformation{Kind: UserLocationNR}
+
+				return m.encodeBody
+			}(),
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idPDUSessionResourceModifyListModInd, CriticalityReject},
+				{idUserLocationInformation, CriticalityIgnore},
+			},
+		},
+		{
+			"PDUSessionResourceModifyConfirm §9.2.1.8",
+			(&PDUSessionResourceModifyConfirm{
+				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:              Ptr(RANUENGAPID(2)),
+				PDUSessionResourceModify: PDUSessionResourceModifyListModCfm{{PDUSessionID: 5}},
+				PDUSessionResourceFailed: PDUSessionResourceFailedToModifyListModCfm{{PDUSessionID: 9}},
+				CriticalityDiagnostics:   &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceModifyListModCfm, CriticalityIgnore},
+				{idPDUSessionResourceFailedToModifyListModCfm, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"PDUSessionResourceModifyRequest §9.2.1.5",
+			goldPDUSessionResourceModifyRequest().encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idPDUSessionResourceModifyListModReq, CriticalityReject},
+			},
+		},
+		{
+			"PDUSessionResourceModifyResponse §9.2.1.6",
+			(&PDUSessionResourceModifyResponse{
+				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:              Ptr(RANUENGAPID(2)),
+				PDUSessionResourceModify: PDUSessionResourceModifyListModRes{{PDUSessionID: 5}},
+				PDUSessionResourceFailed: PDUSessionResourceFailedToModifyListModRes{{PDUSessionID: 9}},
+				UserLocationInformation:  &UserLocationInformation{Kind: UserLocationNR},
+				CriticalityDiagnostics:   &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceModifyListModRes, CriticalityIgnore},
+				{idPDUSessionResourceFailedToModifyListModRes, CriticalityIgnore},
+				{idUserLocationInformation, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"PDUSessionResourceReleaseCommand §9.2.1.3",
+			goldPDUSessionResourceReleaseCommand().encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityIgnore},
+				{idPDUSessionResourceToReleaseListRelCmd, CriticalityReject},
+			},
+		},
+		{
+			"PDUSessionResourceReleaseResponse §9.2.1.4",
+			(&PDUSessionResourceReleaseResponse{
+				AMFUENGAPID:                Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:                Ptr(RANUENGAPID(2)),
+				PDUSessionResourceReleased: PDUSessionResourceReleasedListRelRes{{PDUSessionID: 5}},
+				UserLocationInformation:    &UserLocationInformation{Kind: UserLocationNR},
+				CriticalityDiagnostics:     &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceReleasedListRelRes, CriticalityIgnore},
+				{idUserLocationInformation, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"PDUSessionResourceSetupRequest §9.2.1.1",
+			goldPDUSessionResourceSetupRequest().encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityReject},
+				{idPDUSessionResourceSetupListSUReq, CriticalityReject},
+				{idUEAggregateMaximumBitRate, CriticalityIgnore},
+			},
+		},
+		{
+			"PDUSessionResourceSetupResponse §9.2.1.2",
+			(&PDUSessionResourceSetupResponse{
+				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:              Ptr(RANUENGAPID(2)),
+				PDUSessionResourceSetup:  PDUSessionResourceSetupListSURes{{PDUSessionID: 5}},
+				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListSURes{{PDUSessionID: 9}},
+				CriticalityDiagnostics:   &CriticalityDiagnostics{},
+				UserLocationInformation:  &UserLocationInformation{Kind: UserLocationNR},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idPDUSessionResourceSetupListSURes, CriticalityIgnore},
+				{idPDUSessionResourceFailedToSetupListSURes, CriticalityIgnore},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+				{idUserLocationInformation, CriticalityIgnore},
+			},
+		},
+		{
+			"UERadioCapabilityInfoIndication §9.2.3.1",
+			func() func(*per.Writer, per.Encoding) error {
+				m := goldUERadioCapabilityInfoIndication()
+				m.UERadioCapabilityForPaging = &UERadioCapabilityForPaging{NR: &UERadioCapabilityForPagingOfNR{0x0a}}
+
+				return m.encodeBody
+			}(),
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idUERadioCapability, CriticalityIgnore},
+				{idUERadioCapabilityForPaging, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseRequest §9.2.2.4",
+			(&UEContextReleaseRequest{
+				AMFUENGAPID:            1,
+				RANUENGAPID:            2,
+				PDUSessionResourceList: PDUSessionResourceListCxtRelReq{{PDUSessionID: 5}},
+				Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}),
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idPDUSessionResourceListCxtRelReq, CriticalityReject},
+				{idCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseCommand §9.2.2.5",
+			(&UEContextReleaseCommand{
+				UENGAPIDs: UENGAPIDs{AMFUENGAPID: 1, RANUENGAPID: 2, Pair: true},
+				Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: CauseNASNormalRelease}),
+			}).encodeBody,
+			[]wireIE{
+				{idUENGAPIDs, CriticalityReject},
+				{idCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseComplete §9.2.2.6",
+			(&UEContextReleaseComplete{
+				AMFUENGAPID:             Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:             Ptr(RANUENGAPID(2)),
+				UserLocationInformation: &UserLocationInformation{Kind: UserLocationNR},
+				PDUSessionResourceList:  PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
+				CriticalityDiagnostics:  &CriticalityDiagnostics{},
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityIgnore},
+				{idRANUENGAPID, CriticalityIgnore},
+				{idUserLocationInformation, CriticalityIgnore},
+				{idPDUSessionResourceListCxtRelCpl, CriticalityReject},
+				{idCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"NASNonDeliveryIndication §9.2.5.4",
+			(&NASNonDeliveryIndication{
+				AMFUENGAPID: 1,
+				RANUENGAPID: 2,
+				NASPDU:      NASPDU{0x7e},
+				Cause:       Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),
+			}).encodeBody,
+			[]wireIE{
+				{idAMFUENGAPID, CriticalityReject},
+				{idRANUENGAPID, CriticalityReject},
+				{idNASPDU, CriticalityIgnore},
+				{idCause, CriticalityIgnore},
 			},
 		},
 	}

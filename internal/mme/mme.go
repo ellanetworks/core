@@ -52,7 +52,7 @@ type epsSessionManager interface {
 	ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error
 	// UpdateEPSSessionAMBR updates the Session-AMBR enforced by the UPF QER for a
 	// PDN connection's default bearer, in the "<n> <unit>" form.
-	UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink string) error
+	UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink models.BitRate) error
 	// DeactivateEPSSession buffers the downlink bearer when the UE goes ECM-IDLE
 	// so downlink data triggers paging.
 	DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error

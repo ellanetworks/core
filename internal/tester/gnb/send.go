@@ -7,8 +7,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/ishidawataru/sctp"
 	"go.uber.org/zap"
 )
@@ -83,13 +81,12 @@ func (g *GnodeB) SendNGReset(opts *NGResetOpts) error {
 }
 
 func (g *GnodeB) SendUEContextReleaseRequest(opts *UEContextReleaseRequestOpts) error {
-	pdu, err := BuildUEContextReleaseRequest(opts)
+	pkt, err := BuildUEContextReleaseRequest(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build UEContextReleaseRequest: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureUEContextReleaseRequest)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureUEContextReleaseRequest); err != nil {
 		return fmt.Errorf("couldn't send UEContextReleaseRequest: %s", err.Error())
 	}
 
@@ -111,12 +108,12 @@ func (g *GnodeB) SendUplinkNASTransport(opts *UplinkNasTransportOpts) error {
 }
 
 func (g *GnodeB) SendInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) error {
-	pdu, err := BuildInitialContextSetupResponse(opts)
+	pkt, err := BuildInitialContextSetupResponse(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build InitialContextSetupResponse: %s", err.Error())
 	}
 
-	return g.SendMessage(pdu, NGAPProcedureInitialContextSetupResponse)
+	return g.SendToRan(pkt, NGAPProcedureInitialContextSetupResponse)
 }
 
 func (g *GnodeB) SendPDUSessionResourceSetupResponse(opts *PDUSessionResourceSetupResponseOpts) error {
@@ -171,28 +168,23 @@ func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
 }
 
 func (g *GnodeB) SendUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts) error {
-	pdu, err := BuildUEContextReleaseComplete(opts)
+	pkt, err := BuildUEContextReleaseComplete(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build UEContextReleaseComplete: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureUEContextReleaseComplete)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureUEContextReleaseComplete); err != nil {
 		return fmt.Errorf("couldn't send UEContextReleaseComplete: %s", err.Error())
 	}
 
 	return nil
 }
 
-func (g *GnodeB) SendMessage(pdu ngapType.NGAPPDU, procedure NGAPProcedure) error {
-	bytes, err := ngap.Encoder(pdu)
-	if err != nil {
-		return fmt.Errorf("couldn't encode message for procedure %s: %s", procedure, err.Error())
-	}
-
-	err = g.SendToRan(bytes, procedure)
-	if err != nil {
-		return fmt.Errorf("couldn't send packet to ran: %s", err.Error())
+// SendMessage writes an encoded NGAP PDU on the SCTP stream its procedure uses.
+// internal/tester/s1enb sends S1AP the same way.
+func (g *GnodeB) SendMessage(pdu []byte, procedure NGAPProcedure) error {
+	if err := g.SendToRan(pdu, procedure); err != nil {
+		return fmt.Errorf("couldn't send packet to ran: %w", err)
 	}
 
 	return nil
@@ -243,7 +235,7 @@ func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) erro
 
 	info := sctp.SndRcvInfo{
 		Stream: sid,
-		PPID:   ngap.PPID,
+		PPID:   ngapPPID,
 	}
 
 	if _, err := conn.SCTPWrite(packet, &info); err != nil {
@@ -258,13 +250,12 @@ func (g *GnodeB) SendHandoverRequired(opts *HandoverRequiredOpts) error {
 	opts.TargetMnc = firstNonEmpty(opts.TargetMnc, g.MNC)
 	opts.TargetTac = firstNonEmpty(opts.TargetTac, g.TAC)
 
-	pdu, err := BuildHandoverRequired(opts)
+	pkt, err := BuildHandoverRequired(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build HandoverRequired: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureHandoverRequired)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureHandoverRequired); err != nil {
 		return fmt.Errorf("couldn't send HandoverRequired: %s", err.Error())
 	}
 
@@ -277,13 +268,12 @@ func (g *GnodeB) SendHandoverRequired(opts *HandoverRequiredOpts) error {
 }
 
 func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) error {
-	pdu, err := BuildHandoverRequestAcknowledge(opts)
+	pkt, err := BuildHandoverRequestAcknowledge(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build HandoverRequestAcknowledge: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureHandoverRequestAcknowledge)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureHandoverRequestAcknowledge); err != nil {
 		return fmt.Errorf("couldn't send HandoverRequestAcknowledge: %s", err.Error())
 	}
 

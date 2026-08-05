@@ -52,7 +52,7 @@ func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) 
 }
 
 func (fdb *failingSubscriberDB) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
 func (fdb *failingSubscriberDB) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
@@ -60,7 +60,7 @@ func (fdb *failingSubscriberDB) ListAllNetworkSlices(ctx context.Context) ([]db.
 }
 
 func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error) {
-	return &db.Policy{ID: "policy-1", Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1"}, nil
+	return &db.Policy{ID: "policy-1", Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1", SessionAmbrDownlink: "200 Mbps", SessionAmbrUplink: "100 Mbps"}, nil
 }
 
 func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
@@ -171,7 +171,7 @@ func TestMobilityReg_NilGMMCapability_Mobility_Continues(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -189,7 +189,7 @@ func TestMobilityReg_NilGMMCapability_Periodic_Continues(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -217,7 +217,7 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -234,7 +234,7 @@ func TestMobilityReg_MICOIndication(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -255,7 +255,7 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -301,9 +301,9 @@ func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 
-	reject, err := fgs.ParseRegistrationReject(resp.NasPdu)
+	reject, err := fgs.ParseRegistrationReject(resp.NASPDU)
 	if err != nil {
 		t.Fatalf("could not parse RegistrationReject: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 		t.Fatalf("expected 1 InitialContextSetupRequest, got %d", len(ngapSender.SentInitialContextSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentInitialContextSetupRequest[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentInitialContextSetupRequest[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -369,7 +369,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentPDUSessionResourceSetupRequest[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -396,7 +396,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -429,7 +429,7 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -454,7 +454,7 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -518,12 +518,12 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		t.Fatalf("expected 1 DownlinkNASTransport (DLNASTransport for N1), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nmSetup := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
+	nmSetup := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentPDUSessionResourceSetupRequest[0].NASPDU, 0)
 	if nmSetup[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept in PDUSessionResourceSetupRequest, got %v", nmSetup[2])
 	}
 
-	nmDL := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 1)
+	nmDL := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 1)
 	if nmDL[2] != uint8(fgs.MsgDLNASTransport) {
 		t.Fatalf("expected DLNASTransport, got %v", nmDL[2])
 	}
@@ -556,12 +556,12 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 		t.Fatalf("expected 2 DownlinkNASTransport (RegistrationAccept + N1 DLNASTransport), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	nmAccept := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	nmAccept := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if nmAccept[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept in first DLNASTransport, got %v", nmAccept[2])
 	}
 
-	nmN1 := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[1].NasPdu, 1)
+	nmN1 := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[1].NASPDU, 1)
 	if nmN1[2] != uint8(fgs.MsgDLNASTransport) {
 		t.Fatalf("expected DLNASTransport in second DLNASTransport, got %v", nmN1[2])
 	}
@@ -614,7 +614,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 1)
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentPDUSessionResourceSetupRequest[0].NASPDU, 1)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -633,7 +633,7 @@ func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 		t.Fatalf("expected 1 InitialContextSetupRequest, got %d", len(ngapSender.SentInitialContextSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentInitialContextSetupRequest[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentInitialContextSetupRequest[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -663,7 +663,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
 
-	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentPDUSessionResourceSetupRequest[0].NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, *ngapSender.SentPDUSessionResourceSetupRequest[0].NASPDU, 0)
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
 	}
@@ -693,7 +693,7 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := decryptAndDecodeNasPdu(t, ue, resp.NasPdu, 0)
+	nm := decryptAndDecodeNasPdu(t, ue, resp.NASPDU, 0)
 
 	if nm[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", nm[2])
@@ -752,7 +752,7 @@ func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscr
 }
 
 func (m *multiSliceDB) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
 func (m *multiSliceDB) ListAllNetworkSlices(_ context.Context) ([]db.NetworkSlice, error) {
@@ -765,7 +765,7 @@ func (m *multiSliceDB) ListAllNetworkSlices(_ context.Context) ([]db.NetworkSlic
 }
 
 func (m *multiSliceDB) GetPolicyByProfileAndSlice(_ context.Context, profileID, sliceID string) (*db.Policy, error) {
-	return &db.Policy{ID: sliceID, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1"}, nil
+	return &db.Policy{ID: sliceID, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1", SessionAmbrDownlink: "200 Mbps", SessionAmbrUplink: "100 Mbps"}, nil
 }
 
 func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
@@ -834,7 +834,7 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
 	if plain[2] != uint8(fgs.MsgRegistrationAccept) {
 		t.Fatalf("expected RegistrationAccept, got %v", plain[2])
 	}

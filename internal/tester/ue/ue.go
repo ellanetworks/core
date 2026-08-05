@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
@@ -20,8 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
-	"github.com/free5gc/openapi/models"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +54,7 @@ type UESecurity struct {
 	KnasEnc              [16]uint8
 	KnasInt              [16]uint8
 	Kamf                 []uint8
-	AuthenticationSubs   models.AuthenticationSubscription
+	AuthenticationSubs   AuthenticationSubscription
 	Suci                 fgs.MobileIdentity // the UE's SUCI
 	suciPublicKey        sidf.HomeNetworkPublicKey
 	RoutingIndicator     string
@@ -173,7 +173,7 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.UeSecurity.IntegrityAlg = integAlg
 	ue.UeSecurity.CipheringAlg = CipherAlg
 	ue.UeSecurity.NgKsi.Ksi = ngKSINoKey
-	ue.UeSecurity.NgKsi.Tsc = models.ScType_NATIVE
+	ue.UeSecurity.NgKsi.Tsc = models.ScTypeNative
 
 	ue.SetAuthSubscription(opts.K, opts.OpC, opts.Amf, opts.Sqn)
 
@@ -222,10 +222,10 @@ func (ue *UE) SetAuthSubscription(k, opc, amf, sqn string) {
 
 	ue.UeSecurity.AuthenticationSubs.AuthenticationManagementField = amf
 
-	ue.UeSecurity.AuthenticationSubs.SequenceNumber = &models.SequenceNumber{
+	ue.UeSecurity.AuthenticationSubs.SequenceNumber = &SequenceNumber{
 		Sqn: sqn,
 	}
-	ue.UeSecurity.AuthenticationSubs.AuthenticationMethod = models.AuthMethod__5_G_AKA
+	ue.UeSecurity.AuthenticationSubs.AuthenticationMethod = AuthMethod5GAKA
 }
 
 // EncodeSuci returns the UE's SUCI as a 5GS mobile identity (TS 24.501
@@ -328,7 +328,7 @@ func reverse(s string) string {
 	return aux
 }
 
-func (ue *UE) DeriveRESstarAndSetKey(authSubs models.AuthenticationSubscription, RAND []byte, snName string, AUTN []byte) ([]byte, error) {
+func (ue *UE) DeriveRESstarAndSetKey(authSubs AuthenticationSubscription, RAND []byte, snName string, AUTN []byte) ([]byte, error) {
 	OPC, err := hex.DecodeString(authSubs.EncOpcKey)
 	if err != nil {
 		return nil, fmt.Errorf("could not decode OPC: %v", err)
@@ -358,7 +358,7 @@ func (ue *UE) DeriveRESstarAndSetKey(authSubs models.AuthenticationSubscription,
 		return auts, errors.New("sequence number out of range")
 	}
 
-	authSubs.SequenceNumber = &models.SequenceNumber{
+	authSubs.SequenceNumber = &SequenceNumber{
 		Sqn: fmt.Sprintf("%08x", sqnHn),
 	}
 
@@ -709,7 +709,7 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 		}
 	}
 
-	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, gutiIE, ngapType.RRCEstablishmentCausePresentMoSignalling)
+	err = ue.Gnb.SendInitialUEMessage(nasPDU, ranUENGAPID, gutiIE, ngap.RRCCauseMOSignalling)
 	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
@@ -740,9 +740,9 @@ func (ue *UE) SendServiceRequest(ranUENGAPID int64, pduSessionStatus [16]bool, s
 		return fmt.Errorf("error encoding %s IMSI UE  NAS Security Mode Complete message: %v", ue.UeSecurity.Supi, err)
 	}
 
-	establishmentCause := ngapType.RRCEstablishmentCausePresentMoData
+	establishmentCause := ngap.RRCCauseMOData
 	if fgs.ServiceType(serviceType) == fgs.ServiceTypeMobileTerminatedServices {
-		establishmentCause = ngapType.RRCEstablishmentCausePresentMtAccess
+		establishmentCause = ngap.RRCCauseMTAccess
 	}
 
 	var gutiIE []byte
@@ -829,3 +829,27 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 
 	return nil
 }
+
+// AuthenticationSubscription is the subscriber credential material this
+// simulator authenticates with (TS 33.501 §6.1). internal/tester/s1enb keeps
+// the 4G equivalent as plain K/OPc fields on its UE; the 5G UE needs the
+// sequence number and AMF too, so they travel together.
+type AuthenticationSubscription struct {
+	// EncPermanentKey and EncOpcKey are K and OPc as hex strings.
+	EncPermanentKey               string
+	EncOpcKey                     string
+	AuthenticationManagementField string
+	SequenceNumber                *SequenceNumber
+	AuthenticationMethod          AuthMethod
+}
+
+// SequenceNumber is the SQN the UE tracks for the milenage f5 check.
+type SequenceNumber struct {
+	Sqn string
+}
+
+// AuthMethod names the authentication method a subscription uses.
+type AuthMethod string
+
+// AuthMethod5GAKA is the only method this simulator drives (TS 33.501 §6.1.3.2).
+const AuthMethod5GAKA AuthMethod = "5G_AKA"

@@ -55,7 +55,7 @@ func TestErrorIndicationRoundTrips(t *testing.T) {
 }
 
 // §8.7.2.2 requires at least one of Cause and Criticality Diagnostics, and
-// §10.3.3 binds the sender.
+// §9.1.2.1 obliges the sender.
 func TestErrorIndicationRefusesEmptyOnSend(t *testing.T) {
 	if _, err := (&ErrorIndication{}).Marshal(); err == nil {
 		t.Fatal("Marshal() = nil error, want a refusal for a message with neither IE")

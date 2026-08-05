@@ -6,8 +6,8 @@ package gnb
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/nrppa"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/nrppa"
 )
 
 // TestBuildNRPPaECIDMeasurementResponse_RoundTrip verifies the gNB tester builds
@@ -28,6 +28,7 @@ func TestBuildNRPPaECIDMeasurementResponse_RoundTrip(t *testing.T) {
 		LMFUEMeasurementID: lmfMeasID,
 		RANUEMeasurementID: ranMeasID,
 		TimingAdvance:      sampleTimingAdvance,
+		RoutingID:          ngap.RoutingID{0x00},
 	}
 
 	pdu, err := BuildNRPPaECIDMeasurementResponse(opts)
@@ -36,23 +37,27 @@ func TestBuildNRPPaECIDMeasurementResponse_RoundTrip(t *testing.T) {
 	}
 
 	// Extract the embedded NRPPa octet string from the NGAP transport.
-	if pdu.Present != ngapType.NGAPPDUPresentInitiatingMessage {
-		t.Fatalf("expected NGAP InitiatingMessage, got present=%d", pdu.Present)
+	msg, err := ngap.Unmarshal(pdu)
+	if err != nil {
+		t.Fatalf("ngap.Unmarshal: %v", err)
 	}
 
-	transport := pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport
-	if transport == nil {
-		t.Fatal("UplinkUEAssociatedNRPPaTransport is nil")
+	im, ok := msg.(*ngap.InitiatingMessage)
+	if !ok || im.ProcedureCode != ngap.ProcUplinkUEAssociatedNRPPaTransport {
+		t.Fatalf("expected an Uplink UE-associated NRPPa Transport, got %T", msg)
 	}
 
-	var nrppaPdu []byte
-
-	for _, ie := range transport.ProtocolIEs.List {
-		if ie.Id.Value == ngapType.ProtocolIEIDNRPPaPDU && ie.Value.NRPPaPDU != nil {
-			nrppaPdu = ie.Value.NRPPaPDU.Value
-		}
+	transport, err := ngap.ParseUplinkUEAssociatedNRPPaTransport(im.Value)
+	if err != nil {
+		t.Fatalf("ParseUplinkUEAssociatedNRPPaTransport: %v", err)
 	}
 
+	if int64(transport.AMFUENGAPID) != amfUeNgapID || int64(transport.RANUENGAPID) != ranUeNgapID {
+		t.Errorf("transport AP IDs = (%d, %d), want (%d, %d)",
+			transport.AMFUENGAPID, transport.RANUENGAPID, amfUeNgapID, ranUeNgapID)
+	}
+
+	nrppaPdu := []byte(transport.NRPPaPDU)
 	if nrppaPdu == nil {
 		t.Fatal("NRPPa PDU octet string missing from transport")
 	}

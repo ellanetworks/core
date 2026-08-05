@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_Paging(t *testing.T) {
@@ -18,7 +17,7 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
@@ -28,7 +27,7 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected ProcedureCode=Paging, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodePaging {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcPaging) {
 		t.Errorf("expected ProcedureCode value=24, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -50,7 +49,7 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected ID=UEPagingIdentity, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDUEPagingIdentity {
+	if item0.ID.Value != int64(idUEPagingIdentity) {
 		t.Errorf("expected ID value=53, got %d", item0.ID.Value)
 	}
 
@@ -62,7 +61,7 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
 	}
 
-	pagingID, ok := item0.Value.(ngap.UEPagingIdentity)
+	pagingID, ok := item0.Value.(UEPagingIdentity)
 	if !ok {
 		t.Fatalf("expected UEPagingIdentity type, got %T", item0.Value)
 	}
@@ -85,7 +84,7 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected ID=TAIListForPaging, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != ngapType.ProtocolIEIDTAIListForPaging {
+	if item1.ID.Value != int64(idTAIListForPaging) {
 		t.Errorf("expected ID value=54, got %d", item1.ID.Value)
 	}
 
@@ -97,24 +96,24 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
 	}
 
-	_, ok = item1.Value.([]ngap.TAI)
+	_, ok = item1.Value.([]TAI)
 	if !ok {
 		t.Fatalf("expected TAIListForPaging type, got %T", item1.Value)
 	}
 
-	if len(item1.Value.([]ngap.TAI)) != 1 {
-		t.Errorf("expected 1 TAI, got %d", len(item1.Value.([]ngap.TAI)))
+	if len(item1.Value.([]TAI)) != 1 {
+		t.Errorf("expected 1 TAI, got %d", len(item1.Value.([]TAI)))
 	}
 
-	if item1.Value.([]ngap.TAI)[0].PLMNID.Mcc != "001" {
-		t.Errorf("expected MCC=001, got %s", item1.Value.([]ngap.TAI)[0].PLMNID.Mcc)
+	if item1.Value.([]TAI)[0].PLMNID.Mcc != "001" {
+		t.Errorf("expected MCC=001, got %s", item1.Value.([]TAI)[0].PLMNID.Mcc)
 	}
 
-	if item1.Value.([]ngap.TAI)[0].PLMNID.Mnc != "01" {
-		t.Errorf("expected MNC=01, got %s", item1.Value.([]ngap.TAI)[0].PLMNID.Mnc)
+	if item1.Value.([]TAI)[0].PLMNID.Mnc != "01" {
+		t.Errorf("expected MNC=01, got %s", item1.Value.([]TAI)[0].PLMNID.Mnc)
 	}
 
-	if item1.Value.([]ngap.TAI)[0].TAC != "000001" {
-		t.Errorf("expected TAC=000001, got %s", item1.Value.([]ngap.TAI)[0].TAC)
+	if item1.Value.([]TAI)[0].TAC != "000001" {
+		t.Errorf("expected TAC=000001, got %s", item1.Value.([]TAI)[0].TAC)
 	}
 }

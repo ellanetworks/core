@@ -15,7 +15,7 @@ import (
 func buildAccept(t *testing.T, snssai *models.Snssai, pco *smfNas.ProtocolConfigurationOptions, dns net.IP, cause *fgs.GSMCause, addrs *smfNas.PDUSessionAddresses, alwaysOn *bool) *fgs.PDUSessionEstablishmentAccept {
 	t.Helper()
 
-	ambr := &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	qos := &models.QosData{QFI: 1, Var5qi: 9}
 
 	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qos, 5, 1, snssai, "internet", pco, dns, 0, cause, addrs, alwaysOn)

@@ -4,13 +4,10 @@
 package ngap
 
 import (
-	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type EUTRACGI struct {
@@ -63,232 +60,84 @@ type FiveGSTMSI struct {
 	FiveGTMSI  string `json:"fiveg_tmsi"`
 }
 
-func buildInitialUEMessage(initialUEMessage ngapType.InitialUEMessage) NGAPMessageValue {
-	ies := make([]IE, 0)
+// Initial UE Message carries the UE's first NAS message on a new RAN UE
+// association (TS 38.413 §9.2.5.2).
+func buildInitialUEMessage(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseInitialUEMessage(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Initial UE Message: %v", err)}
+	}
 
-	for i := 0; i < len(initialUEMessage.ProtocolIEs.List); i++ {
-		ie := initialUEMessage.ProtocolIEs.List[i]
+	ies := []IE{
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(idNASPDU, ngap.CriticalityReject, libNASPDU(m.NASPDU)),
+		ie(idUserLocationInformation, ngap.CriticalityReject,
+			userLocationInformation(m.UserLocationInformation)),
+	}
 
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDNASPDU:
-			var nasPdu NASPDU
+	if m.RRCEstablishmentCause != nil {
+		ies = append(ies, ie(idRRCEstablishmentCause, ngap.CriticalityIgnore,
+			libRRCEstablishmentCause(*m.RRCEstablishmentCause)))
+	}
 
-			nasPdu = NASPDU{
-				Protocol: "NAS",
-				RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
-				Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
-			}
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       nasPdu,
-			})
-		case ngapType.ProtocolIEIDUserLocationInformation:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUserLocationInformationIE(*ie.Value.UserLocationInformation),
-			})
-		case ngapType.ProtocolIEIDRRCEstablishmentCause:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildRRCEstablishmentCauseIE(*ie.Value.RRCEstablishmentCause),
-			})
-		case ngapType.ProtocolIEIDFiveGSTMSI:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildFiveGSTMSIIE(*ie.Value.FiveGSTMSI),
-			})
-		case ngapType.ProtocolIEIDAMFSetID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       bitStringToHex(&ie.Value.AMFSetID.Value),
-			})
-		case ngapType.ProtocolIEIDUEContextRequest:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUEContextRequestIE(*ie.Value.UEContextRequest),
-			})
-		case ngapType.ProtocolIEIDAllowedNSSAI:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildAllowedNSSAI(*ie.Value.AllowedNSSAI),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
+	if m.FiveGSTMSI != nil {
+		ies = append(ies, ie(idFiveGSTMSI, ngap.CriticalityReject, buildFiveGSTMSI(*m.FiveGSTMSI)))
+	}
+
+	if m.AMFSetID != nil {
+		ies = append(ies, ie(idAMFSetID, ngap.CriticalityIgnore, bitsHex(uint64(*m.AMFSetID), 10)))
+	}
+
+	if m.UEContextRequest != nil {
+		ies = append(ies, ie(idUEContextRequest, ngap.CriticalityIgnore,
+			libUEContextRequest(*m.UEContextRequest)))
+	}
+
+	if m.AllowedNSSAI != nil {
+		slices := make([]SNSSAI, 0, len(m.AllowedNSSAI))
+		for _, item := range m.AllowedNSSAI {
+			slices = append(slices, buildSNSSAIValue(item.SNSSAI))
 		}
+
+		ies = append(ies, ie(idAllowedNSSAI, ngap.CriticalityReject, slices))
 	}
 
-	return NGAPMessageValue{
-		IEs: ies,
-	}
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
-func buildFiveGSTMSIIE(fivegStmsi ngapType.FiveGSTMSI) FiveGSTMSI {
-	fiveg := FiveGSTMSI{}
-
-	fiveg.AMFSetID = bitStringToHex(&fivegStmsi.AMFSetID.Value)
-	fiveg.AMFPointer = bitStringToHex(&fivegStmsi.AMFPointer.Value)
-	fiveg.FiveGTMSI = hex.EncodeToString(fivegStmsi.FiveGTMSI.Value)
-
-	return fiveg
-}
-
-func buildRRCEstablishmentCauseIE(rrc ngapType.RRCEstablishmentCause) utils.EnumField {
-	switch rrc.Value {
-	case ngapType.RRCEstablishmentCausePresentEmergency:
-		return utils.MakeEnum(uint64(rrc.Value), "Emergency", false)
-	case ngapType.RRCEstablishmentCausePresentHighPriorityAccess:
-		return utils.MakeEnum(uint64(rrc.Value), "HighPriorityAccess", false)
-	case ngapType.RRCEstablishmentCausePresentMtAccess:
-		return utils.MakeEnum(uint64(rrc.Value), "MtAccess", false)
-	case ngapType.RRCEstablishmentCausePresentMoSignalling:
-		return utils.MakeEnum(uint64(rrc.Value), "MoSignalling", false)
-	case ngapType.RRCEstablishmentCausePresentMoData:
-		return utils.MakeEnum(uint64(rrc.Value), "MoData", false)
-	case ngapType.RRCEstablishmentCausePresentMoVoiceCall:
-		return utils.MakeEnum(uint64(rrc.Value), "MoVoiceCall", false)
-	case ngapType.RRCEstablishmentCausePresentMoVideoCall:
-		return utils.MakeEnum(uint64(rrc.Value), "MoVideoCall", false)
-	case ngapType.RRCEstablishmentCausePresentMoSMS:
-		return utils.MakeEnum(uint64(rrc.Value), "MoSMS", false)
-	case ngapType.RRCEstablishmentCausePresentMpsPriorityAccess:
-		return utils.MakeEnum(uint64(rrc.Value), "MpsPriorityAccess", false)
-	case ngapType.RRCEstablishmentCausePresentMcsPriorityAccess:
-		return utils.MakeEnum(uint64(rrc.Value), "McsPriorityAccess", false)
-	case ngapType.RRCEstablishmentCausePresentNotAvailable:
-		return utils.MakeEnum(uint64(rrc.Value), "NotAvailable", false)
+// TS 38.413 §9.3.1.111. TS 36.413 §9.2.1.3a shares only the first five members;
+// the rest have no S1AP counterpart.
+func libRRCEstablishmentCause(c ngap.RRCEstablishmentCause) utils.EnumField {
+	switch c {
+	case ngap.RRCCauseEmergency:
+		return utils.MakeEnum(uint64(c), "Emergency", false)
+	case ngap.RRCCauseHighPriorityAccess:
+		return utils.MakeEnum(uint64(c), "HighPriorityAccess", false)
+	case ngap.RRCCauseMTAccess:
+		return utils.MakeEnum(uint64(c), "MtAccess", false)
+	case ngap.RRCCauseMOSignalling:
+		return utils.MakeEnum(uint64(c), "MoSignalling", false)
+	case ngap.RRCCauseMOData:
+		return utils.MakeEnum(uint64(c), "MoData", false)
+	case ngap.RRCCauseMOVoiceCall:
+		return utils.MakeEnum(uint64(c), "MoVoiceCall", false)
+	case ngap.RRCCauseMOVideoCall:
+		return utils.MakeEnum(uint64(c), "MoVideoCall", false)
+	case ngap.RRCCauseMOSMS:
+		return utils.MakeEnum(uint64(c), "MoSMS", false)
+	case ngap.RRCCauseMPSPriorityAccess:
+		return utils.MakeEnum(uint64(c), "MpsPriorityAccess", false)
+	case ngap.RRCCauseMCSPriorityAccess:
+		return utils.MakeEnum(uint64(c), "McsPriorityAccess", false)
 	default:
-		return utils.MakeEnum(uint64(rrc.Value), "", true)
+		return utils.MakeEnum(uint64(c), "", true)
 	}
 }
 
-func buildUEContextRequestIE(ueCtxReq ngapType.UEContextRequest) utils.EnumField {
-	switch ueCtxReq.Value {
-	case ngapType.UEContextRequestPresentRequested:
-		return utils.MakeEnum(uint64(ueCtxReq.Value), "Requested", false)
-	default:
-		return utils.MakeEnum(uint64(ueCtxReq.Value), "", true)
-	}
-}
-
-func buildAllowedNSSAI(allowedNSSAI ngapType.AllowedNSSAI) []SNSSAI {
-	snssaiList := make([]SNSSAI, 0)
-
-	for i := 0; i < len(allowedNSSAI.List); i++ {
-		ngapSnssai := allowedNSSAI.List[i].SNSSAI
-		snssai := buildSNSSAI(&ngapSnssai)
-		snssaiList = append(snssaiList, *snssai)
+func libUEContextRequest(r ngap.UEContextRequest) utils.EnumField {
+	if r == ngap.UEContextRequested {
+		return utils.MakeEnum(uint64(r), "Requested", false)
 	}
 
-	return snssaiList
-}
-
-func buildUserLocationInformationIE(uli ngapType.UserLocationInformation) UserLocationInformation {
-	userLocationInfo := UserLocationInformation{}
-
-	switch uli.Present {
-	case ngapType.UserLocationInformationPresentUserLocationInformationEUTRA:
-		userLocationInfo.EUTRA = buildUserLocationInformationEUTRA(uli.UserLocationInformationEUTRA)
-	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
-		userLocationInfo.NR = buildUserLocationInformationNR(uli.UserLocationInformationNR)
-	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
-		userLocationInfo.N3IWF = buildUserLocationInformationN3IWF(uli.UserLocationInformationN3IWF)
-	default:
-		userLocationInfo.Error = fmt.Sprintf("unsupported UserLocationInformation type: %d", uli.Present)
-	}
-
-	return userLocationInfo
-}
-
-func buildUserLocationInformationEUTRA(uliEUTRA *ngapType.UserLocationInformationEUTRA) *UserLocationInformationEUTRA {
-	if uliEUTRA == nil {
-		return nil
-	}
-
-	eutra := &UserLocationInformationEUTRA{}
-
-	eutra.EUTRACGI = EUTRACGI{
-		PLMNID:            plmnIDToModels(uliEUTRA.EUTRACGI.PLMNIdentity),
-		EUTRACellIdentity: bitStringToHex(&uliEUTRA.EUTRACGI.EUTRACellIdentity.Value),
-	}
-
-	eutra.TAI = TAI{
-		PLMNID: plmnIDToModels(uliEUTRA.TAI.PLMNIdentity),
-		TAC:    hex.EncodeToString(uliEUTRA.TAI.TAC.Value),
-	}
-
-	if uliEUTRA.TimeStamp != nil {
-		tsStr, err := timeStampToRFC3339(uliEUTRA.TimeStamp.Value)
-		if err != nil {
-			eutra.Error = fmt.Sprintf("failed to convert NGAP timestamp to RFC3339: %v", err)
-		} else {
-			eutra.TimeStamp = &tsStr
-		}
-	}
-
-	return eutra
-}
-
-func buildUserLocationInformationNR(uliNR *ngapType.UserLocationInformationNR) *UserLocationInformationNR {
-	if uliNR == nil {
-		return nil
-	}
-
-	nr := &UserLocationInformationNR{}
-
-	nr.NRCGI = NRCGI{
-		PLMNID:         plmnIDToModels(uliNR.NRCGI.PLMNIdentity),
-		NRCellIdentity: bitStringToHex(&uliNR.NRCGI.NRCellIdentity.Value),
-	}
-
-	nr.TAI = TAI{
-		PLMNID: plmnIDToModels(uliNR.TAI.PLMNIdentity),
-		TAC:    hex.EncodeToString(uliNR.TAI.TAC.Value),
-	}
-
-	if uliNR.TimeStamp != nil {
-		tsStr, err := timeStampToRFC3339(uliNR.TimeStamp.Value)
-		if err != nil {
-			nr.Error = fmt.Sprintf("failed to convert NGAP timestamp to RFC3339: %v", err)
-		} else {
-			nr.TimeStamp = &tsStr
-		}
-	}
-
-	return nr
-}
-
-func buildUserLocationInformationN3IWF(uliN3IWF *ngapType.UserLocationInformationN3IWF) *UserLocationInformationN3IWF {
-	if uliN3IWF == nil {
-		return nil
-	}
-
-	n3iwf := &UserLocationInformationN3IWF{}
-
-	ipv4Addr, ipv6Addr := ngapConvert.IPAddressToString(uliN3IWF.IPAddress)
-	if ipv4Addr != "" {
-		n3iwf.IPAddress = ipv4Addr
-	} else {
-		n3iwf.IPAddress = ipv6Addr
-	}
-
-	n3iwf.PortNumber = ngapConvert.PortNumberToInt(uliN3IWF.PortNumber)
-
-	return n3iwf
+	return utils.MakeEnum(uint64(r), "", true)
 }

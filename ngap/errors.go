@@ -106,7 +106,7 @@ func (e *AbstractSyntaxError) UEIDs() (*AMFUENGAPID, *RANUENGAPID) {
 	for _, ie := range e.decoded {
 		switch ie.ID {
 		// PATH SWITCH REQUEST identifies the association by the source AMF id
-		// (TS 38.413 §9.2.3.1); no message carries both. id-NewAMF-UE-NGAP-ID
+		// (TS 38.413 §9.2.3.8); no message carries both. id-NewAMF-UE-NGAP-ID
 		// is deliberately absent: UE CONTEXT MODIFICATION REQUEST carries it
 		// alongside id-AMF-UE-NGAP-ID to assign a new id, so it names the
 		// association being moved to rather than the one to answer about.
@@ -237,4 +237,23 @@ func (t TypeOfError) String() string {
 	default:
 		return fmt.Sprintf("TypeOfError(%d)", uint8(t))
 	}
+}
+
+// PathSwitchSessions returns the sessions a rejected PATH SWITCH REQUEST asked
+// to switch. §9.2.3.10 makes the released list mandatory in PATH SWITCH REQUEST
+// FAILURE, so that message can only be built where this list survived the
+// decode; §10.3.5 falls back to the Error Indication procedure where it did not.
+func (e *AbstractSyntaxError) PathSwitchSessions() PDUSessionResourceToBeSwitchedDLList {
+	for _, ie := range e.decoded {
+		if ie.ID != idPDUSessionResourceToBeSwitchedDLList {
+			continue
+		}
+
+		var v PDUSessionResourceToBeSwitchedDLList
+		if perIEDecode(ie.Value, &v) == nil {
+			return v
+		}
+	}
+
+	return nil
 }

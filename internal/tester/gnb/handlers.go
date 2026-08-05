@@ -6,142 +6,96 @@ package gnb
 import (
 	"fmt"
 
-	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
-func updateReceivedFramesMap(gnb *GnodeB, pduType int, msgType int, frame SCTPFrame) {
+func updateReceivedFramesMap(gnb *GnodeB, frame SCTPFrame) {
 	gnb.mu.Lock()
 	defer gnb.mu.Unlock()
 
 	if gnb.receivedFrames == nil {
-		gnb.receivedFrames = make(map[int]map[int][]SCTPFrame)
+		gnb.receivedFrames = make(map[Category]map[ngap.ProcedureCode][]SCTPFrame)
 	}
 
-	if gnb.receivedFrames[pduType] == nil {
-		gnb.receivedFrames[pduType] = make(map[int][]SCTPFrame)
+	if gnb.receivedFrames[frame.Category] == nil {
+		gnb.receivedFrames[frame.Category] = make(map[ngap.ProcedureCode][]SCTPFrame)
 	}
 
-	gnb.receivedFrames[pduType][msgType] = append(gnb.receivedFrames[pduType][msgType], frame)
+	byCode := gnb.receivedFrames[frame.Category]
+	byCode[frame.ProcedureCode] = append(byCode[frame.ProcedureCode], frame)
+
 	gnb.cond.Broadcast()
 }
 
+// HandleFrame decodes one inbound NGAP PDU, files it for WaitForMessage, and
+// runs the handler for the procedures this simulator answers on its own.
+// internal/tester/s1enb dispatches S1AP the same way.
 func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
-	pdu, err := ngap.Decoder(sctpFrame.Data)
+	pdu, err := ngap.Unmarshal(sctpFrame.Data)
 	if err != nil {
-		return fmt.Errorf("could not decode NGAP: %v", err)
-	}
-
-	switch pdu.Present {
-	case ngapType.NGAPPDUPresentInitiatingMessage:
-		err := handleNGAPInitiatingMessage(gnb, pdu, sctpFrame.Data)
-		if err != nil {
-			return fmt.Errorf("could not handle NGAP InitiatingMessage: %v", err)
-		}
-
-		updateReceivedFramesMap(gnb, pdu.Present, pdu.InitiatingMessage.Value.Present, sctpFrame)
-
-		return nil
-	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		err := handleNGAPSuccessfulOutcome(pdu, sctpFrame.Data)
-		if err != nil {
-			return fmt.Errorf("could not handle NGAP SuccessfulOutcome: %v", err)
-		}
-
-		updateReceivedFramesMap(gnb, pdu.Present, pdu.SuccessfulOutcome.Value.Present, sctpFrame)
-
-		return nil
-	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		err := handleNGAPUnsuccessfulOutcome(pdu, sctpFrame.Data)
-		if err != nil {
-			return fmt.Errorf("could not handle NGAP UnsuccessfulOutcome: %v", err)
-		}
-
-		updateReceivedFramesMap(gnb, pdu.Present, pdu.UnsuccessfulOutcome.Value.Present, sctpFrame)
-
-		return nil
-
-	default:
-		return fmt.Errorf("NGAP PDU Present is invalid: %d", pdu.Present)
-	}
-}
-
-func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU, raw []byte) error {
-	switch pdu.InitiatingMessage.Value.Present {
-	case ngapType.InitiatingMessagePresentDownlinkNASTransport:
-		return handleDownlinkNASTransport(gnb, pdu.InitiatingMessage.Value.DownlinkNASTransport)
-	case ngapType.InitiatingMessagePresentInitialContextSetupRequest:
-		return handleInitialContextSetupRequest(gnb, pdu.InitiatingMessage.Value.InitialContextSetupRequest)
-	case ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest:
-		return handlePDUSessionResourceSetupRequest(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceSetupRequest)
-	case ngapType.InitiatingMessagePresentPDUSessionResourceModifyRequest:
-		return handlePDUSessionResourceModifyRequest(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceModifyRequest)
-	case ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand:
-		return handlePDUSessionResourceReleaseCommand(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceReleaseCommand)
-	case ngapType.InitiatingMessagePresentUEContextReleaseCommand:
-		return handleUEContextReleaseCommand(gnb, pdu.InitiatingMessage.Value.UEContextReleaseCommand)
-	case ngapType.InitiatingMessagePresentPaging:
-		return handlePaging(gnb, pdu.InitiatingMessage.Value.Paging)
-	case ngapType.InitiatingMessagePresentErrorIndication:
-		return handleErrorIndication(outcomeValue(raw))
-	case ngapType.InitiatingMessagePresentHandoverRequest:
-		return handleHandoverRequest(gnb, pdu.InitiatingMessage.Value.HandoverRequest)
-	case ngapType.InitiatingMessagePresentDownlinkUEAssociatedNRPPaTransport:
-		return handleDownlinkUEAssociatedNRPPaTransport(gnb, pdu.InitiatingMessage.Value.DownlinkUEAssociatedNRPPaTransport)
-	default:
-		return fmt.Errorf("NGAP InitiatingMessage Present is invalid: %d", pdu.InitiatingMessage.Value.Present)
-	}
-}
-
-// raw is the PDU as received. Procedures already migrated to the in-house
-// codec parse it themselves; the free5gc decode above is still what keys
-// received frames for the scenarios' WaitForMessage.
-func handleNGAPSuccessfulOutcome(pdu *ngapType.NGAPPDU, raw []byte) error {
-	switch pdu.SuccessfulOutcome.Value.Present {
-	case ngapType.SuccessfulOutcomePresentNGSetupResponse:
-		return handleNGSetupResponse(outcomeValue(raw))
-	case ngapType.SuccessfulOutcomePresentNGResetAcknowledge:
-		return handleNGResetAcknowledge(outcomeValue(raw))
-	case ngapType.SuccessfulOutcomePresentRANConfigurationUpdateAcknowledge:
-		return nil // Handled via WaitForMessage
-	case ngapType.SuccessfulOutcomePresentPathSwitchRequestAcknowledge:
-		return nil // Handled via WaitForMessage
-	case ngapType.SuccessfulOutcomePresentHandoverCommand:
-		return nil // Handled via WaitForMessage by source gNB
-	default:
-		return fmt.Errorf("NGAP SuccessfulOutcome Present is invalid: %d", pdu.SuccessfulOutcome.Value.Present)
-	}
-}
-
-func handleNGAPUnsuccessfulOutcome(pdu *ngapType.NGAPPDU, raw []byte) error {
-	switch pdu.UnsuccessfulOutcome.Value.Present {
-	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
-		return handleNGSetupFailure(outcomeValue(raw))
-	case ngapType.UnsuccessfulOutcomePresentRANConfigurationUpdateFailure:
-		return nil // Handled via WaitForMessage
-	case ngapType.UnsuccessfulOutcomePresentPathSwitchRequestFailure:
-		return nil // Handled via WaitForMessage
-	default:
-		return fmt.Errorf("NGAP UnsuccessfulOutcome Present is invalid: %d", pdu.UnsuccessfulOutcome.Value.Present)
-	}
-}
-
-// outcomeValue returns the open-type payload of an NGAP PDU, or nil when the
-// envelope does not decode — the caller's parse then reports it.
-func outcomeValue(raw []byte) []byte {
-	pdu, err := ngaplib.Unmarshal(raw)
-	if err != nil {
-		return nil
+		return fmt.Errorf("could not decode NGAP: %w", err)
 	}
 
 	switch m := pdu.(type) {
-	case *ngaplib.SuccessfulOutcome:
-		return m.Value
-	case *ngaplib.UnsuccessfulOutcome:
-		return m.Value
-	case *ngaplib.InitiatingMessage:
-		return m.Value
+	case *ngap.InitiatingMessage:
+		sctpFrame.Category, sctpFrame.ProcedureCode, sctpFrame.Value = Initiating, m.ProcedureCode, m.Value
+	case *ngap.SuccessfulOutcome:
+		sctpFrame.Category, sctpFrame.ProcedureCode, sctpFrame.Value = Successful, m.ProcedureCode, m.Value
+	case *ngap.UnsuccessfulOutcome:
+		sctpFrame.Category, sctpFrame.ProcedureCode, sctpFrame.Value = Unsuccessful, m.ProcedureCode, m.Value
+	default:
+		return fmt.Errorf("NGAP PDU alternative is invalid: %T", pdu)
+	}
+
+	updateReceivedFramesMap(gnb, sctpFrame)
+
+	return handleFrame(gnb, sctpFrame)
+}
+
+// handleFrame answers the procedures this simulator acts on by itself.
+// Everything else is left to WaitForMessage, which the scenarios drive.
+func handleFrame(gnb *GnodeB, frame SCTPFrame) error {
+	switch frame.Category {
+	case Initiating:
+		return handleInitiatingMessage(gnb, frame)
+	case Successful:
+		switch frame.ProcedureCode {
+		case ngap.ProcNGSetup:
+			return handleNGSetupResponse(frame.Value)
+		case ngap.ProcNGReset:
+			return handleNGResetAcknowledge(frame.Value)
+		}
+	case Unsuccessful:
+		if frame.ProcedureCode == ngap.ProcNGSetup {
+			return handleNGSetupFailure(frame.Value)
+		}
+	}
+
+	return nil
+}
+
+func handleInitiatingMessage(gnb *GnodeB, frame SCTPFrame) error {
+	switch frame.ProcedureCode {
+	case ngap.ProcDownlinkNASTransport:
+		return handleDownlinkNASTransport(gnb, frame.Value)
+	case ngap.ProcInitialContextSetup:
+		return handleInitialContextSetupRequest(gnb, frame.Value)
+	case ngap.ProcPDUSessionResourceSetup:
+		return handlePDUSessionResourceSetupRequest(gnb, frame.Value)
+	case ngap.ProcPDUSessionResourceModify:
+		return handlePDUSessionResourceModifyRequest(gnb, frame.Value)
+	case ngap.ProcPDUSessionResourceRelease:
+		return handlePDUSessionResourceReleaseCommand(gnb, frame.Value)
+	case ngap.ProcUEContextRelease:
+		return handleUEContextReleaseCommand(gnb, frame.Value)
+	case ngap.ProcPaging:
+		return handlePaging(gnb, frame.Value)
+	case ngap.ProcErrorIndication:
+		return handleErrorIndication(frame.Value)
+	case ngap.ProcHandoverResourceAllocation:
+		return handleHandoverRequest(gnb, frame.Value)
+	case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
+		return handleDownlinkUEAssociatedNRPPaTransport(gnb, frame.Value)
 	}
 
 	return nil

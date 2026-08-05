@@ -11,13 +11,12 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -66,8 +65,9 @@ func forward5GSMMessageToSMF(
 			return
 		}
 
-		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.N2Msg)
+		list := ngap.PDUSessionResourceToReleaseListRelCmd{
+			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(response.N2Msg)},
+		}
 
 		err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
 		if err != nil {

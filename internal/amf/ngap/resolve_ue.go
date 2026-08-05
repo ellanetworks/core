@@ -13,6 +13,32 @@ import (
 	"go.uber.org/zap"
 )
 
+// resolveUE looks up a UE context for a message whose two UE NGAP IDs are both
+// mandatory with reject criticality, so the decoder guarantees both. Mirrors
+// the MME's resolveUE.
+func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID) (*amf.UeConn, bool) {
+	a, r := int64(amfID), int64(ranID)
+
+	return resolveDecodedUE(ctx, amfInstance, ran, &r, &a)
+}
+
+// resolveUEIDs is resolveUE for a message whose UE NGAP IDs carry ignore
+// criticality and may therefore be absent.
+//
+// §10.3.5 has the receiver ignore an absent ignore-criticality IE and carry on,
+// and §9.3.1.3 makes such an IE unreportable in Criticality Diagnostics, so
+// nothing is sent back. Without an id there is no UE context to address, so the
+// message is dropped where it stands.
+func resolveUEIDs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID *ngap.AMFUENGAPID, ranID *ngap.RANUENGAPID) (*amf.UeConn, bool) {
+	if amfID == nil || ranID == nil {
+		logger.WithTrace(ctx, ran.Log).Warn("UE-associated NGAP message without both UE NGAP IDs")
+
+		return nil, false
+	}
+
+	return resolveUE(ctx, amfInstance, ran, *amfID, *ranID)
+}
+
 // resolveUE looks up a UE context on the sending radio per TS 38.413 (Handling
 // of AP ID). At the AMF the local AP ID is the AMF UE NGAP ID and
 // the remote AP ID is the RAN UE NGAP ID, so the connection is identified by the
@@ -24,12 +50,12 @@ import (
 //
 // On either error an Error Indication carrying the received AP IDs is sent to
 // the sender (TS 38.413) and the function returns (nil, false).
-func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ranID *int64, amfID *int64) (*amf.UeConn, bool) {
+func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ranID *int64, amfID *int64) (*amf.UeConn, bool) {
 	if amfID != nil {
 		ueConn := amfInstance.FindUEByAmfUeNgapID(ran, models.AmfUeNgapID(*amfID))
 		if ueConn == nil {
 			logger.WithTrace(ctx, ran.Log).Warn("Unknown local AMF-UE-NGAP-ID on this radio",
-				zap.Int64("AmfUeNgapID", *amfID))
+				zap.Uint64("amf-ue-id", uint64(*amfID)))
 			sendUnknownLocalUEError(ctx, ran, amfID, ranID)
 
 			return nil, false
@@ -37,9 +63,9 @@ func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ranID 
 
 		if ranID != nil && ueConn.RanUeNgapID != models.RanUeNgapID(*ranID) {
 			logger.WithTrace(ctx, ran.Log).Warn("Inconsistent remote RAN-UE-NGAP-ID",
-				zap.Int64("AmfUeNgapID", *amfID),
-				zap.Int64("storedRanUeNgapID", int64(ueConn.RanUeNgapID)),
-				zap.Int64("receivedRanUeNgapID", *ranID))
+				zap.Uint64("amf-ue-id", uint64(*amfID)),
+				zap.Uint32("stored-ran-ue-id", uint32(ueConn.RanUeNgapID)),
+				zap.Uint32("received-ran-ue-id", uint32(*ranID)))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
 
 			return nil, false
@@ -52,7 +78,7 @@ func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, ranID 
 		ueConn := amfInstance.FindUEByRanUeNgapID(ran, models.RanUeNgapID(*ranID))
 		if ueConn == nil {
 			logger.WithTrace(ctx, ran.Log).Warn("Unknown remote RAN-UE-NGAP-ID on this radio",
-				zap.Int64("RanUeNgapID", *ranID))
+				zap.Uint32("ran-ue-id", uint32(*ranID)))
 			sendInconsistentRemoteUEError(ctx, ran, amfID, ranID)
 
 			return nil, false
@@ -78,19 +104,19 @@ var causeInconsistentRemoteUEID = ngap.Cause{
 }
 
 func sendUnknownLocalUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
-	a, r := ueIDs(amfID, ranID)
+	a, r := decodedUEIDs(amfID, ranID)
 	sendErrorIndication(ctx, ran, a, r, causeUnknownLocalUEID)
 }
 
 func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
-	a, r := ueIDs(amfID, ranID)
+	a, r := decodedUEIDs(amfID, ranID)
 	sendErrorIndication(ctx, ran, a, r, causeInconsistentRemoteUEID)
 }
 
-// ueIDs converts the dispatcher's raw AP IDs into the library's identifier
-// types, leaving an absent id absent so the Error Indication does not claim
-// one the sender never gave (TS 38.413 §8.4.4.2).
-func ueIDs(amfID, ranID *int64) (*ngap.AMFUENGAPID, *ngap.RANUENGAPID) {
+// decodedUEIDs converts the dispatcher's raw AP IDs into the library's identifier
+// types, leaving an absent id absent so the Error Indication reports only the
+// ids the sender actually gave.
+func decodedUEIDs(amfID, ranID *int64) (*ngap.AMFUENGAPID, *ngap.RANUENGAPID) {
 	var (
 		a *ngap.AMFUENGAPID
 		r *ngap.RANUENGAPID

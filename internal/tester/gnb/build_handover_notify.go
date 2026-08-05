@@ -4,7 +4,7 @@
 package gnb
 
 import (
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type HandoverNotifyOpts struct {
@@ -18,74 +18,19 @@ type HandoverNotifyOpts struct {
 	GnbID string
 }
 
-func BuildHandoverNotify(opts *HandoverNotifyOpts) (ngapType.NGAPPDU, error) {
-	pdu := ngapType.NGAPPDU{}
-
-	plmnID, err := GetMccAndMncInOctets(opts.Mcc, opts.Mnc)
+// BuildHandoverNotify encodes a HANDOVER NOTIFY PDU (TS 38.413 §8.4.3), which
+// the target NG-RAN node sends once the UE has arrived.
+func BuildHandoverNotify(opts *HandoverNotifyOpts) ([]byte, error) {
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
 	if err != nil {
-		return pdu, err
+		return nil, err
 	}
 
-	plmnIdentity := GetPLMNIdentity(opts.Mcc, opts.Mnc)
-
-	tac, err := GetTacInBytes(opts.Tac)
-	if err != nil {
-		return pdu, err
+	msg := &ngap.HandoverNotify{
+		AMFUENGAPID:             ngap.AMFUENGAPID(opts.AMFUENGAPID),
+		RANUENGAPID:             ngap.RANUENGAPID(opts.RANUENGAPID),
+		UserLocationInformation: &uli,
 	}
 
-	nrCellID, err := GetNRCellIdentity(opts.GnbID)
-	if err != nil {
-		return pdu, err
-	}
-
-	msg := &ngapType.HandoverNotify{}
-	ies := &msg.ProtocolIEs
-
-	{
-		ie := ngapType.HandoverNotifyIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverNotifyIEsPresentAMFUENGAPID
-		ie.Value.AMFUENGAPID = &ngapType.AMFUENGAPID{Value: opts.AMFUENGAPID}
-		ies.List = append(ies.List, ie)
-	}
-
-	{
-		ie := ngapType.HandoverNotifyIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverNotifyIEsPresentRANUENGAPID
-		ie.Value.RANUENGAPID = &ngapType.RANUENGAPID{Value: opts.RANUENGAPID}
-		ies.List = append(ies.List, ie)
-	}
-
-	{
-		ie := ngapType.HandoverNotifyIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDUserLocationInformation
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverNotifyIEsPresentUserLocationInformation
-		ie.Value.UserLocationInformation = &ngapType.UserLocationInformation{
-			Present: ngapType.UserLocationInformationPresentUserLocationInformationNR,
-			UserLocationInformationNR: &ngapType.UserLocationInformationNR{
-				NRCGI: ngapType.NRCGI{
-					PLMNIdentity:   plmnIdentity,
-					NRCellIdentity: nrCellID,
-				},
-				TAI: ngapType.TAI{
-					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-					TAC:          ngapType.TAC{Value: tac},
-				},
-			},
-		}
-		ies.List = append(ies.List, ie)
-	}
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-	pdu.InitiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeHandoverNotification
-	pdu.InitiatingMessage.Criticality.Value = ngapType.CriticalityPresentIgnore
-	pdu.InitiatingMessage.Value.Present = ngapType.InitiatingMessagePresentHandoverNotify
-	pdu.InitiatingMessage.Value.HandoverNotify = msg
-
-	return pdu, nil
+	return msg.Marshal()
 }

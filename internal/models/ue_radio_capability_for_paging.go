@@ -4,8 +4,8 @@
 package models
 
 type UERadioCapabilityForPaging struct {
-	NR    string // OCTET string
-	EUTRA string // OCTET string
+	NR    []byte
+	EUTRA []byte
 }
 
 // TS 38.413 9.3.1.71

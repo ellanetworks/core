@@ -13,7 +13,7 @@ import (
 func (e *ENB) GlobalENBID() s1ap.GlobalENBID {
 	return s1ap.GlobalENBID{
 		PLMNIdentity: e.plmn,
-		ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: e.enbID},
+		ENBID:        e.enbNodeID(),
 	}
 }
 

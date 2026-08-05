@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
@@ -48,5 +47,5 @@ func HandleUplinkRANConfigurationTransfer(ctx context.Context, amfInstance *amf.
 		return
 	}
 
-	targetRadio.SendToRadio(ctx, send.NGAPProcedureDownlinkRanConfigurationTransfer, b)
+	targetRadio.SendToRadio(ctx, amf.NGAPProcedureDownlinkRANConfigurationTransfer, b)
 }

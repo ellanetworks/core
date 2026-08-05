@@ -8,8 +8,7 @@ import (
 	"testing"
 )
 
-// Golden AMF STATUS INDICATION PDUs from a second, independent NGAP
-// implementation (free5gc/ngap v1.1.3) encoding the same messages.
+// Golden AMF STATUS INDICATION PDUs
 const (
 	goldenAMFStatusIndication     = "0001400f00000100780008000000f110cafe00"
 	goldenAMFStatusIndicationFull = "0001401b00000100780014006000f110cafe0002406261636b75702d616d66"
@@ -113,8 +112,8 @@ func TestAMFStatusIndicationOptionalsStayAbsent(t *testing.T) {
 	}
 }
 
-// The Unavailable GUAMI List is mandatory with reject criticality, so §10.3.3
-// binds the sender and §10.3.4.2 has the receiver reject the procedure rather
+// The Unavailable GUAMI List is mandatory with reject criticality, so §9.1.1
+// obliges the sender and §10.3.4.2 has the receiver reject the procedure rather
 // than act on a message naming no GUAMI.
 func TestAMFStatusIndicationRequiresGUAMIList(t *testing.T) {
 	if _, err := (&AMFStatusIndication{}).Marshal(); err == nil {

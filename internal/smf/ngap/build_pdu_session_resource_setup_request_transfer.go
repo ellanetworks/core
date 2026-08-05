@@ -6,57 +6,16 @@
 package ngap
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType aper.Enumerated) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType) ([]byte, error) {
 	if ambr == nil {
 		return nil, fmt.Errorf("ambr is nil")
-	}
-
-	teidOct := make([]byte, 4)
-	binary.BigEndian.PutUint32(teidOct, teid)
-
-	resourceSetupRequestTransfer := ngapType.PDUSessionResourceSetupRequestTransfer{}
-
-	// Conditional: present when at least one non-GBR QoS flow is being set up.
-	ie := ngapType.PDUSessionResourceSetupRequestTransferIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-
-	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
-		PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
-			PDUSessionAggregateMaximumBitRateDL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(ambr.Downlink),
-			},
-			PDUSessionAggregateMaximumBitRateUL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(ambr.Uplink),
-			},
-		},
-	}
-	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
-
-	ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDULNGUUPTNLInformation
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-
-	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
-		ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
-			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
-			GTPTunnel: &ngapType.GTPTunnel{
-				TransportLayerAddress: ngapType.TransportLayerAddress{},
-				GTPTEID:               ngapType.GTPTEID{Value: teidOct},
-			},
-		},
 	}
 
 	tla, err := encodeTransportLayerAddress(n3IPv4, n3IPv6)
@@ -64,75 +23,28 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
 	}
 
-	ie.Value.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = tla
-
-	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
-
-	ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionType
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionType,
-		PDUSessionType: &ngapType.PDUSessionType{
-			Value: pduSessionType,
+	transfer := libngap.PDUSessionResourceSetupRequestTransfer{
+		// Conditional: present when at least one non-GBR QoS flow is set up.
+		PDUSessionAggregateMaximumBitRate: sessionAMBR(ambr),
+		ULNGUUPTNLInformation: libngap.UPTransportLayerInformation{
+			GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
 		},
+		PDUSessionType: pduSessionType,
 	}
-	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 
 	if qosData != nil {
-		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-
-		var qosFlowsList []ngapType.QosFlowSetupRequestItem
-
-		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if qosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
-			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
+		params, err := qosFlowLevelQosParameters(qosData)
+		if err != nil {
+			return nil, err
 		}
 
-		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if qosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
-			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
-		}
-
-		qosFlowItem := ngapType.QosFlowSetupRequestItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosData.QFI)},
-			QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
-				QosCharacteristics: ngapType.QosCharacteristics{
-					Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
-					NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
-						FiveQI: ngapType.FiveQI{
-							Value: int64(qosData.Var5qi),
-						},
-					},
-				},
-				AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
-					PriorityLevelARP: ngapType.PriorityLevelARP{
-						Value: int64(qosData.Arp.PriorityLevel),
-					},
-					PreEmptionCapability: ngapType.PreEmptionCapability{
-						Value: arpPreemptCap,
-					},
-					PreEmptionVulnerability: ngapType.PreEmptionVulnerability{
-						Value: arpPreemptVul,
-					},
-				},
-			},
-		}
-		qosFlowsList = append(qosFlowsList, qosFlowItem)
-
-		ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
-			Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentQosFlowSetupRequestList,
-			QosFlowSetupRequestList: &ngapType.QosFlowSetupRequestList{
-				List: qosFlowsList,
-			},
-		}
-
-		resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
+		transfer.QosFlowSetupRequest = libngap.QosFlowSetupRequestList{{
+			QosFlowIdentifier:         libngap.QosFlowIdentifier(qosData.QFI),
+			QosFlowLevelQosParameters: params,
+		}}
 	}
 
-	buf, err := aper.MarshalWithParams(resourceSetupRequestTransfer, "valueExt")
+	buf, err := transfer.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("encode resourceSetupRequestTransfer failed: %s", err)
 	}

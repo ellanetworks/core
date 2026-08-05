@@ -45,7 +45,13 @@ var eNBStatusTransferIEs = []ieSpec[ENBStatusTransfer]{
 			m.Container = StatusTransferContainer(raw)
 			return nil
 		},
-		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return m.Container, true },
+		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) {
+			if m.Container == nil {
+				return nil, false
+			}
+
+			return m.Container, true
+		},
 	},
 }
 
@@ -64,7 +70,7 @@ func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcENBStatusTransfer,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }
@@ -103,7 +109,13 @@ var mMEStatusTransferIEs = []ieSpec[MMEStatusTransfer]{
 			m.Container = StatusTransferContainer(raw)
 			return nil
 		},
-		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return m.Container, true },
+		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) {
+			if m.Container == nil {
+				return nil, false
+			}
+
+			return m.Container, true
+		},
 	},
 }
 
@@ -122,7 +134,7 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcMMEStatusTransfer,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }

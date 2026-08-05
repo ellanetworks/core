@@ -6,7 +6,7 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type PDUSessionResourceFailedToSetupCxtFail struct {
@@ -16,75 +16,51 @@ type PDUSessionResourceFailedToSetupCxtFail struct {
 	Error string `json:"error,omitempty"`
 }
 
-func buildInitialContextSetupFailure(initialContextSetupFailure ngapType.InitialContextSetupFailure) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(initialContextSetupFailure.ProtocolIEs.List); i++ {
-		ie := initialContextSetupFailure.ProtocolIEs.List[i]
-
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDCause:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       causeToEnum(*ie.Value.Cause),
-			})
-		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtFail:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildPDUSessionResourceFailedToSetupListCxtFailIE(*ie.Value.PDUSessionResourceFailedToSetupListCxtFail),
-			})
-		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildCriticalityDiagnosticsIE(ie.Value.CriticalityDiagnostics),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
+// Initial Context Setup Failure reports that the NG-RAN node could not set up
+// the UE context at all (TS 38.413 §9.2.2.3).
+func buildInitialContextSetupFailure(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseInitialContextSetupFailure(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Initial Context Setup Failure: %v", err)}
 	}
 
-	return NGAPMessageValue{
-		IEs: ies,
-	}
-}
+	var ies []IE
 
-func buildPDUSessionResourceFailedToSetupListCxtFailIE(pduList ngapType.PDUSessionResourceFailedToSetupListCxtFail) []PDUSessionResourceFailedToSetupCxtFail {
-	pduSessionList := make([]PDUSessionResourceFailedToSetupCxtFail, 0)
-
-	for i := 0; i < len(pduList.List); i++ {
-		item := pduList.List[i]
-		entry := PDUSessionResourceFailedToSetupCxtFail{
-			PDUSessionID: item.PDUSessionID.Value,
-		}
-
-		transfer, err := decodeSetupUnsuccessfulTransfer(item.PDUSessionResourceSetupUnsuccessfulTransfer)
-		if err != nil {
-			entry.Error = fmt.Sprintf("failed to decode unsuccessful transfer: %v", err)
-		} else {
-			entry.PDUSessionResourceSetupUnsuccessfulTransfer = transfer
-		}
-
-		pduSessionList = append(pduSessionList, entry)
+	if m.AMFUENGAPID != nil {
+		ies = append(ies, ie(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
 	}
 
-	return pduSessionList
+	if m.RANUENGAPID != nil {
+		ies = append(ies, ie(idRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
+	}
+
+	if m.PDUSessionResourceFailed != nil {
+		out := make([]PDUSessionResourceFailedToSetupCxtFail, 0, len(m.PDUSessionResourceFailed))
+
+		for _, item := range m.PDUSessionResourceFailed {
+			entry := PDUSessionResourceFailedToSetupCxtFail{PDUSessionID: int64(item.PDUSessionID)}
+
+			transfer, err := libUnsuccessfulTransfer(item.Transfer)
+			if err != nil {
+				entry.Error = fmt.Sprintf("failed to decode unsuccessful transfer: %v", err)
+			} else {
+				entry.PDUSessionResourceSetupUnsuccessfulTransfer = transfer
+			}
+
+			out = append(out, entry)
+		}
+
+		ies = append(ies, ie(idPDUSessionResourceFailedToSetupListCxtFail, ngap.CriticalityIgnore, out))
+	}
+
+	if m.Cause != nil {
+		ies = append(ies, ie(idCause, ngap.CriticalityIgnore, cause(*m.Cause)))
+	}
+
+	if m.CriticalityDiagnostics != nil {
+		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+			criticalityDiagnostics(*m.CriticalityDiagnostics)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

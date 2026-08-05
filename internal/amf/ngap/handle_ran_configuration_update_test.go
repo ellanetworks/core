@@ -1,24 +1,22 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // ranConfigUpdateWithTA builds an update carrying one Supported TA Item for
 // (mcc, mnc, tac), which is the shape the dispatcher hands the handler.
-func ranConfigUpdateWithTA(t *testing.T, mcc, mnc string, tac uint32) *ngaplib.RANConfigurationUpdate {
+func ranConfigUpdateWithTA(t *testing.T, mcc, mnc string, tac uint32) *ngap.RANConfigurationUpdate {
 	t.Helper()
 
 	plmn, err := util.PLMNToNGAP(models.PlmnID{Mcc: mcc, Mnc: mnc})
@@ -31,12 +29,12 @@ func ranConfigUpdateWithTA(t *testing.T, mcc, mnc string, tac uint32) *ngaplib.R
 		t.Fatalf("could not encode slice: %v", err)
 	}
 
-	return &ngaplib.RANConfigurationUpdate{
-		SupportedTAList: ngaplib.SupportedTAList{{
-			TAC: ngaplib.TAC(tac),
-			BroadcastPLMNList: ngaplib.BroadcastPLMNList{{
+	return &ngap.RANConfigurationUpdate{
+		SupportedTAList: ngap.SupportedTAList{{
+			TAC: ngap.TAC(tac),
+			BroadcastPLMNList: ngap.BroadcastPLMNList{{
 				PLMNIdentity:        plmn,
-				TAISliceSupportList: ngaplib.SliceSupportList{{SNSSAI: snssai}},
+				TAISliceSupportList: ngap.SliceSupportList{{SNSSAI: snssai}},
 			}},
 		}},
 	}
@@ -68,8 +66,8 @@ func TestHandleRANConfigurationUpdate_AbsentTAListPreservesAndAcks(t *testing.T)
 	amfInstance.UpdateRadioSupportedTAIs(ran, existing)
 	amfInstance.UpdateRadioName(ran, "gNB-old")
 
-	ngap.HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
-		&ngaplib.RANConfigurationUpdate{RANNodeName: ngaplib.Ptr("gNB-new")})
+	HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
+		&ngap.RANConfigurationUpdate{RANNodeName: ngap.Ptr("gNB-new")})
 
 	if len(sender.SentRanConfigurationUpdateFailures) != 0 {
 		t.Fatalf("a name-only update must not fail, got %d failures", len(sender.SentRanConfigurationUpdateFailures))
@@ -99,7 +97,7 @@ func TestHandleRANConfigurationUpdate_RejectPreservesTAs(t *testing.T) {
 	stored := []amf.SupportedTAI{{Tai: models.Tai{Tac: "000064", PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}}}}
 	amfInstance.UpdateRadioSupportedTAIs(ran, stored)
 
-	ngap.HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
+	HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
 		ranConfigUpdateWithTA(t, "001", "01", 0xFF))
 
 	if len(sender.SentRanConfigurationUpdateFailures) != 1 {
@@ -116,7 +114,7 @@ func TestHandleRANConfigurationUpdate_MatchingTAs(t *testing.T) {
 	amfInstance := operatorAMF()
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
+	HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
 		ranConfigUpdateWithTA(t, "001", "01", 0x64))
 
 	if len(sender.SentRanConfigurationUpdateAcks) != 1 {
@@ -137,7 +135,7 @@ func TestHandleRANConfigurationUpdate_NoMatchingTAC(t *testing.T) {
 	amfInstance := operatorAMF()
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
+	HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
 		ranConfigUpdateWithTA(t, "001", "01", 0xFF))
 
 	if len(sender.SentRanConfigurationUpdateAcks) != 0 {
@@ -149,15 +147,12 @@ func TestHandleRANConfigurationUpdate_NoMatchingTAC(t *testing.T) {
 	}
 
 	failure := sender.SentRanConfigurationUpdateFailures[0]
-	if failure.Cause.Present != ngapType.CausePresentMisc {
-		t.Fatalf("expected Misc cause, got present=%d", failure.Cause.Present)
-	}
-
 	// The gNB broadcasts a served PLMN but no served TAC; TS 38.413 has no
 	// dedicated cause for an unserved TAC, so the reject cause is Misc/unspecified
 	// (Unknown PLMN is reserved for when no PLMN matches).
-	if failure.Cause.Misc == nil || failure.Cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
-		t.Fatalf("expected Misc/Unspecified cause, got %+v", failure.Cause.Misc)
+	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+	if failure.Cause == nil || *failure.Cause != want {
+		t.Fatalf("cause = %v, want unspecified", failure.Cause)
 	}
 }
 
@@ -168,7 +163,7 @@ func TestHandleRANConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
 	amfInstance := operatorAMF()
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
+	HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
 		ranConfigUpdateWithTA(t, "999", "99", 0x64))
 
 	if len(sender.SentRanConfigurationUpdateFailures) != 1 {
@@ -176,8 +171,10 @@ func TestHandleRANConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
 	}
 
 	failure := sender.SentRanConfigurationUpdateFailures[0]
-	if failure.Cause.Misc == nil || failure.Cause.Misc.Value != ngapType.CauseMiscPresentUnknownPLMN {
-		t.Fatalf("expected Misc/UnknownPLMN cause, got %+v", failure.Cause.Misc)
+
+	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnknownPLMNOrSNPN}
+	if failure.Cause == nil || *failure.Cause != want {
+		t.Fatalf("cause = %v, want unknown-PLMN-or-SNPN", failure.Cause)
 	}
 }
 
@@ -189,15 +186,15 @@ func TestHandleRANConfigurationUpdate_RebindsGlobalRANNodeID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
-	newID := ngaplib.GlobalRANNodeID{
-		Kind:         ngaplib.RANNodeIDGNB,
-		PLMNIdentity: ngaplib.PLMNIdentity{0x00, 0xf1, 0x10},
+	newID := ngap.GlobalRANNodeID{
+		Kind:         ngap.RANNodeIDGNB,
+		PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10},
 		Value:        0x0000AB,
 		Bits:         24,
 	}
 
-	ngap.HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
-		&ngaplib.RANConfigurationUpdate{GlobalRANNodeID: &newID})
+	HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
+		&ngap.RANConfigurationUpdate{GlobalRANNodeID: &newID})
 
 	if ran.RanID == nil {
 		t.Fatal("Global RAN Node ID was not associated with the radio")

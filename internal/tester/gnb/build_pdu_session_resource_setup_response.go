@@ -13,7 +13,7 @@ package gnb
 import (
 	"fmt"
 
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type PDUSessionResourceSetupResponseOpts struct {
@@ -22,72 +22,34 @@ type PDUSessionResourceSetupResponseOpts struct {
 	PDUSessions [16]*PDUSessionInformation
 }
 
-func BuildPDUSessionResourceSetupResponse(opts *PDUSessionResourceSetupResponseOpts) (ngapType.NGAPPDU, error) {
-	pdu := ngapType.NGAPPDU{}
+// BuildPDUSessionResourceSetupResponse encodes a PDU SESSION RESOURCE SETUP
+// RESPONSE PDU (TS 38.413 §8.2.1), reporting the downlink tunnel this simulator
+// set up for each session the AMF asked for.
+func BuildPDUSessionResourceSetupResponse(opts *PDUSessionResourceSetupResponseOpts) ([]byte, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("PDUSessionResourceSetupResponseOpts is nil")
+	}
 
-	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
-	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
-
-	successfulOutcome := pdu.SuccessfulOutcome
-	successfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodePDUSessionResourceSetup
-	successfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
-
-	successfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentPDUSessionResourceSetupResponse
-	successfulOutcome.Value.PDUSessionResourceSetupResponse = new(ngapType.PDUSessionResourceSetupResponse)
-
-	pDUSessionResourceSetupResponse := successfulOutcome.Value.PDUSessionResourceSetupResponse
-	ies := &pDUSessionResourceSetupResponse.ProtocolIEs
-
-	amfIE := ngapType.PDUSessionResourceSetupResponseIEs{}
-	amfIE.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	amfIE.Criticality.Value = ngapType.CriticalityPresentIgnore
-	amfIE.Value.Present = ngapType.PDUSessionResourceSetupResponseIEsPresentAMFUENGAPID
-	amfIE.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-
-	aMFUENGAPID := amfIE.Value.AMFUENGAPID
-	aMFUENGAPID.Value = opts.AMFUENGAPID
-
-	ies.List = append(ies.List, amfIE)
-
-	ranIE := ngapType.PDUSessionResourceSetupResponseIEs{}
-	ranIE.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ranIE.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ranIE.Value.Present = ngapType.PDUSessionResourceSetupResponseIEsPresentRANUENGAPID
-	ranIE.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-
-	rANUENGAPID := ranIE.Value.RANUENGAPID
-	rANUENGAPID.Value = opts.RANUENGAPID
-
-	ies.List = append(ies.List, ranIE)
-
-	setupListIE := ngapType.PDUSessionResourceSetupResponseIEs{}
-	setupListIE.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes
-	setupListIE.Criticality.Value = ngapType.CriticalityPresentIgnore
-	setupListIE.Value.Present = ngapType.PDUSessionResourceSetupResponseIEsPresentPDUSessionResourceSetupListSURes
-	setupListIE.Value.PDUSessionResourceSetupListSURes = new(ngapType.PDUSessionResourceSetupListSURes)
-
-	pDUSessionResourceSetupListSURes := setupListIE.Value.PDUSessionResourceSetupListSURes
+	msg := &ngap.PDUSessionResourceSetupResponse{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
+	}
 
 	for _, pduSession := range opts.PDUSessions {
 		if pduSession == nil {
 			continue
 		}
 
-		pDUSessionResourceSetupItemSURes := ngapType.PDUSessionResourceSetupItemSURes{}
-
-		pDUSessionResourceSetupItemSURes.PDUSessionID.Value = pduSession.PDUSessionID
-
-		respTransf, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTeid, pduSession.QFI)
+		transfer, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTeid, pduSession.QFI)
 		if err != nil {
-			return pdu, fmt.Errorf("failed to get PDUSessionResourceSetupResponseTransfer: %v", err)
+			return nil, fmt.Errorf("failed to get PDUSessionResourceSetupResponseTransfer: %w", err)
 		}
 
-		pDUSessionResourceSetupItemSURes.PDUSessionResourceSetupResponseTransfer = respTransf
-
-		pDUSessionResourceSetupListSURes.List = append(pDUSessionResourceSetupListSURes.List, pDUSessionResourceSetupItemSURes)
+		msg.PDUSessionResourceSetup = append(msg.PDUSessionResourceSetup, ngap.PDUSessionResourceSetupItemSURes{
+			PDUSessionID: ngap.PDUSessionID(pduSession.PDUSessionID),
+			Transfer:     transfer,
+		})
 	}
 
-	ies.List = append(ies.List, setupListIE)
-
-	return pdu, nil
+	return msg.Marshal()
 }

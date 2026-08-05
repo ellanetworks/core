@@ -11,13 +11,11 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
 
 // Converters between the in-house NGAP library's types and the AMF's models.
-// They replace the ngapType/ngapConvert equivalents in this package one
-// procedure at a time; the two sets sit side by side until the last consumer
-// moves off free5gc.
 
 // PLMNToModels renders a PLMN identity as MCC/MNC digit strings. The middle
 // octet's high nibble is the third MNC digit, or "f" for a two-digit MNC
@@ -96,27 +94,10 @@ func SNSSAIToNGAP(snssai models.Snssai) (ngap.SNSSAI, error) {
 	return out, nil
 }
 
-// ranNodeIDHex renders a RAN node identifier the way the models layer stores
-// it: the bit string's octets in hex, truncated to the hex digits the bit
-// length covers. The AMF keys radios on this string, so it must keep matching
-// what earlier releases wrote.
-func ranNodeIDHex(id ngap.GlobalRANNodeID) string {
-	octets := (id.Bits + 7) / 8
-	b := make([]byte, octets)
-
-	for i := range id.Bits {
-		if id.Value&(1<<uint(id.Bits-1-i)) != 0 {
-			b[i/8] |= 1 << uint(7-i%8)
-		}
-	}
-
-	return hex.EncodeToString(b)[:(id.Bits+3)/4]
-}
-
 // RANNodeIDToModels renders a Global RAN Node ID as the model form. The ng-eNB
 // prefixes distinguish the three macro variants, which share the models field.
 func RANNodeIDToModels(id ngap.GlobalRANNodeID) models.GlobalRanNodeID {
-	h := ranNodeIDHex(id)
+	h := id.Hex()
 
 	switch id.Kind {
 	case ngap.RANNodeIDGNB:
@@ -178,4 +159,102 @@ func AMFIDToNGAP(amfID string) (ngap.AMFRegionID, ngap.AMFSetID, ngap.AMFPointer
 		ngap.AMFSetID(uint16(b[1])<<2 | uint16(b[2])>>6),
 		ngap.AMFPointer(b[2] & 0x3f),
 		nil
+}
+
+// AMFIDToModels is AMFIDToNGAP's inverse: it packs the Region ID, Set ID and
+// Pointer back into the three-octet AMF identifier (TS 23.003 §2.10.1).
+func AMFIDToModels(region ngap.AMFRegionID, set ngap.AMFSetID, pointer ngap.AMFPointer) string {
+	return hex.EncodeToString([]byte{
+		byte(region),
+		byte(set >> 2),
+		byte(set&0x3)<<6 | byte(pointer&0x3f),
+	})
+}
+
+// AllowedNSSAIToNGAP converts the UE's allowed slices. The IE is mandatory in an
+// INITIAL CONTEXT SETUP REQUEST and bounded at maxnoofAllowedS-NSSAIs
+// (TS 38.413 §9.3.1.31).
+func AllowedNSSAIToNGAP(allowed []models.Snssai) (ngap.AllowedNSSAI, error) {
+	if len(allowed) == 0 {
+		return nil, fmt.Errorf("allowed NSSAI is empty")
+	}
+
+	if len(allowed) > 8 {
+		return nil, fmt.Errorf("allowed NSSAI has %d entries, want at most 8", len(allowed))
+	}
+
+	out := make(ngap.AllowedNSSAI, 0, len(allowed))
+
+	for _, s := range allowed {
+		v, err := SNSSAIToNGAP(s)
+		if err != nil {
+			return nil, fmt.Errorf("could not convert S-NSSAI: %w", err)
+		}
+
+		out = append(out, ngap.AllowedNSSAIItem{SNSSAI: v})
+	}
+
+	return out, nil
+}
+
+// ngapSecurityAlgorithms is the highest algorithm identity the NGAP bitmaps
+// carry: TS 38.413 §9.3.1.86 gives the first three bits to 128-xxx1..3 and maps
+// the fourth to seventh from bit 4 down to bit 1 of the TS 24.501 octet, leaving
+// the rest reserved. Identity 0 has no position — an all-zero bitmap is how the
+// IE says the UE supports nothing beyond the null algorithm.
+const ngapSecurityAlgorithms = 7
+
+// SecurityCapabilitiesToNGAP maps the UE's 5GS security capability onto the NGAP
+// IE. §9.3.1.86 requires the bitmaps received from NAS signalling to reach the
+// NG-RAN node whole: they describe the UE, so the E-UTRA pair is what a target
+// selects from on EPS fallback and inter-RAT handover, and narrowing it there
+// would force the null algorithms.
+func SecurityCapabilitiesToNGAP(sc *fgs.UESecurityCapability) ngap.UESecurityCapabilities {
+	var out ngap.UESecurityCapabilities
+
+	if sc == nil {
+		return out
+	}
+
+	for n := uint8(1); n <= ngapSecurityAlgorithms; n++ {
+		bit := uint16(1) << (16 - n)
+
+		if sc.SupportsEA(n) {
+			out.NREncryptionAlgorithms |= bit
+		}
+
+		if sc.SupportsIA(n) {
+			out.NRIntegrityProtectionAlgorithms |= bit
+		}
+
+		if sc.SupportsEEA(n) {
+			out.EUTRAEncryptionAlgorithms |= bit
+		}
+
+		if sc.SupportsEIA(n) {
+			out.EUTRAIntegrityProtectionAlgorithms |= bit
+		}
+	}
+
+	return out
+}
+
+// RadioCapabilityForPagingToNGAP converts the UE's stored paging capability,
+// returning nil when the UE has none.
+func RadioCapabilityForPagingToNGAP(c *models.UERadioCapabilityForPaging) *ngap.UERadioCapabilityForPaging {
+	if c == nil || (len(c.NR) == 0 && len(c.EUTRA) == 0) {
+		return nil
+	}
+
+	out := &ngap.UERadioCapabilityForPaging{}
+
+	if len(c.NR) > 0 {
+		out.NR = ngap.Ptr(ngap.UERadioCapabilityForPagingOfNR(c.NR))
+	}
+
+	if len(c.EUTRA) > 0 {
+		out.EUTRA = ngap.Ptr(ngap.UERadioCapabilityForPagingOfEUTRA(c.EUTRA))
+	}
+
+	return out
 }

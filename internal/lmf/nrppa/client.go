@@ -16,7 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/nrppa"
+	"github.com/ellanetworks/core/nrppa"
 	"go.uber.org/zap"
 )
 
@@ -303,24 +303,34 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 	}
 
 	// NR SSB/CSI-RS measurements. The result list is not spec-ordered by strength,
-	// so the strongest beam is used as the best available proxy for the cell.
-	if result.ResultSSRSRP != nil && len(result.ResultSSRSRP.Items) > 0 {
-		ssrsrp := ssrsrpToDBm(strongestBy(result.ResultSSRSRP.Items, func(it nrppa.SSRSRPItem) int64 { return it.Value }))
+	// so the strongest reading is used as the best available proxy for the cell.
+	// An item may report a per-cell value, a per-beam list, or both (TS 38.455
+	// §9.2.32-35), so both are considered.
+	if v, ok := strongest(result.SSRSRP, func(it nrppa.SSRSRPItem) (*int64, []nrppa.SSBResultItem) {
+		return it.Value, it.PerSSB
+	}, ssbValue); ok {
+		ssrsrp := ssrsrpToDBm(v)
 		m.SSRSRP = &ssrsrp
 	}
 
-	if result.ResultSSRSRQ != nil && len(result.ResultSSRSRQ.Items) > 0 {
-		ssrsrq := ssrsrqToDB(strongestBy(result.ResultSSRSRQ.Items, func(it nrppa.SSRSRQItem) int64 { return it.Value }))
+	if v, ok := strongest(result.SSRSRQ, func(it nrppa.SSRSRQItem) (*int64, []nrppa.SSBResultItem) {
+		return it.Value, it.PerSSB
+	}, ssbValue); ok {
+		ssrsrq := ssrsrqToDB(v)
 		m.SSRSRQ = &ssrsrq
 	}
 
-	if result.ResultCSIRSRP != nil && len(result.ResultCSIRSRP.Items) > 0 {
-		csirsrp := csirsrpToDBm(strongestBy(result.ResultCSIRSRP.Items, func(it nrppa.CSIRSRPItem) int64 { return it.Value }))
+	if v, ok := strongest(result.CSIRSRP, func(it nrppa.CSIRSRPItem) (*int64, []nrppa.CSIRSResultItem) {
+		return it.Value, it.PerCSIRS
+	}, csiRSValue); ok {
+		csirsrp := csirsrpToDBm(v)
 		m.CSIRSRP = &csirsrp
 	}
 
-	if result.ResultCSIRSRQ != nil && len(result.ResultCSIRSRQ.Items) > 0 {
-		csirsrq := csirsrqToDB(strongestBy(result.ResultCSIRSRQ.Items, func(it nrppa.CSIRSRQItem) int64 { return it.Value }))
+	if v, ok := strongest(result.CSIRSRQ, func(it nrppa.CSIRSRQItem) (*int64, []nrppa.CSIRSResultItem) {
+		return it.Value, it.PerCSIRS
+	}, csiRSValue); ok {
+		csirsrq := csirsrqToDB(v)
 		m.CSIRSRQ = &csirsrq
 	}
 
@@ -345,17 +355,38 @@ func mapECIDResult(result *nrppa.ECIDResult) *lmfmodels.RadioMeasurements {
 
 // strongestBy returns the highest projected value across a measurement item
 // list (higher RSRP/RSRQ report values are stronger).
-func strongestBy[T any](items []T, val func(T) int64) int64 {
-	best := val(items[0])
+// strongest returns the highest reading across a per-cell result list. Each
+// item contributes its per-cell value when present plus every per-beam value,
+// since TS 38.455 makes both optional and a gNB may report either.
+func strongest[T, B any](items []T, split func(T) (*int64, []B), beam func(B) int64) (int64, bool) {
+	var (
+		best  int64
+		found bool
+	)
 
-	for _, it := range items[1:] {
-		if v := val(it); v > best {
-			best = v
+	consider := func(v int64) {
+		if !found || v > best {
+			best, found = v, true
 		}
 	}
 
-	return best
+	for _, it := range items {
+		cell, beams := split(it)
+		if cell != nil {
+			consider(*cell)
+		}
+
+		for _, b := range beams {
+			consider(beam(b))
+		}
+	}
+
+	return best, found
 }
+
+func ssbValue(it nrppa.SSBResultItem) int64 { return it.Value }
+
+func csiRSValue(it nrppa.CSIRSResultItem) int64 { return it.Value }
 
 // ssrsrpToDBm converts an NR SS-RSRP report value (0..127) to dBm × 100.
 // Per TS 38.133 Table 10.1.6.1-1 (NR, not the E-UTRA table):

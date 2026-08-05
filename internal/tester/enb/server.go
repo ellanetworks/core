@@ -10,7 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/aper"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/ishidawataru/sctp"
 	"go.uber.org/zap"
 )
@@ -134,7 +134,7 @@ func Start(
 	return ngeNB, nil
 }
 
-func (n *NgeNB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause aper.Enumerated) error {
+func (n *NgeNB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause ngap.RRCEstablishmentCause) error {
 	opts := &InitialUEMessageOpts{
 		Mcc:                   n.MCC,
 		Mnc:                   n.MNC,
@@ -146,12 +146,12 @@ func (n *NgeNB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []
 		RRCEstablishmentCause: cause,
 	}
 
-	pdu, err := BuildInitialUEMessage(opts)
+	pkt, err := BuildInitialUEMessage(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build InitialUEMessage: %v", err)
 	}
 
-	err = n.SendMessage(pdu, gnb.NGAPProcedureInitialUEMessage)
+	err = n.SendToRan(pkt, gnb.NGAPProcedureInitialUEMessage)
 	if err != nil {
 		return fmt.Errorf("could not send InitialUEMessage: %v", err)
 	}

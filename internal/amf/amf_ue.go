@@ -25,7 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -91,12 +91,16 @@ type UeContext struct {
 	kamf                 []uint8
 	abba                 []uint8
 
-	Ambr                     *models.Ambr
-	AllowedNssai             []models.Snssai
-	RegistrationArea         []models.Tai
-	RadioCapability          []byte
-	RadioCapabilityForPaging *models.UERadioCapabilityForPaging // free5gc NR/EUTRA split; the 4G MME stores the opaque S1AP octets as []byte
-	DRXParameter             fgs.DRXValue                       // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
+	Ambr             *models.Ambr
+	AllowedNssai     []models.Snssai
+	RegistrationArea []models.Tai
+	RadioCapability  []byte
+	// RadioCapabilityForPaging is the NG-RAN-reported paging-specific capability,
+	// included in PAGING so the node can apply paging optimisations
+	// (TS 38.413 §9.3.1.68). NGAP splits it into NR and E-UTRA where S1AP carries
+	// one opaque string, so the MME's counterpart is a plain []byte.
+	RadioCapabilityForPaging *models.UERadioCapabilityForPaging
+	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
 	SmContextList            map[uint8]*SmContext
 
 	// Idle-mode supervision (TS 24.501): the mobile reachable timer escalates to
@@ -112,6 +116,9 @@ type UeContext struct {
 
 	nrppaMu       sync.RWMutex
 	nrppaMessages []NRPPaMessage
+	// Routing IDs this AMF has addressed an LMF with for this UE. TS 38.413
+	// §8.10.4 has the AMF ignore an uplink transport naming any other.
+	nrppaRoutingIDs map[int64]struct{}
 
 	// pagingTimer supervises a paging procedure for an idle UE (T3513, TS 24.501
 	// §5.4.3). It is per-UE and persistent — paging targets a UE with no NAS
@@ -261,7 +268,7 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	// Complete reaps it, so the gNB can reference it until then.
 	if displaced != nil {
 		displaced.SendUEContextReleaseCommand(context.Background(),
-			ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+			ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	}
 
 	a.clearPagingSuppression(context.Background(), ue)

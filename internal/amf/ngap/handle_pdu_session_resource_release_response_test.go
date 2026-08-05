@@ -1,18 +1,16 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
@@ -20,9 +18,11 @@ func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := decode.PDUSessionResourceReleaseResponse{}
-
-	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
+	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
+	// reaches the handler. §10.3.5 has the receiver ignore it and carry on, and
+	// §9.3.1.3 makes an ignore-criticality IE unreportable, so the message is
+	// dropped without a reply.
+	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceReleaseResponse{})
 
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -43,20 +43,13 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	amfUeNgapID := int64(10)
-	ranUeNgapID := int64(1)
-	msg := decode.PDUSessionResourceReleaseResponse{
-		AMFUENGAPID: &amfUeNgapID,
-		RANUENGAPID: &ranUeNgapID,
-		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemRelRes{
-			{
-				PDUSessionID: ngapType.PDUSessionID{Value: 1},
-				PDUSessionResourceReleaseResponseTransfer: []byte{0x01},
-			},
-		},
+	msg := &ngap.PDUSessionResourceReleaseResponse{
+		AMFUENGAPID:                ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID:                ngap.Ptr(ngap.RANUENGAPID(1)),
+		PDUSessionResourceReleased: ngap.PDUSessionResourceReleasedListRelRes{{PDUSessionID: 1, Transfer: []byte{0x01}}},
 	}
 
-	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeSmf.PduResRelRspCalls) != 1 {
 		t.Fatalf("expected 1 PduResRelRsp call, got %d", len(fakeSmf.PduResRelRspCalls))

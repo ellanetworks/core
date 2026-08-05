@@ -5,12 +5,10 @@ package amf
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -43,7 +41,7 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	for _, ran := range amf.ConnectedRadios() {
 		for _, item := range ran.SupportedTAIList() {
 			if InTaiList(item.Tai, taiList) {
-				if err := amf.SendToRadio(ctx, ran.Conn, send.NGAPProcedurePaging, ngapBuf); err != nil {
+				if err := amf.SendToRadio(ctx, ran.Conn, NGAPProcedurePaging, ngapBuf); err != nil {
 					// The send failure is logged at the chokepoint.
 					continue
 				}
@@ -132,7 +130,7 @@ func (amf *AMF) buildPaging(guami *models.Guami, ue *UeContext) (*ngap.Paging, e
 		TAIListForPaging: taiList,
 		// Replay the gNB-reported paging capability so it can apply paging
 		// optimisations (TS 38.413 §9.3.1.68); omitted when none was reported.
-		UERadioCapabilityForPaging: radioCapabilityForPaging(ue.RadioCapabilityForPaging),
+		UERadioCapabilityForPaging: util.RadioCapabilityForPagingToNGAP(ue.RadioCapabilityForPaging),
 	}, nil
 }
 
@@ -180,26 +178,4 @@ func areaToNGAPTAIs(area []models.Tai) ([]ngap.TAI, error) {
 	}
 
 	return out, nil
-}
-
-func radioCapabilityForPaging(c *models.UERadioCapabilityForPaging) *ngap.UERadioCapabilityForPaging {
-	if c == nil {
-		return nil
-	}
-
-	out := &ngap.UERadioCapabilityForPaging{}
-
-	if nr, err := hex.DecodeString(c.NR); err == nil && len(nr) > 0 {
-		out.NR = ngap.Ptr(ngap.UERadioCapabilityForPagingOfNR(nr))
-	}
-
-	if eutra, err := hex.DecodeString(c.EUTRA); err == nil && len(eutra) > 0 {
-		out.EUTRA = ngap.Ptr(ngap.UERadioCapabilityForPagingOfEUTRA(eutra))
-	}
-
-	if out.NR == nil && out.EUTRA == nil {
-		return nil
-	}
-
-	return out
 }

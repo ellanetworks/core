@@ -35,7 +35,7 @@ type ieSpec[M any] struct {
 	encode func(m *M) (per.Marshaler, bool)
 }
 
-// TS 38.413 §10.3.3.
+// TS 38.413 §9.1.1 Presence.
 func (s ieSpec[M]) required(m *M) bool {
 	switch s.presence {
 	case presenceMandatory:
@@ -59,7 +59,7 @@ type message interface {
 	meta() *messageMeta
 }
 
-// An unset required IE is an error: TS 38.413 §10.3.3 binds the sender even
+// An unset required IE is an error: TS 38.413 §9.1.1 obliges the sender even
 // where §10.3.5 lets a receiver carry on without it.
 func encodeMessageBody[M any, PM interface {
 	*M
@@ -82,7 +82,7 @@ func encodeMessageBody[M any, PM interface {
 			continue
 		}
 
-		// §10.3.3: a conditional IE is carried only while its condition holds.
+		// §9.1.1: a conditional IE is carried only while its condition holds.
 		if spec.presence == presenceConditional && !required {
 			return fmt.Errorf("ngap: %s: conditional IE %s is set but its condition does not hold", procedure, spec.id)
 		}

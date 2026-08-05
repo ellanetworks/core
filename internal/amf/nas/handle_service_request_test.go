@@ -98,7 +98,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgServiceReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgServiceReject))
 }
 
 func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
@@ -138,7 +138,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgServiceReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgServiceReject))
 
 	// TS 24.501: a service request failing the integrity check is
 	// rejected with cause #9 and the 5G NAS security context is kept unchanged.
@@ -203,7 +203,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgServiceReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgServiceReject))
 }
 
 func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
@@ -250,7 +250,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgServiceReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgServiceReject))
 }
 
 func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
@@ -292,11 +292,11 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	if len(resp.NasPdu) < 7 || fgs.SecurityHeaderType(resp.NasPdu[1]&0x0f) != fgs.SHTIntegrityProtectedCiphered {
+	if len(resp.NASPDU) < 7 || fgs.SecurityHeaderType(resp.NASPDU[1]&0x0f) != fgs.SHTIntegrityProtectedCiphered {
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	decoded, err := amf.DecodeNASMessage(ue, resp.NasPdu)
+	decoded, err := amf.DecodeNASMessage(ue, resp.NASPDU)
 	if err != nil {
 		t.Fatalf("could not decode ciphered NAS message")
 	}
@@ -353,7 +353,7 @@ func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 				t.Fatalf("service type %d: want exactly 1 downlink reply (never a silent drop), got %d", tc.serviceType, len(ngapSender.SentDownlinkNASTransport))
 			}
 
-			pdu := ngapSender.SentDownlinkNASTransport[0].NasPdu
+			pdu := ngapSender.SentDownlinkNASTransport[0].NASPDU
 
 			var gotType uint8
 			if fgs.SecurityHeaderType(pdu[1]&0x0f) == fgs.SHTPlain {
@@ -429,7 +429,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgServiceAccept))
+	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
@@ -491,7 +491,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgServiceAccept))
+	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
@@ -558,7 +558,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgServiceAccept))
+	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
@@ -682,7 +682,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai})
 
@@ -698,14 +698,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	}
 
 	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
-	decipherGmm(t, ue, pduResp.NasPdu, uint8(fgs.MsgServiceAccept))
+	decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	if len(ngapSender.SentDownlinkNASTransport) < 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmmCount(t, ue, resp.NasPdu, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
+	decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
 
 	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
@@ -773,7 +773,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -790,7 +790,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	}
 
 	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
-	plain := decipherGmm(t, ue, pduResp.NasPdu, uint8(fgs.MsgServiceAccept))
+	plain := decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	accept, err := fgs.ParseServiceAccept(plain)
 	if err != nil {
@@ -806,7 +806,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmmCount(t, ue, resp.NasPdu, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
+	decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
 
 	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
@@ -874,7 +874,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -891,7 +891,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	}
 
 	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
-	plain := decipherGmm(t, ue, pduResp.NasPdu, uint8(fgs.MsgServiceAccept))
+	plain := decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	accept, err := fgs.ParseServiceAccept(plain)
 	if err != nil {
@@ -915,7 +915,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmmCount(t, ue, resp.NasPdu, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
+	decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
 
 	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
@@ -986,7 +986,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -1004,14 +1004,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	}
 
 	pduResp := ngapSender.SentInitialContextSetupRequest[0]
-	decipherGmm(t, ue, pduResp.NasPdu, uint8(fgs.MsgServiceAccept))
+	decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	if len(ngapSender.SentDownlinkNASTransport) < 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmmCount(t, ue, resp.NasPdu, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
+	decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
 
 	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
@@ -1079,7 +1079,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 
@@ -1106,14 +1106,14 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	}
 
 	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
-	decipherGmm(t, ue, pduResp.NasPdu, uint8(fgs.MsgServiceAccept))
+	decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
 
 	if len(ngapSender.SentDownlinkNASTransport) < 2 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	plain := decipherGmmCount(t, ue, resp.NasPdu, ue.ULCount()+1, uint8(fgs.MsgDLNASTransport))
+	plain := decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+1, uint8(fgs.MsgDLNASTransport))
 
 	dl, err := fgs.ParseDLNASTransport(plain)
 	if err != nil {
@@ -1129,7 +1129,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	}
 
 	resp = ngapSender.SentDownlinkNASTransport[1]
-	decipherGmmCount(t, ue, resp.NasPdu, ue.ULCount()+2, uint8(fgs.MsgConfigurationUpdateCommand))
+	decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+2, uint8(fgs.MsgConfigurationUpdateCommand))
 
 	if ue.PagingActiveForTest() {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")

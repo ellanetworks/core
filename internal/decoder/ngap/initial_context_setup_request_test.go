@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
@@ -19,7 +18,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
@@ -29,7 +28,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeInitialContextSetup {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
 		t.Errorf("expected ProcedureCode value=14, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -51,7 +50,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
+	if item0.ID.Value != int64(idAMFUENGAPID) {
 		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
 	}
 
@@ -78,7 +77,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
+	if item1.ID.Value != int64(idRANUENGAPID) {
 		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
@@ -105,7 +104,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=GUAMI, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != ngapType.ProtocolIEIDGUAMI {
+	if item2.ID.Value != int64(idGUAMI) {
 		t.Errorf("expected ID value=0, got %d", item2.ID.Value)
 	}
 
@@ -117,9 +116,9 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
-	guami, ok := item2.Value.(ngap.Guami)
+	guami, ok := item2.Value.(Guami)
 	if !ok {
-		t.Fatalf("expected GUAMI to be of type ngap.Guami, got %T", item2.Value)
+		t.Fatalf("expected GUAMI to be of type Guami, got %T", item2.Value)
 	}
 
 	if guami.PLMNID.Mcc != "001" {
@@ -148,7 +147,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=AllowedNSSAI, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != ngapType.ProtocolIEIDAllowedNSSAI {
+	if item3.ID.Value != int64(idAllowedNSSAI) {
 		t.Errorf("expected ID value=0, got %d", item3.ID.Value)
 	}
 
@@ -160,9 +159,9 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item3.Criticality.Value)
 	}
 
-	allowedNSSAI, ok := item3.Value.([]ngap.SNSSAI)
+	allowedNSSAI, ok := item3.Value.([]SNSSAI)
 	if !ok {
-		t.Fatalf("expected AllowedNSSAI to be of type []ngap.SNSSAI, got %T", item3.Value)
+		t.Fatalf("expected AllowedNSSAI to be of type []SNSSAI, got %T", item3.Value)
 	}
 
 	if len(allowedNSSAI) != 1 {
@@ -185,7 +184,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=UESecurityCapabilities, got %s", item4.ID.Label)
 	}
 
-	if item4.ID.Value != ngapType.ProtocolIEIDUESecurityCapabilities {
+	if item4.ID.Value != int64(idUESecurityCapabilities) {
 		t.Errorf("expected ID value=93, got %d", item4.ID.Value)
 	}
 
@@ -197,9 +196,9 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item4.Criticality.Value)
 	}
 
-	ueSecurityCapabilities, ok := item4.Value.(ngap.UESecurityCapabilities)
+	ueSecurityCapabilities, ok := item4.Value.(UESecurityCapabilities)
 	if !ok {
-		t.Fatalf("expected UESecurityCapabilities to be of type ngap.UESecurityCapabilities, got %T", item4.Value)
+		t.Fatalf("expected UESecurityCapabilities to be of type UESecurityCapabilities, got %T", item4.Value)
 	}
 
 	if len(ueSecurityCapabilities.NRencryptionAlgorithms) != 3 {
@@ -248,7 +247,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected ID=SecurityKey, got %s", item5.ID.Label)
 	}
 
-	if item5.ID.Value != ngapType.ProtocolIEIDSecurityKey {
+	if item5.ID.Value != int64(idSecurityKey) {
 		t.Errorf("expected ID value=96, got %d", item5.ID.Value)
 	}
 
@@ -270,74 +269,18 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected SecurityKey=%s, got %s", expectedKey, securityKey)
 	}
 
+	// The library does not model Mobility Restriction List — this AMF never
+	// sends it — so it is preserved and rendered as an unmodeled IE, after every
+	// modeled one, rather than decoded in place.
 	item6 := ngapMsg.Value.IEs[6]
 
-	if item6.ID.Label != "MobilityRestrictionList" {
-		t.Errorf("expected ID=MobilityRestrictionList, got %v", item6.ID)
+	if item6.ID.Label != "NASPDU" {
+		t.Errorf("expected ID=NASPDU, got %v", item6.ID)
 	}
 
-	if item6.ID.Value != ngapType.ProtocolIEIDMobilityRestrictionList {
-		t.Errorf("expected ID value=128, got %d", item6.ID.Value)
-	}
-
-	if item6.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item6.Criticality)
-	}
-
-	if item6.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item6.Criticality.Value)
-	}
-
-	mobilityRestrictionList, ok := item6.Value.(ngap.MobilityRestrictionList)
+	nasPdu, ok := item6.Value.(NASPDU)
 	if !ok {
-		t.Fatalf("expected MobilityRestrictionList to be of type ngap.MobilityRestrictionList, got %T", item6.Value)
-	}
-
-	if mobilityRestrictionList.ServingPLMN.Mcc != "001" {
-		t.Errorf("expected ServingPLMN.Mcc=001, got %s", mobilityRestrictionList.ServingPLMN.Mcc)
-	}
-
-	if mobilityRestrictionList.ServingPLMN.Mnc != "01" {
-		t.Errorf("expected ServingPLMN.Mnc=01, got %s", mobilityRestrictionList.ServingPLMN.Mnc)
-	}
-
-	if mobilityRestrictionList.EquivalentPLMNs != nil {
-		t.Fatalf("expected EquivalentPLMNs=nil, got %v", mobilityRestrictionList.EquivalentPLMNs)
-	}
-
-	if mobilityRestrictionList.RATRestrictions != nil {
-		t.Fatalf("expected RATRestrictions=nil, got %v", mobilityRestrictionList.RATRestrictions)
-	}
-
-	if mobilityRestrictionList.ForbiddenAreaInformation != nil {
-		t.Fatalf("expected ForbiddenAreaInformation=nil, got %v", mobilityRestrictionList.ForbiddenAreaInformation)
-	}
-
-	if mobilityRestrictionList.ServiceAreaInformation != nil {
-		t.Fatalf("expected ServiceAreaInformation=nil, got %v", mobilityRestrictionList.ServiceAreaInformation)
-	}
-
-	item7 := ngapMsg.Value.IEs[7]
-
-	if item7.ID.Label != "NASPDU" {
-		t.Errorf("expected ID=NASPDU, got %s", item7.ID.Label)
-	}
-
-	if item7.ID.Value != ngapType.ProtocolIEIDNASPDU {
-		t.Errorf("expected ID value=38, got %d", item7.ID.Value)
-	}
-
-	if item7.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item7.Criticality)
-	}
-
-	if item7.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item7.Criticality.Value)
-	}
-
-	nasPdu, ok := item7.Value.(ngap.NASPDU)
-	if !ok {
-		t.Fatalf("expected NASPDU to be of type ngap.NASPDU, got %T", item7.Value)
+		t.Fatalf("expected NASPDU to be of type NASPDU, got %T", item6.Value)
 	}
 
 	expectedNASPDU := "fgKx/lSdAX4AQgEBdwAL8gDxEMr+AAAAAAFKAwDxEFQHAADxEAAAARUFBAEQIDAhAgAA"
@@ -347,8 +290,23 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	expectedHex := hex.EncodeToString(expectedNASPDUraw)
-	if nasPdu.RawHex != expectedHex {
+	if expectedHex := hex.EncodeToString(expectedNASPDUraw); nasPdu.RawHex != expectedHex {
 		t.Errorf("expected RawHex=%s, got %s", expectedHex, nasPdu.RawHex)
+	}
+
+	var unmodeled *IE
+
+	for i := range ngapMsg.Value.IEs {
+		if ngapMsg.Value.IEs[i].ID.Value == int64(idMobilityRestrictionList) {
+			unmodeled = &ngapMsg.Value.IEs[i]
+		}
+	}
+
+	if unmodeled == nil {
+		t.Fatal("Mobility Restriction List was dropped; it must be preserved as an unmodeled IE")
+	}
+
+	if unmodeled.ValueType != "unmodeled" {
+		t.Errorf("expected ValueType=unmodeled, got %q", unmodeled.ValueType)
 	}
 }

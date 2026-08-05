@@ -4,122 +4,41 @@
 package gnb
 
 import (
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
-)
+	"fmt"
 
-type UeContextReleaseRequestBuilder struct {
-	pdu ngapType.NGAPPDU
-	ies *ngapType.ProtocolIEContainerUEContextReleaseRequestIEs
-}
+	"github.com/ellanetworks/core/ngap"
+)
 
 type UEContextReleaseRequestOpts struct {
 	AMFUENGAPID   int64
 	RANUENGAPID   int64
 	PDUSessionIDs [16]bool
-	Cause         aper.Enumerated
+	Cause         ngap.Cause
 }
 
-func BuildUEContextReleaseRequest(opts *UEContextReleaseRequestOpts) (ngapType.NGAPPDU, error) {
-	return NewUeContextReleaseRequestBuilder().
-		SetAmfUeNgapId(opts.AMFUENGAPID).SetRanUeNgapId(opts.RANUENGAPID).
-		SetPduSessionResourceListCxtRelReq(opts.PDUSessionIDs).
-		SetCause(opts.Cause).
-		Build()
-}
-
-func NewUeContextReleaseRequestBuilder() *UeContextReleaseRequestBuilder {
-	pdu := ngapType.NGAPPDU{}
-
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeUEContextReleaseRequest
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentUEContextReleaseRequest
-	initiatingMessage.Value.UEContextReleaseRequest = new(ngapType.UEContextReleaseRequest)
-
-	uEContextReleaseRequest := initiatingMessage.Value.UEContextReleaseRequest
-	ies := &uEContextReleaseRequest.ProtocolIEs
-
-	return &UeContextReleaseRequestBuilder{pdu, ies}
-}
-
-func (builder *UeContextReleaseRequestBuilder) SetAmfUeNgapId(amfUeNgapID int64) *UeContextReleaseRequestBuilder {
-	ie := ngapType.UEContextReleaseRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.HandoverRequiredIEsPresentAMFUENGAPID
-	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-
-	aMFUENGAPID := ie.Value.AMFUENGAPID
-	aMFUENGAPID.Value = amfUeNgapID
-
-	builder.ies.List = append(builder.ies.List, ie)
-
-	return builder
-}
-
-func (builder *UeContextReleaseRequestBuilder) SetRanUeNgapId(ranUeNgapID int64) *UeContextReleaseRequestBuilder {
-	ie := ngapType.UEContextReleaseRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.HandoverRequiredIEsPresentRANUENGAPID
-	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-
-	rANUENGAPID := ie.Value.RANUENGAPID
-	rANUENGAPID.Value = ranUeNgapID
-
-	builder.ies.List = append(builder.ies.List, ie)
-
-	return builder
-}
-
-func (builder *UeContextReleaseRequestBuilder) SetPduSessionResourceListCxtRelReq(pduSessions [16]bool) *UeContextReleaseRequestBuilder {
-	if len(pduSessions) > 0 {
-		ie := ngapType.UEContextReleaseRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceListCxtRelReq
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.UEContextReleaseRequestIEsPresentPDUSessionResourceListCxtRelReq
-		ie.Value.PDUSessionResourceListCxtRelReq = new(ngapType.PDUSessionResourceListCxtRelReq)
-
-		pDUSessionResourceListCxtRelReq := ie.Value.PDUSessionResourceListCxtRelReq
-
-		for i, pduSessionID := range pduSessions {
-			if !pduSessionID {
-				continue
-			}
-
-			pDUSessionResourceItem := ngapType.PDUSessionResourceItemCxtRelReq{}
-			pDUSessionResourceItem.PDUSessionID.Value = int64(i)
-			pDUSessionResourceListCxtRelReq.List = append(pDUSessionResourceListCxtRelReq.List, pDUSessionResourceItem)
-		}
-
-		builder.ies.List = append(builder.ies.List, ie)
+func BuildUEContextReleaseRequest(opts *UEContextReleaseRequestOpts) ([]byte, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("UEContextReleaseRequestOpts is nil")
 	}
 
-	return builder
+	msg := &ngap.UEContextReleaseRequest{
+		AMFUENGAPID:            ngap.AMFUENGAPID(opts.AMFUENGAPID),
+		RANUENGAPID:            ngap.RANUENGAPID(opts.RANUENGAPID),
+		PDUSessionResourceList: pduSessionResourceListCxtRelReq(opts.PDUSessionIDs),
+		Cause:                  ngap.Ptr(opts.Cause),
+	}
+
+	return msg.Marshal()
 }
 
-func (builder *UeContextReleaseRequestBuilder) SetCause(causeValue aper.Enumerated) *UeContextReleaseRequestBuilder {
-	ie := ngapType.UEContextReleaseRequestIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDCause
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.UEContextReleaseRequestIEsPresentCause
-	ie.Value.Cause = new(ngapType.Cause)
+func pduSessionResourceListCxtRelReq(ids [16]bool) ngap.PDUSessionResourceListCxtRelReq {
+	var list ngap.PDUSessionResourceListCxtRelReq
 
-	cause := ie.Value.Cause
-	cause.Present = ngapType.CausePresentRadioNetwork
-	cause.RadioNetwork = new(ngapType.CauseRadioNetwork)
-	cause.RadioNetwork.Value = causeValue
+	for id, active := range ids {
+		if active {
+			list = append(list, ngap.PDUSessionResourceItemCxtRelReq{PDUSessionID: ngap.PDUSessionID(id)})
+		}
+	}
 
-	builder.ies.List = append(builder.ies.List, ie)
-
-	return builder
-}
-
-func (builder *UeContextReleaseRequestBuilder) Build() (ngapType.NGAPPDU, error) {
-	return builder.pdu, nil
+	return list
 }

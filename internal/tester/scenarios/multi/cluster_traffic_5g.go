@@ -16,7 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -86,8 +86,8 @@ func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTraffic
 	defer gNodeB.Close()
 
 	if _, err := gNodeB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngap.ProcNGSetup,
 		5*time.Second,
 	); err != nil {
 		return fmt.Errorf("NG Setup Response: %w", err)

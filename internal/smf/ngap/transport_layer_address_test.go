@@ -8,7 +8,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/free5gc/aper"
+	libngap "github.com/ellanetworks/core/ngap"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -83,12 +83,12 @@ func TestEncodeTransportLayerAddress_HappyPath(t *testing.T) {
 			result, err := encodeTransportLayerAddress(tt.ipv4, tt.ipv6)
 			assert.NoError(t, err)
 
-			assert.Equal(t, uint64(tt.expectedLen), result.BitLength)
+			assert.Equal(t, tt.expectedLen/8, len(result))
 
 			if tt.expectedHex != "" {
 				expectedBytes, err := hexToBytes(tt.expectedHex)
 				assert.NoError(t, err)
-				assert.Equal(t, expectedBytes, result.Bytes)
+				assert.Equal(t, libngap.TransportLayerAddress(expectedBytes), result)
 			}
 		})
 	}
@@ -121,7 +121,7 @@ func TestEncodeTransportLayerAddress_ErrorCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := encodeTransportLayerAddress(tt.ipv4, tt.ipv6)
 			assert.Error(t, err)
-			assert.Equal(t, aper.BitString{}, result)
+			assert.Nil(t, result)
 		})
 	}
 }
@@ -211,12 +211,7 @@ func TestParseTransportLayerAddress_HappyPath(t *testing.T) {
 			bytes, err := hexToBytes(tt.hexBytes)
 			assert.NoError(t, err)
 
-			bs := aper.BitString{
-				Bytes:     bytes,
-				BitLength: uint64(tt.bitLength),
-			}
-
-			ipv4, ipv6 := ParseTransportLayerAddress(bs)
+			ipv4, ipv6 := ParseTransportLayerAddress(libngap.TransportLayerAddress(bytes))
 
 			if tt.wantV4 != "" {
 				assert.Equal(t, tt.wantV4, ipv4.String())

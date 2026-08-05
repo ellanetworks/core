@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -183,4 +184,32 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})
+}
+
+// The mandatory reject-criticality IEs stop delivery when absent (§10.3.5); the
+// MME cannot set up a context without them.
+func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
+	partial := container(t,
+		ieField{id: idMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
+		ieField{id: idENBUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(ENBUES1APID(2)))},
+		ieField{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, raw: ieRaw(t, &UEAggregateMaximumBitRate{})},
+		ieField{id: idUESecurityCapabilities, crit: CriticalityReject, raw: ieRaw(t, &UESecurityCapabilities{})},
+		ieField{id: idSecurityKey, crit: CriticalityReject, raw: ieRaw(t, Ptr(SecurityKey{}))},
+	)
+
+	// Without the E-RAB list the request is incomplete: it is mandatory and
+	// reject criticality.
+	if _, err := ParseInitialContextSetupRequest(partial); err == nil {
+		t.Fatal("parse succeeded without the E-RAB To Be Setup list")
+	} else {
+		var ase *AbstractSyntaxError
+		if !errors.As(err, &ase) {
+			t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
+		}
+
+		if len(ase.IEs) != 1 || ase.IEs[0].IEID != idERABToBeSetupListCtxtSUReq ||
+			ase.IEs[0].TypeOfError != TypeOfErrorMissing {
+			t.Errorf("diagnostics = %+v, want one missing entry for the E-RAB To Be Setup list", ase.IEs)
+		}
+	}
 }

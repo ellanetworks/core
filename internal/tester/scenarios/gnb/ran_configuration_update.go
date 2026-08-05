@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
@@ -49,8 +49,8 @@ func runRANConfigurationUpdate(_ context.Context, env scenarios.Env, _ any) erro
 	defer node.Close()
 
 	if _, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngap.ProcNGSetup,
 		200*time.Millisecond,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)
@@ -63,8 +63,8 @@ func runRANConfigurationUpdate(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	frame, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentRANConfigurationUpdateAcknowledge,
+		gnb.Successful,
+		ngap.ProcRANConfigurationUpdate,
 		200*time.Millisecond,
 	)
 	if err != nil {
@@ -88,8 +88,8 @@ func runRANConfigurationUpdate(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	if _, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentUnsuccessfulOutcome,
-		ngapType.UnsuccessfulOutcomePresentRANConfigurationUpdateFailure,
+		gnb.Unsuccessful,
+		ngap.ProcRANConfigurationUpdate,
 		200*time.Millisecond,
 	); err != nil {
 		return fmt.Errorf("wait RANConfigurationUpdateFailure: %w", err)

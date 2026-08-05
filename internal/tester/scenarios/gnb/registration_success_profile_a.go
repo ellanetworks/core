@@ -17,7 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
@@ -95,8 +95,8 @@ func runRegistrationSuccessProfileA(_ context.Context, env scenarios.Env, params
 	defer gNodeB.Close()
 
 	if _, err := gNodeB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngap.ProcNGSetup,
 		200*time.Millisecond,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)

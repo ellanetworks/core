@@ -156,3 +156,103 @@ func (m *UplinkUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
 func ParseUplinkUEAssociatedLPPaTransport(value []byte) (*UplinkUEAssociatedLPPaTransport, error) {
 	return parseMessageBody[UplinkUEAssociatedLPPaTransport](ProcUplinkUEAssociatedLPPaTransport, TriggeringInitiatingMessage, uplinkUEAssociatedLPPaTransportIEs, value)
 }
+
+// The non-UE-associated pair carries only the routing id and the payload: with
+// no UE context, there are no UE S1AP IDs to name.
+func nonUEAssociatedLPPaTransportIEs[M any](
+	routing func(*M) *RoutingID,
+	pdu func(*M) *LPPaPDU,
+) []ieSpec[M] {
+	return []ieSpec[M]{
+		{
+			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
+			encode: func(m *M) (per.Marshaler, bool) { return routing(m), true },
+		},
+		{
+			id: idLPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
+			encode: func(m *M) (per.Marshaler, bool) {
+				if *pdu(m) == nil {
+					return nil, false
+				}
+
+				return pdu(m), true
+			},
+		},
+	}
+}
+
+// TS 36.413 §9.1.19.3.
+type DownlinkNonUEAssociatedLPPaTransport struct {
+	RoutingID RoutingID
+	LPPaPDU   LPPaPDU
+
+	messageMeta
+}
+
+// TS 36.413 §9.1.19.4.
+type UplinkNonUEAssociatedLPPaTransport struct {
+	RoutingID RoutingID
+	LPPaPDU   LPPaPDU
+
+	messageMeta
+}
+
+var downlinkNonUEAssociatedLPPaTransportIEs = nonUEAssociatedLPPaTransportIEs(
+	func(m *DownlinkNonUEAssociatedLPPaTransport) *RoutingID { return &m.RoutingID },
+	func(m *DownlinkNonUEAssociatedLPPaTransport) *LPPaPDU { return &m.LPPaPDU },
+)
+
+var uplinkNonUEAssociatedLPPaTransportIEs = nonUEAssociatedLPPaTransportIEs(
+	func(m *UplinkNonUEAssociatedLPPaTransport) *RoutingID { return &m.RoutingID },
+	func(m *UplinkNonUEAssociatedLPPaTransport) *LPPaPDU { return &m.LPPaPDU },
+)
+
+func (m *DownlinkNonUEAssociatedLPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcDownlinkNonUEAssociatedLPPaTransport, downlinkNonUEAssociatedLPPaTransportIEs, m)
+}
+
+func (m *UplinkNonUEAssociatedLPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcUplinkNonUEAssociatedLPPaTransport, uplinkNonUEAssociatedLPPaTransportIEs, m)
+}
+
+func (m *DownlinkNonUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcDownlinkNonUEAssociatedLPPaTransport,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
+}
+
+func ParseDownlinkNonUEAssociatedLPPaTransport(value []byte) (*DownlinkNonUEAssociatedLPPaTransport, error) {
+	return parseMessageBody[DownlinkNonUEAssociatedLPPaTransport](ProcDownlinkNonUEAssociatedLPPaTransport, TriggeringInitiatingMessage, downlinkNonUEAssociatedLPPaTransportIEs, value)
+}
+
+func (m *UplinkNonUEAssociatedLPPaTransport) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcUplinkNonUEAssociatedLPPaTransport,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
+}
+
+func ParseUplinkNonUEAssociatedLPPaTransport(value []byte) (*UplinkNonUEAssociatedLPPaTransport, error) {
+	return parseMessageBody[UplinkNonUEAssociatedLPPaTransport](ProcUplinkNonUEAssociatedLPPaTransport, TriggeringInitiatingMessage, uplinkNonUEAssociatedLPPaTransportIEs, value)
+}

@@ -95,7 +95,32 @@ func DecodeLength(
 		return nil
 	}
 
-	return decodeUnconstrainedLengthFrag(r, enc, consume)
+	// §11.9.3.3 leaves the length determinant unconstrained once ub reaches 64K,
+	// so the wire format carries no bound. The size constraint still holds on the
+	// abstract value, and the count is the peer's to choose, so it is enforced
+	// across the fragments here: without this a bounded SEQUENCE OF grows until
+	// the input runs out.
+	var total int64
+
+	guard := func(count int64) error {
+		total += count
+
+		if hasUB && total > ub {
+			return ErrOverflow
+		}
+
+		return consume(count)
+	}
+
+	if err := decodeUnconstrainedLengthFrag(r, enc, guard); err != nil {
+		return err
+	}
+
+	if total < lb {
+		return ErrOverflow
+	}
+
+	return nil
 }
 
 func decodeUnconstrainedLengthFrag(r *Reader, enc Encoding, consume func(count int64) error) error {

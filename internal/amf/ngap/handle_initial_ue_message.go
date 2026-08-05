@@ -9,18 +9,17 @@ package ngap
 
 import (
 	"context"
-	"encoding/binary"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/ngap/ngapConvert"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialUEMessage) {
+func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.InitialUEMessage) {
 	// A gNB may reuse a RAN-UE-NGAP-ID before its prior UEContextRelease completes; drop
 	// any stale conn first so a deferred UEContextReleaseComplete cannot remove the fresh
 	// context (TS 38.413).
@@ -32,11 +31,14 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("Added Ran UE to the pool", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
-	ueConn.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
+	reportDiagnostics(ctx, ran, ngap.ProcInitialUEMessage, ngap.TriggeringInitiatingMessage,
+		ueAssociated(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), msg.RANUENGAPID), msg.Diagnostics())
 
-	ueConn.UeContextRequest = msg.UEContextRequest
+	ueConn.UpdateLocation(ctx, msg.UserLocationInformation)
+
+	ueConn.UeContextRequest = msg.UEContextRequest != nil
 
 	if amfInstance.NAS == nil {
 		logger.WithTrace(ctx, ueConn.Log).Error("NAS handler not set")
@@ -71,7 +73,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 // so the NAS layer need not re-resolve it. It binds nothing when the message cannot be
 // authenticated for the cited context (TS 24.501), leaving the NAS layer to register on a
 // fresh context.
-func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *amf.UeConn, msg decode.InitialUEMessage) {
+func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *amf.UeConn, msg *ngap.InitialUEMessage) {
 	if msg.FiveGSTMSI == nil {
 		return
 	}
@@ -87,10 +89,15 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 	// <5G-S-TMSI> := <AMF Set ID><AMF Pointer><5G-TMSI>
 	// GUAMI := <MCC><MNC><AMF Region ID><AMF Set ID><AMF Pointer>
 	// 5G-GUTI := <GUAMI><5G-TMSI>
-	tmpReginID, _, _ := ngapConvert.AmfIdToNgap(operatorInfo.Guami.AmfID)
-	amfID := ngapConvert.AmfIdToModels(tmpReginID, msg.FiveGSTMSI.AMFSetID, msg.FiveGSTMSI.AMFPointer)
+	region, _, _, err := util.AMFIDToNGAP(operatorInfo.Guami.AmfID)
+	if err != nil {
+		logger.WithTrace(ctx, ueConn.Log).Error("invalid operator AMF id", zap.Error(err))
+		return
+	}
 
-	tmsi, err := etsi.NewTMSI(binary.BigEndian.Uint32(msg.FiveGSTMSI.FiveGTMSI))
+	amfID := util.AMFIDToModels(region, msg.FiveGSTMSI.AMFSetID, msg.FiveGSTMSI.AMFPointer)
+
+	tmsi, err := etsi.NewTMSI(uint32(msg.FiveGSTMSI.FiveGTMSI))
 	if err != nil {
 		logger.WithTrace(ctx, ueConn.Log).Warn("invalid tmsi", zap.Error(err))
 	}
@@ -115,9 +122,9 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 	}
 
 	if amfUe.Conn() != nil {
-		logger.WithTrace(ctx, ueConn.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+		logger.WithTrace(ctx, ueConn.Log).Debug("Implicit Deregistration", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("UeContext Attach UeConn", zap.Int64("RanUeNgapID", int64(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log).Debug("UeContext Attach UeConn", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 	amfInstance.AttachUeConn(amfUe, ueConn)
 }

@@ -10,11 +10,10 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -90,8 +89,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		errPduSessionID, errCause []uint8
 	)
 
-	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
-	suList := ngapType.PDUSessionResourceSetupListSUReq{}
+	var (
+		ctxList ngap.PDUSessionResourceSetupListCxtReq
+		suList  ngap.PDUSessionResourceSetupListSUReq
+	)
 
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := conn.RegistrationRequest.UplinkDataStatus.PSI
@@ -110,11 +111,19 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						errCause = append(errCause, uint8(cause))
 					} else {
 						if ueConn.UeContextRequest {
-							send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
-								smContext.Snssai, nil, binaryDataN2SmInformation)
+							item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+							if err != nil {
+								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+							} else {
+								ctxList = append(ctxList, item)
+							}
 						} else {
-							send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
-								smContext.Snssai, nil, binaryDataN2SmInformation)
+							item, err := amf.PDUSessionSetupItemSUReq(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+							if err != nil {
+								logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+							} else {
+								suList = append(suList, item)
+							}
 						}
 					}
 				}
@@ -164,7 +173,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			n2Info := requestData.BinaryDataN2Information
 
 			if n2Info == nil {
-				if len(suList.List) != 0 {
+				if len(suList) != 0 {
 					nasPdu, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
 					if err != nil {
 						logger.From(ctx, logger.AmfLog).Warn("failed to build registration accept", zap.Error(err))
@@ -191,7 +200,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				} else {
 					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-					amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
+					amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 
 					logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 				}
@@ -226,7 +235,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				}
 			}
 
-			send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+			item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+			if err != nil {
+				logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
+			} else {
+				suList = append(suList, item)
+			}
 		}
 	}
 
@@ -235,7 +249,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if ueConn.UeContextRequest {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-		amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
+		amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 
 		logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 
@@ -247,7 +261,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			return
 		}
 
-		if len(suList.List) != 0 {
+		if len(suList) != 0 {
 			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
 			err := ueConn.SendPDUSessionResourceSetupRequest(

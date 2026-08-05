@@ -131,14 +131,21 @@ func (e *ENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 
-	kind := ENBIDShortMacro
-	if extIdx == 1 {
-		kind = ENBIDLongMacro
-	}
-
 	raw, err := per.DecodeOpenTypeBytes(r, enc)
 	if err != nil {
 		return err
+	}
+
+	// ENB-ID defines two extension additions, short-macroENB-ID and
+	// long-macroENB-ID. The open type above is read first so a later addition
+	// leaves the reader positioned after the alternative it could not decode.
+	if extIdx > 1 {
+		return fmt.Errorf("%w: ENB-ID extension alternative %d", errNotComprehended, extIdx)
+	}
+
+	kind := ENBIDShortMacro
+	if extIdx == 1 {
+		kind = ENBIDLongMacro
 	}
 
 	nb := enbIDBits[kind]
@@ -171,7 +178,7 @@ func decodeBitStringUint(r *per.Reader, enc per.Encoding, nbits int) (uint64, er
 }
 
 func (u UERetentionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, ueRetentionInformationRootCount, true, int64(u))
+	return encodeRootEnumerated(w, enc, ueRetentionInformationRootCount, int64(u), "UERetentionInformation")
 }
 
 func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -186,7 +193,7 @@ func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 }
 
 func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, pagingDRXRootCount, true, int64(p))
+	return encodeRootEnumerated(w, enc, pagingDRXRootCount, int64(p), "PagingDRX")
 }
 
 func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -309,8 +316,8 @@ func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		//
 		// This rejects S1 Setup from a Release-13 eNB, whose SupportedTAs-Item
 		// carries the reject-criticality id-RAT-Type (232) on an NB-IoT TAC.
-		// Deliberate: Ella Core does not serve NB-IoT. Modeling RAT-Type is
-		// what changes that, not loosening this rule.
+		// Deliberate while NB-IoT is unsupported. Modeling RAT-Type is what
+		// changes that, not loosening this rule.
 		if Criticality(crit) == CriticalityReject && comprehended {
 			comprehended, rejected = false, ProtocolIEID(id)
 		}
@@ -337,15 +344,16 @@ func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, ex
 
 	var present []bool
 
+	// A bitmap wider than 64 bits arrives fragmented (X.691 §19.7 via §11.9.3),
+	// so the callback runs once per fragment and the bits accumulate.
 	err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-		present = make([]bool, count)
-		for i := range present {
+		for range count {
 			b, err := r.ReadBit()
 			if err != nil {
 				return err
 			}
 
-			present[i] = b
+			present = append(present, b)
 		}
 
 		return nil
