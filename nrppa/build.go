@@ -385,7 +385,7 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 		v := *res.AngleOfArrival
 
 		entries = append(entries, func(w *per.Writer) error {
-			return encMeasuredChoiceInt(w, measuredAngleOfArrivalEUTRA, v, 0, 719)
+			return encMeasuredChoiceInt(w, measuredAngleOfArrivalEUTRA, v, 719)
 		})
 	}
 
@@ -393,7 +393,7 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 		v := *res.TimingAdvanceType1
 
 		entries = append(entries, func(w *per.Writer) error {
-			return encMeasuredChoiceInt(w, measuredTimingAdvanceType1EUTRA, v, 0, 7690)
+			return encMeasuredChoiceInt(w, measuredTimingAdvanceType1EUTRA, v, 7690)
 		})
 	}
 
@@ -401,7 +401,7 @@ func encMeasuredResults(w *per.Writer, res *ECIDResult) error {
 		v := *res.TimingAdvanceType2
 
 		entries = append(entries, func(w *per.Writer) error {
-			return encMeasuredChoiceInt(w, measuredTimingAdvanceType2EUTRA, v, 0, 7690)
+			return encMeasuredChoiceInt(w, measuredTimingAdvanceType2EUTRA, v, 7690)
 		})
 	}
 
@@ -505,13 +505,13 @@ func encNRMeasuredResults(res *ECIDResult) []func(*per.Writer) error {
 }
 
 // encMeasuredChoiceInt covers the valueAngleOfArrival-EUTRA and
-// valueTimingAdvanceType1/2-EUTRA alternatives.
-func encMeasuredChoiceInt(w *per.Writer, index int, v, lb, ub int64) error {
+// valueTimingAdvanceType1/2-EUTRA alternatives, whose ranges all start at 0.
+func encMeasuredChoiceInt(w *per.Writer, index int, v, ub int64) error {
 	if err := encMeasuredChoiceIndex(w, index); err != nil {
 		return err
 	}
 
-	return per.EncodeConstrainedWholeNumber(w, per.Aligned, lb, ub, v)
+	return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, ub, v)
 }
 
 // encMeasuredChoiceList covers the resultRSRP-EUTRA and resultRSRQ-EUTRA

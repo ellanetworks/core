@@ -374,7 +374,7 @@ func TestForwardCompatUnknownMeasuredResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := encMeasuredChoiceInt(w, measuredTimingAdvanceType1EUTRA, ta, 0, 7690); err != nil {
+	if err := encMeasuredChoiceInt(w, measuredTimingAdvanceType1EUTRA, ta, 7690); err != nil {
 		t.Fatal(err)
 	}
 
