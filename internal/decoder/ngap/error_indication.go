@@ -22,24 +22,24 @@ func buildErrorIndication(value []byte) NGAPMessageValue {
 	ies := make([]IE, 0, 5)
 
 	if ind.AMFUENGAPID != nil {
-		ies = append(ies, libIE(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*ind.AMFUENGAPID)))
+		ies = append(ies, ie(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*ind.AMFUENGAPID)))
 	}
 
 	if ind.RANUENGAPID != nil {
-		ies = append(ies, libIE(idRANUENGAPID, ngap.CriticalityIgnore, int64(*ind.RANUENGAPID)))
+		ies = append(ies, ie(idRANUENGAPID, ngap.CriticalityIgnore, int64(*ind.RANUENGAPID)))
 	}
 
 	if ind.Cause != nil {
-		ies = append(ies, libIE(idCause, ngap.CriticalityIgnore, libCause(*ind.Cause)))
+		ies = append(ies, ie(idCause, ngap.CriticalityIgnore, cause(*ind.Cause)))
 	}
 
 	if ind.CriticalityDiagnostics != nil {
-		ies = append(ies, libIE(idCriticalityDiagnostics, ngap.CriticalityIgnore,
-			buildLibCriticalityDiagnostics(*ind.CriticalityDiagnostics)))
+		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+			criticalityDiagnostics(*ind.CriticalityDiagnostics)))
 	}
 
 	if ind.FiveGSTMSI != nil {
-		ies = append(ies, libIE(idFiveGSTMSI, ngap.CriticalityIgnore, buildFiveGSTMSI(*ind.FiveGSTMSI)))
+		ies = append(ies, ie(idFiveGSTMSI, ngap.CriticalityIgnore, buildFiveGSTMSI(*ind.FiveGSTMSI)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(ind.UnknownIEs())...)}

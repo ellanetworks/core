@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_UEContextReleaseCommand(t *testing.T) {
@@ -18,7 +17,7 @@ func TestDecodeNGAPMessage_UEContextReleaseCommand(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
@@ -28,7 +27,7 @@ func TestDecodeNGAPMessage_UEContextReleaseCommand(t *testing.T) {
 		t.Errorf("expected ProcedureCode=UEContextRelease, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeUEContextRelease {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcUEContextRelease) {
 		t.Errorf("expected ProcedureCode value=41, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -50,7 +49,7 @@ func TestDecodeNGAPMessage_UEContextReleaseCommand(t *testing.T) {
 		t.Errorf("expected ID=UENGAPIDs, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDUENGAPIDs {
+	if item0.ID.Value != int64(idUENGAPIDs) {
 		t.Errorf("expected ID value=114, got %d", item0.ID.Value)
 	}
 
@@ -62,9 +61,9 @@ func TestDecodeNGAPMessage_UEContextReleaseCommand(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	ueNgapIDs, ok := item0.Value.(ngap.UENGAPIDs)
+	ueNgapIDs, ok := item0.Value.(UENGAPIDs)
 	if !ok {
-		t.Fatalf("expected UENGAPIDs value type=ngap.UENGAPIDs, got %T", item0.Value)
+		t.Fatalf("expected UENGAPIDs value type=UENGAPIDs, got %T", item0.Value)
 	}
 
 	if ueNgapIDs.AMFUENGAPID != 0 {

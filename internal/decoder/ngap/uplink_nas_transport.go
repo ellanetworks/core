@@ -8,53 +8,37 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
-func buildUplinkNASTransport(uplinkNASTransport ngapType.UplinkNASTransport) NGAPMessageValue {
-	ies := make([]IE, 0)
+// libNASPDU wraps a NAS PDU relayed inside an NGAP message: the raw octets as
+// hex, plus the decoded NAS tree.
+func libNASPDU(pdu ngap.NASPDU) NASPDU {
+	return NASPDU{
+		Protocol: "NAS",
+		RawHex:   hex.EncodeToString(pdu),
+		Decoded:  nas.DecodeNASMessage(pdu),
+	}
+}
 
-	for i := 0; i < len(uplinkNASTransport.ProtocolIEs.List); i++ {
-		ie := uplinkNASTransport.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDNASPDU:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: NASPDU{
-					Protocol: "NAS",
-					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
-					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
-				},
-			})
-		case ngapType.ProtocolIEIDUserLocationInformation:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUserLocationInformationIE(*ie.Value.UserLocationInformation),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
+// Uplink NAS Transport relays a NAS message from the UE, with the location the
+// NG-RAN node saw it at (TS 38.413 §9.2.5.3).
+func buildUplinkNASTransport(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseUplinkNASTransport(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Uplink NAS Transport: %v", err)}
 	}
 
-	return NGAPMessageValue{
-		IEs: ies,
+	ies := []IE{
+		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(idNASPDU, ngap.CriticalityReject, libNASPDU(m.NASPDU)),
 	}
+
+	if m.UserLocationInformation != nil {
+		ies = append(ies, ie(idUserLocationInformation, ngap.CriticalityIgnore,
+			userLocationInformation(*m.UserLocationInformation)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

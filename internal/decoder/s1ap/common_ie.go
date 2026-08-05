@@ -109,7 +109,7 @@ func ues1apIDs(ids s1ap.UES1APIDs) UES1APIDs {
 // §9.2.1.4): which procedure/message triggered the diagnostic and the offending
 // IEs. Absent sub-fields are omitted.
 type CriticalityDiagnostics struct {
-	ProcedureCode        *int64                     `json:"procedure_code,omitempty"`
+	ProcedureCode        *utils.EnumField           `json:"procedure_code,omitempty"`
 	TriggeringMessage    *utils.EnumField           `json:"triggering_message,omitempty"`
 	ProcedureCriticality *utils.EnumField           `json:"procedure_criticality,omitempty"`
 	IEs                  []CriticalityDiagnosticsIE `json:"ies,omitempty"`
@@ -117,7 +117,7 @@ type CriticalityDiagnostics struct {
 
 // CriticalityDiagnosticsIE reports one offending IE (TS 36.413 §9.2.1.4).
 type CriticalityDiagnosticsIE struct {
-	IEID        int64           `json:"ie_id"`
+	IEID        utils.EnumField `json:"ie_id"`
 	Criticality utils.EnumField `json:"criticality"`
 	TypeOfError utils.EnumField `json:"type_of_error"`
 }
@@ -150,7 +150,7 @@ func criticalityDiagnostics(d s1ap.CriticalityDiagnostics) CriticalityDiagnostic
 	out := CriticalityDiagnostics{}
 
 	if d.ProcedureCode != nil {
-		pc := int64(*d.ProcedureCode)
+		pc := procedureCodeToEnum(*d.ProcedureCode)
 		out.ProcedureCode = &pc
 	}
 
@@ -166,7 +166,7 @@ func criticalityDiagnostics(d s1ap.CriticalityDiagnostics) CriticalityDiagnostic
 
 	for _, it := range d.IEsCriticalityDiagnostics {
 		out.IEs = append(out.IEs, CriticalityDiagnosticsIE{
-			IEID:        int64(it.IEID),
+			IEID:        ieEnum(int64(it.IEID)),
 			Criticality: criticalityToEnum(it.IECriticality),
 			TypeOfError: typeOfErrorToEnum(it.TypeOfError),
 		})

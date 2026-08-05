@@ -56,5 +56,13 @@ var messageParsers = []messageParser{
 	{"ParseUEContextReleaseComplete", func(v []byte) error { _, err := ParseUEContextReleaseComplete(v); return err }},
 	{"ParseUEContextReleaseRequest", func(v []byte) error { _, err := ParseUEContextReleaseRequest(v); return err }},
 	{"ParseUplinkNASTransport", func(v []byte) error { _, err := ParseUplinkNASTransport(v); return err }},
+	{"ParseDownlinkNonUEAssociatedLPPaTransport", func(v []byte) error {
+		_, err := ParseDownlinkNonUEAssociatedLPPaTransport(v)
+		return err
+	}},
+	{"ParseUplinkNonUEAssociatedLPPaTransport", func(v []byte) error {
+		_, err := ParseUplinkNonUEAssociatedLPPaTransport(v)
+		return err
+	}},
 	{"ParseUplinkUEAssociatedLPPaTransport", func(v []byte) error { _, err := ParseUplinkUEAssociatedLPPaTransport(v); return err }},
 }

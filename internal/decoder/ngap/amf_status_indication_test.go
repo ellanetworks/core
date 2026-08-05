@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
@@ -18,7 +17,7 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
@@ -28,7 +27,7 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Errorf("expected ProcedureCode=AMFStatusIndication, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeAMFStatusIndication {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcAMFStatusIndication) {
 		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -50,7 +49,7 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Errorf("expected ID=UnavailableGUAMIList, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDUnavailableGUAMIList {
+	if item0.ID.Value != int64(idUnavailableGUAMIList) {
 		t.Errorf("expected ID value=120, got %d", item0.ID.Value)
 	}
 
@@ -62,7 +61,7 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
 	}
 
-	unavailableGuamiList, ok := item0.Value.([]ngap.Guami)
+	unavailableGuamiList, ok := item0.Value.([]Guami)
 	if !ok {
 		t.Fatalf("expected UnavailableGUAMIList type, got %T", item0.Value)
 	}

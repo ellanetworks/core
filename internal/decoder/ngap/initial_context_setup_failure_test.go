@@ -1,14 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 // Captured InitialContextSetupFailure PDU with cause radioNetwork=SliceNotSupported (39).
@@ -24,7 +22,7 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "UnsuccessfulOutcome" {
 		t.Errorf("expected PDUType=UnsuccessfulOutcome, got %v", ngapMsg.PDUType)
@@ -34,8 +32,8 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeInitialContextSetup {
-		t.Errorf("expected ProcedureCode value=%d, got %d", ngapType.ProcedureCodeInitialContextSetup, ngapMsg.ProcedureCode.Value)
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
+		t.Errorf("expected ProcedureCode value=%d, got %d", lib.ProcInitialContextSetup, ngapMsg.ProcedureCode.Value)
 	}
 
 	if ngapMsg.Criticality.Label != "Reject" {
@@ -55,8 +53,8 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 	}
 
 	amfUEID := ngapMsg.Value.IEs[0]
-	if amfUEID.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
-		t.Errorf("expected first IE=AMF-UE-NGAP-ID (%d), got %d", ngapType.ProtocolIEIDAMFUENGAPID, amfUEID.ID.Value)
+	if amfUEID.ID.Value != int64(idAMFUENGAPID) {
+		t.Errorf("expected first IE=AMF-UE-NGAP-ID (%d), got %d", idAMFUENGAPID, amfUEID.ID.Value)
 	}
 
 	if v, ok := amfUEID.Value.(int64); !ok || v != 9 {
@@ -64,8 +62,8 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 	}
 
 	ranUEID := ngapMsg.Value.IEs[1]
-	if ranUEID.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
-		t.Errorf("expected second IE=RAN-UE-NGAP-ID (%d), got %d", ngapType.ProtocolIEIDRANUENGAPID, ranUEID.ID.Value)
+	if ranUEID.ID.Value != int64(idRANUENGAPID) {
+		t.Errorf("expected second IE=RAN-UE-NGAP-ID (%d), got %d", idRANUENGAPID, ranUEID.ID.Value)
 	}
 
 	if v, ok := ranUEID.Value.(int64); !ok || v != 9 {
@@ -77,16 +75,16 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Errorf("expected third IE=Cause, got %v", causeIE.ID)
 	}
 
-	cause, ok := causeIE.Value.(utils.EnumField)
+	cause, ok := causeIE.Value.(Cause)
 	if !ok {
-		t.Fatalf("expected Cause enum, got %T", causeIE.Value)
+		t.Fatalf("expected Cause, got %T", causeIE.Value)
 	}
 
-	if cause.Label != "SliceNotSupported" {
-		t.Errorf("expected Cause=SliceNotSupported, got %v", cause.Label)
+	if cause.Value.Label != "slice-not-supported" {
+		t.Errorf("expected Cause=slice-not-supported, got %v", cause.Value.Label)
 	}
 
-	if cause.Value != int64(ngapType.CauseRadioNetworkPresentSliceNotSupported) {
-		t.Errorf("expected Cause value=%d, got %d", ngapType.CauseRadioNetworkPresentSliceNotSupported, cause.Value)
+	if cause.Value.Value != int64(lib.CauseRadioNetworkSliceNotSupported) {
+		t.Errorf("expected Cause value=%d, got %d", lib.CauseRadioNetworkSliceNotSupported, cause.Value.Value)
 	}
 }

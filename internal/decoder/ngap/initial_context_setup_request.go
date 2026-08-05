@@ -4,14 +4,11 @@
 package ngap
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type ExpectedUEActivityBehaviour struct {
@@ -105,494 +102,114 @@ type UESecurityCapabilities struct {
 	EUTRAintegrityProtectionAlgorithms string   `json:"eutra_integrity_protection_algorithms"`
 }
 
-func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.InitialContextSetupRequest) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(initialContextSetupRequest.ProtocolIEs.List); i++ {
-		ie := initialContextSetupRequest.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDOldAMF:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.OldAMF.Value,
-			})
-		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUEAggregateMaximumBitRateIE(*ie.Value.UEAggregateMaximumBitRate),
-			})
-		case ngapType.ProtocolIEIDCoreNetworkAssistanceInformation:
-			value, err := buildCoreNetworkAssistanceInformation(*ie.Value.CoreNetworkAssistanceInformation)
-
-			ieErr := ""
-			if err != nil {
-				ieErr = fmt.Sprintf("failed to build CoreNetworkAssistanceInformation: %v", err)
-			}
-
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       value,
-				Error:       ieErr,
-			})
-		case ngapType.ProtocolIEIDGUAMI:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildGUAMI(*ie.Value.GUAMI),
-			})
-		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildPDUSessionResourceSetupListCxtReq(*ie.Value.PDUSessionResourceSetupListCxtReq),
-			})
-		case ngapType.ProtocolIEIDAllowedNSSAI:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildAllowedNSSAI(*ie.Value.AllowedNSSAI),
-			})
-		case ngapType.ProtocolIEIDUESecurityCapabilities:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUESecurityCapabilities(*ie.Value.UESecurityCapabilities),
-			})
-		case ngapType.ProtocolIEIDSecurityKey:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       bitStringToHex(&ie.Value.SecurityKey.Value),
-			})
-		case ngapType.ProtocolIEIDMobilityRestrictionList:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildMobilityRestrictionListIE(*ie.Value.MobilityRestrictionList),
-			})
-		case ngapType.ProtocolIEIDIndexToRFSP:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.IndexToRFSP.Value,
-			})
-		case ngapType.ProtocolIEIDNASPDU:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: NASPDU{
-					Protocol: "NAS",
-					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
-					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
-				},
-			})
-		case ngapType.ProtocolIEIDUERadioCapability:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       []byte(ie.Value.UERadioCapability.Value),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
-	}
-
-	return NGAPMessageValue{
-		IEs: ies,
-	}
-}
-
-func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq ngapType.PDUSessionResourceSetupListCxtReq) []PDUSessionResourceSetupCxtReq {
-	var pduSessionResourceSetupList []PDUSessionResourceSetupCxtReq
-
-	for _, item := range pduSessionResourceSetupListCxtReq.List {
-		setupRequestTransfer, err := buildPDUSessionInfoFromSetupRequestTransfer(item.PDUSessionResourceSetupRequestTransfer)
-
-		entry := PDUSessionResourceSetupCxtReq{
-			PDUSessionID: item.PDUSessionID.Value,
-			SNSSAI:       *buildSNSSAI(&item.SNSSAI),
-		}
-
-		if err != nil {
-			entry.Error = fmt.Sprintf("failed to decode transfer: %v", err)
-		} else {
-			entry.PDUSessionResourceSetupRequestTransfer = *setupRequestTransfer
-		}
-
-		if item.NASPDU != nil {
-			entry.NASPDU = &NASPDU{
-				Protocol: "NAS",
-				RawHex:   hex.EncodeToString(item.NASPDU.Value),
-				Decoded:  nas.DecodeNASMessage(item.NASPDU.Value),
-			}
-		}
-
-		pduSessionResourceSetupList = append(pduSessionResourceSetupList, entry)
-	}
-
-	return pduSessionResourceSetupList
-}
-
-func buildUESecurityCapabilities(uesec ngapType.UESecurityCapabilities) UESecurityCapabilities {
-	return UESecurityCapabilities{
-		NRencryptionAlgorithms:             decodeNRencryptionAlgorithms(uesec.NRencryptionAlgorithms.Value),
-		NRintegrityProtectionAlgorithms:    decodeNRintegrityAlgorithms(uesec.NRintegrityProtectionAlgorithms.Value),
-		EUTRAencryptionAlgorithms:          bitStringToHex(&uesec.EUTRAencryptionAlgorithms.Value),
-		EUTRAintegrityProtectionAlgorithms: bitStringToHex(&uesec.EUTRAintegrityProtectionAlgorithms.Value),
-	}
-}
-
-func decodeNRintegrityAlgorithms(bs aper.BitString) []string {
-	if bs.Bytes == nil {
-		return nil
-	}
-
-	// Ensure we can safely read bs.Bytes[0]
-	if bs.BitLength < 8 {
-		for bs.BitLength < 8 {
-			bs.Bytes = append([]byte{0}, bs.Bytes...)
-			bs.BitLength += 8
-		}
-	}
-
-	var algos []string
-
-	b := bs.Bytes[0]
-
-	if (b>>7)&1 == 1 {
-		algos = append(algos, "NIA1")
-	}
-
-	if (b>>6)&1 == 1 {
-		algos = append(algos, "NIA2")
-	}
-
-	if (b>>5)&1 == 1 {
-		algos = append(algos, "NIA3")
-	}
-
-	if len(algos) == 0 {
-		return []string{"None or NIA0 (null integrity)"}
-	}
-
-	return algos
-}
-
-func decodeNRencryptionAlgorithms(bs aper.BitString) []string {
-	if bs.Bytes == nil {
-		return nil
-	}
-
-	if bs.BitLength < 8 {
-		for bs.BitLength < 8 {
-			bs.Bytes = append([]byte{0}, bs.Bytes...)
-			bs.BitLength += 8
-		}
-	}
-
-	var algos []string
-
-	b := bs.Bytes[0]
-
-	if (b>>7)&1 == 1 {
-		algos = append(algos, "NEA1")
-	}
-
-	if (b>>6)&1 == 1 {
-		algos = append(algos, "NEA2")
-	}
-
-	if (b>>5)&1 == 1 {
-		algos = append(algos, "NEA3")
-	}
-
-	if len(algos) == 0 {
-		return []string{"None or NEA0 (null ciphering)"}
-	}
-
-	return algos
-}
-
-func buildCoreNetworkAssistanceInformation(cnai ngapType.CoreNetworkAssistanceInformation) (CoreNetworkAssistanceInformation, error) {
-	returnedCNAI := CoreNetworkAssistanceInformation{}
-
-	switch cnai.UEIdentityIndexValue.Present {
-	case ngapType.UEIdentityIndexValuePresentIndexLength10:
-		returnedCNAI.UEIdentityIndexValue = bitStringToHex(cnai.UEIdentityIndexValue.IndexLength10)
-	default:
-		return returnedCNAI, fmt.Errorf("unsupported UEIdentityIndexValue present: %d", cnai.UEIdentityIndexValue.Present)
-	}
-
-	if cnai.UESpecificDRX != nil {
-		pagingDRX := buildDefaultPagingDRXIE(*cnai.UESpecificDRX)
-		returnedCNAI.UESpecificDRX = &pagingDRX
-	}
-
-	returnedCNAI.PeriodicRegistrationUpdateTimer = bitStringToHex(&cnai.PeriodicRegistrationUpdateTimer.Value)
-
-	if cnai.MICOModeIndication != nil {
-		switch cnai.MICOModeIndication.Value {
-		case ngapType.MICOModeIndicationPresentTrue:
-			returnedCNAI.MICOModeIndication = new(string)
-			*returnedCNAI.MICOModeIndication = "true"
-		default:
-			return returnedCNAI, fmt.Errorf("unsupported MICOModeIndication present: %d", cnai.MICOModeIndication.Value)
-		}
-	}
-
-	for i := 0; i < len(cnai.TAIListForInactive.List); i++ {
-		tai := cnai.TAIListForInactive.List[i]
-		returnedCNAI.TAIListForInactive = append(returnedCNAI.TAIListForInactive, TAI{
-			PLMNID: plmnIDToModels(tai.TAI.PLMNIdentity),
-			TAC:    hex.EncodeToString(tai.TAI.TAC.Value),
-		})
-	}
-
-	if cnai.ExpectedUEBehaviour != nil {
-		expectedUEBehaviour := buildExpectedUEBehaviour(*cnai.ExpectedUEBehaviour)
-		returnedCNAI.ExpectedUEBehaviour = &expectedUEBehaviour
-	}
-
-	return returnedCNAI, nil
-}
-
-func buildExpectedUEBehaviour(eub ngapType.ExpectedUEBehaviour) ExpectedUEBehaviour {
-	returnedEUB := ExpectedUEBehaviour{}
-
-	if eub.ExpectedUEActivityBehaviour != nil {
-		returnedEUB.ExpectedUEActivityBehaviour = &ExpectedUEActivityBehaviour{}
-
-		if eub.ExpectedUEActivityBehaviour.ExpectedActivityPeriod != nil {
-			returnedEUB.ExpectedUEActivityBehaviour.ExpectedActivityPeriod = &eub.ExpectedUEActivityBehaviour.ExpectedActivityPeriod.Value
-		}
-
-		if eub.ExpectedUEActivityBehaviour.ExpectedIdlePeriod != nil {
-			returnedEUB.ExpectedUEActivityBehaviour.ExpectedIdlePeriod = &eub.ExpectedUEActivityBehaviour.ExpectedIdlePeriod.Value
-		}
-
-		if eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation != nil {
-			switch eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value {
-			case ngapType.SourceOfUEActivityBehaviourInformationPresentSubscriptionInformation:
-				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = utils.MakeEnum(uint64(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value), "subscription_information", false)
-			case ngapType.SourceOfUEActivityBehaviourInformationPresentStatistics:
-				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = utils.MakeEnum(uint64(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value), "statistics", false)
-			default:
-				*returnedEUB.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation = utils.MakeEnum(uint64(eub.ExpectedUEActivityBehaviour.SourceOfUEActivityBehaviourInformation.Value), "", true)
-			}
-		}
-	}
-
-	if eub.ExpectedHOInterval != nil {
-		switch eub.ExpectedHOInterval.Value {
-		case ngapType.ExpectedHOIntervalPresentSec15:
-			*returnedEUB.ExpectedHOInterval = utils.MakeEnum(uint64(eub.ExpectedHOInterval.Value), "sec15", false)
-		case ngapType.ExpectedHOIntervalPresentSec30:
-			*returnedEUB.ExpectedHOInterval = utils.MakeEnum(uint64(eub.ExpectedHOInterval.Value), "sec30", false)
-		case ngapType.ExpectedHOIntervalPresentSec60:
-			*returnedEUB.ExpectedHOInterval = utils.MakeEnum(uint64(eub.ExpectedHOInterval.Value), "sec60", false)
-		case ngapType.ExpectedHOIntervalPresentSec120:
-			*returnedEUB.ExpectedHOInterval = utils.MakeEnum(uint64(eub.ExpectedHOInterval.Value), "sec120", false)
-		case ngapType.ExpectedHOIntervalPresentSec180:
-			*returnedEUB.ExpectedHOInterval = utils.MakeEnum(uint64(eub.ExpectedHOInterval.Value), "sec180", false)
-		case ngapType.ExpectedHOIntervalPresentLongTime:
-			*returnedEUB.ExpectedHOInterval = utils.MakeEnum(uint64(eub.ExpectedHOInterval.Value), "long_time", false)
-		default:
-			*returnedEUB.ExpectedHOInterval = utils.MakeEnum(uint64(eub.ExpectedHOInterval.Value), "", true)
-		}
-	}
-
-	if eub.ExpectedUEMobility != nil {
-		switch eub.ExpectedUEMobility.Value {
-		case ngapType.ExpectedUEMobilityPresentStationary:
-			*returnedEUB.ExpectedUEMobility = utils.MakeEnum(uint64(eub.ExpectedUEMobility.Value), "stationary", false)
-		case ngapType.ExpectedUEMobilityPresentMobile:
-			*returnedEUB.ExpectedUEMobility = utils.MakeEnum(uint64(eub.ExpectedUEMobility.Value), "mobile", false)
-		default:
-			*returnedEUB.ExpectedUEMobility = utils.MakeEnum(uint64(eub.ExpectedUEMobility.Value), "", true)
-		}
-	}
-
-	for i := 0; i < len(eub.ExpectedUEMovingTrajectory.List); i++ {
-		item := eub.ExpectedUEMovingTrajectory.List[i]
-		ngRanCgi := buildNGRANCGI(item.NGRANCGI)
-
-		expectedUEMovingTrajectoryItem := ExpectedUEMovingTrajectoryItem{
-			NGRANCGI: ngRanCgi,
-		}
-		if item.TimeStayedInCell != nil {
-			expectedUEMovingTrajectoryItem.TimeStayedInCell = item.TimeStayedInCell
-		}
-
-		returnedEUB.ExpectedUEMovingTrajectory = append(returnedEUB.ExpectedUEMovingTrajectory, expectedUEMovingTrajectoryItem)
-	}
-
-	return returnedEUB
-}
-
-func buildNGRANCGI(ngRanCgi ngapType.NGRANCGI) NGRANCGI {
-	ngRANCGI := NGRANCGI{}
-
-	switch ngRanCgi.Present {
-	case ngapType.NGRANCGIPresentNRCGI:
-		ngRANCGI.NRCGI = &NRCGI{
-			PLMNID:         plmnIDToModels(ngRanCgi.NRCGI.PLMNIdentity),
-			NRCellIdentity: bitStringToHex(&ngRanCgi.NRCGI.NRCellIdentity.Value),
-		}
-	case ngapType.NGRANCGIPresentEUTRACGI:
-		ngRANCGI.EUTRACGI = &EUTRACGI{
-			PLMNID:            plmnIDToModels(ngRanCgi.EUTRACGI.PLMNIdentity),
-			EUTRACellIdentity: bitStringToHex(&ngRanCgi.EUTRACGI.EUTRACellIdentity.Value),
-		}
-	default:
-		ngRANCGI.Error = fmt.Sprintf("unsupported NGRANCGI present: %d", ngRanCgi.Present)
-	}
-
-	return ngRANCGI
-}
-
-func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PDUSessionResourceSetupRequestTransfer, error) {
-	if transfer == nil {
-		return nil, fmt.Errorf("PDU Session Resource Setup Request Transfer is missing")
-	}
-
-	pdu := &ngapType.PDUSessionResourceSetupRequestTransfer{}
-
-	err := aper.UnmarshalWithParams(transfer, pdu, "valueExt")
+// Initial Context Setup Request establishes the UE context on the NG-RAN node,
+// optionally setting up PDU sessions with it (TS 38.413 §9.2.2.1). The optional
+// IEs §9.2.2.1 also allows and this AMF never sends — Old AMF, Core Network
+// Assistance Information, Mobility Restriction List, Index to RFSP — render as
+// preserved-unmodeled if a capture from another core carries them.
+func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseInitialContextSetupRequest(value)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal Pdu Session Resource Setup Request Transfer: %v", err)
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Initial Context Setup Request: %v", err)}
 	}
 
-	pduTransfer := &PDUSessionResourceSetupRequestTransfer{}
+	ies := []IE{
+		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+	}
 
-	for _, ies := range pdu.ProtocolIEs.List {
-		switch ies.Id.Value {
-		case ngapType.ProtocolIEIDULNGUUPTNLInformation:
-			ulTeid := binary.BigEndian.Uint32(ies.Value.ULNGUUPTNLInformation.GTPTunnel.GTPTEID.Value)
-			upfAddress := ies.Value.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value.Bytes
-			upfIp := transportLayerAddressToString(upfAddress)
+	if m.UEAggregateMaximumBitRate != nil {
+		ies = append(ies, ie(idUEAggregateMaximumBitRate, ngap.CriticalityReject, UEAggregateMaximumBitRate{
+			Downlink: int64(m.UEAggregateMaximumBitRate.DL),
+			Uplink:   int64(m.UEAggregateMaximumBitRate.UL),
+			Unit:     "bps",
+		}))
+	}
 
-			pduTransfer.ULNGUUPTNLInformation = &ULNGUUPTNLInformation{
-				GTPTunnel: GTPTunnel{
-					GTPTEID:               ulTeid,
-					TransportLayerAddress: upfIp,
-				},
+	ies = append(ies, ie(idGUAMI, ngap.CriticalityReject, guami(m.GUAMI)))
+
+	if m.PDUSessionResourceSetup != nil {
+		out := make([]PDUSessionResourceSetupCxtReq, 0, len(m.PDUSessionResourceSetup))
+
+		for _, item := range m.PDUSessionResourceSetup {
+			entry := PDUSessionResourceSetupCxtReq{
+				PDUSessionID: int64(item.PDUSessionID),
+				SNSSAI:       buildSNSSAIValue(item.SNSSAI),
 			}
 
-		case ngapType.ProtocolIEIDQosFlowSetupRequestList:
-			qosFlowList := []QosFlowSetupRequest{}
-
-			for _, itemsQos := range ies.Value.QosFlowSetupRequestList.List {
-				qosParams := itemsQos.QosFlowLevelQosParameters
-				entry := QosFlowSetupRequest{
-					QosId:  itemsQos.QosFlowIdentifier.Value,
-					PriArp: qosParams.AllocationAndRetentionPriority.PriorityLevelARP.Value,
-				}
-
-				switch qosParams.QosCharacteristics.Present {
-				case ngapType.QosCharacteristicsPresentNonDynamic5QI:
-					fiveQi := qosParams.QosCharacteristics.NonDynamic5QI.FiveQI.Value
-					entry.FiveQi = &fiveQi
-				case ngapType.QosCharacteristicsPresentDynamic5QI:
-					entry.Dynamic = true
-					priorityLevel := qosParams.QosCharacteristics.Dynamic5QI.PriorityLevelQos.Value
-					entry.PriorityLevelQos = &priorityLevel
-					packetDelay := qosParams.QosCharacteristics.Dynamic5QI.PacketDelayBudget.Value
-					entry.PacketDelayBudget = &packetDelay
-
-					if qosParams.QosCharacteristics.Dynamic5QI.FiveQI != nil {
-						fiveQi := qosParams.QosCharacteristics.Dynamic5QI.FiveQI.Value
-						entry.FiveQi = &fiveQi
-					}
-				}
-
-				if qosParams.GBRQosInformation != nil {
-					entry.GBRQosInformation = &GBRQosInfo{
-						MaximumFlowBitRateDL:    qosParams.GBRQosInformation.MaximumFlowBitRateDL.Value,
-						MaximumFlowBitRateUL:    qosParams.GBRQosInformation.MaximumFlowBitRateUL.Value,
-						GuaranteedFlowBitRateDL: qosParams.GBRQosInformation.GuaranteedFlowBitRateDL.Value,
-						GuaranteedFlowBitRateUL: qosParams.GBRQosInformation.GuaranteedFlowBitRateUL.Value,
-					}
-				}
-
-				qosFlowList = append(qosFlowList, entry)
+			transfer, err := libSetupRequestTransfer(item.Transfer)
+			if err != nil {
+				entry.Error = fmt.Sprintf("failed to decode transfer: %v", err)
+			} else {
+				entry.PDUSessionResourceSetupRequestTransfer = *transfer
 			}
 
-			pduTransfer.QosFlowSetupRequestList = qosFlowList
-
-		case ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate:
-			maxBitRateUL := uint64(ies.Value.PDUSessionAggregateMaximumBitRate.PDUSessionAggregateMaximumBitRateUL.Value)
-			maxBitRateDL := uint64(ies.Value.PDUSessionAggregateMaximumBitRate.PDUSessionAggregateMaximumBitRateDL.Value)
-
-			pduTransfer.MaximumBitRate = &MaximumBitRate{
-				UplinkNAggregateMaximumBitRate:   maxBitRateUL,
-				DownlinkNAggregateMaximumBitRate: maxBitRateDL,
-				Unit:                             "bps",
+			if item.NASPDU != nil {
+				entry.NASPDU = ngap.Ptr(libNASPDU(*item.NASPDU))
 			}
-		case ngapType.ProtocolIEIDPDUSessionType:
-			enum := pduSessionTypeToEnum(ies.Value.PDUSessionType.Value)
-			pduTransfer.PduSType = &enum
 
-		case ngapType.ProtocolIEIDSecurityIndication:
-			securityIndication := makeUnsupportedIE()
-			pduTransfer.SecurityIndication = securityIndication
-		default:
-			pduTransfer.UnsupportedIEs = append(pduTransfer.UnsupportedIEs, fmt.Sprintf("unsupported ie type %d", ies.Id.Value))
+			out = append(out, entry)
+		}
+
+		ies = append(ies, ie(idPDUSessionResourceSetupListCxtReq, ngap.CriticalityReject, out))
+	}
+
+	if m.AllowedNSSAI != nil {
+		slices := make([]SNSSAI, 0, len(m.AllowedNSSAI))
+		for _, item := range m.AllowedNSSAI {
+			slices = append(slices, buildSNSSAIValue(item.SNSSAI))
+		}
+
+		ies = append(ies, ie(idAllowedNSSAI, ngap.CriticalityReject, slices))
+	}
+
+	ies = append(ies,
+		ie(idUESecurityCapabilities, ngap.CriticalityReject, libUESecurityCapabilities(m.UESecurityCapabilities)),
+		ie(idSecurityKey, ngap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
+	)
+
+	if m.NASPDU != nil {
+		ies = append(ies, ie(idNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
+	}
+
+	if m.UERadioCapability != nil {
+		ies = append(ies, ie(idUERadioCapability, ngap.CriticalityIgnore, []byte(m.UERadioCapability)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
+}
+
+// libUESecurityCapabilities renders the four algorithm bit strings
+// (TS 38.413 §9.3.1.86). The NR pair is expanded to algorithm names; the E-UTRA
+// pair stays hex, as this core does not negotiate E-UTRA algorithms.
+func libUESecurityCapabilities(c ngap.UESecurityCapabilities) UESecurityCapabilities {
+	return UESecurityCapabilities{
+		NRencryptionAlgorithms:             nrAlgorithmNames(c.NREncryptionAlgorithms, "NEA"),
+		NRintegrityProtectionAlgorithms:    nrAlgorithmNames(c.NRIntegrityProtectionAlgorithms, "NIA"),
+		EUTRAencryptionAlgorithms:          bitsHex(uint64(c.EUTRAEncryptionAlgorithms), 16),
+		EUTRAintegrityProtectionAlgorithms: bitsHex(uint64(c.EUTRAIntegrityProtectionAlgorithms), 16),
+	}
+}
+
+// nrAlgorithmNames lists the supported algorithms named by the top three bits,
+// which are 5G-xA1, xA2 and xA3 in order (TS 33.501 §5.11.2). An empty set means
+// only the null algorithm is supported.
+func nrAlgorithmNames(mask uint16, prefix string) []string {
+	var algos []string
+
+	for i := range 3 {
+		if mask&(1<<uint(15-i)) != 0 {
+			algos = append(algos, fmt.Sprintf("%s%d", prefix, i+1))
 		}
 	}
 
-	return pduTransfer, nil
-}
+	if len(algos) == 0 {
+		if prefix == "NIA" {
+			return []string{"None or NIA0 (null integrity)"}
+		}
 
-func pduSessionTypeToEnum(pduType aper.Enumerated) utils.EnumField {
-	switch pduType {
-	case ngapType.PDUSessionTypePresentIpv4:
-		return utils.MakeEnum(int64(pduType), "ipv4", false)
-	case ngapType.PDUSessionTypePresentIpv6:
-		return utils.MakeEnum(int64(pduType), "ipv6", false)
-	case ngapType.PDUSessionTypePresentIpv4v6:
-		return utils.MakeEnum(int64(pduType), "ipv4v6", false)
-	case ngapType.PDUSessionTypePresentEthernet:
-		return utils.MakeEnum(int64(pduType), "ethernet", false)
-	case ngapType.PDUSessionTypePresentUnstructured:
-		return utils.MakeEnum(int64(pduType), "unstructured", false)
-	default:
-		return utils.MakeEnum(int64(pduType), "", true)
+		return []string{"None or NEA0 (null encryption)"}
 	}
-}
 
-// buildDefaultPagingDRXIE renders the reference decoder's PagingDRX. It stays
-// here until Initial Context Setup moves to the in-house codec, which has its
-// own renderer in ng_setup_request.go.
-func buildDefaultPagingDRXIE(dpd ngapType.PagingDRX) utils.EnumField {
-	switch dpd.Value {
-	case ngapType.PagingDRXPresentV32:
-		return utils.MakeEnum(uint64(dpd.Value), "v32", false)
-	case ngapType.PagingDRXPresentV64:
-		return utils.MakeEnum(uint64(dpd.Value), "v64", false)
-	case ngapType.PagingDRXPresentV128:
-		return utils.MakeEnum(uint64(dpd.Value), "v128", false)
-	case ngapType.PagingDRXPresentV256:
-		return utils.MakeEnum(uint64(dpd.Value), "v256", false)
-	default:
-		return utils.MakeEnum(uint64(dpd.Value), "", true)
-	}
+	return algos
 }

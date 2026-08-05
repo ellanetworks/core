@@ -694,12 +694,6 @@ func TestAes128ctr(t *testing.T) {
 // ------------- unused but ensure we have binary import for kdf test -----------
 var _ = binary.BigEndian
 
-// ------------- Known-good test vectors from free5gc/udm (Apache-2.0) -------------
-// These validate our implementation against independently-computed test data.
-// Source: https://github.com/free5gc/udm/blob/main/pkg/suci/suci_test.go
-
-// TestFree5GCVectors_ProfileDecryption validates our profile-level decryption
-// against known-good test vectors from the free5gc/udm project.
 // This exercises the core cryptographic logic (ECDH, KDF, AES-CTR, HMAC)
 // independently of the SUPI construction layer.
 func TestFree5GCVectors_ProfileDecryption(t *testing.T) {

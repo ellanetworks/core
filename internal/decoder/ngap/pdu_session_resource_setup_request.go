@@ -4,11 +4,9 @@
 package ngap
 
 import (
-	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type PDUSessionResourceSetupSUReq struct {
@@ -20,109 +18,56 @@ type PDUSessionResourceSetupSUReq struct {
 	Error string `json:"error,omitempty"`
 }
 
-func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType.PDUSessionResourceSetupRequest) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(pduSessionResourceSetupRequest.ProtocolIEs.List); i++ {
-		ie := pduSessionResourceSetupRequest.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANPagingPriority:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANPagingPriority.Value,
-			})
-		case ngapType.ProtocolIEIDNASPDU:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: NASPDU{
-					Protocol: "NAS",
-					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
-					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
-				},
-			})
-		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildPDUSessionResourceSetupListSUReq(*ie.Value.PDUSessionResourceSetupListSUReq),
-			})
-		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUEAggregateMaximumBitRateIE(*ie.Value.UEAggregateMaximumBitRate),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
+// PDU Session Resource Setup Request asks the NG-RAN node to set up user-plane
+// resources per session (TS 38.413 §9.2.1.1).
+func buildPDUSessionResourceSetupRequest(value []byte) NGAPMessageValue {
+	m, err := ngap.ParsePDUSessionResourceSetupRequest(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse PDU Session Resource Setup Request: %v", err)}
 	}
 
-	return NGAPMessageValue{
-		IEs: ies,
+	ies := []IE{
+		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 	}
-}
 
-func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetupListSUReq) []PDUSessionResourceSetupSUReq {
-	var reqList []PDUSessionResourceSetupSUReq
+	if m.NASPDU != nil {
+		ies = append(ies, ie(idNASPDU, ngap.CriticalityReject, libNASPDU(*m.NASPDU)))
+	}
 
-	for _, item := range list.List {
-		pduSUReq := PDUSessionResourceSetupSUReq{
-			PDUSessionID: item.PDUSessionID.Value,
-			SNSSAI:       *buildSNSSAI(&item.SNSSAI),
-		}
+	if m.PDUSessionResourceSetup != nil {
+		out := make([]PDUSessionResourceSetupSUReq, 0, len(m.PDUSessionResourceSetup))
 
-		setupRequestTransfer, err := buildPDUSessionInfoFromSetupRequestTransfer(item.PDUSessionResourceSetupRequestTransfer)
-		if err != nil {
-			pduSUReq.Error = fmt.Sprintf("failed to decode transfer: %v", err)
-		} else {
-			pduSUReq.PDUSessionResourceSetupRequestTransfer = setupRequestTransfer
-		}
-
-		if item.PDUSessionNASPDU != nil {
-			pduSUReq.PDUSessionNASPDU = &NASPDU{
-				Protocol: "NAS",
-				RawHex:   hex.EncodeToString(item.PDUSessionNASPDU.Value),
-				Decoded:  nas.DecodeNASMessage(item.PDUSessionNASPDU.Value),
+		for _, item := range m.PDUSessionResourceSetup {
+			entry := PDUSessionResourceSetupSUReq{
+				PDUSessionID: int64(item.PDUSessionID),
+				SNSSAI:       buildSNSSAIValue(item.SNSSAI),
 			}
+
+			transfer, err := libSetupRequestTransfer(item.Transfer)
+			if err != nil {
+				entry.Error = fmt.Sprintf("failed to decode transfer: %v", err)
+			} else {
+				entry.PDUSessionResourceSetupRequestTransfer = transfer
+			}
+
+			if item.NASPDU != nil {
+				entry.PDUSessionNASPDU = ngap.Ptr(libNASPDU(*item.NASPDU))
+			}
+
+			out = append(out, entry)
 		}
 
-		reqList = append(reqList, pduSUReq)
+		ies = append(ies, ie(idPDUSessionResourceSetupListSUReq, ngap.CriticalityReject, out))
 	}
 
-	return reqList
-}
-
-func buildSNSSAI(ngapSnssai *ngapType.SNSSAI) *SNSSAI {
-	if ngapSnssai == nil {
-		return nil
+	if m.UEAggregateMaximumBitRate != nil {
+		ies = append(ies, ie(idUEAggregateMaximumBitRate, ngap.CriticalityIgnore, UEAggregateMaximumBitRate{
+			Downlink: int64(m.UEAggregateMaximumBitRate.DL),
+			Uplink:   int64(m.UEAggregateMaximumBitRate.UL),
+			Unit:     "bps",
+		}))
 	}
 
-	snssai := &SNSSAI{
-		SST: int32(ngapSnssai.SST.Value[0]),
-	}
-
-	if ngapSnssai.SD != nil {
-		sd := hex.EncodeToString(ngapSnssai.SD.Value)
-		snssai.SD = &sd
-	}
-
-	return snssai
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

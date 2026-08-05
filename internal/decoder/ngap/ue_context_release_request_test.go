@@ -1,14 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
@@ -19,7 +17,7 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
@@ -29,7 +27,7 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected ProcedureCode=UEContextReleaseRequest, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeUEContextReleaseRequest {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcUEContextReleaseRequest) {
 		t.Errorf("expected ProcedureCode value=42, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -51,7 +49,7 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
+	if item0.ID.Value != int64(idAMFUENGAPID) {
 		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
@@ -78,7 +76,7 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
+	if item1.ID.Value != int64(idRANUENGAPID) {
 		t.Errorf("expected ID value=11, got %d", item1.ID.Value)
 	}
 
@@ -105,7 +103,7 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected ID=PDUSessionResourceListCxtRelReq, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != ngapType.ProtocolIEIDPDUSessionResourceListCxtRelReq {
+	if item2.ID.Value != int64(idPDUSessionResourceListCxtRelReq) {
 		t.Errorf("expected ID value=133, got %d", item2.ID.Value)
 	}
 
@@ -117,7 +115,7 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
-	pduSessionList, ok := item2.Value.([]ngap.PDUSessionResourceListCxtRelReq)
+	pduSessionList, ok := item2.Value.([]PDUSessionResourceListCxtRelReq)
 	if !ok {
 		t.Fatalf("expected PDUSessionResourceListCxtRelReq value type=[]PDUSessionResourceListCxtRelReq, got %T", item2.Value)
 	}
@@ -136,7 +134,7 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected ID=Cause, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != ngapType.ProtocolIEIDCause {
+	if item3.ID.Value != int64(idCause) {
 		t.Errorf("expected ID value=15, got %d", item3.ID.Value)
 	}
 
@@ -148,16 +146,16 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	cause, ok := item3.Value.(utils.EnumField)
+	cause, ok := item3.Value.(Cause)
 	if !ok {
-		t.Fatalf("expected Cause value type=utils.EnumField, got %T", item3.Value)
+		t.Fatalf("expected Cause value type=Cause, got %T", item3.Value)
 	}
 
-	if cause.Label != "RadioConnectionWithUeLost" {
-		t.Errorf("expected Cause=RadioConnectionWithUeLost, got %s", cause.Label)
+	if cause.Value.Label != "radio-connection-with-ue-lost" {
+		t.Errorf("expected Cause=radio-connection-with-ue-lost, got %s", cause.Value.Label)
 	}
 
-	if cause.Value != int64(ngapType.CauseRadioNetworkPresentRadioConnectionWithUeLost) {
-		t.Errorf("expected Cause value=21, got %d", cause.Value)
+	if cause.Value.Value != int64(lib.CauseRadioNetworkRadioConnectionWithUELost) {
+		t.Errorf("expected Cause value=21, got %d", cause.Value.Value)
 	}
 }

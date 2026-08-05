@@ -4,17 +4,13 @@
 package ngap
 
 import (
-	"encoding/hex"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/decoder/nas"
-	"github.com/ellanetworks/core/internal/decoder/utils"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type PDUSessionResourceReleaseCommandTransferDecoded struct {
-	Cause utils.EnumField `json:"cause"`
+	Cause Cause `json:"cause"`
 }
 
 type PDUSessionResourceToReleaseListRelCmd struct {
@@ -24,96 +20,43 @@ type PDUSessionResourceToReleaseListRelCmd struct {
 	Error string `json:"error,omitempty"`
 }
 
-func buildPDUSessionResourceReleaseCommand(cmd ngapType.PDUSessionResourceReleaseCommand) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(cmd.ProtocolIEs.List); i++ {
-		ie := cmd.ProtocolIEs.List[i]
-
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANPagingPriority:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANPagingPriority.Value,
-			})
-		case ngapType.ProtocolIEIDNASPDU:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value: NASPDU{
-					Protocol: "NAS",
-					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
-					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
-				},
-			})
-		case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListRelCmd:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildPDUSessionResourceToReleaseListRelCmd(*ie.Value.PDUSessionResourceToReleaseListRelCmd),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
-	}
-
-	return NGAPMessageValue{
-		IEs: ies,
-	}
-}
-
-func buildPDUSessionResourceToReleaseListRelCmd(pduList ngapType.PDUSessionResourceToReleaseListRelCmd) []PDUSessionResourceToReleaseListRelCmd {
-	pduSessionList := make([]PDUSessionResourceToReleaseListRelCmd, 0)
-
-	for i := 0; i < len(pduList.List); i++ {
-		item := pduList.List[i]
-		entry := PDUSessionResourceToReleaseListRelCmd{
-			PDUSessionID: item.PDUSessionID.Value,
-		}
-
-		transfer, err := decodeReleaseCommandTransfer(item.PDUSessionResourceReleaseCommandTransfer)
-		if err != nil {
-			entry.Error = fmt.Sprintf("failed to decode release command transfer: %v", err)
-		} else {
-			entry.PDUSessionResourceReleaseCommandTransfer = transfer
-		}
-
-		pduSessionList = append(pduSessionList, entry)
-	}
-
-	return pduSessionList
-}
-
-func decodeReleaseCommandTransfer(transfer aper.OctetString) (*PDUSessionResourceReleaseCommandTransferDecoded, error) {
-	if transfer == nil {
-		return nil, fmt.Errorf("transfer is nil")
-	}
-
-	pdu := &ngapType.PDUSessionResourceReleaseCommandTransfer{}
-
-	err := aper.UnmarshalWithParams(transfer, pdu, "valueExt")
+// PDU Session Resource Release Command names the sessions the AMF wants
+// released, each with its own cause (TS 38.413 §9.2.1.3).
+func buildPDUSessionResourceReleaseCommand(value []byte) NGAPMessageValue {
+	m, err := ngap.ParsePDUSessionResourceReleaseCommand(value)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal release command transfer: %v", err)
+		return NGAPMessageValue{Error: fmt.Sprintf("parse PDU Session Resource Release Command: %v", err)}
 	}
 
-	return &PDUSessionResourceReleaseCommandTransferDecoded{
-		Cause: causeToEnum(pdu.Cause),
-	}, nil
+	ies := []IE{
+		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+	}
+
+	if m.NASPDU != nil {
+		ies = append(ies, ie(idNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
+	}
+
+	if m.PDUSessionResourceRelease != nil {
+		out := make([]PDUSessionResourceToReleaseListRelCmd, 0, len(m.PDUSessionResourceRelease))
+
+		for _, item := range m.PDUSessionResourceRelease {
+			entry := PDUSessionResourceToReleaseListRelCmd{PDUSessionID: int64(item.PDUSessionID)}
+
+			transfer, err := ngap.ParsePDUSessionResourceReleaseCommandTransfer(item.Transfer)
+			if err != nil {
+				entry.Error = fmt.Sprintf("failed to decode release command transfer: %v", err)
+			} else {
+				entry.PDUSessionResourceReleaseCommandTransfer = &PDUSessionResourceReleaseCommandTransferDecoded{
+					Cause: cause(transfer.Cause),
+				}
+			}
+
+			out = append(out, entry)
+		}
+
+		ies = append(ies, ie(idPDUSessionResourceToReleaseListRelCmd, ngap.CriticalityReject, out))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

@@ -6,178 +6,135 @@ package ngap
 import (
 	"fmt"
 
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
-func buildLocationReport(locationReport ngapType.LocationReport) NGAPMessageValue {
-	ies := make([]IE, 0)
-
-	for i := 0; i < len(locationReport.ProtocolIEs.List); i++ {
-		ie := locationReport.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.AMFUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       ie.Value.RANUENGAPID.Value,
-			})
-		case ngapType.ProtocolIEIDUserLocationInformation:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUserLocationInformationIE(*ie.Value.UserLocationInformation),
-			})
-		case ngapType.ProtocolIEIDLocationReportingRequestType:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildLocationReportingRequestType(ie.Value.LocationReportingRequestType),
-			})
-		case ngapType.ProtocolIEIDUEPresenceInAreaOfInterestList:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Value:       buildUEPresenceInAreaOfInterestList(*ie.Value.UEPresenceInAreaOfInterestList),
-			})
-		default:
-			ies = append(ies, IE{
-				ID:          protocolIEIDToEnum(ie.Id.Value),
-				Criticality: criticalityToEnum(ie.Criticality.Value),
-				Error:       fmt.Sprintf("unsupported ie type %d", ie.Id.Value),
-			})
-		}
-	}
-
-	return NGAPMessageValue{
-		IEs: ies,
-	}
-}
-
 type LocationReportingRequestType struct {
-	EventType                                 string               `json:"event_type"`
-	ReportArea                                string               `json:"report_area"`
-	AreaOfInterestList                        []AreaOfInterestItem `json:"area_of_interest_list,omitempty"`
-	LocationReportingReferenceIDToBeCancelled *int64               `json:"reference_id_to_be_cancelled,omitempty"`
+	EventType                                 string `json:"event_type"`
+	ReportArea                                string `json:"report_area"`
+	LocationReportingReferenceIDToBeCancelled *int64 `json:"reference_id_to_be_cancelled,omitempty"`
 }
 
-type AreaOfInterestItem struct {
-	LocationReportingReferenceID int64 `json:"location_reporting_reference_id"`
-	GADIE                        any   `json:"gad_ie"`
-}
-
-func buildLocationReportingRequestType(lrrt *ngapType.LocationReportingRequestType) LocationReportingRequestType {
-	var out LocationReportingRequestType
-	if lrrt == nil {
-		return out
-	}
-
-	out.EventType = eventTypeToString(lrrt.EventType)
-	out.ReportArea = reportAreaToString(lrrt.ReportArea)
-
-	if lrrt.AreaOfInterestList != nil {
-		out.AreaOfInterestList = buildAreaOfInterestList(lrrt.AreaOfInterestList)
-	}
-
-	if lrrt.LocationReportingReferenceIDToBeCancelled != nil {
-		refID := lrrt.LocationReportingReferenceIDToBeCancelled.Value
-		out.LocationReportingReferenceIDToBeCancelled = &refID
-	}
-
-	return out
-}
-
-func buildAreaOfInterestList(aoiList *ngapType.AreaOfInterestList) []AreaOfInterestItem {
-	if aoiList == nil {
-		return nil
-	}
-
-	items := make([]AreaOfInterestItem, 0)
-
-	for i := 0; i < len(aoiList.List); i++ {
-		item := aoiList.List[i]
-		aoiItem := AreaOfInterestItem{
-			LocationReportingReferenceID: item.LocationReportingReferenceID.Value,
-		}
-
-		aoi := item.AreaOfInterest
-		if aoi.AreaOfInterestTAIList != nil || aoi.AreaOfInterestCellList != nil || aoi.AreaOfInterestRANNodeList != nil {
-			aoiItem.GADIE = map[string]any{
-				"error": "GAD decoding not implemented",
-			}
-		} else {
-			aoiItem.GADIE = map[string]any{
-				"error": "no area of interest defined",
-			}
-		}
-
-		items = append(items, aoiItem)
-	}
-
-	return items
+type UEPresenceInAreaOfInterestItem struct {
+	LocationReportingReferenceID int64  `json:"location_reporting_reference_id"`
+	UEPresence                   string `json:"ue_presence"`
 }
 
 type UEPresenceInAreaOfInterestList struct {
 	Items []UEPresenceInAreaOfInterestItem `json:"items"`
 }
 
-type UEPresenceInAreaOfInterestItem struct {
-	LocationReportingReferenceID int64  `json:"location_reporting_reference_id"`
-	UEPresence                   string `json:"ue_presence"` // "In", "Out"
-}
+// Location Report carries where the NG-RAN node currently sees the UE
+// (TS 38.413 §9.2.8.3).
+func buildLocationReport(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseLocationReport(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Location Report: %v", err)}
+	}
 
-func buildUEPresenceInAreaOfInterestList(list ngapType.UEPresenceInAreaOfInterestList) UEPresenceInAreaOfInterestList {
-	items := make([]UEPresenceInAreaOfInterestItem, 0)
+	ies := []IE{
+		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+	}
 
-	for i := 0; i < len(list.List); i++ {
-		item := list.List[i]
-		uePresence := "Unknown"
+	if m.UserLocationInformation != nil {
+		ies = append(ies, ie(idUserLocationInformation, ngap.CriticalityIgnore,
+			userLocationInformation(*m.UserLocationInformation)))
+	}
 
-		switch item.UEPresence.Value {
-		case ngapType.UEPresencePresentIn:
-			uePresence = "In"
-		case ngapType.UEPresencePresentOut:
-			uePresence = "Out"
+	if m.UEPresenceInAreaOfInterestList != nil {
+		items := make([]UEPresenceInAreaOfInterestItem, 0, len(m.UEPresenceInAreaOfInterestList))
+		for _, item := range m.UEPresenceInAreaOfInterestList {
+			items = append(items, UEPresenceInAreaOfInterestItem{
+				LocationReportingReferenceID: int64(item.LocationReportingReferenceID),
+				UEPresence:                   uePresenceText(item.UEPresence),
+			})
 		}
 
-		items = append(items, UEPresenceInAreaOfInterestItem{
-			LocationReportingReferenceID: item.LocationReportingReferenceID.Value,
-			UEPresence:                   uePresence,
-		})
+		ies = append(ies, ie(idUEPresenceInAreaOfInterestList, ngap.CriticalityIgnore,
+			UEPresenceInAreaOfInterestList{Items: items}))
 	}
 
-	return UEPresenceInAreaOfInterestList{Items: items}
+	if m.LocationReportingRequestType != nil {
+		ies = append(ies, ie(idLocationReportingRequestType, ngap.CriticalityIgnore,
+			libLocationReportingRequestType(*m.LocationReportingRequestType)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
-func eventTypeToString(eventType ngapType.EventType) string {
-	switch eventType.Value {
-	case ngapType.EventTypePresentDirect:
+// Location Reporting Control asks the NG-RAN node to start, change or stop
+// reporting the UE's location (TS 38.413 §9.2.8.1).
+func buildLocationReportingControl(value []byte) NGAPMessageValue {
+	m, err := ngap.ParseLocationReportingControl(value)
+	if err != nil {
+		return NGAPMessageValue{Error: fmt.Sprintf("parse Location Reporting Control: %v", err)}
+	}
+
+	ies := []IE{
+		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+	}
+
+	if m.LocationReportingRequestType != nil {
+		ies = append(ies, ie(idLocationReportingRequestType, ngap.CriticalityIgnore,
+			libLocationReportingRequestType(*m.LocationReportingRequestType)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
+}
+
+// The library does not model areaOfInterestList — this core never requests
+// area-of-interest reporting — so the field is absent rather than rendered as
+// the "not implemented" placeholder the reference decoder emitted.
+func libLocationReportingRequestType(t ngap.LocationReportingRequestType) LocationReportingRequestType {
+	out := LocationReportingRequestType{
+		EventType:  eventTypeText(t.EventType),
+		ReportArea: reportAreaText(t.ReportArea),
+	}
+
+	if t.LocationReportingReferenceIDToBeCancelled != nil {
+		id := int64(*t.LocationReportingReferenceIDToBeCancelled)
+		out.LocationReportingReferenceIDToBeCancelled = &id
+	}
+
+	return out
+}
+
+func eventTypeText(e ngap.EventType) string {
+	switch e {
+	case ngap.EventTypeDirect:
 		return "Direct"
-	case ngapType.EventTypePresentChangeOfServeCell:
+	case ngap.EventTypeChangeOfServeCell:
 		return "ChangeOfServingCell"
-	case ngapType.EventTypePresentUePresenceInAreaOfInterest:
+	case ngap.EventTypeUEPresenceInAreaOfInterest:
 		return "UePresenceInAreaOfInterest"
-	case ngapType.EventTypePresentStopChangeOfServeCell:
+	case ngap.EventTypeStopChangeOfServeCell:
 		return "StopChangeOfServingCell"
-	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
+	case ngap.EventTypeStopUEPresenceInAreaOfInterest:
 		return "StopUePresenceInAreaOfInterest"
-	case ngapType.EventTypePresentCancelLocationReportingForTheUe:
+	case ngap.EventTypeCancelLocationReportingForTheUE:
 		return "CancelLocationReportingForTheUe"
 	default:
-		return fmt.Sprintf("Unknown(%d)", eventType.Value)
+		return fmt.Sprintf("Unknown(%d)", e)
 	}
 }
 
-func reportAreaToString(reportArea ngapType.ReportArea) string {
-	switch reportArea.Value {
-	case ngapType.ReportAreaPresentCell:
+func reportAreaText(a ngap.ReportArea) string {
+	if a == ngap.ReportAreaCell {
 		return "Cell"
+	}
+
+	return fmt.Sprintf("Unknown(%d)", a)
+}
+
+func uePresenceText(p ngap.UEPresence) string {
+	switch p {
+	case ngap.UEPresenceIn:
+		return "In"
+	case ngap.UEPresenceOut:
+		return "Out"
 	default:
-		return fmt.Sprintf("Unknown(%d)", reportArea.Value)
+		return "Unknown"
 	}
 }

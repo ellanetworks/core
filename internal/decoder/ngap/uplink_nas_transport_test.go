@@ -1,14 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
@@ -19,7 +18,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
@@ -29,7 +28,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected ProcedureCode=UplinkNASTransport, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeUplinkNASTransport {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcUplinkNASTransport) {
 		t.Errorf("expected ProcedureCode value=2, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -51,7 +50,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
+	if item0.ID.Value != int64(idAMFUENGAPID) {
 		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
@@ -78,7 +77,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
+	if item1.ID.Value != int64(idRANUENGAPID) {
 		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
@@ -105,7 +104,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected ID=NASPDU, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != ngapType.ProtocolIEIDNASPDU {
+	if item2.ID.Value != int64(idNASPDU) {
 		t.Errorf("expected ID value=38, got %d", item2.ID.Value)
 	}
 
@@ -117,9 +116,9 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
 	}
 
-	nasPdu, ok := item2.Value.(ngap.NASPDU)
+	nasPdu, ok := item2.Value.(NASPDU)
 	if !ok {
-		t.Fatalf("expected NASPDU to be of type ngap.NASPDU, got %T", item2.Value)
+		t.Fatalf("expected NASPDU to be of type NASPDU, got %T", item2.Value)
 	}
 
 	if nasPdu.Protocol != "NAS" {
@@ -144,7 +143,7 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected ID=UserLocationInformation, got %s", item3.ID.Label)
 	}
 
-	if item3.ID.Value != ngapType.ProtocolIEIDUserLocationInformation {
+	if item3.ID.Value != int64(idUserLocationInformation) {
 		t.Errorf("expected ID value=121, got %d", item3.ID.Value)
 	}
 
@@ -156,9 +155,9 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
 	}
 
-	userLocationInfo, ok := item3.Value.(ngap.UserLocationInformation)
+	userLocationInfo, ok := item3.Value.(UserLocationInformation)
 	if !ok {
-		t.Fatalf("expected UserLocationInformation to be of type ngap.UserLocationInformation, got %T", item3.Value)
+		t.Fatalf("expected UserLocationInformation to be of type UserLocationInformation, got %T", item3.Value)
 	}
 
 	if userLocationInfo.NR == nil {

@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
@@ -18,7 +17,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "SuccessfulOutcome" {
 		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
@@ -28,7 +27,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodePDUSessionResourceSetup {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcPDUSessionResourceSetup) {
 		t.Errorf("expected ProcedureCode value=21, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -50,7 +49,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
+	if item0.ID.Value != int64(idAMFUENGAPID) {
 		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
@@ -77,7 +76,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
 	}
 
-	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
+	if item1.ID.Value != int64(idRANUENGAPID) {
 		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 
@@ -104,7 +103,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=PDUSessionResourceSetupListSURes, got %s", item2.ID.Label)
 	}
 
-	if item2.ID.Value != ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes {
+	if item2.ID.Value != int64(idPDUSessionResourceSetupListSURes) {
 		t.Errorf("expected ID value=75, got %d", item2.ID.Value)
 	}
 
@@ -116,7 +115,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
 	}
 
-	pduSessionResourceSetupListSURes, ok := item2.Value.([]ngap.PDUSessionResourceSetupSURes)
+	pduSessionResourceSetupListSURes, ok := item2.Value.([]PDUSessionResourceSetupSURes)
 	if !ok {
 		t.Fatalf("expected PDUSessionResourceSetupListSURes to be of type []PDUSessionResourceSetupSURes, got %T", item2.Value)
 	}
@@ -163,7 +162,7 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=UserLocationInformation, got %v", item3.ID)
 	}
 
-	if item3.ID.Value != ngapType.ProtocolIEIDUserLocationInformation {
+	if item3.ID.Value != int64(idUserLocationInformation) {
 		t.Errorf("expected ID value=121, got %d", item3.ID.Value)
 	}
 

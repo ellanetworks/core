@@ -38,6 +38,8 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"HandoverFailure", tableIDs(handoverFailureIEs), []ProtocolIEID{idAMFUENGAPID, idCause, idCriticalityDiagnostics, idTargettoSourceFailureTransparentContainer}},
 		{"DownlinkUEAssociatedNRPPaTransport", tableIDs(downlinkUEAssociatedNRPPaTransportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idRoutingID, idNRPPaPDU}},
 		{"UplinkUEAssociatedNRPPaTransport", tableIDs(uplinkUEAssociatedNRPPaTransportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idRoutingID, idNRPPaPDU}},
+		{"DownlinkNonUEAssociatedNRPPaTransport", tableIDs(downlinkNonUEAssociatedNRPPaTransportIEs), []ProtocolIEID{idRoutingID, idNRPPaPDU}},
+		{"UplinkNonUEAssociatedNRPPaTransport", tableIDs(uplinkNonUEAssociatedNRPPaTransportIEs), []ProtocolIEID{idRoutingID, idNRPPaPDU}},
 		{"LocationReport", tableIDs(locationReportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idUserLocationInformation, idUEPresenceInAreaOfInterestList, idLocationReportingRequestType}},
 		{"LocationReportingControl", tableIDs(locationReportingControlIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idLocationReportingRequestType}},
 		{"PathSwitchRequest", tableIDs(pathSwitchRequestIEs), []ProtocolIEID{idRANUENGAPID, idSourceAMFUENGAPID, idUserLocationInformation, idUESecurityCapabilities, idPDUSessionResourceToBeSwitchedDLList, idPDUSessionResourceFailedToSetupListPSReq}},

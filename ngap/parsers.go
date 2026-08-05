@@ -83,6 +83,14 @@ var messageParsers = []messageParser{
 		_, err := ParseDownlinkUEAssociatedNRPPaTransport(v)
 		return err
 	}},
+	{"ParseDownlinkNonUEAssociatedNRPPaTransport", func(v []byte) error {
+		_, err := ParseDownlinkNonUEAssociatedNRPPaTransport(v)
+		return err
+	}},
+	{"ParseUplinkNonUEAssociatedNRPPaTransport", func(v []byte) error {
+		_, err := ParseUplinkNonUEAssociatedNRPPaTransport(v)
+		return err
+	}},
 	{"ParseUplinkUEAssociatedNRPPaTransport", func(v []byte) error {
 		_, err := ParseUplinkUEAssociatedNRPPaTransport(v)
 		return err

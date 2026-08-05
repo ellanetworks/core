@@ -1,13 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/decoder/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	lib "github.com/ellanetworks/core/ngap"
 )
 
 func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
@@ -18,7 +17,7 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	ngapMsg := ngap.DecodeNGAPMessage(raw)
+	ngapMsg := DecodeNGAPMessage(raw)
 
 	if ngapMsg.PDUType != "SuccessfulOutcome" {
 		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
@@ -28,7 +27,7 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
-	if ngapMsg.ProcedureCode.Value != ngapType.ProcedureCodeInitialContextSetup {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
 		t.Errorf("expected ProcedureCode value=14, got %d", ngapMsg.ProcedureCode.Value)
 	}
 
@@ -50,7 +49,7 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=AMFUENGAPID, got %v", item0.ID)
 	}
 
-	if item0.ID.Value != ngapType.ProtocolIEIDAMFUENGAPID {
+	if item0.ID.Value != int64(idAMFUENGAPID) {
 		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
 	}
 
@@ -77,7 +76,7 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)
 	}
 
-	if item1.ID.Value != ngapType.ProtocolIEIDRANUENGAPID {
+	if item1.ID.Value != int64(idRANUENGAPID) {
 		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
 	}
 

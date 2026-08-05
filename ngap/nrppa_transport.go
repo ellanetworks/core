@@ -170,3 +170,109 @@ func (m *UplinkUEAssociatedNRPPaTransport) Marshal() ([]byte, error) {
 func ParseUplinkUEAssociatedNRPPaTransport(value []byte) (*UplinkUEAssociatedNRPPaTransport, error) {
 	return parseMessageBody[UplinkUEAssociatedNRPPaTransport](ProcUplinkUEAssociatedNRPPaTransport, TriggeringInitiatingMessage, uplinkUEAssociatedNRPPaTransportIEs, value)
 }
+
+// The non-UE-associated pair carries only the routing id and the payload: with
+// no UE context, there are no UE NGAP IDs to name.
+func nonUEAssociatedNRPPaTransportIEs[M any](
+	routing func(*M) *RoutingID,
+	pdu func(*M) *NRPPaPDU,
+) []ieSpec[M] {
+	return []ieSpec[M]{
+		{
+			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
+			encode: func(m *M) (per.Marshaler, bool) {
+				if *routing(m) == nil {
+					return nil, false
+				}
+
+				return routing(m), true
+			},
+		},
+		{
+			id: idNRPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
+			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
+			encode: func(m *M) (per.Marshaler, bool) {
+				if *pdu(m) == nil {
+					return nil, false
+				}
+
+				return pdu(m), true
+			},
+		},
+	}
+}
+
+// TS 38.413 §9.2.9.3.
+type DownlinkNonUEAssociatedNRPPaTransport struct {
+	RoutingID RoutingID
+	NRPPaPDU  NRPPaPDU
+
+	messageMeta
+}
+
+// TS 38.413 §9.2.9.4.
+type UplinkNonUEAssociatedNRPPaTransport struct {
+	RoutingID RoutingID
+	NRPPaPDU  NRPPaPDU
+
+	messageMeta
+}
+
+var downlinkNonUEAssociatedNRPPaTransportIEs = nonUEAssociatedNRPPaTransportIEs(
+	func(m *DownlinkNonUEAssociatedNRPPaTransport) *RoutingID { return &m.RoutingID },
+	func(m *DownlinkNonUEAssociatedNRPPaTransport) *NRPPaPDU { return &m.NRPPaPDU },
+)
+
+var uplinkNonUEAssociatedNRPPaTransportIEs = nonUEAssociatedNRPPaTransportIEs(
+	func(m *UplinkNonUEAssociatedNRPPaTransport) *RoutingID { return &m.RoutingID },
+	func(m *UplinkNonUEAssociatedNRPPaTransport) *NRPPaPDU { return &m.NRPPaPDU },
+)
+
+func (m *DownlinkNonUEAssociatedNRPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcDownlinkNonUEAssociatedNRPPaTransport, downlinkNonUEAssociatedNRPPaTransportIEs, m)
+}
+
+func (m *UplinkNonUEAssociatedNRPPaTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
+	return encodeMessageBody(w, enc, ProcUplinkNonUEAssociatedNRPPaTransport, uplinkNonUEAssociatedNRPPaTransportIEs, m)
+}
+
+func (m *DownlinkNonUEAssociatedNRPPaTransport) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcDownlinkNonUEAssociatedNRPPaTransport,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
+}
+
+func ParseDownlinkNonUEAssociatedNRPPaTransport(value []byte) (*DownlinkNonUEAssociatedNRPPaTransport, error) {
+	return parseMessageBody[DownlinkNonUEAssociatedNRPPaTransport](ProcDownlinkNonUEAssociatedNRPPaTransport, TriggeringInitiatingMessage, downlinkNonUEAssociatedNRPPaTransportIEs, value)
+}
+
+func (m *UplinkNonUEAssociatedNRPPaTransport) Marshal() ([]byte, error) {
+	w := per.NewWriter()
+
+	if err := m.encodeBody(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return Marshal(&InitiatingMessage{
+		ProcedureCode: ProcUplinkNonUEAssociatedNRPPaTransport,
+		Criticality:   CriticalityIgnore,
+		Value:         w.Bytes(),
+	})
+}
+
+func ParseUplinkNonUEAssociatedNRPPaTransport(value []byte) (*UplinkNonUEAssociatedNRPPaTransport, error) {
+	return parseMessageBody[UplinkNonUEAssociatedNRPPaTransport](ProcUplinkNonUEAssociatedNRPPaTransport, TriggeringInitiatingMessage, uplinkNonUEAssociatedNRPPaTransportIEs, value)
+}
