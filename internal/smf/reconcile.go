@@ -210,7 +210,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			hasQoSChange = true
 		}
 
-		if oldAmbr.Uplink != newAmbrUL || oldAmbr.Downlink != newAmbrDL {
+		if !oldAmbr.Uplink.Equal(newAmbrUL) || !oldAmbr.Downlink.Equal(newAmbrDL) {
 			hasAmbrChange = true
 		}
 

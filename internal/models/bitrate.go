@@ -29,6 +29,11 @@ var bitRateUnits = []struct {
 // been through a parser, which is what stops each consumer writing its own.
 type BitRate struct {
 	bps uint64
+	// text is the form this rate was configured in. It is kept so a value read
+	// back through the API is the one the operator entered: "1000 Mbps" and
+	// "1 Gbps" are the same rate, and rewriting one into the other would be a
+	// visible change with no benefit. Compare rates with Equal, never ==.
+	text string
 }
 
 // BitRateFromBps builds a rate from a value already in bits per second.
@@ -73,7 +78,7 @@ func ParseBitRate(s string) (BitRate, error) {
 		return BitRate{}, fmt.Errorf("bit rate %q overflows", s)
 	}
 
-	return BitRate{bps: uint64(scaled)}, nil
+	return BitRate{bps: uint64(scaled), text: strings.TrimSpace(s)}, nil
 }
 
 // Bps returns the rate in bits per second.
@@ -86,9 +91,17 @@ func (b BitRate) Kbps() uint64 { return b.bps / 1000 }
 // IsZero reports whether the rate is unset.
 func (b BitRate) IsZero() bool { return b.bps == 0 }
 
-// String renders the widest unit that divides the rate evenly, so a parsed
-// value round-trips without loss.
+// Equal compares rates, ignoring the unit they were written in.
+func (b BitRate) Equal(other BitRate) bool { return b.bps == other.bps }
+
+// String returns the configured text when there was one, so the value an
+// operator entered is the value they read back. A computed rate has none and
+// renders in the widest unit that divides it evenly.
 func (b BitRate) String() string {
+	if b.text != "" {
+		return b.text
+	}
+
 	unit := bitRateUnits[0]
 
 	// Zero divides evenly by every unit, so it would otherwise widen all the

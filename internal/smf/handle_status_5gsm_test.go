@@ -5,9 +5,9 @@ package smf_test
 
 import (
 	"context"
-	"github.com/ellanetworks/core/internal/models"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 

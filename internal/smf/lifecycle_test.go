@@ -1315,7 +1315,7 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 		t.Fatalf("modification complete: %v", err)
 	}
 
-	if smCtx.PolicyData.Ambr.Uplink != models.MustParseBitRate("200 Mbps") || smCtx.PolicyData.Ambr.Downlink != models.MustParseBitRate("300 Mbps") {
+	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("200 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("300 Mbps")) {
 		t.Fatalf("stored AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
 
@@ -1497,7 +1497,7 @@ func TestReconcileSmContext_ModifyIdleUE_CommitsPolicy(t *testing.T) {
 	}
 
 	// Policy should have been committed despite N1N2 skip.
-	if smCtx.PolicyData.Ambr.Uplink != models.MustParseBitRate("500 Mbps") || smCtx.PolicyData.Ambr.Downlink != models.MustParseBitRate("600 Mbps") {
+	if !smCtx.PolicyData.Ambr.Uplink.Equal(models.MustParseBitRate("500 Mbps")) || !smCtx.PolicyData.Ambr.Downlink.Equal(models.MustParseBitRate("600 Mbps")) {
 		t.Fatalf("policy not committed: AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
 

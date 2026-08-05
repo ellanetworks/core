@@ -88,7 +88,8 @@ func setupLeaseTestDBWithProfile(t *testing.T) (*db.Database, string, string, st
 		Name:          "test-policy",
 		DataNetworkID: createdDNN.ID,
 		ProfileID:     createdProfile.ID,
-		SliceID:       createdSlice.ID}
+		SliceID:       createdSlice.ID,
+	}
 
 	if err := database.CreatePolicy(context.Background(), policy); err != nil {
 		t.Fatalf("CreatePolicy: %s", err)

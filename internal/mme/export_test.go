@@ -67,7 +67,7 @@ func TestExportUEs(t *testing.T) {
 		t.Errorf("Security = %+v, want EEA2/EIA2", e.Security)
 	}
 
-	if e.Subscription.Ambr == nil || e.Subscription.Ambr.Uplink != models.MustParseBitRate("1 Gbps") {
+	if e.Subscription.Ambr == nil || !e.Subscription.Ambr.Uplink.Equal(models.MustParseBitRate("1 Gbps")) {
 		t.Errorf("Subscription.Ambr = %+v, want uplink 1 Gbps", e.Subscription.Ambr)
 	}
 

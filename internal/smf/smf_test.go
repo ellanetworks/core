@@ -641,7 +641,7 @@ func TestGetSessionPolicy_DelegatesToStore(t *testing.T) {
 		t.Fatalf("GetSessionPolicy failed: %v", err)
 	}
 
-	if policy.Ambr.Uplink != models.MustParseBitRate("100 Mbps") {
+	if !policy.Ambr.Uplink.Equal(models.MustParseBitRate("100 Mbps")) {
 		t.Fatalf("expected uplink 100 Mbps, got %s", policy.Ambr.Uplink)
 	}
 }

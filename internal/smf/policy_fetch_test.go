@@ -151,7 +151,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("expected non-nil policy")
 	}
 
-	if retrievedPolicy.Ambr.Uplink != models.MustParseBitRate("100 Mbps") {
+	if !retrievedPolicy.Ambr.Uplink.Equal(models.MustParseBitRate("100 Mbps")) {
 		t.Fatalf("expected uplink 100 Mbps, got %s", retrievedPolicy.Ambr.Uplink)
 	}
 

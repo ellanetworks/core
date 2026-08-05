@@ -4,10 +4,10 @@
 package mme
 
 import (
-	"github.com/ellanetworks/core/internal/models"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // TestQosForPolicyDNSeparatesUEAndSessionAMBR verifies the 4G QoS resolution
@@ -24,10 +24,10 @@ func TestQosForPolicyDNSeparatesUEAndSessionAMBR(t *testing.T) {
 	}
 
 	if qos.AMBRUL.Bps() != 500_000_000 || qos.AMBRDL.Bps() != 500_000_000 {
-		t.Errorf("UE-AMBR (S1AP) = %d/%d bps, want 500/500 Mbps from the profile", qos.AMBRUL, qos.AMBRDL)
+		t.Errorf("UE-AMBR (S1AP) = %d/%d bps, want 500/500 Mbps from the profile", qos.AMBRUL.Bps(), qos.AMBRDL.Bps())
 	}
 
-	if qos.SessAmbrUL != models.MustParseBitRate("30 Mbps") || qos.SessAmbrDL != models.MustParseBitRate("60 Mbps") {
+	if !qos.SessAmbrUL.Equal(models.MustParseBitRate("30 Mbps")) || !qos.SessAmbrDL.Equal(models.MustParseBitRate("60 Mbps")) {
 		t.Errorf("Session-AMBR = %q/%q, want 30/60 Mbps from the policy", qos.SessAmbrUL, qos.SessAmbrDL)
 	}
 

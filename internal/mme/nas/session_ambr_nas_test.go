@@ -4,11 +4,11 @@
 package nas
 
 import (
-	"github.com/ellanetworks/core/internal/models"
 	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
