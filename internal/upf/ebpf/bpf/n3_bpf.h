@@ -159,10 +159,10 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (ret < 0) {
 		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 	}
-	if (ret > 0) {
-		upf_printk("upf: n3 packet too large");
-		return frag_needed(ctx, mtu_len);
-	}
+	/* Acted on after decapsulation. Here ctx still describes the transport
+	 * header, so DF and the address family are the gNB's, not the
+	 * subscriber's, and neither can be read yet. */
+	const bool inner_exceeds_n6_mtu = ret > 0;
 
 	ctx->interface = INTERFACE_N3;
 
@@ -273,6 +273,27 @@ handle_gtp_packet(struct packet_context *ctx)
 			return drop_with(ctx, ctx->ip6 ?
 						      UPF_DROP_SOURCE_SPOOF_IPV6 :
 						      UPF_DROP_SOURCE_SPOOF_IPV4);
+		}
+
+		/* Deferred from the MTU check above, which ran before
+		 * decapsulation. The subscriber's packet is in the context now,
+		 * so DF and the family are its own.
+		 *
+		 * The packet is dropped either way — the datapath does not
+		 * fragment. DF clear keeps its own reason because a router that
+		 * did fragment would have delivered it, which is worth telling
+		 * apart from a packet whose sender asked for this. No ICMP is
+		 * generated: reaching the UE means building the error from this
+		 * header and encapsulating it into the session's downlink
+		 * tunnel, which this path cannot do. */
+		if (inner_exceeds_n6_mtu) {
+			upf_printk("upf: n3 inner packet exceeds n6 mtu");
+
+			if (ctx->ip4 &&
+			    (ctx->ip4->frag_off & bpf_htons(0x4000)) == 0)
+				return drop_with(ctx, UPF_DROP_DF_NOT_SET);
+
+			return drop_with(ctx, UPF_DROP_MTU_EXCEEDED);
 		}
 
 		/* After source_allowed: a spoofed address must not be able to

@@ -330,6 +330,7 @@ var dropReasonNames = [...]string{
 	"exthdr_invalid",
 	"nat_quote_no_mapping",
 	"fragment_malformed",
+	"mtu_exceeded",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.

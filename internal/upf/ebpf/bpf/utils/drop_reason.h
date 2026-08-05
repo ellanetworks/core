@@ -84,6 +84,8 @@ enum upf_drop_reason {
 	UPF_DROP_NAT_QUOTE_NO_MAPPING,
 	/* Shaped to move header fields out of the first fragment (RFC 3128). */
 	UPF_DROP_FRAGMENT_MALFORMED,
+	/* Uplink inner packet larger than the N6 MTU, DF set or IPv6. */
+	UPF_DROP_MTU_EXCEEDED,
 
 	UPF_DROP_REASON_COUNT,
 };
