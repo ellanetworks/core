@@ -557,7 +557,7 @@ func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byt
 }
 
 // downlinkUEAssociatedNRPPaTransportBytes builds a DOWNLINK UE-ASSOCIATED
-// NRPPa TRANSPORT (TS 38.413 §9.2.9.1). TS 38.413 §9.3.3.14 makes RoutingID an
+// NRPPa TRANSPORT (TS 38.413 §9.2.9.1). TS 38.413 §9.3.3.13 makes RoutingID an
 // OCTET STRING, so the caller's numeric id is laid out big-endian in four
 // octets — the width the LMF has always been addressed with.
 func downlinkUEAssociatedNRPPaTransportBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, routingID int64, nrppaPdu []byte) ([]byte, error) {
@@ -574,7 +574,7 @@ func downlinkUEAssociatedNRPPaTransportBytes(amfID ngap.AMFUENGAPID, ranID ngap.
 }
 
 // SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
-// the LMF's NRPPa PDU and sends it to this UE's gNB (TS 38.413 §8.14.2). It returns the
+// the LMF's NRPPa PDU and sends it to this UE's gNB (TS 38.413 §8.10.2). It returns the
 // send outcome so the LMF positioning client can report a delivery failure.
 func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID int64, nrppaPdu []byte) error {
 	amfInstance, conn, err := ueConn.sendTarget()
@@ -587,15 +587,29 @@ func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID 
 		return fmt.Errorf("build downlink NRPPa transport: %w", err)
 	}
 
+	if ue := ueConn.UeContext(); ue != nil {
+		ue.RecordNRPPaRoutingID(routingID)
+	}
+
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureDownlinkNRPPaTransport, pkt)
 }
 
 // ueContextReleaseCommandBytes builds a UE Context Release Command for the given
 // NGAP identities (TS 38.413 §9.2.2.5).
+//
+// §8.3.3.2 carries both identities only where the RAN UE NGAP ID is available,
+// and the AMF UE NGAP ID alone otherwise. A handover target reserved but not yet
+// acknowledged holds RanUeNgapIDUnspecified, which is inside the
+// INTEGER (0..4294967295) range the NG-RAN node assigns from, so naming it would
+// address whichever UE the target has at that id.
 func ueContextReleaseCommandBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause) ([]byte, error) {
 	msg := &ngap.UEContextReleaseCommand{
-		UENGAPIDs: ngap.UENGAPIDs{AMFUENGAPID: amfID, RANUENGAPID: ranID, Pair: true},
-		Cause:     &cause,
+		UENGAPIDs: ngap.UENGAPIDs{
+			AMFUENGAPID: amfID,
+			RANUENGAPID: ranID,
+			Pair:        ranID != ngap.RANUENGAPID(models.RanUeNgapIDUnspecified),
+		},
+		Cause: &cause,
 	}
 
 	return msg.Marshal()
@@ -897,19 +911,23 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 
 // handoverPreparationFailureBytes builds a Handover Preparation Failure for the
 // given NGAP identities (TS 38.413 §9.2.3.3).
-func handoverPreparationFailureBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause, diagnostics *ngap.CriticalityDiagnostics) ([]byte, error) {
+func handoverPreparationFailureBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause, diagnostics *ngap.CriticalityDiagnostics, targetFailure ngap.TargettoSourceFailureTransparentContainer) ([]byte, error) {
 	msg := &ngap.HandoverPreparationFailure{
 		AMFUENGAPID:            &amfID,
 		RANUENGAPID:            &ranID,
 		Cause:                  &cause,
 		CriticalityDiagnostics: diagnostics,
+		TargettoSourceFailureTransparentContainer: targetFailure,
 	}
 
 	return msg.Marshal()
 }
 
-func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngap.Cause, criticalityDiagnostics *ngap.CriticalityDiagnostics) {
-	pkt, err := handoverPreparationFailureBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), cause, criticalityDiagnostics)
+// targetFailure is the container the handover target supplied in HANDOVER
+// FAILURE, which §8.4.1.3 has the AMF pass on to the source NG-RAN node; it is
+// nil where preparation failed before any target answered.
+func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngap.Cause, criticalityDiagnostics *ngap.CriticalityDiagnostics, targetFailure ngap.TargettoSourceFailureTransparentContainer) {
+	pkt, err := handoverPreparationFailureBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), cause, criticalityDiagnostics, targetFailure)
 	if err != nil {
 		logger.From(ctx, ueConn.Log).Error("failed to build Handover Preparation Failure", zap.Error(err))
 		return
@@ -919,7 +937,7 @@ func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause 
 }
 
 // handoverCancelAcknowledgeBytes builds a Handover Cancel Acknowledge for the
-// given NGAP identities (TS 38.413 §9.2.3.14).
+// given NGAP identities (TS 38.413 §9.2.3.12).
 func handoverCancelAcknowledgeBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID) ([]byte, error) {
 	msg := &ngap.HandoverCancelAcknowledge{
 		AMFUENGAPID: &amfID,
@@ -1111,7 +1129,7 @@ func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err e
 }
 
 // downlinkRANStatusTransferBytes builds a DOWNLINK RAN STATUS TRANSFER
-// (TS 38.413 §9.2.3.8).
+// (TS 38.413 §9.2.3.14).
 func downlinkRANStatusTransferBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, container ngap.StatusTransferContainer) ([]byte, error) {
 	msg := &ngap.DownlinkRANStatusTransfer{
 		AMFUENGAPID: amfID,
@@ -1123,7 +1141,7 @@ func downlinkRANStatusTransferBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAP
 }
 
 // SendDownlinkRANStatusTransfer relays the source node's PDCP SN/HFN status to
-// the handover target. The container is opaque to the AMF (TS 38.413 §9.3.1.31).
+// the handover target. The container is opaque to the AMF (TS 38.413 §9.3.1.108).
 func (ueConn *UeConn) SendDownlinkRANStatusTransfer(ctx context.Context, container ngap.StatusTransferContainer) {
 	pkt, err := downlinkRANStatusTransferBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), container)
 	if err != nil {
@@ -1135,7 +1153,7 @@ func (ueConn *UeConn) SendDownlinkRANStatusTransfer(ctx context.Context, contain
 }
 
 // pathSwitchRequestAcknowledgeBytes builds a PATH SWITCH REQUEST ACKNOWLEDGE
-// (TS 38.413 §9.2.3.11). The {NH, NCC} pair is the AS key chain the target
+// (TS 38.413 §9.2.3.9). The {NH, NCC} pair is the AS key chain the target
 // derives its next keys from (TS 33.501 §6.9.5).
 func pathSwitchRequestAcknowledgeBytes(
 	amfID ngap.AMFUENGAPID,
@@ -1199,7 +1217,7 @@ func (ueConn *UeConn) SendPathSwitchRequestAcknowledge(
 }
 
 // locationReportingControlBytes builds a LOCATION REPORTING CONTROL
-// (TS 38.413 §9.2.8.1).
+// (TS 38.413 §9.2.11.1).
 func locationReportingControlBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, eventType ngap.EventType) ([]byte, error) {
 	msg := &ngap.LocationReportingControl{
 		AMFUENGAPID: amfID,

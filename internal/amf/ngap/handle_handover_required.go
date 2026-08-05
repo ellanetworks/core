@@ -14,7 +14,7 @@ import (
 )
 
 func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverRequired) {
-	sourceUe, ok := resolveUEIDs(ctx, amfInstance, ran, &msg.AMFUENGAPID, &msg.RANUENGAPID)
+	sourceUe, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}
@@ -36,7 +36,21 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
 
-		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASAuthenticationFailure}, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASAuthenticationFailure}, nil, nil)
+
+		return
+	}
+
+	// Only intra5gs reaches an NG-RAN target. fivegs-to-eps needs the NAS
+	// security parameters HANDOVER COMMAND makes conditional on it (§9.2.3.2
+	// iftoEPSUTRA) and which this AMF does not derive, and eps-to-5gs describes
+	// an eNB source. Either would run preparation to completion and then fail to
+	// encode the command, leaving the source waiting on TNGRELOCprep.
+	if msg.HandoverType != ngap.HandoverTypeIntra5GS {
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [unsupported Handover Type]",
+			zap.Uint8("handoverType", uint8(msg.HandoverType)))
+
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}, nil, nil)
 
 		return
 	}
@@ -49,7 +63,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		// leave the source not waiting (TS 38.413).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
 
-		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownTargetID}, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownTargetID}, nil, nil)
 
 		return
 	}
@@ -59,7 +73,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		// handled in the RAN and never reaches the core, so reject it (TS 38.413).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [target gNB is the source]")
 
-		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}, nil, nil)
 
 		return
 	}
@@ -98,7 +112,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	if len(sessions) == 0 {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 
-		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 
 		return
 	}
@@ -117,7 +131,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetUe, nh, ncc, ok := amfInstance.PrepareHandover(ctx, amfUe, sourceUe, targetRan)
 	if !ok {
-		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 
 		return
 	}
@@ -157,7 +171,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			logger.WithTrace(ctx, sourceUe.Log).Error("error removing target ue after failed handover request", zap.Error(rerr))
 		}
 
-		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 
 		return
 	}

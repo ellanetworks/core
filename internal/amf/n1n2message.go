@@ -347,6 +347,7 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 
 	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 	if err != nil {
+		ueConn.ResetICS()
 		return fmt.Errorf("could not build PDU session setup item: %w", err)
 	}
 

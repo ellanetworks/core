@@ -131,14 +131,21 @@ func (e *ENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 
-	kind := ENBIDShortMacro
-	if extIdx == 1 {
-		kind = ENBIDLongMacro
-	}
-
 	raw, err := per.DecodeOpenTypeBytes(r, enc)
 	if err != nil {
 		return err
+	}
+
+	// ENB-ID defines two extension additions, short-macroENB-ID and
+	// long-macroENB-ID. The open type above is read first so a later addition
+	// leaves the reader positioned after the alternative it could not decode.
+	if extIdx > 1 {
+		return fmt.Errorf("%w: ENB-ID extension alternative %d", errNotComprehended, extIdx)
+	}
+
+	kind := ENBIDShortMacro
+	if extIdx == 1 {
+		kind = ENBIDLongMacro
 	}
 
 	nb := enbIDBits[kind]
@@ -337,15 +344,16 @@ func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, ex
 
 	var present []bool
 
+	// A bitmap wider than 64 bits arrives fragmented (X.691 §19.7 via §11.9.3),
+	// so the callback runs once per fragment and the bits accumulate.
 	err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-		present = make([]bool, count)
-		for i := range present {
+		for range count {
 			b, err := r.ReadBit()
 			if err != nil {
 				return err
 			}
 
-			present[i] = b
+			present = append(present, b)
 		}
 
 		return nil

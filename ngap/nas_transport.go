@@ -18,7 +18,7 @@ type InitialUEMessage struct {
 	NASPDU                  NASPDU
 	UserLocationInformation UserLocationInformation
 	RRCEstablishmentCause   *RRCEstablishmentCause
-	// §8.6.2.2: the NG-RAN node includes the 5G-S-TMSI whenever the UE supplied
+	// §8.6.1.2: the NG-RAN node includes the 5G-S-TMSI whenever the UE supplied
 	// it over the radio interface, and the AMF Set ID only on a message it has
 	// rerouted, which the AMF acts on per TS 23.502. The AMF Set ID is not the
 	// counterpart of S1AP's GUMMEI, which marks an eNB that does not run NNSF.

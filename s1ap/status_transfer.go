@@ -70,7 +70,7 @@ func (m *ENBStatusTransfer) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcENBStatusTransfer,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }
@@ -134,7 +134,7 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcMMEStatusTransfer,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }

@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// sendPathSwitchRequestFailure refuses a path switch. TS 38.413 §9.2.3.12 has
+// sendPathSwitchRequestFailure refuses a path switch. TS 38.413 §9.2.3.10 has
 // no Cause IE for the message as a whole — unlike TS 36.413 §9.1.5.10 — so the
 // reason is reported per session, once for every session the request named.
 func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap.PathSwitchRequest, causeValue int) {
@@ -77,22 +77,37 @@ func buildPathSwitchRequestUnsuccessfulTransfer(causeValue int) (ngap.TransferCo
 
 // sendPathSwitchProtocolFailure reports a PATH SWITCH REQUEST the AMF rejected
 // on criticality grounds, using the procedure's own unsuccessful outcome as
-// §10.3.4.2 requires. The released list is empty: the rejected message never
-// yielded a session list to name.
-func sendPathSwitchProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ase *ngap.AbstractSyntaxError) {
+// §10.3.4.2 requires. It reports false where the rejected message did not yield
+// the sessions the mandatory released list has to name, which §10.3.5 answers
+// with the Error Indication procedure instead.
+func sendPathSwitchProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ase *ngap.AbstractSyntaxError) bool {
+	sessions := ase.PathSwitchSessions()
+	if len(sessions) == 0 {
+		return false
+	}
+
+	released, err := pathSwitchReleasedList(sessions, ngap.CauseRadioNetworkUnspecified)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("error building path switch released list", zap.Error(err))
+		return false
+	}
+
 	diagnostics := ase.OutcomeDiagnostics()
 
 	pkt, err := (&ngap.PathSwitchRequestFailure{
-		AMFUENGAPID:            &amfID,
-		RANUENGAPID:            &ranID,
-		CriticalityDiagnostics: &diagnostics,
+		AMFUENGAPID:                &amfID,
+		RANUENGAPID:                &ranID,
+		PDUSessionResourceReleased: released,
+		CriticalityDiagnostics:     &diagnostics,
 	}).Marshal()
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("failed to marshal Path Switch Request Failure", zap.Error(err))
-		return
+		return false
 	}
 
 	ran.SendToRadio(ctx, amf.NGAPProcedurePathSwitchRequestFailure, pkt)
 
 	logger.WithTrace(ctx, ran.Log).Warn("Path Switch rejected", zap.Error(ase))
+
+	return true
 }

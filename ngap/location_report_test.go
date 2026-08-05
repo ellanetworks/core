@@ -102,12 +102,12 @@ func TestLocationReportingControlGolden(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.32 gives EventType six root members; TS 36.413 §9.2.1.34
+// TS 38.413 §9.3.1.65 gives EventType six root members; TS 36.413 §9.2.1.34
 // gives its own three, and the two agree only on the first two. A test that
 // pins the count is what stops a value being copied across.
 func TestEventTypeRootCountMatchesSpec(t *testing.T) {
 	if eventTypeRootCount != 6 {
-		t.Errorf("root count is %d, TS 38.413 §9.3.1.32 defines six members before the extension marker", eventTypeRootCount)
+		t.Errorf("root count is %d, TS 38.413 §9.3.1.65 defines six members before the extension marker", eventTypeRootCount)
 	}
 
 	if EventTypeStopChangeOfServeCell != 3 {
@@ -174,5 +174,34 @@ func TestLocationReportingRequestTypeReferenceIDRoundTrip(t *testing.T) {
 	if out.EventType != in.EventType || out.LocationReportingReferenceIDToBeCancelled == nil ||
 		*out.LocationReportingReferenceIDToBeCancelled != id {
 		t.Fatalf("round trip %+v", out)
+	}
+}
+
+// The ASN.1 makes locationReportingReferenceIDToBeCancelled present exactly when
+// Event Type is "stop UE presence in the area of interest"
+// (ifEventTypeisStopUEPresinAoI, TS 38.413 §9.3.1.65). Both halves of the
+// condition are enforced: a conforming gNB answers a violation with LOCATION
+// REPORTING FAILURE INDICATION (§8.12.1.3).
+func TestLocationReportingRequestTypeConditionalReferenceID(t *testing.T) {
+	id := LocationReportingReferenceID(7)
+
+	tests := []struct {
+		name    string
+		in      LocationReportingRequestType
+		wantErr bool
+	}{
+		{"direct without a reference id", LocationReportingRequestType{EventType: EventTypeDirect}, false},
+		{"direct with a reference id", LocationReportingRequestType{EventType: EventTypeDirect, LocationReportingReferenceIDToBeCancelled: &id}, true},
+		{"stop without a reference id", LocationReportingRequestType{EventType: EventTypeStopUEPresenceInAreaOfInterest}, true},
+		{"stop with a reference id", LocationReportingRequestType{EventType: EventTypeStopUEPresenceInAreaOfInterest, LocationReportingReferenceIDToBeCancelled: &id}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.in.MarshalPER(per.NewWriter(), per.Aligned)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

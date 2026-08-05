@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 )
 
@@ -189,5 +190,32 @@ func TestHandoverFailureRoundTrip(t *testing.T) {
 
 	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.Cause) != deref(in.Cause) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
+	}
+}
+
+// TS 36.413 §9.3.4: E-RABFailedToSetupListHOReqAck is the one "failed" list
+// that is not an E-RABList, so its items ride id-E-RABFailedtoSetupItemHOReqAck
+// (21) and not id-E-RABItem (35). Both item types are
+// SEQUENCE { e-RAB-ID, cause, iE-Extensions OPTIONAL, ... }, so only the
+// container id tells them apart, and a round trip cannot: decodeItemList
+// discards the id it read.
+func TestHandoverRequestAcknowledgeFailedListItemID(t *testing.T) {
+	b, err := (&HandoverRequestAcknowledge{
+		MMEUES1APID:       Ptr(MMEUES1APID(1)),
+		ENBUES1APID:       Ptr(ENBUES1APID(2)),
+		ERABAdmitted:      []ERABAdmittedItem{{ERABID: 0}},
+		ERABFailedToSetup: []ERABItem{{ERABID: 4, Cause: Cause{Group: CauseGroupRadioNetwork, Value: 0}}},
+		TargetToSource:    TransparentContainer{0x00},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The outer id-E-RABFailedToSetupListHOReqAck (19) container holds one
+	// single container keyed 0x0015 = 21.
+	const want = "200100310000050000400200010008400200020012400c000014400700100000000000001340080000154003080000007b00020100"
+
+	if got := hex.EncodeToString(b); got != want {
+		t.Fatalf("encoded\n got %s\nwant %s", got, want)
 	}
 }

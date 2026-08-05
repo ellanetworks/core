@@ -140,17 +140,67 @@ func TestHandleHandoverRequired_TargeteNBIDSendsPreparationFailure(t *testing.T)
 	}
 }
 
-// A message naming a procedure the AMF does not implement is answered on the
-// criticality the sender assigned it (TS 38.413 §10.3.4.1A).
+// sentErrorIndication decodes a captured PDU and asserts it is an ERROR
+// INDICATION.
+func sentErrorIndication(t *testing.T, pkt []byte) *ngaplib.ErrorIndication {
+	t.Helper()
+
+	pdu, err := ngaplib.Unmarshal(pkt)
+	if err != nil {
+		t.Fatalf("could not decode the sent PDU: %v", err)
+	}
+
+	im, ok := pdu.(*ngaplib.InitiatingMessage)
+	if !ok || im.ProcedureCode != ngaplib.ProcErrorIndication {
+		t.Fatalf("sent PDU is not an Error Indication (%T)", pdu)
+	}
+
+	ind, err := ngaplib.ParseErrorIndication(im.Value)
+	if err != nil {
+		t.Fatalf("could not parse the Error Indication: %v", err)
+	}
+
+	return ind
+}
+
+// TS 38.413 §10.2: the transfer-syntax Error Indication for an undecodable PDU
+// is cause-only — there is no procedure or IE to name.
+func TestSendProtocolErrorIndication(t *testing.T) {
+	w := &capturingWriter{}
+	ran := newDecodeReportRadio(w)
+
+	sendProtocolErrorIndication(context.Background(), ran, ngaplib.CauseProtocolTransferSyntaxError)
+
+	if len(w.msgs) != 1 {
+		t.Fatalf("sent %d messages, want 1 (Error Indication)", len(w.msgs))
+	}
+
+	ind := sentErrorIndication(t, w.msgs[0])
+
+	want := ngaplib.Cause{Group: ngaplib.CauseGroupProtocol, Value: ngaplib.CauseProtocolTransferSyntaxError}
+	if ind.Cause == nil || *ind.Cause != want {
+		t.Errorf("cause = %v, want transfer-syntax-error", ind.Cause)
+	}
+
+	if ind.CriticalityDiagnostics != nil {
+		t.Errorf("transfer-syntax Error Indication carries Criticality Diagnostics: %+v", ind.CriticalityDiagnostics)
+	}
+}
+
+// TS 38.413 §10.3.4.1: an unknown Procedure Code is answered per its received
+// criticality — reject and ignore-and-notify draw an Error Indication carrying
+// the Procedure Code, Triggering Message and Procedure Criticality; ignore draws
+// no reply.
 func TestRespondToUnknownProcedure(t *testing.T) {
 	tests := []struct {
 		name      string
 		crit      ngaplib.Criticality
 		wantReply bool
+		wantCause int
 	}{
-		{"reject", ngaplib.CriticalityReject, true},
-		{"ignore-and-notify", ngaplib.CriticalityNotify, true},
-		{"ignore", ngaplib.CriticalityIgnore, false},
+		{"reject", ngaplib.CriticalityReject, true, ngaplib.CauseProtocolAbstractSyntaxErrorReject},
+		{"ignore-and-notify", ngaplib.CriticalityNotify, true, ngaplib.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
+		{"ignore", ngaplib.CriticalityIgnore, false, 0},
 	}
 
 	for _, tt := range tests {
@@ -173,6 +223,30 @@ func TestRespondToUnknownProcedure(t *testing.T) {
 
 			if len(w.msgs) != 1 {
 				t.Fatalf("sent %d messages, want 1 (Error Indication)", len(w.msgs))
+			}
+
+			ind := sentErrorIndication(t, w.msgs[0])
+
+			want := ngaplib.Cause{Group: ngaplib.CauseGroupProtocol, Value: tt.wantCause}
+			if ind.Cause == nil || *ind.Cause != want {
+				t.Errorf("cause = %v, want %v", ind.Cause, want)
+			}
+
+			cd := ind.CriticalityDiagnostics
+			if cd == nil {
+				t.Fatal("Error Indication carries no Criticality Diagnostics")
+			}
+
+			if cd.ProcedureCode == nil || *cd.ProcedureCode != 200 {
+				t.Errorf("procedure code = %v, want 200", cd.ProcedureCode)
+			}
+
+			if cd.TriggeringMessage == nil || *cd.TriggeringMessage != ngaplib.TriggeringInitiatingMessage {
+				t.Errorf("triggering message = %v, want initiating-message", cd.TriggeringMessage)
+			}
+
+			if cd.ProcedureCriticality == nil || *cd.ProcedureCriticality != tt.crit {
+				t.Errorf("procedure criticality = %v, want %v", cd.ProcedureCriticality, tt.crit)
 			}
 		})
 	}

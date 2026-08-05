@@ -266,8 +266,9 @@ type NonDynamic5QIDescriptor struct {
 // Dynamic5QIDescriptor ::= SEQUENCE { priorityLevelQos, packetDelayBudget,
 // packetErrorRate, fiveQI OPTIONAL, delayCritical OPTIONAL, averagingWindow
 // OPTIONAL, maximumDataBurstVolume OPTIONAL, iE-Extensions OPTIONAL }
-// (extensible) — TS 38.413 §9.3.1.18. The spec marks delayCritical,
-// averagingWindow and maximumDataBurstVolume as present for a GBR QoS flow.
+// (extensible) — TS 38.413 §9.3.1.18. The spec conditions delayCritical and
+// averagingWindow on the flow being GBR, and maximumDataBurstVolume on
+// delayCritical being "delay critical".
 type Dynamic5QIDescriptor struct {
 	_                      [0]struct{} `per:"extseq"`
 	PriorityLevelQos       PriorityLevelQos

@@ -74,3 +74,35 @@ func (ue *UeContext) GetNRPPaMessages() []NRPPaMessage {
 
 	return result
 }
+
+// RecordNRPPaRoutingID notes an LMF this AMF has addressed for this UE, so an
+// uplink transport naming it can be recognised (TS 38.413 §8.10.4).
+func (ue *UeContext) RecordNRPPaRoutingID(routingID int64) {
+	ue.nrppaMu.Lock()
+	defer ue.nrppaMu.Unlock()
+
+	if ue.nrppaRoutingIDs == nil {
+		ue.nrppaRoutingIDs = make(map[int64]struct{}, 1)
+	}
+
+	ue.nrppaRoutingIDs[routingID] = struct{}{}
+}
+
+// KnownNRPPaRoutingID reports whether the four octets address an LMF this AMF
+// has sent a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT to for this UE. §9.3.3.13
+// leaves Routing ID an unconstrained OCTET STRING, so anything that is not the
+// four-octet form this AMF emits is unknown by construction.
+func (ue *UeContext) KnownNRPPaRoutingID(routingID []byte) bool {
+	if len(routingID) != 4 {
+		return false
+	}
+
+	id := int64(routingID[0])<<24 | int64(routingID[1])<<16 | int64(routingID[2])<<8 | int64(routingID[3])
+
+	ue.nrppaMu.RLock()
+	defer ue.nrppaMu.RUnlock()
+
+	_, ok := ue.nrppaRoutingIDs[id]
+
+	return ok
+}

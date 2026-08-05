@@ -10,7 +10,7 @@ import (
 )
 
 // HandoverType ::= ENUMERATED { intra5gs, fivegs-to-eps, eps-to-5gs, ...,
-// fivegs-to-utran } — TS 38.413 §9.3.1.22. TS 36.413 §9.2.1.19 names five
+// fivegs-to-utran } — TS 38.413 §9.3.1.22. TS 36.413 §9.2.1.13 names five
 // entirely different members (intralte, ltetoutran, ltetogeran, utrantolte,
 // gerantolte), so the two enumerations share no wire values.
 type HandoverType uint8
@@ -97,7 +97,8 @@ func (p *NASSecurityParametersFromNGRAN) UnmarshalPER(r *per.Reader, enc per.Enc
 }
 
 // TargetRANNodeID ::= SEQUENCE { globalRANNodeID, selectedTAI, iE-Extensions
-// OPTIONAL } (extensible) — TS 38.413 §9.3.1.5.
+// OPTIONAL } (extensible), the NG-RAN alternative of the Target ID IE
+// (TS 38.413 §9.3.1.25).
 type TargetRANNodeID struct {
 	_               [0]struct{} `per:"extseq"`
 	GlobalRANNodeID GlobalRANNodeID
@@ -116,7 +117,7 @@ const (
 )
 
 // TargetID ::= CHOICE { targetRANNodeID, targeteNB-ID, choice-Extensions } —
-// TS 38.413 §9.3.1.4. Only targetRANNodeID is modelled: Ella hands over within
+// TS 38.413 §9.3.1.25. Only targetRANNodeID is modelled: Ella hands over within
 // 5GS, so a targeteNB-ID names a target it cannot reach. It is refused rather
 // than misread. TS 36.413's TargetID is a different CHOICE entirely
 // (targeteNB-ID, targetRNC-ID, cGI).

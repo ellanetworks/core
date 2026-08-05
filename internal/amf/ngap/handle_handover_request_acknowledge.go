@@ -136,7 +136,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
-			sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil)
+			sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 		}
 
 		// The target acknowledged and so holds a reserved UE context, but no session

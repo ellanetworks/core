@@ -13,7 +13,7 @@ import (
 )
 
 func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverCancel) {
-	sourceUe, ok := resolveUEIDs(ctx, amfInstance, ran, &msg.AMFUENGAPID, &msg.RANUENGAPID)
+	sourceUe, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}

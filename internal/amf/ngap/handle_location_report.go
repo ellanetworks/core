@@ -19,7 +19,7 @@ import (
 // HandleLocationReport records the UE's serving cell from an NG-RAN node
 // LOCATION REPORT (TS 38.413 §8.12.3).
 func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.LocationReport) {
-	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, &msg.AMFUENGAPID, &msg.RANUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}

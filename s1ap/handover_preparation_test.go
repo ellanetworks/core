@@ -342,3 +342,48 @@ func TestHandoverCommandRoundTrip(t *testing.T) {
 		t.Fatalf("target-to-source = %x, want %x", out.TargetToSource, in.TargetToSource)
 	}
 }
+
+// TS 36.413 §9.1.5.4 condition iffromUTRANGERAN: the NAS Security Parameters to
+// E-UTRAN IE is present exactly when Handover Type is UTRANtoLTE or GERANtoLTE.
+// It is the mirror of the iftoUTRANGERAN condition on HANDOVER COMMAND, and both
+// halves are enforced so a HANDOVER REQUEST cannot go out missing a mandatory
+// conditional reject IE.
+func TestHandoverRequestNASSecurityParametersCondition(t *testing.T) {
+	base := func(ht HandoverType) *HandoverRequest {
+		return &HandoverRequest{
+			MMEUES1APID:            1,
+			HandoverType:           ht,
+			Cause:                  &Cause{Group: CauseGroupRadioNetwork, Value: 0},
+			UEAMBR:                 UEAggregateMaximumBitRate{DL: 1000, UL: 1000},
+			ERABToBeSetup:          []ERABToBeSetupItemHOReq{{ERABID: 5}},
+			SourceToTarget:         TransparentContainer{0x01},
+			UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		ht      HandoverType
+		params  NASSecurityParameterstoEUTRAN
+		wantErr bool
+	}{
+		{"intra-LTE without the IE", HandoverTypeIntraLTE, nil, false},
+		{"intra-LTE with the IE", HandoverTypeIntraLTE, NASSecurityParameterstoEUTRAN{0xaa}, true},
+		{"UTRAN to LTE without the IE", HandoverTypeUTRANtoLTE, nil, true},
+		{"UTRAN to LTE with the IE", HandoverTypeUTRANtoLTE, NASSecurityParameterstoEUTRAN{0xaa}, false},
+		{"GERAN to LTE without the IE", HandoverTypeGERANtoLTE, nil, true},
+		{"GERAN to LTE with the IE", HandoverTypeGERANtoLTE, NASSecurityParameterstoEUTRAN{0xaa}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := base(tt.ht)
+			req.NASSecurityParameterstoEUTRAN = tt.params
+
+			_, err := req.Marshal()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

@@ -17,8 +17,17 @@ type HandoverRequest struct {
 	SourceToTarget         TransparentContainer
 	UESecurityCapabilities UESecurityCapabilities
 	SecurityContext        SecurityContext
+	// C-iffromUTRANGERAN: present exactly when Handover Type is UTRANtoLTE or
+	// GERANtoLTE (§9.1.5.4).
+	NASSecurityParameterstoEUTRAN NASSecurityParameterstoEUTRAN
 
 	messageMeta
+}
+
+// The NAS security parameters travel only when the UE enters E-UTRAN: TS 36.413
+// §9.1.5.4 condition iffromUTRANGERAN. It is the mirror of handoverLeavesEUTRAN.
+func handoverEntersEUTRAN(m *HandoverRequest) bool {
+	return m.HandoverType == HandoverTypeUTRANtoLTE || m.HandoverType == HandoverTypeGERANtoLTE
 }
 
 var handoverRequestIEs = []ieSpec[HandoverRequest]{
@@ -105,6 +114,20 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return perIEDecode(raw, &m.SecurityContext)
 		},
 		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.SecurityContext, true },
+	},
+	{
+		id: idNASSecurityParameterstoEUTRAN, presence: presenceConditional, crit: CriticalityReject,
+		condition: handoverEntersEUTRAN,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASSecurityParameterstoEUTRAN)
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.NASSecurityParameterstoEUTRAN == nil {
+				return nil, false
+			}
+
+			return m.NASSecurityParameterstoEUTRAN, true
+		},
 	},
 }
 
@@ -221,7 +244,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToSetup)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABFailedtoSetupItemHOReqAck, CriticalityIgnore, m.ERABFailedToSetup)
 			}), true
 		},
 	},

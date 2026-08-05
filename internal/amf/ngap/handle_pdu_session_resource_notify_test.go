@@ -97,7 +97,10 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 	}
 }
 
-func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
+// PDU Session ID 0 is a legal INTEGER (0..255) value that no session in this
+// UE's context uses, so the released item names nothing to deactivate. The
+// handler skips it and carries on with the rest of the list.
+func TestPDUSessionResourceNotify_ReleasedSessionIDNotInContext(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 	ran := newTestRadio(amfInstance)

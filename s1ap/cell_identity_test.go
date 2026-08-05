@@ -3,7 +3,11 @@
 
 package s1ap
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ellanetworks/core/per"
+)
 
 // TS 36.413 §9.2.1.37: the eNB ID occupies the leftmost bits of the 28-bit ECI
 // and the cell id the rest. The shift is the eNB id's own width, which its kind
@@ -64,5 +68,19 @@ func TestCellIdentityRejectsOverflow(t *testing.T) {
 func TestENBIDHex(t *testing.T) {
 	if got := (ENBID{Kind: ENBIDMacro, Value: 0x1a2b3}).Hex(); got != "1a2b3" {
 		t.Errorf("Hex() = %q, want 1a2b3", got)
+	}
+}
+
+// CellIdentity ::= BIT STRING (SIZE (28)) (TS 36.413 §9.2.1.38), so a wider
+// value has no encoding: it is refused instead of losing its high bits.
+func TestEUTRANCGIRejectsOverWideCellIdentity(t *testing.T) {
+	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
+
+	if err := (EUTRANCGI{PLMNIdentity: plmn, CellID: 0xfffffff}).MarshalPER(per.NewWriter(), per.Aligned); err != nil {
+		t.Fatalf("the widest 28-bit cell identity must encode: %v", err)
+	}
+
+	if err := (EUTRANCGI{PLMNIdentity: plmn, CellID: 1 << 28}).MarshalPER(per.NewWriter(), per.Aligned); err == nil {
+		t.Fatal("a 29-bit cell identity encoded, want an error")
 	}
 }

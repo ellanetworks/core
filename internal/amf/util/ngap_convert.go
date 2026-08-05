@@ -197,15 +197,27 @@ func AllowedNSSAIToNGAP(allowed []models.Snssai) (ngap.AllowedNSSAI, error) {
 	return out, nil
 }
 
+// ngapSecurityAlgorithms is the highest algorithm identity the NGAP bitmaps
+// carry: TS 38.413 §9.3.1.86 gives the first three bits to 128-xxx1..3 and maps
+// the fourth to seventh from bit 4 down to bit 1 of the TS 24.501 octet, leaving
+// the rest reserved. Identity 0 has no position — an all-zero bitmap is how the
+// IE says the UE supports nothing beyond the null algorithm.
+const ngapSecurityAlgorithms = 7
+
 // SecurityCapabilitiesToNGAP maps the UE's 5GS security capability onto the NGAP
-// IE. Only 5G-EA1..3 and 5G-IA1..3 are signalled, in bits 8..6 of the first
-// octet; Ella Core supports no E-UTRA algorithms, so those two fields stay zero
-// (TS 38.413 §9.3.1.86).
+// IE. §9.3.1.86 requires the bitmaps received from NAS signalling to reach the
+// NG-RAN node whole: they describe the UE, so the E-UTRA pair is what a target
+// selects from on EPS fallback and inter-RAT handover, and narrowing it there
+// would force the null algorithms.
 func SecurityCapabilitiesToNGAP(sc *fgs.UESecurityCapability) ngap.UESecurityCapabilities {
 	var out ngap.UESecurityCapabilities
 
-	for n := uint8(1); n <= 3; n++ {
-		bit := uint16(1) << (15 - n + 1)
+	if sc == nil {
+		return out
+	}
+
+	for n := uint8(1); n <= ngapSecurityAlgorithms; n++ {
+		bit := uint16(1) << (16 - n)
 
 		if sc.SupportsEA(n) {
 			out.NREncryptionAlgorithms |= bit
@@ -213,6 +225,14 @@ func SecurityCapabilitiesToNGAP(sc *fgs.UESecurityCapability) ngap.UESecurityCap
 
 		if sc.SupportsIA(n) {
 			out.NRIntegrityProtectionAlgorithms |= bit
+		}
+
+		if sc.SupportsEEA(n) {
+			out.EUTRAEncryptionAlgorithms |= bit
+		}
+
+		if sc.SupportsEIA(n) {
+			out.EUTRAIntegrityProtectionAlgorithms |= bit
 		}
 	}
 

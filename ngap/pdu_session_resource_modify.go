@@ -263,7 +263,7 @@ func ParsePDUSessionResourceModifyResponse(value []byte) (*PDUSessionResourceMod
 }
 
 // PDUSessionResourceModifyRequestTransfer ::= SEQUENCE { protocolIEs
-// ProtocolIE-Container } (extensible) — TS 38.413 §9.3.4.5. An IE container
+// ProtocolIE-Container } (extensible) — TS 38.413 §9.3.4.3. An IE container
 // like the setup request transfer. Every IE is optional: a modify carries only
 // what changes. SecurityIndication is ignore criticality here where the setup
 // request transfer marks it reject, so it is left to the unknown-IE path.
@@ -395,7 +395,8 @@ func ParsePDUSessionResourceModifyRequestTransfer(b TransferContainer) (*PDUSess
 }
 
 // QosFlowAddOrModifyResponseItem ::= SEQUENCE { qosFlowIdentifier,
-// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.15.
+// iE-Extensions OPTIONAL } (extensible), an inline type of the TS 38.413
+// §9.3.4.4 table.
 type QosFlowAddOrModifyResponseItem struct {
 	_                 [0]struct{} `per:"extseq"`
 	QosFlowIdentifier QosFlowIdentifier
@@ -410,7 +411,7 @@ type QosFlowAddOrModifyResponseList []QosFlowAddOrModifyResponseItem
 // dL-NGU-UP-TNLInformation OPTIONAL, uL-NGU-UP-TNLInformation OPTIONAL,
 // qosFlowAddOrModifyResponseList OPTIONAL, additionalDLQosFlowPerTNLInformation
 // OPTIONAL, qosFlowFailedToAddOrModifyList OPTIONAL, iE-Extensions OPTIONAL }
-// (extensible) — TS 38.413 §9.3.4.10. Every field is optional: an NG-RAN node
+// (extensible) — TS 38.413 §9.3.4.4. Every field is optional: an NG-RAN node
 // that accepted a modification without changing a tunnel sends it empty.
 type PDUSessionResourceModifyResponseTransfer struct {
 	_                                    [0]struct{}                    `per:"extseq"`

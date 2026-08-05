@@ -13,7 +13,7 @@ import (
 )
 
 // HandlePDUSessionResourceReleaseResponse hands each release outcome to the SMF
-// (TS 38.413 §8.2.3).
+// (TS 38.413 §8.2.2).
 func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.PDUSessionResourceReleaseResponse) {
 	// Both identities are mandatory but ignore criticality, so an absent one
 	// still reaches the handler and leaves nothing to resolve by (§10.3.5).

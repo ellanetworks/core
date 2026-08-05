@@ -78,6 +78,25 @@ func (p *NASSecurityParametersfromEUTRAN) UnmarshalPER(r *per.Reader, enc per.En
 	return nil
 }
 
+// NASSecurityParameterstoE-UTRAN ::= OCTET STRING (TS 36.413 §9.2.3.31). The
+// mirror of the from-E-UTRAN parameters, sent on a handover into E-UTRAN.
+type NASSecurityParameterstoEUTRAN []byte
+
+func (p NASSecurityParameterstoEUTRAN) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, p)
+}
+
+func (p *NASSecurityParameterstoEUTRAN) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	if err != nil {
+		return err
+	}
+
+	*p = NASSecurityParameterstoEUTRAN(b)
+
+	return nil
+}
+
 // SecurityContext ::= SEQUENCE { nextHopChainingCount, nextHopParameter,
 // iE-Extensions OPTIONAL } (extensible) (TS 36.413 §9.2.1.26). The {NH, NCC}
 // pair the target derives the next KeNB from (TS 33.401).

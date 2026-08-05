@@ -7,8 +7,8 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// RoutingID ::= OCTET STRING, naming an LMF endpoint — TS 38.413 §9.3.3.14.
-// TS 36.413 §9.2.3.31 makes its Routing-ID an INTEGER (0..255) instead, so the
+// RoutingID ::= OCTET STRING, naming an LMF endpoint — TS 38.413 §9.3.3.13.
+// TS 36.413 §9.2.3.33 makes its Routing-ID an INTEGER (0..255) instead, so the
 // two are not the same shape on the wire.
 type RoutingID []byte
 

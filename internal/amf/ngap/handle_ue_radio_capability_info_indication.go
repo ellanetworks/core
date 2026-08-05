@@ -18,7 +18,7 @@ import (
 )
 
 // HandleUERadioCapabilityInfoIndication stores the UE Radio Capability reported
-// by the NG-RAN node (TS 38.413 §8.5.1), replayed in later INITIAL CONTEXT SETUP
+// by the NG-RAN node (TS 38.413 §8.14.1), replayed in later INITIAL CONTEXT SETUP
 // REQUEST messages so the node need not re-fetch it from the UE (TS 23.502).
 func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.UERadioCapabilityInfoIndication) {
 	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)

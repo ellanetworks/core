@@ -60,7 +60,7 @@ func (ueConn *UeConn) buildLocation(ctx context.Context, uli ngap.UserLocationIn
 			UeLocationTimestamp: &curTime,
 		}
 		if uli.TimeStamp != nil {
-			nr.AgeOfLocationInformation = ageOfLocation(*uli.TimeStamp)
+			nr.AgeOfLocationInformation = ageOfLocation(*uli.TimeStamp, curTime)
 		}
 
 		return models.UserLocation{NrLocation: nr}, tai, true
@@ -71,14 +71,17 @@ func (ueConn *UeConn) buildLocation(ctx context.Context, uli ngap.UserLocationIn
 			UeLocationTimestamp: &curTime,
 		}
 		if uli.TimeStamp != nil {
-			eutra.AgeOfLocationInformation = ageOfLocation(*uli.TimeStamp)
+			eutra.AgeOfLocationInformation = ageOfLocation(*uli.TimeStamp, curTime)
 		}
 
 		return models.UserLocation{EutraLocation: eutra}, tai, true
 	case ngap.UserLocationN3IWF:
-		// Untrusted non-3GPP access reports the UE's transport address instead
-		// of a cell, so the serving TAI is this AMF's own rather than one the
-		// N3IWF supplies (TS 23.501 §5.3.2.3).
+		// Untrusted non-3GPP access reports the UE's transport address instead of
+		// a cell, so this alternative carries no TAI of its own. TS 23.501
+		// §5.3.2.3 has the N3IWF supply one — dedicated to non-3GPP access — over
+		// N2 setup or in the optional id-TAI extension of the with-PortNumber
+		// alternative, neither of which is modelled, so the operator's own TAI
+		// stands in and the location is recorded rather than dropped.
 		n3gppTai, err := ueConn.operatorTai(ctx)
 		if err != nil {
 			logger.AmfLog.Error("cannot record an N3IWF location without an operator TAI", zap.Error(err))
@@ -124,15 +127,33 @@ func (ueConn *UeConn) operatorTai(ctx context.Context) (*models.Tai, error) {
 	return &tai, nil
 }
 
-// ageOfLocation reinterprets the four TimeStamp octets as an int32, preserving
-// what this AMF has always reported.
-//
-// TS 38.413 §9.3.1.16 makes TimeStamp an NTP-era seconds count while
-// models.EutraLocation.AgeOfLocationInformation is minutes since last contact
-// (TS 29.571), so the value is almost certainly wrong — but converting it is a
-// behaviour change, not a codec swap, and belongs in its own change.
-func ageOfLocation(ts ngap.TimeStamp) int32 {
-	return int32(binary.BigEndian.Uint32(ts[:]))
+const (
+	// Seconds between the RFC 5905 era that starts 1900-01-01 and the Unix epoch.
+	ntpEpochOffset = 2208988800
+
+	// TS 29.571 bounds ageOfLocationInformation at 0..32767 minutes.
+	maxAgeOfLocationMinutes = 32767
+)
+
+// ageOfLocation converts the Time Stamp IE, which carries UTC seconds in the
+// format of the first four octets of an RFC 5905 timestamp (TS 38.413
+// §9.3.1.75), into the elapsed minutes TS 29.571 defines for
+// ageOfLocationInformation. A stamp ahead of the AMF's clock reads as 0, the
+// value TS 29.571 gives to a location obtained by a just-completed reporting
+// procedure.
+func ageOfLocation(ts ngap.TimeStamp, now time.Time) int32 {
+	generated := time.Unix(int64(binary.BigEndian.Uint32(ts[:]))-ntpEpochOffset, 0).UTC()
+
+	minutes := int64(now.Sub(generated) / time.Minute)
+
+	switch {
+	case minutes < 0:
+		return 0
+	case minutes > maxAgeOfLocationMinutes:
+		return maxAgeOfLocationMinutes
+	default:
+		return int32(minutes)
+	}
 }
 
 // decodePLMN mirrors the MME's helper of the same name.

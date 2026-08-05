@@ -64,7 +64,11 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
-			sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
+			// §8.4.1.3: where the target supplied a Target to Source Failure
+			// Transparent Container, the AMF carries it to the source NG-RAN node,
+			// which reads the target's PNI-NPN and protocol support information
+			// out of it.
+			sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil, msg.TargettoSourceFailureTransparentContainer)
 		}
 	}
 

@@ -9,7 +9,7 @@ import (
 
 // The §9.3.4 transfers the handover and path switch procedures carry inside
 // their PDU session lists. TS 36.413 has no counterpart: S1AP carries the
-// forwarding tunnels as plain IEs in the message body rather than in a nested
+// forwarding tunnels as plain IEs in the message body and not in a nested
 // PER encoding.
 
 // DirectForwardingPathAvailability ::= ENUMERATED { direct-path-available,
@@ -64,7 +64,7 @@ func (d *DLNGUTNLInformationReused) UnmarshalPER(r *per.Reader, enc per.Encoding
 
 // UserPlaneSecurityInformation ::= SEQUENCE { securityResult,
 // securityIndication, iE-Extensions OPTIONAL } (extensible) — TS 38.413
-// §9.3.1.87. Both fields are mandatory: the NG-RAN node reports what it applied
+// §9.3.1.60. Both fields are mandatory: the NG-RAN node reports what it applied
 // alongside what it was asked for.
 type UserPlaneSecurityInformation struct {
 	_                  [0]struct{} `per:"extseq"`
@@ -185,7 +185,7 @@ func ParseHandoverRequestAcknowledgeTransfer(b TransferContainer) (*HandoverRequ
 
 // HandoverResourceAllocationUnsuccessfulTransfer ::= SEQUENCE { cause,
 // criticalityDiagnostics OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
-// TS 38.413 §9.3.4.17.
+// TS 38.413 §9.3.4.19.
 type HandoverResourceAllocationUnsuccessfulTransfer struct {
 	_                      [0]struct{} `per:"extseq"`
 	Cause                  Cause
@@ -219,7 +219,7 @@ func ParseHandoverResourceAllocationUnsuccessfulTransfer(b TransferContainer) (*
 }
 
 // HandoverRequiredTransfer ::= SEQUENCE { directForwardingPathAvailability
-// OPTIONAL, iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.12.
+// OPTIONAL, iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.14.
 type HandoverRequiredTransfer struct {
 	_                                [0]struct{}                       `per:"extseq"`
 	DirectForwardingPathAvailability *DirectForwardingPathAvailability `per:"ENUMERATED,range:0..0,...,optional"`
@@ -325,7 +325,7 @@ func ParsePathSwitchRequestAcknowledgeTransfer(b TransferContainer) (*PathSwitch
 }
 
 // PathSwitchRequestSetupFailedTransfer ::= SEQUENCE { cause, iE-Extensions
-// OPTIONAL } (extensible) — TS 38.413 §9.3.4.19.
+// OPTIONAL } (extensible) — TS 38.413 §9.3.4.15.
 type PathSwitchRequestSetupFailedTransfer struct {
 	_     [0]struct{} `per:"extseq"`
 	Cause Cause
@@ -358,7 +358,7 @@ func ParsePathSwitchRequestSetupFailedTransfer(b TransferContainer) (*PathSwitch
 }
 
 // PathSwitchRequestUnsuccessfulTransfer ::= SEQUENCE { cause, iE-Extensions
-// OPTIONAL } (extensible) — TS 38.413 §9.3.4.7.
+// OPTIONAL } (extensible) — TS 38.413 §9.3.4.20.
 type PathSwitchRequestUnsuccessfulTransfer struct {
 	_     [0]struct{} `per:"extseq"`
 	Cause Cause

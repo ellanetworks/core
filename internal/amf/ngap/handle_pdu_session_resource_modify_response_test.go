@@ -23,8 +23,8 @@ func TestPDUSessionResourceModifyResponse_BothIDsNil(t *testing.T) {
 
 	HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceModifyResponse{})
 
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }
 

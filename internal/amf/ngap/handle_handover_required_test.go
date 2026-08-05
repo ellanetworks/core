@@ -6,6 +6,7 @@ package ngap
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"net/netip"
 	"testing"
 	"time"
@@ -505,5 +506,68 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	if amfInstance.HandoverInProgress(amfUe) {
 		t.Fatal("handover FSM not cleared after source association removal")
+	}
+}
+
+// A HandoverType this AMF does not serve is answered with HANDOVER PREPARATION
+// FAILURE before any target is staged. Left unchecked, the type is replayed into
+// HANDOVER COMMAND, whose NAS Security Parameters from NG-RAN IE is conditional
+// on it (TS 38.413 §9.2.3.2 iftoEPSUTRA) and which the AMF never populates, so
+// the command fails to encode and the source is left waiting on TNGRELOCprep.
+func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
+	const (
+		pduSessionID = uint8(1)
+		supiStr      = "imsi-001010000000001"
+		dnn          = "internet"
+		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	for _, ht := range []ngap.HandoverType{ngap.HandoverTypeFiveGSToEPS, ngap.HandoverTypeEPSToFiveGS} {
+		t.Run(fmt.Sprintf("handoverType %d", ht), func(t *testing.T) {
+			supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
+
+			msg := handoverRequired(t, 1, pduSessionID)
+			msg.HandoverType = ht
+
+			smfInstance := smf.New(nil, nil, nil, nil)
+			smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
+
+			amfUe := amf.NewUeContext()
+			amfUe.SetSupiForTest(supi)
+			amfUe.SetSecuredForTest(true)
+			amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+			amfUe.SetKamfForTest(kamfHex)
+			amfUe.SetNHForTest(make([]byte, 32))
+			amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+			amfUe.SmContextList[pduSessionID] = &amf.SmContext{
+				Ref:    smf.CanonicalName(supi, smf.Access5G, pduSessionID),
+				Snssai: &models.Snssai{Sst: 1},
+			}
+
+			sourceNGAPSender := &fakeNGAPSender{}
+			sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceNGAPSender}
+			amfInstance := amf.New(&fakeDBInstance{
+				Operator: &db.Operator{Mcc: "001", Mnc: "01"},
+			}, nil, &fakeSmfSbi{SMF: smfInstance})
+			sourceRan.BindAMFForTest(amfInstance)
+
+			sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+			sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+			HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+
+			if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
+				t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
+			}
+
+			want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}
+			if failure := sourceNGAPSender.SentHandoverPreparationFailures[0]; failure.Cause == nil || *failure.Cause != want {
+				t.Errorf("cause = %v, want ho-target-not-allowed", failure.Cause)
+			}
+
+			if len(sourceNGAPSender.SentHandoverCommands) != 0 {
+				t.Errorf("sent %d HandoverCommands, want 0", len(sourceNGAPSender.SentHandoverCommands))
+			}
+		})
 	}
 }

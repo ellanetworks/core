@@ -16,7 +16,7 @@ type PathSwitchRequestOpts struct {
 	PDUSessions       [16]*PDUSessionInformation
 	N3GnbIp           netip.Addr
 	// UESecurityCapabilities is mandatory in a PATH SWITCH REQUEST
-	// (TS 38.413 §9.2.3.4), so it is a value rather than an optional pointer.
+	// (TS 38.413 §9.2.3.8), so it is a value and not an optional pointer.
 	// internal/tester/s1enb passes its S1AP counterpart by value too.
 	UESecurityCapabilities ngap.UESecurityCapabilities
 	Mcc                    string

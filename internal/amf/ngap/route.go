@@ -17,8 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Message names for the network event log, matching what getMessageType
-// returns for the procedures still on the reference decoder.
+// Message names for the span attributes and the network event log.
 const (
 	ngSetupRequestMessageType  amf.NGAPProcedure = "NGSetupRequest"
 	errorIndicationMessageType amf.NGAPProcedure = "ErrorIndication"
@@ -53,9 +52,9 @@ const (
 )
 
 // route decodes and dispatches an inbound NGAP message. Octets that do not
-// decode draw a transfer-syntax Error Indication (§10.3.4.1); a message that
-// decodes but names a procedure this AMF does not implement is answered on the
-// procedure's own criticality (§10.3.4.1A).
+// decode draw a transfer-syntax Error Indication (§10.2); a message that decodes
+// but names a procedure this AMF does not implement is answered on the
+// criticality of its Procedure Code IE (§10.3.4.1).
 func route(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, span trace.Span, remote, local net.Addr) {
 	span.SetAttributes(
 		attribute.Int("ngap.message_size", len(msg)),
@@ -99,13 +98,10 @@ func dispatchDecoded(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) bool {
 	// TS 38.413 §8.7.1.1: "This procedure shall be the first NGAP procedure
-	// triggered after the TNL association has become operational." The reference
-	// decoder's path enforces that further down the dispatcher, but this one
-	// returns before reaching it, so it has to gate itself — otherwise a peer
-	// that never completed NG Setup could reach a handler, and RAN Configuration
-	// Update would let it claim a Global RAN Node ID and open the gate for
-	// everything else. The MME gates the same way (its dispatcher drops
-	// everything but S1 Setup until SetupComplete).
+	// triggered after the TNL association has become operational." A peer that
+	// never completed NG Setup must reach no handler: RAN Configuration Update
+	// would otherwise let it claim a Global RAN Node ID and open the gate for
+	// everything else. The MME gates the same way.
 	if !setupComplete(ctx, ran, im.ProcedureCode) {
 		return true
 	}
@@ -198,9 +194,8 @@ func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio
 	return true
 }
 
-// traceMessage records what the span and the network event log call a message
-// the in-house codec decoded, matching what getMessageType returns for the
-// procedures still on the reference decoder.
+// traceMessage records what the span and the network event log call a decoded
+// message.
 func traceMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, name amf.NGAPProcedure, span trace.Span) {
 	span.SetAttributes(
 		attribute.String("ngap.message_type", string(name)),
@@ -410,15 +405,14 @@ func receiveUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, r
 }
 
 // receiveUEContextReleaseComplete parses and handles a UE CONTEXT RELEASE
-// COMPLETE. It is the successful outcome of a procedure the AMF itself started,
-// so a failed parse is answered with an Error Indication (TS 38.413 §10.3.5).
+// COMPLETE. §10.3.4.2, §10.3.5 and §10.3.6 all leave a rejected response to
+// local error handling, so a failed parse is reported and not answered.
 func receiveUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
 	traceMessage(ctx, amfInstance, ran, msg, ueContextReleaseCompleteMessageType, span)
 
 	cpl, err := ngap.ParseUEContextReleaseComplete(so.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("failed to decode UE Context Release Complete", zap.Error(err))
-		sendParseErrorIndication(ctx, ran, ngap.ProcUEContextRelease, err)
 
 		return
 	}
@@ -427,16 +421,14 @@ func receiveUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, 
 }
 
 // receiveInitialContextSetupResponse parses and handles an INITIAL CONTEXT
-// SETUP RESPONSE. A failed parse is answered with an Error Indication: the
-// unsuccessful outcome reports the NG-RAN node's failure, not the AMF's
-// (TS 38.413 §10.3.5).
+// SETUP RESPONSE. §10.3.4.2, §10.3.5 and §10.3.6 all leave a rejected response
+// to local error handling, so a failed parse is reported and not answered.
 func receiveInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
 	traceMessage(ctx, amfInstance, ran, msg, initialContextSetupResponseMessageType, span)
 
 	resp, err := ngap.ParseInitialContextSetupResponse(so.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Initial Context Setup Response", zap.Error(err))
-		sendParseErrorIndication(ctx, ran, ngap.ProcInitialContextSetup, err)
 
 		return
 	}
@@ -445,14 +437,14 @@ func receiveInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AM
 }
 
 // receiveInitialContextSetupFailure parses and handles an INITIAL CONTEXT SETUP
-// FAILURE.
+// FAILURE. It is a response, so a failed parse is left to local error handling
+// (TS 38.413 §10.3.4.2).
 func receiveInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, uo *ngap.UnsuccessfulOutcome, span trace.Span) {
 	traceMessage(ctx, amfInstance, ran, msg, initialContextSetupFailureMessageType, span)
 
 	fail, err := ngap.ParseInitialContextSetupFailure(uo.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Initial Context Setup Failure", zap.Error(err))
-		sendParseErrorIndication(ctx, ran, ngap.ProcInitialContextSetup, err)
 
 		return
 	}
@@ -487,7 +479,6 @@ func receivePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *am
 	resp, err := ngap.ParsePDUSessionResourceSetupResponse(so.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Setup Response", zap.Error(err))
-		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceSetup, err)
 
 		return
 	}
@@ -503,7 +494,6 @@ func receivePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *
 	resp, err := ngap.ParsePDUSessionResourceReleaseResponse(so.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Release Response", zap.Error(err))
-		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceRelease, err)
 
 		return
 	}
@@ -519,7 +509,6 @@ func receivePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *a
 	resp, err := ngap.ParsePDUSessionResourceModifyResponse(so.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Warn("failed to decode PDU Session Resource Modify Response", zap.Error(err))
-		sendParseErrorIndication(ctx, ran, ngap.ProcPDUSessionResourceModify, err)
 
 		return
 	}
@@ -650,9 +639,9 @@ func receivePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *am
 		var ase *ngap.AbstractSyntaxError
 		if errors.As(err, &ase) {
 			if amfID, ranID := ase.UEIDs(); amfID != nil && ranID != nil {
-				sendPathSwitchProtocolFailure(ctx, ran, *amfID, *ranID, ase)
-
-				return
+				if sendPathSwitchProtocolFailure(ctx, ran, *amfID, *ranID, ase) {
+					return
+				}
 			}
 		}
 

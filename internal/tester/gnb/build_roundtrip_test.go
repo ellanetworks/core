@@ -238,7 +238,7 @@ func TestBuildPDUSessionResourceSetupResponseRoundTrips(t *testing.T) {
 }
 
 // The modify and release responses carry a transfer with no mandatory field
-// (TS 38.413 §9.3.4.10, §9.3.4.21), so this pins that an empty one is emitted
+// (TS 38.413 §9.3.4.4, §9.3.4.21), so this pins that an empty one is emitted
 // and reads back.
 func TestBuildPDUSessionResponsesRoundTrip(t *testing.T) {
 	t.Run("modify", func(t *testing.T) {

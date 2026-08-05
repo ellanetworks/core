@@ -94,7 +94,7 @@ func TestHandleUEContextReleaseComplete_MissingUENGAPIDs(t *testing.T) {
 	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran,
 		&ngap.UEContextReleaseComplete{AMFUENGAPID: &amfID})
 
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }

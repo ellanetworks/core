@@ -282,3 +282,66 @@ func TestLengthFragmentDecodeRoundtrip(t *testing.T) {
 		}
 	}
 }
+
+// §11.9.3.3 leaves the length determinant unconstrained once ub reaches 64K, so
+// the fragmented form carries no bound and the count is the peer's to choose.
+// The size constraint still holds on the abstract value.
+func TestDecodeLengthEnforcesUpperBoundOnFragmentedForm(t *testing.T) {
+	t.Parallel()
+
+	const ub = 65536 // maxnoofNGConnectionsToReset
+
+	// Each 0xC4 fragment declares 4*16K = 65536 units.
+	frags := func(n int) []byte {
+		var b []byte
+		for range n {
+			b = append(b, 0xC4)
+		}
+
+		return append(b, 0x00)
+	}
+
+	tests := []struct {
+		name  string
+		in    []byte
+		total int64
+		want  error
+	}{
+		{"exactly the bound", frags(1), ub, nil},
+		{"one fragment past the bound", frags(2), 0, ErrOverflow},
+		{"far past the bound", frags(32), 0, ErrOverflow},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var total int64
+
+			err := DecodeLength(NewReader(tt.in), Aligned, 1, ub, true, func(count int64) error {
+				total += count
+				return nil
+			})
+			if err != tt.want {
+				t.Fatalf("err = %v, want %v", err, tt.want)
+			}
+
+			if err == nil && total != tt.total {
+				t.Fatalf("consumed %d units, want %d", total, tt.total)
+			}
+		})
+	}
+}
+
+// A SIZE(1..ub) list cannot be empty, which the constrained form rejects through
+// its lower bound and the fragmented form has to check for itself.
+func TestDecodeLengthEnforcesLowerBoundOnFragmentedForm(t *testing.T) {
+	t.Parallel()
+
+	err := DecodeLength(NewReader([]byte{0x00}), Aligned, 1, 65536, true, func(int64) error {
+		return nil
+	})
+	if err != ErrOverflow {
+		t.Fatalf("err = %v, want %v", err, ErrOverflow)
+	}
+}

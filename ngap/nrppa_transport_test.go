@@ -87,7 +87,7 @@ func TestUplinkUEAssociatedNRPPaTransportGolden(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.3.14 makes RoutingID an OCTET STRING; TS 36.413 §9.2.3.31
+// TS 38.413 §9.3.3.13 makes RoutingID an OCTET STRING; TS 36.413 §9.2.3.33
 // makes its Routing-ID an INTEGER (0..255). The two are different shapes, so a
 // multi-octet routing id must survive here even though S1AP could not carry it.
 func TestRoutingIDCarriesMultipleOctets(t *testing.T) {

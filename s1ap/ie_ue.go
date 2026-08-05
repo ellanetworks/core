@@ -69,7 +69,6 @@ func (n *NASPDU) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// TAI ::= SEQUENCE { pLMNidentity, tAC, iE-Extensions OPTIONAL } (extensible).
 // BitRate ::= INTEGER (0..10000000000).
 const bitRateMax = 10000000000
 
@@ -206,6 +205,7 @@ func (c *UERadioCapabilityForPaging) UnmarshalPER(r *per.Reader, enc per.Encodin
 	return nil
 }
 
+// TAI ::= SEQUENCE { pLMNidentity, tAC, iE-Extensions OPTIONAL } (extensible).
 type TAI struct {
 	_            [0]struct{} `per:"extseq"`
 	PLMNIdentity PLMNIdentity
@@ -230,7 +230,7 @@ func (c EUTRANCGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 		return err
 	}
 
-	return per.EncodeBitString(w, enc, cellIDBits, cellIDBits, true, true, false, uintToBits(uint64(c.CellID), cellIDBits), cellIDBits)
+	return encodeBitStringUint(w, enc, uint64(c.CellID), cellIDBits)
 }
 
 func (c *EUTRANCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -264,7 +264,7 @@ func (c *EUTRANCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 }
 
 // UserLocationInformation ::= SEQUENCE { eutran-CGI EUTRAN-CGI, tai TAI,
-// iE-Extensions OPTIONAL, ... } (extensible) — TS 36.413 §9.2.1.86.
+// iE-Extensions OPTIONAL, ... } (extensible) — TS 36.413 §9.2.1.93.
 type UserLocationInformation struct {
 	_         [0]struct{} `per:"extseq"`
 	EUTRANCGI EUTRANCGI

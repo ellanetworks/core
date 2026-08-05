@@ -20,12 +20,13 @@ func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 
 	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
-	// reaches the handler; without them the AMF cannot address a UE context and
-	// reports the fault (TS 38.413 §10.3.5).
+	// reaches the handler. §10.3.5 has the receiver ignore it and carry on, and
+	// §9.3.1.3 makes an ignore-criticality IE unreportable, so the message is
+	// dropped without a reply.
 	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceSetupResponse{})
 
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }
 
@@ -46,6 +47,11 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 	}
 }
 
+// An absent AMF UE NGAP ID leaves nothing to look the connection up by, and the
+// IE's ignore criticality makes it unreportable (§9.3.1.3), so the message is
+// dropped. Contrast TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID,
+// where the id is present but names no connection: that is the unknown local AP
+// ID of §10.6, which does draw an Error Indication.
 func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
@@ -57,8 +63,8 @@ func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing
 	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication (TS 38.413), got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }
 

@@ -112,7 +112,7 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
-			"ERABModificationIndication §9.1.3.7",
+			"ERABModificationIndication §9.1.3.8",
 			(&ERABModificationIndication{
 				MMEUES1APID:  1,
 				ENBUES1APID:  2,
@@ -125,7 +125,7 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
-			"ERABModificationConfirm §9.1.3.8",
+			"ERABModificationConfirm §9.1.3.9",
 			(&ERABModificationConfirm{
 				MMEUES1APID: Ptr(MMEUES1APID(1)),
 				ENBUES1APID: Ptr(ENBUES1APID(2)),
@@ -248,7 +248,7 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
-			"InitialContextSetupResponse §9.1.4.2",
+			"InitialContextSetupResponse §9.1.4.3",
 			(&InitialContextSetupResponse{
 				MMEUES1APID:            Ptr(MMEUES1APID(1)),
 				ENBUES1APID:            Ptr(ENBUES1APID(2)),
@@ -265,7 +265,7 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
-			"InitialContextSetupFailure §9.1.4.3",
+			"InitialContextSetupFailure §9.1.4.4",
 			(&InitialContextSetupFailure{
 				MMEUES1APID:            Ptr(MMEUES1APID(1)),
 				ENBUES1APID:            Ptr(ENBUES1APID(2)),

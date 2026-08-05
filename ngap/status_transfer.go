@@ -15,7 +15,7 @@ func (c StatusTransferContainer) MarshalPER(w *per.Writer, _ per.Encoding) error
 	return w.WriteOctets(c)
 }
 
-// TS 38.413 §9.2.3.9. TS 36.413 §9.1.5.13 names the same message eNB Status
+// TS 38.413 §9.2.3.13. TS 36.413 §9.1.5.13 names the same message eNB Status
 // Transfer and carries the same three IEs with the same criticality.
 type UplinkRANStatusTransfer struct {
 	AMFUENGAPID AMFUENGAPID
@@ -72,7 +72,7 @@ func (m *UplinkRANStatusTransfer) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcUplinkRANStatusTransfer,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }
@@ -81,7 +81,7 @@ func ParseUplinkRANStatusTransfer(value []byte) (*UplinkRANStatusTransfer, error
 	return parseMessageBody[UplinkRANStatusTransfer](ProcUplinkRANStatusTransfer, TriggeringInitiatingMessage, uplinkRANStatusTransferIEs, value)
 }
 
-// TS 38.413 §9.2.3.8. TS 36.413 §9.1.5.14 names the same message MME Status
+// TS 38.413 §9.2.3.14. TS 36.413 §9.1.5.14 names the same message MME Status
 // Transfer and carries the same three IEs with the same criticality.
 type DownlinkRANStatusTransfer struct {
 	AMFUENGAPID AMFUENGAPID
@@ -138,7 +138,7 @@ func (m *DownlinkRANStatusTransfer) Marshal() ([]byte, error) {
 
 	return Marshal(&InitiatingMessage{
 		ProcedureCode: ProcDownlinkRANStatusTransfer,
-		Criticality:   CriticalityReject,
+		Criticality:   CriticalityIgnore,
 		Value:         w.Bytes(),
 	})
 }

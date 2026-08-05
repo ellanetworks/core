@@ -53,13 +53,12 @@ func (allocationAndRetentionPriority *AllocationAndRetentionPriority) UnmarshalP
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -108,13 +107,12 @@ func (allowedNSSAIItem *AllowedNSSAIItem) UnmarshalPER(r *per.Reader, enc per.En
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -182,13 +180,12 @@ func (associatedQosFlowItem *AssociatedQosFlowItem) UnmarshalPER(r *per.Reader, 
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -243,13 +240,12 @@ func (broadcastPLMNItem *BroadcastPLMNItem) UnmarshalPER(r *per.Reader, enc per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -316,13 +312,12 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -405,13 +400,12 @@ func (dataForwardingResponseDRBItem *DataForwardingResponseDRBItem) UnmarshalPER
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -542,13 +536,12 @@ func (dynamic5QIDescriptor *Dynamic5QIDescriptor) UnmarshalPER(r *per.Reader, en
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -609,13 +602,12 @@ func (fiveGSTMSI *FiveGSTMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -735,13 +727,12 @@ func (gBRQosInformation *GBRQosInformation) UnmarshalPER(r *per.Reader, enc per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -796,13 +787,12 @@ func (gTPTunnel *GTPTunnel) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -869,13 +859,12 @@ func (gUAMI *GUAMI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -965,13 +954,12 @@ func (handoverCommandTransfer *HandoverCommandTransfer) UnmarshalPER(r *per.Read
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1020,13 +1008,12 @@ func (handoverPreparationUnsuccessfulTransfer *HandoverPreparationUnsuccessfulTr
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1145,13 +1132,12 @@ func (handoverRequestAcknowledgeTransfer *HandoverRequestAcknowledgeTransfer) Un
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1211,13 +1197,12 @@ func (handoverRequiredTransfer *HandoverRequiredTransfer) UnmarshalPER(r *per.Re
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1283,13 +1268,12 @@ func (handoverResourceAllocationUnsuccessfulTransfer *HandoverResourceAllocation
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1432,13 +1416,12 @@ func (nonDynamic5QIDescriptor *NonDynamic5QIDescriptor) UnmarshalPER(r *per.Read
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1493,13 +1476,12 @@ func (pDUSessionAggregateMaximumBitRate *PDUSessionAggregateMaximumBitRate) Unma
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1554,13 +1536,12 @@ func (pDUSessionResourceAdmittedItem *PDUSessionResourceAdmittedItem) UnmarshalP
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1615,13 +1596,12 @@ func (pDUSessionResourceFailedToModifyItemModCfm *PDUSessionResourceFailedToModi
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1676,13 +1656,12 @@ func (pDUSessionResourceFailedToModifyItemModRes *PDUSessionResourceFailedToModi
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1737,13 +1716,12 @@ func (pDUSessionResourceFailedToSetupItemCxtFail *PDUSessionResourceFailedToSetu
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1798,13 +1776,12 @@ func (pDUSessionResourceFailedToSetupItemCxtRes *PDUSessionResourceFailedToSetup
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1859,13 +1836,12 @@ func (pDUSessionResourceFailedToSetupItemHOAck *PDUSessionResourceFailedToSetupI
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1920,13 +1896,12 @@ func (pDUSessionResourceFailedToSetupItemPSReq *PDUSessionResourceFailedToSetupI
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -1981,13 +1956,12 @@ func (pDUSessionResourceFailedToSetupItemSURes *PDUSessionResourceFailedToSetupI
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2042,13 +2016,12 @@ func (pDUSessionResourceHandoverItem *PDUSessionResourceHandoverItem) UnmarshalP
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2097,13 +2070,12 @@ func (pDUSessionResourceItemCxtRelCpl *PDUSessionResourceItemCxtRelCpl) Unmarsha
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2152,13 +2124,12 @@ func (pDUSessionResourceItemCxtRelReq *PDUSessionResourceItemCxtRelReq) Unmarsha
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2213,13 +2184,12 @@ func (pDUSessionResourceItemHORqd *PDUSessionResourceItemHORqd) UnmarshalPER(r *
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2304,13 +2274,12 @@ func (pDUSessionResourceModifyConfirmTransfer *PDUSessionResourceModifyConfirmTr
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2374,13 +2343,12 @@ func (pDUSessionResourceModifyIndicationTransfer *PDUSessionResourceModifyIndica
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2429,13 +2397,12 @@ func (pDUSessionResourceModifyIndicationUnsuccessfulTransfer *PDUSessionResource
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2490,13 +2457,12 @@ func (pDUSessionResourceModifyItemModCfm *PDUSessionResourceModifyItemModCfm) Un
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2551,13 +2517,12 @@ func (pDUSessionResourceModifyItemModInd *PDUSessionResourceModifyItemModInd) Un
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2629,13 +2594,12 @@ func (pDUSessionResourceModifyItemModReq *PDUSessionResourceModifyItemModReq) Un
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2690,13 +2654,12 @@ func (pDUSessionResourceModifyItemModRes *PDUSessionResourceModifyItemModRes) Un
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2818,13 +2781,12 @@ func (pDUSessionResourceModifyResponseTransfer *PDUSessionResourceModifyResponse
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2879,13 +2841,12 @@ func (pDUSessionResourceNotifyItem *PDUSessionResourceNotifyItem) UnmarshalPER(r
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2934,13 +2895,12 @@ func (pDUSessionResourceReleaseCommandTransfer *PDUSessionResourceReleaseCommand
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -2983,13 +2943,12 @@ func (pDUSessionResourceReleaseResponseTransfer *PDUSessionResourceReleaseRespon
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3044,13 +3003,12 @@ func (pDUSessionResourceReleasedItemNot *PDUSessionResourceReleasedItemNot) Unma
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3105,13 +3063,12 @@ func (pDUSessionResourceReleasedItemPSAck *PDUSessionResourceReleasedItemPSAck) 
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3166,13 +3123,12 @@ func (pDUSessionResourceReleasedItemPSFail *PDUSessionResourceReleasedItemPSFail
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3227,13 +3183,12 @@ func (pDUSessionResourceReleasedItemRelRes *PDUSessionResourceReleasedItemRelRes
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3311,13 +3266,12 @@ func (pDUSessionResourceSetupItemCxtReq *PDUSessionResourceSetupItemCxtReq) Unma
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3372,13 +3326,12 @@ func (pDUSessionResourceSetupItemCxtRes *PDUSessionResourceSetupItemCxtRes) Unma
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3439,13 +3392,12 @@ func (pDUSessionResourceSetupItemHOReq *PDUSessionResourceSetupItemHOReq) Unmars
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3523,13 +3475,12 @@ func (pDUSessionResourceSetupItemSUReq *PDUSessionResourceSetupItemSUReq) Unmars
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3584,13 +3535,12 @@ func (pDUSessionResourceSetupItemSURes *PDUSessionResourceSetupItemSURes) Unmars
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3686,13 +3636,12 @@ func (pDUSessionResourceSetupResponseTransfer *PDUSessionResourceSetupResponseTr
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3758,13 +3707,12 @@ func (pDUSessionResourceSetupUnsuccessfulTransfer *PDUSessionResourceSetupUnsucc
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3819,13 +3767,12 @@ func (pDUSessionResourceSwitchedItem *PDUSessionResourceSwitchedItem) UnmarshalP
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3880,13 +3827,12 @@ func (pDUSessionResourceToBeSwitchedDLItem *PDUSessionResourceToBeSwitchedDLItem
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -3941,13 +3887,12 @@ func (pDUSessionResourceToReleaseItemHOCmd *PDUSessionResourceToReleaseItemHOCmd
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4002,13 +3947,12 @@ func (pDUSessionResourceToReleaseItemRelCmd *PDUSessionResourceToReleaseItemRelC
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4063,13 +4007,12 @@ func (pLMNSupportItem *PLMNSupportItem) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4124,13 +4067,12 @@ func (packetErrorRate *PacketErrorRate) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4207,13 +4149,12 @@ func (pathSwitchRequestAcknowledgeTransfer *PathSwitchRequestAcknowledgeTransfer
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4262,13 +4203,12 @@ func (pathSwitchRequestSetupFailedTransfer *PathSwitchRequestSetupFailedTransfer
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4357,13 +4297,12 @@ func (pathSwitchRequestTransfer *PathSwitchRequestTransfer) UnmarshalPER(r *per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4412,13 +4351,12 @@ func (pathSwitchRequestUnsuccessfulTransfer *PathSwitchRequestUnsuccessfulTransf
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4467,13 +4405,12 @@ func (qosFlowAcceptedItem *QosFlowAcceptedItem) UnmarshalPER(r *per.Reader, enc 
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4556,13 +4493,12 @@ func (qosFlowAddOrModifyRequestItem *QosFlowAddOrModifyRequestItem) UnmarshalPER
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4611,13 +4547,12 @@ func (qosFlowAddOrModifyResponseItem *QosFlowAddOrModifyResponseItem) UnmarshalP
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4683,13 +4618,12 @@ func (qosFlowItemWithDataForwarding *QosFlowItemWithDataForwarding) UnmarshalPER
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4799,13 +4733,12 @@ func (qosFlowLevelQosParameters *QosFlowLevelQosParameters) UnmarshalPER(r *per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4854,13 +4787,12 @@ func (qosFlowModifyConfirmItem *QosFlowModifyConfirmItem) UnmarshalPER(r *per.Re
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4915,13 +4847,12 @@ func (qosFlowPerTNLInformation *QosFlowPerTNLInformation) UnmarshalPER(r *per.Re
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -4970,13 +4901,12 @@ func (qosFlowPerTNLInformationItem *QosFlowPerTNLInformationItem) UnmarshalPER(r
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5048,13 +4978,12 @@ func (qosFlowSetupRequestItem *QosFlowSetupRequestItem) UnmarshalPER(r *per.Read
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5103,13 +5032,12 @@ func (qosFlowToBeForwardedItem *QosFlowToBeForwardedItem) UnmarshalPER(r *per.Re
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5164,13 +5092,12 @@ func (qosFlowWithCauseItem *QosFlowWithCauseItem) UnmarshalPER(r *per.Reader, en
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5236,13 +5163,12 @@ func (sNSSAI *SNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5299,13 +5225,12 @@ func (securityContext *SecurityContext) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5383,13 +5308,12 @@ func (securityIndication *SecurityIndication) UnmarshalPER(r *per.Reader, enc pe
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5448,13 +5372,12 @@ func (securityResult *SecurityResult) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5520,13 +5443,12 @@ func (servedGUAMIItem *ServedGUAMIItem) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5575,13 +5497,12 @@ func (sliceSupportItem *SliceSupportItem) UnmarshalPER(r *per.Reader, enc per.En
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5636,13 +5557,12 @@ func (supportedTAItem *SupportedTAItem) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5697,13 +5617,12 @@ func (tAI *TAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5758,13 +5677,12 @@ func (targetRANNodeID *TargetRANNodeID) UnmarshalPER(r *per.Reader, enc per.Enco
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5819,13 +5737,12 @@ func (targetRANNodeIDSON *TargetRANNodeIDSON) UnmarshalPER(r *per.Reader, enc pe
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5880,13 +5797,12 @@ func (uEAggregateMaximumBitRate *UEAggregateMaximumBitRate) UnmarshalPER(r *per.
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -5963,13 +5879,12 @@ func (uEAssociatedLogicalNGConnectionItem *UEAssociatedLogicalNGConnectionItem) 
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6026,13 +5941,12 @@ func (uEPresenceInAreaOfInterestItem *UEPresenceInAreaOfInterestItem) UnmarshalP
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6109,13 +6023,12 @@ func (uERadioCapabilityForPaging *UERadioCapabilityForPaging) UnmarshalPER(r *pe
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6170,13 +6083,12 @@ func (uLNGUUPTNLModifyItem *ULNGUUPTNLModifyItem) UnmarshalPER(r *per.Reader, en
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6225,13 +6137,12 @@ func (uPTransportLayerInformationItem *UPTransportLayerInformationItem) Unmarsha
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6286,13 +6197,12 @@ func (uPTransportLayerInformationPairItem *UPTransportLayerInformationPairItem) 
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6375,13 +6285,12 @@ func (unavailableGUAMIItem *UnavailableGUAMIItem) UnmarshalPER(r *per.Reader, en
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6436,13 +6345,12 @@ func (userPlaneSecurityInformation *UserPlaneSecurityInformation) UnmarshalPER(r
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {
@@ -6491,13 +6399,12 @@ func (taiListForPagingItem *taiListForPagingItem) UnmarshalPER(r *per.Reader, en
 	if extBit {
 		var extBits []bool
 		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			extBits = make([]bool, count)
 			for i := int64(0); i < count; i++ {
 				b, err := r.ReadBit()
 				if err != nil {
 					return err
 				}
-				extBits[i] = b
+				extBits = append(extBits, b)
 			}
 			return nil
 		}); err != nil {

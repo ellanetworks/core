@@ -8,7 +8,7 @@ import (
 )
 
 // TS 38.413 §9.2.3.1. The source NG-RAN node asks the AMF to prepare a
-// handover. TS 36.413 §9.1.5.1 shares six of these IEs but adds six more for
+// handover. TS 36.413 §9.1.5.1 shares seven of these IEs but adds seven more for
 // circuit-switched fallback and legacy femtocells (SRVCC, a secondary source
 // container, MSClassmark2/3, CSG-Id, CellAccessMode, PS-ServiceNotAvailable),
 // none of which 5G defines; NGAP adds PDUSessionResourceListHORqd in their
@@ -296,14 +296,15 @@ func ParseHandoverCommand(value []byte) (*HandoverCommand, error) {
 }
 
 // TS 38.413 §9.2.3.3. TS 36.413 §9.1.5.3 carries the same four IEs with the
-// same criticality and presence, so the two are identical bar the UE ID names.
-// NGAP adds an optional TargettoSource-Failure-TransparentContainer that only
-// Handover Resource Allocation can supply, so it is not modelled here.
+// same criticality and presence. NGAP adds the target's failure container,
+// which reaches the AMF in HANDOVER FAILURE and which §8.4.1.3 has the AMF pass
+// on to the source NG-RAN node.
 type HandoverPreparationFailure struct {
-	AMFUENGAPID            *AMFUENGAPID
-	RANUENGAPID            *RANUENGAPID
-	Cause                  *Cause
-	CriticalityDiagnostics *CriticalityDiagnostics
+	AMFUENGAPID                               *AMFUENGAPID
+	RANUENGAPID                               *RANUENGAPID
+	Cause                                     *Cause
+	CriticalityDiagnostics                    *CriticalityDiagnostics
+	TargettoSourceFailureTransparentContainer TargettoSourceFailureTransparentContainer
 
 	messageMeta
 }
@@ -391,6 +392,19 @@ var handoverPreparationFailureIEs = []ieSpec[HandoverPreparationFailure]{
 			}
 
 			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: idTargettoSourceFailureTransparentContainer, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverPreparationFailure, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.TargettoSourceFailureTransparentContainer)
+		},
+		encode: func(m *HandoverPreparationFailure) (per.Marshaler, bool) {
+			if m.TargettoSourceFailureTransparentContainer == nil {
+				return nil, false
+			}
+
+			return m.TargettoSourceFailureTransparentContainer, true
 		},
 	},
 }

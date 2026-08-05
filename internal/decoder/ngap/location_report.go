@@ -25,7 +25,7 @@ type UEPresenceInAreaOfInterestList struct {
 }
 
 // Location Report carries where the NG-RAN node currently sees the UE
-// (TS 38.413 §9.2.8.3).
+// (TS 38.413 §9.2.11.3).
 func buildLocationReport(value []byte) NGAPMessageValue {
 	m, err := ngap.ParseLocationReport(value)
 	if err != nil {
@@ -64,7 +64,7 @@ func buildLocationReport(value []byte) NGAPMessageValue {
 }
 
 // Location Reporting Control asks the NG-RAN node to start, change or stop
-// reporting the UE's location (TS 38.413 §9.2.8.1).
+// reporting the UE's location (TS 38.413 §9.2.11.1).
 func buildLocationReportingControl(value []byte) NGAPMessageValue {
 	m, err := ngap.ParseLocationReportingControl(value)
 	if err != nil {

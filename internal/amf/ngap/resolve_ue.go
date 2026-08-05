@@ -22,17 +22,16 @@ func resolveUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID 
 	return resolveDecodedUE(ctx, amfInstance, ran, &r, &a)
 }
 
-// causeMissingUENGAPIDs answers a UE-associated message that omitted a UE NGAP
-// ID: without it the AMF cannot address a UE context, so the procedure is
-// rejected (TS 38.413 §10.3.5).
-var causeMissingUENGAPIDs = ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolAbstractSyntaxErrorReject}
-
 // resolveUEIDs is resolveUE for a message whose UE NGAP IDs carry ignore
 // criticality and may therefore be absent.
+//
+// §10.3.5 has the receiver ignore an absent ignore-criticality IE and carry on,
+// and §9.3.1.3 makes such an IE unreportable in Criticality Diagnostics, so
+// nothing is sent back. Without an id there is no UE context to address, so the
+// message is dropped where it stands.
 func resolveUEIDs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, amfID *ngap.AMFUENGAPID, ranID *ngap.RANUENGAPID) (*amf.UeConn, bool) {
 	if amfID == nil || ranID == nil {
 		logger.WithTrace(ctx, ran.Log).Warn("UE-associated NGAP message without both UE NGAP IDs")
-		sendErrorIndication(ctx, ran, amfID, ranID, causeMissingUENGAPIDs)
 
 		return nil, false
 	}
@@ -115,8 +114,8 @@ func sendInconsistentRemoteUEError(ctx context.Context, ran *amf.Radio, amfID, r
 }
 
 // decodedUEIDs converts the dispatcher's raw AP IDs into the library's identifier
-// types, leaving an absent id absent so the Error Indication does not claim
-// one the sender never gave (TS 38.413 §8.7.5.2).
+// types, leaving an absent id absent so the Error Indication reports only the
+// ids the sender actually gave.
 func decodedUEIDs(amfID, ranID *int64) (*ngap.AMFUENGAPID, *ngap.RANUENGAPID) {
 	var (
 		a *ngap.AMFUENGAPID

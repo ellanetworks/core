@@ -142,3 +142,65 @@ func TestNormallySmallLengthRoundtrip(t *testing.T) {
 		}
 	}
 }
+
+// X.691 §19.7 sends an extension-addition bitmap as a normally small length,
+// which fragments above 16K bits (§11.9.3.5-11.9.3.8). The callback then runs
+// once per fragment, so a decoder that rebuilds its bitmap per call keeps only
+// the last fragment and stops skipping the additions the earlier ones marked.
+func TestDecodeNormallySmallLengthFragments(t *testing.T) {
+	w := NewWriter()
+	w.WriteBit(true) // not the six-bit form
+	w.AlignToByte()
+	w.WriteOctets([]byte{0xC1}) // one 16K fragment
+
+	for range 16384 {
+		w.WriteBit(true)
+	}
+
+	w.WriteOctets([]byte{0x03}) // then three more bits
+	w.WriteBit(false)
+	w.WriteBit(true)
+	w.WriteBit(false)
+	w.AlignToByte()
+
+	r := NewReader(w.Bytes())
+
+	var (
+		calls int
+		bits  []bool
+	)
+
+	err := DecodeNormallySmallLength(r, Aligned, func(count int64) error {
+		calls++
+
+		for range count {
+			b, err := r.ReadBit()
+			if err != nil {
+				return err
+			}
+
+			bits = append(bits, b)
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if calls != 2 {
+		t.Fatalf("callback ran %d times, want 2 (one per fragment)", calls)
+	}
+
+	if len(bits) != 16387 {
+		t.Fatalf("read %d bits, want 16387", len(bits))
+	}
+
+	if !bits[0] || !bits[16383] {
+		t.Fatal("the first fragment's bits were not delivered")
+	}
+
+	if got := bits[16384:]; got[0] || !got[1] || got[2] {
+		t.Fatalf("second fragment = %v, want [false true false]", got)
+	}
+}

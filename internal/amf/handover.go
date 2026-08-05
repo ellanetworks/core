@@ -236,7 +236,7 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 // aborted (hoPreparing or hoPrepared): TS 38.413 §8.4.5 requires freeing the target's
 // reserved resources on cancel. A prepared target is addressed by its full UE NGAP ID
 // pair; a still-preparing target (whose RAN-UE-NGAP-ID has not yet arrived, so it holds
-// RanUeNgapIDUnspecified) by its AMF-UE-NGAP-ID alone — BuildUEContextReleaseCommand
+// RanUeNgapIDUnspecified) by its AMF-UE-NGAP-ID alone — ueContextReleaseCommandBytes
 // selects the alternative.
 func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 	if ue == nil {

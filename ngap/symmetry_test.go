@@ -42,6 +42,12 @@ var mandatedDeviations = map[string]string{
 	// for (TS 36.413 §9.1.3 vs TS 38.413 §9.3.1).
 	"s1ap only: func encodeSingleContainerList": "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
 	"s1ap only: func decodeItemList":            "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
+
+	// PATH SWITCH REQUEST FAILURE reports a mandatory released session list in
+	// NGAP (TS 38.413 §9.2.3.10) and a mandatory Cause with no list in S1AP
+	// (TS 36.413 §9.1.5.10), so only NGAP has to recover the sessions from a
+	// rejected request to build the message at all.
+	"ngap only: func (AbstractSyntaxError) PathSwitchSessions": "NGAP PathSwitchRequestFailure released list is mandatory (TS 38.413 §9.2.3.10)",
 }
 
 // ngapOnlyFiles' mirror, so a file added to one side and forgotten on the other

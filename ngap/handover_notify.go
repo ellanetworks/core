@@ -7,8 +7,9 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// NotifySourceNGRANNode ::= ENUMERATED { notifySource, ... } — TS 38.413
-// §9.3.1.147. Asks the AMF to tell the source node the handover completed.
+// NotifySourceNGRANNode ::= ENUMERATED { notifySource, ... }, an inline IE of
+// the TS 38.413 §9.2.3.7 table. Asks the AMF to tell the source node the
+// handover completed.
 // NGAP-only: TS 36.413 leaves the source eNB to infer completion.
 type NotifySourceNGRANNode uint8
 
@@ -33,7 +34,7 @@ func (n *NotifySourceNGRANNode) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	return nil
 }
 
-// TS 38.413 §9.2.3.4. The target NG-RAN node reports that the UE arrived.
+// TS 38.413 §9.2.3.7. The target NG-RAN node reports that the UE arrived.
 // TS 36.413 §9.1.5.7 carries the same report but locates the UE with a separate
 // EUTRAN-CGI and TAI, where NGAP uses the UserLocationInformation CHOICE.
 type HandoverNotify struct {

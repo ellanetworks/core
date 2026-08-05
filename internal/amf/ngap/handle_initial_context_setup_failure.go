@@ -13,7 +13,7 @@ import (
 )
 
 // HandleInitialContextSetupFailure abandons the UE context setup and hands each
-// failed session to the SMF (TS 38.413 §8.3.1.4).
+// failed session to the SMF (TS 38.413 §8.3.1.3).
 func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.InitialContextSetupFailure) {
 	// The Cause is mandatory but ignore criticality, so it may be absent.
 	cause := "absent"

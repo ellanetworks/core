@@ -13,7 +13,12 @@ import (
 )
 
 // HandlePDUSessionResourceNotify records a QoS-flow status change or a session
-// the NG-RAN node released on its own initiative (TS 38.413 §8.2.6).
+// the NG-RAN node released on its own initiative (TS 38.413 §8.2.4).
+//
+// §8.2.4.2 has the AMF transfer each Notify Transfer or Notify Released Transfer
+// to the SMF that owns the session. Ella Core's SMF acts on the released list
+// alone; it has no entry point for a QoS-flow notification, so a GBR flow the
+// NG-RAN node reports as no longer fulfilled is logged and not acted on.
 func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.PDUSessionResourceNotify) {
 	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
@@ -35,8 +40,9 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
-	if len(msg.PDUSessionResourceNotify) > 0 {
-		logger.WithTrace(ctx, ueConn.Log).Warn("PDUSessionResourceNotifyList received but QoS flow notification forwarding is not implemented")
+	for _, item := range msg.PDUSessionResourceNotify {
+		logger.WithTrace(ctx, ueConn.Log).Warn("QoS flow status change not forwarded to the SMF (TS 38.413 §8.2.4.2)",
+			zap.Uint8("pdu-session-id", uint8(item.PDUSessionID)))
 	}
 
 	for _, item := range msg.PDUSessionResourceReleased {

@@ -642,3 +642,34 @@ func TestTransferN1Msg_Success(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNasTransport, got %d", sender.downlinkNasTransportCalls)
 	}
 }
+
+// The Initial Context Setup claim is a CAS from ICSNotStarted to ICSPending, so
+// a path that claims it and then fails before sending must hand it back:
+// otherwise the connection never gets a UE context and every later transfer
+// takes the already-claimed branch, sending a standalone PDU SESSION RESOURCE
+// SETUP REQUEST to an NG-RAN node that has none (TS 38.413 §8.3.1).
+func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	fakeDB := &fakeDBInstance{operator: &db.Operator{Mcc: "001", Mnc: "01"}}
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
+
+	ue := addUE(t, amfInstance, "001010000000021", func(u *amf.UeContext) {
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
+	})
+
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	req := newReq()
+	req.SNssai = nil
+
+	if err := amfInstance.N2MessageTransferOrPage(context.Background(), ue.SupiForTest(), req); err == nil {
+		t.Fatal("expected an error building the PDU session setup item")
+	}
+
+	if got := ueConn.ICS(); got != amf.ICSNotStarted {
+		t.Fatalf("ICS = %v, want %v: the claim was not released", got, amf.ICSNotStarted)
+	}
+}

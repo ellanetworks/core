@@ -79,6 +79,8 @@ func sendErrorIndication(ctx context.Context, ran *amf.Radio, amfID *ngap.AMFUEN
 // that did not decode at all leave nothing to cite beyond the procedure
 // (§10.2).
 func sendParseErrorIndication(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureCode, err error) {
+	// §10.3.4.2, §10.3.5 and §10.3.6 leave a rejected response to local error
+	// handling, so every message that reaches here initiated its procedure.
 	trigger := ngap.TriggeringInitiatingMessage
 
 	var ase *ngap.AbstractSyntaxError
@@ -154,7 +156,5 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
 
-	// The release command still takes the reference decoder's cause constants;
-	// it moves when UE Context Release migrates.
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified})
 }

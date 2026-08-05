@@ -21,8 +21,6 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		return
 	}
 
-	reportDiagnostics(ctx, ran, ngap.ProcPDUSessionResourceModifyIndication, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
-
 	if msg.UserLocationInformation != nil {
 		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
@@ -73,6 +71,16 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		PDUSessionResourceFailed: failedList,
 	}
 
+	// §10.3.4.2 reports a not-comprehended notify-criticality IE in the response
+	// message of the procedure where it defines one, which this procedure does
+	// (§9.2.1.9 gives the confirm a Criticality Diagnostics IE).
+	if diag := msg.Diagnostics(); diag.ReportRequired() {
+		confirm.CriticalityDiagnostics = &ngap.CriticalityDiagnostics{
+			ProcedureCriticality:      ngap.Ptr(ngap.ProcedureCriticality(ngap.ProcPDUSessionResourceModifyIndication)),
+			IEsCriticalityDiagnostics: diag.Report(),
+		}
+	}
+
 	pkt, err := confirm.Marshal()
 	if err != nil {
 		logger.WithTrace(ctx, ueConn.Log).Error("error building pdu session resource modify confirm", zap.Error(err))
@@ -84,7 +92,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 // appendFailedToModify records a session the AMF could not hand to the SMF,
 // carrying the reason in a Modify Indication Unsuccessful Transfer
-// (TS 38.413 §9.3.4.20).
+// (TS 38.413 §9.3.4.22).
 func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list ngap.PDUSessionResourceFailedToModifyListModCfm, pduSessionID ngap.PDUSessionID, causeValue int) ngap.PDUSessionResourceFailedToModifyListModCfm {
 	t := &ngap.PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
 		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},

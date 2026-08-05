@@ -5,7 +5,7 @@ package ngap
 
 import "fmt"
 
-// Elementary procedure names from TS 38.413 §9.4.5 (Constant Definitions).
+// Elementary procedure names from TS 38.413 §9.4.7 (Constant Definitions).
 //
 // #nosec G101 -- these are 3GPP procedure names, not credentials. G101 matches
 // its "pw" pattern against the PWSCancel, PWSFailureIndication and

@@ -19,12 +19,13 @@ func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 
 	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
-	// reaches the handler; without them the AMF cannot address a UE context and
-	// reports the fault (TS 38.413 §10.3.5).
+	// reaches the handler. §10.3.5 has the receiver ignore it and carry on, and
+	// §9.3.1.3 makes an ignore-criticality IE unreportable, so the message is
+	// dropped without a reply.
 	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceReleaseResponse{})
 
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 }
 

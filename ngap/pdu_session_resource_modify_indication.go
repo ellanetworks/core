@@ -298,7 +298,7 @@ func ParsePDUSessionResourceModifyConfirm(value []byte) (*PDUSessionResourceModi
 
 // PDUSessionResourceModifyIndicationTransfer ::= SEQUENCE {
 // dLQosFlowPerTNLInformation, additionalDLQosFlowPerTNLInformation OPTIONAL,
-// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.21. The NG-RAN node
+// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.6. The NG-RAN node
 // builds it; the SMF consumes it.
 type PDUSessionResourceModifyIndicationTransfer struct {
 	_                                    [0]struct{} `per:"extseq"`
@@ -335,7 +335,7 @@ func ParsePDUSessionResourceModifyIndicationTransfer(b TransferContainer) (*PDUS
 // PDUSessionResourceModifyConfirmTransfer ::= SEQUENCE {
 // qosFlowModifyConfirmList, uLNGU-UP-TNLInformation,
 // additionalNG-UUPTNLInformation OPTIONAL, qosFlowFailedToModifyList OPTIONAL,
-// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.23. The SMF builds
+// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.7. The SMF builds
 // it; the NG-RAN node consumes it.
 type PDUSessionResourceModifyConfirmTransfer struct {
 	_                             [0]struct{} `per:"extseq"`

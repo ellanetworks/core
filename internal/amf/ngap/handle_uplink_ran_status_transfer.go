@@ -16,7 +16,7 @@ import (
 // so an N2 handover of PDCP-SN-preserving DRBs is lossless. The transfer is optional
 // (the source may omit it) and non-gating: a missing in-progress handover just drops it.
 func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.UplinkRANStatusTransfer) {
-	ueConn, ok := resolveUEIDs(ctx, amfInstance, ran, &msg.AMFUENGAPID, &msg.RANUENGAPID)
+	ueConn, ok := resolveUE(ctx, amfInstance, ran, msg.AMFUENGAPID, msg.RANUENGAPID)
 	if !ok {
 		return
 	}

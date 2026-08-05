@@ -18,8 +18,6 @@ type ERABToBeSwitchedDLItem struct {
 	_                     ieExtensions `per:",skip"`
 }
 
-// SecurityContext ::= SEQUENCE { nextHopChainingCount INTEGER (0..7),
-// nextHopParameter SecurityKey, iE-Extensions OPTIONAL } (extensible). The
 // TS 36.413 §9.1.5.8.
 type PathSwitchRequest struct {
 	ENBUES1APID            ENBUES1APID

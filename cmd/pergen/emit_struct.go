@@ -193,7 +193,7 @@ func (g *generator) emitFieldMarshal(r *bytes.Buffer, _ string, fi fieldInfo, ex
 		fmt.Fprintf(r, "%s}\n", prefix)
 	case kindEnum:
 		// An extensible ENUMERATED goes through encodeRootEnumerated, which
-		// refuses a value outside the root rather than emitting it as an
+		// refuses a value outside the root instead of emitting it as an
 		// extension addition 3GPP has not defined.
 		if fi.enumExt {
 			fmt.Fprintf(r, "%sif err := encodeRootEnumerated(w, enc, %d, int64(%s), %q); err != nil {\n", prefix, fi.enumRoot, expr, fi.typeStr)
@@ -341,11 +341,12 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 		fmt.Fprintf(r, "\tif extBit {\n")
 		fmt.Fprintf(r, "\t\tvar extBits []bool\n")
 		fmt.Fprintf(r, "\t\tif err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {\n")
-		fmt.Fprintf(r, "\t\t\textBits = make([]bool, count)\n")
+		// A bitmap wider than 64 bits arrives fragmented (X.691 §19.7 via
+		// §11.9.3), so the callback runs once per fragment.
 		fmt.Fprintf(r, "\t\t\tfor i := int64(0); i < count; i++ {\n")
 		fmt.Fprintf(r, "\t\t\t\tb, err := r.ReadBit()\n")
 		fmt.Fprintf(r, "\t\t\t\tif err != nil {\n\t\t\t\t\treturn err\n\t\t\t\t}\n")
-		fmt.Fprintf(r, "\t\t\t\textBits[i] = b\n")
+		fmt.Fprintf(r, "\t\t\t\textBits = append(extBits, b)\n")
 		fmt.Fprintf(r, "\t\t\t}\n")
 		fmt.Fprintf(r, "\t\t\treturn nil\n")
 		fmt.Fprintf(r, "\t\t}); err != nil {\n\t\t\treturn err\n\t\t}\n")

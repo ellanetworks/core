@@ -14,12 +14,13 @@ import (
 
 // respondToUnknownProcedure answers a decoded message naming a procedure this
 // AMF does not implement, on the criticality the sender assigned it
-// (TS 38.413 §10.3.4.1A). Ignore draws no reply.
+// (TS 38.413 §10.3.4.1). Ignore draws no reply.
 func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU) {
 	im, ok := pdu.(*ngap.InitiatingMessage)
 	if !ok {
-		// §10.3.4.1A: a response naming an unknown procedure is left to local
-		// error handling.
+		// A successful or unsuccessful outcome answers a procedure the AMF never
+		// initiated, so there is nothing to reject: it is left to local error
+		// handling.
 		logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure outcome")
 
 		return
@@ -54,7 +55,7 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 }
 
 // sendProtocolErrorIndication answers octets that did not decode at all, where
-// no procedure or IE can be named (TS 38.413 §10.3.4.1).
+// no procedure or IE can be named (TS 38.413 §10.2).
 func sendProtocolErrorIndication(ctx context.Context, ran *amf.Radio, cause int) {
 	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
 		Cause: &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: cause},

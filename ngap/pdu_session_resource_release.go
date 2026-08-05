@@ -256,7 +256,7 @@ func ParsePDUSessionResourceReleaseResponse(value []byte) (*PDUSessionResourceRe
 }
 
 // PDUSessionResourceReleaseCommandTransfer ::= SEQUENCE { cause, iE-Extensions
-// OPTIONAL } (extensible) — TS 38.413 §9.3.4.13. The SMF builds it; the NG-RAN
+// OPTIONAL } (extensible) — TS 38.413 §9.3.4.12. The SMF builds it; the NG-RAN
 // node consumes it.
 type PDUSessionResourceReleaseCommandTransfer struct {
 	_     [0]struct{} `per:"extseq"`

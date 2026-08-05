@@ -15,7 +15,8 @@ const maxnoofAoI = 64
 // EventType ::= ENUMERATED { direct, change-of-serve-cell,
 // ue-presence-in-area-of-interest, stop-change-of-serve-cell,
 // stop-ue-presence-in-area-of-interest, cancel-location-reporting-for-the-ue,
-// ... } — TS 38.413 §9.3.1.32.
+// ... }, an inline type of the Location Reporting Request Type IE
+// (TS 38.413 §9.3.1.65).
 //
 // TS 36.413's EventType has three root members, and the two enumerations agree
 // only on direct and change-of-serve-cell: S1AP puts stop-change-of-serve-cell
@@ -33,7 +34,8 @@ const (
 	eventTypeRootCount = 6
 )
 
-// ReportArea ::= ENUMERATED { cell, ... } — TS 38.413 §9.3.1.33. TS 36.413
+// ReportArea ::= ENUMERATED { cell, ... }, likewise inline in TS 38.413
+// §9.3.1.65. TS 36.413
 // names its single member ecgi; the wire encoding is the same.
 type ReportArea uint8
 
@@ -43,7 +45,7 @@ const (
 	reportAreaRootCount = 1
 )
 
-// LocationReportingReferenceID ::= INTEGER (1..64, ...) — TS 38.413 §9.3.1.133.
+// LocationReportingReferenceID ::= INTEGER (1..64, ...) — TS 38.413 §9.3.1.76.
 type LocationReportingReferenceID uint8
 
 func (id LocationReportingReferenceID) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -64,7 +66,7 @@ func (id *LocationReportingReferenceID) UnmarshalPER(r *per.Reader, enc per.Enco
 // LocationReportingRequestType ::= SEQUENCE { eventType, reportArea,
 // areaOfInterestList OPTIONAL, locationReportingReferenceIDToBeCancelled
 // OPTIONAL, iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.65.
-// TS 36.413 §9.2.1.35 names the same shape RequestType and has neither optional
+// TS 36.413 §9.2.1.34 names the same shape RequestType and has neither optional
 // field.
 //
 // The codec is hand-written because areaOfInterestList is deliberately not
@@ -78,6 +80,18 @@ type LocationReportingRequestType struct {
 }
 
 func (t LocationReportingRequestType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	// ifEventTypeisStopUEPresinAoI: the ASN.1 makes
+	// locationReportingReferenceIDToBeCancelled present exactly when Event Type
+	// is "stop UE presence in the area of interest" (§9.3.1.65). The message-level
+	// tables enforce their conditions in ieSpec; this one lives inside a SEQUENCE,
+	// so it is enforced here.
+	cancelling := t.EventType == EventTypeStopUEPresenceInAreaOfInterest
+	if cancelling != (t.LocationReportingReferenceIDToBeCancelled != nil) {
+		return fmt.Errorf(
+			"ngap: LocationReportingRequestType: event type %d %s a location reporting reference id to cancel",
+			t.EventType, map[bool]string{true: "requires", false: "must not carry"}[cancelling])
+	}
+
 	w.WriteBit(false)
 	// areaOfInterestList, which this AMF never sends.
 	w.WriteBit(false)
@@ -162,7 +176,8 @@ func (t *LocationReportingRequestType) UnmarshalPER(r *per.Reader, enc per.Encod
 	return nil
 }
 
-// UEPresence ::= ENUMERATED { in, out, unknown, ... } — TS 38.413 §9.3.1.66.
+// UEPresence ::= ENUMERATED { in, out, unknown, ... }, an inline type of the
+// UE Presence in Area of Interest List IE (TS 38.413 §9.3.1.67).
 type UEPresence uint8
 
 const (
@@ -184,8 +199,8 @@ type UEPresenceInAreaOfInterestItem struct {
 // UEPresenceInAreaOfInterestItem.
 type UEPresenceInAreaOfInterestList []UEPresenceInAreaOfInterestItem
 
-// TS 38.413 §9.2.8.3. The NG-RAN node reports where the UE is. TS 36.413
-// §9.1.8.3 splits the location into EUTRAN-CGI and TAI where NGAP carries one
+// TS 38.413 §9.2.11.3. The NG-RAN node reports where the UE is. TS 36.413
+// §9.1.12.3 splits the location into EUTRAN-CGI and TAI where NGAP carries one
 // UserLocationInformation, and has no UE-presence list because S1AP defines no
 // area of interest.
 type LocationReport struct {
@@ -294,8 +309,8 @@ func ParseLocationReport(value []byte) (*LocationReport, error) {
 	return parseMessageBody[LocationReport](ProcLocationReport, TriggeringInitiatingMessage, locationReportIEs, value)
 }
 
-// TS 38.413 §9.2.8.1. The AMF asks the NG-RAN node to start, change or stop
-// reporting the UE's location. TS 36.413 §9.1.8.1 defines the same procedure
+// TS 38.413 §9.2.11.1. The AMF asks the NG-RAN node to start, change or stop
+// reporting the UE's location. TS 36.413 §9.1.12.1 defines the same procedure
 // with the same three IEs, but this core only drives it from the 5G side.
 type LocationReportingControl struct {
 	AMFUENGAPID                  AMFUENGAPID

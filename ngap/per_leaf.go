@@ -980,15 +980,16 @@ func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, ex
 
 	var present []bool
 
+	// A bitmap wider than 64 bits arrives fragmented (X.691 §19.7 via §11.9.3),
+	// so the callback runs once per fragment and the bits accumulate.
 	err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-		present = make([]bool, count)
-		for i := range present {
+		for range count {
 			b, err := r.ReadBit()
 			if err != nil {
 				return err
 			}
 
-			present[i] = b
+			present = append(present, b)
 		}
 
 		return nil

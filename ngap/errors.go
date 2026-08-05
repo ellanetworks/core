@@ -238,3 +238,22 @@ func (t TypeOfError) String() string {
 		return fmt.Sprintf("TypeOfError(%d)", uint8(t))
 	}
 }
+
+// PathSwitchSessions returns the sessions a rejected PATH SWITCH REQUEST asked
+// to switch. §9.2.3.10 makes the released list mandatory in PATH SWITCH REQUEST
+// FAILURE, so that message can only be built where this list survived the
+// decode; §10.3.5 falls back to the Error Indication procedure where it did not.
+func (e *AbstractSyntaxError) PathSwitchSessions() PDUSessionResourceToBeSwitchedDLList {
+	for _, ie := range e.decoded {
+		if ie.ID != idPDUSessionResourceToBeSwitchedDLList {
+			continue
+		}
+
+		var v PDUSessionResourceToBeSwitchedDLList
+		if perIEDecode(ie.Value, &v) == nil {
+			return v
+		}
+	}
+
+	return nil
+}

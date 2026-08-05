@@ -116,6 +116,9 @@ type UeContext struct {
 
 	nrppaMu       sync.RWMutex
 	nrppaMessages []NRPPaMessage
+	// Routing IDs this AMF has addressed an LMF with for this UE. TS 38.413
+	// §8.10.4 has the AMF ignore an uplink transport naming any other.
+	nrppaRoutingIDs map[int64]struct{}
 
 	// pagingTimer supervises a paging procedure for an idle UE (T3513, TS 24.501
 	// §5.4.3). It is per-UE and persistent — paging targets a UE with no NAS

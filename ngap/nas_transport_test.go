@@ -195,24 +195,38 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 // alternative. Selecting it must be an explicit error, not a zero location that
 // reads as one the peer reported.
 func TestUserLocationInformationUnsupportedAlternatives(t *testing.T) {
-	for _, alt := range []int64{userLocationInformationChoiceExtensions} {
-		w := per.NewWriter()
-		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, userLocationInformationAlternatives-1, alt); err != nil {
-			t.Fatal(err)
-		}
+	// A complete ProtocolIE-SingleContainer, so the decoder reaches the
+	// not-comprehended path instead of failing on end-of-input.
+	w := per.NewWriter()
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, userLocationInformationAlternatives-1, userLocationInformationChoiceExtensions); err != nil {
+		t.Fatal(err)
+	}
 
-		w.AlignToByte()
+	// id-UserLocationInformationN3IWF-without-PortNumber, a UserLocationInformation-ExtIEs
+	// alternative this package does not model.
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 65535, 439); err != nil {
+		t.Fatal(err)
+	}
 
-		var uli UserLocationInformation
+	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(CriticalityIgnore)); err != nil {
+		t.Fatal(err)
+	}
 
-		err := uli.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned)
-		if err == nil {
-			t.Fatalf("alternative %d decoded to %+v, want an error", alt, uli)
-		}
+	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
+		t.Fatal(err)
+	}
 
-		if !sameLocation(uli, UserLocationInformation{}) {
-			t.Errorf("alternative %d left a partial value %+v", alt, uli)
-		}
+	w.AlignToByte()
+
+	var uli UserLocationInformation
+
+	err := uli.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned)
+	if !errors.Is(err, errNotComprehended) {
+		t.Fatalf("err = %v, want errNotComprehended", err)
+	}
+
+	if !sameLocation(uli, UserLocationInformation{}) {
+		t.Errorf("choice-Extensions left a partial value %+v", uli)
 	}
 }
 

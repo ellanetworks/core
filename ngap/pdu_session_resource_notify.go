@@ -36,7 +36,7 @@ type PDUSessionResourceReleasedListNot []PDUSessionResourceReleasedItemNot
 
 // TS 38.413 §9.2.1.7. The NG-RAN node reports that a QoS flow's fulfilled
 // status changed, or that it released a session on its own initiative
-// (§8.2.6). TS 36.413 defines no counterpart: an eNB reports the equivalent
+// (§8.2.4). TS 36.413 defines no counterpart: an eNB reports the equivalent
 // through E-RAB Modification Indication and E-RAB Release Indication.
 type PDUSessionResourceNotify struct {
 	AMFUENGAPID                AMFUENGAPID

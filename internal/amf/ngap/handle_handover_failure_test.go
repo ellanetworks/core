@@ -4,6 +4,7 @@
 package ngap
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -213,5 +214,81 @@ func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.
 
 	if got := sourceSender.SentHandoverPreparationFailures[0].CriticalityDiagnostics; got != nil {
 		t.Errorf("failure to source carries the target's diagnostics %+v, want none", got)
+	}
+}
+
+// TS 38.413 §8.4.1.3: "If the Target to Source Failure Transparent Container IE
+// has been received by the AMF from the handover target then the transparent
+// container shall be included in the HANDOVER PREPARATION FAILURE message."
+func TestHandleHandoverFailure_RelaysTargetToSourceFailureContainer(t *testing.T) {
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	targetRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
+	}
+
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	container := ngap.TargettoSourceFailureTransparentContainer{0xde, 0xad, 0xbe, 0xef}
+
+	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngap.HandoverFailure{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		TargettoSourceFailureTransparentContainer: container,
+	})
+
+	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceSender.SentHandoverPreparationFailures))
+	}
+
+	got := sourceSender.SentHandoverPreparationFailures[0].TargettoSourceFailureTransparentContainer
+	if !bytes.Equal(got, container) {
+		t.Fatalf("relayed container = %x, want %x", got, container)
+	}
+}
+
+// Preparation that fails before any target answers has no container to relay.
+func TestHandleHandoverFailure_NoContainerToRelay(t *testing.T) {
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	targetRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
+	}
+
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngap.HandoverFailure{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+	})
+
+	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceSender.SentHandoverPreparationFailures))
+	}
+
+	if got := sourceSender.SentHandoverPreparationFailures[0].TargettoSourceFailureTransparentContainer; got != nil {
+		t.Fatalf("relayed container = %x, want none", got)
 	}
 }

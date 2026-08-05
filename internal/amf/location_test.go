@@ -5,7 +5,9 @@ package amf
 
 import (
 	"context"
+	"encoding/binary"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/ngap"
@@ -105,11 +107,48 @@ func TestUpdateLocationTimeStamp(t *testing.T) {
 		t.Errorf("age = %d with no TimeStamp, want 0", got)
 	}
 
-	uli.TimeStamp = &ngap.TimeStamp{0x00, 0x00, 0x00, 0x2a}
+	uli.TimeStamp = ntpTimeStamp(time.Now().UTC().Add(-90 * time.Minute))
 	c.UpdateLocation(context.Background(), uli)
 
-	if got := c.Location.NrLocation.AgeOfLocationInformation; got != 42 {
-		t.Errorf("age = %d, want 42", got)
+	if got := c.Location.NrLocation.AgeOfLocationInformation; got != 90 {
+		t.Errorf("age = %d for a stamp 90 minutes old, want 90", got)
+	}
+}
+
+// ntpTimeStamp renders t as the first four octets of an RFC 5905 timestamp,
+// which is what the Time Stamp IE carries (TS 38.413 §9.3.1.75).
+func ntpTimeStamp(t time.Time) *ngap.TimeStamp {
+	var ts ngap.TimeStamp
+
+	binary.BigEndian.PutUint32(ts[:], uint32(t.Unix()+ntpEpochOffset))
+
+	return &ts
+}
+
+// TS 29.571 defines ageOfLocationInformation as elapsed minutes in 0..32767.
+func TestAgeOfLocation(t *testing.T) {
+	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		at   time.Time
+		want int32
+	}{
+		{"generated now", now, 0},
+		{"one minute ago", now.Add(-time.Minute), 1},
+		{"partial minute rounds down", now.Add(-119 * time.Second), 1},
+		{"a day ago", now.Add(-24 * time.Hour), 1440},
+		{"clamped at the upper bound", now.Add(-40000 * time.Minute), maxAgeOfLocationMinutes},
+		{"the NTP epoch clamps rather than overflowing", time.Unix(-ntpEpochOffset, 0).UTC(), maxAgeOfLocationMinutes},
+		{"a stamp ahead of the clock reads as 0", now.Add(time.Hour), 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ageOfLocation(*ntpTimeStamp(tt.at), now); got != tt.want {
+				t.Fatalf("ageOfLocation = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }
 

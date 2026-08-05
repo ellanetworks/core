@@ -8,6 +8,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -139,5 +141,93 @@ func TestPLMNToNGAPRejectsMalformed(t *testing.T) {
 		if _, err := util.PLMNToNGAP(plmn); err == nil {
 			t.Errorf("accepted malformed PLMN %+v", plmn)
 		}
+	}
+}
+
+// TS 38.413 §9.3.1.86: "The Security Capabilities received from NAS signaling
+// shall not be modified or truncated when forwarded to NG-RAN nodes". Each
+// bitmap gives its first three bits to 128-xxx1..3 and maps the fourth to
+// seventh from bit 4 down to bit 1 of the matching TS 24.501 §9.11.3.54 octet,
+// so algorithm n lands at 1<<(16-n) and identity 0 has no position.
+func TestSecurityCapabilitiesToNGAP(t *testing.T) {
+	tests := []struct {
+		name string
+		in   *fgs.UESecurityCapability
+		want ngap.UESecurityCapabilities
+	}{
+		{
+			name: "nil capability",
+			in:   nil,
+			want: ngap.UESecurityCapabilities{},
+		},
+		{
+			name: "the null algorithms alone leave every bitmap zero",
+			in:   &fgs.UESecurityCapability{EA: nas.Algorithms(0), IA: nas.Algorithms(0)},
+			want: ngap.UESecurityCapabilities{},
+		},
+		{
+			name: "5G-EA1 and 5G-IA2 take the first and second bits",
+			in:   &fgs.UESecurityCapability{EA: nas.Algorithms(1), IA: nas.Algorithms(2)},
+			want: ngap.UESecurityCapabilities{
+				NREncryptionAlgorithms:          0x8000,
+				NRIntegrityProtectionAlgorithms: 0x4000,
+			},
+		},
+		{
+			name: "the seventh algorithm reaches the seventh bit",
+			in:   &fgs.UESecurityCapability{EA: nas.Algorithms(7), IA: nas.Algorithms(7)},
+			want: ngap.UESecurityCapabilities{
+				NREncryptionAlgorithms:          0x0200,
+				NRIntegrityProtectionAlgorithms: 0x0200,
+			},
+		},
+		{
+			name: "every algorithm the bitmaps carry",
+			in: &fgs.UESecurityCapability{
+				EA: nas.Algorithms(0, 1, 2, 3, 4, 5, 6, 7),
+				IA: nas.Algorithms(0, 1, 2, 3, 4, 5, 6, 7),
+			},
+			want: ngap.UESecurityCapabilities{
+				NREncryptionAlgorithms:          0xfe00,
+				NRIntegrityProtectionAlgorithms: 0xfe00,
+			},
+		},
+		{
+			name: "a UE supporting S1 mode carries its EPS algorithms too",
+			in: &fgs.UESecurityCapability{
+				EA:     nas.Algorithms(1, 2),
+				IA:     nas.Algorithms(2),
+				HasEPS: true,
+				EEA:    nas.Algorithms(1, 3),
+				EIA:    nas.Algorithms(2),
+			},
+			want: ngap.UESecurityCapabilities{
+				NREncryptionAlgorithms:             0xc000,
+				NRIntegrityProtectionAlgorithms:    0x4000,
+				EUTRAEncryptionAlgorithms:          0xa000,
+				EUTRAIntegrityProtectionAlgorithms: 0x4000,
+			},
+		},
+		{
+			name: "a UE without S1 mode advertises no EPS algorithms",
+			in: &fgs.UESecurityCapability{
+				EA:  nas.Algorithms(1),
+				IA:  nas.Algorithms(1),
+				EEA: nas.Algorithms(1, 2, 3),
+				EIA: nas.Algorithms(1, 2, 3),
+			},
+			want: ngap.UESecurityCapabilities{
+				NREncryptionAlgorithms:          0x8000,
+				NRIntegrityProtectionAlgorithms: 0x8000,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := util.SecurityCapabilitiesToNGAP(tt.in); got != tt.want {
+				t.Fatalf("got %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }

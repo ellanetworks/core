@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 38.413 §9.2.3.10. The target NG-RAN node asks the AMF to switch the
+// TS 38.413 §9.2.3.8. The target NG-RAN node asks the AMF to switch the
 // downlink user-plane path after an Xn handover. TS 36.413 §9.1.5.8 splits the
 // cell and tracking area into separate EUTRAN-CGI and TAI IEs where NGAP
 // carries one UserLocationInformation, and orders the session list second where
@@ -132,7 +132,7 @@ func ParsePathSwitchRequest(value []byte) (*PathSwitchRequest, error) {
 	return parseMessageBody[PathSwitchRequest](ProcPathSwitchRequest, TriggeringInitiatingMessage, pathSwitchRequestIEs, value)
 }
 
-// TS 38.413 §9.2.3.11. The AMF confirms the switch and hands the target the
+// TS 38.413 §9.2.3.9. The AMF confirms the switch and hands the target the
 // {NH, NCC} pair for its next key derivation. TS 36.413 §9.1.5.9 carries a
 // UEAggregateMaximumBitRate NGAP does not, and NGAP carries an AllowedNSSAI
 // S1AP does not.
@@ -308,7 +308,7 @@ func ParsePathSwitchRequestAcknowledge(value []byte) (*PathSwitchRequestAcknowle
 	return parseMessageBody[PathSwitchRequestAcknowledge](ProcPathSwitchRequest, TriggeringSuccessfulOutcome, pathSwitchRequestAcknowledgeIEs, value)
 }
 
-// TS 38.413 §9.2.3.12. The AMF refuses the switch. Where TS 36.413 §9.1.5.10
+// TS 38.413 §9.2.3.10. The AMF refuses the switch. Where TS 36.413 §9.1.5.10
 // names one Cause for the whole message, NGAP reports per session: every
 // session in the request is released, each with its own cause inside a
 // PathSwitchRequestUnsuccessfulTransfer.

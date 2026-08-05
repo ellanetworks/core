@@ -7,7 +7,7 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 38.413 §9.2.3.6. The AMF and the NG-RAN node cancel a prepared
+// TS 38.413 §9.2.3.11. The AMF and the NG-RAN node cancel a prepared
 // handover. TS 36.413 §9.1.5.11 carries the same three IEs.
 type HandoverCancel struct {
 	AMFUENGAPID AMFUENGAPID
@@ -79,7 +79,7 @@ func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
 	return parseMessageBody[HandoverCancel](ProcHandoverCancel, TriggeringInitiatingMessage, handoverCancelIEs, value)
 }
 
-// TS 38.413 §9.2.3.7. TS 36.413 §9.1.5.12 is identical.
+// TS 38.413 §9.2.3.12. TS 36.413 §9.1.5.12 is identical.
 type HandoverCancelAcknowledge struct {
 	AMFUENGAPID            *AMFUENGAPID
 	RANUENGAPID            *RANUENGAPID

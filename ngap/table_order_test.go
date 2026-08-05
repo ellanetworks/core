@@ -32,7 +32,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"InitialContextSetupFailure", tableIDs(initialContextSetupFailureIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idPDUSessionResourceFailedToSetupListCxtFail, idCause, idCriticalityDiagnostics}},
 		{"HandoverRequired", tableIDs(handoverRequiredIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idHandoverType, idCause, idTargetID, idDirectForwardingPathAvailability, idPDUSessionResourceListHORqd, idSourceToTargetTransparentContainer}},
 		{"HandoverCommand", tableIDs(handoverCommandIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idHandoverType, idNASSecurityParametersFromNGRAN, idPDUSessionResourceHandoverList, idPDUSessionResourceToReleaseListHOCmd, idTargetToSourceTransparentContainer, idCriticalityDiagnostics}},
-		{"HandoverPreparationFailure", tableIDs(handoverPreparationFailureIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idCause, idCriticalityDiagnostics}},
+		{"HandoverPreparationFailure", tableIDs(handoverPreparationFailureIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idCause, idCriticalityDiagnostics, idTargettoSourceFailureTransparentContainer}},
 		{"HandoverRequest", tableIDs(handoverRequestIEs), []ProtocolIEID{idAMFUENGAPID, idHandoverType, idCause, idUEAggregateMaximumBitRate, idUESecurityCapabilities, idSecurityContext, idPDUSessionResourceSetupListHOReq, idAllowedNSSAI, idSourceToTargetTransparentContainer, idGUAMI}},
 		{"HandoverRequestAcknowledge", tableIDs(handoverRequestAcknowledgeIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idPDUSessionResourceAdmittedList, idPDUSessionResourceFailedToSetupListHOAck, idTargetToSourceTransparentContainer, idCriticalityDiagnostics}},
 		{"HandoverFailure", tableIDs(handoverFailureIEs), []ProtocolIEID{idAMFUENGAPID, idCause, idCriticalityDiagnostics, idTargettoSourceFailureTransparentContainer}},
@@ -69,6 +69,11 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"UplinkRANConfigurationTransfer", tableIDs(uplinkRANConfigurationTransferIEs), []ProtocolIEID{idSONConfigurationTransferUL}},
 		{"DownlinkRANConfigurationTransfer", tableIDs(downlinkRANConfigurationTransferIEs), []ProtocolIEID{idSONConfigurationTransferDL}},
 		{"RANConfigurationUpdateFailure", tableIDs(rANConfigurationUpdateFailureIEs), []ProtocolIEID{idCause, idTimeToWait, idCriticalityDiagnostics}},
+
+		// The §9.3.4 transfer containers reuse the ProtocolIE-Container shape, so
+		// their rows are ordered by the same rule.
+		{"PDUSessionResourceSetupRequestTransfer", tableIDs(pDUSessionResourceSetupRequestTransferIEs), []ProtocolIEID{idPDUSessionAggregateMaximumBitRate, idULNGUUPTNLInformation, idAdditionalULNGUUPTNLInformation, idDataForwardingNotPossible, idPDUSessionType, idSecurityIndication, idNetworkInstance, idQosFlowSetupRequestList}},
+		{"PDUSessionResourceModifyRequestTransfer", tableIDs(pDUSessionResourceModifyRequestTransferIEs), []ProtocolIEID{idPDUSessionAggregateMaximumBitRate, idULNGUUPTNLModifyList, idNetworkInstance, idQosFlowAddOrModifyRequestList, idQosFlowToReleaseList, idAdditionalULNGUUPTNLInformation}},
 	}
 
 	for _, tt := range tests {

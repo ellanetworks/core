@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"encoding/hex"
+	"errors"
 	"testing"
 )
 
@@ -214,5 +215,76 @@ func TestPathSwitchRequestAcknowledgeRefusesMissingMandatoryIEs(t *testing.T) {
 				t.Errorf("encoded a PATH SWITCH REQUEST ACKNOWLEDGE with no %s", tt.name)
 			}
 		})
+	}
+}
+
+// §9.2.3.10 makes the released list mandatory in PATH SWITCH REQUEST FAILURE,
+// so answering a rejected PATH SWITCH REQUEST with that message needs the
+// sessions it asked to switch. They are recovered from the IEs the failed
+// decode still collected.
+func TestPathSwitchSessionsSurviveRejection(t *testing.T) {
+	transfer, err := (&PathSwitchRequestTransfer{
+		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
+			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		}},
+		QosFlowAccepted: QosFlowAcceptedList{{QosFlowIdentifier: 1}},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uli := pathSwitchULI()
+	caps := UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000}
+	sessions := PDUSessionResourceToBeSwitchedDLList{{PDUSessionID: 5, Transfer: transfer}}
+
+	fields := []ieField{
+		{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
+		{id: idSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
+		{id: idUserLocationInformation, crit: CriticalityIgnore, val: &uli},
+		{id: idUESecurityCapabilities, crit: CriticalityIgnore, val: &caps},
+		{id: idPDUSessionResourceToBeSwitchedDLList, crit: CriticalityReject, val: sessions},
+	}
+
+	// §10.3.6: the same IE twice is a falsely constructed message.
+	value := container(t, append(fields, fields[0])...)
+
+	_, err = ParsePathSwitchRequest(value)
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
+	}
+
+	got := ase.PathSwitchSessions()
+	if len(got) != 1 || got[0].PDUSessionID != 5 {
+		t.Fatalf("PathSwitchSessions = %+v, want one item for PDU session 5", got)
+	}
+
+	amfID, ranID := ase.UEIDs()
+	if deref(amfID) != 1 || deref(ranID) != 2 {
+		t.Fatalf("UEIDs = %v/%v, want 1/2", amfID, ranID)
+	}
+}
+
+// Without the list the failure message cannot be built, and §10.3.5 sends an
+// Error Indication instead.
+func TestPathSwitchSessionsAbsent(t *testing.T) {
+	uli := pathSwitchULI()
+
+	value := container(t,
+		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
+		ieField{id: idSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
+		ieField{id: idUserLocationInformation, crit: CriticalityIgnore, val: &uli},
+	)
+
+	_, err := ParsePathSwitchRequest(value)
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
+	}
+
+	if got := ase.PathSwitchSessions(); got != nil {
+		t.Fatalf("PathSwitchSessions = %+v, want nil", got)
 	}
 }
