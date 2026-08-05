@@ -11,11 +11,14 @@ import (
 )
 
 type PathSwitchRequestOpts struct {
-	RANUENGAPID            int64
-	SourceAMFUENGAPID      int64
-	PDUSessions            [16]*PDUSessionInformation
-	N3GnbIp                netip.Addr
-	UESecurityCapabilities *ngap.UESecurityCapabilities
+	RANUENGAPID       int64
+	SourceAMFUENGAPID int64
+	PDUSessions       [16]*PDUSessionInformation
+	N3GnbIp           netip.Addr
+	// UESecurityCapabilities is mandatory in a PATH SWITCH REQUEST
+	// (TS 38.413 §9.2.3.4), so it is a value rather than an optional pointer.
+	// internal/tester/s1enb passes its S1AP counterpart by value too.
+	UESecurityCapabilities ngap.UESecurityCapabilities
 	Mcc                    string
 	Mnc                    string
 	Tac                    string
@@ -58,7 +61,7 @@ func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
 		RANUENGAPID:                          ngap.RANUENGAPID(opts.RANUENGAPID),
 		SourceAMFUENGAPID:                    ngap.AMFUENGAPID(opts.SourceAMFUENGAPID),
 		UserLocationInformation:              &uli,
-		UESecurityCapabilities:               opts.UESecurityCapabilities,
+		UESecurityCapabilities:               &opts.UESecurityCapabilities,
 		PDUSessionResourceToBeSwitchedDLList: dlList,
 	}
 
