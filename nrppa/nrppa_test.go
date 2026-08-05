@@ -17,7 +17,7 @@ func TestRoundTrip_Response_NRTimingAndAngle(t *testing.T) {
 	zenith := int64(450)
 
 	result := &ECIDResult{
-		ServingCell: ServingCell{
+		ServingCell: NGRANCGI{
 			PLMNIdentity:   []byte{0x00, 0xf1, 0x10},
 			NRCellIdentity: &nrCell,
 		},
@@ -137,16 +137,6 @@ func TestRoundTrip_ECIDMeasurementInitiationRequest(t *testing.T) {
 			t.Errorf("quantity[%d]: got %d, want %d", i, req.MeasurementQuantities[i], q)
 		}
 	}
-
-	// ParseECIDMeasurementInitiationRequest should agree.
-	req2, err := ParseECIDMeasurementInitiationRequest(encoded)
-	if err != nil {
-		t.Fatalf("ParseECIDMeasurementInitiationRequest: %v", err)
-	}
-
-	if req2.LMFUEMeasurementID != lmfMeasID || len(req2.MeasurementQuantities) != len(quantities) {
-		t.Errorf("ParseECIDMeasurementInitiationRequest mismatch: %+v", req2)
-	}
 }
 
 // TestRoundTrip_ECIDMeasurementInitiationResponse is Stage B: a Response with an
@@ -162,7 +152,7 @@ func TestRoundTrip_ECIDMeasurementInitiationResponse(t *testing.T) {
 	ta1 := int64(123)
 
 	result := &ECIDResult{
-		ServingCell: ServingCell{
+		ServingCell: NGRANCGI{
 			PLMNIdentity:   []byte{0x00, 0xf1, 0x10},
 			NRCellIdentity: &nrCell,
 		},
@@ -256,7 +246,7 @@ func TestRoundTrip_Response_EUTRACell(t *testing.T) {
 	eutraCell := uint64(0x0ABCDEF) // 28-bit
 
 	result := &ECIDResult{
-		ServingCell: ServingCell{
+		ServingCell: NGRANCGI{
 			PLMNIdentity: []byte{0x02, 0xf8, 0x39},
 			EUTRACellID:  &eutraCell,
 		},
@@ -302,23 +292,15 @@ func TestRoundTrip_Response_NRMeasurements(t *testing.T) {
 	csirsrqVal := int64(25)
 
 	result := &ECIDResult{
-		ServingCell: ServingCell{
+		ServingCell: NGRANCGI{
 			PLMNIdentity:   []byte{0x00, 0xf1, 0x10},
 			NRCellIdentity: &nrCell,
 		},
 		ServingCellTAC: []byte{0x00, 0x00, 0x01},
-		ResultSSRSRP: &SSRSRPResult{
-			Items: []SSRSRPItem{{NRPCI: 1, Value: ssrsrpVal}},
-		},
-		ResultSSRSRQ: &SSRSRQResult{
-			Items: []SSRSRQItem{{NRPCI: 1, Value: ssrsrqVal}},
-		},
-		ResultCSIRSRP: &CSIRSRPResult{
-			Items: []CSIRSRPItem{{NRPCI: 1, Value: csirsrpVal}},
-		},
-		ResultCSIRSRQ: &CSIRSRQResult{
-			Items: []CSIRSRQItem{{NRPCI: 1, Value: csirsrqVal}},
-		},
+		SSRSRP:         []SSRSRPItem{{NRPCI: 1, NRARFCN: 368410, Value: &ssrsrpVal}},
+		SSRSRQ:         []SSRSRQItem{{NRPCI: 1, NRARFCN: 368410, Value: &ssrsrqVal}},
+		CSIRSRP:        []CSIRSRPItem{{NRPCI: 1, NRARFCN: 368410, Value: &csirsrpVal}},
+		CSIRSRQ:        []CSIRSRQItem{{NRPCI: 1, NRARFCN: 368410, Value: &csirsrqVal}},
 	}
 
 	encoded, err := BuildECIDMeasurementInitiationResponse(1, 2, result)
@@ -337,20 +319,24 @@ func TestRoundTrip_Response_NRMeasurements(t *testing.T) {
 
 	got := parsed.Response.Result
 
-	if got.ResultSSRSRP == nil || len(got.ResultSSRSRP.Items) != 1 || got.ResultSSRSRP.Items[0].Value != ssrsrpVal {
-		t.Errorf("SS-RSRP: got %+v, want value=%d", got.ResultSSRSRP, ssrsrpVal)
+	if len(got.SSRSRP) != 1 || got.SSRSRP[0].Value == nil || *got.SSRSRP[0].Value != ssrsrpVal {
+		t.Errorf("SS-RSRP: got %+v, want value=%d", got.SSRSRP, ssrsrpVal)
 	}
 
-	if got.ResultSSRSRQ == nil || len(got.ResultSSRSRQ.Items) != 1 || got.ResultSSRSRQ.Items[0].Value != ssrsrqVal {
-		t.Errorf("SS-RSRQ: got %+v, want value=%d", got.ResultSSRSRQ, ssrsrqVal)
+	if len(got.SSRSRQ) != 1 || got.SSRSRQ[0].Value == nil || *got.SSRSRQ[0].Value != ssrsrqVal {
+		t.Errorf("SS-RSRQ: got %+v, want value=%d", got.SSRSRQ, ssrsrqVal)
 	}
 
-	if got.ResultCSIRSRP == nil || len(got.ResultCSIRSRP.Items) != 1 || got.ResultCSIRSRP.Items[0].Value != csirsrpVal {
-		t.Errorf("CSI-RSRP: got %+v, want value=%d", got.ResultCSIRSRP, csirsrpVal)
+	if len(got.CSIRSRP) != 1 || got.CSIRSRP[0].Value == nil || *got.CSIRSRP[0].Value != csirsrpVal {
+		t.Errorf("CSI-RSRP: got %+v, want value=%d", got.CSIRSRP, csirsrpVal)
 	}
 
-	if got.ResultCSIRSRQ == nil || len(got.ResultCSIRSRQ.Items) != 1 || got.ResultCSIRSRQ.Items[0].Value != csirsrqVal {
-		t.Errorf("CSI-RSRQ: got %+v, want value=%d", got.ResultCSIRSRQ, csirsrqVal)
+	if len(got.CSIRSRQ) != 1 || got.CSIRSRQ[0].Value == nil || *got.CSIRSRQ[0].Value != csirsrqVal {
+		t.Errorf("CSI-RSRQ: got %+v, want value=%d", got.CSIRSRQ, csirsrqVal)
+	}
+
+	if got.SSRSRP[0].NRARFCN != 368410 {
+		t.Errorf("SS-RSRP NR-ARFCN: got %d, want 368410", got.SSRSRP[0].NRARFCN)
 	}
 }
 
@@ -378,5 +364,117 @@ func TestRoundTrip_Response_NoResult(t *testing.T) {
 
 	if parsed.Response.Result != nil {
 		t.Errorf("expected nil result, got %+v", parsed.Response.Result)
+	}
+}
+
+// TestRoundTrip_ECIDMeasurementInitiationFailure is Stage A: it exercises the
+// whole envelope / open-type / CHOICE machinery by building a Failure PDU
+// (LMF-UE-Measurement-ID + Cause radioNetwork=unspecified), encoding it,
+// decoding it, and asserting the fields survive the round trip.
+func TestRoundTrip_ECIDMeasurementInitiationFailure(t *testing.T) {
+	const lmfMeasID = int64(7)
+
+	cause := Cause{Group: CauseGroupRadioNetwork, Value: 0} // unspecified
+
+	encoded, err := BuildECIDMeasurementInitiationFailure(lmfMeasID, cause)
+	if err != nil {
+		t.Fatalf("BuildECIDMeasurementInitiationFailure: %v", err)
+	}
+
+	if len(encoded) == 0 {
+		t.Fatal("encoded PDU is empty")
+	}
+
+	parsed, err := ParsePDU(encoded)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	if parsed.Kind != KindECIDMeasurementInitiationFailure {
+		t.Fatalf("kind: got %d, want KindECIDMeasurementInitiationFailure", parsed.Kind)
+	}
+
+	if parsed.Failure == nil {
+		t.Fatal("parsed.Failure is nil")
+	}
+
+	if parsed.Failure.LMFUEMeasurementID != lmfMeasID {
+		t.Errorf("LMF-UE-Measurement-ID: got %d, want %d", parsed.Failure.LMFUEMeasurementID, lmfMeasID)
+	}
+
+	if parsed.Failure.Cause.Group != CauseGroupRadioNetwork {
+		t.Errorf("cause group: got %d, want CauseGroupRadioNetwork", parsed.Failure.Cause.Group)
+	}
+
+	if parsed.Failure.Cause.Value != 0 {
+		t.Errorf("cause value: got %d, want 0 (unspecified)", parsed.Failure.Cause.Value)
+	}
+}
+
+// TestRoundTrip_ECIDFailure_CauseProtocol checks an extensible-ENUMERATED Cause
+// value (protocol/semantic-error) survives the round trip.
+func TestRoundTrip_ECIDFailure_CauseProtocol(t *testing.T) {
+	const lmfMeasID = int64(3)
+
+	cause := Cause{Group: CauseGroupProtocol, Value: 4} // semantic-error
+
+	encoded, err := BuildECIDMeasurementInitiationFailure(lmfMeasID, cause)
+	if err != nil {
+		t.Fatalf("BuildECIDMeasurementInitiationFailure: %v", err)
+	}
+
+	parsed, err := ParsePDU(encoded)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	if parsed.Kind != KindECIDMeasurementInitiationFailure || parsed.Failure == nil {
+		t.Fatalf("unexpected parse result: %+v", parsed)
+	}
+
+	if parsed.Failure.LMFUEMeasurementID != lmfMeasID {
+		t.Errorf("LMF-UE-Measurement-ID: got %d, want %d", parsed.Failure.LMFUEMeasurementID, lmfMeasID)
+	}
+
+	if parsed.Failure.Cause.Group != CauseGroupProtocol || parsed.Failure.Cause.Value != 4 {
+		t.Errorf("cause: got group=%d value=%d, want group=protocol value=4",
+			parsed.Failure.Cause.Group, parsed.Failure.Cause.Value)
+	}
+}
+
+// TestParse_ECIDMeasurementFailureIndication decodes an E-CIDMeasurementFailure
+// Indication (TS 38.455 §9.1.3) captured from a real gNB (initiatingMessage,
+// procedureCode 3). It guards that the LMF recognises the RAN telling it a
+// measurement it accepted can no longer be provided, rather than treating the
+// PDU as unknown and waiting out the measurement timeout.
+func TestParse_ECIDMeasurementFailureIndication(t *testing.T) {
+	// NRPPa-PDU extracted from the captured NGAP UplinkUEAssociatedNRPPaTransport.
+	pdu := []byte{
+		0x00, 0x03, 0x00, 0x00, 0x01, 0x12, 0x00, 0x00,
+		0x03, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x06,
+		0x00, 0x01, 0x00, 0x00, 0x00, 0x40, 0x01, 0x10,
+	}
+
+	parsed, err := ParsePDU(pdu)
+	if err != nil {
+		t.Fatalf("ParsePDU: %v", err)
+	}
+
+	if parsed.Kind != KindECIDMeasurementFailureIndication || parsed.FailureIndication == nil {
+		t.Fatalf("kind: got %d indication=%v, want FailureIndication", parsed.Kind, parsed.FailureIndication)
+	}
+
+	ind := parsed.FailureIndication
+	if ind.LMFUEMeasurementID != 1 {
+		t.Errorf("LMF-UE-Measurement-ID: got %d, want 1", ind.LMFUEMeasurementID)
+	}
+
+	if ind.RANUEMeasurementID != 1 {
+		t.Errorf("RAN-UE-Measurement-ID: got %d, want 1", ind.RANUEMeasurementID)
+	}
+
+	if ind.Cause.Group != CauseGroupRadioNetwork || ind.Cause.Value != 2 {
+		t.Errorf("cause: got group=%d value=%d, want radioNetwork/requested-item-temporarily-not-available (0/2)",
+			ind.Cause.Group, ind.Cause.Value)
 	}
 }

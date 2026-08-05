@@ -6,7 +6,7 @@ package gnb
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/nrppa"
+	"github.com/ellanetworks/core/nrppa"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -21,6 +21,10 @@ const (
 	sampleUERxTxTimeDiff  int64 = 1200 // UE Rx-Tx Time Difference (0..61565)
 	sampleAoAAzimuth      int64 = 900  // 0.1° units → 90.0°
 	sampleAoAZenith       int64 = 450  // 0.1° units → 45.0°
+	sampleNRPCI           int64 = 1    // NR-PCI (0..1007)
+	sampleNRARFCN         int64 = 368410
+	sampleSSRSRP          int64 = 59 // 0..127 (TS 38.133 §10.1.6)
+	sampleSSRSRQ          int64 = 66 // 0..127 (TS 38.133 §10.1.11)
 )
 
 var (
@@ -61,9 +65,11 @@ func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NG
 	nrTA := sampleNRTimingAdvance
 	rxTx := sampleUERxTxTimeDiff
 	zenith := sampleAoAZenith
+	ssRSRP := sampleSSRSRP
+	ssRSRQ := sampleSSRSRQ
 
 	result := &nrppa.ECIDResult{
-		ServingCell: nrppa.ServingCell{
+		ServingCell: nrppa.NGRANCGI{
 			PLMNIdentity:   samplePLMNIdentity,
 			NRCellIdentity: &nrCell,
 		},
@@ -76,6 +82,8 @@ func BuildNRPPaECIDMeasurementResponse(opts *NRPPaECIDResponseOpts) (ngapType.NG
 			AzimuthRaw: sampleAoAAzimuth,
 			ZenithRaw:  &zenith,
 		},
+		SSRSRP: []nrppa.SSRSRPItem{{NRPCI: sampleNRPCI, NRARFCN: sampleNRARFCN, Value: &ssRSRP}},
+		SSRSRQ: []nrppa.SSRSRQItem{{NRPCI: sampleNRPCI, NRARFCN: sampleNRARFCN, Value: &ssRSRQ}},
 	}
 
 	nrppaPdu, err := nrppa.BuildECIDMeasurementInitiationResponse(

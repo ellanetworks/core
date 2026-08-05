@@ -6,7 +6,7 @@ package gnb
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/nrppa"
+	"github.com/ellanetworks/core/nrppa"
 	"github.com/free5gc/ngap/ngapType"
 )
 

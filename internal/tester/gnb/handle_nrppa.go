@@ -6,8 +6,8 @@ package gnb
 import (
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/nrppa"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/nrppa"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -46,11 +46,17 @@ func handleDownlinkUEAssociatedNRPPaTransport(gnb *GnodeB, msg *ngapType.Downlin
 	)
 
 	// Decode the NRPPa PDU and respond to E-CID measurement initiation requests.
-	req, err := nrppa.ParseECIDMeasurementInitiationRequest(nrppaPdu)
+	parsed, err := nrppa.ParsePDU(nrppaPdu)
 	if err != nil {
-		logger.GnbLogger.Warn("Ignoring non-E-CID-request NRPPa PDU", zap.Error(err))
+		logger.GnbLogger.Warn("Ignoring undecodable NRPPa PDU", zap.Error(err))
 		return nil
 	}
+
+	if parsed.Kind != nrppa.KindECIDMeasurementInitiationRequest {
+		return nil
+	}
+
+	req := parsed.Request
 
 	logger.GnbLogger.Debug("Decoded NRPPa E-CIDMeasurementInitiationRequest",
 		zap.Int64("lmfMeasurementID", req.LMFUEMeasurementID),

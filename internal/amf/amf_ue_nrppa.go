@@ -38,8 +38,9 @@ func (ue *UeContext) GetRadioMeasurements() *lmfmodels.RadioMeasurements {
 
 // NRPPaMessage holds a raw NRPPa PDU received from the RAN. The PDU is an
 // opaque octet string carried over NGAP UE-associated transport; it is decoded
-// by the LMF (internal/nrppa). Correlation is by the LMF-UE-Measurement-ID
-// carried inside the decoded PDU, not by any AMF-side field.
+// by the LMF (github.com/ellanetworks/core/nrppa). Correlation is by the
+// LMF-UE-Measurement-ID carried inside the decoded PDU, not by any AMF-side
+// field.
 type NRPPaMessage struct {
 	Payload   []byte
 	Timestamp time.Time

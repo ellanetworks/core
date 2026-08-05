@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/nrppa"
+	"github.com/ellanetworks/core/nrppa"
 )
 
 // buildECIDResponsePDU builds an E-CIDMeasurementInitiationResponse PDU carrying
@@ -20,7 +20,7 @@ func buildECIDResponsePDU(t *testing.T, lmfMeasID, ranMeasID, ta int64) []byte {
 	nrCell := uint64(0x123456789)
 
 	result := &nrppa.ECIDResult{
-		ServingCell: nrppa.ServingCell{
+		ServingCell: nrppa.NGRANCGI{
 			PLMNIdentity:   []byte{0x00, 0xf1, 0x10},
 			NRCellIdentity: &nrCell,
 		},
@@ -125,7 +125,8 @@ func TestMatchMeasurementResponse(t *testing.T) {
 	})
 
 	t.Run("failure with different measurement id still reported", func(t *testing.T) {
-		failPDU, err := nrppa.BuildECIDMeasurementInitiationFailure(99, nrppa.Cause{Group: nrppa.CauseGroupRadioNetwork, Value: 0})
+		// 9 is a valid UE-Measurement-ID (root range 1..15) other than measID.
+		failPDU, err := nrppa.BuildECIDMeasurementInitiationFailure(9, nrppa.Cause{Group: nrppa.CauseGroupRadioNetwork, Value: 0})
 		if err != nil {
 			t.Fatalf("BuildECIDMeasurementInitiationFailure: %v", err)
 		}

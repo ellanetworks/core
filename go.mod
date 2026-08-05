@@ -53,6 +53,7 @@ require (
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/ngap v0.0.0-00010101000000-000000000000
+	github.com/ellanetworks/core/nrppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0 // indirect
@@ -132,5 +133,7 @@ replace github.com/ellanetworks/core/s1ap => ./s1ap
 replace github.com/ellanetworks/core/nas => ./nas
 
 replace github.com/ellanetworks/core/ngap => ./ngap
+
+replace github.com/ellanetworks/core/nrppa => ./nrppa
 
 replace github.com/ellanetworks/core/per => ./per

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/nrppa"
 	lib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/nrppa"
 )
 
 // buildDownlinkUEAssociatedNRPPaTransportRaw assembles a raw NGAP
