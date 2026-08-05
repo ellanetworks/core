@@ -23,6 +23,7 @@
 
 #include <linux/bpf.h>
 #include <linux/types.h>
+#include <stdbool.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 #include <linux/icmp.h>
@@ -32,6 +33,9 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 
+#include "bpf/utils/common.h"
+#include "bpf/utils/frag.h"
+#include "bpf/utils/ip_addr.h"
 #include "bpf/utils/packet_context.h"
 #include "bpf/utils/trace.h"
 #include <sys/cdefs.h>
@@ -66,8 +70,10 @@ static __always_inline int parse_ethernet(struct packet_context *ctx)
 	return bpf_ntohs(eth->h_proto);
 }
 
-/* 0x3FFF mask to check for fragment offset field */
-#define IP_FRAGMENTED 65343
+/* frag_off without the flag bits. IP4_FRAG_MASK in nat_ct.h is the wider test
+ * that also catches the more-fragments flag. */
+#define IP4_FRAG_OFFSET_MASK 0x1FFF
+#define IP4_MORE_FRAGMENTS 0x2000
 
 static __always_inline struct iphdr *
 detect_ip4_header(struct packet_context *ctx)
@@ -86,33 +92,305 @@ static __always_inline int parse_ip4(struct packet_context *ctx)
 		return -1;
 	}
 
-	/* do not support fragmented packets as L4 headers may be missing */
-	// if (ip4->frag_off & IP_FRAGMENTED)
-	//	return -1;
-
-	/* An ihl below the 20-byte minimum would place the L4 header inside
-	 * the IP header (RFC 791 section 3.1). */
+	/* Below the 20-byte minimum the L4 header would sit inside the IP
+	 * header (RFC 791 §3.1). */
 	if (ip4->ihl < 5) {
 		return -1;
 	}
 
 	ctx->data += ip4->ihl * 4; /* header + options */
 	ctx->ip4 = ip4;
+	ctx->l3_hdr_len = ip4->ihl * 4;
+	ctx->l4_proto = ip4->protocol;
+
+	const __u16 frag_off = bpf_ntohs(ip4->frag_off);
+
+	ctx->is_fragment = (frag_off & (IP4_FRAG_OFFSET_MASK | IP4_MORE_FRAGMENTS)) != 0;
+
+	/* Offset field alone (RFC 791 §3.1): more-fragments also marks the first
+	 * fragment, which does carry the header. */
+	if (frag_off & IP4_FRAG_OFFSET_MASK)
+		ctx->l4_unavailable = 1;
+
+	/* RFC 3128 §3: both shapes move the TCP flags out of the first
+	 * fragment, past a filter reading them. */
+	if (ip4->protocol == IPPROTO_TCP) {
+		const __u16 offset = frag_off & IP4_FRAG_OFFSET_MASK;
+
+		if (offset == 1) {
+			set_drop_reason(ctx, UPF_DROP_FRAGMENT_MALFORMED);
+			return -1;
+		}
+
+		if (offset == 0 && (frag_off & IP4_MORE_FRAGMENTS) &&
+		    bounded_u16(bpf_ntohs(ip4->tot_len)) <
+			    (__u32)ctx->l3_hdr_len + sizeof(struct tcphdr)) {
+			set_drop_reason(ctx, UPF_DROP_FRAGMENT_MALFORMED);
+			return -1;
+		}
+	}
+
 	return ip4->protocol;
 }
 
-static __always_inline int parse_ip6(struct packet_context *ctx)
+/* RFC 8200 §4.5. The uapi headers do not export this one. */
+struct ipv6_frag_hdr {
+	__u8 nexthdr;
+	__u8 reserved;
+	__be16 frag_off;
+	__be32 identification;
+} __attribute__((packed));
+
+/* The low three bits are reserved bits and the more-fragments flag. */
+#define IPV6_FRAG_OFFSET_MASK 0xfff8
+#define IPV6_MORE_FRAGMENTS 0x0001
+
+/* RFC 8200 §4.1. ESP and IPPROTO_NONE end the chain: no readable upper
+ * layer. */
+static __always_inline bool ipv6_is_ext_hdr(__u8 nexthdr)
+{
+	switch (nexthdr) {
+	case IPPROTO_HOPOPTS:
+	case IPPROTO_ROUTING:
+	case IPPROTO_DSTOPTS:
+	case IPPROTO_FRAGMENT:
+	case IPPROTO_AH:
+		return true;
+	default:
+		return false;
+	}
+}
+
+/* The outer IPv6 header of a GTP-U tunnel. No chain walk: nothing filters on
+ * the tunnel transport. */
+static __always_inline int parse_ip6_transport(struct packet_context *ctx)
 {
 	struct ipv6hdr *ip6 = (struct ipv6hdr *)ctx->data;
 	if ((const void *)(ip6 + 1) > ctx->data_end) {
 		return -1;
 	}
 
-	/* TODO: Add extention headers support */
-
 	ctx->data += sizeof(*ip6);
 	ctx->ip6 = ip6;
+	ctx->l3_hdr_len = sizeof(*ip6);
+	ctx->l4_proto = ip6->nexthdr;
+
 	return ip6->nexthdr;
+}
+
+static __always_inline bool ipv6_load_l4_ports(struct __ctx_buff *ctx_buff,
+					       __u32 l4_off, __u8 proto,
+					       __u16 *sport, __u16 *dport)
+{
+	__be16 ports[2];
+
+	if (proto != IPPROTO_TCP && proto != IPPROTO_UDP)
+		return true;
+
+	if (ctx_load_bytes(ctx_buff, l4_off, ports, sizeof(ports)) < 0)
+		return false;
+
+	*sport = bpf_ntohs(ports[0]);
+	*dport = bpf_ntohs(ports[1]);
+
+	return true;
+}
+
+struct ipv6_chain {
+	__u16 l3_hdr_len;
+	__u16 sport;
+	__u16 dport;
+	__u8 proto;
+	/* Upper-layer header exists but is not in this packet. */
+	__u8 unavailable;
+	/* Chain truncated, malformed, or longer than the walk covers. */
+	__u8 invalid;
+	/* A fragment of a larger datagram, first or later. */
+	__u8 is_fragment;
+	__be32 id;
+};
+
+/* Global, so it is verified once: inlined, its paths are re-explored for every
+ * state the caller reaches, which put upf_downlink_func over the verifier's
+ * instruction budget. That fixes the scalar-only interface, and the offset
+ * form: a packet pointer cannot cross the call, and one advanced by a variable
+ * length leaves each downstream state with its own range.
+ *
+ * Mixing BPF-to-BPF calls with tail calls needs kernel 5.10; we require 6.8. */
+__noinline __weak int ipv6_walk_chain(struct __ctx_buff *ctx_buff,
+				      __u32 l3_off, __u32 first_nexthdr,
+				      struct ipv6_chain *out)
+{
+	/* A global function's pointer argument is nullable to the verifier. */
+	if (!out)
+		return -1;
+
+	const __u32 chain_off = l3_off + sizeof(struct ipv6hdr);
+	__u32 chain_len = 0;
+	__u8 nexthdr = (__u8)first_nexthdr;
+
+	out->sport = 0;
+	out->dport = 0;
+	out->proto = IPPROTO_NONE;
+	out->unavailable = 0;
+	out->invalid = 0;
+	out->is_fragment = 0;
+	out->id = 0;
+
+#pragma clang loop unroll(disable)
+	for (int i = 0; i < IPV6_MAX_EXT_HEADERS; i++) {
+		/* RFC 8200 §4.7: the chain ends and nothing follows it. */
+		if (nexthdr == IPPROTO_NONE)
+			goto no_upper_layer;
+
+		if (!ipv6_is_ext_hdr(nexthdr))
+			goto resolved;
+
+		struct ipv6_opt_hdr ext;
+
+		if (ctx_load_bytes(ctx_buff, chain_off + chain_len, &ext,
+				   sizeof(ext)) < 0)
+			goto unparsable;
+
+		__u32 ext_len;
+
+		if (nexthdr == IPPROTO_FRAGMENT) {
+			struct ipv6_frag_hdr frag;
+
+			if (ctx_load_bytes(ctx_buff, chain_off + chain_len,
+					   &frag, sizeof(frag)) < 0)
+				goto unparsable;
+
+			/* RFC 6946: offset 0 with M clear is a whole datagram. */
+			if (frag.frag_off &
+			    bpf_htons(IPV6_FRAG_OFFSET_MASK | IPV6_MORE_FRAGMENTS))
+				out->is_fragment = 1;
+
+			out->id = frag.identification;
+
+			/* Past this the bytes are payload. The fragment
+			 * header's next-header is the same in every fragment so
+			 * it still names the protocol — unless it names another
+			 * extension header, which is in the payload. */
+			if (frag.frag_off & bpf_htons(IPV6_FRAG_OFFSET_MASK)) {
+				out->unavailable = 1;
+				chain_len += sizeof(frag);
+				nexthdr = frag.nexthdr;
+
+				if (ipv6_is_ext_hdr(nexthdr) ||
+				    nexthdr == IPPROTO_NONE)
+					goto unparsable;
+
+				goto resolved;
+			}
+
+			ext_len = sizeof(frag);
+		} else if (nexthdr == IPPROTO_AH) {
+			/* RFC 4302 §2.2: length in 4-octet units, less two. */
+			ext_len = ((__u32)ext.hdrlen + 2) * 4;
+		} else {
+			/* RFC 8200: length in 8-octet units, not counting the
+			 * first. */
+			ext_len = ((__u32)ext.hdrlen + 1) * 8;
+		}
+
+		if (ext_len < sizeof(ext) ||
+		    chain_len + ext_len > IPV6_MAX_EXT_CHAIN_LEN)
+			goto unparsable;
+
+		nexthdr = ext.nexthdr;
+		chain_len += ext_len;
+	}
+
+	/* Loop ran out before the chain did. */
+	if (ipv6_is_ext_hdr(nexthdr))
+		goto unparsable;
+
+resolved:
+	out->l3_hdr_len = sizeof(struct ipv6hdr) + chain_len;
+	out->proto = nexthdr;
+
+	if (!out->unavailable &&
+	    !ipv6_load_l4_ports(ctx_buff, chain_off + chain_len, nexthdr,
+				&out->sport, &out->dport))
+		out->unavailable = 1;
+
+	return 0;
+
+no_upper_layer:
+	out->l3_hdr_len = sizeof(struct ipv6hdr) + chain_len;
+	out->proto = IPPROTO_NONE;
+	out->unavailable = 1;
+
+	return 0;
+
+unparsable:
+	out->invalid = 1;
+	out->unavailable = 1;
+	out->proto = IPPROTO_NONE;
+	out->l3_hdr_len = sizeof(struct ipv6hdr) + chain_len;
+
+	return 0;
+}
+
+/* Reported on the context, not as a parse failure: the packet is still IPv6 and
+ * may belong to a session, which only the owning stage can decide. */
+static __always_inline void ipv6_walk_ext_chain(struct packet_context *ctx,
+						__u8 nexthdr, __u32 l3_off)
+{
+	/* The verifier checks caller and callee separately: the callee's writes
+	 * do not count as the caller initializing this. */
+	struct ipv6_chain chain = {};
+
+	ctx->l4_resolved = 1;
+
+	if (ipv6_walk_chain(ctx->ctx_buff, l3_off, nexthdr, &chain) < 0) {
+		ctx->exthdr_invalid = 1;
+		ctx->l4_unavailable = 1;
+		ctx->l4_proto = IPPROTO_NONE;
+		ctx->l3_hdr_len = sizeof(struct ipv6hdr);
+
+		return;
+	}
+
+	ctx->l3_hdr_len = chain.l3_hdr_len;
+	ctx->l4_proto = chain.proto;
+	ctx->l4_sport = chain.sport;
+	ctx->l4_dport = chain.dport;
+	ctx->l4_unavailable = chain.unavailable ? 1 : 0;
+	ctx->exthdr_invalid = chain.invalid ? 1 : 0;
+	ctx->is_fragment = chain.is_fragment ? 1 : 0;
+	ctx->frag_id6 = chain.id;
+
+	/* Recording waits for a session; recovering cannot, the ports are what
+	 * the SDF rules match on. */
+	frag_resolve6(ctx);
+}
+
+/* The subscriber-packet parse: resolves the upper-layer protocol and ports a
+ * scoped SDF rule matches on (RFC 7045). */
+static __always_inline int parse_ip6(struct packet_context *ctx)
+{
+	int nexthdr = parse_ip6_transport(ctx);
+	if (nexthdr < 0) {
+		return -1;
+	}
+
+	if (nexthdr == IPPROTO_NONE) {
+		ctx->l4_unavailable = 1;
+		ctx->l4_resolved = 1;
+
+		return nexthdr;
+	}
+
+	if (!ipv6_is_ext_hdr((__u8)nexthdr)) {
+		return nexthdr;
+	}
+
+	ipv6_walk_ext_chain(ctx, (__u8)nexthdr,
+			    ctx_frame_offset(ctx->ctx_buff, ctx->ip6));
+
+	return ctx->l4_proto;
 }
 
 static __always_inline struct udphdr *
@@ -137,6 +415,9 @@ static __always_inline int parse_udp(struct packet_context *ctx)
 
 	ctx->data += sizeof(*udp);
 	ctx->udp = udp;
+	ctx->l4_sport = bpf_ntohs(udp->source);
+	ctx->l4_dport = bpf_ntohs(udp->dest);
+
 	return bpf_ntohs(udp->dest);
 }
 
@@ -150,8 +431,7 @@ detect_tcp_header(struct packet_context *ctx, int offset)
 	return tcp;
 }
 
-/* An ICMP error is only guaranteed to quote 8 octets of the original
- * datagram (RFC 792), which covers the port pair but not the TCP checksum. */
+/* RFC 792 guarantees only 8 quoted octets: the port pair, not the checksum. */
 static __always_inline struct tcphdr *
 detect_tcp_ports(struct packet_context *ctx, int offset)
 {
@@ -162,8 +442,7 @@ detect_tcp_ports(struct packet_context *ctx, int offset)
 	return tcp;
 }
 
-/* The TCP checksum ends at byte 18, so a quote can carry it without the full
- * 20-byte header. */
+/* The checksum ends at byte 18, short of the full header. */
 static __always_inline struct tcphdr *
 detect_tcp_check(struct packet_context *ctx, int offset)
 {
@@ -198,6 +477,9 @@ static __always_inline int parse_tcp(struct packet_context *ctx)
 
 	ctx->data += sizeof(*tcp);
 	ctx->tcp = tcp;
+	ctx->l4_sport = bpf_ntohs(tcp->source);
+	ctx->l4_dport = bpf_ntohs(tcp->dest);
+
 	return bpf_ntohs(tcp->dest);
 }
 
@@ -205,6 +487,10 @@ static __always_inline int parse_icmp(struct packet_context *ctx)
 {
 	if (ctx->icmp)
 		return ctx->icmp->type;
+
+	/* As in parse_l4. */
+	if (ctx->l4_resolved || ctx->l4_unavailable)
+		return -1;
 
 	struct icmphdr *icmp = (struct icmphdr *)ctx->data;
 	if ((const void *)(icmp + 1) > ctx->data_end) {
@@ -218,14 +504,36 @@ static __always_inline int parse_icmp(struct packet_context *ctx)
 
 static __always_inline int parse_l4(int ip_protocol, struct packet_context *ctx)
 {
+	/* ctx->data is on the fixed header, so the chain would parse as L4. */
+	if (ctx->l4_resolved)
+		return 0;
+
+	/* Payload, not a header: reading it as one is how an attacker supplies a
+	 * port (RFC 1858). */
+	if (ctx->l4_unavailable)
+		return 0;
+
+	int ret;
+
 	switch (ip_protocol) {
 	case IPPROTO_UDP:
-		return parse_udp(ctx);
+		ret = parse_udp(ctx);
+		break;
 	case IPPROTO_TCP:
-		return parse_tcp(ctx);
+		ret = parse_tcp(ctx);
+		break;
 	default:
 		return 0;
 	}
+
+	/* Truncated below its port pair: the zeros left behind are not observed
+	 * ports. */
+	if (ret < 0) {
+		ctx->l4_unavailable = 1;
+		return ret;
+	}
+
+	return ret;
 }
 
 static __always_inline void swap_mac(struct ethhdr *eth)
@@ -304,13 +612,18 @@ static __always_inline void context_reset(struct packet_context *ctx,
 	ctx->gtp = NULL;
 	ctx->icmp = NULL;
 	ctx->gtp_hdr_len = 0;
+	ctx->l3_hdr_len = 0;
+	ctx->l4_proto = 0;
+	ctx->l4_sport = 0;
+	ctx->l4_dport = 0;
+	ctx->l4_unavailable = 0;
+	ctx->exthdr_invalid = 0;
+	ctx->l4_resolved = 0;
+	ctx->frag_recovered = 0;
+	ctx->is_fragment = 0;
+	ctx->frag_nat_id = 0;
+	ctx->frag_id6 = 0;
 }
-
-/* Make the headers linear and writable for the paths that rewrite them, and
- * re-derive the context the pull invalidated. Only traffic the datapath owns
- * reaches this: pulling mutates the skb, and a frame that is merely passed to
- * the stack must reach it exactly as it arrived. */
-static __always_inline long own_packet_pull(struct packet_context *ctx);
 
 static __always_inline long context_reinit(struct packet_context *ctx,
 					   void *data, const void *data_end)
@@ -342,7 +655,13 @@ static __always_inline long context_reinit(struct packet_context *ctx,
 	}
 }
 
-static __always_inline long own_packet_pull(struct packet_context *ctx)
+/* Linearize before the L3 parse rather than after it: a pull invalidates the
+ * context, and re-deriving it repeats every parse already done — including the
+ * extension-header walk.
+ *
+ * Returns 0 when the frame is ready to parse, -1 when the pull itself failed,
+ * and 1 when the relinked frame no longer parses. */
+static __always_inline int own_frame_relink(struct packet_context *ctx)
 {
 	if (!CTX_NEEDS_PULL)
 		return 0;
@@ -350,6 +669,8 @@ static __always_inline long own_packet_pull(struct packet_context *ctx)
 	if (ctx_pull(ctx->ctx_buff, CTX_PULL_LEN) < 0)
 		return -1;
 
-	return context_reinit(ctx, ctx_data(ctx->ctx_buff),
-			      ctx_data_end(ctx->ctx_buff));
+	context_reset(ctx, ctx_data(ctx->ctx_buff),
+		      ctx_data_end(ctx->ctx_buff));
+
+	return parse_ethernet(ctx) < 0 ? 1 : 0;
 }

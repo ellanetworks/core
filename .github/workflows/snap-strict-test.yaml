@@ -85,19 +85,32 @@ jobs:
 
       - name: Assert the service runs properly
         run: |
-          sleep 15
-          # A failed eBPF load (the class of regression this guards) is fatal and
-          # triggers a systemd restart, so a clean run has zero restarts.
-          restarts="$(systemctl show -p NRestarts --value snap.ella-core.cored)"
-          echo "restarts: ${restarts}"
-          if [ "${restarts}" != "0" ]; then
-            echo "::error::ella-core.cored crashed/restarted under strict confinement"
-            exit 1
-          fi
-          # The datapath is up only if the whole runtime came up: query the API.
-          status="$(curl -sk --max-time 10 https://127.0.0.1:5002/api/v1/status)"
-          echo "status: ${status}"
-          echo "${status}" | grep -q '"ready":true'
+          # Polled rather than slept: readiness is the last step of startup, so
+          # how long it takes, and what the status says while it is pending,
+          # are what distinguish a slow start from a stuck one. A failed eBPF
+          # load is fatal and restarts the unit, so restarts are checked each
+          # round rather than once.
+          deadline=$((SECONDS + 60))
+          status=""
+          while [ "${SECONDS}" -lt "${deadline}" ]; do
+            restarts="$(systemctl show -p NRestarts --value snap.ella-core.cored)"
+            if [ "${restarts}" != "0" ]; then
+              echo "::error::ella-core.cored crashed/restarted under strict confinement (${restarts} restarts)"
+              exit 1
+            fi
+
+            status="$(curl -sk --max-time 5 https://127.0.0.1:5002/api/v1/status || echo '<no response>')"
+            echo "t=${SECONDS}s restarts=${restarts} status: ${status}"
+
+            if echo "${status}" | grep -q '"ready":true'; then
+              echo "ready after ${SECONDS}s"
+              exit 0
+            fi
+
+            sleep 2
+          done
+          echo "::error::ella-core.cored never became ready; last status: ${status}"
+          exit 1
 
       - name: Assert the datapath attached at the requested hook
         run: |
@@ -106,10 +119,44 @@ jobs:
           echo "datapath attach mode: ${mode}"
           if [ "${mode}" != "${{ matrix.attach_mode }}" ]; then
             echo "::error::datapath attached as '${mode}', want '${{ matrix.attach_mode }}'"
-            sudo snap logs ella-core.cored -n 200 || true
+            sudo snap logs ella-core.cored -n all || true
             exit 1
           fi
 
+      # Startup stops logging once it blocks, so the log alone cannot say where.
+      # These answer the questions it leaves open: did the datapath load, was a
+      # confinement rule refused, and what is the process actually waiting on.
+      - name: Diagnose a failed start
+        if: failure()
+        run: |
+          echo "::group::service state"
+          systemctl status snap.ella-core.cored --no-pager -l || true
+          systemctl show snap.ella-core.cored -p NRestarts -p ActiveState -p SubState -p ExecMainPID || true
+          echo "::endgroup::"
+
+          echo "::group::AppArmor and kernel denials"
+          sudo dmesg | grep -iE "apparmor|denied|bpf" | tail -50 || true
+          sudo journalctl -k --no-pager -n 100 | grep -iE "apparmor|denied" || true
+          echo "::endgroup::"
+
+          echo "::group::loaded BPF objects"
+          sudo bpftool prog show 2>/dev/null || echo "bpftool unavailable"
+          sudo bpftool map show 2>/dev/null || true
+          echo "::endgroup::"
+
+          echo "::group::goroutine stacks"
+          # SIGQUIT makes the Go runtime dump every goroutine to stderr, which
+          # lands in the journal. This is what names the blocking call. It kills
+          # the process, so it runs only after the run has already failed.
+          pid="$(systemctl show -p ExecMainPID --value snap.ella-core.cored)"
+          echo "main pid: ${pid}"
+          if [ -n "${pid}" ] && [ "${pid}" != "0" ]; then
+            sudo cat "/proc/${pid}/status" 2>/dev/null | grep -E "State|Threads" || true
+            sudo kill -QUIT "${pid}" || true
+            sleep 5
+          fi
+          echo "::endgroup::"
+
       - name: Dump daemon logs
         if: always()
-        run: sudo snap logs ella-core.cored -n 200 || true
+        run: sudo snap logs ella-core.cored -n all || true

@@ -34,7 +34,7 @@ type N3N6EntrypointFlow struct {
 	Proto          uint8
 	Dscp           uint8
 	Action         uint8
-	_              [1]byte
+	Direction      uint8
 }
 
 type N3N6EntrypointFlowStats struct {
@@ -43,6 +43,31 @@ type N3N6EntrypointFlowStats struct {
 	LastTs  uint64
 	Bytes   uint64
 	Packets uint64
+}
+
+type N3N6EntrypointFragKey4 struct {
+	_     structs.HostLayout
+	Saddr uint32
+	Daddr uint32
+	Id    uint16
+	Proto uint8
+	Pad   uint8
+}
+
+type N3N6EntrypointFragKey6 struct {
+	_     structs.HostLayout
+	Id    uint32
+	Pad   uint32
+	Saddr N3N6EntrypointIn6Addr
+	Daddr N3N6EntrypointIn6Addr
+}
+
+type N3N6EntrypointFragPorts struct {
+	_     structs.HostLayout
+	Sport uint16
+	Dport uint16
+	NatId uint16
+	Pad   uint16
 }
 
 type N3N6EntrypointFramedIp4Key struct {
@@ -82,6 +107,7 @@ type N3N6EntrypointPdrInfo struct {
 	Imsi               uint64
 	PdrId              uint32
 	UrrId              uint32
+	QerId              uint32
 	OuterHeaderRemoval uint8
 	Pad                [3]uint8
 	Far                struct {
@@ -95,6 +121,7 @@ type N3N6EntrypointPdrInfo struct {
 		TransportLevelMarking uint16
 		_                     [2]byte
 	}
+	_   [4]byte
 	Qer struct {
 		_                structs.HostLayout
 		UlGateStatus     uint8
@@ -103,13 +130,24 @@ type N3N6EntrypointPdrInfo struct {
 		_                [5]byte
 		UlMaximumBitrate uint64
 		DlMaximumBitrate uint64
-		UlStart          uint64
-		DlStart          uint64
 	}
 	FilterMapIndex uint32
 	UeIpv4         N3N6EntrypointIn6Addr
 	UeIpv6         N3N6EntrypointIn6Addr
 	_              [4]byte
+}
+
+type N3N6EntrypointQerKey struct {
+	_     structs.HostLayout
+	Seid  uint64
+	QerId uint32
+	Pad   uint32
+}
+
+type N3N6EntrypointQerWindow struct {
+	_       structs.HostLayout
+	UlStart uint64
+	DlStart uint64
 }
 
 type N3N6EntrypointRouteStat struct {
@@ -167,9 +205,10 @@ type N3N6EntrypointUpfStatistic struct {
 		Bytes uint64
 	}
 	PacketCounters struct {
-		_  structs.HostLayout
-		Rx uint64
-		Tx uint64
+		_              structs.HostLayout
+		Rx             uint64
+		Tx             uint64
+		FragUnresolved uint64
 	}
 	ForwardedActions [8]uint64
 	DropReasons      [64]uint64
@@ -200,6 +239,9 @@ const (
 	N3N6EntrypointMapDownlinkRouteStats  = "downlink_route_stats"
 	N3N6EntrypointMapDownlinkStatistics  = "downlink_statistics"
 	N3N6EntrypointMapFlowStats           = "flow_stats"
+	N3N6EntrypointMapFragNatIdSeq        = "frag_nat_id_seq"
+	N3N6EntrypointMapFragPortsIp4        = "frag_ports_ip4"
+	N3N6EntrypointMapFragPortsIp6        = "frag_ports_ip6"
 	N3N6EntrypointMapFramedDownlinkIp4   = "framed_downlink_ip4"
 	N3N6EntrypointMapFramedDownlinkIp6   = "framed_downlink_ip6"
 	N3N6EntrypointMapNatCt               = "nat_ct"
@@ -208,6 +250,7 @@ const (
 	N3N6EntrypointMapPdrsDownlinkIp4     = "pdrs_downlink_ip4"
 	N3N6EntrypointMapPdrsDownlinkIp6     = "pdrs_downlink_ip6"
 	N3N6EntrypointMapPdrsUplink          = "pdrs_uplink"
+	N3N6EntrypointMapQerWindows          = "qer_windows"
 	N3N6EntrypointMapRsEventMap          = "rs_event_map"
 	N3N6EntrypointMapSdfFilters          = "sdf_filters"
 	N3N6EntrypointMapUpfCalls            = "upf_calls"
@@ -287,6 +330,9 @@ type N3N6EntrypointMapSpecs struct {
 	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	FlowStats          *ebpf.MapSpec `ebpf:"flow_stats"`
+	FragNatIdSeq       *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
+	FragPortsIp4       *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
+	FragPortsIp6       *ebpf.MapSpec `ebpf:"frag_ports_ip6"`
 	FramedDownlinkIp4  *ebpf.MapSpec `ebpf:"framed_downlink_ip4"`
 	FramedDownlinkIp6  *ebpf.MapSpec `ebpf:"framed_downlink_ip6"`
 	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
@@ -295,6 +341,7 @@ type N3N6EntrypointMapSpecs struct {
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
+	QerWindows         *ebpf.MapSpec `ebpf:"qer_windows"`
 	RsEventMap         *ebpf.MapSpec `ebpf:"rs_event_map"`
 	SdfFilters         *ebpf.MapSpec `ebpf:"sdf_filters"`
 	UpfCalls           *ebpf.MapSpec `ebpf:"upf_calls"`
@@ -342,6 +389,9 @@ type N3N6EntrypointMaps struct {
 	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
 	FlowStats          *ebpf.Map `ebpf:"flow_stats"`
+	FragNatIdSeq       *ebpf.Map `ebpf:"frag_nat_id_seq"`
+	FragPortsIp4       *ebpf.Map `ebpf:"frag_ports_ip4"`
+	FragPortsIp6       *ebpf.Map `ebpf:"frag_ports_ip6"`
 	FramedDownlinkIp4  *ebpf.Map `ebpf:"framed_downlink_ip4"`
 	FramedDownlinkIp6  *ebpf.Map `ebpf:"framed_downlink_ip6"`
 	NatCt              *ebpf.Map `ebpf:"nat_ct"`
@@ -350,6 +400,7 @@ type N3N6EntrypointMaps struct {
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
+	QerWindows         *ebpf.Map `ebpf:"qer_windows"`
 	RsEventMap         *ebpf.Map `ebpf:"rs_event_map"`
 	SdfFilters         *ebpf.Map `ebpf:"sdf_filters"`
 	UpfCalls           *ebpf.Map `ebpf:"upf_calls"`
@@ -365,6 +416,9 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
 		m.FlowStats,
+		m.FragNatIdSeq,
+		m.FragPortsIp4,
+		m.FragPortsIp6,
 		m.FramedDownlinkIp4,
 		m.FramedDownlinkIp6,
 		m.NatCt,
@@ -373,6 +427,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
+		m.QerWindows,
 		m.RsEventMap,
 		m.SdfFilters,
 		m.UpfCalls,

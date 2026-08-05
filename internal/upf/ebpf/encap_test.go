@@ -443,3 +443,70 @@ func putDownlinkPDRv6Outer(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uin
 		t.Fatalf("install downlink IPv6-transport PDR: %v", err)
 	}
 }
+
+// TestGTPEncapsulationInnerIPv6ExtensionHeaderChecksum pins the outer UDP
+// checksum for a chained inner packet. The header-only identity has no term for
+// the chain, whose bytes are part of the outer UDP payload, so a chain must
+// decline it; accepting one produces a checksum the peer drops.
+func TestGTPEncapsulationInnerIPv6ExtensionHeaderChecksum(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid = 0x77779999
+		qfi  = 5
+	)
+
+	local := netip.MustParseAddr("2001:db8:44::1").As16()
+	remote := netip.MustParseAddr("2001:db8:44::9").As16()
+	serverV6 := [16]byte{0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
+
+	// A zero inner checksum gives the substitution nothing to work with and
+	// falls back either way.
+	udp := udpDatagramChecksummedV6(serverV6, testUEv6, 4000, 53, []byte{9, 9, 9, 9})
+
+	tests := []struct {
+		name  string
+		inner []byte
+	}{
+		{"plain UDP", ipv6Packet(serverV6, testUEv6, 17, udp)},
+		{
+			"behind a Hop-by-Hop Options header",
+			ipv6Packet(serverV6, testUEv6, ipprotoHopOpts, append(hopByHopHeader(17), udp...)),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadProgram(t, 1, 0)
+
+			pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+			pdr.Far.OuterHeaderCreation = 0x02 // OHC_GTP_U_UDP_IPv6
+			pdr.Far.LocalIP = local
+			pdr.Far.RemoteIP = remote
+
+			if err := obj.PutPdrDownlink(netip.MustParseAddr("2001:db8::"), pdr); err != nil {
+				t.Fatalf("install downlink IPv6 PDR: %v", err)
+			}
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, ethFrame(0x86DD, tc.inner))
+
+			if action == ActionDrop || action == ActionAborted {
+				t.Fatalf("downlink packet got XDP action %d", action)
+			}
+
+			if len(out) != ethHdrLen+gtpV6EncapLen+len(tc.inner) {
+				t.Fatalf("encapsulated frame length = %d, want %d", len(out), ethHdrLen+gtpV6EncapLen+len(tc.inner))
+			}
+
+			f := parseGTPv6Frame(t, out)
+
+			if !f.udpChecksumOK {
+				t.Error("outer UDP checksum invalid")
+			}
+
+			if !bytes.Equal(f.inner, tc.inner) {
+				t.Errorf("inner packet altered by encapsulation:\n got %x\nwant %x", f.inner, tc.inner)
+			}
+		})
+	}
+}

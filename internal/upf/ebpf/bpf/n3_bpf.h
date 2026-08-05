@@ -159,10 +159,10 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (ret < 0) {
 		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 	}
-	if (ret > 0) {
-		upf_printk("upf: n3 packet too large");
-		return frag_needed(ctx, mtu_len);
-	}
+	/* Acted on after decapsulation. Here ctx still describes the transport
+	 * header, so DF and the address family are the gNB's, not the
+	 * subscriber's, and neither can be read yet. */
+	const bool inner_exceeds_n6_mtu = ret > 0;
 
 	ctx->interface = INTERFACE_N3;
 
@@ -187,13 +187,20 @@ handle_gtp_packet(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 	}
 
-	const __u64 packet_size =
-		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
-	if (CTX_ACT_DROP ==
-	    limit_rate_sliding_window(packet_size, &qer->ul_start,
-				      qer->ul_maximum_bitrate)) {
-		PROFILE_END(PROF_N3_QER_RATELIMIT);
-		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+	/* An unlimited QER costs no lookup. */
+	if (qer->ul_maximum_bitrate != 0) {
+		const __u64 packet_size =
+			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
+		struct qer_window *window =
+			qer_window_for(pdr->local_seid, pdr->qer_id);
+
+		if (window &&
+		    CTX_ACT_DROP == limit_rate_sliding_window(
+					    packet_size, &window->ul_start,
+					    qer->ul_maximum_bitrate)) {
+			PROFILE_END(PROF_N3_QER_RATELIMIT);
+			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+		}
 	}
 	PROFILE_END(PROF_N3_QER_RATELIMIT);
 
@@ -220,40 +227,41 @@ handle_gtp_packet(struct packet_context *ctx)
 			return abort_reported(ctx, UPF_DROP_INTERNAL_DECAP_FAILED);
 		}
 
-		/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
-		if (ctx->ip4)
-			parse_l4(ctx->ip4->protocol, ctx);
-		else if (ctx->ip6)
-			parse_l4(ctx->ip6->nexthdr, ctx);
+		/* Before anything reads ports. Not in parse_ip4, which the
+		 * tunnel transport also uses. */
+		frag_resolve4(ctx);
 
-		/* The RA is built in Go and injected through the veth path. */
-		if (ctx->ip6 && ctx->ip6->nexthdr == IPPROTO_ICMPV6) {
-			/* context_reinit advanced ctx->data past the IPv6
-			 * header, so re-derive the pointers. */
-			void *pkt_data = ctx_data(ctx->ctx_buff);
-			const void *pkt_end = ctx_data_end(ctx->ctx_buff);
-			struct ipv6hdr *ip6_inner =
-				(struct ipv6hdr *)(pkt_data +
-						   sizeof(struct ethhdr));
-			if ((const void *)(ip6_inner + 1) <= pkt_end) {
-				__u8 *icmp6_type = (__u8 *)(ip6_inner + 1);
-				if ((const void *)(icmp6_type + 1) <= pkt_end &&
-				    *icmp6_type ==
-					    ICMPV6_TYPE_ROUTER_SOLICITATION) {
-					upf_printk(
-						"upf: RS detected for teid:%d",
-						teid);
-					struct rs_event ev = {
-						.teid = teid,
-					};
-					__builtin_memcpy(
-						&ev.ue_ipv6, &ip6_inner->saddr,
-						sizeof(struct in6_addr));
-					bpf_ringbuf_output(&rs_event_map, &ev,
-							   sizeof(ev), 0);
-					PROFILE_END(PROF_N3_GTP_MANIP);
-					return drop_with(ctx, UPF_DROP_RS_INTERCEPTED);
-				}
+		/* For match_sdf_filters. */
+		if (ctx->ip4 || ctx->ip6)
+			parse_l4(ctx->l4_proto, ctx);
+
+		/* The RA is built in Go and injected through the veth path.
+		 *
+		 * At l3_hdr_len from ctx->ip6: an egress VLAN tag and a chain
+		 * both move the ICMPv6 header. */
+		if (ctx->ip6 && ctx->l4_proto == IPPROTO_ICMPV6 &&
+		    !ctx->l4_unavailable) {
+			const __u32 icmp6_off =
+				ctx_frame_offset(ctx->ctx_buff, ctx->ip6) +
+				ctx->l3_hdr_len;
+			__u8 icmp6_type;
+
+			if (ctx_load_bytes(ctx->ctx_buff, icmp6_off,
+					   &icmp6_type, sizeof(icmp6_type)) ==
+				    0 &&
+			    icmp6_type == ICMPV6_TYPE_ROUTER_SOLICITATION) {
+				upf_printk("upf: RS detected for teid:%d",
+					   teid);
+				struct rs_event ev = {
+					.teid = teid,
+				};
+				__builtin_memcpy(&ev.ue_ipv6, &ctx->ip6->saddr,
+						 sizeof(struct in6_addr));
+				bpf_ringbuf_output(&rs_event_map, &ev,
+						   sizeof(ev), 0);
+				PROFILE_END(PROF_N3_GTP_MANIP);
+				return drop_with(ctx,
+						 UPF_DROP_RS_INTERCEPTED);
 			}
 		}
 
@@ -266,12 +274,53 @@ handle_gtp_packet(struct packet_context *ctx)
 						      UPF_DROP_SOURCE_SPOOF_IPV6 :
 						      UPF_DROP_SOURCE_SPOOF_IPV4);
 		}
+
+		/* Deferred from the MTU check above, which ran before
+		 * decapsulation. The subscriber's packet is in the context now,
+		 * so DF and the family are its own.
+		 *
+		 * The packet is dropped either way — the datapath does not
+		 * fragment. DF clear keeps its own reason because a router that
+		 * did fragment would have delivered it, which is worth telling
+		 * apart from a packet whose sender asked for this. No ICMP is
+		 * generated: reaching the UE means building the error from this
+		 * header and encapsulating it into the session's downlink
+		 * tunnel, which this path cannot do. */
+		if (inner_exceeds_n6_mtu) {
+			upf_printk("upf: n3 inner packet exceeds n6 mtu");
+
+			if (ctx->ip4 &&
+			    (ctx->ip4->frag_off & bpf_htons(0x4000)) == 0)
+				return drop_with(ctx, UPF_DROP_DF_NOT_SET);
+
+			return drop_with(ctx, UPF_DROP_MTU_EXCEEDED);
+		}
+
+		/* After source_allowed: a spoofed address must not be able to
+		 * plant an entry. Uplink is not translated until routing, so
+		 * the header still holds the addresses the next fragment will
+		 * carry. */
+		if (ctx->is_fragment && ctx->ip4 && !ctx->l4_unavailable &&
+		    !ctx->frag_recovered)
+			frag_record4(ctx->ip4, ctx->ip4->saddr, ctx->ip4->daddr,
+				     ctx->l4_sport, ctx->l4_dport);
+
+		frag_record6(ctx);
 	}
 	PROFILE_END(PROF_N3_GTP_MANIP);
 
 	/* Without decapsulation the context still holds the tunnel headers,
 	 * whose addresses and ports are the UPF's and its peer's. */
 	if (!ctx->gtp) {
+		/* No policy is evaluable against an unwalkable chain, and the
+		 * session is known by now (RFC 7112 §5). */
+		if (ctx->exthdr_invalid) {
+			upf_printk("upf: uplink unparsable exthdr chain teid:%d",
+				   teid);
+			account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, FLOW_UPLINK, DROP);
+			return drop_with(ctx, UPF_DROP_EXTHDR_INVALID);
+		}
+
 		PROFILE_START(PROF_N3_SDF_FILTER);
 		enum ctx_action sdf_verdict =
 			match_sdf_filters(ctx, pdr->filter_map_index);
@@ -279,18 +328,13 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
 			account_flow(ctx, n6_ifindex, pdr->imsi,
-				     ctx->ip4 ? IPV4 : IPV6, DROP);
-			return drop_with(ctx, UPF_DROP_SDF_FILTER);
+				     ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, DROP);
+			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
-	/* Account uplink traffic */
-	{
-		__u64 packet_size = ctx_full_len(ctx->ctx_buff);
-		ctx->statistics->byte_counter.bytes += packet_size;
-	}
-
-	update_urr_bytes(ctx, pdr->local_seid, urr_id);
+	/* Before routing resizes the frame. */
+	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
 	const __u32 key = 0;
 	struct route_stat *route_statistic =
@@ -298,19 +342,37 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (!route_statistic)
 		return abort_with(ctx, UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED);
 
+	/* After routing: the subscriber is billed on this, and every FIB failure
+	 * is reachable from here — fib_no_neigh is ordinary while a neighbour
+	 * resolves. The counter and flow record stay ahead of it because the
+	 * inner tuple does not survive encapsulation. */
 	if (ctx->ip4) {
-		account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, ALLOW);
+		account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, FLOW_UPLINK, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
 			route_ipv4(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
+
+		if (ctx_action_forwards(fib_ret)) {
+			ctx->statistics->byte_counter.bytes += billed_bytes;
+			update_urr_bytes(ctx, pdr->local_seid, urr_id,
+					 billed_bytes);
+		}
+
 		return fib_ret;
 	} else if (ctx->ip6) {
-		account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, ALLOW);
+		account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, FLOW_UPLINK, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
 			route_ipv6(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
+
+		if (ctx_action_forwards(fib_ret)) {
+			ctx->statistics->byte_counter.bytes += billed_bytes;
+			update_urr_bytes(ctx, pdr->local_seid, urr_id,
+					 billed_bytes);
+		}
+
 		return fib_ret;
 	} else {
 		return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);

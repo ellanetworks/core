@@ -8,6 +8,7 @@ package ebpf
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"os"
 	"os/exec"
@@ -175,7 +176,16 @@ func (f *t2) captureN3(t *testing.T) int { return openCapture(t, f.n3Peer.Index)
 func addVethPair(t *testing.T, dev, peer string) {
 	t.Helper()
 
-	if out, err := ipCmd("link", "add", dev, "type", "veth", "peer", "name", peer); err != nil {
+	// Assigned rather than left random: udev's MACAddressPolicy=persistent
+	// rewrites a randomly-generated MAC a few milliseconds after the device
+	// appears, and NETDEV_CHANGEADDR flushes the device's neighbours —
+	// permanent ones included (arp_netdev_event -> neigh_changeaddr ->
+	// neigh_flush_dev with skip_perm false). Whether that lands before or
+	// after addNeigh decides whether the first packet finds a neighbour.
+	// A MAC set here is NET_ADDR_SET, which udev leaves alone.
+	if out, err := ipCmd("link", "add", dev, "address", vethMAC(dev),
+		"type", "veth", "peer", "name", peer,
+		"address", vethMAC(peer)); err != nil {
 		t.Fatalf("create veth %s/%s: %v: %s", dev, peer, err, out)
 	}
 
@@ -188,6 +198,17 @@ func addVethPair(t *testing.T, dev, peer string) {
 
 		_ = writeSysctl("net.ipv4.conf."+d+".forwarding", "1")
 	}
+}
+
+// vethMAC derives a stable locally-administered unicast address from the device
+// name, so each end of each pair is distinct across the suite.
+func vethMAC(dev string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(dev))
+	v := h.Sum32()
+
+	return fmt.Sprintf("02:00:%02x:%02x:%02x:%02x",
+		byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
 }
 
 func addAddr(t *testing.T, dev, cidr string) {

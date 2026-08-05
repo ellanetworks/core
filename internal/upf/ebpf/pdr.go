@@ -40,6 +40,10 @@ const (
 	SdfActionAllow    = 0
 	SdfActionDeny     = 1
 	NoFilterIndex     = 0 // reserved; means "no filtering"
+
+	// Flow direction, as the datapath records it in struct flow.
+	FlowDirectionUplink   = 0 // must match FLOW_UPLINK in C
+	FlowDirectionDownlink = 1 // must match FLOW_DOWNLINK in C
 )
 
 // PdrInfo holds all data needed to program a PDR into the BPF maps.
@@ -227,19 +231,22 @@ type QerInfo struct {
 	Qfi          uint8
 	MaxBitrateUL uint64
 	MaxBitrateDL uint64
-	StartUL      uint64
-	StartDL      uint64
 }
 
 // SdfRule mirrors struct sdf_rule in pdr.h.
+//
+// Every pad byte is explicit: implicit padding is invisible to encoding/binary,
+// which reads the map value back, so unsafe.Sizeof and binary.Size disagree and
+// Lookup fails with "doesn't consume all data".
 type SdfRule struct {
 	RemoteIP  [16]byte // in6_addr: ::ffff:x.x.x.x for IPv4, native for IPv6
 	PrefixLen uint8
+	_         [1]byte // alignment before PortLow
 	PortLow   uint16
 	PortHigh  uint16
 	Protocol  uint8
 	Action    uint8
-	_         [7]byte // padding to 32 bytes for verifier-friendly array indexing
+	_         [8]byte // padding to 32 bytes for verifier-friendly array indexing
 }
 
 // SdfFilterList mirrors struct sdf_filter_list in pdr.h.
@@ -322,6 +329,7 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	pdrToStore.OuterHeaderRemoval = defaultPdr.OuterHeaderRemoval
 	pdrToStore.PdrId = defaultPdr.PdrID
 	pdrToStore.UrrId = defaultPdr.UrrID
+	pdrToStore.QerId = defaultPdr.QerID
 
 	imsiUint64, err := strconv.ParseUint(defaultPdr.IMSI, 10, 64)
 	if err != nil {
@@ -343,8 +351,6 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	pdrToStore.Qer.Qfi = defaultPdr.Qer.Qfi
 	pdrToStore.Qer.UlMaximumBitrate = defaultPdr.Qer.MaxBitrateUL
 	pdrToStore.Qer.DlMaximumBitrate = defaultPdr.Qer.MaxBitrateDL
-	pdrToStore.Qer.UlStart = defaultPdr.Qer.StartUL
-	pdrToStore.Qer.DlStart = defaultPdr.Qer.StartDL
 
 	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
 

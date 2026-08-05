@@ -490,27 +490,48 @@ func TestNATICMPErrorFromRouter(t *testing.T) {
 	}
 }
 
-// TestNATICMPErrorFromUEForwarded verifies that a UE-originated ICMP error is
-// source-NAT'd and forwarded, with the packet it quotes left untranslated.
-func TestNATICMPErrorFromUEForwarded(t *testing.T) {
+// TestNATICMPErrorFromUETranslatesQuote: a UE-originated ICMP error is
+// source-NAT'd along with the datagram it quotes. Untranslated, the quote
+// publishes the UE's private address and port, and the peer cannot match the
+// error to a socket (RFC 5508 §3.2).
+//
+// Above the masquerade range, so the mapping cannot keep the UE's own port and
+// the quoted port has to change.
+func TestNATICMPErrorFromUETranslatesQuote(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
 		teid  = 0x4E415413
-		ueSP  = 1234
+		ueSP  = 40000
 		srvDP = 4000
 	)
 
 	f := setupT2(t, true)
 	putForwardingUplinkPDRUE(t, f.obj, teid, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 
-	// Establish the mapping the quoted packet belongs to.
+	// Establish the mapping the quoted packet belongs to, and learn the port
+	// it was mapped to.
+	establishCap := f.captureN6(t)
+
 	f.injectUplink(t, uplinkGPDU(teid, ipv4Packet(ueIP, serverIP, 17,
 		udpDatagramChecksummed(ueIP, serverIP, ueSP, srvDP, []byte{1}))))
-	time.Sleep(100 * time.Millisecond)
+
+	establish := captureMatching(establishCap, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 17, serverIP)
+	})
+	if establish == nil {
+		t.Fatal("the packet establishing the mapping did not egress on N6")
+	}
+
+	natPort := binary.BigEndian.Uint16(establish[ethHdrLen+20 : ethHdrLen+22])
+	if natPort == ueSP {
+		t.Fatalf("source port was not remapped (%d), so the quote assertion would prove nothing", natPort)
+	}
 
 	capFD := f.captureN6(t)
 
+	// What the UE received: the peer's datagram as the downlink delivered it,
+	// addressed to the UE's private address and port.
 	quotedUDP := udpDatagramChecksummed(serverIP, ueIP, srvDP, ueSP, nil)
 	quoted := ipv4Packet(serverIP, ueIP, 17, quotedUDP)
 
@@ -538,6 +559,37 @@ func TestNATICMPErrorFromUEForwarded(t *testing.T) {
 	if !validIPv4Checksum(ip) {
 		t.Error("outer IPv4 header checksum invalid")
 	}
+
+	icmp := got[ethHdrLen+20:]
+	if !validICMPChecksum(icmp) {
+		t.Error("ICMP checksum invalid: it covers the quote, so every edit inside it has to be folded in")
+	}
+
+	embedded := icmp[8:]
+	if len(embedded) < 28 {
+		t.Fatalf("quote truncated: %x", embedded)
+	}
+
+	// The quoted datagram travelled toward the UE, so it is its destination
+	// that carried the private address.
+	if !bytes.Equal(embedded[16:20], natPublicIP[:]) {
+		t.Errorf("quote destination = %v, want %v: the subscriber's address is still on the wire",
+			embedded[16:20], natPublicIP)
+	}
+
+	if !validIPv4Checksum(embedded[:20]) {
+		t.Error("quoted IPv4 header checksum invalid after translation")
+	}
+
+	if port := binary.BigEndian.Uint16(embedded[22:24]); port != natPort {
+		t.Errorf("quote destination port = %d, want %d (the mapped port)", port, natPort)
+	}
+
+	// Restored to what the peer originally sent, so the quoted checksum has to
+	// be valid over the public tuple.
+	if !validIPv4L4Checksum([4]byte(embedded[12:16]), [4]byte(embedded[16:20]), 17, embedded[20:]) {
+		t.Error("quoted UDP checksum invalid after translation")
+	}
 }
 
 // asFragment marks an IPv4 packet as a non-first fragment (offset 185, more
@@ -550,9 +602,82 @@ func asFragment(pkt []byte) []byte {
 	return pkt
 }
 
-// TestNATDropsFragments verifies that a fragment addressed to a UE is dropped:
-// bytes at the L4 offset of a non-first fragment are payload.
-func TestNATDropsFragments(t *testing.T) {
+// asFirstFragment marks pkt as the offset-0 fragment.
+func asFirstFragment(pkt []byte, id uint16) []byte {
+	binary.BigEndian.PutUint16(pkt[4:6], id)
+	binary.BigEndian.PutUint16(pkt[6:8], 0x2000)
+	binary.BigEndian.PutUint16(pkt[10:12], 0)
+	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
+
+	return pkt
+}
+
+// asLaterFragment marks pkt as a fragment past the first.
+func asLaterFragment(pkt []byte, id uint16) []byte {
+	binary.BigEndian.PutUint16(pkt[4:6], id)
+	binary.BigEndian.PutUint16(pkt[6:8], 185)
+	binary.BigEndian.PutUint16(pkt[10:12], 0)
+	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
+
+	return pkt
+}
+
+// TestNATTranslatesFragments: both fragments leave, the later one translated on
+// its recorded ports, under one identification this device issued — the UE's
+// would collide with another subscriber's at the peer (RFC 6864 §5.3.1).
+func TestNATTranslatesFragments(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415420
+		qfi    = 7
+		ueSP   = 1235
+		srvDP  = 80
+		ueID   = 0xBEEF
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	capFD := f.captureN6(t)
+
+	first := asFirstFragment(
+		ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(64))), ueID)
+	later := asLaterFragment(
+		ipv4Packet(ueIP, serverIP, 6, bytesOf(64)), ueID)
+
+	f.injectUplink(t, uplinkGPDU(ulTEID, first))
+
+	firstOut := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 6, serverIP)
+	})
+	if firstOut == nil {
+		t.Fatal("first fragment did not egress on N6")
+	}
+
+	f.injectUplink(t, uplinkGPDU(ulTEID, later))
+
+	laterOut := captureMatching(capFD, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 6, serverIP)
+	})
+	if laterOut == nil {
+		t.Fatal("later fragment did not egress on N6: its ports were not recovered")
+	}
+
+	firstID := binary.BigEndian.Uint16(firstOut[ethHdrLen+4 : ethHdrLen+6])
+	laterID := binary.BigEndian.Uint16(laterOut[ethHdrLen+4 : ethHdrLen+6])
+
+	if firstID != laterID {
+		t.Errorf("fragments left under different identifications (%#x, %#x): the datagram cannot be reassembled", firstID, laterID)
+	}
+
+	if firstID == ueID {
+		t.Errorf("identification %#x is the UE's: two subscribers behind one address can collide", firstID)
+	}
+}
+
+// TestNATDropsUnresolvedFragments: no recorded ports, nothing to translate on.
+func TestNATDropsUnresolvedFragments(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
@@ -1351,3 +1476,127 @@ func bytesOf(n int) []byte {
 }
 
 func sizeLabel(n int) string { return strconv.Itoa(n) + "B" }
+
+// TestNATTranslatesDownlinkFragments: a fragmented reply is recovered on the
+// address it arrived on. frag_resolve4 runs ahead of destination_nat_apply, so
+// the first fragment has to be recorded under the public address rather than
+// the UE's — otherwise every later fragment misses and drops.
+func TestNATTranslatesDownlinkFragments(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415430
+		dlTEID = 0x4E415431
+		qfi    = 7
+		ueSP   = 1236
+		srvDP  = 80
+		srvID  = 0xF00D
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
+
+	// Uplink first: without a conntrack mapping there is nothing to
+	// translate the reply onto. Wait for its egress rather than sleeping,
+	// so the mapping is known to exist before the reply arrives.
+	n6 := f.captureN6(t)
+
+	f.injectUplink(t, uplinkGPDU(ulTEID,
+		ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(40)))))
+
+	if captureMatching(n6, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 6, serverIP)
+	}) == nil {
+		t.Fatal("uplink did not egress on N6: no mapping to translate the reply onto")
+	}
+
+	capFD := f.captureN3(t)
+
+	first := asFirstFragment(
+		ipv4Packet(serverIP, natPublicIP, 6, tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, ueSP, bytesOf(64))), srvID)
+	later := asLaterFragment(
+		ipv4Packet(serverIP, natPublicIP, 6, bytesOf(64)), srvID)
+
+	encapsulated := func(fr []byte) bool {
+		inner := gtpInner(fr)
+
+		return len(inner) >= 20 && inner[9] == 6
+	}
+
+	f.injectDownlink(t, ethFrame(0x0800, first))
+
+	if captureMatching(capFD, time.Second, encapsulated) == nil {
+		t.Fatal("first fragment did not egress on N3")
+	}
+
+	before := DropCount(f.obj, Downlink, "nat_fragment")
+
+	f.injectDownlink(t, ethFrame(0x0800, later))
+
+	if captureMatching(capFD, time.Second, encapsulated) == nil {
+		t.Fatalf("later fragment did not egress on N3: its ports were not recovered (nat_fragment drops %d -> %d)",
+			before, DropCount(f.obj, Downlink, "nat_fragment"))
+	}
+}
+
+// TestNATReusedFragmentIDKeepsOneIdentification: when a UE reuses an
+// identification while the datagram's entry is still live, every fragment has
+// to keep leaving under whichever identification the map holds. Generating one
+// and storing it are separate outcomes — a first fragment stamped with an
+// identification the map does not hold splits the datagram in two and the peer
+// cannot reassemble either half.
+func TestNATReusedFragmentIDKeepsOneIdentification(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID = 0x4E415440
+		ueSP   = 1237
+		srvDP  = 80
+		reused = 0xC0DE
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	capFD := f.captureN6(t)
+
+	egressID := func(what string) uint16 {
+		t.Helper()
+
+		out := captureMatching(capFD, time.Second, func(fr []byte) bool {
+			return isInnerIPv4(fr, 6, serverIP)
+		})
+		if out == nil {
+			t.Fatalf("%s did not egress on N6", what)
+		}
+
+		return binary.BigEndian.Uint16(out[ethHdrLen+4 : ethHdrLen+6])
+	}
+
+	// First datagram: establishes the entry and its translated identification.
+	f.injectUplink(t, uplinkGPDU(ulTEID, asFirstFragment(
+		ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(64))), reused)))
+
+	first := egressID("first datagram's first fragment")
+
+	// Second datagram under the same identification, so it collides with the
+	// live entry. Its own first fragment carries an L4 header, so it takes
+	// the generate-a-new-one path.
+	f.injectUplink(t, uplinkGPDU(ulTEID, asFirstFragment(
+		ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP+1, srvDP, bytesOf(64))), reused)))
+
+	second := egressID("second datagram's first fragment")
+
+	// A later fragment resolves out of the map, so it carries whatever the
+	// entry holds. Both first fragments must agree with it.
+	f.injectUplink(t, uplinkGPDU(ulTEID, asLaterFragment(
+		ipv4Packet(ueIP, serverIP, 6, bytesOf(64)), reused)))
+
+	later := egressID("later fragment")
+
+	if first != later || second != later {
+		t.Errorf("fragments left under identifications %#x, %#x and %#x: the datagram cannot be reassembled",
+			first, second, later)
+	}
+}

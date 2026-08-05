@@ -5,6 +5,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 
@@ -67,29 +68,26 @@ func (conn *SessionEngine) resolveFilterIndexLocked(policyID string, direction m
 // slot of a given (PolicyID, Direction) pair.
 //
 //   - Non-empty rules: allocate or update the BPF slot, propagate to PDRs.
-//   - Empty rules: deallocate the slot and reset PDRs to NoFilterIndex.
+//   - Empty rules: reset PDRs to NoFilterIndex, then zero and free the slot.
+//
+// Every path is safe to repeat: the reconciler retries unless this returns nil,
+// so an error leaves the mapping in place for the retry to resume.
 func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
+	conn.filterOpMu.Lock()
+	defer conn.filterOpMu.Unlock()
+
 	key := fmt.Sprintf("%s:%s", policyID, direction.String())
 
-	// Empty rules: deallocate the existing slot (if any) and reset PDRs.
 	if len(rules) == 0 {
-		conn.filterMu.Lock()
-
-		idx, ok := conn.filtersByKey[key]
-		if !ok {
-			conn.filterMu.Unlock()
-			return nil
-		}
-
-		delete(conn.filtersByKey, key)
-		conn.filterMu.Unlock()
-
-		conn.SdfIndexAllocator.Release(idx)
-
-		return conn.propagateFilterIndex(policyID, direction, ebpf.NoFilterIndex)
+		return conn.releaseFilter(policyID, direction, key)
 	}
 
-	// Non-empty rules: build the BPF filter list.
+	return conn.installFilter(policyID, direction, key, rules)
+}
+
+// installFilter writes the rules to the (PolicyID, Direction) slot, allocating
+// one if the pair has none, and points the matching PDRs at it.
+func (conn *SessionEngine) installFilter(policyID string, direction models.Direction, key string, rules []models.FilterRule) error {
 	sdfRules := make([]ebpf.SdfRule, 0, len(rules))
 	for _, r := range rules {
 		sdfRules = append(sdfRules, updateFiltersRule(r))
@@ -100,30 +98,24 @@ func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID string, dir
 
 	conn.filterMu.Lock()
 
-	// Existing slot: update in place, no propagation needed.
-	if entry, ok := conn.filtersByKey[key]; ok {
-		if conn.BpfObjects != nil {
-			if err := conn.BpfObjects.PutSdfFilterList(entry, list); err != nil {
-				conn.filterMu.Unlock()
-				return fmt.Errorf("update sdf filter list: %w", err)
-			}
+	idx, existing := conn.filtersByKey[key]
+
+	if !existing {
+		allocated, err := conn.SdfIndexAllocator.Allocate()
+		if err != nil {
+			conn.filterMu.Unlock()
+			return fmt.Errorf("allocate sdf filter index: %w", err)
 		}
 
-		conn.filterMu.Unlock()
-
-		return nil
-	}
-
-	// New slot: allocate, write, and propagate to existing sessions.
-	idx, err := conn.SdfIndexAllocator.Allocate()
-	if err != nil {
-		conn.filterMu.Unlock()
-		return fmt.Errorf("allocate sdf filter index: %w", err)
+		idx = allocated
 	}
 
 	if conn.BpfObjects != nil {
 		if err := conn.BpfObjects.PutSdfFilterList(idx, list); err != nil {
-			conn.SdfIndexAllocator.Release(idx)
+			if !existing {
+				conn.SdfIndexAllocator.Release(idx)
+			}
+
 			conn.filterMu.Unlock()
 
 			return fmt.Errorf("write sdf filter list: %w", err)
@@ -133,10 +125,48 @@ func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID string, dir
 	conn.filtersByKey[key] = idx
 	conn.filterMu.Unlock()
 
+	// Even when the slot existed: an earlier call may have written it and then
+	// failed partway through propagation, and nothing else repairs that.
 	return conn.propagateFilterIndex(policyID, direction, idx)
 }
 
+// releaseFilter clears the (PolicyID, Direction) slot off its PDRs and frees it.
+func (conn *SessionEngine) releaseFilter(policyID string, direction models.Direction, key string) error {
+	conn.filterMu.RLock()
+	idx, ok := conn.filtersByKey[key]
+	conn.filterMu.RUnlock()
+
+	if !ok {
+		return nil
+	}
+
+	// Before the slot can be reissued: the allocator is LIFO, so the next
+	// policy is handed this index.
+	if err := conn.propagateFilterIndex(policyID, direction, ebpf.NoFilterIndex); err != nil {
+		return err
+	}
+
+	// A zeroed list matches nothing, which is what a session still pointing at
+	// a reissued slot should see.
+	if conn.BpfObjects != nil {
+		if err := conn.BpfObjects.DeleteSdfFilterList(idx); err != nil {
+			return fmt.Errorf("clear sdf filter list: %w", err)
+		}
+	}
+
+	conn.filterMu.Lock()
+	delete(conn.filtersByKey, key)
+	conn.filterMu.Unlock()
+
+	conn.SdfIndexAllocator.Release(idx)
+
+	return nil
+}
+
 // propagateFilterIndex updates FilterMapIndex on all PDRs matching (policyID, direction).
+//
+// Every session is attempted: nothing else revisits one left pointing at an
+// index about to be freed.
 func (conn *SessionEngine) propagateFilterIndex(policyID string, direction models.Direction, idx uint32) error {
 	conn.mu.RLock()
 
@@ -155,6 +185,8 @@ func (conn *SessionEngine) propagateFilterIndex(policyID string, direction model
 
 	isUplink := direction == models.DirectionUplink
 
+	var errs []error
+
 	for _, seid := range seidList {
 		session := conn.GetSession(seid)
 		if session == nil {
@@ -162,11 +194,11 @@ func (conn *SessionEngine) propagateFilterIndex(policyID string, direction model
 		}
 
 		if err := conn.applyFilterIndexToSession(session, isUplink, idx); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
 
 // applyFilterIndexToSession updates FilterMapIndex on one session's matching
@@ -180,6 +212,8 @@ func (conn *SessionEngine) applyFilterIndexToSession(session *Session, isUplink 
 		return nil
 	}
 
+	var errs []error
+
 	for pdrID, spdrInfo := range session.ListPDRs() {
 		pdrIsUplink := !spdrInfo.UEIP.IsValid()
 		if pdrIsUplink != isUplink {
@@ -190,11 +224,12 @@ func (conn *SessionEngine) applyFilterIndexToSession(session *Session, isUplink 
 		session.PutPDR(pdrID, spdrInfo)
 
 		if conn.BpfObjects != nil {
+			// One PDR's failure must not strand the rest on the old index.
 			if err := applyPDR(spdrInfo, session, conn.BpfObjects); err != nil {
-				return fmt.Errorf("propagate filter index to PDR %d (SEID %d): %w", pdrID, session.SEID, err)
+				errs = append(errs, fmt.Errorf("propagate filter index to PDR %d (SEID %d): %w", pdrID, session.SEID, err))
 			}
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }

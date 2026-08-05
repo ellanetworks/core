@@ -10,6 +10,11 @@
 #define IPV4 4
 #define IPV6 6
 
+/* The byte cap is what keeps a variable advance provable to the verifier, and
+ * bounds the L3 header length every consumer of the walk works with. */
+#define IPV6_MAX_EXT_HEADERS 4
+#define IPV6_MAX_EXT_CHAIN_LEN 256
+
 /*
  * IPv4-mapped IPv6 address helpers
  *

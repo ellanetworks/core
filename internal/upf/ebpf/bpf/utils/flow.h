@@ -19,6 +19,11 @@
 #define ALLOW 0
 #define DROP 1
 
+/* From the call site: N3 and N6 may share an interface or a master, so the
+ * ingress ifindex cannot tell the sides apart. */
+#define FLOW_UPLINK 0
+#define FLOW_DOWNLINK 1
+
 volatile const bool flowact;
 volatile const bool flowact = false;
 
@@ -42,6 +47,7 @@ struct flow {
 	__u8 proto;
 	__u8 dscp;
 	__u8 action;
+	__u8 direction; /* FLOW_UPLINK or FLOW_DOWNLINK; fills the trailing pad */
 };
 
 struct flow_stats {
@@ -60,7 +66,7 @@ struct {
 
 static __always_inline void account_flow(struct packet_context *ctx,
 					 __u32 egress_ifindex, __u64 imsi,
-					 __u8 ip_ver, __u8 action)
+					 __u8 ip_ver, __u8 direction, __u8 action)
 {
 	if (!flowact)
 		return;
@@ -70,6 +76,7 @@ static __always_inline void account_flow(struct packet_context *ctx,
 	f.egress_ifindex = egress_ifindex;
 	f.imsi = imsi;
 	f.action = action;
+	f.direction = direction;
 
 	if (ip_ver == 4) {
 		if (!ctx->ip4)
@@ -83,32 +90,26 @@ static __always_inline void account_flow(struct packet_context *ctx,
 			return;
 		f.saddr = ctx->ip6->saddr;
 		f.daddr = ctx->ip6->daddr;
-		f.proto = ctx->ip6->nexthdr;
+		/* The upper-layer protocol, past any chain. */
+		f.proto = ctx->l4_proto;
 		f.dscp = ctx->ip6->priority >> 4;
 	}
 
 	switch (f.proto) {
 	case IPPROTO_TCP:
-		if (!ctx->tcp) {
-			if (-1 == parse_tcp(ctx)) {
-				return;
-			}
-		}
-		if (!ctx->tcp)
-			return;
-		f.sport = ctx->tcp->source;
-		f.dport = ctx->tcp->dest;
-		break;
 	case IPPROTO_UDP:
-		if (!ctx->udp) {
-			if (-1 == parse_udp(ctx)) {
-				return;
-			}
-		}
-		if (!ctx->udp)
+		/* Some drop paths record a flow before the L4 parse runs.
+		 * Unconditional: testing ctx->udp and ctx->tcp here makes clang
+		 * fuse them into a bitwise or of two pointers, which the
+		 * verifier rejects. */
+		if (parse_l4(f.proto, ctx) < 0)
 			return;
-		f.sport = ctx->udp->source;
-		f.dport = ctx->udp->dest;
+
+		if (ctx->l4_unavailable)
+			return;
+
+		f.sport = bpf_htons(ctx->l4_sport);
+		f.dport = bpf_htons(ctx->l4_dport);
 		break;
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
