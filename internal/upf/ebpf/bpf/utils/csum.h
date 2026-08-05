@@ -542,6 +542,13 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	// ctx_load_bytes. A malformed-short length is clamped to the
 	// header size rather than rejected — produces a wrong checksum
 	// that the receiver drops, no worse than the malformed packet.
+	//
+	// The long side is different: the pseudo-header above already declares
+	// the true length, so summing fewer bytes than that corrupts a
+	// well-formed packet. Recorded here and refused below, once the bound
+	// the clamp establishes is no longer needed.
+	const bool over_scratch = udp_len > MAX_L4_DATAGRAM;
+
 	if (udp_len > MAX_L4_DATAGRAM)
 		udp_len = MAX_L4_DATAGRAM;
 	if (udp_len < sizeof(struct udphdr))
@@ -559,6 +566,11 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	int check = l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
 	if (check < 0)
 		return -1;
+
+	if (over_scratch) {
+		upf_printk("upf: datagram exceeds the checksum scratch buffer");
+		return -1;
+	}
 
 	/* RFC 768: a computed zero is transmitted as all ones. Over IPv6 a zero
 	 * checksum is not "no checksum" but invalid, and the receiver drops the

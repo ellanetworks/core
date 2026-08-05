@@ -332,16 +332,16 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	/* Captured before encapsulation resizes the frame. */
 	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
-	/* Update downlink traffic counter */
-	ctx->statistics->byte_counter.bytes += billed_bytes;
-
 	account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, ALLOW);
 
 	/* Only if the frame leaves: encapsulation and routing can still fail. */
 	enum ctx_action tunnel_ret = send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 
-	if (ctx_action_forwards(tunnel_ret))
+	if (ctx_action_forwards(tunnel_ret)) {
+		/* Exported throughput follows the verdict, as billing does. */
+		ctx->statistics->byte_counter.bytes += billed_bytes;
 		update_urr_bytes(ctx, pdr->local_seid, urr_id, billed_bytes);
+	}
 
 	return tunnel_ret;
 }
@@ -490,9 +490,6 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	/* Captured before encapsulation resizes the frame. */
 	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
-	/* Update downlink traffic counter */
-	ctx->statistics->byte_counter.bytes += billed_bytes;
-
 	__u32 urr_id = pdr->urr_id;
 
 	account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, ALLOW);
@@ -500,8 +497,11 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	/* As in the IPv4 path: billing follows the verdict. */
 	enum ctx_action tunnel_ret = send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 
-	if (ctx_action_forwards(tunnel_ret))
+	if (ctx_action_forwards(tunnel_ret)) {
+		/* Exported throughput follows the verdict, as billing does. */
+		ctx->statistics->byte_counter.bytes += billed_bytes;
 		update_urr_bytes(ctx, pdr->local_seid, urr_id, billed_bytes);
+	}
 
 	return tunnel_ret;
 }

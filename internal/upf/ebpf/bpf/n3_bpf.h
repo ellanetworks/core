@@ -336,9 +336,6 @@ handle_gtp_packet(struct packet_context *ctx)
 	/* Before routing resizes the frame. */
 	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
-	/* Account uplink traffic */
-	ctx->statistics->byte_counter.bytes += billed_bytes;
-
 	const __u32 key = 0;
 	struct route_stat *route_statistic =
 		bpf_map_lookup_elem(&uplink_route_stats, &key);
@@ -356,9 +353,11 @@ handle_gtp_packet(struct packet_context *ctx)
 			route_ipv4(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
-		if (ctx_action_forwards(fib_ret))
+		if (ctx_action_forwards(fib_ret)) {
+			ctx->statistics->byte_counter.bytes += billed_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
 					 billed_bytes);
+		}
 
 		return fib_ret;
 	} else if (ctx->ip6) {
@@ -368,9 +367,11 @@ handle_gtp_packet(struct packet_context *ctx)
 			route_ipv6(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
-		if (ctx_action_forwards(fib_ret))
+		if (ctx_action_forwards(fib_ret)) {
+			ctx->statistics->byte_counter.bytes += billed_bytes;
 			update_urr_bytes(ctx, pdr->local_seid, urr_id,
 					 billed_bytes);
+		}
 
 		return fib_ret;
 	} else {
