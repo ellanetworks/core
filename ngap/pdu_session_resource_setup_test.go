@@ -9,8 +9,7 @@ import (
 	"testing"
 )
 
-// Golden PDU SESSION RESOURCE SETUP PDUs. free5gc/ngap v1.1.3 and pycrate's
-// NGAP module, two independent implementations, encode these identically.
+// Golden PDU SESSION RESOURCE SETUP PDUs.
 const (
 	goldenPDUSessionResourceSetupRequest  = "001d0030000005000a0002000100550002000200260003027e00004a0008000005002002aabb006e400a0c3b9aca00301dcd6500"
 	goldenPDUSessionResourceSetupResponse = "201d0022000004000a40020001005540020002004b400600000502ccdd003a400500000901ee"
@@ -174,7 +173,6 @@ func TestPDUSessionResourceSetupRequestRejectsEmptySessionList(t *testing.T) {
 }
 
 // Golden PDU SESSION RESOURCE SETUP UNSUCCESSFUL TRANSFER (TS 38.413 §9.3.4.16).
-// free5gc/ngap v1.1.3 and pycrate's NGAP module encode it identically.
 const goldenSetupUnsuccessfulTransfer = "0000"
 
 func TestPDUSessionResourceSetupUnsuccessfulTransferRoundTrip(t *testing.T) {
@@ -212,7 +210,7 @@ func TestPDUSessionResourceSetupUnsuccessfulTransferRejectsTruncated(t *testing.
 // The request transfer is an IE container, so its golden carries IE ids and
 // criticality: 0x8b=139 UL-NGU-UP-TNLInformation, 0x86=134 PDUSessionType,
 // 0x88=136 QosFlowSetupRequestList, each reject (criticality 0). The response
-// transfer is a plain SEQUENCE and is dual-verified against free5gc.
+// transfer is a plain SEQUENCE.
 const (
 	goldenSetupRequestTransferMin  = "000003008b000a01f0c0a801010000000100860001000088000700010000090000"
 	goldenSetupResponseTransferMin = "0003e0c0a80101000000010003"

@@ -9,8 +9,7 @@ import (
 	"testing"
 )
 
-// Golden UE CONTEXT RELEASE PDUs. free5gc/ngap v1.1.3 and pycrate's NGAP
-// module, two independent implementations, encode these identically.
+// Golden UE CONTEXT RELEASE PDUs.
 const (
 	goldenUEContextReleaseRequest     = "002a401c000004000a0002000100550002000200850003000005000f40020500"
 	goldenUEContextReleaseRequestMin  = "002a4015000003000a00020001005500020002000f40020500"

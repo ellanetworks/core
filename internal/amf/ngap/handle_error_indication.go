@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
@@ -62,7 +61,7 @@ func emitErrorIndication(ctx context.Context, ran *amf.Radio, ind *ngap.ErrorInd
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureErrorIndication, b)
+	ran.SendToRadio(ctx, amf.NGAPProcedureErrorIndication, b)
 }
 
 // sendErrorIndication answers a UE-associated message the AMF cannot act on,

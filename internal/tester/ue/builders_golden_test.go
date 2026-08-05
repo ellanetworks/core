@@ -135,9 +135,6 @@ func goldenBuilders(t *testing.T) map[string][]byte {
 	}
 }
 
-// builderGolden locks the byte-exact output of each uplink builder, verified
-// identical to the free5gc encoder at migration time. Any drift is a wire-format
-// regression.
 var builderGolden = map[string]string{
 	"identity_response":       "7e005c000d0100f110000000000000000010",
 	"deregistration_request":  "7e004519000bf200f11001020304050607",

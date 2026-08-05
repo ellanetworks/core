@@ -10,9 +10,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Goldens from pycrate's compiled NGAP ASN.1. handoverRequestAcknowledge(min),
-// pathSwitchRequest(min) and pathSwitchRequestSetupFailed are additionally
-// verified against free5gc/aper, which encodes them identically.
 const (
 	goldenHandoverRequiredTransferMin = "00"
 	// directForwardingPathAvailability present: preamble bit, then the

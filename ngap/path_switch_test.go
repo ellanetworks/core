@@ -76,7 +76,6 @@ func TestPathSwitchRequestGolden(t *testing.T) {
 	}
 }
 
-// pycrate's NGAP module encodes this identically.
 const goldenPathSwitchRequestAcknowledge = "20190043000005000a40020001005540020002005d0021080000000000000000" +
 	"000000000000000000000000000000000000000000000000004d40050000050100000000020001"
 
@@ -125,7 +124,6 @@ func TestPathSwitchRequestAcknowledgeGolden(t *testing.T) {
 	}
 }
 
-// pycrate's NGAP module encodes this identically.
 const goldenPathSwitchRequestFailure = "40190019000003000a40020001005540020002004540060000050201a0"
 
 // Where TS 36.413 names one Cause for the whole message, NGAP reports per

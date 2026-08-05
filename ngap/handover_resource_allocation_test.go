@@ -35,7 +35,6 @@ func handoverSetupTransfer(t *testing.T) TransferContainer {
 	return b
 }
 
-// free5gc/ngap v1.1.3 and pycrate's NGAP module encode this identically.
 const goldenHandoverRequest = "000d00809700000a000a00020001001d000100000f40020400006e000a0c3b9a" +
 	"ca00303b9aca0000770009100008000000000000005d0021080000000000000000000000000000000000000000" +
 	"00000000000000000000000000490027000005002021000003008b000a01f0c0a80101000000010086000100008800" +
@@ -92,7 +91,6 @@ func TestHandoverRequestGolden(t *testing.T) {
 	}
 }
 
-// free5gc/ngap v1.1.3 and pycrate's NGAP module encode this identically.
 const goldenHandoverRequestAcknowledge = "200d0035000005000a40020001005540020002003540110000050d0007c0c0a8" +
 	"010200000002000100384006000006020038006a000302ccdd"
 
@@ -163,7 +161,6 @@ func TestHandoverRequestAcknowledgeGolden(t *testing.T) {
 	}
 }
 
-// free5gc/ngap v1.1.3 and pycrate's NGAP module encode this identically.
 const goldenHandoverFailure = "400d0016000003000a40020001000f400201c00106400302eeff"
 
 func TestHandoverFailureGolden(t *testing.T) {

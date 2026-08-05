@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -48,7 +47,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 	}
 
 	if !accepted {
-		ran.SendToRadio(ctx, send.NGAPProcedureRANConfigurationUpdateFailure, outBytes)
+		ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateFailure, outBytes)
 
 		logger.WithTrace(ctx, ran.Log).Warn("RAN Configuration Update rejected",
 			zap.String("reason", reason),
@@ -76,7 +75,7 @@ func HandleRANConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 			zap.Any("global-ran-node-id", req.GlobalRANNodeID))
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureRANConfigurationUpdateAcknowledge, outBytes)
+	ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateAcknowledge, outBytes)
 
 	logger.WithTrace(ctx, ran.Log).Info("RAN Configuration Update acknowledged",
 		zap.String("gnb-name", ran.NodeName()))
@@ -141,7 +140,7 @@ func sendRANConfigurationUpdateFailure(ctx context.Context, ran *amf.Radio, caus
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureRANConfigurationUpdateFailure, pkt)
+	ran.SendToRadio(ctx, amf.NGAPProcedureRANConfigurationUpdateFailure, pkt)
 }
 
 // sendRANConfigurationUpdateProtocolFailure rejects an update that must not

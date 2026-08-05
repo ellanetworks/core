@@ -9,9 +9,6 @@ import (
 	"testing"
 )
 
-// Golden PDU SESSION RESOURCE MODIFY INDICATION PDUs. free5gc/ngap v1.1.3 and
-// pycrate's NGAP module, two independent implementations, encode these
-// identically.
 const (
 	goldenPDUSessionResourceModifyIndication = "001b0018000003000a00020001005500020002003f000500000501aa"
 	goldenPDUSessionResourceModifyConfirm    = "201b0021000004000a40020001005540020002003e400500000501bb0083400500000901cc"
@@ -160,7 +157,6 @@ func TestPDUSessionResourceModifyIndicationUnsuccessfulTransferRoundTrip(t *test
 	}
 }
 
-// Dual-verified against free5gc and pycrate.
 const (
 	goldenModifyIndicationTransfer = "000f80c0a80101000000010003"
 	goldenModifyConfirmTransferMin = "0000203ec0a8010100000001"

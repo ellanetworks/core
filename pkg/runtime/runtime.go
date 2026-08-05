@@ -20,7 +20,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -561,7 +560,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
-		PPID:   send.NGAPPPID,
+		PPID:   amf.NGAPPPID,
 		Name:   "NGAP",
 		Logger: logger.AmfLog,
 	}, amfsctp.Callbacks{
@@ -764,7 +763,7 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 			logger.AmfLog.Error("failed to build AMF Status Indication", zap.Error(buildErr))
 		} else {
 			for _, ran := range amfInstance.ConnectedRadios() {
-				ran.SendToRadio(ctx, send.NGAPProcedureAMFStatusIndication, pkt)
+				ran.SendToRadio(ctx, amf.NGAPProcedureAMFStatusIndication, pkt)
 			}
 		}
 	}

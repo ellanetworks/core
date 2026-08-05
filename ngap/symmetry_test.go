@@ -53,10 +53,7 @@ var s1apOnlyFiles = map[string]string{}
 // list empties itself. A file that exists on both sides under different names
 // belongs in renamedFiles, which is consulted first and actually verifies the
 // counterpart; an entry here would never be reached.
-var pendingNGAPMigration = map[string]struct{}{
-	"lppa_transport.go":      {},
-	"lppa_transport_test.go": {},
-}
+var pendingNGAPMigration = map[string]struct{}{}
 
 // Same thing, different name per spec. Both sides must still exist.
 var renamedFiles = map[string]string{
@@ -85,6 +82,11 @@ var renamedFiles = map[string]string{
 	// TS 36.413 names it UE Capability Info Indication.
 	"ue_radio_capability.go":      "ue_capability.go",
 	"ue_radio_capability_test.go": "ue_capability_test.go",
+
+	// TS 38.413 carries LMF signalling as NRPPa where TS 36.413 carries the
+	// E-SMLC's as LPPa (TS 38.455 / TS 36.455).
+	"nrppa_transport.go":      "lppa_transport.go",
+	"nrppa_transport_test.go": "lppa_transport_test.go",
 
 	// TS 38.413 names the NG-RAN node's update RAN Configuration Update where
 	// TS 36.413 names the eNB's ENB Configuration Update.

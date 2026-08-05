@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -35,7 +34,7 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt)
+	ran.SendToRadio(ctx, amf.NGAPProcedurePathSwitchRequestFailure, pkt)
 }
 
 // pathSwitchReleasedList builds the released list with one item per distinct
@@ -93,7 +92,7 @@ func sendPathSwitchProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ng
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedurePathSwitchRequestFailure, pkt)
+	ran.SendToRadio(ctx, amf.NGAPProcedurePathSwitchRequestFailure, pkt)
 
 	logger.WithTrace(ctx, ran.Log).Warn("Path Switch rejected", zap.Error(ase))
 }

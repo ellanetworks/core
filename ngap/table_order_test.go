@@ -36,6 +36,8 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"HandoverRequest", tableIDs(handoverRequestIEs), []ProtocolIEID{idAMFUENGAPID, idHandoverType, idCause, idUEAggregateMaximumBitRate, idUESecurityCapabilities, idSecurityContext, idPDUSessionResourceSetupListHOReq, idAllowedNSSAI, idSourceToTargetTransparentContainer, idGUAMI}},
 		{"HandoverRequestAcknowledge", tableIDs(handoverRequestAcknowledgeIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idPDUSessionResourceAdmittedList, idPDUSessionResourceFailedToSetupListHOAck, idTargetToSourceTransparentContainer, idCriticalityDiagnostics}},
 		{"HandoverFailure", tableIDs(handoverFailureIEs), []ProtocolIEID{idAMFUENGAPID, idCause, idCriticalityDiagnostics, idTargettoSourceFailureTransparentContainer}},
+		{"DownlinkUEAssociatedNRPPaTransport", tableIDs(downlinkUEAssociatedNRPPaTransportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idRoutingID, idNRPPaPDU}},
+		{"UplinkUEAssociatedNRPPaTransport", tableIDs(uplinkUEAssociatedNRPPaTransportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idRoutingID, idNRPPaPDU}},
 		{"LocationReport", tableIDs(locationReportIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idUserLocationInformation, idUEPresenceInAreaOfInterestList, idLocationReportingRequestType}},
 		{"LocationReportingControl", tableIDs(locationReportingControlIEs), []ProtocolIEID{idAMFUENGAPID, idRANUENGAPID, idLocationReportingRequestType}},
 		{"PathSwitchRequest", tableIDs(pathSwitchRequestIEs), []ProtocolIEID{idRANUENGAPID, idSourceAMFUENGAPID, idUserLocationInformation, idUESecurityCapabilities, idPDUSessionResourceToBeSwitchedDLList, idPDUSessionResourceFailedToSetupListPSReq}},

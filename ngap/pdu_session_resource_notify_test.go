@@ -5,8 +5,7 @@ package ngap
 
 import "testing"
 
-// Golden PDU SESSION RESOURCE NOTIFY PDU. free5gc/ngap v1.1.3 and pycrate's
-// NGAP module, two independent implementations, encode this identically.
+// Golden PDU SESSION RESOURCE NOTIFY PDU.
 const goldenPDUSessionResourceNotify = "001e4021000004000a000200010055000200020042000500000501aa0043400500000901bb"
 
 func goldPDUSessionResourceNotify() *PDUSessionResourceNotify {

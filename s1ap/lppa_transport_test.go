@@ -11,8 +11,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Golden vectors are the aligned-PER encoding of the full S1AP-PDU produced by
-// pycrate from the 3GPP TS 36.413 S1AP ASN.1, not by this codec.
 const (
 	goldenDownlinkLPPaTransport = "002c401f00000400000003401092000800020007009400010300930006050005abcdef"
 	goldenUplinkLPPaTransport   = "002d401f0000040000000200010008000480ffffff00940001ff00930005046000f110"

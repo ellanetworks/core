@@ -87,6 +87,8 @@ const (
 	idPDUSessionResourceSwitchedList             ProtocolIEID = 77
 	idLocationReportingRequestType               ProtocolIEID = 33
 	idUEPresenceInAreaOfInterestList             ProtocolIEID = 116
+	idNRPPaPDU                                   ProtocolIEID = 46
+	idRoutingID                                  ProtocolIEID = 89
 
 	// Carried inside the §9.3.4 PDU session transfers rather than a message body.
 	idAdditionalULNGUUPTNLInformation   ProtocolIEID = 126

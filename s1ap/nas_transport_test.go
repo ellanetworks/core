@@ -190,8 +190,6 @@ func roundTripInitialUE(t *testing.T, in *InitialUEMessage) (*InitialUEMessage, 
 	return ParseInitialUEMessage(pdu.(*InitiatingMessage).Value)
 }
 
-// Golden UPLINK NAS TRANSPORT PDUs from pycrate's S1AP ASN.1 module, a second,
-// independent implementation encoding the same messages.
 const (
 	goldenUplinkNASTransport        = "000d402c000005000000020001000800020001001a0003020741006440080000f1100abcde10004340060000f1100001"
 	goldenUplinkNASTransportWideIDs = "000d403400000500000005c0ffffffff0008000480ffffff001a0006050741010bf6006440080000f110fffffff0004340060000f110ffff"
@@ -296,8 +294,6 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	}
 }
 
-// Golden DOWNLINK NAS TRANSPORT PDUs from pycrate's S1AP ASN.1 module, a
-// second, independent implementation encoding the same messages.
 const (
 	goldenDownlinkNASTransport        = "000b4016000003000000020001000800020001001a0003020742"
 	goldenDownlinkNASTransportWideIDs = "000b401e00000300000005c0ffffffff0008000480ffffff001a0006050742010203"

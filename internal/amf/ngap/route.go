@@ -6,9 +6,9 @@ package ngap
 import (
 	"context"
 	"errors"
+	"net"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,48 +20,71 @@ import (
 // Message names for the network event log, matching what getMessageType
 // returns for the procedures still on the reference decoder.
 const (
-	ngSetupRequestMessageType  send.NGAPProcedure = "NGSetupRequest"
-	errorIndicationMessageType send.NGAPProcedure = "ErrorIndication"
-	ngResetMessageType         send.NGAPProcedure = "NGReset"
+	ngSetupRequestMessageType  amf.NGAPProcedure = "NGSetupRequest"
+	errorIndicationMessageType amf.NGAPProcedure = "ErrorIndication"
+	ngResetMessageType         amf.NGAPProcedure = "NGReset"
 
-	ranConfigurationUpdateMessageType send.NGAPProcedure = "RANConfigurationUpdate"
+	ranConfigurationUpdateMessageType amf.NGAPProcedure = "RANConfigurationUpdate"
 
-	nasNonDeliveryIndicationMessageType           send.NGAPProcedure = "NASNonDeliveryIndication"
-	uplinkNASTransportMessageType                 send.NGAPProcedure = "UplinkNASTransport"
-	initialUEMessageMessageType                   send.NGAPProcedure = "InitialUEMessage"
-	ueContextReleaseRequestMessageType            send.NGAPProcedure = "UEContextReleaseRequest"
-	ueContextReleaseCompleteMessageType           send.NGAPProcedure = "UEContextReleaseComplete"
-	initialContextSetupResponseMessageType        send.NGAPProcedure = "InitialContextSetupResponse"
-	initialContextSetupFailureMessageType         send.NGAPProcedure = "InitialContextSetupFailure"
-	ueRadioCapabilityInfoIndicationMessageType    send.NGAPProcedure = "UERadioCapabilityInfoIndication"
-	pduSessionResourceSetupResponseMessageType    send.NGAPProcedure = "PDUSessionResourceSetupResponse"
-	pduSessionResourceReleaseResponseMessageType  send.NGAPProcedure = "PDUSessionResourceReleaseResponse"
-	pduSessionResourceModifyResponseMessageType   send.NGAPProcedure = "PDUSessionResourceModifyResponse"
-	pduSessionResourceModifyIndicationMessageType send.NGAPProcedure = "PDUSessionResourceModifyIndication"
-	pduSessionResourceNotifyMessageType           send.NGAPProcedure = "PDUSessionResourceNotify"
-	handoverNotifyMessageType                     send.NGAPProcedure = "HandoverNotify"
-	handoverCancelMessageType                     send.NGAPProcedure = "HandoverCancel"
-	handoverRequiredMessageType                   send.NGAPProcedure = "HandoverRequired"
-	handoverRequestAcknowledgeMessageType         send.NGAPProcedure = "HandoverRequestAcknowledge"
-	handoverFailureMessageType                    send.NGAPProcedure = "HandoverFailure"
-	uplinkRANStatusTransferMessageType            send.NGAPProcedure = "UplinkRANStatusTransfer"
-	pathSwitchRequestMessageType                  send.NGAPProcedure = "PathSwitchRequest"
-	locationReportMessageType                     send.NGAPProcedure = "LocationReport"
+	nasNonDeliveryIndicationMessageType           amf.NGAPProcedure = "NASNonDeliveryIndication"
+	uplinkNASTransportMessageType                 amf.NGAPProcedure = "UplinkNASTransport"
+	initialUEMessageMessageType                   amf.NGAPProcedure = "InitialUEMessage"
+	ueContextReleaseRequestMessageType            amf.NGAPProcedure = "UEContextReleaseRequest"
+	ueContextReleaseCompleteMessageType           amf.NGAPProcedure = "UEContextReleaseComplete"
+	initialContextSetupResponseMessageType        amf.NGAPProcedure = "InitialContextSetupResponse"
+	initialContextSetupFailureMessageType         amf.NGAPProcedure = "InitialContextSetupFailure"
+	ueRadioCapabilityInfoIndicationMessageType    amf.NGAPProcedure = "UERadioCapabilityInfoIndication"
+	pduSessionResourceSetupResponseMessageType    amf.NGAPProcedure = "PDUSessionResourceSetupResponse"
+	pduSessionResourceReleaseResponseMessageType  amf.NGAPProcedure = "PDUSessionResourceReleaseResponse"
+	pduSessionResourceModifyResponseMessageType   amf.NGAPProcedure = "PDUSessionResourceModifyResponse"
+	pduSessionResourceModifyIndicationMessageType amf.NGAPProcedure = "PDUSessionResourceModifyIndication"
+	pduSessionResourceNotifyMessageType           amf.NGAPProcedure = "PDUSessionResourceNotify"
+	handoverNotifyMessageType                     amf.NGAPProcedure = "HandoverNotify"
+	handoverCancelMessageType                     amf.NGAPProcedure = "HandoverCancel"
+	handoverRequiredMessageType                   amf.NGAPProcedure = "HandoverRequired"
+	handoverRequestAcknowledgeMessageType         amf.NGAPProcedure = "HandoverRequestAcknowledge"
+	handoverFailureMessageType                    amf.NGAPProcedure = "HandoverFailure"
+	uplinkRANStatusTransferMessageType            amf.NGAPProcedure = "UplinkRANStatusTransfer"
+	pathSwitchRequestMessageType                  amf.NGAPProcedure = "PathSwitchRequest"
+	locationReportMessageType                     amf.NGAPProcedure = "LocationReport"
+	uplinkNRPPaTransportMessageType               amf.NGAPProcedure = "UplinkUEAssociatedNRPPaTransport"
 
-	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
+	uplinkRANConfigurationTransferMessageType amf.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
 
-// handleMigrated dispatches the procedures decoded by the in-house NGAP codec
-// and reports whether it consumed the message. It returns false for everything
-// else, including octets that do not decode at all — the caller's existing path
-// reports those. Procedures move here one at a time; when the last one has, this
-// becomes the only route and the reference decoder goes.
-func handleMigrated(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, span trace.Span) bool {
+// route decodes and dispatches an inbound NGAP message. Octets that do not
+// decode draw a transfer-syntax Error Indication (§10.3.4.1); a message that
+// decodes but names a procedure this AMF does not implement is answered on the
+// procedure's own criticality (§10.3.4.1A).
+func route(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, span trace.Span, remote, local net.Addr) {
+	span.SetAttributes(
+		attribute.Int("ngap.message_size", len(msg)),
+		attribute.String("network.protocol.name", "ngap"),
+		attribute.String("network.transport", "sctp"),
+		attribute.String("network.peer.address", amf.AddrString(remote)),
+		attribute.String("network.local.address", amf.AddrString(local)),
+	)
+
 	pdu, err := ngap.Unmarshal(msg)
 	if err != nil {
-		return false
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decode NGAP message")
+		logger.From(ctx, ran.Log).Error("NGAP decode error", zap.Error(err))
+		sendProtocolErrorIndication(ctx, ran, ngap.CauseProtocolTransferSyntaxError)
+
+		return
 	}
 
+	if handled := dispatchDecoded(ctx, amfInstance, ran, msg, pdu, span); handled {
+		return
+	}
+
+	respondToUnknownProcedure(ctx, ran, pdu)
+}
+
+// dispatchDecoded routes a decoded PDU and reports whether it consumed it. A
+// false return means the PDU named a procedure this AMF does not implement.
+func dispatchDecoded(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, pdu ngap.PDU, span trace.Span) bool {
 	switch p := pdu.(type) {
 	case *ngap.InitiatingMessage:
 		return routeInitiating(ctx, amfInstance, ran, msg, p, span)
@@ -124,6 +147,8 @@ func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receivePathSwitchRequest(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcLocationReport:
 		receiveLocationReport(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcUplinkUEAssociatedNRPPaTransport:
+		receiveUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -176,7 +201,7 @@ func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio
 // traceMessage records what the span and the network event log call a message
 // the in-house codec decoded, matching what getMessageType returns for the
 // procedures still on the reference decoder.
-func traceMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, name send.NGAPProcedure, span trace.Span) {
+func traceMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, name amf.NGAPProcedure, span trace.Span) {
 	span.SetAttributes(
 		attribute.String("ngap.message_type", string(name)),
 		attribute.Int("ngap.message_size", len(msg)),
@@ -575,6 +600,23 @@ func receiveHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	HandleHandoverRequired(ctx, amfInstance, ran, required)
+}
+
+// receiveUplinkUEAssociatedNRPPaTransport parses and handles an UPLINK
+// UE-ASSOCIATED NRPPa TRANSPORT. The procedure defines no unsuccessful outcome,
+// so a failed parse is answered with an Error Indication (TS 38.413 §10.3.5).
+func receiveUplinkUEAssociatedNRPPaTransport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, uplinkNRPPaTransportMessageType, span)
+
+	transport, err := ngap.ParseUplinkUEAssociatedNRPPaTransport(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Uplink UE-associated NRPPa Transport", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkUEAssociatedNRPPaTransport, err)
+
+		return
+	}
+
+	HandleUplinkUEAssociatedNRPPaTransport(ctx, amfInstance, ran, transport)
 }
 
 // receiveLocationReport parses and handles a LOCATION REPORT. The procedure

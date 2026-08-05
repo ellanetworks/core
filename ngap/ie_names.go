@@ -58,6 +58,8 @@ var protocolIENames = map[ProtocolIEID]string{
 	idPDUSessionResourceSwitchedList:             "PDUSessionResourceSwitchedList",
 	idLocationReportingRequestType:               "LocationReportingRequestType",
 	idUEPresenceInAreaOfInterestList:             "UEPresenceInAreaOfInterestList",
+	idNRPPaPDU:                                   "NRPPa-PDU",
+	idRoutingID:                                  "RoutingID",
 	idPDUSessionResourceSetupListSURes:           "PDUSessionResourceSetupListSURes",
 	idPDUSessionResourceReleasedListRelRes:       "PDUSessionResourceReleasedListRelRes",
 	idPDUSessionResourceNotifyList:               "PDUSessionResourceNotifyList",

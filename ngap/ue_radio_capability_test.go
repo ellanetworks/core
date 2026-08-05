@@ -9,9 +9,7 @@ import (
 	"testing"
 )
 
-// Golden UE RADIO CAPABILITY INFO INDICATION PDUs. free5gc/ngap v1.1.3 and
-// pycrate's NGAP module, two independent implementations, encode these
-// identically.
+// Golden UE RADIO CAPABILITY INFO INDICATION PDUs.
 const (
 	goldenUERadioCapabilityInfoIndication     = "002c4017000003000a000200010055000200020075400403010203"
 	goldenUERadioCapabilityInfoIndicationFull = "002c4020000004000a0002000100550002000200754004030102030076400560010a010b"

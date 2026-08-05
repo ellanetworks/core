@@ -45,7 +45,6 @@ func TestHandoverPreparationFailureRoundTrip(t *testing.T) {
 	}
 }
 
-// pycrate's S1AP module encodes this identically.
 const goldenHandoverCommand = "2000003b0000060000000200070008000200020001000100000c401000000e" +
 	"400b60a1f0c000020111223344000d400800002340030c0000007b000302ccdd"
 

@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -68,7 +67,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	if !accepted {
-		ran.SendToRadio(ctx, send.NGAPProcedureNGSetupFailure, outBytes)
+		ran.SendToRadio(ctx, amf.NGAPProcedureNGSetupFailure, outBytes)
 
 		logger.WithTrace(ctx, ran.Log).Warn("NG Setup rejected",
 			zap.String("gnb-name", name),
@@ -105,7 +104,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		)
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureNGSetupResponse, outBytes)
+	ran.SendToRadio(ctx, amf.NGAPProcedureNGSetupResponse, outBytes)
 
 	logger.WithTrace(ctx, ran.Log).Info("Radio completed NG Setup", zap.String("name", name))
 }
@@ -119,7 +118,7 @@ func sendNGSetupFailure(ctx context.Context, ran *amf.Radio, cause ngap.Cause, d
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureNGSetupFailure, pkt)
+	ran.SendToRadio(ctx, amf.NGAPProcedureNGSetupFailure, pkt)
 }
 
 // sendNGSetupProtocolFailure rejects a request that must not reach the

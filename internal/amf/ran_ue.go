@@ -10,21 +10,16 @@ package amf
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
-	"strconv"
 	"sync/atomic"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 

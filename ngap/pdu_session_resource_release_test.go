@@ -9,8 +9,7 @@ import (
 	"testing"
 )
 
-// Golden PDU SESSION RESOURCE RELEASE PDUs. free5gc/ngap v1.1.3 and pycrate's
-// NGAP module, two independent implementations, encode these identically.
+// Golden PDU SESSION RESOURCE RELEASE PDUs.
 const (
 	goldenPDUSessionResourceReleaseCommand  = "001c001f000004000a0002000100550002000200264003027e00004f000500000501aa"
 	goldenPDUSessionResourceReleaseResponse = "201c0018000003000a400200010055400200020046400500000501bb"
@@ -157,7 +156,7 @@ func TestPDUSessionResourceReleaseResponseMissingList(t *testing.T) {
 	}
 }
 
-// Dual-verified against free5gc and pycrate. The all-zero minimal case pins
+// The all-zero minimal case pins
 // little on its own, so a NAS cause (a different CHOICE group) and a non-zero
 // radio-network value are pinned alongside it.
 const (

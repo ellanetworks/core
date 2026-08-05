@@ -42,8 +42,6 @@ func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 	}
 }
 
-// Golden NAS NON DELIVERY INDICATION PDUs from pycrate's S1AP ASN.1 module,
-// a second, independent implementation encoding the same messages.
 const (
 	goldenNASNonDelivery         = "0010401c000004000000020001000800020001001a4003027e00000240020000"
 	goldenNASNonDeliveryWideIDs  = "0010402400000400000005c0ffffffff0008000480ffffff001a4006057e010203040002400201e0"

@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -80,7 +79,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
+	ran.SendToRadio(ctx, amf.NGAPProcedurePDUSessionResourceModifyConfirm, pkt)
 }
 
 // appendFailedToModify records a session the AMF could not hand to the SMF,

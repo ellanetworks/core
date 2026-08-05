@@ -20,7 +20,6 @@ func locationReportULI() UserLocationInformation {
 	}
 }
 
-// pycrate's NGAP module encodes this identically.
 const goldenLocationReport = "0012402f000005000a000200010055000200020079400f4002f839000000001002" +
 	"f83900000100744003000400002140020000"
 
@@ -68,7 +67,6 @@ func TestLocationReportGolden(t *testing.T) {
 	}
 }
 
-// pycrate's NGAP module encodes this identically.
 const goldenLocationReportingControl = "00104015000003000a00020001005500020002002140020300"
 
 func TestLocationReportingControlGolden(t *testing.T) {

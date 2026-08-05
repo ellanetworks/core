@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
@@ -192,7 +191,7 @@ func sendHandoverPreparationProtocolFailure(ctx context.Context, ran *amf.Radio,
 		return
 	}
 
-	ran.SendToRadio(ctx, send.NGAPProcedureHandoverPreparationFailure, b)
+	ran.SendToRadio(ctx, amf.NGAPProcedureHandoverPreparationFailure, b)
 
 	logger.WithTrace(ctx, ran.Log).Warn("Handover Preparation rejected", zap.Error(ase))
 }

@@ -13,8 +13,7 @@ import (
 )
 
 // Golden UPTransportLayerInformation carrying a GTP tunnel to 192.168.1.1
-// TEID 1. free5gc/ngap cannot marshal a bare CHOICE outside a message, so this
-// is pycrate's encoding, cross-checked by hand against X.691: choice index
+// TEID 1. choice index
 // (1 bit) + SEQUENCE extension bit + absent iE-Extensions + BIT STRING
 // extension bit + 8-bit length (32-1) pads to 0x01 0xf0, then the four address
 // octets and four TEID octets.

@@ -9,8 +9,7 @@ import (
 	"testing"
 )
 
-// Golden PDU SESSION RESOURCE MODIFY PDUs. free5gc/ngap v1.1.3 and pycrate's
-// NGAP module, two independent implementations, encode these identically.
+// Golden PDU SESSION RESOURCE MODIFY PDUs.
 const (
 	goldenPDUSessionResourceModifyRequest  = "001a001b000003000a0002000100550002000200400008004005027e0001aa"
 	goldenPDUSessionResourceModifyResponse = "201a0021000004000a400200010055400200020041400500000501bb0036400500000901cc"

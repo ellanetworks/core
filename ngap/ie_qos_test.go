@@ -11,12 +11,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// Goldens from pycrate's compiled NGAP ASN.1, single-implementation plus the
-// derivation noted per case. free5gc/aper is not a second source for these two:
-// it cannot marshal a bare CHOICE outside a message container, and these were
-// taken before that was narrowed down. Blocks further down that say
-// "dual-verified" were generated against free5gc as well and do carry two
-// independent sources.
 const (
 	// Extension bit, absent iE-Extensions, priorityLevelARP 1 over (1..15) is
 	// 0, then two extensible ENUMERATEDs each contributing an extension bit and
@@ -91,10 +85,6 @@ func TestPriorityLevelARPRejectsZero(t *testing.T) {
 	}
 }
 
-// The 5QI goldens below are dual-verified: pycrate and free5gc/aper agree byte
-// for byte, and the derivation of the leading bits is recorded per case. The
-// preamble width is the trap — iE-Extensions is itself OPTIONAL, so a SEQUENCE
-// with three visible optional fields still carries a four-bit bitmap.
 const (
 	// Extension bit, a four-bit absent-optional bitmap (priorityLevelQos,
 	// averagingWindow, maximumDataBurstVolume, iE-Extensions), the fiveQI
@@ -245,11 +235,6 @@ func TestQosCharacteristicsRejectsUnknownKind(t *testing.T) {
 	}
 }
 
-// QoS flow list goldens. qosFlowSetupRequestItem and associatedQosFlowItem are
-// dual-verified against free5gc; the rest are pycrate. Bitmap widths differ
-// across this block: QosFlowWithCauseItem, QosFlowPerTNLInformation and
-// QosFlowPerTNLInformationItem carry iE-Extensions as their only optional
-// field, so their preamble is one bit, not two.
 const (
 	// Extension bit, a two-bit absent-optional bitmap (e-RAB-ID,
 	// iE-Extensions), qosFlowIdentifier 1 in six bits (range 64), then the
@@ -430,8 +415,6 @@ func TestNGAPConstantsMatchSpec(t *testing.T) {
 	}
 }
 
-// Session and security foundation goldens. PDUSessionAggregateMaximumBitRate,
-// SecurityIndication and SecurityResult are dual-verified against free5gc.
 const (
 	goldenNetworkInstance1   = "0000"
 	goldenNetworkInstance256 = "00ff"

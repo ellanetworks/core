@@ -18,8 +18,6 @@ const (
 	goldenUplinkNASTransportEUTRA  = "002e4027000004000a0002002a00550002000700260002017e0079400e0000f110abcde12000f110000001"
 )
 
-// Golden INITIAL UE MESSAGE PDUs. free5gc/ngap v1.1.3 and pycrate's NGAP
-// module, two independent implementations, encode these identically.
 const (
 	goldenInitialUEMessage     = "000f402900000400550002000100260004037e00410079000f4000f110123456789000f110000001005a400118"
 	goldenInitialUEMessageFull = "000f404300000700550005c0ffffffff00260005047e0041010079000f4000f110123456789000f110000001005a400148001a00070010c0deadbeef0003400200400070400100"
@@ -269,8 +267,6 @@ func TestDownlinkNASTransportRoundTrip(t *testing.T) {
 	}
 }
 
-// Golden DOWNLINK NAS TRANSPORT PDUs. free5gc/ngap v1.1.3 and pycrate's NGAP
-// module, two independent implementations, encode these identically.
 const (
 	goldenDownlinkNASTransport        = "00044017000003000a0002000100550002000100260004037e0056"
 	goldenDownlinkNASTransportWideIDs = "00044020000003000a000680ffffffffff00550005c0ffffffff00260006057e01020304"
@@ -496,10 +492,6 @@ func TestRRCEstablishmentCauseNGAPOnlyValues(t *testing.T) {
 	}
 }
 
-// Golden INITIAL UE MESSAGE PDUs for the two IEs a conformant NG-RAN node may
-// send that this AMF does not act on. Both are reject criticality, so failing
-// to model them would reject the whole message (§10.3.4.2) and no UE on that
-// node could ever register. From pycrate's NGAP module.
 const (
 	goldenInitialUEMessageN3IWF = "000f402100000400550002000100260003027e000079000880f8c0a801011f90005a400118"
 	goldenInitialUEMessageNSSAI = "000f403100000500550002000100260003027e000079000f4000f110123456789000f110000001005a40011800000005020100007b"

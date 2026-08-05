@@ -7,7 +7,6 @@ import (
 	"context"
 	"net"
 
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 )
@@ -25,7 +24,7 @@ func AddrString(a net.Addr) string {
 // LogNetworkEvent records an NGAP message exchanged with a gNB in the network events
 // log. Addresses come from the radio's concrete SCTP connection; a test writer (or a
 // nil connection) is skipped. A nil address renders as "" so the exchange is still logged.
-func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType send.NGAPProcedure, dir logger.LogDirection, raw []byte) {
+func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType NGAPProcedure, dir logger.LogDirection, raw []byte) {
 	if conn == nil {
 		return
 	}
@@ -48,6 +47,6 @@ func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType 
 }
 
 // logOutboundNGAP records a sent NGAP PDU as a network event.
-func (a *AMF) logOutboundNGAP(ctx context.Context, conn NGAPWriter, msgType send.NGAPProcedure, packet []byte) {
+func (a *AMF) logOutboundNGAP(ctx context.Context, conn NGAPWriter, msgType NGAPProcedure, packet []byte) {
 	a.LogNetworkEvent(ctx, conn, msgType, logger.DirectionOutbound, packet)
 }

@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-// free5gc/ngap v1.1.3 and pycrate's NGAP module encode these identically.
 const (
 	goldenHandoverCancel            = "000a0015000003000a00020001005500020002000f40020140"
 	goldenHandoverCancelAcknowledge = "200a000f000002000a40020001005540020002"

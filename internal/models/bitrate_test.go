@@ -37,8 +37,6 @@ func TestParseBitRate(t *testing.T) {
 	}
 }
 
-// free5gc's converter returned 0 for a malformed rate and treated an unknown
-// unit as bps. Both put a wrong rate on the wire with no signal.
 func TestParseBitRateRejectsMalformed(t *testing.T) {
 	for _, in := range []string{
 		"",

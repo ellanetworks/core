@@ -11,8 +11,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// free5gc/ngap v1.1.3 and pycrate's NGAP module, two independent
-// implementations, encode these identically.
 const (
 	goldenHandoverNotify = "000b4022000003000a000200010055000200020079400f4002f839000000010002f839000001"
 	// NotifySourceNGRANNode present: id 269 (0x010d), ignore, one root value.

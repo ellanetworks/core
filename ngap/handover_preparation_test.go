@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// free5gc/ngap v1.1.3 and pycrate's NGAP module encode this identically.
 const goldenHandoverPreparationFailure = "400c0015000003000a40020001005540020002000f400201c0"
 
 func TestHandoverPreparationFailureGolden(t *testing.T) {
@@ -91,8 +90,6 @@ func TestHandoverPreparationFailureRejectsTruncated(t *testing.T) {
 	}
 }
 
-// Golden from pycrate's compiled NGAP ASN.1, with the HandoverRequiredTransfer
-// each session carries encoded empty.
 const goldenHandoverRequired = "000c003d000007000a00020001005500020002001d000100000f4002040000" +
 	"69000f0002f839100000010002f839000001003d000500000501000065000302aabb"
 
@@ -177,7 +174,6 @@ func TestHandoverTypeRootCountMatchesSpec(t *testing.T) {
 	}
 }
 
-// free5gc/ngap v1.1.3 and pycrate's NGAP module encode this identically.
 const goldenHandoverCommand = "200c002e000006000a00020001005500020002001d000100003b4005000005" +
 	"0100004e4006000006020100006a000302ccdd"
 

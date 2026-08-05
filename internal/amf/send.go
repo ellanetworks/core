@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/guard"
@@ -520,7 +519,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 }
 
 // SendNGAP writes a complete NGAP PDU to this UE's gNB association (via its conn).
-func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType send.NGAPProcedure, pkt []byte) {
+func (ueConn *UeConn) SendNGAP(ctx context.Context, msgType NGAPProcedure, pkt []byte) {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		logger.From(ctx, ueConn.Log).Error("failed to resolve NGAP send target", zap.String("procedure", string(msgType)), zap.Error(err))
@@ -554,7 +553,24 @@ func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byt
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNASTransport, pkt)
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureDownlinkNASTransport, pkt)
+}
+
+// downlinkUEAssociatedNRPPaTransportBytes builds a DOWNLINK UE-ASSOCIATED
+// NRPPa TRANSPORT (TS 38.413 §9.2.9.1). TS 38.413 §9.3.3.14 makes RoutingID an
+// OCTET STRING, so the caller's numeric id is laid out big-endian in four
+// octets — the width the LMF has always been addressed with.
+func downlinkUEAssociatedNRPPaTransportBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, routingID int64, nrppaPdu []byte) ([]byte, error) {
+	msg := &ngap.DownlinkUEAssociatedNRPPaTransport{
+		AMFUENGAPID: amfID,
+		RANUENGAPID: ranID,
+		RoutingID: ngap.RoutingID{
+			byte(routingID >> 24), byte(routingID >> 16), byte(routingID >> 8), byte(routingID),
+		},
+		NRPPaPDU: ngap.NRPPaPDU(nrppaPdu),
+	}
+
+	return msg.Marshal()
 }
 
 // SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
@@ -566,12 +582,12 @@ func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID 
 		return err
 	}
 
-	pkt, err := send.BuildDownlinkUEAssociatedNRPPaTransport(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), routingID, nrppaPdu)
+	pkt, err := downlinkUEAssociatedNRPPaTransportBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), routingID, nrppaPdu)
 	if err != nil {
 		return fmt.Errorf("build downlink NRPPa transport: %w", err)
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureDownlinkNRPPaTransport, pkt)
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureDownlinkNRPPaTransport, pkt)
 }
 
 // ueContextReleaseCommandBytes builds a UE Context Release Command for the given
@@ -610,7 +626,7 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 		return
 	}
 
-	if err := amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureUEContextReleaseCommand, pkt); err != nil {
+	if err := amfInstance.SendToRadio(ctx, conn, NGAPProcedureUEContextReleaseCommand, pkt); err != nil {
 		// The chokepoint logs the send failure; release locally so the UeConn cannot leak.
 		amfInstance.ReleaseUeConn(ctx, ueConn)
 
@@ -681,7 +697,7 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceSetupRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedurePDUSessionResourceSetupRequest, pkt)
 }
 
 // pduSessionResourceReleaseBytes builds a PDU SESSION RESOURCE RELEASE COMMAND
@@ -711,7 +727,7 @@ func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, 
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
 }
 
 // PDUSessionSetupItem builds one PDU Session Resource Setup Request item for an
@@ -843,7 +859,7 @@ func (ueConn *UeConn) SendInitialContextSetup(
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureInitialContextSetupRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureInitialContextSetupRequest, pkt)
 }
 
 // pduSessionResourceModifyBytes builds a PDU SESSION RESOURCE MODIFY REQUEST
@@ -876,7 +892,7 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedurePDUSessionResourceModifyRequest, pkt)
 }
 
 // handoverPreparationFailureBytes builds a Handover Preparation Failure for the
@@ -899,7 +915,7 @@ func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause 
 		return
 	}
 
-	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverPreparationFailure, pkt)
+	ueConn.SendNGAP(ctx, NGAPProcedureHandoverPreparationFailure, pkt)
 }
 
 // handoverCancelAcknowledgeBytes builds a Handover Cancel Acknowledge for the
@@ -920,7 +936,7 @@ func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
 		return
 	}
 
-	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverCancelAcknowledge, pkt)
+	ueConn.SendNGAP(ctx, NGAPProcedureHandoverCancelAcknowledge, pkt)
 }
 
 // PDUSessionSetupItemHOReq builds one item for a HANDOVER REQUEST
@@ -1036,7 +1052,7 @@ func (ueConn *UeConn) SendHandoverRequest(
 		return err
 	}
 
-	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureHandoverRequest, pkt)
+	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureHandoverRequest, pkt)
 }
 
 // handoverCommandBytes builds a HANDOVER COMMAND (TS 38.413 §9.2.3.2).
@@ -1075,7 +1091,7 @@ func (ueConn *UeConn) SendHandoverCommand(
 		return
 	}
 
-	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverCommand, pkt)
+	ueConn.SendNGAP(ctx, NGAPProcedureHandoverCommand, pkt)
 }
 
 func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err error) {
@@ -1115,7 +1131,7 @@ func (ueConn *UeConn) SendDownlinkRANStatusTransfer(ctx context.Context, contain
 		return
 	}
 
-	ueConn.SendNGAP(ctx, send.NGAPProcedureDownlinkRANStatusTransfer, pkt)
+	ueConn.SendNGAP(ctx, NGAPProcedureDownlinkRANStatusTransfer, pkt)
 }
 
 // pathSwitchRequestAcknowledgeBytes builds a PATH SWITCH REQUEST ACKNOWLEDGE
@@ -1179,7 +1195,7 @@ func (ueConn *UeConn) SendPathSwitchRequestAcknowledge(
 		return
 	}
 
-	ueConn.SendNGAP(ctx, send.NGAPProcedurePathSwitchRequestAcknowledge, pkt)
+	ueConn.SendNGAP(ctx, NGAPProcedurePathSwitchRequestAcknowledge, pkt)
 }
 
 // locationReportingControlBytes builds a LOCATION REPORTING CONTROL
@@ -1205,7 +1221,7 @@ func (ueConn *UeConn) SendLocationReportingControl(ctx context.Context, eventTyp
 		return fmt.Errorf("build LocationReportingControl: %w", err)
 	}
 
-	ueConn.SendNGAP(ctx, send.NGAPProcedureLocationReportingControl, pkt)
+	ueConn.SendNGAP(ctx, NGAPProcedureLocationReportingControl, pkt)
 
 	return nil
 }

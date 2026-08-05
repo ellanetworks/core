@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -42,7 +41,7 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	for _, ran := range amf.ConnectedRadios() {
 		for _, item := range ran.SupportedTAIList() {
 			if InTaiList(item.Tai, taiList) {
-				if err := amf.SendToRadio(ctx, ran.Conn, send.NGAPProcedurePaging, ngapBuf); err != nil {
+				if err := amf.SendToRadio(ctx, ran.Conn, NGAPProcedurePaging, ngapBuf); err != nil {
 					// The send failure is logged at the chokepoint.
 					continue
 				}
