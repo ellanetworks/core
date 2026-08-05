@@ -296,6 +296,7 @@ func TestULNGUUPTNLModifyListAcceptsFourLegs(t *testing.T) {
 	}
 
 	over := in
+
 	over.ULNGUUPTNLModify = append(ULNGUUPTNLModifyList{}, item, item, item, item, item)
 
 	if _, err := over.Marshal(); err == nil {

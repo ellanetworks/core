@@ -23,6 +23,7 @@ func updateReceivedFramesMap(gnb *GnodeB, frame SCTPFrame) {
 
 	byCode := gnb.receivedFrames[frame.Category]
 	byCode[frame.ProcedureCode] = append(byCode[frame.ProcedureCode], frame)
+
 	gnb.cond.Broadcast()
 }
 

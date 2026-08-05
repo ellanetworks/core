@@ -169,8 +169,6 @@ const (
 	UEPresenceIn UEPresence = iota
 	UEPresenceOut
 	UEPresenceUnknown
-
-	uePresenceRootCount = 3
 )
 
 // UEPresenceInAreaOfInterestItem ::= SEQUENCE { locationReportingReferenceID,

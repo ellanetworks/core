@@ -8,12 +8,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/ellanetworks/core/internal/models"
 	"regexp"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
