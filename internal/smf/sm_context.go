@@ -8,7 +8,6 @@
 package smf
 
 import (
-	"fmt"
 	"net"
 	"net/netip"
 	"sync"
@@ -36,18 +35,23 @@ type SMContext struct {
 	Mutex sync.Mutex
 
 	// Ref is the session's unique pool key, assigned once at creation and never
-	// reused: two sessions for the same (SUPI, access, id) get distinct Refs, so a
-	// release targets the exact instance and cannot tear down a newer session that
-	// reused the slot. CanonicalName is the secondary index key.
+	// reused: two sessions for the same slot get distinct Refs, so a release
+	// targets the exact instance and cannot tear down a newer session that reused
+	// the slot. CanonicalName is the secondary index key.
 	Ref string
 
-	Supi           etsi.SUPI
-	Dnn            string
-	Snssai         *models.Snssai
-	Tunnel         *UPTunnel
-	PolicyData     *Policy
-	PFCPContext    *PFCPSessionContext
-	PDUSessionID   uint8
+	Supi        etsi.SUPI
+	Dnn         string
+	Snssai      *models.Snssai
+	Tunnel      *UPTunnel
+	PolicyData  *Policy
+	PFCPContext *PFCPSessionContext
+
+	// SessionIdentity holds the session's PDU session identity and EPS bearer
+	// identity. Assigned at creation and never mutated afterwards: sessionKey
+	// names the pool slot and keys the UE IP leases.
+	SessionIdentity
+
 	FramedRoutes   []netip.Prefix
 	PDUIPV4Address net.IP
 	PDUIPV6Prefix  net.IP // delegated /64 prefix base address (lower 64 bits = 0)
@@ -58,11 +62,10 @@ type SMContext struct {
 	PDUSessionType                 uint8   // negotiated type: nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
 	PDUSessionReleaseDueToDupPduID bool
 
-	// Access is the radio access the session was established over. Access4G marks
-	// a 4G EPS session (PGW-C role): its PDUSessionID is the default bearer's EPS
-	// bearer identity (5..15), which overlaps the 5G PDU session id range, so the
-	// RAT cannot be inferred from the wire id; session and lease keys use the
-	// converged id (keyID). Downlink data for an EPS session is paged via the MME
+	// Access is the radio access the session is established over: Access4G marks
+	// the PGW-C role and the S1-U user plane, Access5G the N3 user plane with
+	// 5GSM terminated in the SMF. It does not name the session, so it can change
+	// without re-keying. Downlink data for an EPS session is paged via the MME
 	// (TS 23.401 §5.3.4.3).
 	Access AccessType
 
@@ -131,13 +134,6 @@ func (smContext *SMContext) IsPTIInUse(pti uint8) bool {
 	return ok
 }
 
-// CanonicalName is the secondary index key for a (SUPI, access, id) slot. The
-// id is mapped into the converged id space (AccessType.keyID), so a 4G EBI and
-// a 5G PDU session id with the same numeric value name different slots.
-func CanonicalName(identifier etsi.SUPI, access AccessType, id uint8) string {
-	return fmt.Sprintf("%s-%d", identifier.String(), access.keyID(id))
-}
-
 func (smContext *SMContext) SetPolicyData(policy *Policy) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
@@ -156,5 +152,5 @@ func (smContext *SMContext) SetPFCPSession(seid uint64) {
 }
 
 func (smContext *SMContext) CanonicalName() string {
-	return CanonicalName(smContext.Supi, smContext.Access, smContext.PDUSessionID)
+	return CanonicalName(smContext.Supi, smContext.sessionKey())
 }

@@ -89,7 +89,7 @@ func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext) {
 // idle UE triggers paging (TS 23.401), without releasing the sessions.
 func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
-		if err := m.Session.DeactivateEPSSession(ctx, ue.IMSI(), p.Ebi); err != nil {
+		if err := m.Session.DeactivateEPSSession(ctx, p.SessionRef); err != nil {
 			logger.MmeLog.Warn("failed to deactivate PDN connection session for paging",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}

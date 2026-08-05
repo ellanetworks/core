@@ -47,15 +47,15 @@ type epsSessionManager interface {
 	// programs the default bearer, returning the negotiated type, the addresses,
 	// and the S-GW S1-U F-TEID for the eNB to send uplink to.
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
-	// ModifyEPSSession sets the downlink endpoint to the eNB S1-U F-TEID. ebi
-	// identifies the PDN connection's default bearer.
-	ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error
+	// ModifyEPSSession sets the downlink endpoint to the eNB S1-U F-TEID. ref is
+	// the PDN connection's anchor session handle.
+	ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID) error
 	// UpdateEPSSessionAMBR updates the Session-AMBR enforced by the UPF QER for a
 	// PDN connection's default bearer, in the "<n> <unit>" form.
-	UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink models.BitRate) error
+	UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error
 	// DeactivateEPSSession buffers the downlink bearer when the UE goes ECM-IDLE
 	// so downlink data triggers paging.
-	DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error
+	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error
 	// ClearEPSPagingSuppression releases the suppression once the UE is reachable
 	// again (ECM-CONNECTED), so subsequent downlink data pages it
@@ -68,14 +68,14 @@ type epsSessionManager interface {
 	ReleaseEPSSession(ctx context.Context, ref string) error
 
 	// FramedRoutesChanged reports whether the subscriber's framed routes for the
-	// default bearer (imsi, ebi) differ from those installed at establishment, so
-	// the reconciler reactivates the bearer on a change (TS 23.501 §5.6.14).
-	FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
+	// PDN connection differ from those installed at establishment, so the
+	// reconciler reactivates the bearer on a change (TS 23.501 §5.6.14).
+	FramedRoutesChanged(ctx context.Context, ref string) (bool, error)
 
 	// StaticIPChanged reports whether the subscriber's reserved static IP for the
-	// default bearer (imsi, ebi) changed since establishment, so the reconciler
-	// reactivates the bearer on a change (TS 24.301 §6.4.4.2).
-	StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
+	// PDN connection changed since establishment, so the reconciler reactivates
+	// the bearer on a change (TS 24.301 §6.4.4.2).
+	StaticIPChanged(ctx context.Context, ref string) (bool, error)
 }
 
 // credentialProvider is the UDM surface the MME requires for EPS authentication:

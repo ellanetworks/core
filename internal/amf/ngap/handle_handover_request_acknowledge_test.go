@@ -32,7 +32,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 
-	smCtx := smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
+	smCtx := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
 		Ambr: models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{
@@ -53,7 +53,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
-		Ref:    smf.CanonicalName(supi, smf.Access5G, pduSessionID),
+		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 

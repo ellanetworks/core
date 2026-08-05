@@ -104,17 +104,17 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 	return bearer, nil
 }
 
-func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
+func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, enb models.FTEID) error {
 	f.modifiedENB = enb
 
 	return nil
 }
 
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, _, _ models.BitRate) error {
+func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _, _ models.BitRate) error {
 	return nil
 }
 
-func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string, _ uint8) error {
+func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string) error {
 	f.deactivated = true
 
 	return nil
@@ -134,11 +134,11 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 	return nil
 }
 
-func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string, _ uint8) (bool, error) {
+func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 
-func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string, _ uint8) (bool, error) {
+func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 

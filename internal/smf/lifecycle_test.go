@@ -72,7 +72,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	t.Helper()
 
 	supi := testSUPI()
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateLocalSEID()
 	smCtx.SetPFCPSession(seid)
@@ -151,7 +151,7 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	smCtx.Tunnel = &smf.UPTunnel{
 		DataPath: &smf.DataPath{
 			UpLinkTunnel:   &smf.GTPTunnel{},
@@ -235,7 +235,7 @@ func TestActivateTunnelAndPDR_FixedRuleIDs(t *testing.T) {
 			pcf, store, upf, amfCb := defaultFakes()
 			s := newTestSMF(pcf, store, upf, amfCb)
 
-			smCtx := s.NewSession(testSUPI(), smf.Access5G, 1, testDNN, testSnssai)
+			smCtx := s.NewSession(testSUPI(), smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 			smCtx.Tunnel = &smf.UPTunnel{
 				DataPath: &smf.DataPath{
 					UpLinkTunnel:   &smf.GTPTunnel{},
@@ -478,7 +478,7 @@ func TestReleaseSmContext_NoTunnel(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	ref := smCtx.Ref
 
 	err := s.ReleaseSmContext(ctx, ref)
@@ -808,7 +808,7 @@ func TestRemoveSession_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai) // PDUAddress is nil by default
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai) // PDUAddress is nil by default
 	ref := smCtx.Ref
 
 	s.RemoveSession(bgCtx, ref)
@@ -1921,7 +1921,7 @@ func TestHandleDownlinkDataReportEPS(t *testing.T) {
 	s.SetMME(mmeCb)
 
 	supi := testSUPI()
-	smCtx := s.NewSession(supi, smf.Access4G, 5, testDNN, testSnssai) // EPS session keyed by the default bearer EBI
+	smCtx := s.NewSession(supi, smf.Access4G, smf.SessionIdentity{EBI: 5}, testDNN, testSnssai) // EPS session keyed by the default bearer EBI
 	seid := s.AllocateLocalSEID()
 	smCtx.SetPFCPSession(seid)
 

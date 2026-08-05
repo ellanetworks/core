@@ -70,6 +70,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	curDNConfig := p.DnConfig
 	curSessAmbrDLBps, curSessAmbrULBps := p.SessAmbrDLBps, p.SessAmbrULBps
 	curQCI, curARP := p.Qci, p.Arp
+	sessionRef := p.SessionRef
 
 	ue.mu.Unlock()
 
@@ -80,7 +81,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	// A framed-route change cannot be adopted in place: TS 23.501 §5.6.14 requires
 	// re-establishment. Checked before the QoS diff so a framed-only change still
 	// reactivates (framed routes are absent from the data-network fingerprint).
-	framedChanged, err := m.Session.FramedRoutesChanged(ctx, ue.IMSI(), p.Ebi)
+	framedChanged, err := m.Session.FramedRoutesChanged(ctx, sessionRef)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check framed routes; deferring to next sweep",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
@@ -98,7 +99,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 
 	// The UE IP is fixed for the PDN connection lifetime (TS 23.401 §5.3.1.2.1);
 	// a reservation change requires reactivation, not in-place modification.
-	staticChanged, err := m.Session.StaticIPChanged(ctx, ue.IMSI(), p.Ebi)
+	staticChanged, err := m.Session.StaticIPChanged(ctx, sessionRef)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check static IP; deferring to next sweep",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
@@ -227,7 +228,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 		// Update the UPF QER (the enforcement point) before signalling the AMBR, and
 		// abort on failure: signalling anyway commits the new AMBR on UE-accept while
 		// the UPF stays behind, and reconcile then sees no diff to retry.
-		if err := m.Session.UpdateEPSSessionAMBR(ctx, ue.IMSI(), p.Ebi, qos.SessAmbrUL, qos.SessAmbrDL); err != nil {
+		if err := m.Session.UpdateEPSSessionAMBR(ctx, p.SessionRef, qos.SessAmbrUL, qos.SessAmbrDL); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to update UPF Session-AMBR; deferring EPS bearer modification to the next reconcile",
 				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
 

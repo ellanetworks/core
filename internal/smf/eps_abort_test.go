@@ -24,8 +24,8 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 
 	const ebi uint8 = 5
 
-	scA := s.NewSession(supi, Access4G, ebi, "internet", nil) // first create
-	scB := s.NewSession(supi, Access4G, ebi, "internet", nil) // second create — a distinct instance
+	scA := s.NewSession(supi, Access4G, SessionIdentity{EBI: ebi}, "internet", nil) // first create
+	scB := s.NewSession(supi, Access4G, SessionIdentity{EBI: ebi}, "internet", nil) // second create — a distinct instance
 
 	// Two sessions for the same (SUPI,EBI) get distinct refs and coexist in the pool;
 	// the latest is the current one for the (SUPI,EBI) slot.
@@ -33,7 +33,7 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 		t.Fatalf("two sessions for the same (SUPI,EBI) must get distinct refs, got %q twice", scA.Ref)
 	}
 
-	if s.currentSession(supi, Access4G, ebi) != scB {
+	if s.currentEPSSession(supi, ebi) != scB {
 		t.Fatalf("expected scB to be the current session for the (SUPI,EBI)")
 	}
 
@@ -45,14 +45,14 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 		t.Fatalf("abort did not remove scA")
 	}
 
-	if s.GetSession(scB.Ref) != scB || s.currentSession(supi, Access4G, ebi) != scB {
+	if s.GetSession(scB.Ref) != scB || s.currentEPSSession(supi, ebi) != scB {
 		t.Fatalf("abort of a stale context disturbed the live session scB")
 	}
 
 	// Aborting the current owner does remove it, from both the pool and the index.
 	s.abortSession(context.Background(), scB)
 
-	if s.GetSession(scB.Ref) != nil || s.currentSession(supi, Access4G, ebi) != nil {
+	if s.GetSession(scB.Ref) != nil || s.currentEPSSession(supi, ebi) != nil {
 		t.Fatalf("abort of the current context did not remove it")
 	}
 }

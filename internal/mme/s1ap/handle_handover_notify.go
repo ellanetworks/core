@@ -48,7 +48,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 			continue
 		}
 
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), a.Ebi, a.EnbFTEID); err != nil {
+		if err := m.Session.ModifyEPSSession(ctx, p.SessionRef, a.EnbFTEID); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the target eNB",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", a.Ebi), zap.Error(err))
 

@@ -473,7 +473,7 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	t.Helper()
 
 	supi := testSUPI()
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateLocalSEID()
 	smCtx.SetPFCPSession(seid)
@@ -609,7 +609,7 @@ func TestRemoveSession_IPv6Only_ReleasesIPv6(t *testing.T) {
 	supi := testSUPI()
 	ctx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 
 	ref := smCtx.Ref
@@ -634,7 +634,7 @@ func TestRemoveSession_DualStack_ReleasesBoth(t *testing.T) {
 	supi := testSUPI()
 	ctx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:abcd::").To16()
 

@@ -417,7 +417,7 @@ func TestNewSession_AddsToPool(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	if smCtx == nil {
 		t.Fatal("expected non-nil SMContext")
 	}
@@ -454,7 +454,7 @@ func TestRemoveSession_RemovesFromPool(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	ref := smCtx.Ref
 
 	s.RemoveSession(bgCtx, ref)
@@ -471,7 +471,7 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	ref := smCtx.Ref
 
@@ -509,13 +509,13 @@ func TestSessionCount(t *testing.T) {
 		t.Fatal("expected 0 sessions initially")
 	}
 
-	s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	if s.SessionCount() != 1 {
 		t.Fatal("expected 1 session")
 	}
 
-	s.NewSession(supi, smf.Access5G, 2, testDNN, testSnssai)
+	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 2}, testDNN, testSnssai)
 
 	if s.SessionCount() != 2 {
 		t.Fatal("expected 2 sessions")
@@ -527,9 +527,9 @@ func TestSessionsByDNN(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	s.NewSession(supi, smf.Access5G, 1, "internet", testSnssai)
-	s.NewSession(supi, smf.Access5G, 2, "ims", testSnssai)
-	s.NewSession(supi, smf.Access5G, 3, "internet", testSnssai)
+	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "internet", testSnssai)
+	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 2}, "ims", testSnssai)
+	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 3}, "internet", testSnssai)
 
 	internet := s.SessionsByDNN("internet")
 	if len(internet) != 2 {
@@ -552,7 +552,7 @@ func TestGetSessionBySEID(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateLocalSEID()
 	smCtx.SetPFCPSession(seid)
@@ -660,7 +660,7 @@ func TestConcurrentSessionCreation(t *testing.T) {
 			defer wg.Done()
 
 			supi := testSUPI()
-			s.NewSession(supi, smf.Access5G, id, testDNN, testSnssai)
+			s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: id}, testDNN, testSnssai)
 		}(uint8(i))
 	}
 
@@ -676,8 +676,8 @@ func TestNewSession_DistinctInstancesCoexist(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	ctx1 := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
-	ctx2 := s.NewSession(supi, smf.Access5G, 1, "ims", testSnssai)
+	ctx1 := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+	ctx2 := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "ims", testSnssai)
 
 	// Two sessions for the same (SUPI, id) get distinct refs and both stay in the
 	// pool, each retrievable by its own ref — neither overwrites the other.

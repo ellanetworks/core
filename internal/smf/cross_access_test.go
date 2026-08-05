@@ -12,22 +12,26 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// A default-bearer EBI (5..15, TS 24.007 §11.2.3.1b) and a 5G PDU session id
-// (1..15) can carry the same numeric value; sessions and leases are keyed in
-// the converged id space (TS 29.571 core-allocated range for 4G), so an EPS
-// operation must never resolve a 5G session.
-func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
+// An EPS bearer identity names a slot the UE re-uses, so a session is addressed
+// by its ref: the superseded instance's ref must not reach the session that took
+// the slot over.
+func TestModifyEPSSessionRejectsSupersededRef(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest())
+	superseded, err := s.CreateEPSSession(ctx, epsRequest(1))
 	if err != nil {
-		t.Fatalf("CreateSmContext: %v", err)
+		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	if rejectN1 != nil {
-		t.Fatalf("CreateSmContext rejected the establishment: %d-byte N1 reject", len(rejectN1))
+	live, err := s.CreateEPSSession(ctx, epsRequest(1))
+	if err != nil {
+		t.Fatalf("CreateEPSSession (re-establish): %v", err)
+	}
+
+	if superseded.Ref == live.Ref {
+		t.Fatalf("two sessions for EBI %d share ref %q", epsTestEBI, live.Ref)
 	}
 
 	upf.mu.Lock()
@@ -36,13 +40,13 @@ func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 
-	if err := s.ModifyEPSSession(ctx, testIMSI, 5, enb); err == nil {
-		t.Error("ModifyEPSSession(ebi=5) = nil, want error: the only session with id 5 was established over 5G")
+	if err := s.ModifyEPSSession(ctx, superseded.Ref, enb); err == nil {
+		t.Error("ModifyEPSSession(superseded ref) = nil, want error")
 	}
 
-	sc := s.GetSession(ref)
+	sc := s.GetSession(live.Ref)
 	if sc == nil {
-		t.Fatal("5G session with PDU session id 5 is no longer in the pool")
+		t.Fatal("live EPS session is no longer in the pool")
 	}
 
 	sc.Mutex.Lock()
@@ -50,7 +54,7 @@ func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 	sc.Mutex.Unlock()
 
 	if an.TEID == enb.TEID && net.IP(enb.Addr.AsSlice()).Equal(an.IPv4Address) {
-		t.Errorf("5G session's AN endpoint = eNB S1-U %v/0x%x, want it unchanged", an.IPv4Address, an.TEID)
+		t.Errorf("live session's AN endpoint = eNB S1-U %v/0x%x, want it unchanged", an.IPv4Address, an.TEID)
 	}
 
 	upf.mu.Lock()

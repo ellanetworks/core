@@ -58,9 +58,9 @@ type PCF interface {
 }
 
 // DNNStore is the session-data surface bound to one data network resolved once
-// via SessionStore.ResolveDNN. Leases are keyed by the session's converged id
-// (SMContext.keyID), so 4G and 5G sessions with the same wire id hold distinct
-// leases.
+// via SessionStore.ResolveDNN. Leases are keyed by the session's converged key
+// (SessionIdentity.sessionKey), which is stable across an access change, so a
+// session that moves between 4G and 5G keeps its address.
 type DNNStore interface {
 	AllocateIP(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
 
@@ -178,9 +178,11 @@ type Policy struct {
 type SMF struct {
 	mu   sync.RWMutex
 	pool map[string]*SMContext // key: SMContext.Ref (unique per session instance)
-	// byKey indexes the current session for a (SUPI, PDU session id). A superseded
-	// session stays in pool under its own Ref until released, but is no longer the
-	// byKey current.
+	// byKey indexes the current session under every identity that names it — the
+	// PDU session identity and, when assigned, the EPS bearer key — so a lookup
+	// in either namespace resolves the same session (TS 23.501 §5.17.2). A
+	// superseded session stays in pool under its own Ref until released, but is
+	// no longer the byKey current.
 	byKey  map[string]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
@@ -256,27 +258,29 @@ func (s *SMF) AllocateLocalSEID() uint64 {
 }
 
 // NewSession creates a new SMContext with a unique Ref and adds it to the pool,
-// making it the current session for its (SUPI, access, id). It never overwrites
-// or orphans a prior session for the same slot: that session keeps its own Ref
-// and pool entry until it is explicitly released.
-func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, pduSessionID uint8, dnn string, snssai *models.Snssai) *SMContext {
+// making it the current session for every identity that names it. It never
+// overwrites or orphans a prior session for the same slot: that session keeps
+// its own Ref and pool entry until it is explicitly released.
+func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) *SMContext {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.refSeq++
-	key := CanonicalName(supi, access, pduSessionID)
 
 	ctx := &SMContext{
-		PDUSessionID: pduSessionID,
-		Supi:         supi,
-		Access:       access,
-		Dnn:          dnn,
-		Snssai:       snssai,
-		Ref:          fmt.Sprintf("%s#%d", key, s.refSeq),
+		SessionIdentity: id,
+		Supi:            supi,
+		Access:          access,
+		Dnn:             dnn,
+		Snssai:          snssai,
+		Ref:             fmt.Sprintf("%s#%d", CanonicalName(supi, id.sessionKey()), s.refSeq),
 	}
 
 	s.pool[ctx.Ref] = ctx
-	s.byKey[key] = ctx
+
+	for _, key := range id.sessionKeys() {
+		s.byKey[CanonicalName(supi, key)] = ctx
+	}
 
 	return ctx
 }
@@ -289,30 +293,43 @@ func (s *SMF) GetSession(ref string) *SMContext {
 	return s.pool[ref]
 }
 
-// currentSession returns the live session for a (SUPI, access, id), or nil.
-// Use it for operations that act on whichever session is current (modify, AMBR,
-// idle deactivation, duplicate detection) — never for a release, which must target
-// a specific instance by its Ref so it cannot tear down a newer session.
-func (s *SMF) currentSession(supi etsi.SUPI, access AccessType, pduSessionID uint8) *SMContext {
+// currentSession returns the live session a UE named with sessionKey, or nil.
+// Use it for operations that act on whichever session is current (paging
+// suppression, duplicate detection) — never for a release, which must target a
+// specific instance by its Ref so it cannot tear down a newer session.
+func (s *SMF) currentSession(supi etsi.SUPI, sessionKey uint8) *SMContext {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.byKey[CanonicalName(supi, access, pduSessionID)]
+	return s.byKey[CanonicalName(supi, sessionKey)]
+}
+
+// currentPDUSession returns the live session the UE named with a 5GS PDU
+// session identity, or nil.
+func (s *SMF) currentPDUSession(supi etsi.SUPI, pduSessionID uint8) *SMContext {
+	return s.currentSession(supi, SessionIdentity{PDUSessionID: pduSessionID}.sessionKey())
+}
+
+// currentEPSSession returns the live session whose default bearer carries this
+// EPS bearer identity, or nil.
+func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
+	return s.currentSession(supi, SessionIdentity{EBI: ebi}.sessionKey())
 }
 
 // dropFromPool removes sc from the pool by its unique Ref, and from the secondary
-// index only if sc is still the current session for its (SUPI, access, id) — so
-// releasing a superseded session cannot evict the newer one that replaced it.
-// Caller must not hold s.mu.
+// index only under the keys sc is still current for — so releasing a superseded
+// session cannot evict the newer one that replaced it. Caller must not hold s.mu.
 func (s *SMF) dropFromPool(sc *SMContext) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	delete(s.pool, sc.Ref)
 
-	key := sc.CanonicalName()
-	if s.byKey[key] == sc {
-		delete(s.byKey, key)
+	for _, k := range sc.sessionKeys() {
+		key := CanonicalName(sc.Supi, k)
+		if s.byKey[key] == sc {
+			delete(s.byKey, key)
+		}
 	}
 }
 
