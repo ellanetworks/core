@@ -817,7 +817,7 @@ allocate:;
 		struct nat_entry *existing =
 			bpf_map_lookup_elem(&nat_ct, &natted);
 		if (existing && are_five_tuple_equal(orig, existing->peer)) {
-			existing->refresh_ts = now;
+			NAT_WRITE_ONCE(existing->refresh_ts, now);
 			reserved = true;
 		} else {
 			__u16 port = nat_random_port();
@@ -899,7 +899,10 @@ nat_ct_mark_replied(const struct five_tuple *nat_key, struct nat_entry *origin)
 		bpf_map_update_elem(&nat_ct, &ue_key, &restored, BPF_NOEXIST);
 		return;
 	}
-	NAT_WRITE_ONCE(ue->replied, 1);
+	/* Only ever 0 -> 1. Writing it on every packet dirties a cache line two
+	 * CPUs may share, for a value that cannot change again. */
+	if (!NAT_READ_ONCE(ue->replied))
+		NAT_WRITE_ONCE(ue->replied, 1);
 
 	/* A closed connection is not kept alive by further traffic. */
 	if (!NAT_READ_ONCE(ue->closed)) {

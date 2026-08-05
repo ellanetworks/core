@@ -277,8 +277,33 @@ struct ip6_pseudo {
 static __always_inline int inner_l4_is_summable(__u8 proto)
 {
 	return proto == IPPROTO_TCP || proto == IPPROTO_UDP ||
-	       proto == IPPROTO_ICMPV6;
+	       proto == IPPROTO_ICMPV6 || proto == IPPROTO_ICMP;
 }
+
+/* Longest extension chain the header-only path sums. Chains are multiples of
+ * 8, so this is 8 constant-size adds. Beyond it the identity still holds, but
+ * the unrolled adds stop paying for themselves. */
+#define IPV6_FASTPATH_MAX_CHAIN 64
+
+/* Options and extension chains are multiples of 4 and 8 respectively, so a
+ * fixed number of constant-size adds covers any length the parser accepts.
+ * Constant sizes because ARG_CONST_SIZE_OR_ZERO bounds-checks a variable
+ * length against its maximum, which a short frame would fail. */
+#define CSUM_ADD_RANGE(sum, base, len, unit, iters, data_end)                  \
+	do {                                                                   \
+		_Pragma("unroll") for (int _i = 0; _i < (iters); _i++)          \
+		{                                                              \
+			if ((__u32)(_i * (unit)) >= (len))                     \
+				break;                                         \
+			const void *_p = (const __u8 *)(base) + _i * (unit);    \
+			if (_p + (unit) > (data_end))                          \
+				return -1;                                     \
+			(sum) = bpf_csum_diff(0, 0, (__be32 *)_p, (unit),       \
+					      (__wsum)(sum));                  \
+			if ((sum) < 0)                                         \
+				return -1;                                     \
+		}                                                              \
+	} while (0)
 
 /* ~pseudo_inner for an inner IPv4 packet, or -1 when the identity does not
  * apply: a fragment has no L4 header of its own, and UDP with a zero checksum
@@ -291,14 +316,16 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 	if ((const void *)(ip4 + 1) > data_end)
 		return -1;
 
-	if (ip4->ihl != 5 || (ip4->frag_off & bpf_htons(0x3fff)) != 0)
+	if (ip4->ihl < 5 || (ip4->frag_off & bpf_htons(0x3fff)) != 0)
 		return -1;
 
 	if (!inner_l4_is_summable(ip4->protocol))
 		return -1;
 
+	const __u32 l3_len = (__u32)ip4->ihl * 4;
+
 	__u32 tot_len = bounded_u16(bpf_ntohs(ip4->tot_len));
-	if (tot_len < sizeof(struct iphdr))
+	if (tot_len < l3_len)
 		return -1;
 
 	/* The declared length has to be backed by real bytes. The outer
@@ -309,7 +336,8 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 		return -1;
 
 	if (ip4->protocol == IPPROTO_UDP) {
-		const struct udphdr *udp = (const struct udphdr *)(ip4 + 1);
+		const struct udphdr *udp =
+			(const struct udphdr *)((const __u8 *)ip4 + l3_len);
 
 		if ((const void *)(udp + 1) > data_end)
 			return -1;
@@ -318,21 +346,27 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 			return -1;
 	}
 
+	/* No pseudo-header over ICMPv4 (RFC 792), so the region sums to
+	 * ~fold(0). */
+	if (ip4->protocol == IPPROTO_ICMP)
+		return 0xFFFF;
+
 	struct ip4_pseudo pseudo = {
 		.saddr = ip4->saddr,
 		.daddr = ip4->daddr,
 		.zero = 0,
 		.proto = ip4->protocol,
-		.l4_len = bpf_htons((__u16)(tot_len - sizeof(struct iphdr))),
+		.l4_len = bpf_htons((__u16)(tot_len - l3_len)),
 	};
 
 	return (__s32)csum_fold_helper(
 		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
 }
 
-/* A chain declines to the caller's byte sum: the identity sums the fixed inner
- * header and substitutes the upper-layer region, and a chain sits between the
- * two, in the outer UDP payload, with no term to carry it. */
+/* A chain is summed literally by the caller, like IPv4 options: it sits between
+ * the fixed header and the upper-layer region the substitution replaces, so it
+ * carries no term of its own. The pseudo-header's length must then be the
+ * upper-layer length, not the whole payload. */
 static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 					      const struct ipv6hdr *ip6,
 					      __u8 inner_proto,
@@ -345,10 +379,15 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 	if (!inner_l4_is_summable(inner_proto))
 		return -1;
 
-	if (inner_l3_len != sizeof(*ip6))
+	if (inner_l3_len < sizeof(*ip6) ||
+	    inner_l3_len > sizeof(*ip6) + IPV6_FASTPATH_MAX_CHAIN)
 		return -1;
 
+	const __u32 chain_len = (__u32)inner_l3_len - sizeof(*ip6);
 	__u32 payload_len = bounded_u16(bpf_ntohs(ip6->payload_len));
+
+	if (payload_len < chain_len)
+		return -1;
 
 	/* As in inner_pseudo_ip4. */
 	if (!ctx_frame_holds(ctx, data_end, ip6, sizeof(*ip6) + payload_len))
@@ -356,7 +395,8 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 
 	if (inner_proto == IPPROTO_UDP) {
 		/* Zero means no checksum was computed. */
-		const struct udphdr *udp = (const struct udphdr *)(ip6 + 1);
+		const struct udphdr *udp =
+			(const struct udphdr *)((const __u8 *)ip6 + inner_l3_len);
 
 		if ((const void *)(udp + 1) > data_end)
 			return -1;
@@ -366,7 +406,7 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 	}
 
 	struct ip6_pseudo pseudo = {
-		.upper_len = bpf_htonl(payload_len),
+		.upper_len = bpf_htonl(payload_len - chain_len),
 		.zero = { 0, 0, 0 },
 		.next_hdr = inner_proto,
 	};
@@ -434,6 +474,22 @@ udpv6_csum_from_headers(struct __ctx_buff *ctx, const struct in6_addr *saddr,
 	sum = bpf_csum_diff(0, 0, (__be32 *)inner, inner_hdr_len, (__wsum)sum);
 	if (sum < 0)
 		return -1;
+
+	/* IPv4 options sit between the header just summed and the upper-layer
+	 * region the substitution replaces, so they carry no term of their
+	 * own. Max 40 bytes: ihl is 4 bits. */
+	if (!inner_is_ip6) {
+		const struct iphdr *inner4 = inner;
+		const __u32 optlen = (__u32)inner4->ihl * 4 - sizeof(*inner4);
+
+		CSUM_ADD_RANGE(sum, (const __u8 *)inner + sizeof(*inner4),
+			       optlen, 4, 10, data_end);
+	} else if (inner_l3_len > sizeof(struct ipv6hdr)) {
+		CSUM_ADD_RANGE(sum,
+			       (const __u8 *)inner + sizeof(struct ipv6hdr),
+			       (__u32)inner_l3_len - sizeof(struct ipv6hdr), 8,
+			       IPV6_FASTPATH_MAX_CHAIN / 8, data_end);
+	}
 
 	/* The inner L4 region, as one 16-bit word. */
 	__be16 substitute[2] = { (__be16)not_pseudo_inner, 0 };

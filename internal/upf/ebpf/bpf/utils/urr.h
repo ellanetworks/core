@@ -45,5 +45,8 @@ static __always_inline void update_urr_bytes(struct packet_context *ctx,
 		upf_printk("upf: no URR found for urr_id:%d", urr_id);
 		return;
 	}
-	__sync_fetch_and_add(byte_count, bytes);
+	/* Per-CPU value, and BPF runs with preemption disabled, so nothing else
+	 * can reach this slot: an atomic would only add a locked round trip.
+	 * Userspace sums across CPUs when it reads. */
+	*byte_count += bytes;
 }
