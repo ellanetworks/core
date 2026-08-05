@@ -380,10 +380,6 @@ func TestTCXIPv4OuterGSODropped(t *testing.T) {
 func TestTCXIPv6OuterPartialInnerChecksum(t *testing.T) {
 	requireProgTestRun(t)
 
-	if !testAttachModeTCX() {
-		t.Skip("CHECKSUM_PARTIAL reaches the datapath only at the TC hook")
-	}
-
 	const (
 		teid = 0x50415254
 		qfi  = 7

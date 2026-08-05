@@ -239,6 +239,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
 	}
 
+
 	ctx->interface = INTERFACE_N6;
 
 	__u32 urr_id = pdr->urr_id;

@@ -108,3 +108,73 @@ func TestDownlinkFragmentRecordsWirePorts(t *testing.T) {
 		t.Error("later fragment did not egress on N3: its recovered ports did not match the NAT mapping")
 	}
 }
+
+// TestDownlinkFragmentSurvivesSDFAfterNAT: a later fragment whose ports were
+// recovered from the fragment map must still be filterable after destination
+// NAT. Under the skb build the apply re-parses the frame, and a later fragment
+// has no L4 header for the re-parse to read, so the recovered ports were lost
+// and every port-constrained rule returned UNFILTERABLE.
+func TestDownlinkFragmentSurvivesSDFAfterNAT(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		ulTEID      = 0x46524744
+		dlTEID      = 0x46524745
+		qfi         = 7
+		filterIndex = 3
+		ueSP        = 1260
+		srvDP       = 80
+		srvID       = 0xBEE1
+	)
+
+	f := setupT2(t, true)
+	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
+
+	// A port-scoped allow for the server's port. It matches the datagram, so
+	// the fragment must be filterable against it rather than refused for
+	// being unreadable.
+	putSDFFilter(t, f.obj, filterIndex, []SdfRule{
+		sdfRuleIPv4(serverIP, 32, srvDP, srvDP, 6, SdfActionAllow),
+	})
+	putDownlinkPDRFiltered(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi, filterIndex)
+
+	n6 := f.captureN6(t)
+
+	f.injectUplink(t, uplinkGPDU(ulTEID,
+		ipv4Packet(ueIP, serverIP, 6, tcpSegmentChecksummed(ueIP, serverIP, ueSP, srvDP, bytesOf(40)))))
+
+	out := captureMatching(n6, time.Second, func(fr []byte) bool {
+		return isInnerIPv4(fr, 6, serverIP)
+	})
+	if out == nil {
+		t.Fatal("uplink did not egress on N6")
+	}
+
+	wirePort := binary.BigEndian.Uint16(out[ethHdrLen+20 : ethHdrLen+22])
+
+	capFD := f.captureN3(t)
+
+	encapsulated := func(fr []byte) bool {
+		inner := gtpInner(fr)
+
+		return len(inner) >= 20 && inner[9] == 6
+	}
+
+	f.injectDownlink(t, ethFrame(0x0800, asFirstFragment(
+		ipv4Packet(serverIP, natPublicIP, 6,
+			tcpSegmentChecksummed(serverIP, natPublicIP, srvDP, wirePort, bytesOf(64))), srvID)))
+
+	if captureMatching(capFD, time.Second, encapsulated) == nil {
+		t.Fatal("first fragment did not egress on N3")
+	}
+
+	before := DropCount(f.obj, Downlink, "fragment_unfilterable")
+
+	f.injectDownlink(t, ethFrame(0x0800, asLaterFragment(
+		ipv4Packet(serverIP, natPublicIP, 6, bytesOf(64)), srvID)))
+
+	if captureMatching(capFD, time.Second, encapsulated) == nil {
+		t.Errorf("later fragment did not egress on N3 (fragment_unfilterable %d -> %d): its recovered ports were discarded by the NAT re-parse",
+			before, DropCount(f.obj, Downlink, "fragment_unfilterable"))
+	}
+}

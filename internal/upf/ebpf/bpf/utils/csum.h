@@ -305,6 +305,33 @@ static __always_inline int inner_l4_is_summable(__u8 proto)
 		}                                                              \
 	} while (0)
 
+/* True when the inner UDP datagram carries a checksum.
+ *
+ * l3_len is a runtime value — IPv4 options or an IPv6 extension chain — and a
+ * packet pointer advanced by it loses its range as soon as the verifier spills
+ * and reloads the length, which older verifiers do (6.8 rejects the deref that
+ * 6.17 accepts). ctx_load_bytes takes a scalar offset and is bounds-checked at
+ * runtime, so no packet-pointer range is needed.
+ */
+static __always_inline bool inner_udp_has_checksum(struct __ctx_buff *ctx,
+						   const void *l3,
+						   __u32 l3_len,
+						   const void *data_end)
+{
+	__be16 check;
+
+	if ((const void *)((const __u8 *)l3 + l3_len + sizeof(struct udphdr)) >
+	    data_end)
+		return false;
+
+	if (ctx_load_bytes(ctx, ctx_frame_offset(ctx, l3) + l3_len +
+					offsetof(struct udphdr, check),
+			   &check, sizeof(check)) < 0)
+		return false;
+
+	return check != 0;
+}
+
 /* ~pseudo_inner for an inner IPv4 packet, or -1 when the identity does not
  * apply: a fragment has no L4 header of its own, and UDP with a zero checksum
  * has nothing to substitute. Both are always CHECKSUM_NONE, so the caller's
@@ -335,16 +362,9 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 	if (!ctx_frame_holds(ctx, data_end, ip4, tot_len))
 		return -1;
 
-	if (ip4->protocol == IPPROTO_UDP) {
-		const struct udphdr *udp =
-			(const struct udphdr *)((const __u8 *)ip4 + l3_len);
-
-		if ((const void *)(udp + 1) > data_end)
-			return -1;
-
-		if (udp->check == 0)
-			return -1;
-	}
+	if (ip4->protocol == IPPROTO_UDP && !inner_udp_has_checksum(
+						   ctx, ip4, l3_len, data_end))
+		return -1;
 
 	/* No pseudo-header over ICMPv4 (RFC 792), so the region sums to
 	 * ~fold(0). */
@@ -393,17 +413,10 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 	if (!ctx_frame_holds(ctx, data_end, ip6, sizeof(*ip6) + payload_len))
 		return -1;
 
-	if (inner_proto == IPPROTO_UDP) {
-		/* Zero means no checksum was computed. */
-		const struct udphdr *udp =
-			(const struct udphdr *)((const __u8 *)ip6 + inner_l3_len);
-
-		if ((const void *)(udp + 1) > data_end)
-			return -1;
-
-		if (udp->check == 0)
-			return -1;
-	}
+	/* Zero means no checksum was computed. */
+	if (inner_proto == IPPROTO_UDP &&
+	    !inner_udp_has_checksum(ctx, ip6, inner_l3_len, data_end))
+		return -1;
 
 	struct ip6_pseudo pseudo = {
 		.upper_len = bpf_htonl(payload_len - chain_len),

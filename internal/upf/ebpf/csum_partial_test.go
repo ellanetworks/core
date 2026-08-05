@@ -48,10 +48,6 @@ func sendWithIPOptions(t *testing.T, f *gsoFixture, size int) {
 func TestTCXIPv6OuterInnerIPOptions(t *testing.T) {
 	requireProgTestRun(t)
 
-	if !testAttachModeTCX() {
-		t.Skip("CHECKSUM_PARTIAL reaches the datapath only at the TC hook")
-	}
-
 	const (
 		teid = 0x4F505453
 		qfi  = 7
