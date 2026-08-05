@@ -151,13 +151,17 @@ func TestDecodeNormallySmallLengthFragments(t *testing.T) {
 	w := NewWriter()
 	w.WriteBit(true) // not the six-bit form
 	w.AlignToByte()
-	w.WriteOctets([]byte{0xC1}) // one 16K fragment
+	if err := w.WriteOctets([]byte{0xC1}); err != nil { // one 16K fragment
+		t.Fatal(err)
+	}
 
 	for range 16384 {
 		w.WriteBit(true)
 	}
 
-	w.WriteOctets([]byte{0x03}) // then three more bits
+	if err := w.WriteOctets([]byte{0x03}); err != nil { // then three more bits
+		t.Fatal(err)
+	}
 	w.WriteBit(false)
 	w.WriteBit(true)
 	w.WriteBit(false)
