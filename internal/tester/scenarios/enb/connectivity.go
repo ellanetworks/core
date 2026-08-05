@@ -20,7 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -133,7 +133,7 @@ func runEnbConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 
 	defer ngeNB.Close()
 
-	_, err = ngeNB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
+	_, err = ngeNB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

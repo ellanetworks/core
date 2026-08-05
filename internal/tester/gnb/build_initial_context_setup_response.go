@@ -4,14 +4,10 @@
 package gnb
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
 )
 
 type InitialContextSetupResponseOpts struct {
@@ -49,80 +45,25 @@ func BuildInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) ([]
 	return msg.Marshal()
 }
 
-func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosId int64) (ngap.TransferContainer, error) {
-	data, err := buildPDUSessionResourceSetupResponseTransfer(ip, teid, qosId)
+// GetPDUSessionResourceSetupResponseTransfer encodes the per-session transfer
+// naming the downlink tunnel this simulator has set up and the QoS flow it
+// accepted (TS 38.413 §9.3.4.2).
+func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosID int64) (ngap.TransferContainer, error) {
+	addr, err := transportLayerAddress(ip)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build PDUSessionResourceSetupResponseTransfer: %v", err)
+		return nil, err
 	}
 
-	encodeData, err := aper.MarshalWithParams(data, "valueExt")
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode PDUSessionResourceSetupResponseTransfer: %v", err)
+	transfer := &ngap.PDUSessionResourceSetupResponseTransfer{
+		DLQosFlowPerTNLInformation: ngap.QosFlowPerTNLInformation{
+			UPTransportLayerInformation: ngap.UPTransportLayerInformation{
+				GTPTunnel: ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
+			},
+			AssociatedQosFlowList: ngap.AssociatedQosFlowList{
+				{QosFlowIdentifier: ngap.QosFlowIdentifier(qosID)},
+			},
+		},
 	}
 
-	return encodeData, nil
-}
-
-type QosFlowItemExtIEsExtensionValue struct {
-	Present int
-}
-
-type QosFlowItemExtIEs struct {
-	Id             ngapType.ProtocolExtensionID
-	Criticality    ngapType.Criticality
-	ExtensionValue QosFlowItemExtIEsExtensionValue `aper:"openType,referenceFieldName:Id"`
-}
-
-type ProtocolExtensionContainerQosFlowItemExtIEs struct {
-	List []QosFlowItemExtIEs `aper:"sizeLB:1,sizeUB:65535"`
-}
-
-type QosFlowItem struct {
-	QosFlowIdentifier ngapType.QosFlowIdentifier
-	Cause             ngapType.Cause                               `aper:"valueLB:0,valueUB:5"`
-	IEExtensions      *ProtocolExtensionContainerQosFlowItemExtIEs `aper:"optional"`
-}
-
-type QosFlowList struct {
-	List []QosFlowItem `aper:"valueExt,sizeLB:1,sizeUB:64"`
-}
-
-type PDUSessionResourceSetupResponseTransfer struct {
-	QosFlowPerTNLInformation           ngapType.QosFlowPerTNLInformation                                                 `aper:"valueExt"`
-	AdditionalQosFlowPerTNLInformation *ngapType.QosFlowPerTNLInformation                                                `aper:"valueExt,optional"`
-	SecurityResult                     *ngapType.SecurityResult                                                          `aper:"valueExt,optional"`
-	QosFlowFailedToSetupList           *QosFlowList                                                                      `aper:"optional"`
-	IEExtensions                       *ngapType.ProtocolExtensionContainerPDUSessionResourceSetupResponseTransferExtIEs `aper:"optional"`
-}
-
-func buildPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosId int64) (PDUSessionResourceSetupResponseTransfer, error) {
-	var data PDUSessionResourceSetupResponseTransfer
-
-	if !ip.IsValid() {
-		return data, fmt.Errorf("invalid IP address: %s", ip)
-	}
-
-	qosFlowPerTNLInformation := &data.QosFlowPerTNLInformation
-	qosFlowPerTNLInformation.UPTransportLayerInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-
-	upTransportLayerInformation := &qosFlowPerTNLInformation.UPTransportLayerInformation
-	upTransportLayerInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
-	upTransportLayerInformation.GTPTunnel = new(ngapType.GTPTunnel)
-
-	dowlinkTeid := binary.BigEndian.AppendUint32(nil, teid)
-	upTransportLayerInformation.GTPTunnel.GTPTEID.Value = dowlinkTeid
-
-	if ip.Is4() {
-		upTransportLayerInformation.GTPTunnel.TransportLayerAddress = ngapConvert.IPAddressToNgap(ip.String(), "")
-	} else {
-		upTransportLayerInformation.GTPTunnel.TransportLayerAddress = ngapConvert.IPAddressToNgap("", ip.String())
-	}
-
-	associatedQosFlowList := &qosFlowPerTNLInformation.AssociatedQosFlowList
-
-	associatedQosFlowItem := ngapType.AssociatedQosFlowItem{}
-	associatedQosFlowItem.QosFlowIdentifier.Value = qosId
-	associatedQosFlowList.List = append(associatedQosFlowList.List, associatedQosFlowItem)
-
-	return data, nil
+	return transfer.Marshal()
 }

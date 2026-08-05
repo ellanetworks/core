@@ -11,9 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
@@ -48,8 +46,8 @@ func runNGSetupFailureUnknownPLMN(_ context.Context, env scenarios.Env, _ any) e
 	defer node.Close()
 
 	frame, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentUnsuccessfulOutcome,
-		ngapType.UnsuccessfulOutcomePresentNGSetupFailure,
+		gnb.Unsuccessful,
+		ngap.ProcNGSetup,
 		200*time.Millisecond,
 	)
 	if err != nil {
@@ -60,74 +58,20 @@ func runNGSetupFailureUnknownPLMN(_ context.Context, env scenarios.Env, _ any) e
 		return fmt.Errorf("SCTP validation: %w", err)
 	}
 
-	pdu, err := ngap.Decoder(frame.Data)
+	failure, err := ngap.ParseNGSetupFailure(frame.Value)
 	if err != nil {
-		return fmt.Errorf("decode NGAP: %w", err)
+		return fmt.Errorf("parse NGSetupFailure: %w", err)
 	}
 
-	if pdu.UnsuccessfulOutcome == nil {
-		return fmt.Errorf("NGAP PDU is not UnsuccessfulOutcome")
+	if failure.Cause == nil {
+		return fmt.Errorf("NG Setup Failure carried no cause")
 	}
 
-	if pdu.UnsuccessfulOutcome.ProcedureCode.Value != ngapType.ProcedureCodeNGSetup {
-		return fmt.Errorf("NGAP ProcedureCode is not NGSetup (%d)", ngapType.ProcedureCodeNGSetup)
-	}
-
-	failure := pdu.UnsuccessfulOutcome.Value.NGSetupFailure
-	if failure == nil {
-		return fmt.Errorf("NGSetupFailure is nil")
-	}
-
-	return validateNGSetupFailure(failure, ngapType.CausePresentMisc, ngapType.CauseMiscPresentUnknownPLMN)
-}
-
-func validateNGSetupFailure(failure *ngapType.NGSetupFailure, expType int, expValue aper.Enumerated) error {
-	var cause *ngapType.Cause
-
-	for _, ie := range failure.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-		default:
-			return fmt.Errorf("NGSetupFailure IE ID (%d) not supported", ie.Id.Value)
-		}
-	}
-
-	return validateCause(cause, expType, expValue)
-}
-
-func validateCause(cause *ngapType.Cause, expType int, expValue aper.Enumerated) error {
-	if cause == nil {
-		return fmt.Errorf("cause is missing")
-	}
-
-	if cause.Present != expType {
-		return fmt.Errorf("cause Present: got %d, want %d", cause.Present, expType)
-	}
-
-	switch cause.Present {
-	case ngapType.CausePresentRadioNetwork:
-		if cause.RadioNetwork.Value != expValue {
-			return fmt.Errorf("radio network cause: got %d, want %d", cause.RadioNetwork.Value, expValue)
-		}
-	case ngapType.CausePresentTransport:
-		if cause.Transport.Value != expValue {
-			return fmt.Errorf("transport cause: got %d, want %d", cause.Transport.Value, expValue)
-		}
-	case ngapType.CausePresentNas:
-		if cause.Nas.Value != expValue {
-			return fmt.Errorf("nas cause: got %d, want %d", cause.Nas.Value, expValue)
-		}
-	case ngapType.CausePresentProtocol:
-		if cause.Protocol.Value != expValue {
-			return fmt.Errorf("protocol cause: got %d, want %d", cause.Protocol.Value, expValue)
-		}
-	case ngapType.CausePresentMisc:
-		if cause.Misc.Value != expValue {
-			return fmt.Errorf("misc cause: got %d, want %d", cause.Misc.Value, expValue)
-		}
-	default:
-		return fmt.Errorf("unexpected cause Present: %d", cause.Present)
+	// TS 38.455 gives Misc one root value, unknown-PLMN-or-SNPN, at index 4
+	// (TS 38.413 §9.3.1.2).
+	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnknownPLMNOrSNPN}
+	if *failure.Cause != want {
+		return fmt.Errorf("expected cause Misc unknown-PLMN-or-SNPN, got %v", failure.Cause)
 	}
 
 	return nil

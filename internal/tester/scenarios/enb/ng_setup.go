@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/enb"
+	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
@@ -47,8 +48,8 @@ func runNgSetup(_ context.Context, env scenarios.Env, _ any) error {
 	defer node.Close()
 
 	if _, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngap.ProcNGSetup,
 		1*time.Second,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)

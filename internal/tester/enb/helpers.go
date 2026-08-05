@@ -8,52 +8,65 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
 )
 
-func GetEUTRACellIdentity(enbID string) (ngapType.EUTRACellIdentity, error) {
-	enbIDBytes, err := gnb.GetGnbIdInBytes(enbID)
+// ngENBNodeID builds this simulator's Global RAN Node ID. An ng-eNB announces a
+// macro ng-eNB ID (TS 38.413 §9.3.1.5), where internal/tester/gnb announces a
+// gNB ID.
+func ngENBNodeID(mcc, mnc, enbID string) (ngap.GlobalRANNodeID, error) {
+	plmn, err := gnb.PLMNIdentity(mcc, mnc)
 	if err != nil {
-		return ngapType.EUTRACellIdentity{}, fmt.Errorf("could not get EUTRACellIdentity: %v", err)
+		return ngap.GlobalRANNodeID{}, err
 	}
 
-	// Derive the cell identity from the same node id BuildInitialUEMessage uses,
-	// so both messages report the same cell for the same UE and the cell belongs
-	// to the node NG Setup announced (TS 38.413 §9.3.1.8).
+	b, err := gnb.GetGnbIdInBytes(enbID)
+	if err != nil {
+		return ngap.GlobalRANNodeID{}, fmt.Errorf("could not decode ng-eNB id: %w", err)
+	}
+
 	var v uint64
-	for _, o := range enbIDBytes {
+	for _, o := range b {
 		v = v<<8 | uint64(o)
 	}
 
-	node := ngap.GlobalRANNodeID{
-		Kind:  ngap.RANNodeIDMacroNgENB,
-		Value: uint32(v >> uint(8*len(enbIDBytes)-ngENBIDBits)), Bits: ngENBIDBits,
-	}
-
-	eci, err := node.EUTRACellIdentity(0)
-	if err != nil {
-		return ngapType.EUTRACellIdentity{}, fmt.Errorf("could not get EUTRACellIdentity: %w", err)
-	}
-
-	return ngapType.EUTRACellIdentity{
-		Value: aper.BitString{
-			Bytes:     uintToLeftAlignedBytes(eci, ngap.EUTRACellIdentityBits),
-			BitLength: ngap.EUTRACellIdentityBits,
-		},
+	return ngap.GlobalRANNodeID{
+		Kind:         ngap.RANNodeIDMacroNgENB,
+		PLMNIdentity: plmn,
+		Value:        uint32(v >> uint(8*len(b)-ngENBIDBits)),
+		Bits:         ngENBIDBits,
 	}, nil
 }
 
-// uintToLeftAlignedBytes packs the low nbits of v most-significant-bit first,
-// the layout an aper.BitString of that length expects.
-func uintToLeftAlignedBytes(v uint64, nbits int) []byte {
-	b := make([]byte, (nbits+7)/8)
-
-	for i := range nbits {
-		if v&(1<<uint(nbits-1-i)) != 0 {
-			b[i/8] |= 1 << uint(7-i%8)
-		}
+// userLocation builds the User Location Information this simulator reports: the
+// E-UTRA cell it serves and the TAI that cell is in (TS 38.413 §9.3.1.16).
+// internal/tester/gnb reports an NR cell the same way.
+func userLocation(mcc, mnc, enbID, tac string) (ngap.UserLocationInformation, error) {
+	plmn, err := gnb.PLMNIdentity(mcc, mnc)
+	if err != nil {
+		return ngap.UserLocationInformation{}, err
 	}
 
-	return b
+	tacValue, err := gnb.TACValue(tac)
+	if err != nil {
+		return ngap.UserLocationInformation{}, err
+	}
+
+	node, err := ngENBNodeID(mcc, mnc, enbID)
+	if err != nil {
+		return ngap.UserLocationInformation{}, err
+	}
+
+	// Derive the cell identity from the same node id NG Setup announced, so both
+	// messages report the same cell for the same UE (TS 38.413 §9.3.1.9).
+	cellID, err := node.EUTRACellIdentity(0)
+	if err != nil {
+		return ngap.UserLocationInformation{}, fmt.Errorf("could not build E-UTRA cell identity: %w", err)
+	}
+
+	return ngap.UserLocationInformation{
+		Kind:         ngap.UserLocationEUTRA,
+		PLMNIdentity: plmn,
+		CellIdentity: cellID,
+		TAI:          ngap.TAI{PLMNIdentity: plmn, TAC: tacValue},
+	}, nil
 }

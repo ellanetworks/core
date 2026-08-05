@@ -7,8 +7,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/ishidawataru/sctp"
 	"go.uber.org/zap"
 )
@@ -182,15 +180,11 @@ func (g *GnodeB) SendUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts
 	return nil
 }
 
-func (g *GnodeB) SendMessage(pdu ngapType.NGAPPDU, procedure NGAPProcedure) error {
-	bytes, err := ngap.Encoder(pdu)
-	if err != nil {
-		return fmt.Errorf("couldn't encode message for procedure %s: %s", procedure, err.Error())
-	}
-
-	err = g.SendToRan(bytes, procedure)
-	if err != nil {
-		return fmt.Errorf("couldn't send packet to ran: %s", err.Error())
+// SendMessage writes an encoded NGAP PDU on the SCTP stream its procedure uses.
+// internal/tester/s1enb sends S1AP the same way.
+func (g *GnodeB) SendMessage(pdu []byte, procedure NGAPProcedure) error {
+	if err := g.SendToRan(pdu, procedure); err != nil {
+		return fmt.Errorf("couldn't send packet to ran: %w", err)
 	}
 
 	return nil
@@ -241,7 +235,7 @@ func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) erro
 
 	info := sctp.SndRcvInfo{
 		Stream: sid,
-		PPID:   ngap.PPID,
+		PPID:   ngapPPID,
 	}
 
 	if _, err := conn.SCTPWrite(packet, &info); err != nil {

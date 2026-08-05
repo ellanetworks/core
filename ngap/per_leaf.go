@@ -1076,6 +1076,21 @@ func (l *QosFlowSetupRequestList) UnmarshalPER(r *per.Reader, enc per.Encoding) 
 	return nil
 }
 
+func (l QosFlowAddOrModifyResponseList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowAddOrModifyResponseItem(l))
+}
+
+func (l *QosFlowAddOrModifyResponseList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[QosFlowAddOrModifyResponseItem](r, enc, 1, maxnoofQosFlows)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 func (l QosFlowListWithCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return marshalSeqOf(w, enc, 1, maxnoofQosFlows, []QosFlowWithCauseItem(l))
 }

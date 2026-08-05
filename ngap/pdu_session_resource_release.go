@@ -288,3 +288,37 @@ func ParsePDUSessionResourceReleaseCommandTransfer(b TransferContainer) (*PDUSes
 
 	return &t, nil
 }
+
+// PDUSessionResourceReleaseResponseTransfer ::= SEQUENCE { iE-Extensions
+// OPTIONAL, ... } (extensible) — TS 38.413 §9.3.4.21. Every field is optional,
+// so the NG-RAN node normally sends it empty; it exists so the AMF can relay a
+// session's release confirmation to the SMF.
+type PDUSessionResourceReleaseResponseTransfer struct {
+	_ [0]struct{}  `per:"extseq"`
+	_ ieExtensions `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceReleaseResponseTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceReleaseResponseTransfer decodes the transfer the
+// NG-RAN node returns for a released session.
+func ParsePDUSessionResourceReleaseResponseTransfer(b TransferContainer) (*PDUSessionResourceReleaseResponseTransfer, error) {
+	var t PDUSessionResourceReleaseResponseTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}

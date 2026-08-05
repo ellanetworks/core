@@ -6,34 +6,22 @@ package gnb
 import (
 	"fmt"
 
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
-func handleHandoverRequest(gnb *GnodeB, msg *ngapType.HandoverRequest) error {
-	if msg == nil {
-		return fmt.Errorf("HandoverRequest message is nil")
+// handleHandoverRequest records the sessions the AMF asks the target node to
+// take over (TS 38.413 §8.4.2). They are keyed by AMF UE NGAP ID: the target
+// has not yet assigned a RAN UE NGAP ID.
+func handleHandoverRequest(gnb *GnodeB, value []byte) error {
+	msg, err := ngap.ParseHandoverRequest(value)
+	if err != nil {
+		return fmt.Errorf("undecodable HandoverRequest: %w", err)
 	}
 
-	var amfUeNgapID int64
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Value.Present {
-		case ngapType.HandoverRequestIEsPresentAMFUENGAPID:
-			if ie.Value.AMFUENGAPID != nil {
-				amfUeNgapID = ie.Value.AMFUENGAPID.Value
-			}
-		case ngapType.HandoverRequestIEsPresentPDUSessionResourceSetupListHOReq:
-			if ie.Value.PDUSessionResourceSetupListHOReq != nil {
-				for _, item := range ie.Value.PDUSessionResourceSetupListHOReq.List {
-					pduSessionID := item.PDUSessionID.Value
-					psi := &PDUSessionInformation{
-						PDUSessionID: pduSessionID,
-					}
-					// Key by AMF UE NGAP ID: the target has not yet assigned a RAN UE NGAP ID.
-					gnb.StorePDUSession(amfUeNgapID, psi)
-				}
-			}
-		}
+	for _, item := range msg.PDUSessionResourceSetupListHOReq {
+		gnb.StorePDUSession(int64(msg.AMFUENGAPID), &PDUSessionInformation{
+			PDUSessionID: int64(item.PDUSessionID),
+		})
 	}
 
 	return nil

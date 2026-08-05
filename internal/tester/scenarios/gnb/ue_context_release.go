@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -80,7 +79,7 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		zap.String("Cause", "ReleaseDueToNgranGeneratedReason"),
 	)
 
-	fr, err := gNodeB.WaitForMessage(ngapType.NGAPPDUPresentInitiatingMessage, ngapType.InitiatingMessagePresentUEContextReleaseCommand, 500*time.Millisecond)
+	fr, err := gNodeB.WaitForMessage(gnb.Initiating, ngaplib.ProcUEContextRelease, 500*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -88,7 +88,7 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 
 	defer gNodeB.Close()
 
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("did not receive NG Setup Response: %v", err)
 	}

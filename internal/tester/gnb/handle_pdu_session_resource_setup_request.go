@@ -4,87 +4,59 @@
 package gnb
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handlePDUSessionResourceSetupRequest(gnb *GnodeB, pduSessionResourceSetupRequest *ngapType.PDUSessionResourceSetupRequest) error {
-	var (
-		amfueNGAPID                                  *ngapType.AMFUENGAPID
-		ranueNGAPID                                  *ngapType.RANUENGAPID
-		protocolIEIDPDUSessionResourceSetupListSUReq *ngapType.PDUSessionResourceSetupListSUReq
-		ueAggregateMaximumBitRate                    *ngapType.UEAggregateMaximumBitRate
-	)
-
-	for _, ie := range pduSessionResourceSetupRequest.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			amfueNGAPID = ie.Value.AMFUENGAPID
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ranueNGAPID = ie.Value.RANUENGAPID
-		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
-			protocolIEIDPDUSessionResourceSetupListSUReq = ie.Value.PDUSessionResourceSetupListSUReq
-		case ngapType.ProtocolIEIDUEAggregateMaximumBitRate:
-			ueAggregateMaximumBitRate = ie.Value.UEAggregateMaximumBitRate
-		}
+func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
+	req, err := ngap.ParsePDUSessionResourceSetupRequest(value)
+	if err != nil {
+		return fmt.Errorf("undecodable PDUSessionResourceSetupRequest: %w", err)
 	}
 
-	if amfueNGAPID == nil {
-		return fmt.Errorf("missing AMF UE NGAP ID in PDUSessionResourceSetupRequest")
-	}
-
-	if ranueNGAPID == nil {
-		return fmt.Errorf("missing RAN UE NGAP ID in PDUSessionResourceSetupRequest")
-	}
-
-	if protocolIEIDPDUSessionResourceSetupListSUReq == nil {
-		return fmt.Errorf("missing PDU Session Resource Setup List in PDUSessionResourceSetupRequest")
-	}
+	amfUeNgapID, ranUeNgapID := int64(req.AMFUENGAPID), int64(req.RANUENGAPID)
 
 	logger.GnbLogger.Debug(
 		"Received PDU Session Resource Setup Request",
 		zap.String("GNB ID", gnb.GnbID),
-		zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
-		zap.Int64("AMF UE NGAP ID", amfueNGAPID.Value),
+		zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+		zap.Int64("AMF UE NGAP ID", amfUeNgapID),
 	)
 
-	if ueAggregateMaximumBitRate != nil {
-		gnb.StoreUEAmbr(ranueNGAPID.Value, &UEAmbrInformation{
-			UplinkBps:   ueAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,
-			DownlinkBps: ueAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value,
+	if ambr := req.UEAggregateMaximumBitRate; ambr != nil {
+		gnb.StoreUEAmbr(ranUeNgapID, &UEAmbrInformation{
+			UplinkBps:   int64(ambr.UL),
+			DownlinkBps: int64(ambr.DL),
 		})
 	}
 
-	ue, err := gnb.LoadUE(ranueNGAPID.Value)
+	ue, err := gnb.LoadUE(ranUeNgapID)
 	if err != nil {
-		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %v", ranueNGAPID.Value, err)
+		return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 	}
 
-	for _, pduSession := range protocolIEIDPDUSessionResourceSetupListSUReq.List {
-		pduSessionID := pduSession.PDUSessionID.Value
+	for _, pduSession := range req.PDUSessionResourceSetup {
+		pduSessionID := int64(pduSession.PDUSessionID)
 
-		// Some AMF implementations omit PDUSessionNASPDU when there is no NAS
+		// Some AMF implementations omit the NAS-PDU when there is no NAS
 		// payload; this is non-fatal.
-		if pduSession.PDUSessionNASPDU == nil {
-			logger.GnbLogger.Debug("PDU Session Resource Setup Request contains no PDUSessionNASPDU, skipping NAS delivery", zap.Any("pduSession", pduSession))
-		} else {
-			err = ue.SendDownlinkNAS(pduSession.PDUSessionNASPDU.Value, amfueNGAPID.Value, ranueNGAPID.Value)
-			if err != nil {
-				return fmt.Errorf("HandleDownlinkNASTransport failed: %v", err)
-			}
+		if pduSession.NASPDU == nil {
+			logger.GnbLogger.Debug("PDU Session Resource Setup Request contains no NAS-PDU, skipping NAS delivery",
+				zap.Int64("PDU Session ID", pduSessionID))
+		} else if err := ue.SendDownlinkNAS(*pduSession.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
+			return fmt.Errorf("HandleDownlinkNASTransport failed: %w", err)
 		}
 
 		// A missing transfer yields no UPF/TEID info; skip the store without
 		// failing the whole NGAP flow.
-		pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.PDUSessionResourceSetupRequestTransfer)
+		pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.Transfer)
 		if err != nil {
-			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store", zap.Error(err), zap.Any("pduSession", pduSession))
+			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store",
+				zap.Error(err), zap.Int64("PDU Session ID", pduSessionID))
 
 			continue
 		}
@@ -94,8 +66,8 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, pduSessionResourceSetupRe
 
 		logger.GnbLogger.Debug(
 			"Parsed PDU Session Resource Setup Request Transfer",
-			zap.Int64("AMF UE NGAP ID", amfueNGAPID.Value),
-			zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
+			zap.Int64("AMF UE NGAP ID", amfUeNgapID),
+			zap.Int64("RAN UE NGAP ID", ranUeNgapID),
 			zap.Int64("PDU Session ID", pduSessionID),
 			zap.Uint32("UL TEID", pduSessionInfo.ULTeid),
 			zap.String("UPF Address", pduSessionInfo.UpfAddress),
@@ -105,7 +77,7 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, pduSessionResourceSetupRe
 			zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
 		)
 
-		gnb.StorePDUSession(ranueNGAPID.Value, pduSessionInfo)
+		gnb.StorePDUSession(ranUeNgapID, pduSessionInfo)
 	}
 
 	if !gnb.N3Address.IsValid() {
@@ -116,8 +88,7 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, pduSessionResourceSetupRe
 
 	pduSessions := [16]*PDUSessionInformation{}
 
-	sessions := gnb.GetPDUSessions(ranueNGAPID.Value)
-	for _, s := range sessions {
+	for _, s := range gnb.GetPDUSessions(ranUeNgapID) {
 		if s.PDUSessionID >= 1 && s.PDUSessionID <= 15 {
 			pduSessions[s.PDUSessionID] = &PDUSessionInformation{
 				PDUSessionID: s.PDUSessionID,
@@ -128,20 +99,19 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, pduSessionResourceSetupRe
 		}
 	}
 
-	err = gnb.SendPDUSessionResourceSetupResponse(&PDUSessionResourceSetupResponseOpts{
-		AMFUENGAPID: amfueNGAPID.Value,
-		RANUENGAPID: ranueNGAPID.Value,
+	if err := gnb.SendPDUSessionResourceSetupResponse(&PDUSessionResourceSetupResponseOpts{
+		AMFUENGAPID: amfUeNgapID,
+		RANUENGAPID: ranUeNgapID,
 		PDUSessions: pduSessions,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to send PDUSessionResourceSetupResponse: %v", err)
+	}); err != nil {
+		return fmt.Errorf("failed to send PDUSessionResourceSetupResponse: %w", err)
 	}
 
 	logger.GnbLogger.Debug(
 		"Sent PDUSession Resource Setup Response",
 		zap.String("GNB ID", gnb.GnbID),
-		zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
-		zap.Int64("AMF UE NGAP ID", amfueNGAPID.Value),
+		zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+		zap.Int64("AMF UE NGAP ID", amfUeNgapID),
 	)
 
 	return nil
@@ -162,67 +132,48 @@ type PDUSessionInformation struct {
 	AmbrDownlink int64
 }
 
-func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer aper.OctetString) (*PDUSessionInformation, error) {
-	if transfer == nil {
+// getPDUSessionInfoFromSetupRequestTransfer reads the uplink tunnel and QoS the
+// SMF asks the NG-RAN node to set up (TS 38.413 §9.3.4.1).
+func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.TransferContainer) (*PDUSessionInformation, error) {
+	if len(transfer) == 0 {
 		return nil, fmt.Errorf("PDU Session Resource Setup Request Transfer is missing")
-	}
-
-	pdu := &ngapType.PDUSessionResourceSetupRequestTransfer{}
-
-	err := aper.UnmarshalWithParams(transfer, pdu, "valueExt")
-	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal Pdu Session Resource Setup Request Transfer: %v", err)
-	}
-
-	var (
-		ulTeid     uint32
-		upfAddress []byte
-		qosId      int64
-		fiveQi     int64
-		priArp     int64
-		pduSType   uint64
-	)
-
-	for _, ies := range pdu.ProtocolIEs.List {
-		switch ies.Id.Value {
-		case ngapType.ProtocolIEIDULNGUUPTNLInformation:
-			ulTeid = binary.BigEndian.Uint32(ies.Value.ULNGUUPTNLInformation.GTPTunnel.GTPTEID.Value)
-			upfAddress = ies.Value.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value.Bytes
-
-		case ngapType.ProtocolIEIDQosFlowSetupRequestList:
-			for _, itemsQos := range ies.Value.QosFlowSetupRequestList.List {
-				qosId = itemsQos.QosFlowIdentifier.Value
-				fiveQi = itemsQos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI.Value
-				priArp = itemsQos.QosFlowLevelQosParameters.AllocationAndRetentionPriority.PriorityLevelARP.Value
-			}
-
-		case ngapType.ProtocolIEIDPDUSessionAggregateMaximumBitRate:
-
-		case ngapType.ProtocolIEIDPDUSessionType:
-			pduSType = uint64(ies.Value.PDUSessionType.Value)
-
-		case ngapType.ProtocolIEIDSecurityIndication:
-		}
 	}
 
 	if gnb == nil {
 		return nil, fmt.Errorf("gnb is nil, cannot determine N3 address family")
 	}
 
-	upfIp, err := ParseUPFAddress(upfAddress, gnb.N3Address)
+	t, err := ngap.ParsePDUSessionResourceSetupRequestTransfer(transfer)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse UPF address: %v", err)
+		return nil, fmt.Errorf("could not parse PDU Session Resource Setup Request Transfer: %w", err)
+	}
+
+	var qosID, fiveQi, priArp int64
+
+	for _, qos := range t.QosFlowSetupRequest {
+		qosID = int64(qos.QosFlowIdentifier)
+
+		if qos.QosFlowLevelQosParameters.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
+			fiveQi = int64(qos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI)
+		}
+
+		priArp = int64(qos.QosFlowLevelQosParameters.AllocationAndRetentionPriority.PriorityLevelARP)
+	}
+
+	upfIP, err := ParseUPFAddress(t.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress, gnb.N3Address)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse UPF address: %w", err)
 	}
 
 	return &PDUSessionInformation{
-		ULTeid:     ulTeid,
-		UpfAddress: upfIp,
+		ULTeid:     uint32(t.ULNGUUPTNLInformation.GTPTunnel.GTPTEID),
+		UpfAddress: upfIP,
 		N3GnbIp:    gnb.N3Address,
-		QosId:      qosId,
-		QFI:        qosId,
+		QosId:      qosID,
+		QFI:        qosID,
 		FiveQi:     fiveQi,
 		PriArp:     priArp,
-		PduSType:   pduSType,
+		PduSType:   uint64(t.PDUSessionType),
 	}, nil
 }
 

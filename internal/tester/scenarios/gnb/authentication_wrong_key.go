@@ -14,7 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
 
@@ -57,7 +57,7 @@ func runAuthenticationWrongKey(_ context.Context, env scenarios.Env, _ any) erro
 
 	defer gNodeB.Close()
 
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
 	if err != nil {
 		return fmt.Errorf("timeout waiting for NGSetupComplete: %v", err)
 	}

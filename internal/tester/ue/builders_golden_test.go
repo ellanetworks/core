@@ -7,9 +7,9 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/openapi/models"
 )
 
 // goldenUESecurity returns a UESecurity with fully deterministic identity and

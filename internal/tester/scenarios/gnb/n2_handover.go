@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
 
@@ -70,8 +69,8 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	defer sourceGNB.Close()
 
 	if _, err := sourceGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngaplib.ProcNGSetup,
 		2*time.Second,
 	); err != nil {
 		return fmt.Errorf("source gNB: wait NGSetupResponse: %w", err)
@@ -97,8 +96,8 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	defer targetGNB.Close()
 
 	if _, err := targetGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngaplib.ProcNGSetup,
 		2*time.Second,
 	); err != nil {
 		return fmt.Errorf("target gNB: wait NGSetupResponse: %w", err)
@@ -138,8 +137,8 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	hoReqFrame, err := targetGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentInitiatingMessage,
-		ngapType.InitiatingMessagePresentHandoverRequest,
+		gnb.Initiating,
+		ngaplib.ProcHandoverResourceAllocation,
 		5*time.Second,
 	)
 	if err != nil {
@@ -171,8 +170,8 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	_, err = sourceGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentHandoverCommand,
+		gnb.Successful,
+		ngaplib.ProcHandoverPreparation,
 		5*time.Second,
 	)
 	if err != nil {
@@ -188,8 +187,8 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	_, err = sourceGNB.WaitForMessage(
-		ngapType.NGAPPDUPresentInitiatingMessage,
-		ngapType.InitiatingMessagePresentUEContextReleaseCommand,
+		gnb.Initiating,
+		ngaplib.ProcUEContextRelease,
 		5*time.Second,
 	)
 	if err != nil {

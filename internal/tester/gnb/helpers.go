@@ -9,10 +9,6 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
-	"github.com/free5gc/openapi/models"
 )
 
 func GetTacInBytes(tacStr string) ([]byte, error) {
@@ -37,10 +33,6 @@ func GetSliceInBytes(sst int32, sd string) ([]byte, []byte, error) {
 	}
 
 	return sstBytes, nil, nil
-}
-
-func GetPLMNIdentity(mcc string, mnc string) ngapType.PLMNIdentity {
-	return ngapConvert.PlmnIdToNgap(models.PlmnId{Mcc: mcc, Mnc: mnc})
 }
 
 func GetMccAndMncInOctets(mccStr string, mncStr string) ([]byte, error) {
@@ -72,22 +64,6 @@ func reverse(s string) string {
 	return aux
 }
 
-func GetNRCellIdentity(gnbID string) (ngapType.NRCellIdentity, error) {
-	nci, err := GetGnbIdInBytes(gnbID)
-	if err != nil {
-		return ngapType.NRCellIdentity{}, fmt.Errorf("could not get NRCellIdentity: %v", err)
-	}
-
-	slice := make([]byte, 2)
-
-	return ngapType.NRCellIdentity{
-		Value: aper.BitString{
-			Bytes:     append(nci, slice...),
-			BitLength: 36,
-		},
-	}, nil
-}
-
 func GetGnbIdInBytes(gnbId string) ([]byte, error) {
 	resu, err := hex.DecodeString(gnbId)
 	if err != nil {
@@ -112,4 +88,36 @@ func transportLayerAddress(ip netip.Addr) (ngap.TransportLayerAddress, error) {
 	default:
 		return nil, fmt.Errorf("transport layer address %q is neither IPv4 nor IPv6", ip)
 	}
+}
+
+// userLocation builds the User Location Information this simulator reports:
+// the NR cell it serves and the TAI that cell is in (TS 38.413 §9.3.1.16).
+// internal/tester/s1enb reports its E-UTRAN CGI and TAI the same way.
+func userLocation(mcc, mnc, gnbID, tac string) (ngap.UserLocationInformation, error) {
+	plmn, err := PLMNIdentity(mcc, mnc)
+	if err != nil {
+		return ngap.UserLocationInformation{}, err
+	}
+
+	tacValue, err := TACValue(tac)
+	if err != nil {
+		return ngap.UserLocationInformation{}, err
+	}
+
+	node, err := GNBNodeID(mcc, mnc, gnbID)
+	if err != nil {
+		return ngap.UserLocationInformation{}, err
+	}
+
+	cellID, err := node.NRCellIdentity(0)
+	if err != nil {
+		return ngap.UserLocationInformation{}, fmt.Errorf("could not build NR cell identity: %w", err)
+	}
+
+	return ngap.UserLocationInformation{
+		Kind:         ngap.UserLocationNR,
+		PLMNIdentity: plmn,
+		CellIdentity: cellID,
+		TAI:          ngap.TAI{PLMNIdentity: plmn, TAC: tacValue},
+	}, nil
 }

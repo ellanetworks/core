@@ -7,96 +7,65 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, cmd *ngapType.PDUSessionResourceReleaseCommand) error {
-	var (
-		amfueNGAPID *ngapType.AMFUENGAPID
-		ranueNGAPID *ngapType.RANUENGAPID
-		nasPDU      *ngapType.NASPDU
-		releaseList *ngapType.PDUSessionResourceToReleaseListRelCmd
-	)
-
-	for _, ie := range cmd.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			amfueNGAPID = ie.Value.AMFUENGAPID
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			ranueNGAPID = ie.Value.RANUENGAPID
-		case ngapType.ProtocolIEIDNASPDU:
-			nasPDU = ie.Value.NASPDU
-		case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListRelCmd:
-			releaseList = ie.Value.PDUSessionResourceToReleaseListRelCmd
-		}
+func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, value []byte) error {
+	cmd, err := ngap.ParsePDUSessionResourceReleaseCommand(value)
+	if err != nil {
+		return fmt.Errorf("undecodable PDUSessionResourceReleaseCommand: %w", err)
 	}
 
-	if amfueNGAPID == nil {
-		return fmt.Errorf("missing AMF UE NGAP ID in PDUSessionResourceReleaseCommand")
-	}
-
-	if ranueNGAPID == nil {
-		return fmt.Errorf("missing RAN UE NGAP ID in PDUSessionResourceReleaseCommand")
-	}
-
-	if releaseList == nil {
-		return fmt.Errorf("missing PDU Session Resource To Release List in PDUSessionResourceReleaseCommand")
-	}
+	amfUeNgapID, ranUeNgapID := int64(cmd.AMFUENGAPID), int64(cmd.RANUENGAPID)
 
 	logger.GnbLogger.Debug(
 		"Received PDU Session Resource Release Command",
 		zap.String("GNB ID", gnb.GnbID),
-		zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
-		zap.Int64("AMF UE NGAP ID", amfueNGAPID.Value),
-		zap.Int("PDU Sessions to release", len(releaseList.List)),
+		zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+		zap.Int64("AMF UE NGAP ID", amfUeNgapID),
+		zap.Int("PDU Sessions to release", len(cmd.PDUSessionResourceRelease)),
 	)
 
-	if nasPDU != nil {
-		ue, err := gnb.LoadUE(ranueNGAPID.Value)
+	if cmd.NASPDU != nil {
+		ue, err := gnb.LoadUE(ranUeNgapID)
 		if err != nil {
-			return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %v", ranueNGAPID.Value, err)
+			return fmt.Errorf("could not load UE with RAN UE NGAP ID %d: %w", ranUeNgapID, err)
 		}
 
-		if err := ue.SendDownlinkNAS(nasPDU.Value, amfueNGAPID.Value, ranueNGAPID.Value); err != nil {
-			return fmt.Errorf("forward NAS PDU for release command: %v", err)
+		if err := ue.SendDownlinkNAS(*cmd.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
+			return fmt.Errorf("forward NAS PDU for release command: %w", err)
 		}
 	}
 
-	for _, item := range releaseList.List {
-		pduSessionID := item.PDUSessionID.Value
-		gnb.RemovePDUSession(ranueNGAPID.Value, pduSessionID)
+	ids := make([]int64, 0, len(cmd.PDUSessionResourceRelease))
+
+	for _, item := range cmd.PDUSessionResourceRelease {
+		pduSessionID := int64(item.PDUSessionID)
+		ids = append(ids, pduSessionID)
+		gnb.RemovePDUSession(ranUeNgapID, pduSessionID)
 
 		logger.GnbLogger.Debug(
 			"Released PDU session",
 			zap.Int64("PDU Session ID", pduSessionID),
-			zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
+			zap.Int64("RAN UE NGAP ID", ranUeNgapID),
 		)
 	}
 
 	if err := gnb.SendPDUSessionResourceReleaseResponse(&PDUSessionResourceReleaseResponseOpts{
-		AMFUENGAPID:   amfueNGAPID.Value,
-		RANUENGAPID:   ranueNGAPID.Value,
-		PDUSessionIDs: extractPDUSessionIDs(releaseList),
+		AMFUENGAPID:   amfUeNgapID,
+		RANUENGAPID:   ranUeNgapID,
+		PDUSessionIDs: ids,
 	}); err != nil {
-		return fmt.Errorf("failed to send PDUSessionResourceReleaseResponse: %v", err)
+		return fmt.Errorf("failed to send PDUSessionResourceReleaseResponse: %w", err)
 	}
 
 	logger.GnbLogger.Debug(
 		"Sent PDU Session Resource Release Response",
 		zap.String("GNB ID", gnb.GnbID),
-		zap.Int64("RAN UE NGAP ID", ranueNGAPID.Value),
-		zap.Int64("AMF UE NGAP ID", amfueNGAPID.Value),
+		zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+		zap.Int64("AMF UE NGAP ID", amfUeNgapID),
 	)
 
 	return nil
-}
-
-func extractPDUSessionIDs(list *ngapType.PDUSessionResourceToReleaseListRelCmd) []int64 {
-	ids := make([]int64, 0, len(list.List))
-	for _, item := range list.List {
-		ids = append(ids, item.PDUSessionID.Value)
-	}
-
-	return ids
 }

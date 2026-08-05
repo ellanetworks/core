@@ -161,6 +161,14 @@ var transferParsers = []messageParser{
 		_, err := ParsePDUSessionResourceReleaseCommandTransfer(v)
 		return err
 	}},
+	{"ParsePDUSessionResourceReleaseResponseTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceReleaseResponseTransfer(v)
+		return err
+	}},
+	{"ParsePDUSessionResourceModifyResponseTransfer", func(v []byte) error {
+		_, err := ParsePDUSessionResourceModifyResponseTransfer(v)
+		return err
+	}},
 	{"ParsePDUSessionResourceModifyRequestTransfer", func(v []byte) error {
 		_, err := ParsePDUSessionResourceModifyRequestTransfer(v)
 		return err

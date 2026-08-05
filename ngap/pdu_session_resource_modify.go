@@ -393,3 +393,56 @@ func (t *PDUSessionResourceModifyRequestTransfer) Marshal() (TransferContainer, 
 func ParsePDUSessionResourceModifyRequestTransfer(b TransferContainer) (*PDUSessionResourceModifyRequestTransfer, error) {
 	return parseMessageBody[PDUSessionResourceModifyRequestTransfer](ProcPDUSessionResourceModify, TriggeringInitiatingMessage, pDUSessionResourceModifyRequestTransferIEs, b)
 }
+
+// QosFlowAddOrModifyResponseItem ::= SEQUENCE { qosFlowIdentifier,
+// iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.15.
+type QosFlowAddOrModifyResponseItem struct {
+	_                 [0]struct{} `per:"extseq"`
+	QosFlowIdentifier QosFlowIdentifier
+	_                 ieExtensions `per:",skip"`
+}
+
+// QosFlowAddOrModifyResponseList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
+// QosFlowAddOrModifyResponseItem.
+type QosFlowAddOrModifyResponseList []QosFlowAddOrModifyResponseItem
+
+// PDUSessionResourceModifyResponseTransfer ::= SEQUENCE {
+// dL-NGU-UP-TNLInformation OPTIONAL, uL-NGU-UP-TNLInformation OPTIONAL,
+// qosFlowAddOrModifyResponseList OPTIONAL, additionalDLQosFlowPerTNLInformation
+// OPTIONAL, qosFlowFailedToAddOrModifyList OPTIONAL, iE-Extensions OPTIONAL }
+// (extensible) — TS 38.413 §9.3.4.10. Every field is optional: an NG-RAN node
+// that accepted a modification without changing a tunnel sends it empty.
+type PDUSessionResourceModifyResponseTransfer struct {
+	_                                    [0]struct{}                    `per:"extseq"`
+	DLNGUUPTNLInformation                *UPTransportLayerInformation   `per:",optional"`
+	ULNGUUPTNLInformation                *UPTransportLayerInformation   `per:",optional"`
+	QosFlowAddOrModifyResponse           QosFlowAddOrModifyResponseList `per:",optional"`
+	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList   `per:",optional"`
+	QosFlowFailedToAddOrModify           QosFlowListWithCause           `per:",optional"`
+	_                                    ieExtensions                   `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *PDUSessionResourceModifyResponseTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParsePDUSessionResourceModifyResponseTransfer decodes the transfer the NG-RAN
+// node returns for a modified session.
+func ParsePDUSessionResourceModifyResponseTransfer(b TransferContainer) (*PDUSessionResourceModifyResponseTransfer, error) {
+	var t PDUSessionResourceModifyResponseTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}

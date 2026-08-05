@@ -57,6 +57,13 @@ func dialN2(local, rem *sctp.SCTPAddr, address string) (*sctp.SCTPConn, error) {
 
 // ErrNoActivePeer indicates no N2 peer is currently usable. Returned by
 // SendToRan when every configured peer has failed.
+// ngapPPID is the SCTP payload protocol identifier for NGAP (60, TS 38.412),
+// pre-encoded in network byte order the way the SCTP socket layer expects. The
+// pinned ishidawataru/sctp release writes SndRcvInfo.PPID verbatim, so the
+// value must already be byte-swapped; the AMF converts it back with
+// sctp.PPIDWireOrder. internal/tester/s1enb declares its S1AP PPID the same way.
+const ngapPPID uint32 = 0x3c000000
+
 var ErrNoActivePeer = errors.New("gnb: no active N2 peer")
 
 // ErrNoRotationCandidate indicates RotateToNextPeer was called but no other
@@ -79,7 +86,7 @@ type GnodeB struct {
 	N3Conn            *net.UDPConn
 	tunnels           map[uint32]*Tunnel // local TEID -> Tunnel
 	lastGeneratedTEID uint32
-	receivedFrames    map[int]map[int][]SCTPFrame // pduType -> msgType -> frames
+	receivedFrames    map[Category]map[ngap.ProcedureCode][]SCTPFrame
 	mu                sync.Mutex
 	cond              *sync.Cond
 	N3Address         netip.Addr
@@ -289,7 +296,9 @@ func (g *GnodeB) LoadUE(ranUeId int64) (air.DownlinkSender, error) {
 	return ue, nil
 }
 
-func (g *GnodeB) WaitForMessage(pduType int, msgType int, timeout time.Duration) (SCTPFrame, error) {
+// WaitForMessage waits for an inbound PDU of the given category and procedure,
+// consuming it from the receive buffer. internal/tester/s1enb waits the same way.
+func (g *GnodeB) WaitForMessage(cat Category, code ngap.ProcedureCode, timeout time.Duration) (SCTPFrame, error) {
 	deadline := time.Now().Add(timeout)
 
 	timer := time.AfterFunc(timeout, func() {
@@ -301,35 +310,47 @@ func (g *GnodeB) WaitForMessage(pduType int, msgType int, timeout time.Duration)
 	defer g.mu.Unlock()
 
 	for {
-		msgTypeMap, ok := g.receivedFrames[pduType]
-		if ok {
-			frames, ok := msgTypeMap[msgType]
-			if ok && len(frames) > 0 {
+		if byCode, ok := g.receivedFrames[cat]; ok {
+			if frames := byCode[code]; len(frames) > 0 {
 				frame := frames[0]
 
 				if len(frames) == 1 {
-					delete(msgTypeMap, msgType)
+					delete(byCode, code)
 				} else {
-					msgTypeMap[msgType] = frames[1:]
+					byCode[code] = frames[1:]
 				}
-
-				g.receivedFrames[pduType] = msgTypeMap
 
 				return frame, nil
 			}
 		}
 
 		if time.Now().After(deadline) {
-			return SCTPFrame{}, fmt.Errorf("timeout waiting for NGAP message %v", getMessageName(pduType, msgType))
+			return SCTPFrame{}, fmt.Errorf("timeout waiting for NGAP message %s", messageName(cat, code))
 		}
 
 		g.cond.Wait()
 	}
 }
 
+// Category is the NGAP-PDU CHOICE alternative a received frame arrived in.
+// internal/tester/s1enb categorises S1AP the same way.
+type Category int
+
+const (
+	Initiating Category = iota
+	Successful
+	Unsuccessful
+)
+
+// SCTPFrame is a decoded inbound NGAP PDU: its category, procedure code, and
+// the procedure's open-type value (ready for the matching ngap.ParseXxx). Data
+// is the PDU as received.
 type SCTPFrame struct {
-	Data []byte
-	Info *sctp.SndRcvInfo
+	Category      Category
+	ProcedureCode ngap.ProcedureCode
+	Value         []byte
+	Data          []byte
+	Info          *sctp.SndRcvInfo
 }
 
 // NewGnodeB constructs a gNB around a single pre-dialed N2 conn, for ng-eNB

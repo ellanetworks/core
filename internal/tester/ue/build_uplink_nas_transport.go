@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/openapi/models"
 )
 
 type UplinkNasTransportOpts struct {

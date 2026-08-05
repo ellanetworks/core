@@ -47,37 +47,17 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) ([]byte, error) {
 		return nil, fmt.Errorf("RAN UE NGAP ID is required to build InitialUEMessage")
 	}
 
-	plmn, err := PLMNIdentity(opts.Mcc, opts.Mnc)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
-	}
-
-	tac, err := TACValue(opts.Tac)
-	if err != nil {
-		return nil, err
-	}
-
-	node, err := GNBNodeID(opts.Mcc, opts.Mnc, opts.GnbID)
-	if err != nil {
-		return nil, err
-	}
-
-	cellID, err := node.NRCellIdentity(0)
-	if err != nil {
-		return nil, fmt.Errorf("could not build NR cell identity: %w", err)
 	}
 
 	msg := &ngap.InitialUEMessage{
-		RANUENGAPID: ngap.RANUENGAPID(opts.RanUENGAPID),
-		NASPDU:      ngap.NASPDU(opts.NasPDU),
-		UserLocationInformation: ngap.UserLocationInformation{
-			Kind:         ngap.UserLocationNR,
-			PLMNIdentity: plmn,
-			CellIdentity: cellID,
-			TAI:          ngap.TAI{PLMNIdentity: plmn, TAC: tac},
-		},
-		RRCEstablishmentCause: ngap.Ptr(opts.RRCEstablishmentCause),
-		UEContextRequest:      ngap.Ptr(ngap.UEContextRequested),
+		RANUENGAPID:             ngap.RANUENGAPID(opts.RanUENGAPID),
+		NASPDU:                  ngap.NASPDU(opts.NasPDU),
+		UserLocationInformation: uli,
+		RRCEstablishmentCause:   ngap.Ptr(opts.RRCEstablishmentCause),
+		UEContextRequest:        ngap.Ptr(ngap.UEContextRequested),
 	}
 
 	// The AMF Set ID (10 bits) and AMF Pointer (6 bits) sit in octets 6-7 of the

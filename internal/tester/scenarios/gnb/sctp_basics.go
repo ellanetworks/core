@@ -12,7 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -48,8 +48,8 @@ func runSCTPBasic(ctx context.Context, env scenarios.Env, _ any) error {
 	defer node.Close()
 
 	fr, err := node.WaitForMessage(
-		ngapType.NGAPPDUPresentSuccessfulOutcome,
-		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		gnb.Successful,
+		ngap.ProcNGSetup,
 		200*time.Millisecond,
 	)
 	if err != nil {

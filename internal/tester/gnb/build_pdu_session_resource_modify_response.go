@@ -4,8 +4,9 @@
 package gnb
 
 import (
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"fmt"
+
+	"github.com/ellanetworks/core/ngap"
 )
 
 type PDUSessionResourceModifyResponseOpts struct {
@@ -14,63 +15,30 @@ type PDUSessionResourceModifyResponseOpts struct {
 	PDUSessionIDs []int64
 }
 
-func BuildPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyResponseOpts) (ngapType.NGAPPDU, error) {
-	pdu := ngapType.NGAPPDU{}
-
-	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
-	pdu.SuccessfulOutcome = new(ngapType.SuccessfulOutcome)
-
-	successfulOutcome := pdu.SuccessfulOutcome
-	successfulOutcome.ProcedureCode.Value = ngapType.ProcedureCodePDUSessionResourceModify
-	successfulOutcome.Criticality.Value = ngapType.CriticalityPresentReject
-
-	successfulOutcome.Value.Present = ngapType.SuccessfulOutcomePresentPDUSessionResourceModifyResponse
-	successfulOutcome.Value.PDUSessionResourceModifyResponse = new(ngapType.PDUSessionResourceModifyResponse)
-
-	modifyResponse := successfulOutcome.Value.PDUSessionResourceModifyResponse
-	ies := &modifyResponse.ProtocolIEs
-
-	amfIE := ngapType.PDUSessionResourceModifyResponseIEs{}
-	amfIE.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	amfIE.Criticality.Value = ngapType.CriticalityPresentIgnore
-	amfIE.Value.Present = ngapType.PDUSessionResourceModifyResponseIEsPresentAMFUENGAPID
-	amfIE.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-	amfIE.Value.AMFUENGAPID.Value = opts.AMFUENGAPID
-	ies.List = append(ies.List, amfIE)
-
-	ranIE := ngapType.PDUSessionResourceModifyResponseIEs{}
-	ranIE.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ranIE.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ranIE.Value.Present = ngapType.PDUSessionResourceModifyResponseIEsPresentRANUENGAPID
-	ranIE.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-	ranIE.Value.RANUENGAPID.Value = opts.RANUENGAPID
-	ies.List = append(ies.List, ranIE)
-
-	modListIE := ngapType.PDUSessionResourceModifyResponseIEs{}
-	modListIE.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceModifyListModRes
-	modListIE.Criticality.Value = ngapType.CriticalityPresentIgnore
-	modListIE.Value.Present = ngapType.PDUSessionResourceModifyResponseIEsPresentPDUSessionResourceModifyListModRes
-	modListIE.Value.PDUSessionResourceModifyListModRes = new(ngapType.PDUSessionResourceModifyListModRes)
-
-	modList := modListIE.Value.PDUSessionResourceModifyListModRes
-
-	for _, pduSessionID := range opts.PDUSessionIDs {
-		item := ngapType.PDUSessionResourceModifyItemModRes{}
-		item.PDUSessionID.Value = pduSessionID
-
-		transfer := &ngapType.PDUSessionResourceModifyResponseTransfer{}
-
-		transferBytes, err := aper.MarshalWithParams(transfer, "valueExt")
-		if err != nil {
-			continue
-		}
-
-		item.PDUSessionResourceModifyResponseTransfer = transferBytes
-
-		modList.List = append(modList.List, item)
+// BuildPDUSessionResourceModifyResponse encodes a PDU SESSION RESOURCE MODIFY
+// RESPONSE PDU (TS 38.413 §8.2.3). The per-session transfer is empty: this
+// simulator accepts a modification without moving a tunnel.
+func BuildPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyResponseOpts) ([]byte, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("PDUSessionResourceModifyResponseOpts is nil")
 	}
 
-	ies.List = append(ies.List, modListIE)
+	msg := &ngap.PDUSessionResourceModifyResponse{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
+	}
 
-	return pdu, nil
+	for _, pduSessionID := range opts.PDUSessionIDs {
+		transfer, err := (&ngap.PDUSessionResourceModifyResponseTransfer{}).Marshal()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build PDUSessionResourceModifyResponseTransfer: %w", err)
+		}
+
+		msg.PDUSessionResourceModify = append(msg.PDUSessionResourceModify, ngap.PDUSessionResourceModifyItemModRes{
+			PDUSessionID: ngap.PDUSessionID(pduSessionID),
+			Transfer:     transfer,
+		})
+	}
+
+	return msg.Marshal()
 }
