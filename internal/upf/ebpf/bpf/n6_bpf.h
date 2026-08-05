@@ -148,11 +148,17 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
-	/* Read before destination_nat_apply rewrites it: frag_resolve4 runs
-	 * ahead of translation, so the record has to key on the address the
-	 * next fragment will arrive with, not the UE's. */
+	/* Read before destination_nat_apply rewrites them: frag_resolve4 runs
+	 * ahead of translation, so the record has to key on what the next
+	 * fragment will arrive with, not on the UE's. The ports matter as much
+	 * as the addresses — under the skb build destination_nat_apply
+	 * re-parses the frame, so by the record site they read post-translation.
+	 * They are meaningful only once destination_nat_lookup has parsed them,
+	 * which is exactly when translation can rewrite them. */
 	const __u32 wire_saddr = ip4->saddr;
 	const __u32 wire_daddr = ip4->daddr;
+	const __u16 wire_sport = ctx->l4_sport;
+	const __u16 wire_dport = ctx->l4_dport;
 	__u32 ue_addr = translated ? xlate.daddr : ip4->daddr;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
@@ -302,8 +308,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	/* A later fragment whose ports came from the map has nothing of its
 	 * own to record. */
 	if (ctx->is_fragment && !ctx->l4_unavailable && !ctx->frag_recovered)
-		frag_record4(ip4, wire_saddr, wire_daddr, ctx->l4_sport,
-			     ctx->l4_dport);
+		frag_record4(ip4, wire_saddr, wire_daddr,
+			     translated ? wire_sport : ctx->l4_sport,
+			     translated ? wire_dport : ctx->l4_dport);
 
 	/* SDF filter enforcement (downlink) */
 	{
