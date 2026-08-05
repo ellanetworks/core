@@ -234,7 +234,7 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
 	})
 
 	radio := &amf.Radio{Conn: sender}
@@ -264,7 +264,7 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
 		u.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 		u.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 
@@ -515,7 +515,7 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.UeContext) {
-		u.Ambr = &models.Ambr{Uplink: "1000000 bps", Downlink: "1000000 bps"}
+		u.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1000000 bps"), Downlink: models.MustParseBitRate("1000000 bps")}
 	})
 
 	radio := &amf.Radio{Conn: sender}

@@ -21,7 +21,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -654,14 +653,14 @@ func PDUSessionSetupItemSUReq(pduSessionID uint8, snssai *models.Snssai, nasPDU,
 
 // pduSessionResourceSetupBytes builds a PDU SESSION RESOURCE SETUP REQUEST
 // (TS 38.413 §9.2.1.1).
-func pduSessionResourceSetupBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ambrUp, ambrDown string, nasPdu []byte, sessions ngap.PDUSessionResourceSetupListSUReq) ([]byte, error) {
+func pduSessionResourceSetupBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ambrUp, ambrDown models.BitRate, nasPdu []byte, sessions ngap.PDUSessionResourceSetupListSUReq) ([]byte, error) {
 	msg := &ngap.PDUSessionResourceSetupRequest{
 		AMFUENGAPID:             amfID,
 		RANUENGAPID:             ranID,
 		PDUSessionResourceSetup: sessions,
 		UEAggregateMaximumBitRate: &ngap.UEAggregateMaximumBitRate{
-			DL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrDown)),
-			UL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrUp)),
+			DL: ngap.BitRate(ambrDown.Bps()),
+			UL: ngap.BitRate(ambrUp.Bps()),
 		},
 	}
 
@@ -672,7 +671,7 @@ func pduSessionResourceSetupBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID
 	return msg.Marshal()
 }
 
-func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp string, ambrDown string, nasPdu []byte, list ngap.PDUSessionResourceSetupListSUReq) error {
+func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, ambrUp models.BitRate, ambrDown models.BitRate, nasPdu []byte, list ngap.PDUSessionResourceSetupListSUReq) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
@@ -747,7 +746,7 @@ func PDUSessionSetupItem(pduSessionID uint8, snssai *models.Snssai, nasPDU, tran
 func initialContextSetupBytes(
 	amfID ngap.AMFUENGAPID,
 	ranID ngap.RANUENGAPID,
-	ambrUp, ambrDown string,
+	ambrUp, ambrDown models.BitRate,
 	allowedNssai []models.Snssai,
 	kgnb []byte,
 	ueRadioCapability []byte,
@@ -795,8 +794,8 @@ func initialContextSetupBytes(
 	if len(sessions) > 0 {
 		msg.PDUSessionResourceSetup = sessions
 		msg.UEAggregateMaximumBitRate = &ngap.UEAggregateMaximumBitRate{
-			DL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrDown)),
-			UL: ngap.BitRate(ngapConvert.UEAmbrToInt64(ambrUp)),
+			DL: ngap.BitRate(ambrDown.Bps()),
+			UL: ngap.BitRate(ambrUp.Bps()),
 		}
 	}
 
@@ -811,8 +810,8 @@ func initialContextSetupBytes(
 
 func (ueConn *UeConn) SendInitialContextSetup(
 	ctx context.Context,
-	ambrUp string,
-	ambrDown string,
+	ambrUp models.BitRate,
+	ambrDown models.BitRate,
 	allowedNssai []models.Snssai,
 	kgnb []byte,
 	ueRadioCapability []byte,
@@ -904,8 +903,8 @@ func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
 func (ueConn *UeConn) SendHandoverRequest(
 	ctx context.Context,
 	handOverType ngapType.HandoverType,
-	uplinkAmbr string,
-	downlinkAmbr string,
+	uplinkAmbr models.BitRate,
+	downlinkAmbr models.BitRate,
 	ueSecurityCapability *fgs.UESecurityCapability,
 	ncc uint8,
 	nh []byte,

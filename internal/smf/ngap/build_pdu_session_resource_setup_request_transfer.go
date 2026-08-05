@@ -23,14 +23,9 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
 	}
 
-	// Conditional: present when at least one non-GBR QoS flow is being set up.
-	sessionAMBR, err := sessionAMBR(ambr)
-	if err != nil {
-		return nil, err
-	}
-
 	transfer := libngap.PDUSessionResourceSetupRequestTransfer{
-		PDUSessionAggregateMaximumBitRate: sessionAMBR,
+		// Conditional: present when at least one non-GBR QoS flow is set up.
+		PDUSessionAggregateMaximumBitRate: sessionAMBR(ambr),
 		ULNGUUPTNLInformation: libngap.UPTransportLayerInformation{
 			GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
 		},

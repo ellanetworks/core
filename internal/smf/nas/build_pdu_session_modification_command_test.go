@@ -24,7 +24,7 @@ func decodeModCmd(t *testing.T, b []byte) *fgs.PDUSessionModificationCommand {
 }
 
 func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "200 Mbps", Downlink: "200 Mbps"}
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
 	qos := &models.QosData{QFI: 1, Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}}
 
 	encoded, err := smfNas.BuildPDUSessionModificationCommand(1, ambr, qos, nil)
@@ -54,7 +54,7 @@ func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
 }
 
 func TestBuildPDUSessionModificationCommand_AmbrOnly(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "300 Mbps", Downlink: "400 Mbps"}
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")}
 
 	m := decodeModCmd(t, mustBuildModCmd(t, 5, ambr, nil, nil))
 	if m.SessionAMBR == nil {

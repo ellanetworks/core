@@ -259,7 +259,7 @@ func TestReconcileSessionsForUE_AppliesResolvedPolicy(t *testing.T) {
 		},
 		sessionPolicy: func() (*smf.Policy, error) {
 			return &smf.Policy{
-				Ambr:    models.Ambr{Uplink: "1 Gbps", Downlink: "2 Gbps"},
+				Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("2 Gbps")},
 				QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}},
 			}, nil
 		},

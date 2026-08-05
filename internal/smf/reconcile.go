@@ -180,6 +180,20 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	}
 
 	oldQoS := smContext.PolicyData.QosData
+	newAmbrUL, newAmbrDL := models.BitRate{}, models.BitRate{}
+
+	if req.NewPolicy != nil {
+		var err error
+
+		if newAmbrUL, err = models.ParseBitRate(req.NewPolicy.SessionAmbrUplink); err != nil {
+			return fmt.Errorf("new policy Session-AMBR uplink: %w", err)
+		}
+
+		if newAmbrDL, err = models.ParseBitRate(req.NewPolicy.SessionAmbrDownlink); err != nil {
+			return fmt.Errorf("new policy Session-AMBR downlink: %w", err)
+		}
+	}
+
 	oldAmbr := smContext.PolicyData.Ambr
 
 	hasQoSChange := false
@@ -196,7 +210,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			hasQoSChange = true
 		}
 
-		if oldAmbr.Uplink != req.NewPolicy.SessionAmbrUplink || oldAmbr.Downlink != req.NewPolicy.SessionAmbrDownlink {
+		if oldAmbr.Uplink != newAmbrUL || oldAmbr.Downlink != newAmbrDL {
 			hasAmbrChange = true
 		}
 
@@ -222,10 +236,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 		newPolicy = &Policy{
 			PolicyID: smContext.PolicyData.PolicyID,
-			Ambr: models.Ambr{
-				Uplink:   req.NewPolicy.SessionAmbrUplink,
-				Downlink: req.NewPolicy.SessionAmbrDownlink,
-			},
+			Ambr:     models.Ambr{Uplink: newAmbrUL, Downlink: newAmbrDL},
 			QosData: models.QosData{
 				QFI:    smContext.PolicyData.QosData.QFI,
 				Var5qi: req.NewPolicy.Var5qi,
@@ -415,7 +426,7 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 // multiple or GBR flows are ever supported, this must use per-flow MBR values.
 //
 // The caller holds smContext.Mutex.
-func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink string) error {
+func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
 	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
 		return fmt.Errorf("PFCP session not established")
 	}
@@ -463,8 +474,8 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 
 		qer.QFI = qfi
 		qer.MBR = &models.MBR{
-			ULMBR: bitRateTokbps(ambrUplink),
-			DLMBR: bitRateTokbps(ambrDownlink),
+			ULMBR: ambrUplink.Kbps(),
+			DLMBR: ambrDownlink.Kbps(),
 		}
 		qer.State = RuleUpdate
 		qerList = append(qerList, qer)

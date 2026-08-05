@@ -118,7 +118,7 @@ func TestReconcileSkipsIdleSession(t *testing.T) {
 	dl := smCtx.PolicyData.Ambr.Downlink
 	smCtx.Mutex.Unlock()
 
-	if dl != "200 Mbps" {
+	if dl != models.MustParseBitRate("200 Mbps") {
 		t.Fatalf("an idle session's policy must not be committed, got %q", dl)
 	}
 }
@@ -165,7 +165,7 @@ func TestModificationRejectKeepsPreviousPolicy(t *testing.T) {
 	dl := smCtx.PolicyData.Ambr.Downlink
 	smCtx.Mutex.Unlock()
 
-	if dl != "200 Mbps" {
+	if dl != models.MustParseBitRate("200 Mbps") {
 		t.Fatalf("a rejected modification must keep the previous AMBR (200 Mbps), got %q", dl)
 	}
 }

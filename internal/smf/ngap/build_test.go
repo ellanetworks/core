@@ -27,7 +27,7 @@ func decodeSetupRequestGTPTunnel(t *testing.T, buf []byte) (uint32, libngap.Tran
 }
 
 func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	addr := netip.MustParseAddr("10.3.0.2")
 
@@ -62,7 +62,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_NilAmbr(t *testing.T) {
 }
 
 func TestBuildPDUSessionResourceSetupRequestTransfer_IPv6Only(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	ipv6 := netip.MustParseAddr("2001:db8::1")
 
@@ -90,7 +90,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_IPv6Only(t *testing.T) {
 }
 
 func TestBuildPDUSessionResourceSetupRequestTransfer_DualStack(t *testing.T) {
-	ambr := &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	ipv4 := netip.MustParseAddr("10.3.0.2")
 	ipv6 := netip.MustParseAddr("2001:db8::1")
@@ -230,29 +230,16 @@ func TestBuildPathSwitchRequestAcknowledgeTransfer_IPv6Only(t *testing.T) {
 	}
 }
 
-// free5gc's AMBR converter returned 0 for a malformed rate, which would put a
-// zero session AMBR on the wire. The builder now refuses instead.
-func TestBuildPDUSessionResourceSetupRequestTransferRejectsMalformedAMBR(t *testing.T) {
-	qos := &models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}}
-
-	for _, ambr := range []*models.Ambr{
-		{Downlink: "1 Xbps", Uplink: "1 Gbps"},
-		{Downlink: "1 Gbps", Uplink: "notanumber Gbps"},
-		{Downlink: "", Uplink: "1 Gbps"},
-	} {
-		_, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 1,
-			netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4)
-		if err == nil {
-			t.Errorf("AMBR %+v encoded, want an error", ambr)
-		}
-	}
-}
+// A malformed AMBR can no longer reach a builder: models.BitRate is only
+// obtainable from ParseBitRate, so the text is rejected at the boundary that
+// reads it. models.TestParseBitRateRejectsMalformed covers that; this records
+// why there is no builder-level test for it.
 
 // TS 38.413 bounds priorityLevelARP at 1..15. The library encoder would refuse
 // a 0 on its own, but only as "value out of range"; the builder checks first so
 // an operator with a bad policy is told which field is wrong.
 func TestBuildPDUSessionResourceSetupRequestTransferRejectsARPZero(t *testing.T) {
-	ambr := &models.Ambr{Downlink: "1 Gbps", Uplink: "1 Gbps"}
+	ambr := &models.Ambr{Downlink: models.MustParseBitRate("1 Gbps"), Uplink: models.MustParseBitRate("1 Gbps")}
 	qos := &models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 0}}
 
 	_, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 1,

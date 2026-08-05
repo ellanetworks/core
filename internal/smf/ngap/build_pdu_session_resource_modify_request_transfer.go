@@ -16,12 +16,7 @@ func BuildPDUSessionResourceModifyRequestTransfer(ambr *models.Ambr, qosData *mo
 	var transfer libngap.PDUSessionResourceModifyRequestTransfer
 
 	if ambr != nil {
-		sessionAMBR, err := sessionAMBR(ambr)
-		if err != nil {
-			return nil, err
-		}
-
-		transfer.PDUSessionAggregateMaximumBitRate = sessionAMBR
+		transfer.PDUSessionAggregateMaximumBitRate = sessionAMBR(ambr)
 	}
 
 	if qosData != nil {

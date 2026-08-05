@@ -215,7 +215,7 @@ func (fdb *fakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 }
 
 func (fdb *fakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
 func (fdb *fakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {

@@ -26,7 +26,7 @@ func TestExportUEs(t *testing.T) {
 	ue.cipheringAlg = 2
 	ue.integrityAlg = 2
 	ue.Imei, _ = etsi.NewIMEIFromPEI("353456789012347")
-	ue.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "2 Gbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("2 Gbps")}
 
 	pdn := testPDN(ue)
 	pdn.Apn = "internet"
@@ -67,7 +67,7 @@ func TestExportUEs(t *testing.T) {
 		t.Errorf("Security = %+v, want EEA2/EIA2", e.Security)
 	}
 
-	if e.Subscription.Ambr == nil || e.Subscription.Ambr.Uplink != "1 Gbps" {
+	if e.Subscription.Ambr == nil || e.Subscription.Ambr.Uplink != models.MustParseBitRate("1 Gbps") {
 		t.Errorf("Subscription.Ambr = %+v, want uplink 1 Gbps", e.Subscription.Ambr)
 	}
 

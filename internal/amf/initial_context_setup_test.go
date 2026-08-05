@@ -23,7 +23,7 @@ func buildICS(t *testing.T, allowed []models.Snssai, kgnb []byte) ([]byte, error
 	t.Helper()
 
 	return initialContextSetupBytes(
-		1, 2, "1000000", "2000000", allowed, kgnb,
+		1, 2, models.BitRateFromBps(1000000), models.BitRateFromBps(2000000), allowed, kgnb,
 		nil, nil, icsSecurityCapability(), nil, nil, icsGUAMI(),
 	)
 }

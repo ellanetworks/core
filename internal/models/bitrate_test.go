@@ -30,8 +30,8 @@ func TestParseBitRate(t *testing.T) {
 			continue
 		}
 
-		if got != c.want {
-			t.Errorf("%q = %d, want %d", c.in, got, c.want)
+		if got.Bps() != c.want {
+			t.Errorf("%q = %d bps, want %d", c.in, got.Bps(), c.want)
 		}
 	}
 }
@@ -50,7 +50,7 @@ func TestParseBitRateRejectsMalformed(t *testing.T) {
 		"Inf Gbps",
 	} {
 		if got, err := models.ParseBitRate(in); err == nil {
-			t.Errorf("%q parsed as %d, want an error", in, got)
+			t.Errorf("%q parsed as %d bps, want an error", in, got.Bps())
 		}
 	}
 }

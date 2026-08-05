@@ -31,8 +31,8 @@ func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
 	p := ue.EnsurePDN(6)
 	p.Apn = "ims"
 	p.DnConfig = imsQoS.DnFingerprint()
-	p.SessAmbrDLBps = BitRateToBps(imsQoS.SessAmbrDLStr)
-	p.SessAmbrULBps = BitRateToBps(imsQoS.SessAmbrULStr)
+	p.SessAmbrDLBps = imsQoS.SessAmbrDL.Bps()
+	p.SessAmbrULBps = imsQoS.SessAmbrUL.Bps()
 	p.Qci = imsQoS.QCI + 1
 	p.Arp = imsQoS.ARP
 

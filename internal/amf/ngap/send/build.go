@@ -534,8 +534,8 @@ func BuildPathSwitchRequestAcknowledge(
 func BuildHandoverRequest(
 	amfUeNgapID int64,
 	targetUEHandoverType ngapType.HandoverType,
-	ambrUplink string,
-	ambrDownlink string,
+	ambrUplink models.BitRate,
+	ambrDownlink models.BitRate,
 	ueSecurityCapability *fgs.UESecurityCapability,
 	ncc uint8,
 	nh []byte,
@@ -596,8 +596,8 @@ func BuildHandoverRequest(
 	ie.Value.Present = ngapType.HandoverRequestIEsPresentUEAggregateMaximumBitRate
 	ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
 
-	ueAmbrUL := ngapConvert.UEAmbrToInt64(ambrUplink)
-	ueAmbrDL := ngapConvert.UEAmbrToInt64(ambrDownlink)
+	ueAmbrUL := int64(ambrUplink.Bps())
+	ueAmbrDL := int64(ambrDownlink.Bps())
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
 	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 

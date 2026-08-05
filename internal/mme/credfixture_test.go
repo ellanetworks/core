@@ -59,8 +59,8 @@ type fakeSessionManager struct {
 	released        bool
 	deactivated     bool
 	ambrUpdated     bool
-	ambrUplink      string // records the last UpdateEPSSessionAMBR uplink value
-	ambrDownlink    string
+	ambrUplink      models.BitRate // records the last UpdateEPSSessionAMBR uplink value
+	ambrDownlink    models.BitRate
 	ambrErr         error // when set, UpdateEPSSessionAMBR fails with it
 	framedChanged   bool  // FramedRoutesChanged returns this
 	framedErr       error // when set, FramedRoutesChanged fails with it
@@ -102,7 +102,7 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uin
 // hookSessionManager runs onModify on the first ModifyEPSSession, so a test can
 // simulate a concurrent release (freeing ue.active) during the unlocked user-plane
 // switch of a Path Switch or Handover Notify.
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, ambrUplink, ambrDownlink string) error {
+func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, ambrUplink, ambrDownlink models.BitRate) error {
 	if f.ambrErr != nil {
 		return f.ambrErr
 	}

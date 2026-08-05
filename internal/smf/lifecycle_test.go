@@ -91,7 +91,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	}
 
 	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
@@ -160,7 +160,7 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 	}
 
 	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 	pduAddr := netip.MustParseAddr("10.0.0.1")
@@ -220,7 +220,7 @@ func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
 // second downlink PDR.
 func TestActivateTunnelAndPDR_FixedRuleIDs(t *testing.T) {
 	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
@@ -1291,12 +1291,12 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	call := amfCb.modifyCalls[0]
 	amfCb.mu.Unlock()
 
-	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil)
+	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil)
 	if err != nil {
 		t.Fatalf("build old policy modification command: %v", err)
 	}
 
-	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "200 Mbps", Downlink: "300 Mbps"}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
+	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("300 Mbps")}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
 	if err != nil {
 		t.Fatalf("build new policy modification command: %v", err)
 	}
@@ -1315,7 +1315,7 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 		t.Fatalf("modification complete: %v", err)
 	}
 
-	if smCtx.PolicyData.Ambr.Uplink != "200 Mbps" || smCtx.PolicyData.Ambr.Downlink != "300 Mbps" {
+	if smCtx.PolicyData.Ambr.Uplink != models.MustParseBitRate("200 Mbps") || smCtx.PolicyData.Ambr.Downlink != models.MustParseBitRate("300 Mbps") {
 		t.Fatalf("stored AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
 
@@ -1350,7 +1350,7 @@ func TestReconcileSmContext_AmbrOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 300000/400000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "300 Mbps", Downlink: "400 Mbps"}, nil, nil)
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")}, nil, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -1497,7 +1497,7 @@ func TestReconcileSmContext_ModifyIdleUE_CommitsPolicy(t *testing.T) {
 	}
 
 	// Policy should have been committed despite N1N2 skip.
-	if smCtx.PolicyData.Ambr.Uplink != "500 Mbps" || smCtx.PolicyData.Ambr.Downlink != "600 Mbps" {
+	if smCtx.PolicyData.Ambr.Uplink != models.MustParseBitRate("500 Mbps") || smCtx.PolicyData.Ambr.Downlink != models.MustParseBitRate("600 Mbps") {
 		t.Fatalf("policy not committed: AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
 	}
 

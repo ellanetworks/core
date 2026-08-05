@@ -3,7 +3,9 @@
 
 package models
 
+// Ambr is an aggregate maximum bit rate pair. The rates are parsed once, where
+// the configured text enters the system, so no consumer re-parses them.
 type Ambr struct {
-	Uplink   string
-	Downlink string
+	Uplink   BitRate
+	Downlink BitRate
 }

@@ -48,19 +48,9 @@ func qosFlowLevelQosParameters(qosData *models.QosData) (libngap.QosFlowLevelQos
 }
 
 // sessionAMBR converts a policy AMBR pair into the NGAP IE.
-func sessionAMBR(ambr *models.Ambr) (*libngap.PDUSessionAggregateMaximumBitRate, error) {
-	dl, err := models.ParseBitRate(ambr.Downlink)
-	if err != nil {
-		return nil, fmt.Errorf("downlink AMBR: %w", err)
-	}
-
-	ul, err := models.ParseBitRate(ambr.Uplink)
-	if err != nil {
-		return nil, fmt.Errorf("uplink AMBR: %w", err)
-	}
-
+func sessionAMBR(ambr *models.Ambr) *libngap.PDUSessionAggregateMaximumBitRate {
 	return &libngap.PDUSessionAggregateMaximumBitRate{
-		DL: libngap.BitRate(dl),
-		UL: libngap.BitRate(ul),
-	}, nil
+		DL: libngap.BitRate(ambr.Downlink.Bps()),
+		UL: libngap.BitRate(ambr.Uplink.Bps()),
+	}
 }

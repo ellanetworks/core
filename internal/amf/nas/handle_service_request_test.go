@@ -682,7 +682,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai})
 
@@ -773,7 +773,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -874,7 +874,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -986,7 +986,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}})
@@ -1079,7 +1079,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.SetKnasIntForTest(key)
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 

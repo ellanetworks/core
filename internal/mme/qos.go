@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // EpsQoS is the default-bearer QoS resolved from a subscriber's profile/policy.
@@ -16,20 +17,20 @@ type EpsQoS struct {
 	QCI      byte
 	ARP      byte // priority level (1-15)
 	APN      string
-	// AMBRDL/UL is the profile UE-AMBR (bits/s), signaled as the S1AP UE
-	// Aggregate Maximum Bit Rate — the per-UE aggregate across all non-GBR bearers.
-	AMBRDL uint64
-	AMBRUL uint64
-	// SessAmbr*Str is the policy per-APN Session-AMBR ("<n> <unit>"), enforced by
-	// the UPF QER and signaled to the UE as the APN-AMBR (TS 24.301 §9.9.4.2,
-	// §8.3.6.7). Distinct from the UE-AMBR above.
-	SessAmbrULStr string
-	SessAmbrDLStr string
-	IPv4Pool      string // data-network pools; non-empty enables that IP family
-	IPv6Pool      string
-	DNS           string // data-network DNS server, advertised to the UE via PCO
-	MTU           uint16
-	Allow4G       bool
+	// AMBRDL/UL is the profile UE-AMBR, signaled as the S1AP UE Aggregate
+	// Maximum Bit Rate — the per-UE aggregate across all non-GBR bearers.
+	AMBRDL models.BitRate
+	AMBRUL models.BitRate
+	// SessAmbrUL/DL is the policy per-APN Session-AMBR, enforced by the UPF QER
+	// and signaled to the UE as the APN-AMBR (TS 24.301 §9.9.4.2, §8.3.6.7).
+	// Distinct from the UE-AMBR above.
+	SessAmbrUL models.BitRate
+	SessAmbrDL models.BitRate
+	IPv4Pool   string // data-network pools; non-empty enables that IP family
+	IPv6Pool   string
+	DNS        string // data-network DNS server, advertised to the UE via PCO
+	MTU        uint16
+	Allow4G    bool
 }
 
 // ResolveQoS maps the subscriber's profile → policy → data network to the EPS
@@ -88,7 +89,7 @@ func ResolveQoSByAPN(ctx context.Context, m *MME, imsi, apn string) (*EpsQoS, er
 		}
 
 		if dn.Name == apn {
-			return qosForPolicyDN(profile, &policies[i], dn), nil
+			return qosForPolicyDN(profile, &policies[i], dn)
 		}
 	}
 
@@ -101,25 +102,47 @@ func qosForPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Poli
 		return nil, fmt.Errorf("get data network: %w", err)
 	}
 
-	return qosForPolicyDN(profile, pol, dn), nil
+	return qosForPolicyDN(profile, pol, dn)
 }
 
-func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) *EpsQoS {
-	return &EpsQoS{
-		PolicyID:      pol.ID,
-		QCI:           byte(pol.Var5qi), // 5QI↔QCI align for the standardized values
-		ARP:           byte(pol.Arp),
-		APN:           dn.Name,
-		AMBRDL:        BitRateToBps(profile.UeAmbrDownlink),
-		AMBRUL:        BitRateToBps(profile.UeAmbrUplink),
-		SessAmbrULStr: pol.SessionAmbrUplink,
-		SessAmbrDLStr: pol.SessionAmbrDownlink,
-		IPv4Pool:      dn.IPv4Pool,
-		IPv6Pool:      dn.IPv6Pool,
-		DNS:           dn.DNS,
-		MTU:           uint16(dn.MTU),
-		Allow4G:       profile.Allow4G,
+// The configured rates are parsed here, at the edge of the policy layer, so
+// nothing downstream handles the text form.
+func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) (*EpsQoS, error) {
+	ueAmbrDL, err := models.ParseBitRate(profile.UeAmbrDownlink)
+	if err != nil {
+		return nil, fmt.Errorf("profile UE-AMBR downlink: %w", err)
 	}
+
+	ueAmbrUL, err := models.ParseBitRate(profile.UeAmbrUplink)
+	if err != nil {
+		return nil, fmt.Errorf("profile UE-AMBR uplink: %w", err)
+	}
+
+	sessAmbrUL, err := models.ParseBitRate(pol.SessionAmbrUplink)
+	if err != nil {
+		return nil, fmt.Errorf("policy Session-AMBR uplink: %w", err)
+	}
+
+	sessAmbrDL, err := models.ParseBitRate(pol.SessionAmbrDownlink)
+	if err != nil {
+		return nil, fmt.Errorf("policy Session-AMBR downlink: %w", err)
+	}
+
+	return &EpsQoS{
+		PolicyID:   pol.ID,
+		QCI:        byte(pol.Var5qi), // 5QI↔QCI align for the standardized values
+		ARP:        byte(pol.Arp),
+		APN:        dn.Name,
+		AMBRDL:     ueAmbrDL,
+		AMBRUL:     ueAmbrUL,
+		SessAmbrUL: sessAmbrUL,
+		SessAmbrDL: sessAmbrDL,
+		IPv4Pool:   dn.IPv4Pool,
+		IPv6Pool:   dn.IPv6Pool,
+		DNS:        dn.DNS,
+		MTU:        uint16(dn.MTU),
+		Allow4G:    profile.Allow4G,
+	}, nil
 }
 
 // DnFingerprint summarises the data-network parameters delivered to the UE at

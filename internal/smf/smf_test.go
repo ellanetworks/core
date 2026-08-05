@@ -381,7 +381,7 @@ func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb sm
 func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	pcf := &fakePCF{
 		policy: &smf.Policy{
-			Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+			Ambr: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 			QosData: models.QosData{
 				Var5qi: 9,
 				Arp:    &models.Arp{PriorityLevel: 1},
@@ -601,7 +601,7 @@ func TestNewPDR_BuildsPDRWithFAR(t *testing.T) {
 
 func TestNewQER_SetsPolicy(t *testing.T) {
 	policy := &smf.Policy{
-		Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{
 			Var5qi: 9,
 			Arp:    &models.Arp{PriorityLevel: 1},
@@ -641,7 +641,7 @@ func TestGetSessionPolicy_DelegatesToStore(t *testing.T) {
 		t.Fatalf("GetSessionPolicy failed: %v", err)
 	}
 
-	if policy.Ambr.Uplink != "100 Mbps" {
+	if policy.Ambr.Uplink != models.MustParseBitRate("100 Mbps") {
 		t.Fatalf("expected uplink 100 Mbps, got %s", policy.Ambr.Uplink)
 	}
 }

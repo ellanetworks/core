@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"github.com/ellanetworks/core/internal/models"
 	"net/netip"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 // Session-AMBR (TS 24.301 §8.3.6.7).
 func TestBuildActivateDefaultESMSignalsAPNAMBR(t *testing.T) {
 	p := &mme.PdnConnection{Ebi: mme.DefaultERABID, PdnType: eps.PDNTypeIPv4, UeIP: netip.MustParseAddr("10.45.0.1")}
-	qos := &mme.EpsQoS{APN: "internet", QCI: 9, SessAmbrDLStr: "100 Mbps", SessAmbrULStr: "50 Mbps"}
+	qos := &mme.EpsQoS{APN: "internet", QCI: 9, SessAmbrDL: models.MustParseBitRate("100 Mbps"), SessAmbrUL: models.MustParseBitRate("50 Mbps")}
 
 	wire, err := buildActivateDefaultESM(p, qos, 1)
 	if err != nil {

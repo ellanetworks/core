@@ -74,8 +74,8 @@ type EPSBearerRequest struct {
 	EPSBearerIdentity uint8
 	PolicyID          string // policy DB ID, so the UPF binds the session to its network rules
 	APN               string
-	AMBRUplink        string
-	AMBRDownlink      string
+	AMBRUplink        BitRate
+	AMBRDownlink      BitRate
 	IPv4Pool          string
 	IPv6Pool          string
 	DNS               string

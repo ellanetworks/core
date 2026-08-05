@@ -442,8 +442,8 @@ func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 	p.SessionRef = bearer.Ref
 	p.Apn = qos.APN
 	p.DnConfig = qos.DnFingerprint()
-	p.SessAmbrDLBps = BitRateToBps(qos.SessAmbrDLStr)
-	p.SessAmbrULBps = BitRateToBps(qos.SessAmbrULStr)
+	p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
+	p.SessAmbrULBps = qos.SessAmbrUL.Bps()
 	p.Qci = qos.QCI
 	p.Arp = qos.ARP
 	p.PdnType = bearer.PDNType
@@ -464,7 +464,7 @@ func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPS
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Ambr = &models.Ambr{Uplink: qos.SessAmbrULStr, Downlink: qos.SessAmbrDLStr}
+	ue.Ambr = &models.Ambr{Uplink: qos.SessAmbrUL, Downlink: qos.SessAmbrDL}
 
 	p := ue.EnsurePDN(DefaultERABID)
 	ue.DefaultEBI = DefaultERABID

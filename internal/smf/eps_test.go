@@ -42,8 +42,8 @@ func epsRequest(pdnType uint8) models.EPSBearerRequest {
 		IMSI:              "001010000000001",
 		EPSBearerIdentity: epsTestEBI,
 		APN:               "internet",
-		AMBRUplink:        "1 Gbps",
-		AMBRDownlink:      "1 Gbps",
+		AMBRUplink:        models.MustParseBitRate("1 Gbps"),
+		AMBRDownlink:      models.MustParseBitRate("1 Gbps"),
 		IPv4Pool:          epsIPv4Pool,
 		IPv6Pool:          epsIPv6Pool,
 		MTU:               1400,
@@ -251,8 +251,7 @@ func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
 	}{
 		{"EBI below range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 4 }},
 		{"EBI above range", func(r *models.EPSBearerRequest) { r.EPSBearerIdentity = 16 }},
-		{"unparseable uplink AMBR", func(r *models.EPSBearerRequest) { r.AMBRUplink = "fast" }},
-		{"empty downlink AMBR", func(r *models.EPSBearerRequest) { r.AMBRDownlink = "" }},
+		{"sub-Kbps downlink AMBR", func(r *models.EPSBearerRequest) { r.AMBRDownlink = models.BitRateFromBps(1) }},
 		{"malformed DNS", func(r *models.EPSBearerRequest) { r.DNS = "not-an-ip" }},
 	}
 

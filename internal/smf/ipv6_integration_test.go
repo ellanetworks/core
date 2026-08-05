@@ -38,7 +38,7 @@ func buildPDUSessionEstRequestWithType(pduSessionType fgs.PDUSessionType) []byte
 func ipv6Fakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	pcf := &fakePCF{
 		policy: &smf.Policy{
-			Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+			Ambr: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 			QosData: models.QosData{
 				Var5qi: 9,
 				Arp:    &models.Arp{PriorityLevel: 1},
@@ -87,7 +87,7 @@ func buildPDUSessionResourceSetupResponseTransferIPv6(teid uint32, ip net.IP) ([
 func dualStackFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	pcf := &fakePCF{
 		policy: &smf.Policy{
-			Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+			Ambr: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 			QosData: models.QosData{
 				Var5qi: 9,
 				Arp:    &models.Arp{PriorityLevel: 1},
@@ -510,7 +510,7 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	smCtx.PDUSessionType = uint8(fgs.PDUSessionTypeIPv6)
 
 	smCtx.PolicyData = &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 

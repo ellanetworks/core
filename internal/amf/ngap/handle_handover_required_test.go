@@ -226,7 +226,7 @@ func TestHandoverRequired(t *testing.T) {
 
 	smCtx := smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
-		Ambr: models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
+		Ambr: models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{
 			QFI:    1,
 			Var5qi: 9, Arp: &models.Arp{
@@ -251,7 +251,7 @@ func TestHandoverRequired(t *testing.T) {
 	amfUe.SetNHForTest(make([]byte, 32))
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
-	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, smf.Access5G, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
@@ -636,7 +636,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 
 	smCtx := smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
 	}
 	smCtx.Tunnel = &smf.UPTunnel{
@@ -653,7 +653,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	amfUe.SetNHForTest(make([]byte, 32))
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
-	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, smf.Access5G, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
@@ -808,7 +808,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	smCtx := smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
 	}
 	smCtx.Tunnel = &smf.UPTunnel{DataPath: &smf.DataPath{UpLinkTunnel: &smf.GTPTunnel{TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}}}
@@ -821,7 +821,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	amfUe.SetNHForTest(make([]byte, 32))
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
-	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smf.CanonicalName(supi, smf.Access5G, pduSessionID), Snssai: &models.Snssai{Sst: 1}}
 
 	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}

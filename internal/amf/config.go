@@ -182,11 +182,21 @@ func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subscri
 		return nil, fmt.Errorf("couldn't get profile %s: %v", subscriber.ProfileID, err)
 	}
 
+	ambrDL, err := models.ParseBitRate(profile.UeAmbrDownlink)
+	if err != nil {
+		return nil, fmt.Errorf("profile %s UE-AMBR downlink: %w", subscriber.ProfileID, err)
+	}
+
+	ambrUL, err := models.ParseBitRate(profile.UeAmbrUplink)
+	if err != nil {
+		return nil, fmt.Errorf("profile %s UE-AMBR uplink: %w", subscriber.ProfileID, err)
+	}
+
 	return &SubscriberProfile{
 		AllowedNssai: allowedNssai,
 		Ambr: &models.Ambr{
-			Downlink: profile.UeAmbrDownlink,
-			Uplink:   profile.UeAmbrUplink,
+			Downlink: ambrDL,
+			Uplink:   ambrUL,
 		},
 		Allow5G: profile.Allow5G,
 	}, nil
