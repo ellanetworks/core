@@ -11,8 +11,8 @@ import (
 )
 
 // QER gate enforcement. A non-open gate must drop the packet before it is
-// forwarded. The QFI marking is asserted by the encapsulation tests, and rate
-// limiting is timing/state dependent (deferred to the netns harness).
+// forwarded. The QFI marking is asserted by the encapsulation tests; the
+// delivered bit rate is asserted in qer_rate_test.go.
 
 // TestQERGateUplinkClosed checks that a closed uplink QER gate drops the packet.
 func TestQERGateUplinkClosed(t *testing.T) {

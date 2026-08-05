@@ -55,6 +55,37 @@ func TestParseGTPTruncatedExtension(t *testing.T) {
 	}
 }
 
+// TestOuterFragmentNotParsedAsGTPU: a non-first fragment of the tunnel
+// transport has payload where its UDP header would be. Payload that spells the
+// GTP-U port would otherwise be decapsulated, with the TEID read from payload
+// too (RFC 1858).
+func TestOuterFragmentNotParsedAsGTPU(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x11223344
+
+	obj := loadUplinkTestObjects(t, teid)
+
+	// A later fragment whose payload spells sport 3000, dport 2152, then a
+	// G-PDU header for the installed TEID.
+	gtp := make([]byte, 8)
+	gtp[0] = 0x30
+	gtp[1] = 0xFF
+	binary.BigEndian.PutUint32(gtp[4:8], teid)
+
+	payload := append(udpDatagram(3000, GTPUDPPort, gtp), innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)...)
+
+	ip4 := ipv4Packet(testGNBIP, testUPFN3IP, 17, payload)
+	// Fragment offset 1 (8 bytes in), more-fragments clear.
+	binary.BigEndian.PutUint16(ip4[6:8], 1)
+
+	action := runXDP(t, obj.UpfEntryFunc, ethFrame(0x0800, ip4))
+
+	if action != ActionPass {
+		t.Errorf("later fragment on N3 got XDP action %d, want ActionPass (%d): its payload was read as a GTP-U header", action, ActionPass)
+	}
+}
+
 // TestEntrypointClassifiesByPacketType checks that the entry dispatches on
 // packet type, not ingress interface: a plain (non-GTP) packet is treated as
 // downlink and, with no matching session, passed to the stack. Classifying by
@@ -523,5 +554,107 @@ func putForwardingUplinkPDRv6Outer(t *testing.T, obj *BpfObjects, teid uint32) {
 	}
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
+	}
+}
+
+// TestNonGTPOnN3IsNotDownlink: a plain IP frame on N3 is left to the host
+// stack. Downlink tunnels to a UE on its destination address alone, so anything
+// with L2 reach to the N3 segment could otherwise reach a subscriber by
+// addressing its prefix. BPF_PROG_TEST_RUN uses ingress_ifindex 1, which the
+// n3/n6 indices below are placed against.
+func TestNonGTPOnN3IsNotDownlink(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid = 0x4E334E36
+		qfi  = 3
+	)
+
+	ueIP := [4]byte{10, 45, 0, 2}
+	serverV6 := [16]byte{0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
+
+	// Created, not assumed: the suite runs in a namespace holding only lo, so
+	// a hardcoded index resolves to no device and bpf_check_mtu returns
+	// -ENODEV, which reads exactly like the guard wrongly firing.
+	addVethPair(t, t2N3Dev, t2N3Peer)
+
+	other := ifByName(t, t2N3Dev).Index
+
+	tests := []struct {
+		name           string
+		n3, n6         int
+		frame          []byte
+		inner          []byte
+		wantEncapsulat bool
+	}{
+		{
+			name: "IPv6 arriving on N3 is passed to the stack",
+			n3:   1, n6: other,
+			inner: ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil)),
+		},
+		{
+			name: "IPv4 arriving on N3 is passed to the stack",
+			n3:   1, n6: other,
+			inner: ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 53, nil)),
+		},
+		{
+			// The same frame on the interface it belongs on.
+			name: "IPv6 arriving on N6 is tunnelled",
+			n3:   other, n6: 1,
+			inner:          ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil)),
+			wantEncapsulat: true,
+		},
+		{
+			// The guard must not fire, or a single-NIC deployment
+			// loses its downlink entirely.
+			name: "IPv6 on a shared interface is tunnelled",
+			n3:   1, n6: 1,
+			inner:          ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil)),
+			wantEncapsulat: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := loadProgram(t, tc.n3, tc.n6)
+
+			pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+
+			if err := obj.PutPdrDownlink(netip.MustParseAddr("2001:db8::"), pdr); err != nil {
+				t.Fatalf("install downlink IPv6 PDR: %v", err)
+			}
+
+			if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+				t.Fatalf("install downlink IPv4 PDR: %v", err)
+			}
+
+			etherType := uint16(0x86DD)
+			if tc.inner[0]>>4 == 4 {
+				etherType = 0x0800
+			}
+
+			frame := ethFrame(etherType, tc.inner)
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, frame)
+
+			if tc.wantEncapsulat {
+				if len(out) != ethHdrLen+gtpV4EncapLen+len(tc.inner) {
+					// A pass is the guard firing; an abort
+					// is the frame dying earlier.
+					t.Fatalf("frame was not tunnelled: output is %d bytes, want %d (XDP action %d)", len(out), ethHdrLen+gtpV4EncapLen+len(tc.inner), action)
+				}
+
+				return
+			}
+
+			if action == ActionDrop || action == ActionAborted {
+				t.Fatalf("frame got XDP action %d, want it passed to the host stack", action)
+			}
+
+			if len(out) != len(frame) {
+				t.Errorf("frame was rewritten (%d bytes, sent %d): traffic on the N3 segment was given downlink treatment and tunnelled to a subscriber",
+					len(out), len(frame))
+			}
+		})
 	}
 }

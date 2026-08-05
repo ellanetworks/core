@@ -293,7 +293,9 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET6;
 	// fib_params.tos = ip6->flow_lbl;
-	fib_params.l4_protocol = ctx->ip6->nexthdr;
+	/* Upper-layer protocol, not ip6->nexthdr, which with a chain is the
+	 * header type. */
+	fib_params.l4_protocol = ctx->l4_proto;
 	fib_params.sport = 0;
 	fib_params.dport = 0;
 	/* The FIB contract is L3-inclusive; payload_len excludes the fixed

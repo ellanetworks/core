@@ -132,21 +132,33 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
-	if (own_packet_pull(ctx) != 0 || !ctx->ip4)
+	if (!ctx->ip4)
 		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
 
 	bool translated = false;
 	bool counted = false;
 	struct nat_xlate xlate = {};
-	/* Only the first fragment carries an L4 header, and translating it
-	 * alone leaves the rest unmatchable. */
-	const bool fragment = ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK);
+	/* A later fragment reaches here with the ports its first fragment
+	 * recorded, so it resolves to the same mapping. One whose datagram was
+	 * never recorded has none, and cannot be translated. */
+	const bool fragment = ctx->l4_unavailable;
 	if (masquerade && !fragment) {
 		PROFILE_START(PROF_N6_NAT);
 		translated = destination_nat_lookup(ctx, &xlate, &counted);
 		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
+	/* Read before destination_nat_apply rewrites them: frag_resolve4 runs
+	 * ahead of translation, so the record has to key on what the next
+	 * fragment will arrive with, not on the UE's. The ports matter as much
+	 * as the addresses — under the skb build destination_nat_apply
+	 * re-parses the frame, so by the record site they read post-translation.
+	 * They are meaningful only once destination_nat_lookup has parsed them,
+	 * which is exactly when translation can rewrite them. */
+	const __u32 wire_saddr = ip4->saddr;
+	const __u32 wire_daddr = ip4->daddr;
+	const __u16 wire_sport = ctx->l4_sport;
+	const __u16 wire_dport = ctx->l4_dport;
 	__u32 ue_addr = translated ? xlate.daddr : ip4->daddr;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
@@ -184,7 +196,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		else if (!counted)
 			set_drop_reason(ctx, UPF_DROP_NAT_UNSOLICITED);
 
-		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
+		account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, DROP);
 
 		return drop_reported(ctx, UPF_DROP_NO_DOWNLINK_SESSION);
 	}
@@ -226,6 +238,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		if (!ip4)
 			return abort_with(ctx, UPF_DROP_MALFORMED_HEADER);
 	}
+
 
 	ctx->interface = INTERFACE_N6;
 
@@ -273,18 +286,32 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 	}
 
-	const __u64 packet_size =
-		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip4);
-	if (CTX_ACT_DROP ==
-	    limit_rate_sliding_window(packet_size, &qer->dl_start,
-				      qer->dl_maximum_bitrate)) {
-		PROFILE_END(PROF_N6_QER_RATELIMIT);
-		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+	/* Shared with this session's other downlink PDR. */
+	if (qer->dl_maximum_bitrate != 0) {
+		const __u64 packet_size =
+			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip4);
+		struct qer_window *window =
+			qer_window_for(pdr->local_seid, pdr->qer_id);
+
+		if (window &&
+		    CTX_ACT_DROP == limit_rate_sliding_window(
+					    packet_size, &window->dl_start,
+					    qer->dl_maximum_bitrate)) {
+			PROFILE_END(PROF_N6_QER_RATELIMIT);
+			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+		}
 	}
 	PROFILE_END(PROF_N6_QER_RATELIMIT);
 
 	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 	parse_l4(ip4->protocol, ctx);
+
+	/* A later fragment whose ports came from the map has nothing of its
+	 * own to record. */
+	if (ctx->is_fragment && !ctx->l4_unavailable && !ctx->frag_recovered)
+		frag_record4(ip4, wire_saddr, wire_daddr,
+			     translated ? wire_sport : ctx->l4_sport,
+			     translated ? wire_dport : ctx->l4_dport);
 
 	/* SDF filter enforcement (downlink) */
 	{
@@ -295,31 +322,35 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4",
 				   &ip4->daddr);
-			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
-			return drop_with(ctx, UPF_DROP_SDF_FILTER);
+			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, DROP);
+			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
 	__u8 tos = far->transport_level_marking >> 8;
 	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);
 
-	/* Update downlink traffic counter */
-	{
-		__u64 packet_size = ctx_full_len(ctx->ctx_buff);
-		ctx->statistics->byte_counter.bytes +=
-			packet_size; // Count downlink traffic
+	/* Captured before encapsulation resizes the frame. */
+	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
+
+	account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, FLOW_DOWNLINK, ALLOW);
+
+	/* Only if the frame leaves: encapsulation and routing can still fail. */
+	enum ctx_action tunnel_ret = send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
+
+	if (ctx_action_forwards(tunnel_ret)) {
+		/* Exported throughput follows the verdict, as billing does. */
+		ctx->statistics->byte_counter.bytes += billed_bytes;
+		update_urr_bytes(ctx, pdr->local_seid, urr_id, billed_bytes);
 	}
 
-	update_urr_bytes(ctx, pdr->local_seid, urr_id);
-	account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, ALLOW);
-
-	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
+	return tunnel_ret;
 }
 
 static __always_inline enum ctx_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {
-	if (own_packet_pull(ctx) != 0 || !ctx->ip6)
+	if (!ctx->ip6)
 		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
 
 	const struct ipv6hdr *ip6 = ctx->ip6;
@@ -375,12 +406,23 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	ctx->interface = INTERFACE_N6;
 
-	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
-	parse_l4(ip6->nexthdr, ctx);
+	/* For match_sdf_filters. */
+	parse_l4(ctx->l4_proto, ctx);
+
+	frag_record6(ctx);
 
 	// IPv6 is not NATed (each UE owns its /64), so the inner L4 checksum is
 	// unchanged; the outer GTP-over-IPv6 UDP checksum is built during
 	// encapsulation in gtp.h.
+
+	/* No policy is evaluable against an unwalkable chain, and the session is
+	 * known by now (RFC 7112 §5). */
+	if (ctx->exthdr_invalid) {
+		upf_printk("upf: downlink unparsable exthdr chain ip:%pI6c",
+			   &ip6->daddr);
+		account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, DROP);
+		return drop_with(ctx, UPF_DROP_EXTHDR_INVALID);
+	}
 
 	/* SDF filter enforcement (downlink) */
 	{
@@ -391,8 +433,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI6c",
 				   &ip6->daddr);
-			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, DROP);
-			return drop_with(ctx, UPF_DROP_SDF_FILTER);
+			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, DROP);
+			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
 		}
 	}
 
@@ -429,25 +471,38 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
 	}
 
-	const __u64 packet_size =
-		ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip6);
-	if (CTX_ACT_DROP ==
-	    limit_rate_sliding_window(packet_size, &qer->dl_start,
-				      qer->dl_maximum_bitrate)) {
-		return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+	/* Shared with this session's IPv4 downlink PDR: see the IPv4 path. */
+	if (qer->dl_maximum_bitrate != 0) {
+		const __u64 packet_size =
+			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->ip6);
+		struct qer_window *window =
+			qer_window_for(pdr->local_seid, pdr->qer_id);
+
+		if (window &&
+		    CTX_ACT_DROP == limit_rate_sliding_window(
+					    packet_size, &window->dl_start,
+					    qer->dl_maximum_bitrate)) {
+			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+		}
 	}
 
 	__u8 tos = far->transport_level_marking >> 8;
 
-	/* Update downlink traffic counter */
-	{
-		__u64 packet_size = ctx_full_len(ctx->ctx_buff);
-		ctx->statistics->byte_counter.bytes += packet_size;
-	}
+	/* Captured before encapsulation resizes the frame. */
+	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
 
 	__u32 urr_id = pdr->urr_id;
-	update_urr_bytes(ctx, pdr->local_seid, urr_id);
-	account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, ALLOW);
 
-	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
+	account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, FLOW_DOWNLINK, ALLOW);
+
+	/* As in the IPv4 path: billing follows the verdict. */
+	enum ctx_action tunnel_ret = send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
+
+	if (ctx_action_forwards(tunnel_ret)) {
+		/* Exported throughput follows the verdict, as billing does. */
+		ctx->statistics->byte_counter.bytes += billed_bytes;
+		update_urr_bytes(ctx, pdr->local_seid, urr_id, billed_bytes);
+	}
+
+	return tunnel_ret;
 }

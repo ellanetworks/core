@@ -16,6 +16,12 @@
  * the verifier can derive bounds the compiler considers already known. */
 #define barrier_var(var) asm volatile("" : "+r"(var))
 
+static __always_inline __u32 ctx_frame_offset(struct __ctx_buff *ctx,
+					      const void *hdr)
+{
+	return (__u32)((const __u8 *)hdr - (const __u8 *)ctx_data(ctx));
+}
+
 /* A byte-swapped header field reaches the verifier as an unbounded scalar, and
  * packet-pointer arithmetic on one is rejected. The mask restores the bound
  * the field's width already guarantees. */

@@ -31,6 +31,10 @@ struct byte_counter {
 struct packet_counters {
 	__u64 rx;
 	__u64 tx;
+	/* Fragments reaching either program with no recorded ports, counted
+	 * before a session claims them and whether or not the miss was
+	 * fatal: reordering is what it separates from policy. */
+	__u64 frag_unresolved;
 };
 
 #define UPF_MAX_ACTION 8

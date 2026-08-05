@@ -23,9 +23,11 @@
 
 #include "bpf/ctx/ctx.h"
 #include "bpf/utils/common.h"
+#include "bpf/utils/ip_addr.h"
 #include "bpf/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
+#include <stdbool.h>
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>
 #include <linux/in.h>
@@ -276,7 +278,59 @@ struct ip6_pseudo {
 static __always_inline int inner_l4_is_summable(__u8 proto)
 {
 	return proto == IPPROTO_TCP || proto == IPPROTO_UDP ||
-	       proto == IPPROTO_ICMPV6;
+	       proto == IPPROTO_ICMPV6 || proto == IPPROTO_ICMP;
+}
+
+/* Longest extension chain the header-only path sums. Chains are multiples of
+ * 8, so this is 8 constant-size adds. Beyond it the identity still holds, but
+ * the unrolled adds stop paying for themselves. */
+#define IPV6_FASTPATH_MAX_CHAIN 64
+
+/* Options and extension chains are multiples of 4 and 8 respectively, so a
+ * fixed number of constant-size adds covers any length the parser accepts.
+ * Constant sizes because ARG_CONST_SIZE_OR_ZERO bounds-checks a variable
+ * length against its maximum, which a short frame would fail. */
+#define CSUM_ADD_RANGE(sum, base, len, unit, iters, data_end)                  \
+	do {                                                                   \
+		_Pragma("unroll") for (int _i = 0; _i < (iters); _i++)          \
+		{                                                              \
+			if ((__u32)(_i * (unit)) >= (len))                     \
+				break;                                         \
+			const void *_p = (const __u8 *)(base) + _i * (unit);    \
+			if (_p + (unit) > (data_end))                          \
+				return -1;                                     \
+			(sum) = bpf_csum_diff(0, 0, (__be32 *)_p, (unit),       \
+					      (__wsum)(sum));                  \
+			if ((sum) < 0)                                         \
+				return -1;                                     \
+		}                                                              \
+	} while (0)
+
+/* True when the inner UDP datagram carries a checksum.
+ *
+ * l3_len is a runtime value — IPv4 options or an IPv6 extension chain — and a
+ * packet pointer advanced by it loses its range as soon as the verifier spills
+ * and reloads the length, which older verifiers do (6.8 rejects the deref that
+ * 6.17 accepts). ctx_load_bytes takes a scalar offset and is bounds-checked at
+ * runtime, so no packet-pointer range is needed.
+ */
+static __always_inline bool inner_udp_has_checksum(struct __ctx_buff *ctx,
+						   const void *l3,
+						   __u32 l3_len,
+						   const void *data_end)
+{
+	__be16 check;
+
+	if ((const void *)((const __u8 *)l3 + l3_len + sizeof(struct udphdr)) >
+	    data_end)
+		return false;
+
+	if (ctx_load_bytes(ctx, ctx_frame_offset(ctx, l3) + l3_len +
+					offsetof(struct udphdr, check),
+			   &check, sizeof(check)) < 0)
+		return false;
+
+	return check != 0;
 }
 
 /* ~pseudo_inner for an inner IPv4 packet, or -1 when the identity does not
@@ -290,14 +344,16 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 	if ((const void *)(ip4 + 1) > data_end)
 		return -1;
 
-	if (ip4->ihl != 5 || (ip4->frag_off & bpf_htons(0x3fff)) != 0)
+	if (ip4->ihl < 5 || (ip4->frag_off & bpf_htons(0x3fff)) != 0)
 		return -1;
 
 	if (!inner_l4_is_summable(ip4->protocol))
 		return -1;
 
+	const __u32 l3_len = (__u32)ip4->ihl * 4;
+
 	__u32 tot_len = bounded_u16(bpf_ntohs(ip4->tot_len));
-	if (tot_len < sizeof(struct iphdr))
+	if (tot_len < l3_len)
 		return -1;
 
 	/* The declared length has to be backed by real bytes. The outer
@@ -307,60 +363,66 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 	if (!ctx_frame_holds(ctx, data_end, ip4, tot_len))
 		return -1;
 
-	if (ip4->protocol == IPPROTO_UDP) {
-		const struct udphdr *udp = (const struct udphdr *)(ip4 + 1);
+	if (ip4->protocol == IPPROTO_UDP && !inner_udp_has_checksum(
+						   ctx, ip4, l3_len, data_end))
+		return -1;
 
-		if ((const void *)(udp + 1) > data_end)
-			return -1;
-
-		if (udp->check == 0)
-			return -1;
-	}
+	/* No pseudo-header over ICMPv4 (RFC 792), so the region sums to
+	 * ~fold(0). */
+	if (ip4->protocol == IPPROTO_ICMP)
+		return 0xFFFF;
 
 	struct ip4_pseudo pseudo = {
 		.saddr = ip4->saddr,
 		.daddr = ip4->daddr,
 		.zero = 0,
 		.proto = ip4->protocol,
-		.l4_len = bpf_htons((__u16)(tot_len - sizeof(struct iphdr))),
+		.l4_len = bpf_htons((__u16)(tot_len - l3_len)),
 	};
 
 	return (__s32)csum_fold_helper(
 		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
 }
 
-/* Extension headers are not walked: an inner next-header that is not the L4
- * protocol falls back. */
+/* A chain is summed literally by the caller, like IPv4 options: it sits between
+ * the fixed header and the upper-layer region the substitution replaces, so it
+ * carries no term of its own. The pseudo-header's length must then be the
+ * upper-layer length, not the whole payload. */
 static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 					      const struct ipv6hdr *ip6,
+					      __u8 inner_proto,
+					      __u16 inner_l3_len,
 					      const void *data_end)
 {
 	if ((const void *)(ip6 + 1) > data_end)
 		return -1;
 
-	if (!inner_l4_is_summable(ip6->nexthdr))
+	if (!inner_l4_is_summable(inner_proto))
 		return -1;
 
+	if (inner_l3_len < sizeof(*ip6) ||
+	    inner_l3_len > sizeof(*ip6) + IPV6_FASTPATH_MAX_CHAIN)
+		return -1;
+
+	const __u32 chain_len = (__u32)inner_l3_len - sizeof(*ip6);
 	__u32 payload_len = bounded_u16(bpf_ntohs(ip6->payload_len));
+
+	if (payload_len < chain_len)
+		return -1;
 
 	/* As in inner_pseudo_ip4. */
 	if (!ctx_frame_holds(ctx, data_end, ip6, sizeof(*ip6) + payload_len))
 		return -1;
 
-	if (ip6->nexthdr == IPPROTO_UDP) {
-		const struct udphdr *udp = (const struct udphdr *)(ip6 + 1);
-
-		if ((const void *)(udp + 1) > data_end)
-			return -1;
-
-		if (udp->check == 0)
-			return -1;
-	}
+	/* Zero means no checksum was computed. */
+	if (inner_proto == IPPROTO_UDP &&
+	    !inner_udp_has_checksum(ctx, ip6, inner_l3_len, data_end))
+		return -1;
 
 	struct ip6_pseudo pseudo = {
-		.upper_len = bpf_htonl(payload_len),
+		.upper_len = bpf_htonl(payload_len - chain_len),
 		.zero = { 0, 0, 0 },
-		.next_hdr = ip6->nexthdr,
+		.next_hdr = inner_proto,
 	};
 
 	__builtin_memcpy(&pseudo.src, &ip6->saddr, sizeof(struct in6_addr));
@@ -378,12 +440,14 @@ static __always_inline int
 udpv6_csum_from_headers(struct __ctx_buff *ctx, const struct in6_addr *saddr,
 			const struct in6_addr *daddr, const struct udphdr *udp,
 			__u32 udp_len, const void *tunnel, __u32 tunnel_len,
-			int inner_is_ip6, const void *data_end)
+			int inner_is_ip6, __u8 inner_proto, __u16 inner_l3_len,
+			const void *data_end)
 {
 	const void *inner = (const void *)((const __u8 *)tunnel + tunnel_len);
 
 	__s32 not_pseudo_inner =
-		inner_is_ip6 ? inner_pseudo_ip6(ctx, inner, data_end) :
+		inner_is_ip6 ? inner_pseudo_ip6(ctx, inner, inner_proto,
+						inner_l3_len, data_end) :
 			       inner_pseudo_ip4(ctx, inner, data_end);
 	if (not_pseudo_inner < 0)
 		return -1;
@@ -424,6 +488,22 @@ udpv6_csum_from_headers(struct __ctx_buff *ctx, const struct in6_addr *saddr,
 	sum = bpf_csum_diff(0, 0, (__be32 *)inner, inner_hdr_len, (__wsum)sum);
 	if (sum < 0)
 		return -1;
+
+	/* IPv4 options sit between the header just summed and the upper-layer
+	 * region the substitution replaces, so they carry no term of their
+	 * own. Max 40 bytes: ihl is 4 bits. */
+	if (!inner_is_ip6) {
+		const struct iphdr *inner4 = inner;
+		const __u32 optlen = (__u32)inner4->ihl * 4 - sizeof(*inner4);
+
+		CSUM_ADD_RANGE(sum, (const __u8 *)inner + sizeof(*inner4),
+			       optlen, 4, 10, data_end);
+	} else if (inner_l3_len > sizeof(struct ipv6hdr)) {
+		CSUM_ADD_RANGE(sum,
+			       (const __u8 *)inner + sizeof(struct ipv6hdr),
+			       (__u32)inner_l3_len - sizeof(struct ipv6hdr), 8,
+			       IPV6_FASTPATH_MAX_CHAIN / 8, data_end);
+	}
 
 	/* The inner L4 region, as one 16-bit word. */
 	__be16 substitute[2] = { (__be16)not_pseudo_inner, 0 };
@@ -476,6 +556,13 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	// ctx_load_bytes. A malformed-short length is clamped to the
 	// header size rather than rejected — produces a wrong checksum
 	// that the receiver drops, no worse than the malformed packet.
+	//
+	// The long side is different: the pseudo-header above already declares
+	// the true length, so summing fewer bytes than that corrupts a
+	// well-formed packet. Recorded here and refused below, once the bound
+	// the clamp establishes is no longer needed.
+	const bool over_scratch = udp_len > MAX_L4_DATAGRAM;
+
 	if (udp_len > MAX_L4_DATAGRAM)
 		udp_len = MAX_L4_DATAGRAM;
 	if (udp_len < sizeof(struct udphdr))
@@ -493,6 +580,11 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	int check = l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
 	if (check < 0)
 		return -1;
+
+	if (over_scratch) {
+		upf_printk("upf: datagram exceeds the checksum scratch buffer");
+		return -1;
+	}
 
 	/* RFC 768: a computed zero is transmitted as all ones. Over IPv6 a zero
 	 * checksum is not "no checksum" but invalid, and the receiver drops the

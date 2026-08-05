@@ -34,6 +34,21 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 	return nil
 }
 
+// pdrKeyChanged reports whether updated installs under a different map entry
+// than old, whose entry then has to be removed. applyPDR keys downlink on the
+// UE address and uplink on the TEID.
+func pdrKeyChanged(old, updated SPDRInfo) bool {
+	if old.UEIP.IsValid() != updated.UEIP.IsValid() {
+		return true
+	}
+
+	if old.UEIP.IsValid() {
+		return old.UEIP != updated.UEIP
+	}
+
+	return old.TeID != updated.TeID
+}
+
 // unapplyPDR removes the eBPF map entry applyPDR installed for spdrInfo.
 func unapplyPDR(spdrInfo SPDRInfo, bpfObjects *ebpf.BpfObjects) error {
 	if spdrInfo.UEIP.IsValid() {

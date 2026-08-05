@@ -253,6 +253,15 @@ func innerIPv4UDP(dst [4]byte, dport uint16) []byte { //nolint:unparam // genera
 	return ipv4Packet([4]byte{10, 0, 0, 9}, dst, 17, udpDatagram(0, dport, nil))
 }
 
+// innerIPv4UDPSized is innerIPv4UDP padded so the inner packet is exactly total
+// bytes. The uplink rate limiter charges the inner packet, so a test that
+// asserts on a delivered bit rate needs its size fixed.
+func innerIPv4UDPSized(dst [4]byte, dport uint16, total int) []byte {
+	const ipUDPHdrLen = 20 + 8
+
+	return ipv4Packet([4]byte{10, 0, 0, 9}, dst, 17, udpDatagram(0, dport, make([]byte, total-ipUDPHdrLen)))
+}
+
 // tcpSegment builds a minimal 20-byte TCP header (data offset 5, no flags).
 func tcpSegment(srcPort, dstPort uint16) []byte {
 	seg := make([]byte, 20)
@@ -297,6 +306,160 @@ func innerIPv6UDP(dst [16]byte, dport uint16) []byte { //nolint:unparam // gener
 	return ipv6Packet(src, dst, 17, udpDatagram(0, dport, nil))
 }
 
+// ipprotoHopOpts is the IPv6 Hop-by-Hop Options extension header (RFC 8200
+// §4.3), the first next-header value a conformant IPv6 packet may carry.
+const ipprotoHopOpts = 0
+
+// hopByHopHeader builds a minimal 8-octet Hop-by-Hop Options extension header
+// carrying a single PadN option and chaining to nextHdr.
+func hopByHopHeader(nextHdr uint8) []byte {
+	return []byte{
+		nextHdr, // next header
+		0,       // header extension length: 8 octets total
+		1, 4,    // PadN option, 4 octets of padding
+		0, 0, 0, 0,
+	}
+}
+
+// innerIPv6UDPHopByHop is innerIPv6UDP with a Hop-by-Hop Options extension
+// header between the IPv6 header and UDP.
+func innerIPv6UDPHopByHop(dst [16]byte, dport uint16) []byte {
+	return ipv6Packet(testUEv6Src, dst, ipprotoHopOpts, append(hopByHopHeader(17), udpDatagram(0, dport, nil)...))
+}
+
+// testUEv6Src is the UE source address the shared inner-IPv6 builders use; it
+// sits in canonicalUEv6Prefix, so anti-spoofing admits it.
+var testUEv6Src = [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
+
+const (
+	ipprotoFragment = 44
+	ipprotoAH       = 51
+	ipprotoESP      = 50
+	ipprotoDstOpts  = 60
+)
+
+// ipv6FragmentHeader builds an 8-octet Fragment header (RFC 8200 §4.5).
+// offsetUnits is the fragment offset in 8-octet units: non-zero means the
+// upper-layer header travelled in an earlier fragment.
+func ipv6FragmentHeader(nextHdr uint8, offsetUnits uint16, more bool) []byte {
+	h := make([]byte, 8)
+
+	h[0] = nextHdr
+
+	off := offsetUnits << 3
+	if more {
+		off |= 1
+	}
+
+	binary.BigEndian.PutUint16(h[2:4], off)
+	binary.BigEndian.PutUint32(h[4:8], 0x0badf00d) // identification
+
+	return h
+}
+
+// authHeader builds an IPv6 Authentication Header (RFC 4302 §2). Its length
+// field counts 4-octet units less two, unlike every other extension header.
+func authHeader(nextHdr uint8) []byte {
+	h := make([]byte, 24) // 24 bytes => hdrlen 4
+
+	h[0] = nextHdr
+	h[1] = 4
+
+	return h
+}
+
+// destOptsHeader builds an 8-octet Destination Options header.
+func destOptsHeader(nextHdr uint8) []byte {
+	return []byte{nextHdr, 0, 1, 4, 0, 0, 0, 0}
+}
+
+// innerIPv4Fragment builds a fragment of a UDP datagram. offsetUnits is in
+// 8-octet units: 0 with more set is the first fragment, which carries the real
+// L4 header; non-zero means port is what the payload spells if misread.
+func innerIPv4Fragment(dst [4]byte, offsetUnits uint16, more bool, port uint16) []byte {
+	payload := make([]byte, 16)
+	binary.BigEndian.PutUint16(payload[2:4], port) // the UDP dest-port offset
+
+	pkt := ipv4Packet([4]byte{10, 0, 0, 9}, dst, 17, payload)
+
+	frag := offsetUnits
+	if more {
+		frag |= 0x2000 // more fragments
+	}
+
+	binary.BigEndian.PutUint16(pkt[6:8], frag)
+	binary.BigEndian.PutUint16(pkt[10:12], 0)
+	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
+
+	return pkt
+}
+
+// innerIPv4FragmentID builds one fragment of a datagram: the offset-0 one
+// carries a real UDP header, the rest payload.
+func innerIPv4FragmentID(src, dst [4]byte, id, offsetUnits uint16, more bool, sport, dport uint16) []byte {
+	var payload []byte
+
+	if offsetUnits == 0 {
+		payload = udpDatagram(sport, dport, []byte{0xde, 0xad, 0xbe, 0xef})
+	} else {
+		payload = make([]byte, 16)
+	}
+
+	pkt := ipv4Packet(src, dst, 17, payload)
+
+	frag := offsetUnits
+	if more {
+		frag |= 0x2000
+	}
+
+	binary.BigEndian.PutUint16(pkt[4:6], id)
+	binary.BigEndian.PutUint16(pkt[6:8], frag)
+	binary.BigEndian.PutUint16(pkt[10:12], 0)
+	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
+
+	return pkt
+}
+
+// innerIPv6NonFirstFragment builds a non-first fragment: decoyPort is what the
+// payload spells if misread as a UDP header.
+func innerIPv6NonFirstFragment(dst [16]byte, decoyPort uint16) []byte {
+	payload := make([]byte, 16)
+	binary.BigEndian.PutUint16(payload[2:4], decoyPort) // the UDP dest-port offset
+
+	frag := ipv6FragmentHeader(17, 1 /* offset 8 bytes in */, false)
+
+	return ipv6Packet(testUEv6Src, dst, ipprotoFragment, append(frag, payload...))
+}
+
+// innerIPv6FragmentChainingToExtHeader builds a non-first fragment whose
+// fragment header names another extension header. Everything after the fragment
+// header is payload, so decoyProto is what a walk that kept going would take as
+// the upper-layer protocol.
+func innerIPv6FragmentChainingToExtHeader(dst [16]byte, decoyProto uint8) []byte {
+	// Shaped like a Destination Options header: hdrlen 0, so 8 octets.
+	payload := []byte{decoyProto, 0, 1, 4, 0, 0, 0, 0}
+
+	frag := ipv6FragmentHeader(ipprotoDstOpts, 1 /* offset 8 bytes in */, false)
+
+	return ipv6Packet(testUEv6Src, dst, ipprotoFragment, append(frag, payload...))
+}
+
+// innerIPv6ChainTooLong builds a UE inner packet whose extension-header chain is
+// longer than the parser walks.
+func innerIPv6ChainTooLong(dst [16]byte, dport uint16) []byte {
+	const headers = 8 // IPV6_MAX_EXT_HEADERS is 4
+
+	chain := udpDatagram(0, dport, nil)
+	next := uint8(17)
+
+	for i := 0; i < headers; i++ {
+		chain = append(destOptsHeader(next), chain...)
+		next = ipprotoDstOpts
+	}
+
+	return ipv6Packet(testUEv6Src, dst, ipprotoDstOpts, chain)
+}
+
 // innerIPv6ICMPv6RS builds a UE inner packet: an ICMPv6 Router Solicitation
 // (type 133) sent from the UE's address ueSrc to the all-routers multicast.
 func innerIPv6ICMPv6RS(ueSrc [16]byte) []byte {
@@ -327,11 +490,9 @@ func gtpControlFrameV6(msgType uint8) []byte {
 	return gtpV6Outer(gtp)
 }
 
-// gtpControlFrameSeq builds a GTP-U control frame carrying a sequence number
-// (S flag set): the 8-byte mandatory header plus the 4-octet optional block
-// (sequence number, N-PDU number, next-extension-header-type = 0). It has no
-// extension header — a conformant form (TS 29.281 §5.1) that a real NG-RAN node
-// uses for echo path management.
+// gtpControlFrameSeq builds a control frame with a sequence number (S flag):
+// the mandatory header plus the optional word, no extension header — the form
+// an NG-RAN node uses for echo path management (TS 29.281 §5.1).
 func gtpControlFrameSeq(msgType uint8, seq uint16) []byte {
 	gtp := make([]byte, 12)
 	gtp[0] = 0x32 // version=1, PT=1, S=1 (E and PN clear)
@@ -349,10 +510,9 @@ func gtpV4Outer(gtpPayload []byte) []byte {
 	return ethFrame(0x0800, ipv4Packet(testGNBIP, testUPFN3IP, 17, udpDatagram(GTPUDPPort, GTPUDPPort, gtpPayload)))
 }
 
-// gtpHeader builds a GTP-U G-PDU header as a conformant NG-RAN node sends it on
-// N3: the 8-byte base header (E flag set), the 4-octet optional word, and a PDU
-// Session Container extension header carrying the uplink QFI (TS 29.281 §5.2,
-// TS 38.415), followed by inner.
+// gtpHeader builds a G-PDU header as sent on N3: base header (E flag set), the
+// optional word, and a PDU Session Container carrying the uplink QFI
+// (TS 29.281 §5.2, TS 38.415).
 func gtpHeader(teid uint32, inner []byte) []byte {
 	const gtpHdrLen = 16
 
@@ -379,10 +539,8 @@ func uplinkGPDU(teid uint32, inner []byte) []byte {
 	return gtpV4Outer(gtpHeader(teid, inner))
 }
 
-// gtpHeaderTwoExtHeaders builds an uplink G-PDU whose GTP header chains a generic
-// extension header to the PDU Session Container, making the header 20 octets —
-// longer than the usual 16. It exercises decapsulation that strips the actual
-// parsed header length rather than a fixed size (TS 29.281 §5.2).
+// gtpHeaderTwoExtHeaders chains a second extension header, making the GTP
+// header 20 octets: decap must strip the parsed length (TS 29.281 §5.2).
 func gtpHeaderTwoExtHeaders(teid uint32, inner []byte) []byte {
 	const gtpHdrLen = 20
 
@@ -533,4 +691,26 @@ func parseGTPv6Frame(t *testing.T, frame []byte) gtpV6Frame {
 	f.udpChecksumOK = validUDPv6Checksum(f.outerSrc, f.outerDst, frame[ethHdrLen+40:])
 
 	return f
+}
+
+// udpDatagramChecksummedV6 builds a UDP datagram with a valid checksum for the
+// given IPv6 endpoints (RFC 8200 §8.1 pseudo-header).
+func udpDatagramChecksummedV6(src, dst [16]byte, srcPort, dstPort uint16, payload []byte) []byte {
+	d := udpDatagram(srcPort, dstPort, payload)
+
+	pseudo := make([]byte, 40+len(d))
+	copy(pseudo[0:16], src[:])
+	copy(pseudo[16:32], dst[:])
+	binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(d)))
+	pseudo[39] = 17 // next header = UDP
+	copy(pseudo[40:], d)
+
+	csum := onesComplement16(pseudo)
+	if csum == 0 {
+		csum = 0xffff // a zero UDP checksum means "no checksum"
+	}
+
+	binary.BigEndian.PutUint16(d[6:8], csum)
+
+	return d
 }

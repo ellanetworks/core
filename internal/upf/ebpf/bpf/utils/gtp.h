@@ -160,8 +160,12 @@ gtp_decap_size_no_vlan(const struct packet_context *ctx)
 		if (outer_ip_size < sizeof(struct iphdr) || outer_ip_size > 60)
 			return 0;
 	} else if (ctx->ip6) {
-		/* parse_ip6 consumes the fixed header only. */
-		outer_ip_size = sizeof(struct ipv6hdr);
+		/* Fixed header plus chain, as ihl above. */
+		outer_ip_size = ctx->l3_hdr_len;
+		if (outer_ip_size < sizeof(struct ipv6hdr) ||
+		    outer_ip_size >
+			    sizeof(struct ipv6hdr) + IPV6_MAX_EXT_CHAIN_LEN)
+			return 0;
 	} else {
 		return 0;
 	}
@@ -712,7 +716,8 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 		int csum_ret = udpv6_csum_from_headers(
 			ctx->ctx_buff, &ip6->saddr, &ip6->daddr, udp,
 			bpf_ntohs(udp->len), gtp, gtp_full_hdr_size,
-			inner_is_ip6, data_end);
+			inner_is_ip6, ctx->l4_proto, ctx->l3_hdr_len,
+			data_end);
 		if (csum_ret < 0) {
 			csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr,
 					      udp_off, bpf_ntohs(udp->len),
@@ -831,7 +836,8 @@ static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
 		int csum_ret = udpv6_csum_from_headers(
 			ctx->ctx_buff, &ip6->saddr, &ip6->daddr, udp,
 			bpf_ntohs(udp->len), gtp, sizeof(struct gtpuhdr),
-			inner_is_ip6, data_end);
+			inner_is_ip6, ctx->l4_proto, ctx->l3_hdr_len,
+			data_end);
 		if (csum_ret < 0) {
 			csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr,
 					      udp_off, bpf_ntohs(udp->len),

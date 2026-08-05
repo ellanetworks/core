@@ -28,8 +28,11 @@ struct {
 	__uint(max_entries, URR_MAP_SIZE);
 } urr_map SEC(".maps");
 
+/* bytes is passed in: the caller charges after the routing verdict, by which
+ * time encapsulation may have resized the frame. */
 static __always_inline void update_urr_bytes(struct packet_context *ctx,
-					     __u64 seid, __u32 urr_id)
+					     __u64 seid, __u32 urr_id,
+					     __u64 bytes)
 {
 	if (!urr_id) {
 		upf_printk("upf: urr_id is 0 - no URR associated with packet");
@@ -42,6 +45,8 @@ static __always_inline void update_urr_bytes(struct packet_context *ctx,
 		upf_printk("upf: no URR found for urr_id:%d", urr_id);
 		return;
 	}
-	__u64 packet_size = ctx_full_len(ctx->ctx_buff);
-	__sync_fetch_and_add(byte_count, packet_size);
+	/* Per-CPU value, and BPF runs with preemption disabled, so nothing else
+	 * can reach this slot: an atomic would only add a locked round trip.
+	 * Userspace sums across CPUs when it reads. */
+	*byte_count += bytes;
 }

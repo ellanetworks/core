@@ -37,7 +37,10 @@
 static __always_inline enum ctx_action
 handle_uplink_ip4(struct packet_context *ctx)
 {
-	if (parse_ip4(ctx) == IPPROTO_UDP) {
+	/* l4_unavailable: a non-first fragment of the tunnel transport has
+	 * payload where its UDP header would be, and payload that spells 2152
+	 * would be decapsulated as GTP-U (RFC 1858). */
+	if (parse_ip4(ctx) == IPPROTO_UDP && !ctx->l4_unavailable) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
@@ -55,7 +58,8 @@ handle_uplink_ip4(struct packet_context *ctx)
 static __always_inline enum ctx_action
 handle_uplink_ip6(struct packet_context *ctx)
 {
-	if (parse_ip6(ctx) == IPPROTO_UDP) {
+	/* The tunnel transport; the inner packet is parsed after decap. */
+	if (parse_ip6_transport(ctx) == IPPROTO_UDP) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
@@ -82,15 +86,31 @@ process_uplink(struct packet_context *ctx)
 	return DEFAULT_CTX_ACTION;
 }
 
-/* N6 downlink: plain IP traffic from the data network toward a UE. */
+/* Every protocol is offered to the session lookup: the uplink carries a
+ * subscriber's ESP, GRE and SCTP unfiltered, and the Packet Filter Set has an
+ * SPI component for it (TS 23.501 §5.7.6.2). Non-session traffic falls through
+ * at the PDR lookup. */
 static __always_inline enum ctx_action
 handle_downlink_ip4(struct packet_context *ctx)
 {
-	int l4_protocol = parse_ip4(ctx);
-	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMP &&
-	    l4_protocol != IPPROTO_TCP) {
+	int relinked = own_frame_relink(ctx);
+	if (relinked < 0)
+		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
+
+	if (relinked > 0)
+		return DEFAULT_CTX_ACTION;
+
+	if (parse_ip4(ctx) < 0) {
+		/* A reason means the header was rejected, not merely
+		 * unrecognised: drop it rather than hand it to the kernel. */
+		if (ctx->drop_reason != UPF_DROP_UNSPEC)
+			return drop_with(ctx, ctx->drop_reason);
+
 		return DEFAULT_CTX_ACTION;
 	}
+
+	/* Before destination_nat_lookup, which reads ports. */
+	frag_resolve4(ctx);
 
 	ctx->statistics->packet_counters.rx++;
 
@@ -100,11 +120,15 @@ handle_downlink_ip4(struct packet_context *ctx)
 static __always_inline enum ctx_action
 handle_downlink_ip6(struct packet_context *ctx)
 {
-	int l4_protocol = parse_ip6(ctx);
-	if (l4_protocol != IPPROTO_UDP && l4_protocol != IPPROTO_ICMPV6 &&
-	    l4_protocol != IPPROTO_TCP) {
+	int relinked = own_frame_relink(ctx);
+	if (relinked < 0)
+		return abort_with(ctx, UPF_DROP_INTERNAL_PULL_FAILED);
+
+	if (relinked > 0)
 		return DEFAULT_CTX_ACTION;
-	}
+
+	if (parse_ip6(ctx) < 0)
+		return DEFAULT_CTX_ACTION;
 
 	ctx->statistics->packet_counters.rx++;
 
@@ -267,9 +291,9 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	if (ctx_vlan_ingress(ctx))
 		return record_action(&context, CTX_ACT_OK);
 
-	/* No pull here: this stage is reached by every frame that is not
-	 * GTP-U, most of which the datapath does not own. handle_n6_packet_*
-	 * pulls once the L4 filter has claimed the frame. */
+	/* No pull here: this stage is reached by every frame that is not GTP-U,
+	 * most of which the datapath does not own. handle_downlink_ip4/ip6 pull
+	 * once the ethertype says the frame could be ours. */
 	context.data = ctx_data(ctx);
 	context.data_end = ctx_data_end(ctx);
 
@@ -309,24 +333,35 @@ int upf_entry_func(struct __ctx_buff *ctx)
 
 	const bool split_interfaces = n3_ifindex != 0 && n6_ifindex != 0 &&
 				      n3_ifindex != n6_ifindex;
-	const bool gtpu_allowed = !split_interfaces ||
-				  ctx_ingress_ifindex(ctx) == (__u32)n3_ifindex;
+	const bool ingress_is_n3 =
+		ctx_ingress_ifindex(ctx) == (__u32)n3_ifindex;
+	const bool gtpu_allowed = !split_interfaces || ingress_is_n3;
 
 	if (l3_protocol == ETH_P_IP) {
-		if (parse_ip4(&context) == IPPROTO_UDP) {
+		if (parse_ip4(&context) == IPPROTO_UDP &&
+		    !context.l4_unavailable) {
 			struct udphdr *udp = detect_udp_header(&context, 0);
 			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT &&
 			    gtpu_allowed)
 				index = UPF_CALL_UPLINK;
 		}
 	} else if (l3_protocol == ETH_P_IPV6) {
-		if (parse_ip6(&context) == IPPROTO_UDP) {
+		/* Classification only; the owning stage parses properly. */
+		if (parse_ip6_transport(&context) == IPPROTO_UDP) {
 			struct udphdr *udp = detect_udp_header(&context, 0);
 			if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT &&
 			    gtpu_allowed)
 				index = UPF_CALL_UPLINK;
 		}
 	} else {
+		return ctx_verdict(DEFAULT_CTX_ACTION);
+	}
+
+	/* The mirror of gtpu_allowed: downlink tunnels to a UE on its destination
+	 * address alone, so it belongs to frames that arrived on N6. Inactive on
+	 * a shared interface, which the classification above covers. */
+	if (index == UPF_CALL_DOWNLINK && split_interfaces && ingress_is_n3) {
+		upf_printk("upf: non-GTP frame on N3, passing to kernel");
 		return ctx_verdict(DEFAULT_CTX_ACTION);
 	}
 

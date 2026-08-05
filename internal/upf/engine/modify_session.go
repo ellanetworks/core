@@ -201,6 +201,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		// Rollback removes the entry just written (which may be under a new key if
 		// the update changed UEIP/TEID) and restores the prior one, if any.
+		// Before the removal below, so a failure there unwinds it.
 		txn.onRollback(func() error {
 			if err := unapplyPDR(spdrInfo, bpfObjects); err != nil {
 				return err
@@ -212,6 +213,15 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 			return nil
 		})
+
+		// A stale entry holds a downlink slot that survives teardown, which
+		// iterates the current PDR set, and source_allowed keeps authorising
+		// the old address: SetUEAddresses runs only at establishment.
+		if hadOld && pdrKeyChanged(old, spdrInfo) {
+			if err := unapplyPDR(old, bpfObjects); err != nil {
+				return fail(fmt.Errorf("couldn't remove the superseded PDR entry: %w", err))
+			}
+		}
 
 		bpfObjects.ClearNotified(req.SEID, pdr.PDRID, spdrInfo.PdrInfo.Qer.Qfi)
 	}
