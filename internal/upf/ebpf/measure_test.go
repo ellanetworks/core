@@ -59,8 +59,64 @@ func functionFrames(insns asm.Instructions) map[string]int {
 	return frames
 }
 
-// TestStackDepthBudget bounds the combined stack of each program and its
-// subprograms; summing every function over-approximates a single chain.
+// functionCalls returns, per function symbol, the subprograms it can enter:
+// direct calls, and callbacks passed by pointer to helpers like bpf_loop, which
+// the kernel charges a frame for just the same.
+func functionCalls(insns asm.Instructions) map[string][]string {
+	calls := make(map[string][]string)
+	current := ""
+
+	for _, ins := range insns {
+		if sym := ins.Symbol(); sym != "" {
+			current = sym
+			if _, seen := calls[current]; !seen {
+				calls[current] = nil
+			}
+		}
+
+		if !ins.IsFunctionReference() {
+			continue
+		}
+
+		if target := ins.Reference(); target != "" {
+			calls[current] = append(calls[current], target)
+		}
+	}
+
+	return calls
+}
+
+// deepestChain returns the largest sum of rounded frames along any call chain
+// rooted at fn, which is what the kernel's check_max_stack_depth computes.
+// Siblings that can never be live together are not added to each other.
+func deepestChain(fn string, frames map[string]int, calls map[string][]string,
+	onPath map[string]bool,
+) int {
+	if onPath[fn] {
+		return 0 // BPF forbids recursion; guard anyway
+	}
+
+	onPath[fn] = true
+	defer delete(onPath, fn)
+
+	deepest := 0
+
+	for _, callee := range calls[fn] {
+		if _, known := frames[callee]; !known {
+			continue // helper, not a subprogram in this object
+		}
+
+		if d := deepestChain(callee, frames, calls, onPath); d > deepest {
+			deepest = d
+		}
+	}
+
+	return roundFrame(frames[fn]) + deepest
+}
+
+// TestStackDepthBudget bounds each program's deepest call chain. Summing every
+// subprogram instead would charge a program for siblings that cannot be on the
+// stack at once, and fail on a chain the kernel accepts.
 func TestStackDepthBudget(t *testing.T) {
 	spec, err := LoadN3N6Entrypoint()
 	if err != nil {
@@ -69,17 +125,29 @@ func TestStackDepthBudget(t *testing.T) {
 
 	for name, prog := range spec.Programs {
 		frames := functionFrames(prog.Instructions)
+		calls := functionCalls(prog.Instructions)
 
-		combined := 0
-		for _, depth := range frames {
-			combined += roundFrame(depth)
+		root := name
+		if _, ok := frames[root]; !ok {
+			// The entry function carries the section's symbol, which
+			// need not match the program name.
+			for fn := range frames {
+				if len(calls[fn]) > 0 || len(frames) == 1 {
+					root = fn
+
+					break
+				}
+			}
 		}
 
-		t.Logf("MEASURE %-18s combined_stack=%d frames=%v", name, combined, frames)
+		chain := deepestChain(root, frames, calls, map[string]bool{})
 
-		if combined > maxChainStack {
-			t.Errorf("%s combined stack = %d, want <= %d (kernel limit %d)",
-				name, combined, maxChainStack, maxBPFStack)
+		t.Logf("MEASURE %-18s deepest_chain=%d root=%s frames=%v calls=%v",
+			name, chain, root, frames, calls)
+
+		if chain > maxChainStack {
+			t.Errorf("%s deepest call chain = %d, want <= %d (kernel limit %d)",
+				name, chain, maxChainStack, maxBPFStack)
 		}
 	}
 }
@@ -109,5 +177,104 @@ func TestMeasureVerifiedInstructions(t *testing.T) {
 
 		n, ok := info.VerifiedInstructions()
 		t.Logf("MEASURE %-13s verified_insns=%d ok=%v", pr.name, n, ok)
+	}
+}
+
+// TestURRNotChargedWhenRoutingDrops: a packet that does not leave is not
+// billed. Charged before routing, every FIB failure billed one — and
+// fib_no_neigh is ordinary while a neighbour resolves.
+//
+// The ifindex mismatch forces a drop after the accounting point without
+// depending on the host's routing table.
+func TestURRNotChargedWhenRoutingDrops(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x55525201
+		seid  = 0x5152
+		urrID = 3
+	)
+
+	// Not a device this frame can egress on, so routing refuses.
+	obj := loadProgramConfig(t, false, false, 1, 9, 0, 0)
+
+	if err := obj.NewUrr(seid, urrID); err != nil {
+		t.Fatalf("create URR: %v", err)
+	}
+
+	pdr := PdrInfo{
+		SEID:         seid,
+		UrrID:        urrID,
+		IMSI:         "001010000000001",
+		Far:          FarInfo{Action: 0x02 /* FAR_FORW */},
+		Qer:          QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */},
+		UEIPv4:       canonicalUEv4,
+		UEIPv6Prefix: canonicalUEv6Prefix,
+	}
+	if err := obj.PutPdrUplink(teid, pdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+	if action != ActionDrop {
+		t.Skipf("this environment forwarded the frame (XDP action %d); the billing assertion needs a drop after accounting", action)
+	}
+
+	volume, err := obj.GetAndResetUrr(seid, urrID)
+	if err != nil {
+		t.Fatalf("read URR: %v", err)
+	}
+
+	if volume != 0 {
+		t.Errorf("URR charged %d bytes for a packet the datapath dropped after accounting", volume)
+	}
+}
+
+// TestURRChargedWhenForwarded: the check above must not pass by never
+// charging.
+func TestURRChargedWhenForwarded(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x55525202
+		seid  = 0x5153
+		urrID = 4
+	)
+
+	obj := loadN3N6Program(t)
+
+	if err := obj.NewUrr(seid, urrID); err != nil {
+		t.Fatalf("create URR: %v", err)
+	}
+
+	pdr := PdrInfo{
+		SEID:         seid,
+		UrrID:        urrID,
+		IMSI:         "001010000000001",
+		Far:          FarInfo{Action: 0x02 /* FAR_FORW */},
+		Qer:          QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */},
+		UEIPv4:       canonicalUEv4,
+		UEIPv6Prefix: canonicalUEv6Prefix,
+	}
+	if err := obj.PutPdrUplink(teid, pdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+	if action == ActionDrop || action == ActionAborted {
+		t.Skipf("this environment did not forward the frame (XDP action %d)", action)
+	}
+
+	volume, err := obj.GetAndResetUrr(seid, urrID)
+	if err != nil {
+		t.Fatalf("read URR: %v", err)
+	}
+
+	if want := uint64(ethHdrLen + len(inner)); volume != want {
+		t.Errorf("URR charged %d bytes for a forwarded packet, want %d", volume, want)
 	}
 }

@@ -74,6 +74,17 @@ enum upf_drop_reason {
 	UPF_DROP_INTERNAL_MAP_LOOKUP_FAILED,
 	UPF_DROP_INTERNAL_TX_FAILED,
 
+	/* Appended so existing reasons keep their values. */
+
+	/* Non-first fragment, for a policy that scopes on ports. */
+	UPF_DROP_FRAGMENT_UNFILTERABLE,
+	/* Chain truncated, or longer than the parser walks. */
+	UPF_DROP_EXTHDR_INVALID,
+	/* An ICMP error whose quoted datagram has no NAT mapping to reverse. */
+	UPF_DROP_NAT_QUOTE_NO_MAPPING,
+	/* Shaped to move header fields out of the first fragment (RFC 3128). */
+	UPF_DROP_FRAGMENT_MALFORMED,
+
 	UPF_DROP_REASON_COUNT,
 };
 

@@ -37,42 +37,73 @@ struct {
  * PDRs carry the downlink filter index.
  * N3 interface: daddr is the remote; N6 interface: saddr is the remote.
  */
-static __always_inline enum ctx_action
-match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
-		__u16 pkt_dport, __u8 pkt_is_ipv4,
-		const struct in6_addr pkt_remote);
+/* Whether the rule would reject any port. Both the SDF_PORT_ANY wildcard and a
+ * range spanning every port match regardless of what the ports are. */
+static __always_inline bool rule_constrains_ports(const struct sdf_rule *r)
+{
+	if (r->port_low == SDF_PORT_ANY && r->port_high == SDF_PORT_ANY)
+		return false;
 
+	return !(r->port_low == 0 && r->port_high == 65535);
+}
+
+#define SDF_VERDICT_PASS 0
+#define SDF_VERDICT_DENY 1
+#define SDF_VERDICT_UNFILTERABLE 2
+
+struct sdf_query {
+	struct in6_addr remote;
+	__u32 filter_index;
+	__u16 dport;
+	__u8 proto;
+	__u8 is_ipv4;
+	__u8 ports_unreadable;
+	__u8 pad[3];
+};
+
+__noinline __weak int sdf_match(struct sdf_query *q);
+
+/* Compares one 32-bit word under a prefix of `bits`. */
+static __always_inline bool sdf_word_eq(__u32 rule, __u32 pkt, __u32 bits)
+{
+	if (bits == 0)
+		return true;
+
+	if (bits >= 32)
+		return rule == pkt;
+
+	__u32 mask = bpf_htonl(~((__u32)0) << (32 - bits));
+
+	return (rule & mask) == (pkt & mask);
+}
+
+/* Every word index is a literal: a computed one is a variable-offset read of
+ * the stack copy, which the verifier refuses inside a global function. */
 static __always_inline int match_ipv6_prefix(const struct in6_addr *rule_ip,
 					     __u8 prefix_len,
 					     const struct in6_addr *pkt_ip)
 {
 	const __u32 *rule = rule_ip->in6_u.u6_addr32;
 	const __u32 *pkt = pkt_ip->in6_u.u6_addr32;
-	__u8 words = prefix_len >> 5;
-	__u8 bits = prefix_len & 31;
+	__u32 left = prefix_len > 128 ? 128 : prefix_len;
 
-	if (words > 0) {
-		if (rule[0] != pkt[0])
-			return -1;
-	}
-	if (words > 1) {
-		if (rule[1] != pkt[1])
-			return -1;
-	}
-	if (words > 2) {
-		if (rule[2] != pkt[2])
-			return -1;
-	}
-	if (words > 3) {
-		if (rule[3] != pkt[3])
-			return -1;
-	}
+	if (!sdf_word_eq(rule[0], pkt[0], left))
+		return -1;
 
-	if (words < 4 && bits > 0) {
-		__u32 mask = bpf_htonl(~((__u32)0) << (32 - bits));
-		if ((rule[words] & mask) != (pkt[words] & mask))
-			return -1;
-	}
+	left = left > 32 ? left - 32 : 0;
+
+	if (!sdf_word_eq(rule[1], pkt[1], left))
+		return -1;
+
+	left = left > 32 ? left - 32 : 0;
+
+	if (!sdf_word_eq(rule[2], pkt[2], left))
+		return -1;
+
+	left = left > 32 ? left - 32 : 0;
+
+	if (!sdf_word_eq(rule[3], pkt[3], left))
+		return -1;
 
 	return 1;
 }
@@ -88,24 +119,13 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 	if (filter_map_index == 0)
 		return CTX_ACT_OK;
 
-	struct sdf_filter_list *flist =
-		bpf_map_lookup_elem(&sdf_filters, &filter_map_index);
-	if (!flist)
-		return CTX_ACT_OK; /* fail-open */
-
-	__u8 num = flist->num_rules;
-	if (num > MAX_RULES_PER_FILTER)
-		num = MAX_RULES_PER_FILTER; /* bound for the verifier */
-
 	if (ctx->ip4) {
 		pkt_is_ipv4 = 1;
-		pkt_proto = ctx->ip4->protocol;
 		ipv4_to_mapped(&pkt_remote, (ctx->interface == INTERFACE_N3) ?
 						    ctx->ip4->daddr :
 						    ctx->ip4->saddr);
 	} else if (ctx->ip6) {
 		pkt_is_ipv4 = 0;
-		pkt_proto = ctx->ip6->nexthdr;
 		pkt_remote = (ctx->interface == INTERFACE_N3) ?
 				     ctx->ip6->daddr :
 				     ctx->ip6->saddr;
@@ -113,28 +133,58 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 		return CTX_ACT_OK;
 	}
 
-	if (ctx->tcp)
-		pkt_dport = (ctx->interface == INTERFACE_N3) ?
-				    bpf_ntohs(ctx->tcp->dest) :
-				    bpf_ntohs(ctx->tcp->source);
-	else if (ctx->udp)
-		pkt_dport = (ctx->interface == INTERFACE_N3) ?
-				    bpf_ntohs(ctx->udp->dest) :
-				    bpf_ntohs(ctx->udp->source);
+	/* The upper-layer protocol: matching ip6->nexthdr would match a rule
+	 * against the extension-header type. */
+	pkt_proto = ctx->l4_proto;
+	pkt_dport = (ctx->interface == INTERFACE_N3) ? ctx->l4_dport :
+						       ctx->l4_sport;
 
 	upf_printk("upf: filter packet for %08X:%d, proto %d",
 		   bpf_ntohl(ipv4_from_mapped(&pkt_remote)), pkt_dport,
 		   pkt_proto);
 
-	return match_sdf_rules(flist, num, pkt_proto, pkt_dport, pkt_is_ipv4,
-			       pkt_remote);
+	struct sdf_query q = {
+		.remote = pkt_remote,
+		.filter_index = filter_map_index,
+		.dport = pkt_dport,
+		.proto = pkt_proto,
+		.is_ipv4 = pkt_is_ipv4,
+		.ports_unreadable = ctx->l4_unavailable,
+	};
+
+	int verdict = sdf_match(&q);
+
+	if (verdict == SDF_VERDICT_PASS)
+		return CTX_ACT_OK;
+
+	set_drop_reason(ctx, verdict == SDF_VERDICT_UNFILTERABLE ?
+				     UPF_DROP_FRAGMENT_UNFILTERABLE :
+				     UPF_DROP_SDF_FILTER);
+
+	return CTX_ACT_DROP;
 }
 
-static __always_inline enum ctx_action
-match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
-		__u16 pkt_dport, __u8 pkt_is_ipv4,
-		const struct in6_addr pkt_remote)
+__noinline __weak int sdf_match(struct sdf_query *q)
 {
+	if (!q)
+		return SDF_VERDICT_PASS;
+
+	struct sdf_filter_list *flist =
+		bpf_map_lookup_elem(&sdf_filters, &q->filter_index);
+	if (!flist)
+		return SDF_VERDICT_PASS;
+
+	__u8 num = flist->num_rules;
+
+	if (num > MAX_RULES_PER_FILTER)
+		num = MAX_RULES_PER_FILTER;
+
+	const __u8 pkt_proto = q->proto;
+	const __u16 pkt_dport = q->dport;
+	const __u8 pkt_is_ipv4 = q->is_ipv4;
+	const __u8 ports_unreadable = q->ports_unreadable;
+	const struct in6_addr pkt_remote = q->remote;
+
 #pragma clang loop unroll(disable)
 	for (__u8 i = 0; i < num; i++) {
 		const struct sdf_rule *r = &flist->rules[i];
@@ -175,16 +225,22 @@ match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
 			}
 		}
 
-		if (r->port_low != 0) {
+		/* Reaching here means protocol and address already matched, so
+		 * this rule is one that could apply to the packet. */
+		if (rule_constrains_ports(r)) {
+			/* Skipping it is how a deny is evaded (RFC 1858). */
+			if (ports_unreadable)
+				return SDF_VERDICT_UNFILTERABLE;
+
 			if (pkt_dport < r->port_low || pkt_dport > r->port_high)
 				continue;
 		}
 
 		if (r->action == 1)
-			return CTX_ACT_DROP;
+			return SDF_VERDICT_DENY;
 
-		return CTX_ACT_OK;
+		return SDF_VERDICT_PASS;
 	}
 
-	return CTX_ACT_OK;
+	return SDF_VERDICT_PASS;
 }

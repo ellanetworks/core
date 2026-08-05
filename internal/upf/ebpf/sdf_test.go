@@ -7,19 +7,18 @@ package ebpf
 
 import (
 	"bytes"
+	"encoding/binary"
 	"net/netip"
 	"testing"
+	"unsafe"
 )
 
 // TestSDFFilterEnforcement checks that uplink SDF rules drop denied traffic and
 // pass everything else.
 //
-// A deny returns ActionDrop before routing, so a denied packet is unambiguously
-// ActionDrop. An allowed packet is decapsulated and continues into the routing
-// tail; it must not be ActionDrop (routing returns ActionTx/ActionRedirect, or
-// ActionPass with no route, but not ActionDrop absent blackhole/unreachable routes)
-// and its decapsulated inner packet must be intact. The verdict and output
-// packet come from the program; BPF_PROG_TEST_RUN does not surface counters.
+// A deny returns ActionDrop before routing. An allowed packet continues into
+// the routing tail, which returns anything but ActionDrop absent blackhole or
+// unreachable routes, and its inner packet must be intact.
 func TestSDFFilterEnforcement(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -293,6 +292,74 @@ func TestSDFDownlinkIPv6(t *testing.T) {
 	})
 }
 
+// TestSDFPortRangeStartingAtZero: only low == high == 0 is the wildcard, so a
+// range starting at 0 is still a range. Gating on port_low alone drops
+// port_high, and a rule for the well-known ports then matches every port.
+func TestSDFPortRangeStartingAtZero(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid        = 0x53444605
+		filterIndex = 1
+		protoUDP    = 17
+	)
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, filterIndex)
+
+	dst := [4]byte{8, 8, 8, 8}
+
+	var (
+		denyWellKnown  = sdfRuleIPv4(dst, 32, 0, 1023, protoUDP, SdfActionDeny)
+		allowWellKnown = sdfRuleIPv4(dst, 32, 0, 1023, protoUDP, SdfActionAllow)
+		denyAnyPort    = sdfRuleIPv4(dst, 32, 0, 0, protoUDP, SdfActionDeny)
+	)
+
+	tests := []struct {
+		name     string
+		rules    []SdfRule
+		dport    uint16
+		wantDrop bool
+	}{
+		{"deny 0-1023 drops a port inside the range", []SdfRule{denyWellKnown}, 53, true},
+		{"deny 0-1023 does not match a port above it", []SdfRule{denyWellKnown}, 8080, false},
+		{"allow 0-1023 does not shadow the deny that follows it", []SdfRule{allowWellKnown, denyAnyPort}, 8080, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			putSDFFilter(t, obj, filterIndex, tc.rules)
+
+			before := DropCount(obj, Uplink, "sdf_filter")
+
+			inner := innerIPv4UDP(dst, tc.dport)
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+			denied := DropCount(obj, Uplink, "sdf_filter") - before
+
+			if tc.wantDrop {
+				if action != ActionDrop || denied != 1 {
+					t.Fatalf("port %d: got XDP action %d with %d SDF denials, want ActionDrop (%d) with 1", tc.dport, action, denied, ActionDrop)
+				}
+
+				return
+			}
+
+			if denied != 0 {
+				t.Fatalf("port %d: packet denied by the SDF filter, want the rule not to match", tc.dport)
+			}
+
+			if action == ActionDrop {
+				t.Fatalf("port %d: allowed packet was dropped", tc.dport)
+			}
+
+			if !bytes.Equal(out[ethHdrLen:], inner) {
+				t.Fatalf("allowed inner packet altered:\n got %x\nwant %x", out[ethHdrLen:], inner)
+			}
+		})
+	}
+}
+
 // sdfRuleIPv4 builds an SDF rule for an IPv4 remote prefix, port range, and
 // protocol. A prefixLen or port bound of 0 is a wildcard in the data plane.
 func sdfRuleIPv4(remote [4]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule {
@@ -328,5 +395,80 @@ func putSDFFilter(t *testing.T, obj *BpfObjects, index uint32, rules []SdfRule) 
 
 	if err := obj.PutSdfFilterList(index, list); err != nil {
 		t.Fatalf("install SDF filter: %v", err)
+	}
+}
+
+// TestSdfFilterListRoundTrip: a slot reads back as written, and releasing it
+// zeroes it — a released slot keeping its rules would enforce them for whichever
+// policy is handed the index next.
+func TestSdfFilterListRoundTrip(t *testing.T) {
+	requireProgTestRun(t)
+
+	const index = 7
+
+	obj := loadN3N6Program(t)
+
+	rules := []SdfRule{
+		sdfRuleIPv4([4]byte{8, 8, 8, 8}, 32, 53, 53, 17, SdfActionDeny),
+		sdfRuleIPv4([4]byte{1, 1, 1, 1}, 32, 0, 0, SdfProtoAny, SdfActionAllow),
+	}
+
+	putSDFFilter(t, obj, index, rules)
+
+	var stored SdfFilterList
+	if err := obj.SdfFilters.Lookup(uint32(index), &stored); err != nil {
+		t.Fatalf("read back filter list: %v", err)
+	}
+
+	if stored.NumRules != uint8(len(rules)) {
+		t.Errorf("NumRules = %d, want %d", stored.NumRules, len(rules))
+	}
+
+	if stored.Rules[0] != rules[0] || stored.Rules[1] != rules[1] {
+		t.Errorf("rules altered in the round trip:\n got %+v\nwant %+v", stored.Rules[:2], rules)
+	}
+
+	if err := obj.DeleteSdfFilterList(index); err != nil {
+		t.Fatalf("delete filter list: %v", err)
+	}
+
+	var cleared SdfFilterList
+	if err := obj.SdfFilters.Lookup(uint32(index), &cleared); err != nil {
+		t.Fatalf("read back cleared slot: %v", err)
+	}
+
+	if cleared != (SdfFilterList{}) {
+		t.Errorf("released slot still holds state: %+v", cleared)
+	}
+}
+
+// TestSdfFilterListLayout pins the Go mirror of struct sdf_filter_list under
+// both views: writes go through unsafe.Pointer, reads through encoding/binary,
+// which ignores implicit padding and fails with "doesn't consume all data".
+func TestSdfFilterListLayout(t *testing.T) {
+	var (
+		rule SdfRule
+		list SdfFilterList
+	)
+
+	const (
+		ruleSize = 32                       // sizeof(struct sdf_rule)
+		listSize = 4 + MaxRulesPerFilter*32 // sizeof(struct sdf_filter_list)
+	)
+
+	if got := unsafe.Sizeof(rule); got != ruleSize {
+		t.Errorf("unsafe.Sizeof(SdfRule) = %d, want %d", got, ruleSize)
+	}
+
+	if got := binary.Size(rule); got != ruleSize {
+		t.Errorf("binary.Size(SdfRule) = %d, want %d: some padding is implicit", got, ruleSize)
+	}
+
+	if got := unsafe.Sizeof(list); got != listSize {
+		t.Errorf("unsafe.Sizeof(SdfFilterList) = %d, want %d", got, listSize)
+	}
+
+	if got := binary.Size(list); got != listSize {
+		t.Errorf("binary.Size(SdfFilterList) = %d, want %d: some padding is implicit", got, listSize)
 	}
 }

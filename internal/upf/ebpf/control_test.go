@@ -230,3 +230,123 @@ func TestRouterSolicitationIntercept(t *testing.T) {
 		t.Errorf("RS event UE IPv6 = %x, want %x", ev.UEIPv6, testUEv6)
 	}
 }
+
+// readRSEvent returns the RS event on the ring buffer, or nil if none arrives.
+func readRSEvent(t *testing.T, rd *ringbuf.Reader) *RSEvent {
+	t.Helper()
+
+	rd.SetDeadline(time.Now().Add(time.Second))
+
+	rec, err := rd.Read()
+	if err != nil {
+		return nil
+	}
+
+	var ev RSEvent
+	if err := binary.Read(bytes.NewReader(rec.RawSample), binary.NativeEndian, &ev); err != nil {
+		t.Fatalf("decode RS event: %v", err)
+	}
+
+	return &ev
+}
+
+// assertRSIntercepted requires inner to be intercepted as an RS from ueSrc.
+func assertRSIntercepted(t *testing.T, obj *BpfObjects, teid uint32, inner []byte, ueSrc [16]byte) {
+	t.Helper()
+
+	rd, err := ringbuf.NewReader(obj.RsEventMap)
+	if err != nil {
+		t.Fatalf("open rs_event ring buffer: %v", err)
+	}
+
+	defer func() { _ = rd.Close() }()
+
+	if action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner)); action != ActionDrop {
+		t.Fatalf("Router Solicitation not intercepted: got XDP action %d, want ActionDrop (%d)", action, ActionDrop)
+	}
+
+	ev := readRSEvent(t, rd)
+	if ev == nil {
+		t.Fatal("no RS event emitted to userspace (RA responder would never fire)")
+	}
+
+	if ev.TEID != teid {
+		t.Errorf("RS event TEID = %#x, want %#x", ev.TEID, teid)
+	}
+
+	if ev.UEIPv6 != ueSrc {
+		t.Errorf("RS event UE IPv6 = %x, want %x", ev.UEIPv6, ueSrc)
+	}
+}
+
+// TestRouterSolicitationInterceptWithN6VLAN: the inband tag on XDP leaves
+// eth | vlan | inner, moving the ICMPv6 header 4 bytes out. A fixed offset from
+// the frame start lands in the inner destination address, and no UE in this
+// configuration completes SLAAC.
+func TestRouterSolicitationInterceptWithN6VLAN(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x52530002
+
+	obj := loadProgramConfig(t, false, false, 0, 1, 0, 100)
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	assertRSIntercepted(t, obj, teid, innerIPv6ICMPv6RS(testUEv6), testUEv6)
+}
+
+// TestRouterSolicitationInterceptBehindExtensionHeader: the ICMPv6 header is
+// past the chain, and nexthdr names the option header.
+func TestRouterSolicitationInterceptBehindExtensionHeader(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid          = 0x52530003
+		protoHopByHop = 0
+		protoICMPv6   = 58
+	)
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	allRouters := [16]byte{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02}
+	rs := []byte{133, 0, 0, 0, 0, 0, 0, 0}
+	inner := ipv6Packet(testUEv6, allRouters, protoHopByHop, append(hopByHopHeader(protoICMPv6), rs...))
+
+	assertRSIntercepted(t, obj, teid, inner, testUEv6)
+}
+
+// TestICMPv6EchoNotMisreadAsRouterSolicitation is the inverse: the untagged
+// offset lands on daddr byte 12, so a UE could have any ICMPv6 packet
+// intercepted, with a UE-chosen address reported.
+func TestICMPv6EchoNotMisreadAsRouterSolicitation(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid            = 0x52530004
+		protoICMPv6     = 58
+		icmpv6EchoReq   = 128
+		rsTypeOffsetDst = 12 // where the untagged read lands in the daddr
+	)
+
+	obj := loadProgramConfig(t, false, false, 0, 1, 0, 100)
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	rd, err := ringbuf.NewReader(obj.RsEventMap)
+	if err != nil {
+		t.Fatalf("open rs_event ring buffer: %v", err)
+	}
+
+	defer func() { _ = rd.Close() }()
+
+	dst := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x99}
+	dst[rsTypeOffsetDst] = 133 // Router Solicitation, as read at the wrong offset
+
+	echo := []byte{icmpv6EchoReq, 0, 0, 0, 0, 0, 0, 0}
+	inner := ipv6Packet(testUEv6, dst, protoICMPv6, echo)
+
+	runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
+
+	if ev := readRSEvent(t, rd); ev != nil {
+		t.Errorf("ICMPv6 Echo Request reported as a Router Solicitation with UE IPv6 %x", ev.UEIPv6)
+	}
+}

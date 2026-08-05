@@ -59,6 +59,12 @@ func TestFlowReportUplink(t *testing.T) {
 		t.Errorf("flow egress ifindex = %d, want 1 (N6)", key.EgressIfindex)
 	}
 
+	// From the datapath: derived from the ingress ifindex, a shared interface
+	// or master labels every flow uplink.
+	if key.Direction != FlowDirectionUplink {
+		t.Errorf("flow direction = %d, want %d (uplink)", key.Direction, FlowDirectionUplink)
+	}
+
 	if want := IPToIn6Addr(netip.AddrFrom4(srcUE)); key.Saddr.In6U.U6Addr8 != want {
 		t.Errorf("flow saddr = %v, want %v", key.Saddr.In6U.U6Addr8, want)
 	}
@@ -164,6 +170,10 @@ func TestFlowReportDownlink(t *testing.T) {
 
 	if key.EgressIfindex != 1 {
 		t.Errorf("flow egress ifindex = %d, want 1 (N3)", key.EgressIfindex)
+	}
+
+	if key.Direction != FlowDirectionDownlink {
+		t.Errorf("flow direction = %d, want %d (downlink)", key.Direction, FlowDirectionDownlink)
 	}
 
 	if want := IPToIn6Addr(netip.AddrFrom4(serverIP)); key.Saddr.In6U.U6Addr8 != want {

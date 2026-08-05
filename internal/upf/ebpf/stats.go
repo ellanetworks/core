@@ -73,6 +73,7 @@ func readStats(bpfObjects *BpfObjects, dir Direction) (N3N6EntrypointUpfStatisti
 		total.ByteCounter.Bytes += s.ByteCounter.Bytes
 		total.PacketCounters.Rx += s.PacketCounters.Rx
 		total.PacketCounters.Tx += s.PacketCounters.Tx
+		total.PacketCounters.FragUnresolved += s.PacketCounters.FragUnresolved
 
 		for i := range s.ForwardedActions {
 			total.ForwardedActions[i] += s.ForwardedActions[i]
@@ -325,6 +326,10 @@ var dropReasonNames = [...]string{
 	"internal_write_failed",
 	"internal_map_lookup_failed",
 	"internal_tx_failed",
+	"fragment_unfilterable",
+	"exthdr_invalid",
+	"nat_quote_no_mapping",
+	"fragment_malformed",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.
@@ -339,6 +344,16 @@ func DropReasonByName(name string) (int, bool) {
 	}
 
 	return 0, false
+}
+
+// FragUnresolvedCount returns fragments with no recorded ports.
+func FragUnresolvedCount(bpfObjects *BpfObjects, dir Direction) uint64 {
+	s, ok := readStats(bpfObjects, dir)
+	if !ok {
+		return 0
+	}
+
+	return s.PacketCounters.FragUnresolved
 }
 
 // DropCount returns how many frames one direction did not forward for one

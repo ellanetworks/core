@@ -39,6 +39,7 @@ const (
 	ActiveFlowTimeout   = 30 * time.Minute
 	maxInFlightFlows    = 16384
 	flowReportTimeout   = 5 * time.Second
+	usageFlushTimeout   = 5 * time.Second
 )
 
 var bpfObjects *ebpf.BpfObjects
@@ -69,6 +70,10 @@ type UPF struct {
 	fcCancel   context.CancelFunc
 	fcScanDone chan struct{} // closed when collectExpiredFlows exits
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
+
+	// Own cancel, so Close can stop the poller and wait for its final flush.
+	usageCancel context.CancelFunc
+	usageDone   chan struct{} // closed when monitorUsage exits
 
 	// Differs from the configured mode when config.DatapathChain falls back.
 	// Written once in Start, before this struct is returned.
@@ -119,8 +124,6 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	}
 
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
-
-	engine.SetN3InterfaceIndex(n3Iface.Index)
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -206,7 +209,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
-	go upf.monitorUsage(30*time.Second, ctx.Done())
+	upf.startUsageMonitor(ctx, 30*time.Second)
 
 	go upf.listenForMissingNeighbours() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
@@ -224,6 +227,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
+	u.stopUsageMonitor()
 
 	// Resource cleanup: BPF detach, object close, perf reader close.
 	// These are kernel-level operations that are normally fast, but run
@@ -569,6 +573,39 @@ func (u *UPF) listenForTrafficNotifications() {
 	}
 }
 
+// startUsageMonitor launches the periodic usage poller.
+func (u *UPF) startUsageMonitor(ctx context.Context, interval time.Duration) {
+	uctx, cancel := context.WithCancel(ctx)
+
+	u.usageCancel = cancel
+	u.usageDone = make(chan struct{})
+
+	done := u.usageDone
+
+	go func() {
+		defer close(done)
+
+		u.monitorUsage(interval, uctx.Done())
+	}()
+}
+
+// stopUsageMonitor stops the usage poller and waits for its final flush. Must
+// run before the BPF objects close: stop and the ticker can both be ready, and
+// Go picks between them uniformly.
+func (u *UPF) stopUsageMonitor() {
+	if u.usageCancel == nil {
+		return
+	}
+
+	u.usageCancel()
+
+	select {
+	case <-u.usageDone:
+	case <-time.After(usageFlushTimeout + time.Second):
+		logger.UpfLog.Warn("Usage flush timed out at shutdown; some usage may be unreported")
+	}
+}
+
 func (u *UPF) monitorUsage(interval time.Duration, stop <-chan struct{}) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -576,23 +613,40 @@ func (u *UPF) monitorUsage(interval time.Duration, stop <-chan struct{}) {
 	for {
 		select {
 		case <-ticker.C:
-			err := u.pollUsageAndResetCounters()
+			err := u.pollUsageAndResetCounters(u.ctx)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to poll usage and reset counters", zap.Error(err))
 			}
 		case <-stop:
+			// Drains what was accounted since the last tick; counters are read
+			// and reset together, so this cannot double-count. Own context,
+			// since u.ctx is already cancelled and reporting reaches the SMF
+			// and the database.
+			u.flushUsageAtShutdown()
+
 			return
 		}
 	}
 }
 
-func (u *UPF) pollUsageAndResetCounters() error {
+// flushUsageAtShutdown drains the counters one last time, bounded so a slow
+// reporter cannot hold up shutdown.
+func (u *UPF) flushUsageAtShutdown() {
+	ctx, cancel := context.WithTimeout(context.Background(), usageFlushTimeout)
+	defer cancel()
+
+	if err := u.pollUsageAndResetCounters(ctx); err != nil {
+		logger.UpfLog.Warn("Failed to flush usage counters at shutdown", zap.Error(err))
+	}
+}
+
+func (u *UPF) pollUsageAndResetCounters(ctx context.Context) error {
 	if u.se == nil {
 		return fmt.Errorf("PFCP connection is nil")
 	}
 
 	for localSeid, session := range u.se.ListSessions() {
-		u.flushUsageForSession(u.ctx, localSeid, session)
+		u.flushUsageForSession(ctx, localSeid, session)
 	}
 
 	return nil
@@ -698,31 +752,50 @@ func (u *UPF) listenForMissingNeighbours() {
 // is full the report is dropped and counted. This ensures that BPF-map cleanup
 // is never delayed by a slow reporter.
 //
-// NOTE (TOCTOU): There is an inherent race between the Iterate snapshot and
-// the subsequent BatchDelete. The eBPF XDP program may update a flow's byte or
-// packet counters after the value has been read by Iterate but before it is
-// removed by BatchDelete. The deleted entry will therefore contain a slightly
+// NOTE (TOCTOU): There is an inherent race between the scan and the subsequent
+// BatchDelete. The eBPF XDP program may update a flow's byte or packet counters
+// after the value has been read but before it is removed. The deleted entry will therefore contain a slightly
 // stale counter. This inaccuracy is accepted as a reasonable trade-off to
 // avoid per-key Lookup+Delete syscall pairs that would double the map load.
 func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flowReport) {
+	const scanBatch = 1024
+
 	var (
-		key          ebpf.N3N6EntrypointFlow
-		value        ebpf.N3N6EntrypointFlowStats
+		keys         = make([]ebpf.N3N6EntrypointFlow, scanBatch)
+		values       = make([]ebpf.N3N6EntrypointFlowStats, scanBatch)
 		expiredKeys  []ebpf.N3N6EntrypointFlow
 		expiredFlows []flowReport
+		cursor       bpf.MapBatchCursor
 		dropped      int
 	)
 
-	iter := u.se.BpfObjects.FlowStats.Iterate()
-	for iter.Next(&key, &value) {
-		if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
-			expiredKeys = append(expiredKeys, key)
-			expiredFlows = append(expiredFlows, flowReport{flow: key, stats: value})
-		}
-	}
+	// The batch cursor is a bucket index. Iterate() resumes from a key, and
+	// under LRU pressure an evicted one restarts the walk at bucket 0, which
+	// re-yields a prefix of the map and reports those flows twice.
+	for {
+		n, err := u.se.BpfObjects.FlowStats.BatchLookup(&cursor, keys, values, nil)
 
-	if err := iter.Err(); err != nil {
-		logger.UpfLog.Warn("Flow entry iteration failed", zap.Error(err))
+		for i := range n {
+			value := values[i]
+			if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
+				expiredKeys = append(expiredKeys, keys[i])
+				expiredFlows = append(expiredFlows, flowReport{flow: keys[i], stats: value})
+			}
+		}
+
+		if err != nil {
+			if !errors.Is(err, bpf.ErrKeyNotExist) {
+				logger.UpfLog.Warn("Flow entry scan failed", zap.Error(err))
+			}
+
+			break
+		}
+
+		// Completion is signalled with ENOENT, so this is belt and
+		// braces against a cursor that stops advancing.
+		if n == 0 {
+			break
+		}
 	}
 
 	if len(expiredKeys) == 0 {
@@ -731,10 +804,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 
 	// Delete from the BPF map immediately so the kernel can reuse the slots
 	// as fast as possible, before we spend time forwarding reports.
-	count, err := u.se.BpfObjects.FlowStats.BatchDelete(expiredKeys, &bpf.BatchOptions{})
-	if err != nil {
-		logger.UpfLog.Warn("Failed to delete expired flow entries", zap.Error(err))
-	}
+	count := u.deleteFlowKeys(expiredKeys)
 
 	logger.UpfLog.Debug("Deleted expired flow entries", zap.Int("count", count))
 
@@ -753,6 +823,33 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 		flowReportsDropped.Add(float64(dropped))
 		logger.UpfLog.Warn("Dropped flow reports: reporter channel full", zap.Int("dropped", dropped))
 	}
+}
+
+// deleteFlowKeys removes the given keys and returns how many were deleted.
+//
+// A batch delete stops at the first key it cannot find, so each failure skips
+// one key and resumes: one key evicted between the scan and here otherwise
+// strands the rest, and they are reported again next sweep.
+func (u *UPF) deleteFlowKeys(keys []ebpf.N3N6EntrypointFlow) int {
+	deleted := 0
+
+	for len(keys) > 0 {
+		n, err := u.se.BpfObjects.FlowStats.BatchDelete(keys, &bpf.BatchOptions{})
+		deleted += n
+
+		if err == nil {
+			break
+		}
+
+		if n >= len(keys) {
+			logger.UpfLog.Warn("Failed to delete expired flow entries", zap.Error(err))
+			break
+		}
+
+		keys = keys[n+1:]
+	}
+
+	return deleted
 }
 
 func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {

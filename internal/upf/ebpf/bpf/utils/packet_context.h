@@ -22,6 +22,7 @@
 #pragma once
 
 #include "bpf/ctx/ctx.h"
+#include <stdbool.h>
 #include <bpf/bpf_helpers.h>
 #include "bpf/utils/statistics.h"
 #include <linux/if_ether.h>
@@ -68,9 +69,25 @@ struct packet_context {
 	/* Length of the GTP-U header parse_gtp consumed: mandatory header plus the
 	 * optional word and any extension headers. Drives uplink decapsulation. */
 	__u32 gtp_hdr_len;
+	__u16 l3_hdr_len;
+	__u8 l4_proto;
+	__u16 l4_sport;
+	__u16 l4_dport;
+	__be16 frag_nat_id;
+	/* IPv6 fragment identification, from the chain walk. */
+	__be32 frag_id6;
 	/* Set by drop_with()/abort_with(), read once by record_action(). */
 	enum upf_drop_reason drop_reason;
 	__u8 interface : 1;
+	__u8 l4_unavailable : 1;
+	__u8 exthdr_invalid : 1;
+	/* ctx->data is still on the fixed header. */
+	__u8 l4_resolved : 1;
+	/* Ports came from the fragment map rather than the packet, so this
+	 * fragment has none of its own to record. Distinct from l4_resolved,
+	 * which the IPv6 chain walk sets for every packet. */
+	__u8 frag_recovered : 1;
+	__u8 is_fragment : 1;
 };
 
 /* A merged buffer holds several datagrams behind one set of headers, so
@@ -84,6 +101,11 @@ static __always_inline int frame_is_merged(const struct packet_context *ctx)
 		return 0;
 
 	return ctx_gso_segs(ctx->ctx_buff) != 1;
+}
+
+static __always_inline bool ctx_action_forwards(enum ctx_action action)
+{
+	return action != CTX_ACT_DROP && action != CTX_ACT_ABORTED;
 }
 
 /* Every drop returns through one of these, so the reason reaches the counter.
@@ -181,7 +203,7 @@ egress_vlan_reflected(const struct packet_context *ctx)
 static __always_inline int record_action(struct packet_context *ctx,
 					 enum ctx_action action)
 {
-	if (action == CTX_ACT_DROP || action == CTX_ACT_ABORTED)
+	if (!ctx_action_forwards(action))
 		ctx->statistics->drop_reasons[ctx->drop_reason &
 					      UPF_DROP_REASON_MASK] += 1;
 	else

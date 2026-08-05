@@ -31,8 +31,13 @@ type SessionEngine struct {
 	BpfObjects              *ebpf.BpfObjects
 	FteIDResourceManager    *FteIDResourceManager
 	SdfIndexAllocator       *SdfIndexAllocator
-	filterMu                sync.RWMutex
-	filtersByKey            map[string]uint32
+	// Serializes whole UpdateFilters calls. filterMu guards filtersByKey for
+	// readers and is dropped before propagation, which walks sessions and
+	// takes their locks; without this, an install and a release of the same
+	// key could interleave there and zero a slot that was just written.
+	filterOpMu   sync.Mutex
+	filterMu     sync.RWMutex
+	filtersByKey map[string]uint32
 }
 
 func (pc *SessionEngine) ListSessions() map[uint64]*Session {

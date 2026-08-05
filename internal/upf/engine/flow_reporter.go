@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net/netip"
-	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -16,16 +15,6 @@ import (
 )
 
 var bootTime = mustGetBootTime()
-
-// n3IfIndex stores the N3 interface index, used to determine flow direction.
-// Set once during UPF startup via SetN3InterfaceIndex.
-var n3IfIndex atomic.Uint32
-
-// SetN3InterfaceIndex records the N3 (radio-side) network interface index so that
-// flow direction can be derived: ingress on N3 means uplink, otherwise downlink.
-func SetN3InterfaceIndex(idx int) {
-	n3IfIndex.Store(uint32(idx))
-}
 
 // mustGetBootTime returns the wall-clock instant of boot, used to convert eBPF
 // flow timestamps (bpf_ktime_get_ns, monotonic ns since boot) to wall time.
@@ -78,9 +67,10 @@ func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6Entrypo
 	startTime := bootTime.Add(time.Duration(stats.FirstTs))
 	endTime := bootTime.Add(time.Duration(stats.LastTs))
 
-	// Determine direction: ingress on N3 means the UE originated the traffic (uplink)
+	// From the datapath: N3 and N6 may share an interface or a master, so the
+	// ingress ifindex cannot tell the sides apart.
 	direction := models.DirectionDownlink
-	if flow.IngressIfindex == n3IfIndex.Load() {
+	if flow.Direction == ebpf.FlowDirectionUplink {
 		direction = models.DirectionUplink
 	}
 

@@ -420,3 +420,122 @@ func TestDeleteSession_DeregistersFromPolicyIndex(t *testing.T) {
 		t.Error("reverse index entry not cleaned up after session deletion")
 	}
 }
+
+// TestUpdateFilters_InPlaceUpdatePropagates: an unchanged index still has to be
+// propagated. A propagation that failed partway, or a session that joined the
+// policy afterwards, is otherwise never revisited.
+func TestUpdateFilters_InPlaceUpdatePropagates(t *testing.T) {
+	eng := newTestEngine()
+	first := addSessionWithPDRs(t, eng, 100, "42")
+
+	if err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
+		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
+	}); err != nil {
+		t.Fatalf("initial UpdateFilters: %v", err)
+	}
+
+	idx := eng.resolveFilterIndex("42", models.DirectionUplink)
+	if idx == ebpf.NoFilterIndex {
+		t.Fatal("no filter index allocated")
+	}
+
+	// Joins the policy after the slot was allocated, so it carries no index.
+	second := addSessionWithPDRs(t, eng, 101, "42")
+
+	if got := second.GetPDR(1).PdrInfo.FilterMapIndex; got != ebpf.NoFilterIndex {
+		t.Fatalf("second session started at index %d, want none", got)
+	}
+
+	if err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
+		{Protocol: 6, PortLow: 443, PortHigh: 443, Action: models.Allow},
+	}); err != nil {
+		t.Fatalf("in-place UpdateFilters: %v", err)
+	}
+
+	if got := eng.resolveFilterIndex("42", models.DirectionUplink); got != idx {
+		t.Errorf("slot changed on an in-place update: got %d, want %d", got, idx)
+	}
+
+	if got := second.GetPDR(1).PdrInfo.FilterMapIndex; got != idx {
+		t.Errorf("session that joined after allocation: uplink PDR index = %d, want %d", got, idx)
+	}
+
+	if got := first.GetPDR(1).PdrInfo.FilterMapIndex; got != idx {
+		t.Errorf("session present at allocation: uplink PDR index = %d, want %d", got, idx)
+	}
+}
+
+// TestUpdateFilters_ReleasedSlotIsClearedBeforeReuse: the allocator is LIFO, so
+// the next policy is handed the slot just freed, and a PDR still pointing at it
+// would enforce that policy's rules.
+func TestUpdateFilters_ReleasedSlotIsClearedBeforeReuse(t *testing.T) {
+	eng := newTestEngine()
+	sess := addSessionWithPDRs(t, eng, 100, "42")
+
+	if err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
+		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Deny},
+	}); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	idx := eng.resolveFilterIndex("42", models.DirectionUplink)
+	if idx == ebpf.NoFilterIndex {
+		t.Fatal("no filter index allocated")
+	}
+
+	if err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, nil); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+
+	if got := sess.GetPDR(1).PdrInfo.FilterMapIndex; got != ebpf.NoFilterIndex {
+		t.Fatalf("uplink PDR index after release = %d, want none", got)
+	}
+
+	// A different policy takes the freed slot.
+	other := addSessionWithPDRs(t, eng, 200, "43")
+
+	if err := eng.UpdateFilters(context.Background(), "43", models.DirectionUplink, []models.FilterRule{
+		{Protocol: 17, PortLow: 53, PortHigh: 53, Action: models.Allow},
+	}); err != nil {
+		t.Fatalf("install for the second policy: %v", err)
+	}
+
+	if got := eng.resolveFilterIndex("43", models.DirectionUplink); got != idx {
+		t.Logf("second policy took slot %d rather than the freed %d", got, idx)
+	}
+
+	if got := sess.GetPDR(1).PdrInfo.FilterMapIndex; got != ebpf.NoFilterIndex {
+		t.Errorf("the released policy's PDR is at index %d, so it now enforces the policy that took the slot", got)
+	}
+
+	if got := other.GetPDR(1).PdrInfo.FilterMapIndex; got == ebpf.NoFilterIndex {
+		t.Error("the policy that took the slot did not reach its own PDR")
+	}
+}
+
+// TestUpdateFilters_ReleaseIsRepeatable checks that releasing twice is a no-op
+// rather than a double free of the index.
+func TestUpdateFilters_ReleaseIsRepeatable(t *testing.T) {
+	eng := newTestEngine()
+	addSessionWithPDRs(t, eng, 100, "42")
+
+	if err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
+		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
+	}); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	for i := range 2 {
+		if err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, nil); err != nil {
+			t.Fatalf("release %d: %v", i, err)
+		}
+	}
+
+	eng.SdfIndexAllocator.mu.Lock()
+	free := len(eng.SdfIndexAllocator.free)
+	eng.SdfIndexAllocator.mu.Unlock()
+
+	if want := int(ebpf.MaxSdfFilters - 1); free != want {
+		t.Errorf("free list holds %d indices after two releases, want %d", free, want)
+	}
+}

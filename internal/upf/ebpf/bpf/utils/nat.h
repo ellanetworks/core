@@ -191,6 +191,210 @@ nat_translate_icmp_quote(struct five_tuple *key, struct packet_context *ctx,
 	return nat_entry;
 }
 
+/* The egress mirror of nat_translate_icmp_quote (RFC 5508 §3.2).
+ *
+ * The quoted datagram travelled toward the UE, so its destination carries the
+ * private address — hence the reversed lookup key. ue_addr is the pre-NAT
+ * source of the error. False drops the error. */
+static __always_inline bool
+nat_translate_icmp_quote_egress(struct packet_context *ctx, __u32 ue_addr)
+{
+	struct iphdr *ip4 = detect_ip4_header(ctx);
+	if (!ip4 || ip4->ihl < 5) {
+		set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
+		return false;
+	}
+
+	/* Or a crafted error could translate another session's mapping. */
+	if (ip4->daddr != ue_addr) {
+		set_drop_reason(ctx, UPF_DROP_NAT_QUOTE_NO_MAPPING);
+		return false;
+	}
+
+	/* A quoted fragment has payload where its L4 header would be. */
+	if (ip4->frag_off & bpf_htons(IP4_FRAG_MASK)) {
+		set_drop_reason(ctx, UPF_DROP_NAT_FRAGMENT);
+		return false;
+	}
+
+	const void *msg_end = nat_icmp_msg_end(ctx);
+	if ((const void *)(ip4 + 1) > msg_end) {
+		set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
+		return false;
+	}
+
+	/* Reversed: the flow was keyed on the UE as the source. */
+	struct five_tuple key = {};
+	key.saddr = ip4->daddr;
+	key.daddr = ip4->saddr;
+
+	__u16 previous_ip_csum = ip4->check;
+	int offset = ip4->ihl * 4;
+	struct nat_entry *nat_entry = NULL;
+
+	switch (ip4->protocol) {
+	case IPPROTO_UDP: {
+		struct udphdr *udp = detect_udp_header(ctx, offset);
+		if (!udp || (const void *)(udp + 1) > msg_end) {
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
+			return false;
+		}
+
+		key.proto = ip4->protocol;
+		key.sport = udp->dest;
+		key.dport = udp->source;
+
+		nat_entry = bpf_map_lookup_elem(&nat_ct, &key);
+		if (!nat_entry || !nat_entry->ue_side) {
+			set_drop_reason(ctx, UPF_DROP_NAT_QUOTE_NO_MAPPING);
+			return false;
+		}
+
+		__u16 previous_udp_csum = udp->check;
+		__u16 previous_dport = udp->dest;
+
+		ip4->daddr = nat_entry->peer.saddr;
+		ctx->icmp->checksum = ipv4_csum_update_u32(
+			ctx->icmp->checksum, key.saddr, ip4->daddr);
+
+		udp->dest = nat_entry->peer.sport;
+		if (udp->dest != previous_dport) {
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_dport, udp->dest);
+		}
+
+		if (udp->check != 0) {
+			udp->check = ipv4_csum_update_u32(udp->check, key.saddr,
+							  ip4->daddr);
+			if (udp->dest != previous_dport) {
+				udp->check = ipv4_csum_update_u16(
+					udp->check, previous_dport, udp->dest);
+			}
+			/* Zero means "no checksum" in IPv4 UDP (RFC 768). */
+			if (udp->check == 0) {
+				udp->check = 0xFFFF;
+			}
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_udp_csum,
+				udp->check);
+		}
+
+		ip4->check = ipv4_csum_update_u32(ip4->check, key.saddr,
+						  ip4->daddr);
+		break;
+	}
+	case IPPROTO_TCP: {
+		struct tcphdr *tcp = detect_tcp_ports(ctx, offset);
+		if (!tcp || (const void *)((__u8 *)tcp + 8) > msg_end) {
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
+			return false;
+		}
+
+		key.proto = ip4->protocol;
+		key.sport = tcp->dest;
+		key.dport = tcp->source;
+
+		nat_entry = bpf_map_lookup_elem(&nat_ct, &key);
+		if (!nat_entry || !nat_entry->ue_side) {
+			set_drop_reason(ctx, UPF_DROP_NAT_QUOTE_NO_MAPPING);
+			return false;
+		}
+
+		__u16 previous_dport = tcp->dest;
+
+		ip4->daddr = nat_entry->peer.saddr;
+		ctx->icmp->checksum = ipv4_csum_update_u32(
+			ctx->icmp->checksum, key.saddr, ip4->daddr);
+
+		tcp->dest = nat_entry->peer.sport;
+		if (tcp->dest != previous_dport) {
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_dport, tcp->dest);
+		}
+
+		/* RFC 792 guarantees 8 octets, so the checksum may be absent. */
+		struct tcphdr *tcp_full = detect_tcp_check(ctx, offset);
+		if (tcp_full &&
+		    (const void *)((__u8 *)tcp_full + 18) <= msg_end) {
+			__u16 previous_tcp_csum = tcp_full->check;
+
+			tcp_full->check = ipv4_csum_update_u32(
+				tcp_full->check, key.saddr, ip4->daddr);
+			if (tcp->dest != previous_dport) {
+				tcp_full->check = ipv4_csum_update_u16(
+					tcp_full->check, previous_dport,
+					tcp->dest);
+			}
+
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_tcp_csum,
+				tcp_full->check);
+		}
+
+		ip4->check = ipv4_csum_update_u32(ip4->check, key.saddr,
+						  ip4->daddr);
+		break;
+	}
+	case IPPROTO_ICMP: {
+		struct icmphdr *icmp = detect_icmp_header(ctx, offset);
+		if (!icmp || (const void *)(icmp + 1) > msg_end) {
+			set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
+			return false;
+		}
+
+		/* The reply half of the pair the mapping was keyed on. */
+		__u8 query = nat_icmp_query_for_reply(icmp->type);
+		if (!query) {
+			set_drop_reason(ctx, UPF_DROP_NAT_QUOTE_NO_MAPPING);
+			return false;
+		}
+
+		key.proto = ip4->protocol;
+		key.identifier = icmp->un.echo.id;
+		key.type = query;
+		/* Queries are stored with code 0. */
+		key.code = 0;
+
+		nat_entry = bpf_map_lookup_elem(&nat_ct, &key);
+		if (!nat_entry || !nat_entry->ue_side) {
+			set_drop_reason(ctx, UPF_DROP_NAT_QUOTE_NO_MAPPING);
+			return false;
+		}
+
+		ip4->daddr = nat_entry->peer.saddr;
+		ctx->icmp->checksum = ipv4_csum_update_u32(
+			ctx->icmp->checksum, key.saddr, ip4->daddr);
+
+		if (icmp->un.echo.id != nat_entry->peer.identifier) {
+			__u16 previous_icmp_csum = icmp->checksum;
+			__u16 previous_id = icmp->un.echo.id;
+
+			icmp->un.echo.id = nat_entry->peer.identifier;
+			icmp->checksum = ipv4_csum_update_u16(
+				icmp->checksum, previous_id, icmp->un.echo.id);
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_id,
+				icmp->un.echo.id);
+			ctx->icmp->checksum = ipv4_csum_update_u16(
+				ctx->icmp->checksum, previous_icmp_csum,
+				icmp->checksum);
+		}
+
+		ip4->check = ipv4_csum_update_u32(ip4->check, key.saddr,
+						  ip4->daddr);
+		break;
+	}
+	default:
+		set_drop_reason(ctx, UPF_DROP_NAT_UNSUPPORTED_PROTO);
+		return false;
+	}
+
+	ctx->icmp->checksum = ipv4_csum_update_u16(ctx->icmp->checksum,
+						   previous_ip_csum, ip4->check);
+
+	return true;
+}
+
 static __always_inline struct nat_entry *
 find_origin_for_icmp(struct five_tuple *key, struct packet_context *ctx,
 		     __u32 outer_daddr)
@@ -353,9 +557,11 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 {
 	__u16 proto = ctx->ip4->protocol;
 
-	/* A fragment has no usable L4 header: the bytes at the L4 offset are
-	 * payload, and rewriting them corrupts the datagram. */
-	if (ctx->ip4->frag_off & bpf_htons(IP4_FRAG_MASK)) {
+	/* A later fragment's ports were recovered, so there is nothing here to
+	 * rewrite. */
+	const bool l4_in_packet = !ctx->l4_resolved;
+
+	if (ctx->l4_unavailable) {
 		set_drop_reason(ctx, UPF_DROP_NAT_FRAGMENT);
 		return false;
 	}
@@ -376,12 +582,44 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	ctx->ip4->check = ipv4_csum_update_u32(ctx->ip4->check, orig.saddr,
 					       ctx->ip4->saddr);
 
+	/* RFC 6864 §5.3.1: translation collapses subscribers onto one source
+	 * address, so the identification must be one this device issued. */
+	if (ctx->is_fragment) {
+		const __be16 orig_id = ctx->ip4->id;
+		__be16 new_id;
+
+		if (l4_in_packet) {
+			new_id = frag_claim_nat_id(ctx->ip4, orig.saddr,
+						   orig_id,
+						   frag_next_nat_id());
+		} else {
+			new_id = ctx->frag_nat_id;
+		}
+
+		/* Its first fragment is not translated yet, and a different
+		 * identification would break reassembly. */
+		if (new_id == 0) {
+			set_drop_reason(ctx, UPF_DROP_NAT_FRAGMENT);
+			return false;
+		}
+
+		ctx->ip4->id = new_id;
+		ctx->ip4->check = ipv4_csum_update_u16(ctx->ip4->check, orig_id,
+						       new_id);
+	}
+
 	bool tcp_new = false;
 	bool tcp_fin = false;
 	bool tcp_rst = false;
 
 	switch (proto) {
 	case IPPROTO_TCP:
+		if (!l4_in_packet) {
+			orig.sport = bpf_htons(ctx->l4_sport);
+			orig.dport = bpf_htons(ctx->l4_dport);
+			break;
+		}
+
 		if (!ctx->tcp) {
 			if (-1 == parse_tcp(ctx)) {
 				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
@@ -405,6 +643,12 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		tcp_fin = !tcp_rst && !tcp_new && ctx->tcp->fin;
 		break;
 	case IPPROTO_UDP:
+		if (!l4_in_packet) {
+			orig.sport = bpf_htons(ctx->l4_sport);
+			orig.dport = bpf_htons(ctx->l4_dport);
+			break;
+		}
+
 		if (!ctx->udp) {
 			if (-1 == parse_udp(ctx)) {
 				set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
@@ -443,7 +687,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			break;
 		}
 		/* An error is not a flow of its own, so no entry is created. */
-		return true;
+		return nat_translate_icmp_quote_egress(ctx, orig.saddr);
 	default:
 		/* Translating a protocol with no port to renumber would
 		 * collapse every UE onto one mapping per remote host. */
@@ -548,7 +792,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 			update_port(ctx, natted.sport);
 		}
 
-		if (CTX_L4_CSUM_VIA_HELPERS &&
+		if (CTX_L4_CSUM_VIA_HELPERS && l4_in_packet &&
 		    source_nat_apply_csum_helpers(ctx, orig.saddr,
 						  ctx->ip4->saddr, orig.sport,
 						  natted.sport) != 0) {
@@ -622,7 +866,7 @@ allocate:;
 		}
 	}
 
-	if (CTX_L4_CSUM_VIA_HELPERS &&
+	if (CTX_L4_CSUM_VIA_HELPERS && l4_in_packet &&
 	    source_nat_apply_csum_helpers(ctx, orig.saddr, ctx->ip4->saddr,
 					  orig.sport, natted.sport) != 0) {
 		set_drop_reason(ctx, UPF_DROP_NAT_MALFORMED);
@@ -849,6 +1093,39 @@ static __always_inline bool destination_nat_lookup(struct packet_context *ctx,
 	key.saddr = ctx->ip4->daddr;
 	key.daddr = ctx->ip4->saddr;
 	const __u32 outer_daddr = ctx->ip4->daddr;
+
+	/* A later fragment resolves to the same mapping on its recovered ports.
+	 * destination_nat_apply skips the L4 fields it does not carry. */
+	if (ctx->l4_resolved) {
+		if (proto != IPPROTO_TCP && proto != IPPROTO_UDP)
+			return false;
+
+		const __be16 dport = bpf_htons(ctx->l4_dport);
+
+		if (!nat_port_in_range(dport))
+			return false;
+
+		key.sport = dport;
+		key.dport = bpf_htons(ctx->l4_sport);
+
+		struct nat_entry *frag_origin =
+			bpf_map_lookup_elem(&nat_ct, &key);
+		if (!frag_origin || frag_origin->ue_side)
+			return false;
+
+		struct five_tuple ue_frag = frag_origin->peer;
+
+		nat_ct_mark_replied(&key, frag_origin);
+
+		x->daddr = ue_frag.saddr;
+		x->l4_id = ue_frag.sport;
+		x->has_l4_id = true;
+		x->proto = proto;
+		x->valid = true;
+
+		return true;
+	}
+
 	switch (proto) {
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {

@@ -23,6 +23,7 @@
 
 #include "bpf/ctx/ctx.h"
 #include "bpf/utils/common.h"
+#include "bpf/utils/ip_addr.h"
 #include "bpf/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
@@ -329,16 +330,22 @@ static __always_inline __s32 inner_pseudo_ip4(struct __ctx_buff *ctx,
 		(__u64)bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0));
 }
 
-/* Extension headers are not walked: an inner next-header that is not the L4
- * protocol falls back. */
+/* A chain declines to the caller's byte sum: the identity sums the fixed inner
+ * header and substitutes the upper-layer region, and a chain sits between the
+ * two, in the outer UDP payload, with no term to carry it. */
 static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 					      const struct ipv6hdr *ip6,
+					      __u8 inner_proto,
+					      __u16 inner_l3_len,
 					      const void *data_end)
 {
 	if ((const void *)(ip6 + 1) > data_end)
 		return -1;
 
-	if (!inner_l4_is_summable(ip6->nexthdr))
+	if (!inner_l4_is_summable(inner_proto))
+		return -1;
+
+	if (inner_l3_len != sizeof(*ip6))
 		return -1;
 
 	__u32 payload_len = bounded_u16(bpf_ntohs(ip6->payload_len));
@@ -347,7 +354,8 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 	if (!ctx_frame_holds(ctx, data_end, ip6, sizeof(*ip6) + payload_len))
 		return -1;
 
-	if (ip6->nexthdr == IPPROTO_UDP) {
+	if (inner_proto == IPPROTO_UDP) {
+		/* Zero means no checksum was computed. */
 		const struct udphdr *udp = (const struct udphdr *)(ip6 + 1);
 
 		if ((const void *)(udp + 1) > data_end)
@@ -360,7 +368,7 @@ static __always_inline __s32 inner_pseudo_ip6(struct __ctx_buff *ctx,
 	struct ip6_pseudo pseudo = {
 		.upper_len = bpf_htonl(payload_len),
 		.zero = { 0, 0, 0 },
-		.next_hdr = ip6->nexthdr,
+		.next_hdr = inner_proto,
 	};
 
 	__builtin_memcpy(&pseudo.src, &ip6->saddr, sizeof(struct in6_addr));
@@ -378,12 +386,14 @@ static __always_inline int
 udpv6_csum_from_headers(struct __ctx_buff *ctx, const struct in6_addr *saddr,
 			const struct in6_addr *daddr, const struct udphdr *udp,
 			__u32 udp_len, const void *tunnel, __u32 tunnel_len,
-			int inner_is_ip6, const void *data_end)
+			int inner_is_ip6, __u8 inner_proto, __u16 inner_l3_len,
+			const void *data_end)
 {
 	const void *inner = (const void *)((const __u8 *)tunnel + tunnel_len);
 
 	__s32 not_pseudo_inner =
-		inner_is_ip6 ? inner_pseudo_ip6(ctx, inner, data_end) :
+		inner_is_ip6 ? inner_pseudo_ip6(ctx, inner, inner_proto,
+						inner_l3_len, data_end) :
 			       inner_pseudo_ip4(ctx, inner, data_end);
 	if (not_pseudo_inner < 0)
 		return -1;

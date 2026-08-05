@@ -14,8 +14,6 @@
 
 #define __ctx_buff __sk_buff
 
-/* cilium/ebpf resolves the "tcx/ingress" prefix to BPF_TCX_INGRESS; the bare
- * "tc"/"classifier" names carry attach type 0. */
 #define CTX_DP_SEC(name) SEC("tcx/ingress/" name)
 
 /* Covers the deepest direct write: Ethernet (14) + VLAN (4) + IPv4 with

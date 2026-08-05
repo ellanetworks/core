@@ -82,8 +82,9 @@ struct sdf_rule {
 	struct in6_addr
 		remote_ip; /* ::ffff:x.x.x.x for IPv4, native for IPv6; all zeros = wildcard */
 	__u8 prefix_len; /* 0 = wildcard (matches all); 0-32 for IPv4, 0-128 for IPv6 */
-	__u16 port_low; /* dest port range low bound; 0 = wildcard */
-	__u16 port_high; /* dest port range high bound; 0 = wildcard */
+	/* Inclusive. Only low == high == 0 is the wildcard (SDF_PORT_ANY). */
+	__u16 port_low;
+	__u16 port_high;
 	__u8 protocol; /* IP protocol; SDF_PROTO_ANY (255) = wildcard */
 	__u8 action; /* 0 = allow, 1 = deny */
 	__u8 pad[7]; /* padding to 32 bytes for verifier-friendly array indexing */
@@ -114,14 +115,13 @@ enum gate_status {
 	GATE_STATUS_RESERVED2 = 3,
 };
 
+/* The rate limiter's window lives in qer_windows, keyed by (SEID, QER ID). */
 struct qer_info {
 	__u8 ul_gate_status;
 	__u8 dl_gate_status;
 	__u8 qfi;
 	__u64 ul_maximum_bitrate;
 	__u64 dl_maximum_bitrate;
-	volatile __u64 ul_start;
-	volatile __u64 dl_start;
 };
 
 struct pdr_info {
@@ -129,6 +129,8 @@ struct pdr_info {
 	__u64 imsi;
 	__u32 pdr_id;
 	__u32 urr_id;
+	/* With local_seid, the key into qer_windows. */
+	__u32 qer_id;
 	__u8 outer_header_removal;
 	__u8 pad[3]; /* explicit padding */
 	struct far_info far;
