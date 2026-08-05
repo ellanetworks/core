@@ -18,7 +18,7 @@ func TestQosForPolicyDNSeparatesUEAndSessionAMBR(t *testing.T) {
 	pol := &db.Policy{ID: "p1", Var5qi: 7, Arp: 15, SessionAmbrUplink: "30 Mbps", SessionAmbrDownlink: "60 Mbps"}
 	dn := &db.DataNetwork{Name: "enterprise", IPv4Pool: "10.46.0.0/16"}
 
-	qos, err := qosForPolicyDN(profile, pol, dn)
+	qos, err := qosForPolicyDN(profile, pol, dn, models.Snssai{Sst: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

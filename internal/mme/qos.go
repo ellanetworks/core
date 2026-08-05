@@ -31,6 +31,11 @@ type EpsQoS struct {
 	DNS        string // data-network DNS server, advertised to the UE via PCO
 	MTU        uint16
 	Allow4G    bool
+	// Snssai is the slice the policy binds the PDN connection to. EPS has no
+	// slice of its own; it is resolved here so the PDN connection can be
+	// transferred to 5GS (TS 23.501 §5.15.7.1) and is signalled to the UE in the
+	// PCO S-NSSAI container.
+	Snssai models.Snssai
 }
 
 // ResolveQoS maps the subscriber's profile → policy → data network to the EPS
@@ -89,7 +94,12 @@ func ResolveQoSByAPN(ctx context.Context, m *MME, imsi, apn string) (*EpsQoS, er
 		}
 
 		if dn.Name == apn {
-			return qosForPolicyDN(profile, &policies[i], dn)
+			snssai, err := sliceSnssai(ctx, m, policies[i].SliceID)
+			if err != nil {
+				return nil, err
+			}
+
+			return qosForPolicyDN(profile, &policies[i], dn, snssai)
 		}
 	}
 
@@ -102,12 +112,32 @@ func qosForPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Poli
 		return nil, fmt.Errorf("get data network: %w", err)
 	}
 
-	return qosForPolicyDN(profile, pol, dn)
+	snssai, err := sliceSnssai(ctx, m, pol.SliceID)
+	if err != nil {
+		return nil, err
+	}
+
+	return qosForPolicyDN(profile, pol, dn, snssai)
+}
+
+// sliceSnssai resolves the S-NSSAI of the network slice a policy binds to.
+func sliceSnssai(ctx context.Context, m *MME, sliceID string) (models.Snssai, error) {
+	slice, err := m.Bearer.GetNetworkSliceByID(ctx, sliceID)
+	if err != nil {
+		return models.Snssai{}, fmt.Errorf("get network slice: %w", err)
+	}
+
+	out := models.Snssai{Sst: slice.Sst}
+	if slice.Sd != nil {
+		out.Sd = *slice.Sd
+	}
+
+	return out, nil
 }
 
 // The configured rates are parsed here, at the edge of the policy layer, so
 // nothing downstream handles the text form.
-func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) (*EpsQoS, error) {
+func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork, snssai models.Snssai) (*EpsQoS, error) {
 	ueAmbrDL, err := models.ParseBitRate(profile.UeAmbrDownlink)
 	if err != nil {
 		return nil, fmt.Errorf("profile UE-AMBR downlink: %w", err)
@@ -142,6 +172,7 @@ func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) (*E
 		DNS:        dn.DNS,
 		MTU:        uint16(dn.MTU),
 		Allow4G:    profile.Allow4G,
+		Snssai:     snssai,
 	}, nil
 }
 

@@ -122,6 +122,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedPDNType = uint8(eps.PDNTypeIPv4)
 	ue.RequestedAPN = ""
 	ue.RequestedPTI = 0
+	ue.RequestedPDUSessionID = 0
 
 	// A syntactically incorrect optional element leaves the rest of the message
 	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the
@@ -136,7 +137,26 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 		if pc.AccessPointName != nil {
 			ue.RequestedAPN = string(*pc.AccessPointName)
 		}
+
+		ue.RequestedPDUSessionID = requestedPDUSessionID(pc)
 	}
+}
+
+// requestedPDUSessionID returns the PDU session identity a UE supporting N1 mode
+// allocated for the PDN connection and sent in the PCO (TS 24.301 §6.5.1.2), or
+// 0 when it sent none. Without it the PDN connection cannot be transferred to
+// 5GS (TS 23.502 §4.11.2.3 step 9).
+func requestedPDUSessionID(pc *eps.PDNConnectivityRequest) uint8 {
+	if pc.ProtocolConfigurationOptions == nil {
+		return 0
+	}
+
+	id, ok := pc.ProtocolConfigurationOptions.PDUSessionID()
+	if !ok {
+		return 0
+	}
+
+	return id
 }
 
 // isNativeGUTI reports whether a GUTI was assigned by this MME (its serving PLMN

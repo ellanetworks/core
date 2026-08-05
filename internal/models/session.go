@@ -69,18 +69,26 @@ type FTEID struct {
 // 3 IPv4v6, TS 24.301 §9.9.4.10).
 type EPSBearerRequest struct {
 	IMSI string
-	// EPSBearerIdentity is the default bearer's EBI (5..15), which the SMF uses as
-	// the PDU session id keying this PDN connection so one IMSI can hold several.
+	// EPSBearerIdentity is the default bearer's EBI (5..15), which names this PDN
+	// connection so one IMSI can hold several.
 	EPSBearerIdentity uint8
-	PolicyID          string // policy DB ID, so the UPF binds the session to its network rules
-	APN               string
-	AMBRUplink        BitRate
-	AMBRDownlink      BitRate
-	IPv4Pool          string
-	IPv6Pool          string
-	DNS               string
-	MTU               uint16
-	RequestedPDNType  uint8
+	// PDUSessionID is the 5GS PDU session identity the UE allocated for this PDN
+	// connection and sent in the PCO, or 0 when it sent none (TS 23.501
+	// §5.17.2.1). It is what correlates the PDN connection with a PDU session on
+	// inter-system mobility.
+	PDUSessionID uint8
+	// Snssai is the slice the PDN connection belongs to, resolved from the
+	// policy. EPS does not signal it, but the anchor holds one for every session.
+	Snssai           *Snssai
+	PolicyID         string // policy DB ID, so the UPF binds the session to its network rules
+	APN              string
+	AMBRUplink       BitRate
+	AMBRDownlink     BitRate
+	IPv4Pool         string
+	IPv6Pool         string
+	DNS              string
+	MTU              uint16
+	RequestedPDNType uint8
 }
 
 // EPSBearer is the result of establishing a default bearer: the negotiated PDN

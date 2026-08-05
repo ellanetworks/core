@@ -34,7 +34,7 @@ type SessionRequest struct {
 	Supi     etsi.SUPI
 	Identity SessionIdentity
 	Dnn      string
-	Snssai   *models.Snssai // nil for 4G
+	Snssai   *models.Snssai
 	Access   AccessType
 	PDUType  uint8 // the negotiated PDU/PDN type
 	Policy   *Policy

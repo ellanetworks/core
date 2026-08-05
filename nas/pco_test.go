@@ -179,3 +179,71 @@ func TestPCOTwoOctetLengthContainers(t *testing.T) {
 		t.Fatalf("uplink containers = %+v", up.Containers)
 	}
 }
+
+// TestPDUSessionIDContainer covers the identity a UE supporting N1 mode sends at
+// PDN connection establishment (TS 24.008 §10.5.6.3 container 001AH), including
+// the malformed cases that must read as absent rather than as identity 0.
+func TestPDUSessionIDContainer(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content []byte
+		want    uint8
+		wantOK  bool
+	}{
+		{"present", []byte{5}, 5, true},
+		{"empty content", []byte{}, 0, false},
+		{"over-long content", []byte{5, 0}, 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wire, err := ProtocolConfigurationOptions{
+				ConfigProtocol: PCOConfigProtocolPPP,
+				Direction:      PCOMSToNetwork,
+				Containers:     []PCOContainer{{ID: PCOContainerPDUSessionID, Content: tc.content}},
+			}.MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			p, err := ParseProtocolConfigurationOptions(wire, PCOMSToNetwork)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got, ok := p.PDUSessionID()
+			if got != tc.want || ok != tc.wantOK {
+				t.Errorf("PDUSessionID() = %d, %v; want %d, %v", got, ok, tc.want, tc.wantOK)
+			}
+		})
+	}
+
+	var none ProtocolConfigurationOptions
+	if _, ok := none.PDUSessionID(); ok {
+		t.Error("PDUSessionID() on an element with no containers reports present")
+	}
+}
+
+// TestNewSNSSAIContainer pins the layout of container 001BH: one S-NSSAI value
+// followed by one PLMN identity (TS 24.008 §10.5.6.3).
+func TestNewSNSSAIContainer(t *testing.T) {
+	c, err := NewSNSSAIContainer([]byte{0x01, 0x10, 0x20, 0x30}, PLMN{MCC: "001", MNC: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c.ID != PCOContainerSNSSAI {
+		t.Errorf("container id = %#04x, want %#04x", c.ID, PCOContainerSNSSAI)
+	}
+
+	want := []byte{0x01, 0x10, 0x20, 0x30, 0x00, 0xf1, 0x10}
+	if !bytes.Equal(c.Content, want) {
+		t.Errorf("content = % x, want % x", c.Content, want)
+	}
+
+	if _, err := NewSNSSAIContainer(nil, PLMN{MCC: "001", MNC: "01"}); err == nil {
+		t.Error("NewSNSSAIContainer(nil, ...) = nil error, want an error")
+	}
+
+	if _, err := NewSNSSAIContainer([]byte{0x01}, PLMN{MCC: "1", MNC: "01"}); err == nil {
+		t.Error("NewSNSSAIContainer with a malformed PLMN = nil error, want an error")
+	}
+}

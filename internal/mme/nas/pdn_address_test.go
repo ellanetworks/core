@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -17,10 +18,27 @@ import (
 
 // activateFromAccept unprotects an Attach Accept and decodes the embedded
 // Activate Default EPS Bearer Context Request.
+// testSnssai is the slice the test bearer store binds every policy to.
+var testSnssai = models.Snssai{Sst: 1, Sd: "102030"}
+
+// wantSnssaiContainer is the PCO S-NSSAI container the MME appends to every
+// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.501 §6.1.4.2): the S-NSSAI
+// value part followed by the serving PLMN, MCC 001 MNC 01.
+func wantSnssaiContainer(t *testing.T) nas.PCOContainer {
+	t.Helper()
+
+	c, err := nas.NewSNSSAIContainer([]byte{0x01, 0x10, 0x20, 0x30}, nas.PLMN{MCC: "001", MNC: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return c
+}
+
 func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400, Snssai: testSnssai})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +70,7 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 	testPDN(ue).PdnType = eps.PDNTypeIPv4
 	testPDN(ue).UeIP = testUEIP
 
-	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400, Snssai: testSnssai})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +102,8 @@ func TestAttachAcceptDNSPCO(t *testing.T) {
 	activate := activateFromAccept(t, m, ue)
 
 	want := nas.NewProtocolConfigurationOptions([][]byte{{8, 8, 8, 8}}, 1400)
+	want.Containers = append(want.Containers, wantSnssaiContainer(t))
+
 	if !reflect.DeepEqual(activate.ProtocolConfigurationOptions, &want) {
 		t.Fatalf("PCO = %+v, want %+v", activate.ProtocolConfigurationOptions, want)
 	}
@@ -103,6 +123,7 @@ func TestAttachAcceptIPv6NoLinkMTU(t *testing.T) {
 
 	dns := netip.MustParseAddr("2001:4860:4860::8888").As16()
 	want := nas.NewProtocolConfigurationOptions([][]byte{dns[:]}, 0)
+	want.Containers = append(want.Containers, wantSnssaiContainer(t))
 
 	if !reflect.DeepEqual(activate.ProtocolConfigurationOptions, &want) {
 		t.Fatalf("PCO = %+v, want %+v (IPv6 DNS, no IPv4 Link MTU)", activate.ProtocolConfigurationOptions, want)

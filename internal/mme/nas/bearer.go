@@ -71,6 +71,8 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
+		PDUSessionID:      ue.RequestedPDUSessionID,
+		Snssai:            &qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
 		AMBRUplink:        qos.SessAmbrUL,
@@ -226,17 +228,17 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, fmt.Errorf("attach accept with no active PDN")
 	}
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI))
-	if err != nil {
-		return nil, err
-	}
-
 	operator, err := m.Operator(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	plmn := operator.PLMN()
+
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn)
+	if err != nil {
+		return nil, err
+	}
 
 	served, err := operator.ServedTAIs()
 	if err != nil {
@@ -346,9 +348,25 @@ func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	ue.Conn().SendDownlinkProtected(ctx, info)
 }
 
+// snssaiContainer builds the PCO container carrying a PDN connection's S-NSSAI
+// and the PLMN it relates to (TS 24.008 §10.5.6.3).
+func snssaiContainer(snssai models.Snssai, plmn models.PlmnID) (nas.PCOContainer, error) {
+	ie, err := snssai.NAS()
+	if err != nil {
+		return nas.PCOContainer{}, fmt.Errorf("encode S-NSSAI: %w", err)
+	}
+
+	value, err := ie.MarshalBinary()
+	if err != nil {
+		return nas.PCOContainer{}, fmt.Errorf("encode S-NSSAI: %w", err)
+	}
+
+	return nas.NewSNSSAIContainer(value, nas.PLMN{MCC: plmn.Mcc, MNC: plmn.Mnc})
+}
+
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
 // REQUEST for a PDN connection (TS 24.301 §8.3.1).
-func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) ([]byte, error) {
+func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID) ([]byte, error) {
 	apn := eps.APN(qos.APN)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -402,6 +420,19 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) (
 	}
 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+
+	// The network provides the UE with the S-NSSAI the PDN connection belongs to
+	// and the PLMN it relates to, which the UE stores against the PDU session
+	// identity it allocated and uses to move the connection to 5GS
+	// (TS 24.501 §6.1.4.2, TS 23.501 §5.15.7.1). The mapped 5GS QoS parameters
+	// that accompany it under N26 are withheld while the network advertises
+	// interworking without N26 (TS 23.501 §5.17.2.3.1).
+	snssai, err := snssaiContainer(qos.Snssai, plmn)
+	if err != nil {
+		return nil, err
+	}
+
+	pco.Containers = append(pco.Containers, snssai)
 	activate.ProtocolConfigurationOptions = &pco
 
 	// On an IPv4v6→single-stack downgrade, tell the UE which family was allowed

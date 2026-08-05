@@ -10,6 +10,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
@@ -47,6 +48,35 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) 
 	}
 
 	return models.Ambr{Uplink: req.AMBRUplink, Downlink: req.AMBRDownlink}, nil
+}
+
+// acceptUEPDUSessionID vets the PDU session identity the UE allocated for a PDN
+// connection and sent in the PCO (TS 23.501 §5.17.2.1). It returns 0 — the PDN
+// connection is then simply not transferable to 5GS, the case TS 23.502
+// §4.11.1.1 NOTE 5 already covers — when the UE sent none, sent one outside the
+// range it may allocate (TS 24.007 §11.2.3.1b), or sent one another of its live
+// sessions holds. Honouring a duplicate would give two PDN connections one
+// session key, hence one UE address.
+func (s *SMF) acceptUEPDUSessionID(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) uint8 {
+	if pduSessionID == 0 {
+		return 0
+	}
+
+	if pduSessionID > 15 {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("ignoring out-of-range PDU session id from PCO",
+			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+
+		return 0
+	}
+
+	if s.currentPDUSession(supi, pduSessionID) != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("ignoring PDU session id from PCO already held by a live session",
+			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+
+		return 0
+	}
+
+	return pduSessionID
 }
 
 // CreateEPSSession programs the user plane for a 4G default EPS bearer with the
@@ -97,8 +127,9 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	sc, addrs, err := s.establishSession(ctx, SessionRequest{
 		Supi:     supi,
-		Identity: SessionIdentity{EBI: req.EPSBearerIdentity},
+		Identity: SessionIdentity{PDUSessionID: s.acceptUEPDUSessionID(ctx, supi, req.PDUSessionID), EBI: req.EPSBearerIdentity},
 		Dnn:      req.APN,
+		Snssai:   req.Snssai,
 		Access:   Access4G,
 		PDUType:  pdnType,
 		Policy:   policy,

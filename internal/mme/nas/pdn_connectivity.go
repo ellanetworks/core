@@ -101,6 +101,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: p.Ebi,
+		PDUSessionID:      requestedPDUSessionID(req),
+		Snssai:            &qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
 		AMBRUplink:        qos.SessAmbrUL,
@@ -122,7 +124,15 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	m.FillBearer(ue, p, qos, bearer)
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(pti))
+	operator, err := m.Operator(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to read operator configuration", zap.Error(err))
+		m.ReleasePDN(ctx, ue, p)
+
+		return nasreply.Handled()
+	}
+
+	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), operator.PLMN())
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)

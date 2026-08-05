@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
@@ -202,7 +201,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	)
 
 	if ulNasTransport.SNSSAI != nil {
-		snssai = util.SnssaiToModels(*ulNasTransport.SNSSAI)
+		snssai = models.SnssaiFromNAS(*ulNasTransport.SNSSAI)
 	} else {
 		if len(ue.AllowedNssai) == 0 {
 			logger.From(ctx, logger.AmfLog).Warn("allowed nssai is empty in UE context")

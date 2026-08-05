@@ -175,6 +175,11 @@ func (fakeBearerStore) GetDataNetworkByID(_ context.Context, id string) (*db.Dat
 	return &db.DataNetwork{Name: "internet"}, nil
 }
 
+func (fakeBearerStore) GetNetworkSliceByID(_ context.Context, _ string) (*db.NetworkSlice, error) {
+	sd := "102030"
+	return &db.NetworkSlice{Sst: 1, Sd: &sd, Name: "default"}, nil
+}
+
 func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 	return &db.Operator{
 		Mcc:           "001",

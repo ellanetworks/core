@@ -162,6 +162,10 @@ type UeContext struct {
 	Ambr             *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	RequestedPDNType uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
 	RequestedAPN     string       // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
+	// RequestedPDUSessionID is the PDU session identity the UE allocated for the
+	// default bearer's PDN connection and sent in the PCO; 0 when it sent none
+	// (TS 24.301 §6.5.1.2).
+	RequestedPDUSessionID uint8
 
 	// tmsi is the M-TMSI of the GUTI assigned at attach (InvalidTMSI = none); it
 	// indexes the UE for S-TMSI-addressed procedures (Service Request, paging).

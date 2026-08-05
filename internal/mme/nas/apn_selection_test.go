@@ -105,3 +105,46 @@ func TestIngestAttachRequest_SoftIEErrorKeepsRequest(t *testing.T) {
 		t.Errorf("RequestedPTI = %d, want 5", ue.RequestedPTI)
 	}
 }
+
+// TestIngestAttachRequestExtractsPDUSessionID covers the identity leg of EPS↔5GS
+// interworking: a UE supporting N1 mode allocates a PDU session identity for the
+// PDN connection and sends it in the PCO (TS 24.301 §6.5.1.2). Without it the
+// connection cannot be transferred to 5GS.
+func TestIngestAttachRequestExtractsPDUSessionID(t *testing.T) {
+	withPSI := nas.ProtocolConfigurationOptions{
+		ConfigProtocol: nas.PCOConfigProtocolPPP,
+		Direction:      nas.PCOMSToNetwork,
+		Containers:     []nas.PCOContainer{{ID: nas.PCOContainerPDUSessionID, Content: []byte{7}}},
+	}
+
+	for _, tc := range []struct {
+		name string
+		pco  *nas.ProtocolConfigurationOptions
+		want uint8
+	}{
+		{"UE allocated one", &withPSI, 7},
+		{"no PCO at all", nil, 0},
+		{"PCO without the container", &nas.ProtocolConfigurationOptions{
+			ConfigProtocol: nas.PCOConfigProtocolPPP,
+			Direction:      nas.PCOMSToNetwork,
+			Containers:     []nas.PCOContainer{{ID: nas.PCOContainerDNSServerIPv4Address}},
+		}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			esm, err := (&eps.PDNConnectivityRequest{
+				PTI: 1, RequestType: eps.RequestTypeInitialRequest, PDNType: eps.PDNTypeIPv4,
+				ProtocolConfigurationOptions: tc.pco,
+			}).MarshalBinary()
+			if err != nil {
+				t.Fatalf("marshal PDN Connectivity Request: %v", err)
+			}
+
+			ue := &mme.UeContext{}
+			ingestAttachRequest(context.Background(), ue, &eps.AttachRequest{ESMMessageContainer: esm})
+
+			if ue.RequestedPDUSessionID != tc.want {
+				t.Errorf("RequestedPDUSessionID = %d, want %d", ue.RequestedPDUSessionID, tc.want)
+			}
+		})
+	}
+}

@@ -242,7 +242,7 @@ func BuildRegistrationAccept(
 	}
 
 	for _, s := range ue.AllowedNssai {
-		snssai, err := util.SnssaiToNas(s)
+		snssai, err := s.NAS()
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
 		}
