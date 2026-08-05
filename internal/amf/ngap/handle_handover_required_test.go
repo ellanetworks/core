@@ -5,7 +5,7 @@ package ngap_test
 
 import (
 	"context"
-	"fmt"
+	"encoding/hex"
 	"net/netip"
 	"testing"
 	"time"
@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -21,8 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapConvert"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -46,115 +44,83 @@ func (s *releaseSignalSender) WriteMsg(b []byte, info *sctp.SndRcvInfo) (int, er
 	return n, err
 }
 
-// decodeHandoverRequiredOrFatal decodes msg and fails the test only if
-// the decoder reports a fatal error. Non-fatal reports are accepted:
-// the dispatcher would invoke the handler in that case anyway.
-func decodeHandoverRequiredOrFatal(t *testing.T, msg *ngapType.HandoverRequired) decode.HandoverRequired {
+// handoverTargetGnbID is the gNB every HANDOVER REQUIRED here names, and the
+// one each test's target Radio is registered under so the AMF routes to it.
+const handoverTargetGnbID = "000102"
+
+// handoverRequired builds a HANDOVER REQUIRED naming handoverTargetGnbID as the target
+// and carrying one entry per PDU session id. Every IE is set: these tests
+// exercise the handler, and the library's own tests cover which IEs may be
+// absent.
+func handoverRequired(t *testing.T, ranID ngaplib.RANUENGAPID, sessions ...uint8) *ngaplib.HandoverRequired {
 	t.Helper()
 
-	decoded, report := decode.DecodeHandoverRequired(msg)
-	if report != nil && report.Fatal() {
-		t.Fatalf("decoder produced fatal report: %+v", report)
+	plmn, err := servedPLMNOctets()
+	if err != nil {
+		t.Fatalf("failed to get PLMN ID octets: %v", err)
 	}
 
-	return decoded
+	gnb, err := hex.DecodeString(handoverTargetGnbID)
+	if err != nil || len(gnb) != 3 {
+		t.Fatalf("target gNB ID %q is not three octets: %v", handoverTargetGnbID, err)
+	}
+
+	// HandoverRequiredTransfer fields are all optional, so an empty value is valid.
+	transfer, err := (&ngaplib.HandoverRequiredTransfer{}).Marshal()
+	if err != nil {
+		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
+	}
+
+	list := make(ngaplib.PDUSessionResourceListHORqd, 0, len(sessions))
+	for _, id := range sessions {
+		list = append(list, ngaplib.PDUSessionResourceItemHORqd{
+			PDUSessionID: ngaplib.PDUSessionID(id),
+			Transfer:     transfer,
+		})
+	}
+
+	cause := ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHandoverDesirableForRadio}
+
+	return &ngaplib.HandoverRequired{
+		AMFUENGAPID:  1,
+		RANUENGAPID:  ranID,
+		HandoverType: ngaplib.HandoverTypeIntra5GS,
+		Cause:        &cause,
+		TargetID: ngaplib.TargetID{TargetRANNodeID: ngaplib.TargetRANNodeID{
+			GlobalRANNodeID: ngaplib.GlobalRANNodeID{
+				Kind:         ngaplib.RANNodeIDGNB,
+				PLMNIdentity: ngaplib.PLMNIdentity(plmn),
+				Value:        uint32(gnb[0])<<16 | uint32(gnb[1])<<8 | uint32(gnb[2]),
+				Bits:         24,
+			},
+			SelectedTAI: ngaplib.TAI{PLMNIdentity: ngaplib.PLMNIdentity(plmn), TAC: 1},
+		}},
+		PDUSessionResourceListHORqd: list,
+		// SourceToTargetTransparentContainer is opaque and passed through unchanged.
+		SourceToTargetTransparentContainer: ngaplib.SourceToTargetTransparentContainer{0x01, 0x02, 0x03},
+	}
 }
 
-type HandoverRequiredOpts struct {
-	AMFUENGAPID ngapType.AMFUENGAPID
-	RANUENGAPID ngapType.RANUENGAPID
-
-	TargetID                           *ngapType.TargetID
-	PDUSessionResourceListHORqd        *ngapType.PDUSessionResourceListHORqd
-	SourceToTargetTransparentContainer *ngapType.SourceToTargetTransparentContainer
-}
-
-func buildHandoverRequired(opts *HandoverRequiredOpts) (ngapType.NGAPPDU, error) {
-	if opts == nil {
-		return ngapType.NGAPPDU{}, fmt.Errorf("HandoverRequiredOpts is nil")
-	}
-
-	pdu := ngapType.NGAPPDU{}
-	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
-	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
-
-	initiatingMessage := pdu.InitiatingMessage
-	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodeHandoverPreparation
-	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
-
-	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentHandoverRequired
-	initiatingMessage.Value.HandoverRequired = new(ngapType.HandoverRequired)
-
-	handoverRequired := initiatingMessage.Value.HandoverRequired
-	handoverRequiredIEs := &handoverRequired.ProtocolIEs
-
-	ie := ngapType.HandoverRequiredIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.HandoverRequiredIEsPresentAMFUENGAPID
-	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
-	ie.Value.AMFUENGAPID.Value = opts.AMFUENGAPID.Value
-	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
-
-	ie = ngapType.HandoverRequiredIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-	ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-	ie.Value.Present = ngapType.HandoverRequiredIEsPresentRANUENGAPID
-	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
-	ie.Value.RANUENGAPID.Value = opts.RANUENGAPID.Value
-	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
-
-	ie = ngapType.HandoverRequiredIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDHandoverType
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.HandoverRequiredIEsPresentHandoverType
-	ie.Value.HandoverType = new(ngapType.HandoverType)
-	ie.Value.HandoverType.Value = ngapType.HandoverTypePresentIntra5gs
-	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
-
-	ie = ngapType.HandoverRequiredIEs{}
-	ie.Id.Value = ngapType.ProtocolIEIDCause
-	ie.Criticality.Value = ngapType.CriticalityPresentReject
-	ie.Value.Present = ngapType.HandoverRequiredIEsPresentCause
-	ie.Value.Cause = new(ngapType.Cause)
-	ie.Value.Cause.Present = ngapType.CausePresentRadioNetwork
-	ie.Value.Cause.RadioNetwork = new(ngapType.CauseRadioNetwork)
-	ie.Value.Cause.RadioNetwork.Value = ngapType.CauseRadioNetworkPresentHandoverDesirableForRadioReason
-	handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
-
-	if opts.TargetID != nil {
-		ie = ngapType.HandoverRequiredIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDTargetID
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverRequiredIEsPresentTargetID
-		ie.Value.TargetID = opts.TargetID
-		handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
-	}
-
-	if opts.PDUSessionResourceListHORqd != nil {
-		ie = ngapType.HandoverRequiredIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceListHORqd
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverRequiredIEsPresentPDUSessionResourceListHORqd
-		ie.Value.PDUSessionResourceListHORqd = opts.PDUSessionResourceListHORqd
-		handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
-	}
-
-	if opts.SourceToTargetTransparentContainer != nil {
-		ie = ngapType.HandoverRequiredIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDSourceToTargetTransparentContainer
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverRequiredIEsPresentSourceToTargetTransparentContainer
-		ie.Value.SourceToTargetTransparentContainer = opts.SourceToTargetTransparentContainer
-		handoverRequiredIEs.List = append(handoverRequiredIEs.List, ie)
-	}
-
-	return pdu, nil
-}
-
+// The second case covers a HANDOVER REQUIRED with no Cause: TS 38.413 §9.2.3.1
+// makes it ignore criticality, so §10.3.5 delivers the message without it. The
+// Cause the AMF relays onward in the HANDOVER REQUEST is mandatory, so an absent
+// one must become a real cause rather than an empty CHOICE.
 func TestHandoverRequired(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		withCause bool
+	}{
+		{"with Cause", true},
+		{"without Cause", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) { testHandoverRequired(t, tt.withCause) })
+	}
+}
+
+func testHandoverRequired(t *testing.T, withCause bool) {
+	t.Helper()
+
 	const (
-		targetGnbID  = "000102"
 		pduSessionID = uint8(1)
 		supiStr      = "imsi-001010000000001"
 		dnn          = "internet"
@@ -163,63 +129,9 @@ func TestHandoverRequired(t *testing.T) {
 
 	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
-	// HandoverRequiredTransfer fields are all optional, so an empty value is valid.
-	hoRequiredTransfer := ngapType.HandoverRequiredTransfer{}
-
-	hoRequiredTransferBytes, err := aper.MarshalWithParams(hoRequiredTransfer, "valueExt")
-	if err != nil {
-		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
-	}
-
-	plmnID, err := servedPLMNOctets()
-	if err != nil {
-		t.Fatalf("failed to get PLMN ID octets: %v", err)
-	}
-
-	targetGnbBitString := ngapConvert.HexToBitString(targetGnbID, 24)
-	targetID := &ngapType.TargetID{
-		Present: ngapType.TargetIDPresentTargetRANNodeID,
-		TargetRANNodeID: &ngapType.TargetRANNodeID{
-			GlobalRANNodeID: ngapType.GlobalRANNodeID{
-				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-				GlobalGNBID: &ngapType.GlobalGNBID{
-					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-					GNBID: ngapType.GNBID{
-						Present: ngapType.GNBIDPresentGNBID,
-						GNBID:   &targetGnbBitString,
-					},
-				},
-			},
-			SelectedTAI: ngapType.TAI{
-				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
-			},
-		},
-	}
-
-	pduSessionList := &ngapType.PDUSessionResourceListHORqd{
-		List: []ngapType.PDUSessionResourceItemHORqd{
-			{
-				PDUSessionID:             ngapType.PDUSessionID{Value: int64(pduSessionID)},
-				HandoverRequiredTransfer: hoRequiredTransferBytes,
-			},
-		},
-	}
-
-	// SourceToTargetTransparentContainer is opaque and passed through unchanged.
-	sourceToTargetContainer := &ngapType.SourceToTargetTransparentContainer{
-		Value: []byte{0x01, 0x02, 0x03},
-	}
-
-	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
-		AMFUENGAPID:                        ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID:                        ngapType.RANUENGAPID{Value: 1},
-		TargetID:                           targetID,
-		PDUSessionResourceListHORqd:        pduSessionList,
-		SourceToTargetTransparentContainer: sourceToTargetContainer,
-	})
-	if err != nil {
-		t.Fatalf("failed to build HandoverRequired: %v", err)
+	msg := handoverRequired(t, 1, pduSessionID)
+	if !withCause {
+		msg.Cause = nil
 	}
 
 	smfInstance := smf.New(nil, nil, nil, nil)
@@ -280,7 +192,7 @@ func TestHandoverRequired(t *testing.T) {
 		RanPresent: amf.RanPresentGNbID,
 		RanID: &models.GlobalRanNodeID{
 			GNbID: &models.GNbID{
-				GNBValue:  targetGnbID,
+				GNBValue:  handoverTargetGnbID,
 				BitLength: 24,
 			},
 		},
@@ -288,10 +200,14 @@ func TestHandoverRequired(t *testing.T) {
 
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
+	}
+
+	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 0 {
+		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
 	}
 }
 
@@ -299,48 +215,7 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 	// Build a valid HandoverRequired message but with a RAN UE NGAP ID
 	// that doesn't exist in the RAN's UE map. The handler should send
 	// an ErrorIndication with UnknownLocalUENGAPID cause.
-	plmnID, err := servedPLMNOctets()
-	if err != nil {
-		t.Fatalf("failed to get PLMN ID octets: %v", err)
-	}
-
-	targetGnbBitString := ngapConvert.HexToBitString("000102", 24)
-	targetID := &ngapType.TargetID{
-		Present: ngapType.TargetIDPresentTargetRANNodeID,
-		TargetRANNodeID: &ngapType.TargetRANNodeID{
-			GlobalRANNodeID: ngapType.GlobalRANNodeID{
-				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-				GlobalGNBID: &ngapType.GlobalGNBID{
-					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-					GNBID: ngapType.GNBID{
-						Present: ngapType.GNBIDPresentGNBID,
-						GNBID:   &targetGnbBitString,
-					},
-				},
-			},
-			SelectedTAI: ngapType.TAI{
-				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
-			},
-		},
-	}
-
-	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
-		AMFUENGAPID: ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: ngapType.RANUENGAPID{Value: 99}, // No UE with this ID
-		TargetID:    targetID,
-		PDUSessionResourceListHORqd: &ngapType.PDUSessionResourceListHORqd{
-			List: []ngapType.PDUSessionResourceItemHORqd{
-				{PDUSessionID: ngapType.PDUSessionID{Value: 1}, HandoverRequiredTransfer: []byte{0x00}},
-			},
-		},
-		SourceToTargetTransparentContainer: &ngapType.SourceToTargetTransparentContainer{
-			Value: []byte{0x01, 0x02, 0x03},
-		},
-	})
-	if err != nil {
-		t.Fatalf("failed to build HandoverRequired: %v", err)
-	}
+	msg := handoverRequired(t, 99, 1) // No UE with this ID
 
 	sender := &fakeNGAPSender{}
 	ran := &amf.Radio{
@@ -351,7 +226,7 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -375,52 +250,10 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	// Build a valid HandoverRequired but the UE has no valid security context.
 	// The handler should send a HandoverPreparationFailure with AuthenticationFailure cause.
 	const (
-		targetGnbID  = "000102"
 		pduSessionID = uint8(1)
 	)
 
-	plmnID, err := servedPLMNOctets()
-	if err != nil {
-		t.Fatalf("failed to get PLMN ID octets: %v", err)
-	}
-
-	targetGnbBitString := ngapConvert.HexToBitString(targetGnbID, 24)
-	targetID := &ngapType.TargetID{
-		Present: ngapType.TargetIDPresentTargetRANNodeID,
-		TargetRANNodeID: &ngapType.TargetRANNodeID{
-			GlobalRANNodeID: ngapType.GlobalRANNodeID{
-				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-				GlobalGNBID: &ngapType.GlobalGNBID{
-					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-					GNBID: ngapType.GNBID{
-						Present: ngapType.GNBIDPresentGNBID,
-						GNBID:   &targetGnbBitString,
-					},
-				},
-			},
-			SelectedTAI: ngapType.TAI{
-				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
-			},
-		},
-	}
-
-	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
-		AMFUENGAPID: ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: ngapType.RANUENGAPID{Value: 1},
-		TargetID:    targetID,
-		PDUSessionResourceListHORqd: &ngapType.PDUSessionResourceListHORqd{
-			List: []ngapType.PDUSessionResourceItemHORqd{
-				{PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)}, HandoverRequiredTransfer: []byte{0x00}},
-			},
-		},
-		SourceToTargetTransparentContainer: &ngapType.SourceToTargetTransparentContainer{
-			Value: []byte{0x01, 0x02, 0x03},
-		},
-	})
-	if err != nil {
-		t.Fatalf("failed to build HandoverRequired: %v", err)
-	}
+	msg := handoverRequired(t, 1, pduSessionID)
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSecuredForTest(false)
@@ -436,7 +269,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
@@ -462,7 +295,6 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 // being left without a response (TS 38.413).
 func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	const (
-		targetGnbID  = "000102"
 		pduSessionID = uint8(1)
 		supiStr      = "imsi-001010000000001"
 		dnn          = "internet"
@@ -471,51 +303,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 
 	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
-	hoRequiredTransferBytes, err := aper.MarshalWithParams(ngapType.HandoverRequiredTransfer{}, "valueExt")
-	if err != nil {
-		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
-	}
-
-	plmnID, err := servedPLMNOctets()
-	if err != nil {
-		t.Fatalf("failed to get PLMN ID octets: %v", err)
-	}
-
-	targetGnbBitString := ngapConvert.HexToBitString(targetGnbID, 24)
-	targetID := &ngapType.TargetID{
-		Present: ngapType.TargetIDPresentTargetRANNodeID,
-		TargetRANNodeID: &ngapType.TargetRANNodeID{
-			GlobalRANNodeID: ngapType.GlobalRANNodeID{
-				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-				GlobalGNBID: &ngapType.GlobalGNBID{
-					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-					GNBID: ngapType.GNBID{
-						Present: ngapType.GNBIDPresentGNBID,
-						GNBID:   &targetGnbBitString,
-					},
-				},
-			},
-			SelectedTAI: ngapType.TAI{
-				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
-			},
-		},
-	}
-
-	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
-		AMFUENGAPID: ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: ngapType.RANUENGAPID{Value: 1},
-		TargetID:    targetID,
-		PDUSessionResourceListHORqd: &ngapType.PDUSessionResourceListHORqd{
-			List: []ngapType.PDUSessionResourceItemHORqd{
-				{PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)}, HandoverRequiredTransfer: hoRequiredTransferBytes},
-			},
-		},
-		SourceToTargetTransparentContainer: &ngapType.SourceToTargetTransparentContainer{Value: []byte{0x01, 0x02, 0x03}},
-	})
-	if err != nil {
-		t.Fatalf("failed to build HandoverRequired: %v", err)
-	}
+	msg := handoverRequired(t, 1, pduSessionID)
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 	smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
@@ -549,7 +337,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	// No target gNB registered with this AMF.
 	amfInstance.ClearRadiosForTest()
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
@@ -572,7 +360,6 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 // procedure so it no longer pins the source UE.
 func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	const (
-		targetGnbID  = "000102"
 		pduSessionID = uint8(1)
 		supiStr      = "imsi-001010000000001"
 		dnn          = "internet"
@@ -581,56 +368,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 
 	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
-	hoRequiredTransferBytes, err := aper.MarshalWithParams(ngapType.HandoverRequiredTransfer{}, "valueExt")
-	if err != nil {
-		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
-	}
-
-	plmnID, err := servedPLMNOctets()
-	if err != nil {
-		t.Fatalf("failed to get PLMN ID octets: %v", err)
-	}
-
-	targetGnbBitString := ngapConvert.HexToBitString(targetGnbID, 24)
-	targetID := &ngapType.TargetID{
-		Present: ngapType.TargetIDPresentTargetRANNodeID,
-		TargetRANNodeID: &ngapType.TargetRANNodeID{
-			GlobalRANNodeID: ngapType.GlobalRANNodeID{
-				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-				GlobalGNBID: &ngapType.GlobalGNBID{
-					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-					GNBID: ngapType.GNBID{
-						Present: ngapType.GNBIDPresentGNBID,
-						GNBID:   &targetGnbBitString,
-					},
-				},
-			},
-			SelectedTAI: ngapType.TAI{
-				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
-			},
-		},
-	}
-
-	pduSessionList := &ngapType.PDUSessionResourceListHORqd{
-		List: []ngapType.PDUSessionResourceItemHORqd{
-			{
-				PDUSessionID:             ngapType.PDUSessionID{Value: int64(pduSessionID)},
-				HandoverRequiredTransfer: hoRequiredTransferBytes,
-			},
-		},
-	}
-
-	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
-		AMFUENGAPID:                        ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID:                        ngapType.RANUENGAPID{Value: 1},
-		TargetID:                           targetID,
-		PDUSessionResourceListHORqd:        pduSessionList,
-		SourceToTargetTransparentContainer: &ngapType.SourceToTargetTransparentContainer{Value: []byte{0x01, 0x02, 0x03}},
-	})
-	if err != nil {
-		t.Fatalf("failed to build HandoverRequired: %v", err)
-	}
+	msg := handoverRequired(t, 1, pduSessionID)
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 
@@ -676,7 +414,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		Log:        logger.AmfLog,
 		Conn:       targetSender,
 		RanPresent: amf.RanPresentGNbID,
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: targetGnbID, BitLength: 24}},
+		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
 
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
@@ -684,7 +422,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	// Drive the guard quickly; the target gNB never answers the HANDOVER REQUEST.
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
@@ -705,55 +443,11 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	}
 }
 
-// TestHandoverRequired_UnsupportedTargetIDFailsToSource verifies an unservable TargetID
-// is answered with HANDOVER PREPARATION FAILURE (TS 38.413 §8.4.1.3).
-func TestHandoverRequired_UnsupportedTargetIDFailsToSource(t *testing.T) {
-	supi, _ := etsi.NewSUPIFromPrefixed("imsi-001010000000001")
-
-	amfUe := amf.NewUeContext()
-	amfUe.SetSupiForTest(supi)
-	amfUe.SetSecuredForTest(true)
-	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
-	amfUe.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
-	amfUe.SetNHForTest(make([]byte, 32))
-
-	sourceNGAPSender := &fakeNGAPSender{}
-	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sourceNGAPSender}
-	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smf.New(nil, nil, nil, nil)})
-	sourceRan.BindAMFForTest(amfInstance)
-
-	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
-	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
-
-	// A TargeteNBID target decodes cleanly but the AMF prepares only toward a RAN node.
-	msg := decode.HandoverRequired{
-		AMFUENGAPID: 1,
-		RANUENGAPID: 1,
-		TargetID:    &ngapType.TargetID{Present: ngapType.TargetIDPresentTargeteNBID},
-	}
-
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
-
-	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
-		t.Fatalf("expected 1 HandoverPreparationFailure to source, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
-	}
-
-	if got := sourceNGAPSender.SentHandoverPreparationFailures[0].Cause; got.Present != ngapType.CausePresentRadioNetwork ||
-		got.RadioNetwork == nil || got.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentHoTargetNotAllowed {
-		t.Fatalf("expected HoTargetNotAllowed RadioNetwork cause, got %+v", got)
-	}
-
-	if len(sourceNGAPSender.SentHandoverRequests) != 0 {
-		t.Fatalf("expected no HandoverRequest for an unservable target, got %d", len(sourceNGAPSender.SentHandoverRequests))
-	}
-}
-
 // TestHandoverRequired_SourceDropReleasesTarget verifies that dropping the source
 // association at the prepared stage releases the prepared target and clears the
 // N2Handover procedure at once, without waiting for the supervision guard.
 func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	const (
-		targetGnbID  = "000102"
 		pduSessionID = uint8(1)
 		supiStr      = "imsi-001010000000001"
 		dnn          = "internet"
@@ -762,47 +456,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
-	hoRequiredTransferBytes, err := aper.MarshalWithParams(ngapType.HandoverRequiredTransfer{}, "valueExt")
-	if err != nil {
-		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
-	}
-
-	plmnID, err := servedPLMNOctets()
-	if err != nil {
-		t.Fatalf("failed to get PLMN ID octets: %v", err)
-	}
-
-	targetGnbBitString := ngapConvert.HexToBitString(targetGnbID, 24)
-	targetID := &ngapType.TargetID{
-		Present: ngapType.TargetIDPresentTargetRANNodeID,
-		TargetRANNodeID: &ngapType.TargetRANNodeID{
-			GlobalRANNodeID: ngapType.GlobalRANNodeID{
-				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
-				GlobalGNBID: &ngapType.GlobalGNBID{
-					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-					GNBID: ngapType.GNBID{
-						Present: ngapType.GNBIDPresentGNBID,
-						GNBID:   &targetGnbBitString,
-					},
-				},
-			},
-			SelectedTAI: ngapType.TAI{
-				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
-				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
-			},
-		},
-	}
-
-	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
-		AMFUENGAPID:                        ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID:                        ngapType.RANUENGAPID{Value: 1},
-		TargetID:                           targetID,
-		PDUSessionResourceListHORqd:        &ngapType.PDUSessionResourceListHORqd{List: []ngapType.PDUSessionResourceItemHORqd{{PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)}, HandoverRequiredTransfer: hoRequiredTransferBytes}}},
-		SourceToTargetTransparentContainer: &ngapType.SourceToTargetTransparentContainer{Value: []byte{0x01, 0x02, 0x03}},
-	})
-	if err != nil {
-		t.Fatalf("failed to build HandoverRequired: %v", err)
-	}
+	msg := handoverRequired(t, 1, pduSessionID)
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 
@@ -836,11 +490,11 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 		Log:        logger.AmfLog,
 		Conn:       targetNGAPSender,
 		RanPresent: amf.RanPresentGNbID,
-		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: targetGnbID, BitLength: 24}},
+		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
 	}
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))

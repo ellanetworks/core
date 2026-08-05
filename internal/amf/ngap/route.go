@@ -39,6 +39,12 @@ const (
 	pduSessionResourceModifyResponseMessageType   send.NGAPProcedure = "PDUSessionResourceModifyResponse"
 	pduSessionResourceModifyIndicationMessageType send.NGAPProcedure = "PDUSessionResourceModifyIndication"
 	pduSessionResourceNotifyMessageType           send.NGAPProcedure = "PDUSessionResourceNotify"
+	handoverNotifyMessageType                     send.NGAPProcedure = "HandoverNotify"
+	handoverCancelMessageType                     send.NGAPProcedure = "HandoverCancel"
+	handoverRequiredMessageType                   send.NGAPProcedure = "HandoverRequired"
+	handoverRequestAcknowledgeMessageType         send.NGAPProcedure = "HandoverRequestAcknowledge"
+	handoverFailureMessageType                    send.NGAPProcedure = "HandoverFailure"
+	uplinkRANStatusTransferMessageType            send.NGAPProcedure = "UplinkRANStatusTransfer"
 
 	uplinkRANConfigurationTransferMessageType send.NGAPProcedure = "UplinkRANConfigurationTransfer"
 )
@@ -104,6 +110,14 @@ func routeInitiating(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		receivePDUSessionResourceModifyIndication(ctx, amfInstance, ran, msg, im, span)
 	case ngap.ProcPDUSessionResourceNotify:
 		receivePDUSessionResourceNotify(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcHandoverNotification:
+		receiveHandoverNotify(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcHandoverCancel:
+		receiveHandoverCancel(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcHandoverPreparation:
+		receiveHandoverRequired(ctx, amfInstance, ran, msg, im, span)
+	case ngap.ProcUplinkRANStatusTransfer:
+		receiveUplinkRANStatusTransfer(ctx, amfInstance, ran, msg, im, span)
 	default:
 		return false
 	}
@@ -117,6 +131,8 @@ func routeSuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 	}
 
 	switch so.ProcedureCode {
+	case ngap.ProcHandoverResourceAllocation:
+		receiveHandoverRequestAcknowledge(ctx, amfInstance, ran, msg, so, span)
 	case ngap.ProcUEContextRelease:
 		receiveUEContextReleaseComplete(ctx, amfInstance, ran, msg, so, span)
 	case ngap.ProcInitialContextSetup:
@@ -140,6 +156,8 @@ func routeUnsuccessful(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio
 	}
 
 	switch uo.ProcedureCode {
+	case ngap.ProcHandoverResourceAllocation:
+		receiveHandoverFailure(ctx, amfInstance, ran, msg, uo, span)
 	case ngap.ProcInitialContextSetup:
 		receiveInitialContextSetupFailure(ctx, amfInstance, ran, msg, uo, span)
 	default:
@@ -494,8 +512,112 @@ func receivePDUSessionResourceModifyIndication(ctx context.Context, amfInstance 
 	HandlePDUSessionResourceModifyIndication(ctx, amfInstance, ran, ind)
 }
 
-// receivePDUSessionResourceNotify parses and handles a PDU SESSION RESOURCE
-// NOTIFY (TS 38.413 §10.3.5).
+// receiveHandoverCancel parses and handles a HANDOVER CANCEL (TS 38.413
+// §8.4.5).
+func receiveHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, handoverCancelMessageType, span)
+
+	cancel, err := ngap.ParseHandoverCancel(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Handover Cancel", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcHandoverCancel, err)
+
+		return
+	}
+
+	HandleHandoverCancel(ctx, amfInstance, ran, cancel)
+}
+
+func receiveHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, handoverNotifyMessageType, span)
+
+	notify, err := ngap.ParseHandoverNotify(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Handover Notify", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcHandoverNotification, err)
+
+		return
+	}
+
+	HandleHandoverNotify(ctx, amfInstance, ran, notify)
+}
+
+// receiveHandoverRequired parses and handles a HANDOVER REQUIRED. Handover
+// Preparation defines an unsuccessful outcome, so §10.3.4.2 answers a rejected
+// message with HANDOVER PREPARATION FAILURE rather than an Error Indication —
+// but only when the rejected message still yielded the UE NGAP IDs that message
+// needs.
+func receiveHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, handoverRequiredMessageType, span)
+
+	required, err := ngap.ParseHandoverRequired(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Handover Required", zap.Error(err))
+
+		var ase *ngap.AbstractSyntaxError
+		if errors.As(err, &ase) {
+			if amfID, ranID := ase.UEIDs(); amfID != nil && ranID != nil {
+				sendHandoverPreparationProtocolFailure(ctx, ran, *amfID, *ranID, ase)
+
+				return
+			}
+		}
+
+		sendParseErrorIndication(ctx, ran, ngap.ProcHandoverPreparation, err)
+
+		return
+	}
+
+	HandleHandoverRequired(ctx, amfInstance, ran, required)
+}
+
+// receiveUplinkRANStatusTransfer parses and handles an UPLINK RAN STATUS
+// TRANSFER. The procedure defines no unsuccessful outcome, so a failed parse is
+// answered with an Error Indication (TS 38.413 §10.3.5).
+func receiveUplinkRANStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, uplinkRANStatusTransferMessageType, span)
+
+	transfer, err := ngap.ParseUplinkRANStatusTransfer(im.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Uplink RAN Status Transfer", zap.Error(err))
+		sendParseErrorIndication(ctx, ran, ngap.ProcUplinkRANStatusTransfer, err)
+
+		return
+	}
+
+	HandleUplinkRanStatusTransfer(ctx, amfInstance, ran, transfer)
+}
+
+// receiveHandoverRequestAcknowledge parses and handles a HANDOVER REQUEST
+// ACKNOWLEDGE. §10.3.4.2 leaves a rejected response to local error handling, so
+// a failed parse is only reported, not answered.
+func receiveHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, so *ngap.SuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, handoverRequestAcknowledgeMessageType, span)
+
+	ack, err := ngap.ParseHandoverRequestAcknowledge(so.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Handover Request Acknowledge", zap.Error(err))
+		return
+	}
+
+	HandleHandoverRequestAcknowledge(ctx, amfInstance, ran, ack)
+}
+
+// receiveHandoverFailure parses and handles a HANDOVER FAILURE. §10.3.4.2
+// leaves a rejected response to local error handling, so a failed parse is only
+// reported, not answered.
+func receiveHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, uo *ngap.UnsuccessfulOutcome, span trace.Span) {
+	traceMessage(ctx, amfInstance, ran, msg, handoverFailureMessageType, span)
+
+	failure, err := ngap.ParseHandoverFailure(uo.Value)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("failed to decode Handover Failure", zap.Error(err))
+		return
+	}
+
+	HandleHandoverFailure(ctx, amfInstance, ran, failure)
+}
+
 func receivePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg []byte, im *ngap.InitiatingMessage, span trace.Span) {
 	traceMessage(ctx, amfInstance, ran, msg, pduSessionResourceNotifyMessageType, span)
 

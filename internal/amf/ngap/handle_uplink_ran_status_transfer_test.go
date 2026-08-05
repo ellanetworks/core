@@ -9,15 +9,21 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	ngaplib "github.com/ellanetworks/core/ngap"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 // validRANStatusContainer builds a re-encodable transparent container carrying one DRB's
 // PDCP SN/HFN status (the list has a lower bound of 1).
-func validRANStatusContainer() *ngapType.RANStatusTransferTransparentContainer {
-	return &ngapType.RANStatusTransferTransparentContainer{
+// validRANStatusContainer is a real PDCP SN/HFN status container, encoded with
+// the reference codec: the AMF relays these octets verbatim, so the test proves
+// a genuine container survives the relay untouched.
+func validRANStatusContainer(t *testing.T) ngaplib.StatusTransferContainer {
+	t.Helper()
+
+	b, err := aper.MarshalWithParams(ngapType.RANStatusTransferTransparentContainer{
 		DRBsSubjectToStatusTransferList: ngapType.DRBsSubjectToStatusTransferList{
 			List: []ngapType.DRBsSubjectToStatusTransferItem{
 				{
@@ -33,7 +39,12 @@ func validRANStatusContainer() *ngapType.RANStatusTransferTransparentContainer {
 				},
 			},
 		},
+	}, "valueExt")
+	if err != nil {
+		t.Fatalf("failed to marshal RANStatusTransferTransparentContainer: %v", err)
 	}
+
+	return ngaplib.StatusTransferContainer(b)
 }
 
 // A UPLINK RAN STATUS TRANSFER arriving on the source during an in-progress N2 handover
@@ -45,10 +56,10 @@ func TestUplinkRanStatusTransfer_RelaysToTarget(t *testing.T) {
 
 	// The transfer arrives on the source association, carrying the source UE's IDs.
 	sourceRan := &amf.Radio{Conn: sourceNGAPSender, Log: logger.AmfLog}
-	msg := decode.UplinkRANStatusTransfer{
+	msg := &ngaplib.UplinkRANStatusTransfer{
 		AMFUENGAPID: 100,
 		RANUENGAPID: 10,
-		Container:   validRANStatusContainer(),
+		Container:   validRANStatusContainer(t),
 	}
 
 	ngap.HandleUplinkRanStatusTransfer(context.Background(), amfInstance, sourceRan, msg)
@@ -92,10 +103,10 @@ func TestUplinkRanStatusTransfer_NoHandover_Dropped(t *testing.T) {
 	amfInstance.ClearHandover(sourceUe.UeContext())
 
 	sourceRan := &amf.Radio{Conn: sourceNGAPSender, Log: logger.AmfLog}
-	msg := decode.UplinkRANStatusTransfer{
+	msg := &ngaplib.UplinkRANStatusTransfer{
 		AMFUENGAPID: 100,
 		RANUENGAPID: 10,
-		Container:   &ngapType.RANStatusTransferTransparentContainer{},
+		Container:   validRANStatusContainer(t),
 	}
 
 	ngap.HandleUplinkRanStatusTransfer(context.Background(), amfInstance, sourceRan, msg)

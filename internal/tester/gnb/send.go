@@ -256,13 +256,12 @@ func (g *GnodeB) SendHandoverRequired(opts *HandoverRequiredOpts) error {
 	opts.TargetMnc = firstNonEmpty(opts.TargetMnc, g.MNC)
 	opts.TargetTac = firstNonEmpty(opts.TargetTac, g.TAC)
 
-	pdu, err := BuildHandoverRequired(opts)
+	pkt, err := BuildHandoverRequired(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build HandoverRequired: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureHandoverRequired)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureHandoverRequired); err != nil {
 		return fmt.Errorf("couldn't send HandoverRequired: %s", err.Error())
 	}
 
@@ -275,13 +274,12 @@ func (g *GnodeB) SendHandoverRequired(opts *HandoverRequiredOpts) error {
 }
 
 func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) error {
-	pdu, err := BuildHandoverRequestAcknowledge(opts)
+	pkt, err := BuildHandoverRequestAcknowledge(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build HandoverRequestAcknowledge: %s", err.Error())
 	}
 
-	err = g.SendMessage(pdu, NGAPProcedureHandoverRequestAcknowledge)
-	if err != nil {
+	if err := g.SendToRan(pkt, NGAPProcedureHandoverRequestAcknowledge); err != nil {
 		return fmt.Errorf("couldn't send HandoverRequestAcknowledge: %s", err.Error())
 	}
 

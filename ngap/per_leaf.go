@@ -1255,3 +1255,93 @@ func (l *DataForwardingResponseDRBList) UnmarshalPER(r *per.Reader, enc per.Enco
 
 	return nil
 }
+
+func (l PDUSessionResourceListHORqd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceItemHORqd(l))
+}
+
+func (l *PDUSessionResourceListHORqd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceItemHORqd](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceHandoverList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceHandoverItem(l))
+}
+
+func (l *PDUSessionResourceHandoverList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceHandoverItem](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceSetupListHOReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceSetupItemHOReq(l))
+}
+
+func (l *PDUSessionResourceSetupListHOReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceSetupItemHOReq](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceAdmittedList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceAdmittedItem(l))
+}
+
+func (l *PDUSessionResourceAdmittedList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceAdmittedItem](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceFailedToSetupListHOAck) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceFailedToSetupItemHOAck(l))
+}
+
+func (l *PDUSessionResourceFailedToSetupListHOAck) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceFailedToSetupItemHOAck](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (l PDUSessionResourceToReleaseListHOCmd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofPDUSessions, []PDUSessionResourceToReleaseItemHOCmd(l))
+}
+
+func (l *PDUSessionResourceToReleaseListHOCmd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PDUSessionResourceToReleaseItemHOCmd](r, enc, 1, maxnoofPDUSessions)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}

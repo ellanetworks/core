@@ -9,19 +9,18 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
-	"github.com/free5gc/ngap/ngapType"
+	ngaplib "github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
-	msg := decode.HandoverFailure{AMFUENGAPID: 1}
+	msg := ngaplib.HandoverFailure{AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(1))}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, ran, msg)
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, ran, &msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -56,17 +55,12 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	// Simulate the AMF UE being detached from the source (deregistration race).
 	amfUe.Conn().AMFForTest().ReleaseNasConnection(amfUe, nil)
 
-	msg := decode.HandoverFailure{
-		AMFUENGAPID: 200,
-		Cause: &ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
-			},
-		},
+	msg := ngaplib.HandoverFailure{
+		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(200)),
+		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
 	}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, msg)
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure on source radio, got %d", len(sourceSender.SentHandoverPreparationFailures))
@@ -107,15 +101,12 @@ func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	msg := decode.HandoverFailure{
-		AMFUENGAPID: 200,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem},
-		},
+	msg := ngaplib.HandoverFailure{
+		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(200)),
+		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
 	}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, msg)
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure on source, got %d", len(sourceSender.SentHandoverPreparationFailures))
@@ -160,15 +151,12 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 
 	// Failure arrives on the SOURCE association (AMF UE NGAP ID 100), not the
 	// prepared target (200).
-	msg := decode.HandoverFailure{
-		AMFUENGAPID: 100,
-		Cause: &ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem},
-		},
+	msg := ngaplib.HandoverFailure{
+		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(100)),
+		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
 	}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, sourceRan, msg)
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, sourceRan, &msg)
 
 	if len(sourceSender.SentHandoverPreparationFailures) != 0 {
 		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(sourceSender.SentHandoverPreparationFailures))
@@ -180,5 +168,51 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 
 	if !amfInstance.HandoverInProgress(amfUe) {
 		t.Fatal("expected the handover to remain in progress")
+	}
+}
+
+// TS 38.413 §9.3.1.3: Criticality Diagnostics report on the message its sender
+// received in that procedure. The diagnostics on a HANDOVER FAILURE describe the
+// AMF's read of the target's message in Handover Resource Allocation, so
+// relaying them to the source in a HANDOVER PREPARATION FAILURE would tell the
+// source gNB that an IE it never sent was not understood.
+func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.T) {
+	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(amfInstance)
+	targetRan := newTestRadio(amfInstance)
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
+
+	amfUe := amf.NewUeContext()
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 10, 100, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetUe := amf.NewUeConnForTest(targetRan, 2, 200, logger.AmfLog)
+
+	if err := amf.SetHandoverForTest(sourceUe, targetUe); err != nil {
+		t.Fatalf("SetHandoverForTest: %v", err)
+	}
+
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngaplib.HandoverFailure{
+		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(200)),
+		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
+		CriticalityDiagnostics: &ngaplib.CriticalityDiagnostics{
+			IEsCriticalityDiagnostics: []ngaplib.CriticalityDiagnosticsIEItem{{
+				IECriticality: ngaplib.CriticalityReject,
+				IEID:          ngaplib.ProtocolIEID(101),
+				TypeOfError:   ngaplib.TypeOfErrorNotUnderstood,
+			}},
+		},
+	})
+
+	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure on source, got %d", len(sourceSender.SentHandoverPreparationFailures))
+	}
+
+	if got := sourceSender.SentHandoverPreparationFailures[0].CriticalityDiagnostics; got != nil {
+		t.Errorf("failure to source carries the target's diagnostics %+v, want none", got)
 	}
 }

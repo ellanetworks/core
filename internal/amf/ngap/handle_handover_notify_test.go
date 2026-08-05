@@ -10,8 +10,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
@@ -24,7 +24,7 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 99}
+	msg := &ngaplib.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 99}
 
 	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
@@ -62,7 +62,7 @@ func TestHandoverNotify_NilUeContext(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngaplib.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
 	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
@@ -87,7 +87,7 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngaplib.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
 	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
@@ -128,7 +128,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	// Handover Notify requires a prepared handover (the acknowledge step ran).
 	amfInstance.MarkHandoverPrepared(amfUe, nil)
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngaplib.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
 	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
 
@@ -197,7 +197,7 @@ func TestHandoverNotify_ReleasesRejectedSessions(t *testing.T) {
 	// The target admitted session 1 only; session 2 was rejected at the acknowledge.
 	amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2})
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, &ngaplib.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2})
 
 	if len(fakeSmf.N2HandoverCompleteCalls) != 1 || fakeSmf.N2HandoverCompleteCalls[0] != "ref-1" {
 		t.Fatalf("expected only the admitted session ref-1 completed, got %v", fakeSmf.N2HandoverCompleteCalls)
@@ -252,7 +252,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 
 	releasesBeforeNotify := len(sourceNGAPSender.SentUEContextReleaseCommands)
 
-	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, decode.HandoverNotify{AMFUENGAPID: 4, RANUENGAPID: 3})
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, &ngaplib.HandoverNotify{AMFUENGAPID: 4, RANUENGAPID: 3})
 
 	if len(fakeSmf.N2HandoverCompleteCalls) != 0 || len(fakeSmf.ReleaseSmContextCalls) != 0 {
 		t.Fatalf("a notify from a non-target must not touch any SM context (complete=%v release=%v)",
@@ -308,7 +308,7 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 	}
 	amfInstance.Session = fakeSmf
 
-	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+	msg := &ngaplib.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
 	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
 

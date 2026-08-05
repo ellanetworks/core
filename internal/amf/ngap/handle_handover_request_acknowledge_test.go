@@ -11,11 +11,11 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -101,17 +101,15 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 	ran.BindAMFForTest(amfInstance)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
-	amfID := int64(999)
-	ranID := int64(1)
-	msg := decode.HandoverRequestAcknowledge{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
-			Value: []byte{0x01, 0x02, 0x03},
-		},
+	amfID := ngaplib.AMFUENGAPID(999)
+	ranID := ngaplib.RANUENGAPID(1)
+	msg := ngaplib.HandoverRequestAcknowledge{
+		AMFUENGAPID:                        &amfID,
+		RANUENGAPID:                        &ranID,
+		TargetToSourceTransparentContainer: ngaplib.TargetToSourceTransparentContainer{0x01, 0x02, 0x03},
 	}
 
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, &msg)
 
 	if len(sender.SentHandoverCommands) != 0 {
 		t.Fatalf("expected no HandoverCommand, got %d", len(sender.SentHandoverCommands))
@@ -138,17 +136,15 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	targetUe.AMFForTest().AttachUeConn(amfUe, targetUe)
 	// No handover installed, so HandoverSource() is nil.
 
-	amfID := int64(1)
-	ranID := int64(2)
-	msg := decode.HandoverRequestAcknowledge{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
-			Value: []byte{0x01, 0x02, 0x03},
-		},
+	amfID := ngaplib.AMFUENGAPID(1)
+	ranID := ngaplib.RANUENGAPID(2)
+	msg := ngaplib.HandoverRequestAcknowledge{
+		AMFUENGAPID:                        &amfID,
+		RANUENGAPID:                        &ranID,
+		TargetToSourceTransparentContainer: ngaplib.TargetToSourceTransparentContainer{0x01, 0x02, 0x03},
 	}
 
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, &msg)
 
 	if len(sender.SentHandoverCommands) != 0 {
 		t.Fatalf("expected no HandoverCommand, got %d", len(sender.SentHandoverCommands))
@@ -163,17 +159,15 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	amfID := int64(1)
-	ranID := int64(2)
-	msg := decode.HandoverRequestAcknowledge{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
-			Value: []byte{0x01, 0x02, 0x03},
-		},
+	amfID := ngaplib.AMFUENGAPID(1)
+	ranID := ngaplib.RANUENGAPID(2)
+	msg := ngaplib.HandoverRequestAcknowledge{
+		AMFUENGAPID:                        &amfID,
+		RANUENGAPID:                        &ranID,
+		TargetToSourceTransparentContainer: ngaplib.TargetToSourceTransparentContainer{0x01, 0x02, 0x03},
 	}
 
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
@@ -219,17 +213,15 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetache
 
 	sourceUeContext.Conn().AMFForTest().ReleaseNasConnection(sourceUeContext, nil)
 
-	amfID := int64(1)
-	ranID := int64(2)
-	msg := decode.HandoverRequestAcknowledge{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
-			Value: []byte{0x01, 0x02, 0x03},
-		},
+	amfID := ngaplib.AMFUENGAPID(1)
+	ranID := ngaplib.RANUENGAPID(2)
+	msg := ngaplib.HandoverRequestAcknowledge{
+		AMFUENGAPID:                        &amfID,
+		RANUENGAPID:                        &ranID,
+		TargetToSourceTransparentContainer: ngaplib.TargetToSourceTransparentContainer{0x01, 0x02, 0x03},
 	}
 
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure on source radio, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
@@ -274,23 +266,18 @@ func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 
 	containerData := []byte{0xAA, 0xBB, 0xCC}
 
-	amfID := int64(1)
-	ranID := int64(2)
-	msg := decode.HandoverRequestAcknowledge{
+	amfID := ngaplib.AMFUENGAPID(1)
+	ranID := ngaplib.RANUENGAPID(2)
+	msg := ngaplib.HandoverRequestAcknowledge{
 		AMFUENGAPID: &amfID,
 		RANUENGAPID: &ranID,
-		AdmittedItems: []ngapType.PDUSessionResourceAdmittedItem{
-			{
-				PDUSessionID:                       ngapType.PDUSessionID{Value: 1},
-				HandoverRequestAcknowledgeTransfer: transferBytes,
-			},
+		PDUSessionResourceAdmittedList: ngaplib.PDUSessionResourceAdmittedList{
+			{PDUSessionID: 1, Transfer: transferBytes},
 		},
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
-			Value: containerData,
-		},
+		TargetToSourceTransparentContainer: containerData,
 	}
 
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceNGAPSender.SentHandoverCommands) != 1 {
 		t.Fatalf("expected 1 HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))
@@ -314,33 +301,28 @@ func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 	}
 }
 
-func admittedAckMsg(t *testing.T) decode.HandoverRequestAcknowledge {
+func admittedAckMsg(t *testing.T) *ngaplib.HandoverRequestAcknowledge {
 	t.Helper()
 
-	transferBytes, err := aper.MarshalWithParams(ngapType.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: ngapType.UPTransportLayerInformation{
-			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
-			GTPTunnel: &ngapType.GTPTunnel{
-				TransportLayerAddress: ngapType.TransportLayerAddress{Value: aper.BitString{Bytes: []byte{10, 0, 0, 2}, BitLength: 32}},
-				GTPTEID:               ngapType.GTPTEID{Value: []byte{0x00, 0x00, 0x04, 0xD2}},
-			},
-		},
-		QosFlowSetupResponseList: ngapType.QosFlowListWithDataForwarding{
-			List: []ngapType.QosFlowItemWithDataForwarding{{QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1}}},
-		},
-	}, "valueExt")
+	transferBytes, err := (&ngaplib.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: ngaplib.UPTransportLayerInformation{GTPTunnel: ngaplib.GTPTunnel{
+			TransportLayerAddress: ngaplib.TransportLayerAddress{10, 0, 0, 2},
+			GTPTEID:               1234,
+		}},
+		QosFlowSetupResponse: ngaplib.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
+	}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal HandoverRequestAcknowledgeTransfer: %v", err)
 	}
 
-	amfID := int64(1)
-	ranID := int64(2)
+	amfID := ngaplib.AMFUENGAPID(1)
+	ranID := ngaplib.RANUENGAPID(2)
 
-	return decode.HandoverRequestAcknowledge{
+	return &ngaplib.HandoverRequestAcknowledge{
 		AMFUENGAPID:                        &amfID,
 		RANUENGAPID:                        &ranID,
-		AdmittedItems:                      []ngapType.PDUSessionResourceAdmittedItem{{PDUSessionID: ngapType.PDUSessionID{Value: 1}, HandoverRequestAcknowledgeTransfer: transferBytes}},
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{Value: []byte{0xAA}},
+		PDUSessionResourceAdmittedList:     ngaplib.PDUSessionResourceAdmittedList{{PDUSessionID: 1, Transfer: transferBytes}},
+		TargetToSourceTransparentContainer: ngaplib.TargetToSourceTransparentContainer{0xAA},
 	}
 }
 
@@ -376,55 +358,39 @@ func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T)
 func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
-	admittedTransfer := ngapType.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: ngapType.UPTransportLayerInformation{
-			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
-			GTPTunnel: &ngapType.GTPTunnel{
-				TransportLayerAddress: ngapType.TransportLayerAddress{
-					Value: aper.BitString{Bytes: []byte{10, 0, 0, 2}, BitLength: 32},
-				},
-				GTPTEID: ngapType.GTPTEID{Value: []byte{0x00, 0x00, 0x04, 0xD2}},
-			},
-		},
-		QosFlowSetupResponseList: ngapType.QosFlowListWithDataForwarding{
-			List: []ngapType.QosFlowItemWithDataForwarding{
-				{QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1}},
-			},
-		},
-	}
-
-	admittedBytes, err := aper.MarshalWithParams(admittedTransfer, "valueExt")
+	admittedBytes, err := (&ngaplib.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: ngaplib.UPTransportLayerInformation{GTPTunnel: ngaplib.GTPTunnel{
+			TransportLayerAddress: ngaplib.TransportLayerAddress{10, 0, 0, 2},
+			GTPTEID:               1234,
+		}},
+		QosFlowSetupResponse: ngaplib.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
+	}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal admitted transfer: %v", err)
 	}
 
-	unsuccessfulTransfer := ngapType.HandoverResourceAllocationUnsuccessfulTransfer{
-		Cause: ngapType.Cause{
-			Present:      ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable},
-		},
-	}
-
-	unsuccessfulBytes, err := aper.MarshalWithParams(unsuccessfulTransfer, "valueExt")
+	unsuccessfulBytes, err := (&ngaplib.HandoverResourceAllocationUnsuccessfulTransfer{
+		Cause: ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkRadioResourcesNotAvailable},
+	}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal unsuccessful transfer: %v", err)
 	}
 
-	amfID := int64(1)
-	ranID := int64(2)
-	msg := decode.HandoverRequestAcknowledge{
+	amfID := ngaplib.AMFUENGAPID(1)
+	ranID := ngaplib.RANUENGAPID(2)
+	msg := ngaplib.HandoverRequestAcknowledge{
 		AMFUENGAPID: &amfID,
 		RANUENGAPID: &ranID,
-		AdmittedItems: []ngapType.PDUSessionResourceAdmittedItem{
-			{PDUSessionID: ngapType.PDUSessionID{Value: 1}, HandoverRequestAcknowledgeTransfer: admittedBytes},
+		PDUSessionResourceAdmittedList: ngaplib.PDUSessionResourceAdmittedList{
+			{PDUSessionID: 1, Transfer: admittedBytes},
 		},
-		FailedToSetupItems: []ngapType.PDUSessionResourceFailedToSetupItemHOAck{
-			{PDUSessionID: ngapType.PDUSessionID{Value: 2}, HandoverResourceAllocationUnsuccessfulTransfer: unsuccessfulBytes},
+		PDUSessionResourceFailedToSetup: ngaplib.PDUSessionResourceFailedToSetupListHOAck{
+			{PDUSessionID: 2, Transfer: unsuccessfulBytes},
 		},
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{Value: []byte{0xAA, 0xBB, 0xCC}},
+		TargetToSourceTransparentContainer: ngaplib.TargetToSourceTransparentContainer{0xAA, 0xBB, 0xCC},
 	}
 
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceNGAPSender.SentHandoverCommands) != 1 {
 		t.Fatalf("expected 1 HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))

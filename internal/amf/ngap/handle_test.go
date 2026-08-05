@@ -272,9 +272,10 @@ type RanConfigurationUpdateFailure struct {
 }
 
 type HandoverPreparationFailure struct {
-	AmfUeNgapID int64
-	RanUeNgapID int64
-	Cause       ngapType.Cause
+	AmfUeNgapID            int64
+	RanUeNgapID            int64
+	Cause                  ngapType.Cause
+	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
 }
 
 type HandoverRequest struct {
@@ -592,6 +593,8 @@ func (fng *fakeNGAPSender) captureUnsuccessful(m *ngapType.UnsuccessfulOutcome) 
 				failure.RanUeNgapID = ie.Value.RANUENGAPID.Value
 			case ngapType.ProtocolIEIDCause:
 				failure.Cause = *ie.Value.Cause
+			case ngapType.ProtocolIEIDCriticalityDiagnostics:
+				failure.CriticalityDiagnostics = ie.Value.CriticalityDiagnostics
 			}
 		}
 

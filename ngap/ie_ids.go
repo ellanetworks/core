@@ -64,6 +64,22 @@ const (
 	idUserLocationInformation                    ProtocolIEID = 121
 	idUERadioCapabilityForPaging                 ProtocolIEID = 118
 	idUERetentionInformation                     ProtocolIEID = 147
+	idNotifySourceNGRANNode                      ProtocolIEID = 269
+	idDirectForwardingPathAvailability           ProtocolIEID = 22
+	idHandoverType                               ProtocolIEID = 29
+	idNASSecurityParametersFromNGRAN             ProtocolIEID = 39
+	idPDUSessionResourceHandoverList             ProtocolIEID = 59
+	idPDUSessionResourceListHORqd                ProtocolIEID = 61
+	idPDUSessionResourceToReleaseListHOCmd       ProtocolIEID = 78
+	idSourceToTargetTransparentContainer         ProtocolIEID = 101
+	idTargetID                                   ProtocolIEID = 105
+	idTargetToSourceTransparentContainer         ProtocolIEID = 106
+	idTargettoSourceFailureTransparentContainer  ProtocolIEID = 262
+	idPDUSessionResourceAdmittedList             ProtocolIEID = 53
+	idPDUSessionResourceFailedToSetupListHOAck   ProtocolIEID = 56
+	idPDUSessionResourceSetupListHOReq           ProtocolIEID = 73
+	idSecurityContext                            ProtocolIEID = 93
+	idRANStatusTransferTransparentContainer      ProtocolIEID = 84
 
 	// Carried inside the §9.3.4 PDU session transfers rather than a message body.
 	idAdditionalULNGUUPTNLInformation   ProtocolIEID = 126

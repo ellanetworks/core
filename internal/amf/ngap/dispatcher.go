@@ -110,34 +110,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch initiatingMessage.ProcedureCode.Value {
-		case ngapType.ProcedureCodeHandoverCancel:
-			decoded, report := decode.DecodeHandoverCancel(pdu.InitiatingMessage.Value.HandoverCancel)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleHandoverCancel(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeHandoverNotification:
-			decoded, report := decode.DecodeHandoverNotify(pdu.InitiatingMessage.Value.HandoverNotify)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleHandoverNotify(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeHandoverPreparation:
-			decoded, report := decode.DecodeHandoverRequired(pdu.InitiatingMessage.Value.HandoverRequired)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleHandoverRequired(ctx, amfInstance, ran, decoded)
-		case ngapType.ProcedureCodeUplinkRANStatusTransfer:
-			decoded, report := decode.DecodeUplinkRANStatusTransfer(pdu.InitiatingMessage.Value.UplinkRANStatusTransfer)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleUplinkRanStatusTransfer(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePathSwitchRequest:
 			decoded, report := decode.DecodePathSwitchRequest(pdu.InitiatingMessage.Value.PathSwitchRequest)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -166,13 +138,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch successfulOutcome.ProcedureCode.Value {
-		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			decoded, report := decode.DecodeHandoverRequestAcknowledge(pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleHandoverRequestAcknowledge(ctx, amfInstance, ran, decoded)
 		default:
 			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "successful-outcome"), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
@@ -184,13 +149,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch unsuccessfulOutcome.ProcedureCode.Value {
-		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			decoded, report := decode.DecodeHandoverFailure(pdu.UnsuccessfulOutcome.Value.HandoverFailure)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleHandoverFailure(ctx, amfInstance, ran, decoded)
 		default:
 			logger.From(ctx, ran.Log).Warn("ignoring unsupported procedure", zap.String("kind", "unsuccessful-outcome"), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}

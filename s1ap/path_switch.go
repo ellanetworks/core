@@ -20,14 +20,6 @@ type ERABToBeSwitchedDLItem struct {
 
 // SecurityContext ::= SEQUENCE { nextHopChainingCount INTEGER (0..7),
 // nextHopParameter SecurityKey, iE-Extensions OPTIONAL } (extensible). The
-// {NCC, NH} the target eNB derives the next KeNB from (TS 33.401).
-type SecurityContext struct {
-	_                    [0]struct{} `per:"extseq"`
-	NextHopChainingCount uint8       `per:",range:0..7"`
-	NextHopParameter     SecurityKey
-	_                    ieExtensions `per:",skip"`
-}
-
 // TS 36.413 §9.1.5.8.
 type PathSwitchRequest struct {
 	ENBUES1APID            ENBUES1APID

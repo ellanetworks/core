@@ -44,10 +44,16 @@ const (
 	CauseRadioNetworkUnspecified                      = 0  // unspecified
 	CauseRadioNetworkSuccessfulHandover               = 2  // successful-handover
 	CauseRadioNetworkReleaseDueToNGRANGeneratedReason = 3  // release-due-to-ngran-generated-reason
+	CauseRadioNetworkHandoverCancelled                = 5  // handover-cancelled
+	CauseRadioNetworkHOFailureInTarget                = 7  // ho-failure-in-target-5GC-ngran-node-or-target-system
+	CauseRadioNetworkHoTargetNotAllowed               = 8  // ho-target-not-allowed
+	CauseRadioNetworkHandoverDesirableForRadio        = 16 // handover-desirable-for-radio-reason
 	CauseRadioNetworkTNGRelocOverallExpiry            = 9  // tngrelocoverall-expiry
+	CauseRadioNetworkUnknownTargetID                  = 12 // unknown-targetID
 	CauseRadioNetworkUnknownLocalUENGAPID             = 14 // unknown-local-UE-NGAP-ID
 	CauseRadioNetworkInconsistentRemoteUEID           = 15 // inconsistent-remote-UE-NGAP-ID
 	CauseRadioNetworkUserInactivity                   = 20 // user-inactivity
+	CauseRadioNetworkRadioResourcesNotAvailable       = 22 // radio-resources-not-available
 	CauseRadioNetworkRadioConnectionWithUELost        = 21 // radio-connection-with-ue-lost
 	CauseRadioNetworkUnknownPDUSessionID              = 26 // unknown-PDU-session-ID
 	CauseRadioNetworkMultiplePDUSessionIDs            = 28 // multiple-PDU-session-ID-instances

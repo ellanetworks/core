@@ -109,6 +109,39 @@ func ParseHandoverCommandTransfer(b TransferContainer) (*HandoverCommandTransfer
 	return &t, nil
 }
 
+// HandoverPreparationUnsuccessfulTransfer ::= SEQUENCE { cause, iE-Extensions
+// OPTIONAL } (extensible) — TS 38.413 §9.3.4.18.
+type HandoverPreparationUnsuccessfulTransfer struct {
+	_     [0]struct{} `per:"extseq"`
+	Cause Cause
+	_     ieExtensions `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *HandoverPreparationUnsuccessfulTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParseHandoverPreparationUnsuccessfulTransfer decodes the transfer naming why
+// a session could not be handed over.
+func ParseHandoverPreparationUnsuccessfulTransfer(b TransferContainer) (*HandoverPreparationUnsuccessfulTransfer, error) {
+	var t HandoverPreparationUnsuccessfulTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
 // HandoverRequestAcknowledgeTransfer ::= SEQUENCE { dL-NGU-UP-TNLInformation,
 // dLForwardingUP-TNLInformation OPTIONAL, securityResult OPTIONAL,
 // qosFlowSetupResponseList, qosFlowFailedToSetupList OPTIONAL,
@@ -142,6 +175,41 @@ func (t *HandoverRequestAcknowledgeTransfer) Marshal() (TransferContainer, error
 // NG-RAN node returns for a session it admitted.
 func ParseHandoverRequestAcknowledgeTransfer(b TransferContainer) (*HandoverRequestAcknowledgeTransfer, error) {
 	var t HandoverRequestAcknowledgeTransfer
+
+	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+		return nil, err
+	}
+
+	return &t, nil
+}
+
+// HandoverResourceAllocationUnsuccessfulTransfer ::= SEQUENCE { cause,
+// criticalityDiagnostics OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
+// TS 38.413 §9.3.4.17.
+type HandoverResourceAllocationUnsuccessfulTransfer struct {
+	_                      [0]struct{} `per:"extseq"`
+	Cause                  Cause
+	CriticalityDiagnostics *CriticalityDiagnostics `per:",optional"`
+	_                      ieExtensions            `per:",skip"`
+}
+
+// Marshal encodes the transfer for the OCTET STRING that carries it.
+func (t *HandoverResourceAllocationUnsuccessfulTransfer) Marshal() (TransferContainer, error) {
+	w := per.NewWriter()
+
+	if err := t.MarshalPER(w, per.Aligned); err != nil {
+		return nil, err
+	}
+
+	w.AlignToByte()
+
+	return TransferContainer(w.Bytes()), nil
+}
+
+// ParseHandoverResourceAllocationUnsuccessfulTransfer decodes the transfer the
+// target NG-RAN node returns for a session it could not admit.
+func ParseHandoverResourceAllocationUnsuccessfulTransfer(b TransferContainer) (*HandoverResourceAllocationUnsuccessfulTransfer, error) {
+	var t HandoverResourceAllocationUnsuccessfulTransfer
 
 	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
 		return nil, err

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/free5gc/aper"
 	libngap "github.com/free5gc/ngap"
@@ -252,4 +253,149 @@ func TestHandleDecodeReport_NonFatalContinues(t *testing.T) {
 	if w.writes != 0 {
 		t.Fatalf("no Error Indication expected for a non-fatal decode, sent %d", w.writes)
 	}
+}
+
+// Ella prepares handovers only toward a 5GS RAN node, so a TargetID naming an
+// eNB is not comprehended. TargetID is reject criticality, and Handover
+// Preparation defines an unsuccessful outcome, so §10.3.4.2 answers with
+// HANDOVER PREPARATION FAILURE rather than an Error Indication. The message is
+// built with the reference encoder because this library's own encoder will not
+// emit a targeteNB-ID.
+func TestHandleHandoverRequired_TargeteNBIDSendsPreparationFailure(t *testing.T) {
+	w := &capturingWriter{}
+	ran := newDecodeReportRadio(w)
+	// Anything but NG Setup is dropped before routing until the radio is set up.
+	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "000102", BitLength: 24}}
+
+	if handled := handleMigrated(context.Background(), amf.New(nil, nil, nil), ran, handoverRequiredTargetingENB(t),
+		trace.SpanFromContext(context.Background())); !handled {
+		t.Fatal("handleMigrated did not consume a Handover Required")
+	}
+
+	if len(w.msgs) != 1 {
+		t.Fatalf("sent %d messages, want 1 (Handover Preparation Failure)", len(w.msgs))
+	}
+
+	pdu, err := libngap.Decoder(w.msgs[0])
+	if err != nil {
+		t.Fatalf("could not decode the sent PDU: %v", err)
+	}
+
+	if pdu.Present != ngapType.NGAPPDUPresentUnsuccessfulOutcome {
+		t.Fatalf("sent PDU present = %d, want %d (unsuccessful outcome, not an Error Indication)",
+			pdu.Present, ngapType.NGAPPDUPresentUnsuccessfulOutcome)
+	}
+
+	uo := pdu.UnsuccessfulOutcome
+	if uo.ProcedureCode.Value != ngapType.ProcedureCodeHandoverPreparation {
+		t.Fatalf("procedure code = %d, want Handover Preparation", uo.ProcedureCode.Value)
+	}
+
+	failure := uo.Value.HandoverPreparationFailure
+	if failure == nil {
+		t.Fatal("unsuccessful outcome carries no Handover Preparation Failure")
+	}
+
+	var (
+		cause  *ngapType.Cause
+		amfID  *ngapType.AMFUENGAPID
+		ranID  *ngapType.RANUENGAPID
+		hasDia bool
+	)
+
+	for _, ie := range failure.ProtocolIEs.List {
+		switch ie.Id.Value {
+		case ngapType.ProtocolIEIDCause:
+			cause = ie.Value.Cause
+		case ngapType.ProtocolIEIDAMFUENGAPID:
+			amfID = ie.Value.AMFUENGAPID
+		case ngapType.ProtocolIEIDRANUENGAPID:
+			ranID = ie.Value.RANUENGAPID
+		case ngapType.ProtocolIEIDCriticalityDiagnostics:
+			hasDia = ie.Value.CriticalityDiagnostics != nil
+		}
+	}
+
+	// §10.3.4.2 sends the outcome only because the UE IDs survived the rejected
+	// message; without them the fallback is an Error Indication.
+	if amfID == nil || amfID.Value != 1 || ranID == nil || ranID.Value != 2 {
+		t.Fatalf("failure names UE IDs %v/%v, want the ones the rejected message carried", amfID, ranID)
+	}
+
+	if cause == nil || cause.Present != ngapType.CausePresentProtocol || cause.Protocol == nil ||
+		cause.Protocol.Value != ngapType.CauseProtocolPresentAbstractSyntaxErrorReject {
+		t.Fatalf("cause = %+v, want protocol abstract-syntax-error-reject", cause)
+	}
+
+	if !hasDia {
+		t.Error("failure carries no Criticality Diagnostics naming the offending IE")
+	}
+}
+
+// handoverRequiredTargetingENB builds a HANDOVER REQUIRED whose TargetID is a
+// targeteNB-ID, the alternative this AMF does not serve.
+func handoverRequiredTargetingENB(t *testing.T) []byte {
+	t.Helper()
+
+	pdu := ngapType.NGAPPDU{Present: ngapType.NGAPPDUPresentInitiatingMessage}
+	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+	im := pdu.InitiatingMessage
+	im.ProcedureCode.Value = ngapType.ProcedureCodeHandoverPreparation
+	im.Criticality.Value = ngapType.CriticalityPresentReject
+	im.Value.Present = ngapType.InitiatingMessagePresentHandoverRequired
+	im.Value.HandoverRequired = new(ngapType.HandoverRequired)
+	ies := &im.Value.HandoverRequired.ProtocolIEs
+
+	ie := ngapType.HandoverRequiredIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.HandoverRequiredIEsPresentAMFUENGAPID
+	ie.Value.AMFUENGAPID = &ngapType.AMFUENGAPID{Value: 1}
+	ies.List = append(ies.List, ie)
+
+	ie = ngapType.HandoverRequiredIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.HandoverRequiredIEsPresentRANUENGAPID
+	ie.Value.RANUENGAPID = &ngapType.RANUENGAPID{Value: 2}
+	ies.List = append(ies.List, ie)
+
+	ie = ngapType.HandoverRequiredIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDHandoverType
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.HandoverRequiredIEsPresentHandoverType
+	ie.Value.HandoverType = &ngapType.HandoverType{Value: ngapType.HandoverTypePresentIntra5gs}
+	ies.List = append(ies.List, ie)
+
+	plmn := ngapType.PLMNIdentity{Value: []byte{0x02, 0xf8, 0x39}}
+	enbID := ngapConvert.HexToBitString("00010", 20)
+
+	ie = ngapType.HandoverRequiredIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDTargetID
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.HandoverRequiredIEsPresentTargetID
+	ie.Value.TargetID = &ngapType.TargetID{
+		Present: ngapType.TargetIDPresentTargeteNBID,
+		TargeteNBID: &ngapType.TargeteNBID{
+			GlobalENBID: ngapType.GlobalNgENBID{
+				PLMNIdentity: plmn,
+				NgENBID: ngapType.NgENBID{
+					Present:      ngapType.NgENBIDPresentMacroNgENBID,
+					MacroNgENBID: &enbID,
+				},
+			},
+			SelectedEPSTAI: ngapType.EPSTAI{
+				PLMNIdentity: plmn,
+				EPSTAC:       ngapType.EPSTAC{Value: aper.OctetString{0x00, 0x01}},
+			},
+		},
+	}
+	ies.List = append(ies.List, ie)
+
+	b, err := libngap.Encoder(pdu)
+	if err != nil {
+		t.Fatalf("could not encode the Handover Required: %v", err)
+	}
+
+	return b
 }

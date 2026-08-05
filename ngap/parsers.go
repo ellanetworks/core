@@ -39,6 +39,50 @@ var messageParsers = []messageParser{
 	{"ParsePDUSessionResourceModifyResponse", func(v []byte) error { _, err := ParsePDUSessionResourceModifyResponse(v); return err }},
 	{"ParsePDUSessionResourceModifyIndication", func(v []byte) error { _, err := ParsePDUSessionResourceModifyIndication(v); return err }},
 	{"ParsePDUSessionResourceModifyConfirm", func(v []byte) error { _, err := ParsePDUSessionResourceModifyConfirm(v); return err }},
+	{"ParseHandoverRequired", func(v []byte) error {
+		_, err := ParseHandoverRequired(v)
+		return err
+	}},
+	{"ParseHandoverCommand", func(v []byte) error {
+		_, err := ParseHandoverCommand(v)
+		return err
+	}},
+	{"ParseHandoverPreparationFailure", func(v []byte) error {
+		_, err := ParseHandoverPreparationFailure(v)
+		return err
+	}},
+	{"ParseHandoverRequest", func(v []byte) error {
+		_, err := ParseHandoverRequest(v)
+		return err
+	}},
+	{"ParseHandoverRequestAcknowledge", func(v []byte) error {
+		_, err := ParseHandoverRequestAcknowledge(v)
+		return err
+	}},
+	{"ParseHandoverFailure", func(v []byte) error {
+		_, err := ParseHandoverFailure(v)
+		return err
+	}},
+	{"ParseHandoverCancel", func(v []byte) error {
+		_, err := ParseHandoverCancel(v)
+		return err
+	}},
+	{"ParseHandoverCancelAcknowledge", func(v []byte) error {
+		_, err := ParseHandoverCancelAcknowledge(v)
+		return err
+	}},
+	{"ParseUplinkRANStatusTransfer", func(v []byte) error {
+		_, err := ParseUplinkRANStatusTransfer(v)
+		return err
+	}},
+	{"ParseDownlinkRANStatusTransfer", func(v []byte) error {
+		_, err := ParseDownlinkRANStatusTransfer(v)
+		return err
+	}},
+	{"ParseHandoverNotify", func(v []byte) error {
+		_, err := ParseHandoverNotify(v)
+		return err
+	}},
 	{"ParsePDUSessionResourceNotify", func(v []byte) error { _, err := ParsePDUSessionResourceNotify(v); return err }},
 	{"ParseNASNonDeliveryIndication", func(v []byte) error { _, err := ParseNASNonDeliveryIndication(v); return err }},
 	{"ParsePaging", func(v []byte) error { _, err := ParsePaging(v); return err }},
@@ -95,6 +139,14 @@ var transferParsers = []messageParser{
 	}},
 	{"ParseHandoverCommandTransfer", func(v []byte) error {
 		_, err := ParseHandoverCommandTransfer(v)
+		return err
+	}},
+	{"ParseHandoverPreparationUnsuccessfulTransfer", func(v []byte) error {
+		_, err := ParseHandoverPreparationUnsuccessfulTransfer(v)
+		return err
+	}},
+	{"ParseHandoverResourceAllocationUnsuccessfulTransfer", func(v []byte) error {
+		_, err := ParseHandoverResourceAllocationUnsuccessfulTransfer(v)
 		return err
 	}},
 	{"ParseHandoverRequestAcknowledgeTransfer", func(v []byte) error {

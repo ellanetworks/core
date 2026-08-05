@@ -6,7 +6,9 @@ package gnb
 import (
 	"encoding/hex"
 	"fmt"
+	"net/netip"
 
+	"github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
@@ -93,4 +95,21 @@ func GetGnbIdInBytes(gnbId string) ([]byte, error) {
 	}
 
 	return resu, nil
+}
+
+// transportLayerAddress renders an IP as the bit string a GTP tunnel endpoint
+// carries: 32 bits for IPv4, 128 for IPv6 (TS 38.413 §9.3.2.4).
+func transportLayerAddress(ip netip.Addr) (ngap.TransportLayerAddress, error) {
+	switch {
+	case ip.Is4():
+		v4 := ip.As4()
+
+		return ngap.TransportLayerAddress(v4[:]), nil
+	case ip.Is6():
+		v6 := ip.As16()
+
+		return ngap.TransportLayerAddress(v6[:]), nil
+	default:
+		return nil, fmt.Errorf("transport layer address %q is neither IPv4 nor IPv6", ip)
+	}
 }

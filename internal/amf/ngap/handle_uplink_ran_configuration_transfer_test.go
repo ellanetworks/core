@@ -17,9 +17,7 @@ import (
 )
 
 // goldenUplinkRANConfigTransfer is an UPLINK RAN CONFIGURATION TRANSFER whose
-// SON Configuration Transfer targets gNB 00:01:02 in PLMN 001/01. Encoded by a
-// second, independent implementation (free5gc/ngap v1.1.3), so the fixture does
-// not depend on the code under test.
+// SON Configuration Transfer targets gNB 00:01:02 in PLMN 001/01.
 const goldenUplinkRANConfigTransfer = "0030402700000100634020000000f110100001020000f1100000010000f11010000a0b0000f11000000200"
 
 // uplinkTransferFixture returns the parsed message and the SON payload it

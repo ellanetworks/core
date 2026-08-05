@@ -7,21 +7,22 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverNotify) {
-	targetUe, ok := resolveDecodedUE(ctx, amfInstance, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverNotify) {
+	targetUe, ok := resolveUEIDs(ctx, amfInstance, ran, &msg.AMFUENGAPID, &msg.RANUENGAPID)
 	if !ok {
 		return
 	}
 
 	targetUe.TouchLastSeen()
 
-	targetUe.UpdateDecodedLocation(ctx, amfInstance, msg.UserLocationInformation)
+	if msg.UserLocationInformation != nil {
+		targetUe.UpdateLocation(ctx, *msg.UserLocationInformation)
+	}
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {

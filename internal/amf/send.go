@@ -21,7 +21,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -880,8 +879,21 @@ func (ueConn *UeConn) SendPDUSessionResourceModifyRequest(
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedurePDUSessionResourceModifyRequest, pkt)
 }
 
-func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) {
-	pkt, err := send.BuildHandoverPreparationFailure(int64(ueConn.AmfUeNgapID), int64(ueConn.RanUeNgapID), cause, criticalityDiagnostics)
+// handoverPreparationFailureBytes builds a Handover Preparation Failure for the
+// given NGAP identities (TS 38.413 §9.2.3.3).
+func handoverPreparationFailureBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause, diagnostics *ngap.CriticalityDiagnostics) ([]byte, error) {
+	msg := &ngap.HandoverPreparationFailure{
+		AMFUENGAPID:            &amfID,
+		RANUENGAPID:            &ranID,
+		Cause:                  &cause,
+		CriticalityDiagnostics: diagnostics,
+	}
+
+	return msg.Marshal()
+}
+
+func (ueConn *UeConn) SendHandoverPreparationFailure(ctx context.Context, cause ngap.Cause, criticalityDiagnostics *ngap.CriticalityDiagnostics) {
+	pkt, err := handoverPreparationFailureBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), cause, criticalityDiagnostics)
 	if err != nil {
 		logger.From(ctx, ueConn.Log).Error("failed to build Handover Preparation Failure", zap.Error(err))
 		return
@@ -900,17 +912,83 @@ func (ueConn *UeConn) SendHandoverCancelAcknowledge(ctx context.Context) {
 	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverCancelAcknowledge, pkt)
 }
 
+// LegacyHandoverType renders a HandoverType for the Handover Resource
+// Allocation builders, which are still on the reference codec. Both
+// enumerations index TS 38.413 §9.3.1.22 in the same order, so the value
+// carries across unchanged. It goes when those builders are migrated.
+// PDUSessionSetupItemHOReq builds one item for a HANDOVER REQUEST
+// (TS 38.413 §9.2.3.4). The transfer is the SMF's, carried opaquely.
+func PDUSessionSetupItemHOReq(pduSessionID uint8, snssai *models.Snssai, transfer []byte) (ngap.PDUSessionResourceSetupItemHOReq, error) {
+	if snssai == nil {
+		return ngap.PDUSessionResourceSetupItemHOReq{}, fmt.Errorf("S-NSSAI is required")
+	}
+
+	s, err := util.SNSSAIToNGAP(*snssai)
+	if err != nil {
+		return ngap.PDUSessionResourceSetupItemHOReq{}, fmt.Errorf("could not convert S-NSSAI: %w", err)
+	}
+
+	return ngap.PDUSessionResourceSetupItemHOReq{
+		PDUSessionID: ngap.PDUSessionID(pduSessionID),
+		SNSSAI:       s,
+		Transfer:     ngap.TransferContainer(transfer),
+	}, nil
+}
+
+// handoverRequestBytes builds a HANDOVER REQUEST (TS 38.413 §9.2.3.4). The
+// {NH, NCC} pair is the AS key chain the target derives its keys from; it is
+// staged at preparation and committed only when the UE arrives (TS 33.501).
+func handoverRequestBytes(
+	amfID ngap.AMFUENGAPID,
+	handoverType ngap.HandoverType,
+	ambrUp, ambrDown models.BitRate,
+	ueSecurityCapability *fgs.UESecurityCapability,
+	ncc uint8,
+	nh []byte,
+	cause ngap.Cause,
+	sessions ngap.PDUSessionResourceSetupListHOReq,
+	sourceToTarget ngap.SourceToTargetTransparentContainer,
+	allowedNSSAI ngap.AllowedNSSAI,
+	guami ngap.GUAMI,
+) ([]byte, error) {
+	var nextHop ngap.SecurityKey
+
+	if len(nh) != len(nextHop) {
+		return nil, fmt.Errorf("next hop is %d octets, want %d", len(nh), len(nextHop))
+	}
+
+	copy(nextHop[:], nh)
+
+	msg := &ngap.HandoverRequest{
+		AMFUENGAPID:  amfID,
+		HandoverType: handoverType,
+		Cause:        &cause,
+		UEAggregateMaximumBitRate: ngap.UEAggregateMaximumBitRate{
+			DL: ngap.BitRate(ambrDown.Bps()),
+			UL: ngap.BitRate(ambrUp.Bps()),
+		},
+		UESecurityCapabilities:             util.SecurityCapabilitiesToNGAP(ueSecurityCapability),
+		SecurityContext:                    ngap.SecurityContext{NextHopChainingCount: ncc, NextHopNH: nextHop},
+		PDUSessionResourceSetupListHOReq:   sessions,
+		AllowedNSSAI:                       allowedNSSAI,
+		SourceToTargetTransparentContainer: sourceToTarget,
+		GUAMI:                              guami,
+	}
+
+	return msg.Marshal()
+}
+
 func (ueConn *UeConn) SendHandoverRequest(
 	ctx context.Context,
-	handOverType ngapType.HandoverType,
+	handOverType ngap.HandoverType,
 	uplinkAmbr models.BitRate,
 	downlinkAmbr models.BitRate,
 	ueSecurityCapability *fgs.UESecurityCapability,
 	ncc uint8,
 	nh []byte,
-	cause ngapType.Cause,
-	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
-	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
+	cause ngap.Cause,
+	sessions ngap.PDUSessionResourceSetupListHOReq,
+	sourceToTargetTransparentContainer ngap.SourceToTargetTransparentContainer,
 	snssaiList []models.Snssai,
 	supportedGUAMI *models.Guami,
 ) error {
@@ -919,8 +997,22 @@ func (ueConn *UeConn) SendHandoverRequest(
 		return err
 	}
 
-	pkt, err := send.BuildHandoverRequest(
-		int64(ueConn.AmfUeNgapID),
+	if supportedGUAMI == nil {
+		return fmt.Errorf("no GUAMI to name this AMF with")
+	}
+
+	guami, err := util.GUAMIToNGAP(*supportedGUAMI)
+	if err != nil {
+		return fmt.Errorf("could not convert GUAMI: %w", err)
+	}
+
+	allowed, err := util.AllowedNSSAIToNGAP(snssaiList)
+	if err != nil {
+		return fmt.Errorf("could not convert Allowed NSSAI: %w", err)
+	}
+
+	pkt, err := handoverRequestBytes(
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
 		handOverType,
 		uplinkAmbr,
 		downlinkAmbr,
@@ -928,10 +1020,10 @@ func (ueConn *UeConn) SendHandoverRequest(
 		ncc,
 		nh,
 		cause,
-		pduSessionResourceSetupListHOReq,
+		sessions,
 		sourceToTargetTransparentContainer,
-		snssaiList,
-		supportedGUAMI,
+		allowed,
+		guami,
 	)
 	if err != nil {
 		return err
@@ -940,12 +1032,45 @@ func (ueConn *UeConn) SendHandoverRequest(
 	return amfInstance.SendToRadio(ctx, conn, send.NGAPProcedureHandoverRequest, pkt)
 }
 
-// ReportProtectFailure logs a failure to build or protect a downlink NAS message
-// and, when the downlink NAS COUNT is exhausted, releases the connection.
-//
-// Nothing further can be sent under that security context: reusing a COUNT would
-// repeat the keystream and make MAC forgery trivial (TS 33.501 §6.4.3.1).
-// Releasing makes the UE register again, which establishes a new context.
+// handoverCommandBytes builds a HANDOVER COMMAND (TS 38.413 §9.2.3.2).
+func handoverCommandBytes(
+	amfID ngap.AMFUENGAPID,
+	ranID ngap.RANUENGAPID,
+	handoverType ngap.HandoverType,
+	admitted ngap.PDUSessionResourceHandoverList,
+	toRelease ngap.PDUSessionResourceToReleaseListHOCmd,
+	targetToSource ngap.TargetToSourceTransparentContainer,
+) ([]byte, error) {
+	msg := &ngap.HandoverCommand{
+		AMFUENGAPID:                        amfID,
+		RANUENGAPID:                        ranID,
+		HandoverType:                       handoverType,
+		PDUSessionResourceHandoverList:     admitted,
+		PDUSessionResourceToReleaseList:    toRelease,
+		TargetToSourceTransparentContainer: targetToSource,
+	}
+
+	return msg.Marshal()
+}
+
+func (ueConn *UeConn) SendHandoverCommand(
+	ctx context.Context,
+	admitted ngap.PDUSessionResourceHandoverList,
+	toRelease ngap.PDUSessionResourceToReleaseListHOCmd,
+	targetToSource ngap.TargetToSourceTransparentContainer,
+) {
+	pkt, err := handoverCommandBytes(
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ueConn.HandOverType, admitted, toRelease, targetToSource,
+	)
+	if err != nil {
+		logger.From(ctx, ueConn.Log).Error("failed to build Handover Command", zap.Error(err))
+		return
+	}
+
+	ueConn.SendNGAP(ctx, send.NGAPProcedureHandoverCommand, pkt)
+}
+
 func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err error) {
 	log := logger.From(ctx, logger.AmfLog)
 
@@ -960,4 +1085,28 @@ func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err e
 	if conn := ue.Conn(); conn != nil {
 		conn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 	}
+}
+
+// downlinkRANStatusTransferBytes builds a DOWNLINK RAN STATUS TRANSFER
+// (TS 38.413 §9.2.3.8).
+func downlinkRANStatusTransferBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, container ngap.StatusTransferContainer) ([]byte, error) {
+	msg := &ngap.DownlinkRANStatusTransfer{
+		AMFUENGAPID: amfID,
+		RANUENGAPID: ranID,
+		Container:   container,
+	}
+
+	return msg.Marshal()
+}
+
+// SendDownlinkRANStatusTransfer relays the source node's PDCP SN/HFN status to
+// the handover target. The container is opaque to the AMF (TS 38.413 §9.3.1.31).
+func (ueConn *UeConn) SendDownlinkRANStatusTransfer(ctx context.Context, container ngap.StatusTransferContainer) {
+	pkt, err := downlinkRANStatusTransferBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID), container)
+	if err != nil {
+		logger.From(ctx, ueConn.Log).Error("failed to build Downlink RAN Status Transfer", zap.Error(err))
+		return
+	}
+
+	ueConn.SendNGAP(ctx, send.NGAPProcedureDownlinkRANStatusTransfer, pkt)
 }

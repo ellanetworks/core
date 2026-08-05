@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
 	libngap "github.com/ellanetworks/core/ngap"
@@ -162,14 +161,12 @@ func TestCrossRadio_HandoverRequestAcknowledge(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	amfID := int64(10)
-	ranID := int64(1)
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, attackerRan, decode.HandoverRequestAcknowledge{
-		AMFUENGAPID: &amfID,
-		RANUENGAPID: &ranID,
-		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
-			Value: []byte{0x01},
-		},
+	amfID := libngap.AMFUENGAPID(10)
+	ranID := libngap.RANUENGAPID(1)
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, attackerRan, &libngap.HandoverRequestAcknowledge{
+		AMFUENGAPID:                        &amfID,
+		RANUENGAPID:                        &ranID,
+		TargetToSourceTransparentContainer: libngap.TargetToSourceTransparentContainer{0x01},
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {
@@ -187,8 +184,8 @@ func TestCrossRadio_HandoverFailure(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, attackerRan, decode.HandoverFailure{
-		AMFUENGAPID: 10,
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, attackerRan, &libngap.HandoverFailure{
+		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {

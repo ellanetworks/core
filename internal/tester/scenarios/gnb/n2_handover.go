@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
@@ -126,7 +127,7 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	err = sourceGNB.SendHandoverRequired(&gnb.HandoverRequiredOpts{
 		AMFUENGAPID:  amfUENGAPID,
 		RANUENGAPID:  ranUENGAPID,
-		HandoverType: int64(ngapType.HandoverTypePresentIntra5gs),
+		HandoverType: ngaplib.HandoverTypeIntra5GS,
 		TargetGnbID:  "000002",
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},

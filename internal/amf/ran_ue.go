@@ -55,7 +55,7 @@ const releaseGuardTimeout = 5 * time.Second
 type UeConn struct {
 	RanUeNgapID  models.RanUeNgapID
 	AmfUeNgapID  models.AmfUeNgapID
-	HandOverType ngapType.HandoverType
+	HandOverType ngap.HandoverType
 	Tai          models.Tai
 	Location     models.UserLocation
 	ue           *UeContext

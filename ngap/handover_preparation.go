@@ -1,38 +1,45 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package s1ap
+package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 36.413 §9.1.5.1.
+// TS 38.413 §9.2.3.1. The source NG-RAN node asks the AMF to prepare a
+// handover. TS 36.413 §9.1.5.1 shares six of these IEs but adds six more for
+// circuit-switched fallback and legacy femtocells (SRVCC, a secondary source
+// container, MSClassmark2/3, CSG-Id, CellAccessMode, PS-ServiceNotAvailable),
+// none of which 5G defines; NGAP adds PDUSessionResourceListHORqd in their
+// place.
 type HandoverRequired struct {
-	MMEUES1APID    MMEUES1APID
-	ENBUES1APID    ENBUES1APID
-	HandoverType   HandoverType
-	Cause          *Cause
-	TargetID       TargetID
-	SourceToTarget TransparentContainer
+	AMFUENGAPID                        AMFUENGAPID
+	RANUENGAPID                        RANUENGAPID
+	HandoverType                       HandoverType
+	Cause                              *Cause
+	TargetID                           TargetID
+	DirectForwardingPathAvailability   *DirectForwardingPathAvailability
+	PDUSessionResourceListHORqd        PDUSessionResourceListHORqd
+	SourceToTargetTransparentContainer SourceToTargetTransparentContainer
 
 	messageMeta
 }
 
 var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
-		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			return perIEDecode(raw, &m.RANUENGAPID)
 		},
-		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
 		id: idHandoverType, presence: presenceMandatory, crit: CriticalityReject,
@@ -70,16 +77,50 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.TargetID, true },
 	},
 	{
-		id: idSourceToTargetTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		id: idDirectForwardingPathAvailability, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SourceToTarget)
+			var v DirectForwardingPathAvailability
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.DirectForwardingPathAvailability = &v
+
+			return nil
 		},
 		encode: func(m *HandoverRequired) (per.Marshaler, bool) {
-			if m.SourceToTarget == nil {
+			if m.DirectForwardingPathAvailability == nil {
 				return nil, false
 			}
 
-			return &m.SourceToTarget, true
+			return m.DirectForwardingPathAvailability, true
+		},
+	},
+	{
+		id: idPDUSessionResourceListHORqd, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.PDUSessionResourceListHORqd)
+		},
+		encode: func(m *HandoverRequired) (per.Marshaler, bool) {
+			if m.PDUSessionResourceListHORqd == nil {
+				return nil, false
+			}
+
+			return m.PDUSessionResourceListHORqd, true
+		},
+	},
+	{
+		id: idSourceToTargetTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.SourceToTargetTransparentContainer)
+		},
+		encode: func(m *HandoverRequired) (per.Marshaler, bool) {
+			if m.SourceToTargetTransparentContainer == nil {
+				return nil, false
+			}
+
+			return m.SourceToTargetTransparentContainer, true
 		},
 	},
 }
@@ -108,42 +149,44 @@ func ParseHandoverRequired(value []byte) (*HandoverRequired, error) {
 	return parseMessageBody[HandoverRequired](ProcHandoverPreparation, TriggeringInitiatingMessage, handoverRequiredIEs, value)
 }
 
-// TS 36.413 §9.1.5.2. The MME tells the source eNB that the target has
-// resources ready. TS 38.413 §9.2.3.2 carries the same shape; S1AP alone has a
-// second target container for SRVCC, which is not modelled.
+// TS 38.413 §9.2.3.2. The AMF tells the source NG-RAN node that the target has
+// resources ready. TS 36.413 §9.1.5.2 carries the same shape: the NAS security
+// parameters, the two per-bearer lists and the target container, differing only
+// in that S1AP has a second target container for SRVCC, which is not modelled.
 type HandoverCommand struct {
-	MMEUES1APID                     MMEUES1APID
-	ENBUES1APID                     ENBUES1APID
-	HandoverType                    HandoverType
-	NASSecurityParametersfromEUTRAN NASSecurityParametersfromEUTRAN
-	ERABSubjecttoDataForwarding     []ERABDataForwardingItem
-	ERABToRelease                   []ERABItem
-	TargetToSource                  TransparentContainer
-	CriticalityDiagnostics          *CriticalityDiagnostics
+	AMFUENGAPID                        AMFUENGAPID
+	RANUENGAPID                        RANUENGAPID
+	HandoverType                       HandoverType
+	NASSecurityParametersFromNGRAN     NASSecurityParametersFromNGRAN
+	PDUSessionResourceHandoverList     PDUSessionResourceHandoverList
+	PDUSessionResourceToReleaseList    PDUSessionResourceToReleaseListHOCmd
+	TargetToSourceTransparentContainer TargetToSourceTransparentContainer
+	CriticalityDiagnostics             *CriticalityDiagnostics
 
 	messageMeta
 }
 
-// The NAS security parameters travel only when the UE leaves E-UTRAN: TS 36.413
-// §9.1.5.2 condition iftoUTRANGERAN.
-func handoverLeavesEUTRAN(m *HandoverCommand) bool {
-	return m.HandoverType == HandoverTypeLTEtoUTRAN || m.HandoverType == HandoverTypeLTEtoGERAN
+// The NAS security parameters travel only when the UE leaves 5GS: TS 38.413
+// §9.2.3.2 condition iftoEPSUTRA. HandoverType's fivegs-to-utran is an
+// extension value this package does not model, so 5GStoEPS is the whole of it.
+func handoverLeavesFiveGS(m *HandoverCommand) bool {
+	return m.HandoverType == HandoverTypeFiveGSToEPS
 }
 
 var handoverCommandIEs = []ieSpec[HandoverCommand]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
-		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			return perIEDecode(raw, &m.RANUENGAPID)
 		},
-		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
 		id: idHandoverType, presence: presenceMandatory, crit: CriticalityReject,
@@ -153,68 +196,56 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.HandoverType, true },
 	},
 	{
-		id: idNASSecurityParametersfromEUTRAN, presence: presenceConditional, crit: CriticalityReject,
-		condition: handoverLeavesEUTRAN,
+		id: idNASSecurityParametersFromNGRAN, presence: presenceConditional, crit: CriticalityReject,
+		condition: handoverLeavesFiveGS,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.NASSecurityParametersfromEUTRAN)
+			return perIEDecode(raw, &m.NASSecurityParametersFromNGRAN)
 		},
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
-			if m.NASSecurityParametersfromEUTRAN == nil {
+			if m.NASSecurityParametersFromNGRAN == nil {
 				return nil, false
 			}
 
-			return m.NASSecurityParametersfromEUTRAN, true
+			return m.NASSecurityParametersFromNGRAN, true
 		},
 	},
 	{
-		id: idERABSubjecttoDataForwardingList, presence: presenceOptional, crit: CriticalityIgnore,
+		id: idPDUSessionResourceHandoverList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
-			var err error
-
-			m.ERABSubjecttoDataForwarding, err = decodeItemList[ERABDataForwardingItem](per.NewReader(raw), enc, maxnoofERABs)
-
-			return err
+			return perIEDecode(raw, &m.PDUSessionResourceHandoverList)
 		},
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
-			if len(m.ERABSubjecttoDataForwarding) == 0 {
+			if m.PDUSessionResourceHandoverList == nil {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABDataForwardingItem, CriticalityIgnore, m.ERABSubjecttoDataForwarding)
-			}), true
+			return m.PDUSessionResourceHandoverList, true
 		},
 	},
 	{
-		id: idERABtoReleaseListHOCmd, presence: presenceOptional, crit: CriticalityIgnore,
+		id: idPDUSessionResourceToReleaseListHOCmd, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
-			var err error
-
-			m.ERABToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs)
-
-			return err
+			return perIEDecode(raw, &m.PDUSessionResourceToReleaseList)
 		},
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
-			if len(m.ERABToRelease) == 0 {
+			if m.PDUSessionResourceToReleaseList == nil {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToRelease)
-			}), true
+			return m.PDUSessionResourceToReleaseList, true
 		},
 	},
 	{
 		id: idTargetToSourceTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.TargetToSource)
+			return perIEDecode(raw, &m.TargetToSourceTransparentContainer)
 		},
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) {
-			if m.TargetToSource == nil {
+			if m.TargetToSourceTransparentContainer == nil {
 				return nil, false
 			}
 
-			return &m.TargetToSource, true
+			return m.TargetToSourceTransparentContainer, true
 		},
 	},
 	{
@@ -264,10 +295,13 @@ func ParseHandoverCommand(value []byte) (*HandoverCommand, error) {
 	return parseMessageBody[HandoverCommand](ProcHandoverPreparation, TriggeringSuccessfulOutcome, handoverCommandIEs, value)
 }
 
-// TS 36.413 §9.1.5.3.
+// TS 38.413 §9.2.3.3. TS 36.413 §9.1.5.3 carries the same four IEs with the
+// same criticality and presence, so the two are identical bar the UE ID names.
+// NGAP adds an optional TargettoSource-Failure-TransparentContainer that only
+// Handover Resource Allocation can supply, so it is not modelled here.
 type HandoverPreparationFailure struct {
-	MMEUES1APID            *MMEUES1APID
-	ENBUES1APID            *ENBUES1APID
+	AMFUENGAPID            *AMFUENGAPID
+	RANUENGAPID            *RANUENGAPID
 	Cause                  *Cause
 	CriticalityDiagnostics *CriticalityDiagnostics
 
@@ -276,45 +310,45 @@ type HandoverPreparationFailure struct {
 
 var handoverPreparationFailureIEs = []ieSpec[HandoverPreparationFailure]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverPreparationFailure, raw []byte, enc per.Encoding) error {
-			var v MMEUES1APID
+			var v AMFUENGAPID
 
 			if err := perIEDecode(raw, &v); err != nil {
 				return err
 			}
 
-			m.MMEUES1APID = &v
+			m.AMFUENGAPID = &v
 
 			return nil
 		},
 		encode: func(m *HandoverPreparationFailure) (per.Marshaler, bool) {
-			if m.MMEUES1APID == nil {
+			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
 
-			return m.MMEUES1APID, true
+			return m.AMFUENGAPID, true
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverPreparationFailure, raw []byte, enc per.Encoding) error {
-			var v ENBUES1APID
+			var v RANUENGAPID
 
 			if err := perIEDecode(raw, &v); err != nil {
 				return err
 			}
 
-			m.ENBUES1APID = &v
+			m.RANUENGAPID = &v
 
 			return nil
 		},
 		encode: func(m *HandoverPreparationFailure) (per.Marshaler, bool) {
-			if m.ENBUES1APID == nil {
+			if m.RANUENGAPID == nil {
 				return nil, false
 			}
 
-			return m.ENBUES1APID, true
+			return m.RANUENGAPID, true
 		},
 	},
 	{

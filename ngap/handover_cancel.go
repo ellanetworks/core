@@ -1,16 +1,17 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package s1ap
+package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 36.413 §9.1.5.11.
+// TS 38.413 §9.2.3.6. The AMF and the NG-RAN node cancel a prepared
+// handover. TS 36.413 §9.1.5.11 carries the same three IEs.
 type HandoverCancel struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
+	AMFUENGAPID AMFUENGAPID
+	RANUENGAPID RANUENGAPID
 	Cause       *Cause
 
 	messageMeta
@@ -18,18 +19,18 @@ type HandoverCancel struct {
 
 var handoverCancelIEs = []ieSpec[HandoverCancel]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
-		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+			return perIEDecode(raw, &m.RANUENGAPID)
 		},
-		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
 		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
@@ -78,10 +79,10 @@ func ParseHandoverCancel(value []byte) (*HandoverCancel, error) {
 	return parseMessageBody[HandoverCancel](ProcHandoverCancel, TriggeringInitiatingMessage, handoverCancelIEs, value)
 }
 
-// TS 36.413 §9.1.5.12.
+// TS 38.413 §9.2.3.7. TS 36.413 §9.1.5.12 is identical.
 type HandoverCancelAcknowledge struct {
-	MMEUES1APID            *MMEUES1APID
-	ENBUES1APID            *ENBUES1APID
+	AMFUENGAPID            *AMFUENGAPID
+	RANUENGAPID            *RANUENGAPID
 	CriticalityDiagnostics *CriticalityDiagnostics
 
 	messageMeta
@@ -89,45 +90,45 @@ type HandoverCancelAcknowledge struct {
 
 var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
-			var v MMEUES1APID
+			var v AMFUENGAPID
 
 			if err := perIEDecode(raw, &v); err != nil {
 				return err
 			}
 
-			m.MMEUES1APID = &v
+			m.AMFUENGAPID = &v
 
 			return nil
 		},
 		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) {
-			if m.MMEUES1APID == nil {
+			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
 
-			return m.MMEUES1APID, true
+			return m.AMFUENGAPID, true
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
-			var v ENBUES1APID
+			var v RANUENGAPID
 
 			if err := perIEDecode(raw, &v); err != nil {
 				return err
 			}
 
-			m.ENBUES1APID = &v
+			m.RANUENGAPID = &v
 
 			return nil
 		},
 		encode: func(m *HandoverCancelAcknowledge) (per.Marshaler, bool) {
-			if m.ENBUES1APID == nil {
+			if m.RANUENGAPID == nil {
 				return nil, false
 			}
 
-			return m.ENBUES1APID, true
+			return m.RANUENGAPID, true
 		},
 	},
 	{

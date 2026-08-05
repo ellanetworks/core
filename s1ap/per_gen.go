@@ -283,6 +283,125 @@ func (eRABAdmittedItem *ERABAdmittedItem) UnmarshalPER(r *per.Reader, enc per.En
 	return nil
 }
 
+func (eRABDataForwardingItem *ERABDataForwardingItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(eRABDataForwardingItem.DLTransportLayerAddr != nil)
+	w.WriteBit(eRABDataForwardingItem.DLGTPTEID != nil)
+	w.WriteBit(eRABDataForwardingItem.ULTransportLayerAddr != nil)
+	w.WriteBit(eRABDataForwardingItem.ULGTPTEID != nil)
+	w.WriteBit(false)
+	if err := eRABDataForwardingItem.ERABID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if eRABDataForwardingItem.DLTransportLayerAddr != nil {
+		if err := eRABDataForwardingItem.DLTransportLayerAddr.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABDataForwardingItem.DLGTPTEID != nil {
+		if err := (*eRABDataForwardingItem.DLGTPTEID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABDataForwardingItem.ULTransportLayerAddr != nil {
+		if err := eRABDataForwardingItem.ULTransportLayerAddr.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABDataForwardingItem.ULGTPTEID != nil {
+		if err := (*eRABDataForwardingItem.ULGTPTEID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLTransportLayerAddr, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLGTPTEID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ULTransportLayerAddr, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ULGTPTEID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f5, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&eRABDataForwardingItem.ERABID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLTransportLayerAddr {
+		if err := (&eRABDataForwardingItem.DLTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_DLGTPTEID {
+		var v GTPTEID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABDataForwardingItem.DLGTPTEID = &v
+	}
+	if p_ULTransportLayerAddr {
+		if err := (&eRABDataForwardingItem.ULTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ULGTPTEID {
+		var v GTPTEID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABDataForwardingItem.ULGTPTEID = &v
+	}
+	if p_f5 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			extBits = make([]bool, count)
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits[i] = b
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (eRABItem *ERABItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)

@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
+	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -160,7 +161,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	err = sourceGNB.SendHandoverRequired(&gnb.HandoverRequiredOpts{
 		AMFUENGAPID:  amfUENGAPID,
 		RANUENGAPID:  ranUENGAPID,
-		HandoverType: int64(ngapType.HandoverTypePresentIntra5gs),
+		HandoverType: ngaplib.HandoverTypeIntra5GS,
 		TargetGnbID:  "000002",
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
