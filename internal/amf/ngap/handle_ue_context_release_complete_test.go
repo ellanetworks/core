@@ -1,17 +1,16 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
-	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe verifies that
@@ -38,14 +37,14 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
-	amfID := libngap.AMFUENGAPID(200)
-	ranID := libngap.RANUENGAPID(2)
-	msg := &libngap.UEContextReleaseComplete{
+	amfID := ngap.AMFUENGAPID(200)
+	ranID := ngap.RANUENGAPID(2)
+	msg := &ngap.UEContextReleaseComplete{
 		AMFUENGAPID: &amfID,
 		RANUENGAPID: &ranID,
 	}
 
-	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
 	if amfInstance.FindUEByRanUeNgapID(ran, targetUeConn.RanUeNgapID) != nil {
 		t.Fatal("expected target UeConn to be removed after release complete")
@@ -67,15 +66,15 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), ran)
 
-	amfID := libngap.AMFUENGAPID(100)
-	ranID := libngap.RANUENGAPID(1)
-	msg := &libngap.UEContextReleaseComplete{
+	amfID := ngap.AMFUENGAPID(100)
+	ranID := ngap.RANUENGAPID(1)
+	msg := &ngap.UEContextReleaseComplete{
 		AMFUENGAPID:            &amfID,
 		RANUENGAPID:            &ranID,
-		PDUSessionResourceList: libngap.PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
+		PDUSessionResourceList: ngap.PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
 	}
 
-	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
 	if amfInstance.FindUEByRanUeNgapID(ran, ueConn.RanUeNgapID) != nil {
 		t.Fatal("expected UeConn to be removed after release complete")
@@ -90,10 +89,10 @@ func TestHandleUEContextReleaseComplete_MissingUENGAPIDs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	amfID := libngap.AMFUENGAPID(1)
+	amfID := ngap.AMFUENGAPID(1)
 
-	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran,
-		&libngap.UEContextReleaseComplete{AMFUENGAPID: &amfID})
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, ran,
+		&ngap.UEContextReleaseComplete{AMFUENGAPID: &amfID})
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))

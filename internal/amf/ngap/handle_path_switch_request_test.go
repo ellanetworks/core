@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
@@ -10,24 +10,23 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/fgs"
-	ngaplib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/ngap"
 )
 
-func buildPathSwitchRequestTransfer(teid uint32, ip []byte) (ngaplib.TransferContainer, error) {
-	return (&ngaplib.PathSwitchRequestTransfer{
-		DLNGUUPTNLInformation: ngaplib.UPTransportLayerInformation{GTPTunnel: ngaplib.GTPTunnel{
-			TransportLayerAddress: ngaplib.TransportLayerAddress(ip),
-			GTPTEID:               ngaplib.GTPTEID(teid),
+func buildPathSwitchRequestTransfer(teid uint32, ip []byte) (ngap.TransferContainer, error) {
+	return (&ngap.PathSwitchRequestTransfer{
+		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
+			TransportLayerAddress: ngap.TransportLayerAddress(ip),
+			GTPTEID:               ngap.GTPTEID(teid),
 		}},
 		// QosFlowAcceptedList is mandatory.
-		QosFlowAccepted: ngaplib.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
+		QosFlowAccepted: ngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}).Marshal()
 }
 
@@ -35,18 +34,18 @@ func buildPathSwitchRequestTransfer(teid uint32, ip []byte) (ngaplib.TransferCon
 // is always set: it is mandatory, and the handler reads it to update the UE's
 // recorded location.
 func buildPathSwitchRequest(
-	sourceAmfUeNgapID *ngaplib.AMFUENGAPID,
-	ranUeNgapID *ngaplib.RANUENGAPID,
-	pduSessionDLList ngaplib.PDUSessionResourceToBeSwitchedDLList,
-	failedList ngaplib.PDUSessionResourceFailedToSetupListPSReq,
-	uESecurityCapabilities *ngaplib.UESecurityCapabilities,
-) *ngaplib.PathSwitchRequest {
-	msg := &ngaplib.PathSwitchRequest{
-		UserLocationInformation: &ngaplib.UserLocationInformation{
-			Kind:         ngaplib.UserLocationNR,
-			PLMNIdentity: ngaplib.PLMNIdentity{0x02, 0xf8, 0x39},
+	sourceAmfUeNgapID *ngap.AMFUENGAPID,
+	ranUeNgapID *ngap.RANUENGAPID,
+	pduSessionDLList ngap.PDUSessionResourceToBeSwitchedDLList,
+	failedList ngap.PDUSessionResourceFailedToSetupListPSReq,
+	uESecurityCapabilities *ngap.UESecurityCapabilities,
+) *ngap.PathSwitchRequest {
+	msg := &ngap.PathSwitchRequest{
+		UserLocationInformation: &ngap.UserLocationInformation{
+			Kind:         ngap.UserLocationNR,
+			PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39},
 			CellIdentity: 1,
-			TAI:          ngaplib.TAI{PLMNIdentity: ngaplib.PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1},
+			TAI:          ngap.TAI{PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1},
 		},
 		UESecurityCapabilities:               uESecurityCapabilities,
 		PDUSessionResourceToBeSwitchedDLList: pduSessionDLList,
@@ -103,15 +102,15 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(999)), // no UE with this AMF UE NGAP ID
-		ngaplib.Ptr(ngaplib.RANUENGAPID(1)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(999)), // no UE with this AMF UE NGAP ID
+		ngap.Ptr(ngap.RANUENGAPID(1)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, ran, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
@@ -119,12 +118,12 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 	}
 
 	failure := sender.SentPathSwitchRequestFailures[0]
-	if failure.AmfUeNgapID != 999 {
-		t.Errorf("expected AmfUeNgapID=999, got %d", failure.AmfUeNgapID)
+	if failure.AMFUENGAPID == nil || *failure.AMFUENGAPID != ngap.AMFUENGAPID(999) {
+		t.Errorf("expected AmfUeNgapID=999, got %d", failure.AMFUENGAPID)
 	}
 
-	if failure.RanUeNgapID != 1 {
-		t.Errorf("expected RanUeNgapID=1, got %d", failure.RanUeNgapID)
+	if failure.RANUENGAPID == nil || *failure.RANUENGAPID != ngap.RANUENGAPID(1) {
+		t.Errorf("expected RanUeNgapID=1, got %d", failure.RANUENGAPID)
 	}
 }
 
@@ -155,15 +154,15 @@ func TestPathSwitchRequest_NilUeContext(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
@@ -202,15 +201,15 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
@@ -249,15 +248,15 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(fakeSmf.PathSwitchCalls) != 0 {
 		t.Fatalf("expected no SMF calls, got %d", len(fakeSmf.PathSwitchCalls))
@@ -270,13 +269,13 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 
 	// TS 38.413: the failure must name the unswitched session in its
 	// mandatory PDU Session Resource Released List.
-	released := targetNGAPSender.SentPathSwitchRequestFailures[0].PduSessionResourceReleasedList
-	if released == nil || len(released.List) != 1 {
+	released := targetNGAPSender.SentPathSwitchRequestFailures[0].PDUSessionResourceReleased
+	if released == nil || len(released) != 1 {
 		t.Fatalf("failure must carry a released list naming the unswitched session (TS 38.413); got %v", released)
 	}
 
-	if released.List[0].PDUSessionID.Value != 1 {
-		t.Errorf("released PDU session ID = %d, want 1", released.List[0].PDUSessionID.Value)
+	if released[0].PDUSessionID != 1 {
+		t.Errorf("released PDU session ID = %d, want 1", released[0].PDUSessionID)
 	}
 }
 
@@ -316,15 +315,15 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
@@ -391,15 +390,15 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(sourceAmfUeNgapID)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(targetRanUeNgapID)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
-			{PDUSessionID: ngaplib.PDUSessionID(pduSessionID), Transfer: transfer},
+		ngap.Ptr(ngap.AMFUENGAPID(sourceAmfUeNgapID)),
+		ngap.Ptr(ngap.RANUENGAPID(targetRanUeNgapID)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
+			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
@@ -416,24 +415,24 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 
 	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
 
-	if ack.AmfUeNgapID != sourceAmfUeNgapID {
-		t.Errorf("expected AmfUeNgapID=%d, got %d", sourceAmfUeNgapID, ack.AmfUeNgapID)
+	if ack.AMFUENGAPID == nil || *ack.AMFUENGAPID != ngap.AMFUENGAPID(sourceAmfUeNgapID) {
+		t.Errorf("expected AmfUeNgapID=%d, got %d", sourceAmfUeNgapID, ack.AMFUENGAPID)
 	}
 
-	if ack.RanUeNgapID != targetRanUeNgapID {
-		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, ack.RanUeNgapID)
+	if ack.RANUENGAPID == nil || *ack.RANUENGAPID != ngap.RANUENGAPID(targetRanUeNgapID) {
+		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, ack.RANUENGAPID)
 	}
 
-	if ack.NCC == 0 {
+	if ack.SecurityContext.NextHopChainingCount == 0 {
 		t.Error("expected NCC > 0 after advancing the NH chain")
 	}
 
-	if len(ack.PDUSessionResourceSwitchedList.List) != 1 {
-		t.Fatalf("expected 1 switched PDU session, got %d", len(ack.PDUSessionResourceSwitchedList.List))
+	if len(ack.PDUSessionResourceSwitchedList) != 1 {
+		t.Fatalf("expected 1 switched PDU session, got %d", len(ack.PDUSessionResourceSwitchedList))
 	}
 
-	if ack.PDUSessionResourceSwitchedList.List[0].PDUSessionID.Value != int64(pduSessionID) {
-		t.Errorf("expected PDU session ID %d, got %d", pduSessionID, ack.PDUSessionResourceSwitchedList.List[0].PDUSessionID.Value)
+	if ack.PDUSessionResourceSwitchedList[0].PDUSessionID != ngap.PDUSessionID(pduSessionID) {
+		t.Errorf("expected PDU session ID %d, got %d", pduSessionID, ack.PDUSessionResourceSwitchedList[0].PDUSessionID)
 	}
 
 	if sourceUe.Radio() != targetRan {
@@ -496,15 +495,15 @@ func TestPathSwitchRequest_RejectedWhileKeyChainBusy(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(sourceAmfUeNgapID)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(targetRanUeNgapID)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
-			{PDUSessionID: ngaplib.PDUSessionID(pduSessionID), Transfer: transfer},
+		ngap.Ptr(ngap.AMFUENGAPID(sourceAmfUeNgapID)),
+		ngap.Ptr(ngap.RANUENGAPID(targetRanUeNgapID)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
+			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d", len(targetNGAPSender.SentPathSwitchRequestFailures))
@@ -572,37 +571,37 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 
 	// PDU Session ID 1 listed twice.
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(sourceAmfUeNgapID)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(targetRanUeNgapID)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
-			{PDUSessionID: ngaplib.PDUSessionID(pduSessionID), Transfer: transfer},
-			{PDUSessionID: ngaplib.PDUSessionID(pduSessionID), Transfer: transfer},
+		ngap.Ptr(ngap.AMFUENGAPID(sourceAmfUeNgapID)),
+		ngap.Ptr(ngap.RANUENGAPID(targetRanUeNgapID)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
+			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: transfer},
+			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d", len(targetNGAPSender.SentPathSwitchRequestFailures))
 	}
 
 	failure := targetNGAPSender.SentPathSwitchRequestFailures[0]
-	if failure.AmfUeNgapID != sourceAmfUeNgapID {
-		t.Errorf("expected AmfUeNgapID=%d, got %d", sourceAmfUeNgapID, failure.AmfUeNgapID)
+	if failure.AMFUENGAPID == nil || *failure.AMFUENGAPID != ngap.AMFUENGAPID(sourceAmfUeNgapID) {
+		t.Errorf("expected AmfUeNgapID=%d, got %d", sourceAmfUeNgapID, failure.AMFUENGAPID)
 	}
 
-	if failure.RanUeNgapID != targetRanUeNgapID {
-		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, failure.RanUeNgapID)
+	if failure.RANUENGAPID == nil || *failure.RANUENGAPID != ngap.RANUENGAPID(targetRanUeNgapID) {
+		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, failure.RANUENGAPID)
 	}
 
 	// The duplicated PDU Session ID appears once in the mandatory released list
 	// (TS 38.413).
-	if failure.PduSessionResourceReleasedList == nil || len(failure.PduSessionResourceReleasedList.List) != 1 {
-		t.Fatalf("failure must carry a deduplicated released list (TS 38.413); got %v", failure.PduSessionResourceReleasedList)
+	if failure.PDUSessionResourceReleased == nil || len(failure.PDUSessionResourceReleased) != 1 {
+		t.Fatalf("failure must carry a deduplicated released list (TS 38.413); got %v", failure.PDUSessionResourceReleased)
 	}
 
-	if got := failure.PduSessionResourceReleasedList.List[0].PDUSessionID.Value; got != int64(pduSessionID) {
+	if got := failure.PDUSessionResourceReleased[0].PDUSessionID; got != ngap.PDUSessionID(pduSessionID) {
 		t.Errorf("released PDU session ID = %d, want %d", got, pduSessionID)
 	}
 
@@ -657,16 +656,16 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer1},
 			{PDUSessionID: 2, Transfer: transfer2}, // No SmContext for this
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
@@ -679,14 +678,14 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	}
 
 	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
-	if len(ack.PDUSessionResourceSwitchedList.List) != 1 {
+	if len(ack.PDUSessionResourceSwitchedList) != 1 {
 		t.Fatalf("expected 1 switched PDU session, got %d",
-			len(ack.PDUSessionResourceSwitchedList.List))
+			len(ack.PDUSessionResourceSwitchedList))
 	}
 
-	if ack.PDUSessionResourceSwitchedList.List[0].PDUSessionID.Value != 1 {
+	if ack.PDUSessionResourceSwitchedList[0].PDUSessionID != 1 {
 		t.Errorf("expected PDU session 1 to be switched, got %d",
-			ack.PDUSessionResourceSwitchedList.List[0].PDUSessionID.Value)
+			ack.PDUSessionResourceSwitchedList[0].PDUSessionID)
 	}
 }
 
@@ -729,26 +728,26 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		t.Fatalf("failed to build transfer: %v", err)
 	}
 
-	failedBytes, err := (&ngaplib.PathSwitchRequestSetupFailedTransfer{
-		Cause: ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkUnknownLocalUENGAPID},
+	failedBytes, err := (&ngap.PathSwitchRequestSetupFailedTransfer{
+		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID},
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal failed transfer: %v", err)
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
-		ngaplib.PDUSessionResourceFailedToSetupListPSReq{
+		ngap.PDUSessionResourceFailedToSetupListPSReq{
 			{PDUSessionID: 2, Transfer: failedBytes},
 		},
 		nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(fakeSmf.PathSwitchCalls) != 1 {
 		t.Fatalf("expected 1 PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
@@ -807,19 +806,19 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 		t.Fatalf("failed to build transfer: %v", err)
 	}
 
-	secCap := &ngaplib.UESecurityCapabilities{}
+	secCap := &ngap.UESecurityCapabilities{}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
 		nil,
 		secCap,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 1); got != 1 {
 		t.Errorf("stored EA1_128_5G was overwritten: got %d, want 1", got)
@@ -851,12 +850,12 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 	}
 
 	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
-	if ack.UESecurityCapability == nil {
+	if ack.UESecurityCapabilities == nil {
 		t.Fatal("PathSwitchRequestAcknowledge has nil UESecurityCapability")
 	}
 
-	parsedCap, err := fgs.ParseUESecurityCapability(ack.UESecurityCapability)
-	if err != nil || !parsedCap.SupportsEA(1) || !parsedCap.SupportsEA(2) || !parsedCap.SupportsEA(3) ||
+	parsedCap := ngapToNasUESecurityCapability(ack.UESecurityCapabilities)
+	if !parsedCap.SupportsEA(1) || !parsedCap.SupportsEA(2) || !parsedCap.SupportsEA(3) ||
 		!parsedCap.SupportsIA(1) || !parsedCap.SupportsIA(2) || !parsedCap.SupportsIA(3) {
 		t.Error("PathSwitchRequestAcknowledge does not echo locally stored UE security capabilities")
 	}
@@ -901,22 +900,22 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 		t.Fatalf("failed to build transfer: %v", err)
 	}
 
-	matchingCaps := &ngaplib.UESecurityCapabilities{
+	matchingCaps := &ngap.UESecurityCapabilities{
 		NREncryptionAlgorithms:          0x8000, // EA1
 		NRIntegrityProtectionAlgorithms: 0x4000, // IA2
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(10)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(2)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: transfer},
 		},
 		nil,
 		matchingCaps,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if got := eaBit(amfUe.UESecurityCapabilityForTest(), 1); got != 1 {
 		t.Errorf("stored EA1_128_5G changed after matching path switch: got %d, want 1", got)
@@ -936,12 +935,12 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	}
 
 	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
-	if ack.UESecurityCapability == nil {
+	if ack.UESecurityCapabilities == nil {
 		t.Fatal("PathSwitchRequestAcknowledge has nil UESecurityCapability")
 	}
 
-	parsedCap, err := fgs.ParseUESecurityCapability(ack.UESecurityCapability)
-	if err != nil || !parsedCap.SupportsEA(1) || !parsedCap.SupportsIA(2) {
+	parsedCap := ngapToNasUESecurityCapability(ack.UESecurityCapabilities)
+	if !parsedCap.SupportsEA(1) || !parsedCap.SupportsIA(2) {
 		t.Error("PathSwitchRequestAcknowledge does not echo locally stored UE security capabilities")
 	}
 }
@@ -989,16 +988,16 @@ func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
 	}
 
 	msg := buildPathSwitchRequest(
-		ngaplib.Ptr(ngaplib.AMFUENGAPID(sourceAmfUeNgapID)),
-		ngaplib.Ptr(ngaplib.RANUENGAPID(targetRanUeNgapID)),
-		ngaplib.PDUSessionResourceToBeSwitchedDLList{
-			{PDUSessionID: ngaplib.PDUSessionID(switchedID), Transfer: transfer},
-			{PDUSessionID: ngaplib.PDUSessionID(unswitchedID), Transfer: transfer},
+		ngap.Ptr(ngap.AMFUENGAPID(sourceAmfUeNgapID)),
+		ngap.Ptr(ngap.RANUENGAPID(targetRanUeNgapID)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{
+			{PDUSessionID: ngap.PDUSessionID(switchedID), Transfer: transfer},
+			{PDUSessionID: ngap.PDUSessionID(unswitchedID), Transfer: transfer},
 		},
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d", len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
@@ -1006,21 +1005,19 @@ func TestPathSwitchRequest_PartialFailureReleasesUnswitched(t *testing.T) {
 
 	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
 
-	if len(ack.PDUSessionResourceSwitchedList.List) != 1 {
-		t.Fatalf("expected 1 switched PDU session, got %d", len(ack.PDUSessionResourceSwitchedList.List))
+	if len(ack.PDUSessionResourceSwitchedList) != 1 {
+		t.Fatalf("expected 1 switched PDU session, got %d", len(ack.PDUSessionResourceSwitchedList))
 	}
 
-	if len(ack.PDUSessionResourceReleasedListAck.List) != 1 {
-		t.Fatalf("expected 1 released PDU session (TS 38.413 §8.4.4.2), got %d", len(ack.PDUSessionResourceReleasedListAck.List))
+	if len(ack.PDUSessionResourceReleased) != 1 {
+		t.Fatalf("expected 1 released PDU session (TS 38.413 §8.4.4.2), got %d", len(ack.PDUSessionResourceReleased))
 	}
 
-	if got := ack.PDUSessionResourceReleasedListAck.List[0].PDUSessionID.Value; got != int64(unswitchedID) {
+	if got := ack.PDUSessionResourceReleased[0].PDUSessionID; got != ngap.PDUSessionID(unswitchedID) {
 		t.Fatalf("released PDU session = %d, want %d", got, unswitchedID)
 	}
 }
 
-// eaBit / iaBit report the 5G EA/IA algorithm-n support bit of a stored UE
-// security capability IE value (test helpers, mirroring the free5gc accessors).
 func eaBit(sc *fgs.UESecurityCapability, n uint8) uint8 {
 	if !sc.SupportsEA(n) {
 		return 0

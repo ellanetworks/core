@@ -16,9 +16,6 @@ import (
 )
 
 // Converters between the in-house NGAP library's types and the AMF's models.
-// They replace the ngapType/ngapConvert equivalents in this package one
-// procedure at a time; the two sets sit side by side until the last consumer
-// moves off free5gc.
 
 // PLMNToModels renders a PLMN identity as MCC/MNC digit strings. The middle
 // octet's high nibble is the third MNC digit, or "f" for a two-digit MNC

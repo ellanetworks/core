@@ -6,6 +6,7 @@ package amf_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
 
@@ -31,20 +32,23 @@ type fakeNGAPSender struct {
 }
 
 // WriteMsg counts the sent NGAP PDU by procedure, standing in for a gNB
-// association. The NGAP-PDU APER header is byte 0 = outcome choice (0x00 is an
-// InitiatingMessage) and byte 1 = procedure code (TS 38.413); the transparent N2
-// payloads carried here are opaque, so the message is identified from the header
-// without a full decode.
+// association. Only the envelope is decoded: these tests care which procedure
+// the AMF started, not what the transparent N2 payloads carry.
 func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
-	if len(b) >= 2 && b[0] == 0x00 {
-		switch int64(b[1]) {
-		case ngapType.ProcedureCodePaging:
+	pdu, err := ngap.Unmarshal(b)
+	if err != nil {
+		panic(fmt.Sprintf("fakeNGAPSender: unmarshal NGAP PDU: %v", err))
+	}
+
+	if m, ok := pdu.(*ngap.InitiatingMessage); ok {
+		switch m.ProcedureCode {
+		case ngap.ProcPaging:
 			f.pagingCalls++
-		case ngapType.ProcedureCodePDUSessionResourceSetup:
+		case ngap.ProcPDUSessionResourceSetup:
 			f.pduSessionSetupCalls++
-		case ngapType.ProcedureCodeInitialContextSetup:
+		case ngap.ProcInitialContextSetup:
 			f.initialContextSetupCalls++
-		case ngapType.ProcedureCodeDownlinkNASTransport:
+		case ngap.ProcDownlinkNASTransport:
 			f.downlinkNasTransportCalls++
 		}
 	}

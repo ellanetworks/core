@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"bytes"
@@ -10,11 +10,10 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
@@ -26,9 +25,9 @@ func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
 
 	nasPDU := []byte{0xAA, 0xBB, 0xCC}
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      libngap.NASPDU(nasPDU),
+		NASPDU:      ngap.NASPDU(nasPDU),
 	})
 
 	if ran.NumUEsForTest() != 1 {
@@ -65,9 +64,9 @@ func TestHandleInitialUEMessage_ServiceRequestRoutedToDedicatedHandler(t *testin
 
 	nasPDU := []byte{0x7e, 0x00, 0x4c}
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      libngap.NASPDU(nasPDU),
+		NASPDU:      ngap.NASPDU(nasPDU),
 	})
 
 	if len(fakeNAS.ServiceRequestCalls) != 1 {
@@ -93,9 +92,9 @@ func TestHandleInitialUEMessage_UnresolvedNAS_ReleasesBareConn(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      libngap.NASPDU{0xAA, 0xBB, 0xCC},
+		NASPDU:      ngap.NASPDU{0xAA, 0xBB, 0xCC},
 	})
 
 	if ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1); ueConn != nil {
@@ -116,9 +115,9 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 
 	amf.NewUeConnForTest(ran, 1, 99, logger.AmfLog)
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      libngap.NASPDU{0x01},
+		NASPDU:      ngap.NASPDU{0x01},
 	})
 
 	if ran.NumUEsForTest() != 1 {
@@ -185,10 +184,10 @@ func TestHandleInitialUEMessage_5GSTMSI_UnverifiedDoesNotAttach(t *testing.T) {
 
 	const tmsiValue = 0x00000001
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      libngap.NASPDU{0x01},
-		FiveGSTMSI:  &libngap.FiveGSTMSI{AMFSetID: 0x3F8, AMFPointer: 0, FiveGTMSI: tmsiValue},
+		NASPDU:      ngap.NASPDU{0x01},
+		FiveGSTMSI:  &ngap.FiveGSTMSI{AMFSetID: 0x3F8, AMFPointer: 0, FiveGTMSI: tmsiValue},
 	})
 
 	ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1)
@@ -222,10 +221,10 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 
 	const tmsiValue = 0x00FFFFFF
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      libngap.NASPDU{0x01},
-		FiveGSTMSI:  &libngap.FiveGSTMSI{AMFSetID: 0x3F8, AMFPointer: 0, FiveGTMSI: tmsiValue},
+		NASPDU:      ngap.NASPDU{0x01},
+		FiveGSTMSI:  &ngap.FiveGSTMSI{AMFSetID: 0x3F8, AMFPointer: 0, FiveGTMSI: tmsiValue},
 	})
 
 	if len(fakeNAS.Calls) != 1 {
@@ -246,10 +245,10 @@ func TestHandleInitialUEMessage_SetsUeContextRequest(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID:      1,
-		NASPDU:           libngap.NASPDU{0x01},
-		UEContextRequest: libngap.Ptr(libngap.UEContextRequested),
+		NASPDU:           ngap.NASPDU{0x01},
+		UEContextRequest: ngap.Ptr(ngap.UEContextRequested),
 	})
 
 	ueConn := amfInstance.FindUEByRanUeNgapID(ran, 1)
@@ -304,10 +303,10 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 
 	const tmsiValue = 0x00000002
 
-	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, &libngap.InitialUEMessage{
+	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{
 		RANUENGAPID: 1,
-		NASPDU:      libngap.NASPDU{0x01},
-		FiveGSTMSI:  &libngap.FiveGSTMSI{AMFSetID: 0x3F8, AMFPointer: 0, FiveGTMSI: tmsiValue},
+		NASPDU:      ngap.NASPDU{0x01},
+		FiveGSTMSI:  &ngap.FiveGSTMSI{AMFSetID: 0x3F8, AMFPointer: 0, FiveGTMSI: tmsiValue},
 	})
 
 	// Timer stop methods are safe to call even when timers are nil.

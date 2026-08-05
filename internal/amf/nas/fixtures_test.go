@@ -15,8 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
-	"github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // setTestUESecurityCapability gives a UE the state a registered UE carries by the
@@ -117,147 +116,53 @@ func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([
 
 func (fdb *fakeDBInstance) NodeID() int { return 0 }
 
-type NGDLNasTransport struct {
-	AmfUeNGAPID int64
-	RanUeNGAPID int64
-	NasPdu      []byte
-}
-
-type NGPDUSessionResourceSetupRequest struct {
-	AmfUeNGAPID int64
-	RanUeNGAPID int64
-	AmbrUL      string
-	AmbrDL      string
-	NasPdu      []byte
-	SuList      ngapType.PDUSessionResourceSetupListSUReq
-}
-
-type NGInitialContextSetupRequest struct {
-	AmfUeNGAPID int64
-	RanUeNGAPID int64
-	AmbrUL      string
-	AmbrDL      string
-	NasPdu      []byte
-	CtxList     ngapType.PDUSessionResourceSetupListCxtReq
-}
-
-type NGUEContextReleaseCommand struct {
-	AmfUeNGAPID int64
-	RanUeNGAPID int64
-}
-
-type NGPDUSessionResourceReleaseCommand struct {
-	AmfUeNGAPID int64
-	RanUeNGAPID int64
-	NasPdu      []byte
-	List        ngapType.PDUSessionResourceToReleaseListRelCmd
-}
-
+// fakeNGAPSender records the NGAP messages the AMF sends, standing in for an
+// NG-RAN node. Every outbound PDU is parsed with the in-house library and filed
+// in the bucket matching its procedure, so a test asserts on the same message
+// struct the library hands a real peer. internal/amf/ngap and internal/mme/s1ap
+// do the same.
 type fakeNGAPSender struct {
-	SentDownlinkNASTransport             []*NGDLNasTransport
-	SentPDUSessionResourceSetupRequest   []*NGPDUSessionResourceSetupRequest
-	SentInitialContextSetupRequest       []*NGInitialContextSetupRequest
-	SentUEContextReleaseCommand          []*NGUEContextReleaseCommand
-	SentPDUSessionResourceReleaseCommand []*NGPDUSessionResourceReleaseCommand
+	SentDownlinkNASTransport             []*ngap.DownlinkNASTransport
+	SentPDUSessionResourceSetupRequest   []*ngap.PDUSessionResourceSetupRequest
+	SentInitialContextSetupRequest       []*ngap.InitialContextSetupRequest
+	SentUEContextReleaseCommand          []*ngap.UEContextReleaseCommand
+	SentPDUSessionResourceReleaseCommand []*ngap.PDUSessionResourceReleaseCommand
 }
 
-// WriteMsg decodes the sent NGAP PDU and records the NAS PDU it carries in the
-// bucket matching its procedure, so NAS tests assert on the downlink message the
-// same way the sender's typed buckets did.
-func (fng *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
-	pdu, err := ngap.Decoder(b)
+// capture parses one message body into its bucket. A parse failure means the
+// AMF encoded a PDU its own library cannot read back, which is a bug in the
+// code under test rather than in the test.
+func capture[M any](bucket *[]*M, parse func([]byte) (*M, error), value []byte, name string) {
+	m, err := parse(value)
 	if err != nil {
-		panic(fmt.Sprintf("fakeNGAPSender: decode NGAP PDU: %v", err))
+		panic(fmt.Sprintf("fakeNGAPSender: parse %s: %v", name, err))
 	}
 
-	if pdu.Present != ngapType.NGAPPDUPresentInitiatingMessage {
+	*bucket = append(*bucket, m)
+}
+
+func (fng *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
+	pdu, err := ngap.Unmarshal(b)
+	if err != nil {
+		panic(fmt.Sprintf("fakeNGAPSender: unmarshal NGAP PDU: %v", err))
+	}
+
+	m, ok := pdu.(*ngap.InitiatingMessage)
+	if !ok {
 		return len(b), nil
 	}
 
-	m := pdu.InitiatingMessage
-
-	switch m.ProcedureCode.Value {
-	case ngapType.ProcedureCodeDownlinkNASTransport:
-		msg := &NGDLNasTransport{}
-
-		for _, ie := range m.Value.DownlinkNASTransport.ProtocolIEs.List {
-			switch ie.Id.Value {
-			case ngapType.ProtocolIEIDAMFUENGAPID:
-				msg.AmfUeNGAPID = ie.Value.AMFUENGAPID.Value
-			case ngapType.ProtocolIEIDRANUENGAPID:
-				msg.RanUeNGAPID = ie.Value.RANUENGAPID.Value
-			case ngapType.ProtocolIEIDNASPDU:
-				msg.NasPdu = ie.Value.NASPDU.Value
-			}
-		}
-
-		fng.SentDownlinkNASTransport = append(fng.SentDownlinkNASTransport, msg)
-
-	case ngapType.ProcedureCodeInitialContextSetup:
-		msg := &NGInitialContextSetupRequest{}
-
-		for _, ie := range m.Value.InitialContextSetupRequest.ProtocolIEs.List {
-			switch ie.Id.Value {
-			case ngapType.ProtocolIEIDAMFUENGAPID:
-				msg.AmfUeNGAPID = ie.Value.AMFUENGAPID.Value
-			case ngapType.ProtocolIEIDRANUENGAPID:
-				msg.RanUeNGAPID = ie.Value.RANUENGAPID.Value
-			case ngapType.ProtocolIEIDNASPDU:
-				msg.NasPdu = ie.Value.NASPDU.Value
-			case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtReq:
-				msg.CtxList = *ie.Value.PDUSessionResourceSetupListCxtReq
-			}
-		}
-
-		fng.SentInitialContextSetupRequest = append(fng.SentInitialContextSetupRequest, msg)
-
-	case ngapType.ProcedureCodePDUSessionResourceSetup:
-		msg := &NGPDUSessionResourceSetupRequest{}
-
-		for _, ie := range m.Value.PDUSessionResourceSetupRequest.ProtocolIEs.List {
-			switch ie.Id.Value {
-			case ngapType.ProtocolIEIDAMFUENGAPID:
-				msg.AmfUeNGAPID = ie.Value.AMFUENGAPID.Value
-			case ngapType.ProtocolIEIDRANUENGAPID:
-				msg.RanUeNGAPID = ie.Value.RANUENGAPID.Value
-			case ngapType.ProtocolIEIDNASPDU:
-				msg.NasPdu = ie.Value.NASPDU.Value
-			case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
-				msg.SuList = *ie.Value.PDUSessionResourceSetupListSUReq
-			}
-		}
-
-		fng.SentPDUSessionResourceSetupRequest = append(fng.SentPDUSessionResourceSetupRequest, msg)
-
-	case ngapType.ProcedureCodePDUSessionResourceRelease:
-		msg := &NGPDUSessionResourceReleaseCommand{}
-
-		for _, ie := range m.Value.PDUSessionResourceReleaseCommand.ProtocolIEs.List {
-			switch ie.Id.Value {
-			case ngapType.ProtocolIEIDAMFUENGAPID:
-				msg.AmfUeNGAPID = ie.Value.AMFUENGAPID.Value
-			case ngapType.ProtocolIEIDRANUENGAPID:
-				msg.RanUeNGAPID = ie.Value.RANUENGAPID.Value
-			case ngapType.ProtocolIEIDNASPDU:
-				msg.NasPdu = ie.Value.NASPDU.Value
-			case ngapType.ProtocolIEIDPDUSessionResourceToReleaseListRelCmd:
-				msg.List = *ie.Value.PDUSessionResourceToReleaseListRelCmd
-			}
-		}
-
-		fng.SentPDUSessionResourceReleaseCommand = append(fng.SentPDUSessionResourceReleaseCommand, msg)
-
-	case ngapType.ProcedureCodeUEContextRelease:
-		msg := &NGUEContextReleaseCommand{}
-
-		for _, ie := range m.Value.UEContextReleaseCommand.ProtocolIEs.List {
-			if ie.Id.Value == ngapType.ProtocolIEIDUENGAPIDs && ie.Value.UENGAPIDs.UENGAPIDPair != nil {
-				msg.AmfUeNGAPID = ie.Value.UENGAPIDs.UENGAPIDPair.AMFUENGAPID.Value
-				msg.RanUeNGAPID = ie.Value.UENGAPIDs.UENGAPIDPair.RANUENGAPID.Value
-			}
-		}
-
-		fng.SentUEContextReleaseCommand = append(fng.SentUEContextReleaseCommand, msg)
+	switch m.ProcedureCode {
+	case ngap.ProcDownlinkNASTransport:
+		capture(&fng.SentDownlinkNASTransport, ngap.ParseDownlinkNASTransport, m.Value, "Downlink NAS Transport")
+	case ngap.ProcInitialContextSetup:
+		capture(&fng.SentInitialContextSetupRequest, ngap.ParseInitialContextSetupRequest, m.Value, "Initial Context Setup Request")
+	case ngap.ProcPDUSessionResourceSetup:
+		capture(&fng.SentPDUSessionResourceSetupRequest, ngap.ParsePDUSessionResourceSetupRequest, m.Value, "PDU Session Resource Setup Request")
+	case ngap.ProcPDUSessionResourceRelease:
+		capture(&fng.SentPDUSessionResourceReleaseCommand, ngap.ParsePDUSessionResourceReleaseCommand, m.Value, "PDU Session Resource Release Command")
+	case ngap.ProcUEContextRelease:
+		capture(&fng.SentUEContextReleaseCommand, ngap.ParseUEContextReleaseCommand, m.Value, "UE Context Release Command")
 	}
 
 	return len(b), nil

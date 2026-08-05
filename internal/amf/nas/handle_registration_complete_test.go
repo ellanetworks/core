@@ -118,7 +118,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 		t.Fatalf("expected 1 DownlinkNASTransport (ConfigurationUpdateCommand), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	plain := decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0, uint8(fgs.MsgConfigurationUpdateCommand))
+	plain := decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0, uint8(fgs.MsgConfigurationUpdateCommand))
 
 	cuc, err := fgs.ParseConfigurationUpdateCommand(plain)
 	if err != nil {

@@ -2,24 +2,21 @@
 //
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
-	libngap "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/aper"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // assertSingleErrorIndication checks that exactly one Error Indication was sent
 // with the given radio-network cause, and returns it.
-func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause aper.Enumerated) *ErrorIndication {
+func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause int) *ngap.ErrorIndication {
 	t.Helper()
 
 	if len(sender.SentErrorIndications) != 1 {
@@ -27,12 +24,10 @@ func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause
 	}
 
 	errInd := sender.SentErrorIndications[0]
-	if errInd.Cause == nil || errInd.Cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatalf("expected RadioNetwork cause, got %+v", errInd.Cause)
-	}
 
-	if errInd.Cause.RadioNetwork.Value != wantCause {
-		t.Errorf("cause = %d, want %d", errInd.Cause.RadioNetwork.Value, wantCause)
+	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: wantCause}
+	if errInd.Cause == nil || *errInd.Cause != want {
+		t.Errorf("cause = %v, want radio-network cause %d", errInd.Cause, wantCause)
 	}
 
 	return errInd
@@ -40,15 +35,15 @@ func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause
 
 // assertErrorIndicationEchoesIDs checks the Error Indication carries the received
 // AP IDs (TS 38.413).
-func assertErrorIndicationEchoesIDs(t *testing.T, errInd *ErrorIndication, wantAmf, wantRan int64) {
+func assertErrorIndicationEchoesIDs(t *testing.T, errInd *ngap.ErrorIndication, wantAmf ngap.AMFUENGAPID, wantRan ngap.RANUENGAPID) {
 	t.Helper()
 
-	if errInd.AmfUeNgapID == nil || *errInd.AmfUeNgapID != wantAmf {
-		t.Errorf("Error Indication AMF UE NGAP ID = %v, want %d", errInd.AmfUeNgapID, wantAmf)
+	if errInd.AMFUENGAPID == nil || *errInd.AMFUENGAPID != wantAmf {
+		t.Errorf("Error Indication AMF UE NGAP ID = %v, want %d", errInd.AMFUENGAPID, wantAmf)
 	}
 
-	if errInd.RanUeNgapID == nil || *errInd.RanUeNgapID != wantRan {
-		t.Errorf("Error Indication RAN UE NGAP ID = %v, want %d", errInd.RanUeNgapID, wantRan)
+	if errInd.RANUENGAPID == nil || *errInd.RANUENGAPID != wantRan {
+		t.Errorf("Error Indication RAN UE NGAP ID = %v, want %d", errInd.RANUENGAPID, wantRan)
 	}
 }
 
@@ -83,17 +78,18 @@ func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 	legitimateRan, attackerRan, ueConn, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, attackerRan, &libngap.PDUSessionResourceSetupResponse{
-		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
-		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, attackerRan, &ngap.PDUSessionResourceSetupResponse{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication on attacker radio, got %d", len(attackerSender.SentErrorIndications))
 	}
 
-	if attackerSender.SentErrorIndications[0].Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID {
-		t.Errorf("expected UnknownLocalUENGAPID cause, got %d", attackerSender.SentErrorIndications[0].Cause.RadioNetwork.Value)
+	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
+	if cause := attackerSender.SentErrorIndications[0].Cause; cause == nil || *cause != want {
+		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", cause)
 	}
 
 	if ueConn.Radio() != legitimateRan {
@@ -107,9 +103,9 @@ func TestCrossRadio_PDUSessionResourceModifyResponse(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, &libngap.PDUSessionResourceModifyResponse{
-		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
-		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
+	HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, &ngap.PDUSessionResourceModifyResponse{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {
@@ -123,7 +119,7 @@ func TestCrossRadio_UEContextReleaseRequest(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, attackerRan, &libngap.UEContextReleaseRequest{
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, attackerRan, &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
 	})
@@ -143,9 +139,9 @@ func TestCrossRadio_UEContextReleaseComplete(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	amfID := libngap.AMFUENGAPID(10)
-	ranID := libngap.RANUENGAPID(1)
-	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, attackerRan, &libngap.UEContextReleaseComplete{
+	amfID := ngap.AMFUENGAPID(10)
+	ranID := ngap.RANUENGAPID(1)
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, attackerRan, &ngap.UEContextReleaseComplete{
 		AMFUENGAPID: &amfID,
 		RANUENGAPID: &ranID,
 	})
@@ -161,12 +157,12 @@ func TestCrossRadio_HandoverRequestAcknowledge(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	amfID := libngap.AMFUENGAPID(10)
-	ranID := libngap.RANUENGAPID(1)
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, attackerRan, &libngap.HandoverRequestAcknowledge{
+	amfID := ngap.AMFUENGAPID(10)
+	ranID := ngap.RANUENGAPID(1)
+	HandleHandoverRequestAcknowledge(context.Background(), amfInstance, attackerRan, &ngap.HandoverRequestAcknowledge{
 		AMFUENGAPID:                        &amfID,
 		RANUENGAPID:                        &ranID,
-		TargetToSourceTransparentContainer: libngap.TargetToSourceTransparentContainer{0x01},
+		TargetToSourceTransparentContainer: ngap.TargetToSourceTransparentContainer{0x01},
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {
@@ -184,8 +180,8 @@ func TestCrossRadio_HandoverFailure(t *testing.T) {
 	_, attackerRan, _, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, attackerRan, &libngap.HandoverFailure{
-		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
+	HandleHandoverFailure(context.Background(), amfInstance, attackerRan, &ngap.HandoverFailure{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
 	})
 
 	if len(attackerSender.SentErrorIndications) != 1 {
@@ -200,12 +196,12 @@ func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, &libngap.PDUSessionResourceSetupResponse{
-		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(1)),
-		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(999)),
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, &ngap.PDUSessionResourceSetupResponse{
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(999)),
 	})
 
-	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	errInd := assertSingleErrorIndication(t, sender, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 1)
 }
 
@@ -216,11 +212,11 @@ func TestResolveUE_InconsistentRanUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.Conn.(*fakeNGAPSender)
 
-	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, &libngap.PDUSessionResourceSetupResponse{
-		RANUENGAPID: libngap.Ptr(libngap.RANUENGAPID(2)),
-		AMFUENGAPID: libngap.Ptr(libngap.AMFUENGAPID(10)),
+	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, &ngap.PDUSessionResourceSetupResponse{
+		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(2)),
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
 	})
 
-	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)
+	errInd := assertSingleErrorIndication(t, sender, ngap.CauseRadioNetworkInconsistentRemoteUEID)
 	assertErrorIndicationEchoesIDs(t, errInd, 10, 2)
 }

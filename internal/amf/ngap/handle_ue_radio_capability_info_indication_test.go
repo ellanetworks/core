@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"bytes"
@@ -9,11 +9,9 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	libngap "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
@@ -21,12 +19,12 @@ func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &libngap.UERadioCapabilityInfoIndication{
-		RANUENGAPID: libngap.RANUENGAPID(99),
-		AMFUENGAPID: libngap.AMFUENGAPID(999),
+	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
+		RANUENGAPID: ngap.RANUENGAPID(99),
+		AMFUENGAPID: ngap.AMFUENGAPID(999),
 	})
 
-	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	errInd := assertSingleErrorIndication(t, sender, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
@@ -35,9 +33,9 @@ func TestUERadioCapabilityInfoIndication_NilUeContext(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &libngap.UERadioCapabilityInfoIndication{
-		RANUENGAPID: libngap.RANUENGAPID(1),
-		AMFUENGAPID: libngap.AMFUENGAPID(10),
+	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
+		RANUENGAPID: ngap.RANUENGAPID(1),
+		AMFUENGAPID: ngap.AMFUENGAPID(10),
 	})
 }
 
@@ -49,10 +47,10 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &libngap.UERadioCapabilityInfoIndication{
-		RANUENGAPID:       libngap.RANUENGAPID(1),
-		AMFUENGAPID:       libngap.AMFUENGAPID(10),
-		UERadioCapability: libngap.UERadioCapability{0xDE, 0xAD, 0xBE, 0xEF},
+	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
+		RANUENGAPID:       ngap.RANUENGAPID(1),
+		AMFUENGAPID:       ngap.AMFUENGAPID(10),
+		UERadioCapability: ngap.UERadioCapability{0xDE, 0xAD, 0xBE, 0xEF},
 	})
 
 	if !bytes.Equal(amfUe.RadioCapability, []byte{0xDE, 0xAD, 0xBE, 0xEF}) {
@@ -68,12 +66,12 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &libngap.UERadioCapabilityInfoIndication{
-		RANUENGAPID: libngap.RANUENGAPID(1),
-		AMFUENGAPID: libngap.AMFUENGAPID(10),
-		UERadioCapabilityForPaging: &libngap.UERadioCapabilityForPaging{
-			NR:    &libngap.UERadioCapabilityForPagingOfNR{0xCA, 0xFE},
-			EUTRA: &libngap.UERadioCapabilityForPagingOfEUTRA{0xBA, 0xBE},
+	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
+		RANUENGAPID: ngap.RANUENGAPID(1),
+		AMFUENGAPID: ngap.AMFUENGAPID(10),
+		UERadioCapabilityForPaging: &ngap.UERadioCapabilityForPaging{
+			NR:    &ngap.UERadioCapabilityForPagingOfNR{0xCA, 0xFE},
+			EUTRA: &ngap.UERadioCapabilityForPagingOfEUTRA{0xBA, 0xBE},
 		},
 	})
 
@@ -104,9 +102,9 @@ func TestUERadioCapabilityInfoIndication_AbsentCapabilityKeepsStored(t *testing.
 	amfUe.RadioCapability = stored
 	amfUe.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{NR: []byte{0x0a}}
 
-	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &libngap.UERadioCapabilityInfoIndication{
-		RANUENGAPID: libngap.RANUENGAPID(1),
-		AMFUENGAPID: libngap.AMFUENGAPID(10),
+	HandleUERadioCapabilityInfoIndication(context.Background(), amfInstance, ran, &ngap.UERadioCapabilityInfoIndication{
+		RANUENGAPID: ngap.RANUENGAPID(1),
+		AMFUENGAPID: ngap.AMFUENGAPID(10),
 	})
 
 	if !bytes.Equal(amfUe.RadioCapability, stored) {

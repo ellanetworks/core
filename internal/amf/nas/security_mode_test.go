@@ -80,9 +80,9 @@ func TestSecurityMode_NoCommonAlgorithm_RejectsAndDeregisters(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 
-	reject, err := fgs.ParseRegistrationReject(resp.NasPdu)
+	reject, err := fgs.ParseRegistrationReject(resp.NASPDU)
 	if err != nil {
 		t.Fatalf("could not decode REGISTRATION REJECT: %v", err)
 	}

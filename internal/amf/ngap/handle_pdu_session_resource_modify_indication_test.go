@@ -1,18 +1,16 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	libngap "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
@@ -20,8 +18,8 @@ func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceModifyIndication{
-		RANUENGAPID: libngap.RANUENGAPID(99),
+	HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID: ngap.RANUENGAPID(99),
 	})
 
 	if len(sender.SentErrorIndications) != 1 {
@@ -29,12 +27,10 @@ func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
 	}
 
 	ei := sender.SentErrorIndications[0]
-	if ei.Cause == nil || ei.Cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatal("expected RadioNetwork cause")
-	}
 
-	if ei.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID {
-		t.Fatalf("expected UnknownLocalUENGAPID, got %d", ei.Cause.RadioNetwork.Value)
+	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
+	if ei.Cause == nil || *ei.Cause != wantRadioNetworkCause {
+		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", ei.Cause)
 	}
 }
 
@@ -45,12 +41,12 @@ func TestPDUSessionResourceModifyIndication_UnknownAmfUeNgapID(t *testing.T) {
 
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceModifyIndication{
-		RANUENGAPID: libngap.RANUENGAPID(1),
-		AMFUENGAPID: libngap.AMFUENGAPID(99999),
+	HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID: ngap.RANUENGAPID(1),
+		AMFUENGAPID: ngap.AMFUENGAPID(99999),
 	})
 
-	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	errInd := assertSingleErrorIndication(t, sender, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 99999, 1)
 
 	if len(sender.SentPDUSessionModifyConfirms) != 0 {
@@ -77,13 +73,13 @@ func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	msg := &libngap.PDUSessionResourceModifyIndication{
-		RANUENGAPID:              libngap.RANUENGAPID(1),
-		AMFUENGAPID:              libngap.AMFUENGAPID(10),
-		PDUSessionResourceModify: libngap.PDUSessionResourceModifyListModInd{{PDUSessionID: 1, Transfer: []byte{0xaa, 0xbb}}},
+	msg := &ngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID:              ngap.RANUENGAPID(1),
+		AMFUENGAPID:              ngap.AMFUENGAPID(10),
+		PDUSessionResourceModify: ngap.PDUSessionResourceModifyListModInd{{PDUSessionID: 1, Transfer: []byte{0xaa, 0xbb}}},
 	}
 
-	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -101,9 +97,9 @@ func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 		t.Fatalf("expected 1 Modify Confirm, got %d", len(sender.SentPDUSessionModifyConfirms))
 	}
 
-	confirmed := sender.SentPDUSessionModifyConfirms[0].PDUSessionResourceModifyConfirmList
-	if len(confirmed.List) != 1 || confirmed.List[0].PDUSessionID.Value != 1 {
-		t.Fatalf("expected confirm list naming session 1, got %v", confirmed.List)
+	confirmed := sender.SentPDUSessionModifyConfirms[0].PDUSessionResourceModify
+	if len(confirmed) != 1 || confirmed[0].PDUSessionID != 1 {
+		t.Fatalf("expected confirm list naming session 1, got %v", confirmed)
 	}
 }
 
@@ -121,13 +117,13 @@ func TestPDUSessionResourceModifyIndication_SmContextNotFound(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	msg := &libngap.PDUSessionResourceModifyIndication{
-		RANUENGAPID:              libngap.RANUENGAPID(1),
-		AMFUENGAPID:              libngap.AMFUENGAPID(10),
-		PDUSessionResourceModify: libngap.PDUSessionResourceModifyListModInd{{PDUSessionID: 1, Transfer: []byte{0xaa}}},
+	msg := &ngap.PDUSessionResourceModifyIndication{
+		RANUENGAPID:              ngap.RANUENGAPID(1),
+		AMFUENGAPID:              ngap.AMFUENGAPID(10),
+		PDUSessionResourceModify: ngap.PDUSessionResourceModifyListModInd{{PDUSessionID: 1, Transfer: []byte{0xaa}}},
 	}
 
-	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceModifyIndication(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeSmf.ModifyIndicationCalls) != 0 {
 		t.Fatalf("expected no SMF call for an unknown session, got %d", len(fakeSmf.ModifyIndicationCalls))

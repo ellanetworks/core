@@ -2,16 +2,15 @@
 //
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/sctp"
-	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // supersedeOntoNewConnection registers a UE on a first NG connection, then has it
@@ -55,7 +54,7 @@ func TestSupersededConnectionIsReleasedTowardGNB(t *testing.T) {
 	var released bool
 
 	for _, cmd := range sender.SentUEContextReleaseCommands {
-		if cmd.AmfUeNgapID == oldAmfID && cmd.RanUeNgapID == oldRanID {
+		if cmd.UENGAPIDs.AMFUENGAPID == ngap.AMFUENGAPID(oldAmfID) && cmd.UENGAPIDs.RANUENGAPID == ngap.RANUENGAPID(oldRanID) {
 			released = true
 		}
 	}
@@ -73,9 +72,9 @@ func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 
 	before := len(sender.SentErrorIndications)
 
-	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, &libngap.UEContextReleaseRequest{
-		AMFUENGAPID: libngap.AMFUENGAPID(oldAmfID),
-		RANUENGAPID: libngap.RANUENGAPID(oldRanID),
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, &ngap.UEContextReleaseRequest{
+		AMFUENGAPID: ngap.AMFUENGAPID(oldAmfID),
+		RANUENGAPID: ngap.RANUENGAPID(oldRanID),
 	})
 
 	if len(sender.SentErrorIndications) != before {

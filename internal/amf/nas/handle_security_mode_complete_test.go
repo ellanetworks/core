@@ -231,7 +231,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationAccept))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
 func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {

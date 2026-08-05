@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
@@ -10,13 +10,11 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type SliceOpt struct {
@@ -38,7 +36,7 @@ type NGSetupRequestOpts struct {
 
 // buildNGSetupRequest assembles the request as the library models it, which is
 // what the handler now receives from the dispatcher.
-func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngaplib.NGSetupRequest, error) {
+func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngap.NGSetupRequest, error) {
 	if opts.Mcc == "" || opts.Mnc == "" {
 		return nil, fmt.Errorf("MCC and MNC are required to build NGSetupRequest")
 	}
@@ -62,15 +60,15 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngaplib.NGSetupRequest, err
 		slices = []SliceOpt{{Sst: opts.Sst, Sd: opts.Sd}}
 	}
 
-	req := &ngaplib.NGSetupRequest{
-		GlobalRANNodeID: ngaplib.GlobalRANNodeID{
-			Kind:         ngaplib.RANNodeIDGNB,
+	req := &ngap.NGSetupRequest{
+		GlobalRANNodeID: ngap.GlobalRANNodeID{
+			Kind:         ngap.RANNodeIDGNB,
 			PLMNIdentity: plmn,
 			Value:        uint32(gnbID),
 			Bits:         24,
 		},
-		RANNodeName:      ngaplib.Ptr(opts.Name),
-		DefaultPagingDRX: ngaplib.Ptr(ngaplib.PagingDRXv128),
+		RANNodeName:      ngap.Ptr(opts.Name),
+		DefaultPagingDRX: ngap.Ptr(ngap.PagingDRXv128),
 	}
 
 	if opts.Tac == "" {
@@ -82,7 +80,7 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngaplib.NGSetupRequest, err
 		return nil, fmt.Errorf("could not parse TAC %q: %w", opts.Tac, err)
 	}
 
-	support := make(ngaplib.SliceSupportList, 0, len(slices))
+	support := make(ngap.SliceSupportList, 0, len(slices))
 
 	for _, sl := range slices {
 		snssai, err := util.SNSSAIToNGAP(models.Snssai{Sst: sl.Sst, Sd: sl.Sd})
@@ -90,12 +88,12 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngaplib.NGSetupRequest, err
 			return nil, fmt.Errorf("could not encode slice: %w", err)
 		}
 
-		support = append(support, ngaplib.SliceSupportItem{SNSSAI: snssai})
+		support = append(support, ngap.SliceSupportItem{SNSSAI: snssai})
 	}
 
-	req.SupportedTAList = ngaplib.SupportedTAList{{
-		TAC: ngaplib.TAC(tac),
-		BroadcastPLMNList: ngaplib.BroadcastPLMNList{{
+	req.SupportedTAList = ngap.SupportedTAList{{
+		TAC: ngap.TAC(tac),
+		BroadcastPLMNList: ngap.BroadcastPLMNList{{
 			PLMNIdentity:        plmn,
 			TAISliceSupportList: support,
 		}},
@@ -139,19 +137,17 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 
 	msg.SupportedTAList = nil
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(sender.SentNGSetupFailures))
 	}
 
 	cause := sender.SentNGSetupFailures[0].Cause
-	if cause.Present != ngapType.CausePresentMisc {
-		t.Fatalf("expected Cause Present to be Miscellaneous, but got %v", cause.Present)
-	}
 
-	if cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
-		t.Errorf("expected Cause Miscellaneous Value to be CauseMiscPresentUnspecified, but got %v", cause.Misc.Value)
+	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+	if cause == nil || *cause != want {
+		t.Errorf("cause = %v, want unspecified", cause)
 	}
 
 	if ran.RanID != nil {
@@ -196,19 +192,17 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		Operator: op,
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(sender.SentNGSetupFailures))
 	}
 
 	cause := sender.SentNGSetupFailures[0].Cause
-	if cause.Present != ngapType.CausePresentMisc {
-		t.Fatalf("expected Cause Present to be Miscellaneous, but got %v", cause.Present)
-	}
 
-	if cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
-		t.Errorf("expected CauseMiscPresentUnspecified for TAC mismatch, got %v", cause.Misc.Value)
+	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+	if cause == nil || *cause != want {
+		t.Errorf("cause = %v, want unspecified", cause)
 	}
 
 	if ran.RanID != nil {
@@ -254,7 +248,7 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse to be sent, but got %d", len(sender.SentNGSetupResponses))
@@ -262,32 +256,33 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 
 	response := sender.SentNGSetupResponses[0]
 
-	if response.Guami == nil {
-		t.Errorf("expected Guami to be set in NGSetupResponse, but it was nil")
+	if len(response.ServedGUAMIList) != 1 {
+		t.Fatalf("expected 1 served GUAMI, got %d", len(response.ServedGUAMIList))
 	}
 
-	if response.Guami.PlmnID.Mcc != "001" {
-		t.Errorf("expected Guami PlmnID MCC to be '001', but got %s", response.Guami.PlmnID.Mcc)
+	if got := response.ServedGUAMIList[0].GUAMI.PLMNIdentity; got != operatorPLMN {
+		t.Errorf("served GUAMI PLMN = %x, want %x (001/01)", got, operatorPLMN)
 	}
 
-	if response.Guami.PlmnID.Mnc != "01" {
-		t.Errorf("expected Guami PlmnID MNC to be '01', but got %s", response.Guami.PlmnID.Mnc)
+	if len(response.PLMNSupportList) != 1 {
+		t.Fatalf("expected 1 supported PLMN, got %d", len(response.PLMNSupportList))
 	}
 
-	if len(response.SnssaiList) != 1 {
-		t.Fatalf("expected 1 slice in SnssaiList, got %d", len(response.SnssaiList))
+	slices := response.PLMNSupportList[0].SliceSupportList
+	if len(slices) != 1 {
+		t.Fatalf("expected 1 supported slice, got %d", len(slices))
 	}
 
-	if response.SnssaiList[0].Sst != 1 {
-		t.Errorf("expected SnssaiList[0].Sst to be 1, got %d", response.SnssaiList[0].Sst)
+	if slices[0].SNSSAI.SST != 1 {
+		t.Errorf("expected SST 1, got %d", slices[0].SNSSAI.SST)
 	}
 
-	if response.AmfName != "ella-core" {
-		t.Errorf("expected AmfName to be 'ella-core', but got '%s'", response.AmfName)
+	if response.AMFName != "ella-core" {
+		t.Errorf("expected AmfName to be 'ella-core', but got '%s'", response.AMFName)
 	}
 
-	if response.AmfRelativeCapacity != 0xff {
-		t.Errorf("expected AmfRelativeCapacity to be 0xff, but got %d", response.AmfRelativeCapacity)
+	if response.RelativeAMFCapacity == nil || *response.RelativeAMFCapacity != 0xff {
+		t.Errorf("expected RelativeAMFCapacity 0xff, got %v", response.RelativeAMFCapacity)
 	}
 
 	if ran.RanID == nil {
@@ -357,7 +352,7 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse, got %d", len(sender.SentNGSetupResponses))
@@ -439,7 +434,7 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse, got %d", len(sender.SentNGSetupResponses))
@@ -447,26 +442,35 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 
 	response := sender.SentNGSetupResponses[0]
 
-	if len(response.SnssaiList) != 3 {
-		t.Fatalf("expected 3 slices in response SnssaiList, got %d", len(response.SnssaiList))
+	if len(response.PLMNSupportList) != 1 {
+		t.Fatalf("expected 1 supported PLMN, got %d", len(response.PLMNSupportList))
+	}
+
+	slices := response.PLMNSupportList[0].SliceSupportList
+	if len(slices) != 3 {
+		t.Fatalf("expected 3 supported slices, got %d", len(slices))
 	}
 
 	expectedSlices := []struct {
-		sst int32
-		sd  string
+		sst ngap.SST
+		sd  *ngap.SD
 	}{
-		{1, "010203"},
-		{2, "aabbcc"},
-		{3, ""},
+		{1, &ngap.SD{0x01, 0x02, 0x03}},
+		{2, &ngap.SD{0xaa, 0xbb, 0xcc}},
+		{3, nil},
 	}
 
 	for i, expected := range expectedSlices {
-		if response.SnssaiList[i].Sst != expected.sst {
-			t.Errorf("SnssaiList[%d]: expected SST %d, got %d", i, expected.sst, response.SnssaiList[i].Sst)
+		got := slices[i].SNSSAI
+		if got.SST != expected.sst {
+			t.Errorf("slice %d: expected SST %d, got %d", i, expected.sst, got.SST)
 		}
 
-		if response.SnssaiList[i].Sd != expected.sd {
-			t.Errorf("SnssaiList[%d]: expected SD %q, got %q", i, expected.sd, response.SnssaiList[i].Sd)
+		switch {
+		case expected.sd == nil && got.SD != nil:
+			t.Errorf("slice %d: expected no SD, got %x", i, *got.SD)
+		case expected.sd != nil && (got.SD == nil || *got.SD != *expected.sd):
+			t.Errorf("slice %d: expected SD %x, got %v", i, *expected.sd, got.SD)
 		}
 	}
 }
@@ -502,15 +506,17 @@ func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
 
 	amfInstance := amf.New(&fakeDBInstance{Operator: op}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure, got %d", len(sender.SentNGSetupFailures))
 	}
 
 	cause := sender.SentNGSetupFailures[0].Cause
-	if cause.Present != ngapType.CausePresentMisc || cause.Misc.Value != ngapType.CauseMiscPresentUnknownPLMN {
-		t.Errorf("expected UnknownPLMN cause for PLMN mismatch, got present=%d misc=%d", cause.Present, cause.Misc.Value)
+
+	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnknownPLMNOrSNPN}
+	if cause == nil || *cause != want {
+		t.Errorf("cause = %v, want unknown-PLMN-or-SNPN", cause)
 	}
 }
 
@@ -540,15 +546,17 @@ func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
 		OperatorErr: fmt.Errorf("database unavailable"),
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected NGSetupFailure on DB error, got %d", len(sender.SentNGSetupFailures))
 	}
 
 	cause := sender.SentNGSetupFailures[0].Cause
-	if cause.Present != ngapType.CausePresentMisc || cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
-		t.Errorf("expected Unspecified cause on DB failure, got present=%d misc=%d", cause.Present, cause.Misc.Value)
+
+	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+	if cause == nil || *cause != want {
+		t.Errorf("cause = %v, want unspecified", cause)
 	}
 }
 
@@ -586,7 +594,7 @@ func TestHandleNGSetupRequest_SliceDBFailure_SendsNGSetupFailure(t *testing.T) {
 		SlicesErr: fmt.Errorf("slice query failed"),
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected NGSetupFailure on slice DB error, got %d", len(sender.SentNGSetupFailures))
@@ -628,7 +636,7 @@ func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
+	HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected NGSetupResponse even with no slice overlap, got %d responses", len(sender.SentNGSetupResponses))

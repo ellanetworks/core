@@ -56,7 +56,7 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			assertPlainGmm(t, resp.NasPdu, tc.msgType)
+			assertPlainGmm(t, resp.NASPDU, tc.msgType)
 		})
 	}
 }
@@ -170,7 +170,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			assertPlainGmm(t, resp.NasPdu, tc.msg_type)
+			assertPlainGmm(t, resp.NASPDU, tc.msg_type)
 		})
 	}
 }
@@ -237,7 +237,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			assertPlainGmm(t, resp.NasPdu, tc.msg_type)
+			assertPlainGmm(t, resp.NASPDU, tc.msg_type)
 		})
 	}
 }
@@ -280,11 +280,11 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
 
-	if fgs.SecurityHeaderType(resp.NasPdu[1]&0x0f) != fgs.SHTIntegrityProtectedNewContext {
-		t.Fatalf("expected a protected with new 5g NAS security context NAS message, got: %v", resp.NasPdu[1]&0x0f)
+	if fgs.SecurityHeaderType(resp.NASPDU[1]&0x0f) != fgs.SHTIntegrityProtectedNewContext {
+		t.Fatalf("expected a protected with new 5g NAS security context NAS message, got: %v", resp.NASPDU[1]&0x0f)
 	}
 
-	inner := resp.NasPdu[7:]
+	inner := resp.NASPDU[7:]
 	if len(inner) < 3 || inner[2] != uint8(fgs.MsgSecurityModeCommand) {
 		t.Fatalf("expected a security mode command message, got '%v'", inner[2])
 	}

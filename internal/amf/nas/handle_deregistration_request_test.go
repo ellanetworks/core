@@ -125,7 +125,7 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDeregistrationAcceptUEOrig))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDeregistrationAcceptUEOrig))
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
 		t.Fatal("should have sent a UE Context Release Command message")
@@ -203,7 +203,7 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDeregistrationAcceptUEOrig))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDeregistrationAcceptUEOrig))
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatal("should not have sent a UE Context Release Command message")

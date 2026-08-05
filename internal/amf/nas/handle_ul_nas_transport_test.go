@@ -216,7 +216,7 @@ func TestTransport5GSMMessage_EmergencyRequest_SendsDLNASTransport(t *testing.T)
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_ExistingEmergencyPduSession_SendsDLNASTransport(t *testing.T) {
@@ -237,7 +237,7 @@ func TestTransport5GSMMessage_ExistingEmergencyPduSession_SendsDLNASTransport(t 
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTransport(t *testing.T) {
@@ -265,7 +265,7 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTransport(t *testing.T) {
@@ -286,7 +286,7 @@ func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTranspor
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_NoSmContext_NoRequestType_SendsDLNASTransport(t *testing.T) {
@@ -307,7 +307,7 @@ func TestTransport5GSMMessage_NoSmContext_NoRequestType_SendsDLNASTransport(t *t
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	dl := assertPlainDLTransport(t, resp.NasPdu)
+	dl := assertPlainDLTransport(t, resp.NASPDU)
 
 	if dl.Cause == nil {
 		t.Fatal("expected a DLNASTransport carrying a 5GMM cause")
@@ -337,7 +337,7 @@ func TestTransport5GSMMessage_ReservedPduSessionID_SendsDLNASTransport(t *testin
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	dl := assertPlainDLTransport(t, resp.NasPdu)
+	dl := assertPlainDLTransport(t, resp.NASPDU)
 
 	if dl.Cause == nil || *dl.Cause != 0x5a {
 		t.Fatalf("expected DLNASTransport with 5GMM cause #%d", 0x5a)
@@ -362,7 +362,7 @@ func TestTransport5GSMMessage_NoSmContext_ExistingPduSession_SendsDLNASTransport
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCreateNewOne(t *testing.T) {
@@ -482,7 +482,7 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	dl := assertPlainDLTransport(t, resp.NasPdu)
+	dl := assertPlainDLTransport(t, resp.NASPDU)
 
 	if dl.Cause == nil {
 		t.Fatal("expected DLNASTransport with 5GMM cause")
@@ -548,7 +548,7 @@ func TestForward5GSMMessageToSMF_N1Only_SendsDLNASTransport(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
 func TestForward5GSMMessageToSMF_N2NotPduResRel_ReturnsNil(t *testing.T) {
@@ -626,7 +626,7 @@ func TestForward5GSMMessageToSMF_N1AndN2PduResRel_SendsReleaseCommandWithN1(t *t
 	}
 
 	relCmd := ngapSender.SentPDUSessionResourceReleaseCommand[0]
-	if relCmd.NasPdu == nil {
+	if relCmd.NASPDU == nil {
 		t.Fatal("expected NAS PDU in release command, got nil")
 	}
 
@@ -949,7 +949,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgDLNASTransport))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgDLNASTransport))
 
 	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
 		t.Fatal("expected SM context NOT to exist after rejection")

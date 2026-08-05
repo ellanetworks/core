@@ -1,17 +1,16 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
@@ -22,7 +21,7 @@ func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
 	// reaches the handler; without them the AMF cannot address a UE context and
 	// reports the fault (TS 38.413 §10.3.5).
-	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, &libngap.PDUSessionResourceReleaseResponse{})
+	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceReleaseResponse{})
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -43,13 +42,13 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	msg := &libngap.PDUSessionResourceReleaseResponse{
-		AMFUENGAPID:                libngap.Ptr(libngap.AMFUENGAPID(10)),
-		RANUENGAPID:                libngap.Ptr(libngap.RANUENGAPID(1)),
-		PDUSessionResourceReleased: libngap.PDUSessionResourceReleasedListRelRes{{PDUSessionID: 1, Transfer: []byte{0x01}}},
+	msg := &ngap.PDUSessionResourceReleaseResponse{
+		AMFUENGAPID:                ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID:                ngap.Ptr(ngap.RANUENGAPID(1)),
+		PDUSessionResourceReleased: ngap.PDUSessionResourceReleasedListRelRes{{PDUSessionID: 1, Transfer: []byte{0x01}}},
 	}
 
-	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
+	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeSmf.PduResRelRspCalls) != 1 {
 		t.Fatalf("expected 1 PduResRelRsp call, got %d", len(fakeSmf.PduResRelRspCalls))

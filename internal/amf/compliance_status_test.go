@@ -11,8 +11,8 @@ import (
 	"github.com/ellanetworks/core/nas/nastest"
 )
 
-// TestDecodeCompliance_Section7 feeds adversarial plain 5GMM messages — built with
-// the fgs adversarial builder, no free5gc — through the decoder and asserts the
+// TestDecodeCompliance_Section7 feeds adversarial plain 5GMM messages — built
+// with the fgs adversarial builder — through the decoder and asserts the
 // disposition matches the latitude TS 24.501 §7 grants the network: 5GMM STATUS #97
 // for an unknown/unimplemented message type (§7.4), STATUS #96 for a malformed
 // mandatory part of a defined type (§7.5.1), and an audited silence for a too-short
@@ -36,8 +36,8 @@ func TestDecodeCompliance_Section7(t *testing.T) {
 		},
 		{
 			// A defined (assigned) downlink type decodes but is not on the plain-allowed
-			// whitelist, so it is silently discarded before §7.4 applies — matching the
-			// prior free5gc behaviour. (An *unassigned* type takes the STATUS #97 path above.)
+			// whitelist, so it is silently discarded before §7.4 applies. (An
+			// *unassigned* type takes the STATUS #97 path above.)
 			name: "defined downlink type on uplink, plain -> silent (4.4.4.3)",
 			build: func() []byte {
 				return nastest.BuildGMMRaw(uint8(fgs.EPD5GMM), uint8(fgs.SHTPlain), uint8(fgs.MsgRegistrationAccept)).Bytes()

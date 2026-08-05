@@ -330,7 +330,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *testing.T) {
@@ -424,7 +424,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgRegistrationAccept))
+	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
 func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
@@ -493,7 +493,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			}
 
 			resp := ngapSender.SentDownlinkNASTransport[0]
-			decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgRegistrationAccept))
+			decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
 		})
 	}
 }
@@ -623,7 +623,7 @@ func TestSendIdentityRequest_ArmsT3570(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgIdentityRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgIdentityRequest))
 
 	ue.Conn().NASGuardForTest().Stop()
 }

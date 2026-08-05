@@ -155,7 +155,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
 // TestHandleRegistrationRequest_RejectMissingSecurityCapability validates that a
@@ -191,7 +191,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
 // TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility
@@ -229,7 +229,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *t
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
 // TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability
@@ -260,11 +260,11 @@ func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *te
 	}
 
 	for _, sent := range ngapSender.SentDownlinkNASTransport {
-		if len(sent.NasPdu) < 3 || fgs.SecurityHeaderType(sent.NasPdu[1]&0x0f) != fgs.SHTPlain {
+		if len(sent.NASPDU) < 3 || fgs.SecurityHeaderType(sent.NASPDU[1]&0x0f) != fgs.SHTPlain {
 			continue
 		}
 
-		if sent.NasPdu[2] == uint8(fgs.MsgRegistrationReject) {
+		if sent.NASPDU[2] == uint8(fgs.MsgRegistrationReject) {
 			t.Fatalf("periodic registration should not produce a RegistrationReject for missing UE security capability")
 		}
 	}
@@ -331,7 +331,7 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgIdentityRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgIdentityRequest))
 }
 
 // TestHandleRegistrationRequest_AuthenticationRequest validates that a
@@ -374,7 +374,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 // TestHandleRegistrationRequest_RegistrationAccepted validates that a
@@ -428,11 +428,11 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	if len(resp.NasPdu) < 7 || fgs.SecurityHeaderType(resp.NasPdu[1]&0x0f) != fgs.SHTIntegrityProtectedCiphered {
+	if len(resp.NASPDU) < 7 || fgs.SecurityHeaderType(resp.NASPDU[1]&0x0f) != fgs.SHTIntegrityProtectedCiphered {
 		t.Fatalf("expected a protected and ciphered NAS message")
 	}
 
-	decoded, err := amf.DecodeNASMessage(ue, resp.NasPdu)
+	decoded, err := amf.DecodeNASMessage(ue, resp.NASPDU)
 	if err != nil {
 		t.Fatalf("could not decode ciphered NAS message")
 	}
@@ -528,7 +528,7 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 // A request differing only by a decoder-invisible IE (0x35) must still be treated
@@ -580,7 +580,7 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 // TestHandleRegistrationRequest_UEStateAuthentication_Error validates that
@@ -624,7 +624,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 // An identical retransmission during authentication is ignored, not restarted
@@ -781,7 +781,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
 // TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted validates that
@@ -841,7 +841,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	decipherGmm(t, ue, resp.NasPdu, uint8(fgs.MsgRegistrationAccept))
+	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
 // TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey validates that
@@ -907,7 +907,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgRegistrationReject))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
 // TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer validates that
@@ -957,7 +957,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
-	assertPlainGmm(t, resp.NasPdu, uint8(fgs.MsgAuthenticationRequest))
+	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 
 	if !ue.Conn().RetransmissionOfInitialNASMsg {
 		t.Fatalf("RetransmissionOfInitialNASMsg should be set when MAC failed with NASMessageContainer")

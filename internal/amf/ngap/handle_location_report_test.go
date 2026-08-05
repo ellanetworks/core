@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
-	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) {
@@ -20,12 +18,12 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := &ngaplib.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
@@ -41,18 +39,18 @@ func TestHandleLocationReport_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := &ngaplib.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 999,
 		RANUENGAPID: 99,
-		LocationReportingRequestType: &ngaplib.LocationReportingRequestType{
-			EventType:  ngaplib.EventTypeDirect,
-			ReportArea: ngaplib.ReportAreaCell,
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeDirect,
+			ReportArea: ngap.ReportAreaCell,
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
-	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	errInd := assertSingleErrorIndication(t, sender, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
@@ -66,16 +64,16 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := &ngaplib.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		LocationReportingRequestType: &ngaplib.LocationReportingRequestType{
-			EventType:  ngaplib.EventTypeUEPresenceInAreaOfInterest,
-			ReportArea: ngaplib.ReportAreaCell,
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeUEPresenceInAreaOfInterest,
+			ReportArea: ngap.ReportAreaCell,
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
@@ -93,16 +91,16 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := &ngaplib.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		LocationReportingRequestType: &ngaplib.LocationReportingRequestType{
-			EventType:  ngaplib.EventTypeStopUEPresenceInAreaOfInterest,
-			ReportArea: ngaplib.ReportAreaCell,
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeStopUEPresenceInAreaOfInterest,
+			ReportArea: ngap.ReportAreaCell,
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {
@@ -120,19 +118,19 @@ func TestHandleLocationReport_UEPresenceWithoutRequestedArea(t *testing.T) {
 
 	amf.NewUeConnForTest(ran, 1, 1, logger.AmfLog)
 
-	msg := &ngaplib.LocationReport{
+	msg := &ngap.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 1,
-		LocationReportingRequestType: &ngaplib.LocationReportingRequestType{
-			EventType:  ngaplib.EventTypeUEPresenceInAreaOfInterest,
-			ReportArea: ngaplib.ReportAreaCell,
+		LocationReportingRequestType: &ngap.LocationReportingRequestType{
+			EventType:  ngap.EventTypeUEPresenceInAreaOfInterest,
+			ReportArea: ngap.ReportAreaCell,
 		},
-		UEPresenceInAreaOfInterestList: ngaplib.UEPresenceInAreaOfInterestList{
-			{LocationReportingReferenceID: 1, UEPresence: ngaplib.UEPresenceIn},
+		UEPresenceInAreaOfInterestList: ngap.UEPresenceInAreaOfInterestList{
+			{LocationReportingReferenceID: 1, UEPresence: ngap.UEPresenceIn},
 		},
 	}
 
-	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+	HandleLocationReport(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.Conn.(*fakeNGAPSender)
 	if len(sender.SentErrorIndications) != 0 {

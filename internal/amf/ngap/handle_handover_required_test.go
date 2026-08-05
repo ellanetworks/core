@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -20,8 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
-	ngaplib "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 // releaseSignalSender wraps a sender and closes released the first time a
@@ -52,13 +50,8 @@ const handoverTargetGnbID = "000102"
 // and carrying one entry per PDU session id. Every IE is set: these tests
 // exercise the handler, and the library's own tests cover which IEs may be
 // absent.
-func handoverRequired(t *testing.T, ranID ngaplib.RANUENGAPID, sessions ...uint8) *ngaplib.HandoverRequired {
+func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *ngap.HandoverRequired {
 	t.Helper()
-
-	plmn, err := servedPLMNOctets()
-	if err != nil {
-		t.Fatalf("failed to get PLMN ID octets: %v", err)
-	}
 
 	gnb, err := hex.DecodeString(handoverTargetGnbID)
 	if err != nil || len(gnb) != 3 {
@@ -66,38 +59,38 @@ func handoverRequired(t *testing.T, ranID ngaplib.RANUENGAPID, sessions ...uint8
 	}
 
 	// HandoverRequiredTransfer fields are all optional, so an empty value is valid.
-	transfer, err := (&ngaplib.HandoverRequiredTransfer{}).Marshal()
+	transfer, err := (&ngap.HandoverRequiredTransfer{}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
 	}
 
-	list := make(ngaplib.PDUSessionResourceListHORqd, 0, len(sessions))
+	list := make(ngap.PDUSessionResourceListHORqd, 0, len(sessions))
 	for _, id := range sessions {
-		list = append(list, ngaplib.PDUSessionResourceItemHORqd{
-			PDUSessionID: ngaplib.PDUSessionID(id),
+		list = append(list, ngap.PDUSessionResourceItemHORqd{
+			PDUSessionID: ngap.PDUSessionID(id),
 			Transfer:     transfer,
 		})
 	}
 
-	cause := ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHandoverDesirableForRadio}
+	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio}
 
-	return &ngaplib.HandoverRequired{
+	return &ngap.HandoverRequired{
 		AMFUENGAPID:  1,
 		RANUENGAPID:  ranID,
-		HandoverType: ngaplib.HandoverTypeIntra5GS,
+		HandoverType: ngap.HandoverTypeIntra5GS,
 		Cause:        &cause,
-		TargetID: ngaplib.TargetID{TargetRANNodeID: ngaplib.TargetRANNodeID{
-			GlobalRANNodeID: ngaplib.GlobalRANNodeID{
-				Kind:         ngaplib.RANNodeIDGNB,
-				PLMNIdentity: ngaplib.PLMNIdentity(plmn),
+		TargetID: ngap.TargetID{TargetRANNodeID: ngap.TargetRANNodeID{
+			GlobalRANNodeID: ngap.GlobalRANNodeID{
+				Kind:         ngap.RANNodeIDGNB,
+				PLMNIdentity: operatorPLMN,
 				Value:        uint32(gnb[0])<<16 | uint32(gnb[1])<<8 | uint32(gnb[2]),
 				Bits:         24,
 			},
-			SelectedTAI: ngaplib.TAI{PLMNIdentity: ngaplib.PLMNIdentity(plmn), TAC: 1},
+			SelectedTAI: ngap.TAI{PLMNIdentity: operatorPLMN, TAC: 1},
 		}},
 		PDUSessionResourceListHORqd: list,
 		// SourceToTargetTransparentContainer is opaque and passed through unchanged.
-		SourceToTargetTransparentContainer: ngaplib.SourceToTargetTransparentContainer{0x01, 0x02, 0x03},
+		SourceToTargetTransparentContainer: ngap.SourceToTargetTransparentContainer{0x01, 0x02, 0x03},
 	}
 }
 
@@ -200,7 +193,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
@@ -226,7 +219,7 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg)
+	HandleHandoverRequired(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -237,12 +230,9 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 		t.Fatal("expected Cause in ErrorIndication, got nil")
 	}
 
-	if errorIndication.Cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatalf("expected RadioNetwork cause, got present=%d", errorIndication.Cause.Present)
-	}
-
-	if errorIndication.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID {
-		t.Fatalf("expected UnknownLocalUENGAPID cause, got %d", errorIndication.Cause.RadioNetwork.Value)
+	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
+	if errorIndication.Cause == nil || *errorIndication.Cause != wantRadioNetworkCause {
+		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errorIndication.Cause)
 	}
 }
 
@@ -269,19 +259,17 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
 	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
 	}
 
 	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
-	if failure.Cause.Present != ngapType.CausePresentNas {
-		t.Fatalf("expected NAS cause, got present=%d", failure.Cause.Present)
-	}
 
-	if failure.Cause.Nas.Value != ngapType.CauseNasPresentAuthenticationFailure {
-		t.Fatalf("expected AuthenticationFailure cause, got %d", failure.Cause.Nas.Value)
+	wantNasCause := ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASAuthenticationFailure}
+	if failure.Cause == nil || *failure.Cause != wantNasCause {
+		t.Errorf("cause = %v, want authentication-failure", failure.Cause)
 	}
 
 	if len(sourceNGAPSender.SentHandoverRequests) != 0 {
@@ -337,19 +325,17 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	// No target gNB registered with this AMF.
 	amfInstance.ClearRadiosForTest()
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
 	}
 
 	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
-	if failure.Cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatalf("expected RadioNetwork cause, got present=%d", failure.Cause.Present)
-	}
 
-	if failure.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownTargetID {
-		t.Fatalf("expected UnknownTargetID cause, got %d", failure.Cause.RadioNetwork.Value)
+	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownTargetID}
+	if failure.Cause == nil || *failure.Cause != wantRadioNetworkCause {
+		t.Errorf("cause = %v, want unknown-targetID", failure.Cause)
 	}
 }
 
@@ -422,7 +408,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	// Drive the guard quickly; the target gNB never answers the HANDOVER REQUEST.
 	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
@@ -494,7 +480,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	}
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
 
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))

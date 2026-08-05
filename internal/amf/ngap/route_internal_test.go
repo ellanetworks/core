@@ -42,9 +42,6 @@ func mustDecodeHex(t *testing.T, s string) []byte {
 	return b
 }
 
-// These messages omit an IE this library's own encoder will not omit, so they
-// cannot be built here. They were produced with free5gc/ngap v1.1.3 and are
-// pinned as literals; that encoder is not a dependency of this repository.
 const (
 	ngSetupRequestWithoutGlobalRANNodeID = "001500190000020066000d00000000010002f839000000080015400140"
 	ngSetupRequestWithoutSupportedTAList = "00150014000002001b00080002f839100001020015400140"

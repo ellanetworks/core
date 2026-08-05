@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
-	libngap "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
@@ -19,25 +17,23 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	msg := &libngap.UEContextReleaseRequest{
+	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 999999,
 		RANUENGAPID: 888888,
-		Cause:       &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUserInactivity},
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
 	}
 
-	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 
 	errInd := sender.SentErrorIndications[0]
-	if errInd.Cause == nil || errInd.Cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatal("expected RadioNetwork cause in ErrorIndication")
-	}
 
-	if errInd.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID {
-		t.Fatalf("expected UnknownLocalUENGAPID, got %d", errInd.Cause.RadioNetwork.Value)
+	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
+	if errInd.Cause == nil || *errInd.Cause != wantRadioNetworkCause {
+		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errInd.Cause)
 	}
 
 	if len(sender.SentUEContextReleaseCommands) != 0 {
@@ -56,21 +52,21 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	msg := &libngap.UEContextReleaseRequest{
+	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUserInactivity},
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
 	}
 
-	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand, got %d", len(sender.SentUEContextReleaseCommands))
 	}
 
 	cmd := sender.SentUEContextReleaseCommands[0]
-	if cmd.AmfUeNgapID != 10 || cmd.RanUeNgapID != 1 {
-		t.Errorf("UEContextReleaseCommand IDs = (%d, %d), want (10, 1)", cmd.AmfUeNgapID, cmd.RanUeNgapID)
+	if cmd.UENGAPIDs.AMFUENGAPID != 10 || cmd.UENGAPIDs.RANUENGAPID != 1 {
+		t.Errorf("UEContextReleaseCommand IDs = (%d, %d), want (10, 1)", cmd.UENGAPIDs.AMFUENGAPID, cmd.UENGAPIDs.RANUENGAPID)
 	}
 
 	if ueConn.ReleaseAction != amf.UeContextN2NormalRelease {
@@ -86,8 +82,8 @@ func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
-	ueConn.SendUEContextReleaseCommand(context.Background(), libngap.Cause{Group: libngap.CauseGroupNAS, Value: libngap.CauseNASNormalRelease})
-	ueConn.SendUEContextReleaseCommand(context.Background(), libngap.Cause{Group: libngap.CauseGroupNAS, Value: libngap.CauseNASNormalRelease})
+	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
+	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected a single UE Context Release Command, got %d", len(sender.SentUEContextReleaseCommands))

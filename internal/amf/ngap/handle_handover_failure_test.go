@@ -1,26 +1,25 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/sctp"
-	ngaplib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
-	msg := ngaplib.HandoverFailure{AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(1))}
+	msg := ngap.HandoverFailure{AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(1))}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, ran, &msg)
+	HandleHandoverFailure(context.Background(), amfInstance, ran, &msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
@@ -55,12 +54,12 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	// Simulate the AMF UE being detached from the source (deregistration race).
 	amfUe.Conn().AMFForTest().ReleaseNasConnection(amfUe, nil)
 
-	msg := ngaplib.HandoverFailure{
-		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(200)),
-		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
+	msg := ngap.HandoverFailure{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
 	}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
+	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure on source radio, got %d", len(sourceSender.SentHandoverPreparationFailures))
@@ -101,12 +100,12 @@ func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	msg := ngaplib.HandoverFailure{
-		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(200)),
-		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
+	msg := ngap.HandoverFailure{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
 	}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
+	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
 
 	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure on source, got %d", len(sourceSender.SentHandoverPreparationFailures))
@@ -151,12 +150,12 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 
 	// Failure arrives on the SOURCE association (AMF UE NGAP ID 100), not the
 	// prepared target (200).
-	msg := ngaplib.HandoverFailure{
-		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(100)),
-		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
+	msg := ngap.HandoverFailure{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(100)),
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
 	}
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, sourceRan, &msg)
+	HandleHandoverFailure(context.Background(), amfInstance, sourceRan, &msg)
 
 	if len(sourceSender.SentHandoverPreparationFailures) != 0 {
 		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(sourceSender.SentHandoverPreparationFailures))
@@ -196,14 +195,14 @@ func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngaplib.HandoverFailure{
-		AMFUENGAPID: ngaplib.Ptr(ngaplib.AMFUENGAPID(200)),
-		Cause:       &ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget},
-		CriticalityDiagnostics: &ngaplib.CriticalityDiagnostics{
-			IEsCriticalityDiagnostics: []ngaplib.CriticalityDiagnosticsIEItem{{
-				IECriticality: ngaplib.CriticalityReject,
-				IEID:          ngaplib.ProtocolIEID(101),
-				TypeOfError:   ngaplib.TypeOfErrorNotUnderstood,
+	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngap.HandoverFailure{
+		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
+			IEsCriticalityDiagnostics: []ngap.CriticalityDiagnosticsIEItem{{
+				IECriticality: ngap.CriticalityReject,
+				IEID:          ngap.ProtocolIEID(101),
+				TypeOfError:   ngap.TypeOfErrorNotUnderstood,
 			}},
 		},
 	})

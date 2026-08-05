@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package ngap_test
+package ngap
 
 import (
 	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
-	libngap "github.com/ellanetworks/core/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
 func TestNASNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
@@ -19,12 +17,12 @@ func TestNASNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	ngap.HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &libngap.NASNonDeliveryIndication{
+	HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &ngap.NASNonDeliveryIndication{
 		RANUENGAPID: 99,
 		AMFUENGAPID: 999,
 	})
 
-	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	errInd := assertSingleErrorIndication(t, sender, ngap.CauseRadioNetworkUnknownLocalUENGAPID)
 	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
@@ -39,11 +37,11 @@ func TestNASNonDeliveryIndication_UEFound_ReportOnly(t *testing.T) {
 
 	// TS 38.413 §8.6.4: report-only — the handler resolves the UE and records
 	// liveness; the (undelivered downlink) NAS-PDU is not acted on. Verify no panic.
-	ngap.HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &libngap.NASNonDeliveryIndication{
+	HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &ngap.NASNonDeliveryIndication{
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
-		NASPDU:      libngap.NASPDU{0x7E, 0x00, 0x00},
-		Cause:       libngap.Ptr(libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnknownLocalUENGAPID}),
+		NASPDU:      ngap.NASPDU{0x7E, 0x00, 0x00},
+		Cause:       ngap.Ptr(ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}),
 	})
 }
 
@@ -61,11 +59,11 @@ func TestNASNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
 	ueConn := amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 	ueConn.AMFForTest().AttachUeConn(amfUe, ueConn)
 
-	ngap.HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &libngap.NASNonDeliveryIndication{
+	HandleNASNonDeliveryIndication(context.Background(), amfInstance, ran, &ngap.NASNonDeliveryIndication{
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
-		NASPDU:      libngap.NASPDU{0xDE, 0xAD},
-		Cause:       libngap.Ptr(libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnknownLocalUENGAPID}),
+		NASPDU:      ngap.NASPDU{0xDE, 0xAD},
+		Cause:       ngap.Ptr(ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}),
 	})
 
 	if len(fakeNAS.Calls) != 0 {

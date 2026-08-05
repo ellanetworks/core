@@ -9,13 +9,12 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
-	ngaplib "github.com/ellanetworks/core/ngap"
-	libngap "github.com/free5gc/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/ngap"
 )
 
-// The response is encoded by the in-house library and read back with the
-// reference decoder, so the test also shows a peer can parse what we emit.
+// The response is encoded and read back with the in-house library. What it pins
+// is the wire form of an absent slice differentiator: it must stay absent
+// rather than encode as three zero octets, which are a valid but different SD.
 func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 	guami := &models.Guami{
 		PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"},
@@ -38,47 +37,32 @@ func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 		t.Fatalf("marshal failed: %v", err)
 	}
 
-	pdu, err := libngap.Decoder(encoded)
+	pdu, err := ngap.Unmarshal(encoded)
 	if err != nil {
 		t.Fatalf("NGAP decode failed: %v", err)
 	}
 
-	if pdu.Present != ngapType.NGAPPDUPresentSuccessfulOutcome {
-		t.Fatalf("expected SuccessfulOutcome, got %d", pdu.Present)
+	outcome, ok := pdu.(*ngap.SuccessfulOutcome)
+	if !ok {
+		t.Fatalf("expected SuccessfulOutcome, got %T", pdu)
 	}
 
-	out := pdu.SuccessfulOutcome.Value.NGSetupResponse
-	if out == nil {
-		t.Fatal("expected NGSetupResponse, got nil")
+	out, err := ngap.ParseNGSetupResponse(outcome.Value)
+	if err != nil {
+		t.Fatalf("parse NG Setup Response: %v", err)
 	}
 
-	var plmnSupportList *ngapType.PLMNSupportList
-
-	for _, ie := range out.ProtocolIEs.List {
-		if ie.Id.Value == ngapType.ProtocolIEIDPLMNSupportList {
-			plmnSupportList = ie.Value.PLMNSupportList
-
-			break
-		}
+	if len(out.PLMNSupportList) != 1 {
+		t.Fatalf("expected 1 PLMN support item, got %d", len(out.PLMNSupportList))
 	}
 
-	if plmnSupportList == nil {
-		t.Fatal("PLMNSupportList IE not found")
-	}
-
-	if len(plmnSupportList.List) != 1 {
-		t.Fatalf("expected 1 PLMN support item, got %d", len(plmnSupportList.List))
-	}
-
-	sliceList := plmnSupportList.List[0].SliceSupportList.List
+	sliceList := out.PLMNSupportList[0].SliceSupportList
 	if len(sliceList) != 3 {
 		t.Fatalf("expected 3 slice support items, got %d", len(sliceList))
 	}
 
-	// The third slice has no SD, which must stay absent rather than encode as
-	// three zero octets — a valid, different slice differentiator.
 	if sliceList[2].SNSSAI.SD != nil {
-		t.Errorf("slice 3 SD = % x, want absent", sliceList[2].SNSSAI.SD.Value)
+		t.Errorf("slice 3 SD = %x, want absent", *sliceList[2].SNSSAI.SD)
 	}
 }
 
@@ -92,7 +76,7 @@ func operatorFor(mcc, mnc, tac string) *amf.OperatorInfo {
 	}
 }
 
-func outcomeRequest(t *testing.T, mcc, mnc string, tac uint32) *ngaplib.NGSetupRequest {
+func outcomeRequest(t *testing.T, mcc, mnc string, tac uint32) *ngap.NGSetupRequest {
 	t.Helper()
 
 	plmn, err := util.PLMNToNGAP(models.PlmnID{Mcc: mcc, Mnc: mnc})
@@ -100,19 +84,19 @@ func outcomeRequest(t *testing.T, mcc, mnc string, tac uint32) *ngaplib.NGSetupR
 		t.Fatal(err)
 	}
 
-	return &ngaplib.NGSetupRequest{
-		GlobalRANNodeID: ngaplib.GlobalRANNodeID{
-			Kind: ngaplib.RANNodeIDGNB, PLMNIdentity: plmn, Value: 0x000102, Bits: 24,
+	return &ngap.NGSetupRequest{
+		GlobalRANNodeID: ngap.GlobalRANNodeID{
+			Kind: ngap.RANNodeIDGNB, PLMNIdentity: plmn, Value: 0x000102, Bits: 24,
 		},
-		RANNodeName: ngaplib.Ptr("ella-gnb"),
-		SupportedTAList: ngaplib.SupportedTAList{{
-			TAC: ngaplib.TAC(tac),
-			BroadcastPLMNList: ngaplib.BroadcastPLMNList{{
+		RANNodeName: ngap.Ptr("ella-gnb"),
+		SupportedTAList: ngap.SupportedTAList{{
+			TAC: ngap.TAC(tac),
+			BroadcastPLMNList: ngap.BroadcastPLMNList{{
 				PLMNIdentity:        plmn,
-				TAISliceSupportList: ngaplib.SliceSupportList{{SNSSAI: ngaplib.SNSSAI{SST: 1}}},
+				TAISliceSupportList: ngap.SliceSupportList{{SNSSAI: ngap.SNSSAI{SST: 1}}},
 			}},
 		}},
-		DefaultPagingDRX: ngaplib.Ptr(ngaplib.PagingDRXv128),
+		DefaultPagingDRX: ngap.Ptr(ngap.PagingDRXv128),
 	}
 }
 
@@ -133,12 +117,12 @@ func TestNGSetupOutcomeAccepts(t *testing.T) {
 		t.Fatalf("tais = %+v", tais)
 	}
 
-	pdu, err := ngaplib.Unmarshal(out)
+	pdu, err := ngap.Unmarshal(out)
 	if err != nil {
 		t.Fatalf("unmarshal outcome: %v", err)
 	}
 
-	if _, ok := pdu.(*ngaplib.SuccessfulOutcome); !ok {
+	if _, ok := pdu.(*ngap.SuccessfulOutcome); !ok {
 		t.Fatalf("outcome is %T, want an NG Setup Response", pdu)
 	}
 }
@@ -146,22 +130,22 @@ func TestNGSetupOutcomeAccepts(t *testing.T) {
 func TestNGSetupOutcomeRejects(t *testing.T) {
 	tests := []struct {
 		name      string
-		req       func(*testing.T) *ngaplib.NGSetupRequest
-		wantCause ngaplib.Cause
+		req       func(*testing.T) *ngap.NGSetupRequest
+		wantCause ngap.Cause
 	}{
 		{
 			"unknown PLMN",
-			func(t *testing.T) *ngaplib.NGSetupRequest { return outcomeRequest(t, "999", "99", 0x000001) },
+			func(t *testing.T) *ngap.NGSetupRequest { return outcomeRequest(t, "999", "99", 0x000001) },
 			causeUnknownPLMN,
 		},
 		{
 			"served PLMN but unserved TAC",
-			func(t *testing.T) *ngaplib.NGSetupRequest { return outcomeRequest(t, "001", "01", 0x000064) },
+			func(t *testing.T) *ngap.NGSetupRequest { return outcomeRequest(t, "001", "01", 0x000064) },
 			causeNoServedTAC,
 		},
 		{
 			"no supported TA at all",
-			func(t *testing.T) *ngaplib.NGSetupRequest {
+			func(t *testing.T) *ngap.NGSetupRequest {
 				req := outcomeRequest(t, "001", "01", 0x000001)
 				req.SupportedTAList = nil
 
@@ -187,17 +171,17 @@ func TestNGSetupOutcomeRejects(t *testing.T) {
 				t.Error("rejection carries no reason")
 			}
 
-			pdu, err := ngaplib.Unmarshal(out)
+			pdu, err := ngap.Unmarshal(out)
 			if err != nil {
 				t.Fatalf("unmarshal outcome: %v", err)
 			}
 
-			uo, ok := pdu.(*ngaplib.UnsuccessfulOutcome)
+			uo, ok := pdu.(*ngap.UnsuccessfulOutcome)
 			if !ok {
 				t.Fatalf("outcome is %T, want an NG Setup Failure", pdu)
 			}
 
-			fail, err := ngaplib.ParseNGSetupFailure(uo.Value)
+			fail, err := ngap.ParseNGSetupFailure(uo.Value)
 			if err != nil {
 				t.Fatalf("parse failure: %v", err)
 			}
