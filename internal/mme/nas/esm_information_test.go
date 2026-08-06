@@ -11,10 +11,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// A UE that needs to send a ciphered PCO or an APN during attach sets the ESM
-// information transfer flag and waits to be asked (TS 24.301 §6.5.1.2 NOTE 1).
-// Its PDU session identity arrives in the response, so without the procedure the
-// PDN connection has none and cannot be transferred to 5GS.
 func TestESMInformationCarriesTheDeferredIdentity(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -36,20 +32,17 @@ func TestESMInformationCarriesTheDeferredIdentity(t *testing.T) {
 	}
 
 	if ue.RequestedPDUSessionID != 0 {
-		t.Fatal("the deferred request carried no identity, yet one was recorded")
+		t.Fatalf("RequestedPDUSessionID = %d, want 0", ue.RequestedPDUSessionID)
 	}
 
 	sent := cc.count()
 
-	// The default bearer cannot be activated yet: the APN and the identity are
-	// still with the UE.
 	activateDefaultBearer(context.Background(), m, ue)
 
 	if cc.count() != sent+1 {
-		t.Fatalf("sent %d messages, want the ESM Information Request", cc.count()-sent)
+		t.Fatalf("sent %d messages, want 1", cc.count()-sent)
 	}
 
-	// The response's PCO replaces anything the request carried (§6.6.1.2.4).
 	pco := nas.ProtocolConfigurationOptions{
 		ConfigProtocol: nas.PCOConfigProtocolPPP,
 		Direction:      nas.PCOMSToNetwork,
@@ -68,16 +61,14 @@ func TestESMInformationCarriesTheDeferredIdentity(t *testing.T) {
 	}
 
 	if ue.RequestedPDUSessionID != 9 {
-		t.Errorf("PDU session identity = %d, want 9 from the ESM Information Response", ue.RequestedPDUSessionID)
+		t.Errorf("PDU session identity = %d, want 9", ue.RequestedPDUSessionID)
 	}
 
 	if ue.RequestedAPN != "internet" {
-		t.Errorf("APN = %q, want the one the response carried", ue.RequestedAPN)
+		t.Errorf("APN = %q, want %q", ue.RequestedAPN, "internet")
 	}
 }
 
-// An unsolicited response is ignored rather than resuming an attach that never
-// deferred anything.
 func TestESMInformationResponseWhenNoneWasRequested(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -88,6 +79,6 @@ func TestESMInformationResponseWhenNoneWasRequested(t *testing.T) {
 	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{PTI: 1})
 
 	if ue.RequestedPDUSessionID != 4 {
-		t.Errorf("PDU session identity = %d, want it untouched by an unsolicited response", ue.RequestedPDUSessionID)
+		t.Errorf("PDU session identity = %d, want 4", ue.RequestedPDUSessionID)
 	}
 }

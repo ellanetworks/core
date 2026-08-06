@@ -180,9 +180,6 @@ func TestPCOTwoOctetLengthContainers(t *testing.T) {
 	}
 }
 
-// TestPDUSessionIDContainer covers the identity a UE supporting N1 mode sends at
-// PDN connection establishment (TS 24.008 §10.5.6.3 container 001AH), including
-// the malformed cases that must read as absent rather than as identity 0.
 func TestPDUSessionIDContainer(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -222,8 +219,6 @@ func TestPDUSessionIDContainer(t *testing.T) {
 	}
 }
 
-// TestNewSNSSAIContainer pins the layout of container 001BH: one S-NSSAI value
-// followed by one PLMN identity (TS 24.008 §10.5.6.3).
 func TestNewSNSSAIContainer(t *testing.T) {
 	c, err := NewSNSSAIContainer([]byte{0x01, 0x10, 0x20, 0x30}, PLMN{MCC: "001", MNC: "01"})
 	if err != nil {

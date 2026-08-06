@@ -42,15 +42,10 @@ type UE struct {
 	netCapEEA nas.AlgorithmSet // advertised EPS ciphering bitmap (UE network capability octet 3)
 	netCapEIA nas.AlgorithmSet // advertised EPS integrity bitmap (octet 4)
 
-	pdnType eps.PDNType // requested PDN type (eps.PDNTypeIPv4 / IPv6 / IPv4v6)
-	apn     string      // requested APN in the Attach Request ("" = subscriber default)
-	// requestType is the PDN CONNECTIVITY REQUEST's request type
-	// (TS 24.301 §9.9.4.14); "handover" transfers a PDU session held in 5GS.
-	requestType eps.RequestType
-	// pduSessionID is the identity a UE supporting N1 mode allocates for the PDN
-	// connection and sends in the PCO, so the connection can move to 5GS
-	// (TS 24.301 §6.5.1.2). Zero sends no container.
-	pduSessionID uint8
+	pdnType      eps.PDNType            // requested PDN type (eps.PDNTypeIPv4 / IPv6 / IPv4v6)
+	apn          string                 // requested APN in the Attach Request ("" = subscriber default)
+	requestType  eps.RequestType        // PDN Connectivity Request's request type (TS 24.301 §9.9.4.14)
+	pduSessionID uint8                  // PDU session identity sent in the PCO; zero sends no container
 	attachGUTI   *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 
 	kasme   []byte
@@ -107,17 +102,15 @@ func (ue *UE) RequestPDNType(t uint8) { ue.pdnType = eps.PDNType(t) }
 // Request (TS 24.301 §6.5.1.2); empty selects the subscriber's default APN.
 func (ue *UE) RequestAPN(apn string) { ue.apn = apn }
 
-// TransferPDUSession makes the next attach ask to move the PDU session the UE
-// holds in 5GS onto its default bearer, rather than establish a new PDN
-// connection: request type "handover" plus the identity of that session in the
-// PCO (TS 24.301 §6.5.1.2, TS 23.502 §4.11.2.2 step 13).
+// TransferPDUSession makes the next attach carry request type "handover" and
+// pduSessionID in the PCO (TS 23.502 §4.11.2.2 step 13).
 func (ue *UE) TransferPDUSession(pduSessionID uint8) {
 	ue.requestType = eps.RequestTypeHandover
 	ue.pduSessionID = pduSessionID
 }
 
-// AllocatePDUSessionID has the UE name the PDN connection with a PDU session
-// identity so it can later be moved to 5GS, without asking for a transfer now.
+// AllocatePDUSessionID makes the next attach carry pduSessionID in the PCO,
+// keeping request type "initial request".
 func (ue *UE) AllocatePDUSessionID(pduSessionID uint8) { ue.pduSessionID = pduSessionID }
 
 // UseUnknownGUTI makes the Attach Request present a GUTI the MME cannot resolve,

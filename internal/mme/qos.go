@@ -31,10 +31,8 @@ type EpsQoS struct {
 	DNS        string // data-network DNS server, advertised to the UE via PCO
 	MTU        uint16
 	Allow4G    bool
-	// Snssai is the slice the policy binds the PDN connection to. EPS has no
-	// slice of its own; it is resolved here so the PDN connection can be
-	// transferred to 5GS (TS 23.501 §5.15.7.1) and is signalled to the UE in the
-	// PCO S-NSSAI container.
+	// Snssai is the slice the policy binds the PDN connection to, signalled to the
+	// UE in the PCO S-NSSAI container (TS 23.501 §5.15.7.1).
 	Snssai models.Snssai
 }
 
@@ -120,7 +118,6 @@ func qosForPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Poli
 	return qosForPolicyDN(profile, pol, dn, snssai)
 }
 
-// sliceSnssai resolves the S-NSSAI of the network slice a policy binds to.
 func sliceSnssai(ctx context.Context, m *MME, sliceID string) (models.Snssai, error) {
 	slice, err := m.Bearer.GetNetworkSliceByID(ctx, sliceID)
 	if err != nil {
@@ -178,10 +175,7 @@ func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork, sns
 
 // DnFingerprint summarises the parameters delivered to the UE at bearer setup
 // (IP pools, DNS, MTU, and the slice). A change between attach and a later
-// reconcile means the UE's bearer must be re-established to pick it up. The
-// S-NSSAI is in it because the UE stores what the PCO carried and uses it to
-// move the connection to 5GS (TS 24.501 §6.1.4.2), so a stale one would not
-// resolve the session there.
+// reconcile means the UE's bearer must be re-established to pick it up.
 func (q *EpsQoS) DnFingerprint() string {
 	return fmt.Sprintf("%s|%s|%s|%d|%d-%s", q.IPv4Pool, q.IPv6Pool, q.DNS, q.MTU, q.Snssai.Sst, q.Snssai.Sd)
 }

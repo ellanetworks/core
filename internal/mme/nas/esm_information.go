@@ -13,14 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// requestESMInformation asks the UE for the ESM information it deferred, and
-// reports whether the attach must now wait for it (TS 24.301 §6.6.1.2.2). The
-// message carries no EPS bearer identity and replays the PDN CONNECTIVITY
-// REQUEST's PTI, and it is sent only once the security context is up — which it
-// is, since the default bearer is activated after the security mode procedure.
-//
-// The guard resends on the first two expiries of T3489 and, on the third, aborts
-// the attach with ESM cause #53 (§6.6.1.2.6 a, §6.5.1.6 c).
+// requestESMInformation asks the UE for the ESM information it deferred and
+// reports whether the attach waits for it (TS 24.301 §6.6.1.2.2).
 func requestESMInformation(ctx context.Context, m *mme.MME, ue *mme.UeContext) bool {
 	if !ue.AwaitingESMInformation {
 		return false
@@ -54,11 +48,9 @@ func requestESMInformation(ctx context.Context, m *mme.MME, ue *mme.UeContext) b
 	return true
 }
 
-// handleESMInformationResponse takes the APN and PCO the UE deferred and resumes
-// the attach (TS 24.301 §6.6.1.2.4). The response's protocol configuration
-// options replace any the PDN CONNECTIVITY REQUEST carried, so the PDU session
-// identity that decides whether the connection can move to 5GS is read from
-// here (§6.5.1.2).
+// handleESMInformationResponse takes the APN and PCO the UE deferred and
+// resumes the attach. Its PCO replaces any the PDN CONNECTIVITY REQUEST carried
+// (TS 24.301 §6.6.1.2.4).
 func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.ESMInformationResponse) nasreply.Disposition {
 	if !ue.AwaitingESMInformation {
 		logger.From(ctx, logger.MmeLog).Warn("unexpected ESM Information Response", zap.String("imsi", ue.IMSI()))

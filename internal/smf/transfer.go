@@ -20,34 +20,26 @@ import (
 
 // ErrSessionNotTransferable reports that the session a UE asked to move to the
 // access it is now on does not exist, or exists but is not the one the UE
-// described. Each access maps it to the cause its NAS defines for a transfer of
-// something the network does not hold: ESM #54 "PDN connection does not exist"
-// (TS 24.301 §6.5.1.6 b) and 5GSM #54 "PDU session does not exist"
+// described. Each access maps it to ESM #54 "PDN connection does not exist"
+// (TS 24.301 §6.5.1.6 b) or 5GSM #54 "PDU session does not exist"
 // (TS 24.501 §6.4.1.7 d).
 var ErrSessionNotTransferable = errors.New("session does not exist on the other access")
 
-// transferRequest is what the target access brings to a transfer: the access
-// itself, the EPS bearer identity it names the session by there, the data
-// network the UE named, and the policy the access resolved. The PDU session
-// identity is absent because it is the correlator that found the session, and
+// transferRequest is what the target access brings to a transfer. The PDU
+// session identity is absent: it is the correlator that found the session, and
 // it does not change.
 type transferRequest struct {
 	Access AccessType
-	// EBI is the default bearer's EPS bearer identity on EPS, and 0 on 5GS,
-	// where the PDN connection's bearer identity is given up.
-	EBI uint8
-	Dnn string
-	// Snssai is the slice the UE named, where its access signals one. A session
-	// under a different slice is not the session the UE described, for the same
-	// reason the data network has to match.
+	// EBI is the default bearer's EPS bearer identity on EPS, and 0 on 5GS.
+	EBI    uint8
+	Dnn    string
 	Snssai *models.Snssai
 	Policy *Policy
 }
 
-// findTransferable resolves the session a UE asked to move to the other access.
-// The PDU session identity correlates the two (TS 23.502 §4.11.2.2 step 13,
-// §4.11.2.3 step 9); the data network has to match too, because the UE names
-// both and a session under a different one is not the session it described.
+// findTransferable resolves the session a UE asked to move to the other access,
+// correlated by PDU session identity (TS 23.502 §4.11.2.2 step 13,
+// §4.11.2.3 step 9).
 func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
 	if pduSessionID == 0 {
 		return nil, fmt.Errorf("%w: the UE named no PDU session identity", ErrSessionNotTransferable)
@@ -72,9 +64,7 @@ func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferR
 	return sc, nil
 }
 
-// transferable reports whether the session can move as req describes. Both
-// findTransferable and the move itself test it: the first to reject the request
-// before any work, the second because the lock is dropped in between. Caller
+// transferable reports whether the session can move as req describes. Caller
 // holds sc.Mutex.
 func (sc *SMContext) transferable(req transferRequest) error {
 	if sc.Access == req.Access {
@@ -122,16 +112,11 @@ func downlinkSnapshot(dl *PDR) func() {
 
 // transferSession moves an established session to the other access with session
 // continuity (TS 23.501 §5.17.2): the UE keeps its address, and the anchor keeps
-// the UPF session, its SEID and its uplink F-TEID, so only the access-network
-// end of the tunnel is rebuilt. The downlink is left buffering — the target
-// access binds its own RAN endpoint afterwards (ModifyEPSSession on EPS, the N2
-// resource setup response on 5GS), and that is what re-points the downlink FAR
-// and sets the PDU Session Container behaviour for the new access.
+// the UPF session, its SEID and its uplink F-TEID. The downlink is left
+// buffering until the target access binds its own RAN endpoint.
 func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRequest) error {
 	// One transfer at a time per session: the move spans several blocking UPF
-	// calls, and two interleaved would each read the other's half-applied state —
-	// the second would report the access the first had just moved to as the one
-	// being left, and tell it to forget a session it had just been given.
+	// calls.
 	if err := sc.procedures.Begin(procedure.Transfer); err != nil {
 		return fmt.Errorf("%w: %v", ErrSessionNotTransferable, err)
 	}
@@ -143,19 +128,14 @@ func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRe
 		return err
 	}
 
-	// The access the session left still routes to it. Left in place, that
-	// context's own release path would tear down a session the UE is now using
-	// on the other access, so the anchor tells it the session is gone — without
-	// releasing the session or the UE address (TS 23.502 §4.11.2.2 step 14,
-	// §4.11.2.3 step 10). Called outside the session lock, as every call out of
-	// the SMF is.
 	s.dropSourceRouting(ctx, sc.Supi, from, sourceID)
 
 	return nil
 }
 
 // dropSourceRouting tells the access a session left to forget it and to release
-// what its radio still holds for it.
+// what its radio still holds for it, without releasing the session or the UE
+// address (TS 23.502 §4.11.2.2 step 14, §4.11.2.3 step 10).
 func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, from AccessType, id SessionIdentity) {
 	switch from {
 	case Access5G:
@@ -164,8 +144,8 @@ func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, from Access
 		}
 
 		// A UE in dual-registration mode stays on NG-RAN while it moves sessions
-		// one at a time, so the resources of the one that moved have to be
-		// released or they are stranded there.
+		// one at a time, so the moved session's resources are stranded unless the
+		// RAN is told to release them.
 		n2Release, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 		if err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
@@ -190,37 +170,28 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 
 	from, sourceID := sc.Access, sc.SessionIdentity
 
-	// findTransferable tested these and released the lock; re-test them under the
-	// lock that performs the change, because a release, a replacement or another
-	// transfer can land in between.
+	// A release, a replacement or another transfer can land between the request
+	// and this lock.
 	if err := sc.transferable(req); err != nil {
 		return from, sourceID, err
 	}
 
-	// The bearer identity is claimed before any UPF work, so a collision costs
-	// nothing and the rollback below has one less thing to undo.
 	if err := s.setEPSBearerIdentity(sc, req.EBI); err != nil {
 		return from, sourceID, err
 	}
 
 	policy := req.Policy
 	if len(policy.NetworkRules) == 0 && sc.PolicyData != nil {
-		// Network rules are subscriber and policy scoped, not access scoped, and
-		// the EPS resolution path does not produce them.
+		// Network rules are subscriber and policy scoped, not access scoped.
 		policy.NetworkRules = sc.PolicyData.NetworkRules
 	}
 
-	// Session-AMBR and the QFI the user plane is marked with are resolved per
-	// access, so the target's policy has to reach the UPF before its RAN does.
 	if err := s.applySessionQERs(ctx, sc, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink); err != nil {
 		s.setEPSBearerIdentity(sc, sourceID.EBI) //nolint:errcheck // restoring a key this session just held
 		return from, sourceID, fmt.Errorf("apply target access QoS: %w", err)
 	}
 
-	// The downlink FAR is about to be cleared in memory. If the UPF rejects the
-	// change the two would diverge — worse, reconcile gates on the very flag being
-	// cleared (upConnectionActive), so the session would never be reconciled
-	// again — so snapshot enough to put it back.
+	// The snapshot keeps memory and the UPF in step if the UPF rejects the change.
 	dl := sc.Tunnel.DataPath.DownLinkTunnel.PDR
 	restore := downlinkSnapshot(dl)
 
@@ -232,8 +203,7 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		return from, sourceID, fmt.Errorf("suspend downlink: %w", err)
 	}
 
-	// Buffer without a downlink data notification: the UE is not idle, it is on
-	// the other access, and paging the one it left would reach nobody.
+	// The UE is not idle, so paging the access it left reaches nobody.
 	dl.FAR.ApplyAction.Nocp = false
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(sc.PFCPContext.RemoteSEID, policy.PolicyID, nil, farList, nil)); err != nil {
@@ -250,9 +220,8 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		sc.Snssai = req.Snssai
 	}
 
-	// The move ends whatever the source access had outstanding: a retransmission
-	// aimed at an access the UE has left reaches nobody, and a T3592 abort would
-	// drop a live session (TS 24.501 §6.3.2.5, §6.3.3).
+	// The move ends whatever the source access had outstanding: a T3592 expiry
+	// aborts a session the UE still holds (TS 24.501 §6.3.2.5, §6.3.3).
 	sc.stopProcedureTimer()
 	sc.pendingPolicy = nil
 	sc.establishmentPTI = 0
@@ -266,8 +235,7 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 }
 
 // ipToNetip is the inverse of netipToIP, unmapping the IPv4-in-IPv6 form so an
-// address round-trips to the family it was allocated in. An address the slice
-// cannot represent reads as invalid, which the models treat as absent.
+// address round-trips to the family it was allocated in.
 func ipToNetip(ip net.IP) netip.Addr {
 	addr, ok := netip.AddrFromSlice(ip)
 	if !ok {

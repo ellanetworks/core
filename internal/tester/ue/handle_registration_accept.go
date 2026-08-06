@@ -58,8 +58,6 @@ func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAP
 		return fmt.Errorf("could not build PDU Session Establishment Request: %v", err)
 	}
 
-	// A UE that registered while holding PDN connections in EPS moves each one
-	// here rather than asking for a new session (TS 23.502 §4.11.2.3 step 9).
 	pduUplink, err := BuildUplinkNasTransport(&UplinkNasTransportOpts{
 		PDUSessionID:     ue.PDUSessionID,
 		PayloadContainer: pduReq,

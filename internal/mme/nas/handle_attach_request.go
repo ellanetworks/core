@@ -150,10 +150,8 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	}
 }
 
-// requestedPDUSessionID returns the PDU session identity a UE supporting N1 mode
-// allocated for the PDN connection and sent in the PCO (TS 24.301 §6.5.1.2), or
-// 0 when it sent none. Without it the PDN connection cannot be transferred to
-// 5GS (TS 23.502 §4.11.2.3 step 9).
+// requestedPDUSessionID returns the PDU session identity the UE sent in the PCO,
+// or 0 when it sent none (TS 24.301 §6.5.1.2).
 func requestedPDUSessionID(pc *eps.PDNConnectivityRequest) uint8 {
 	if pc.ProtocolConfigurationOptions == nil {
 		return 0
@@ -242,12 +240,9 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, na
 	return existing, false
 }
 
-// rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
-// cause, then releases the UE's S1 context.
-// rejectAttachESM rejects an attach whose ESM procedure failed, combining the
-// ATTACH REJECT with the PDN CONNECTIVITY REJECT that carries the ESM cause, so
-// the UE learns why the PDN connection was refused and not only that the attach
-// was (TS 24.301 §5.5.1.2.5).
+// rejectAttachESM rejects an attach whose ESM procedure failed, pairing the
+// ATTACH REJECT with the PDN CONNECTIVITY REJECT that carries the ESM cause
+// (TS 24.301 §5.5.1.2.5).
 func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.ESMCause) {
 	esm, err := (&eps.PDNConnectivityReject{PTI: ue.RequestedPTI, Cause: cause}).MarshalBinary()
 	if err != nil {
@@ -259,6 +254,8 @@ func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause e
 	rejectAttachWithESM(ctx, m, ue, eps.EMMCauseESMFailure, esm)
 }
 
+// rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
+// cause, then releases the UE's S1 context.
 func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
 	rejectAttachWithESM(ctx, m, ue, cause, nil)
 }

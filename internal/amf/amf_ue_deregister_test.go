@@ -330,10 +330,6 @@ func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
 	}
 }
 
-// A PDU session the UE moved to EPS is still anchored and still carrying the
-// UE's traffic there, so the AMF must forget it rather than release it
-// (TS 23.502 §4.11.2.2 step 14). Left in the routing context, a later 5GS
-// deregistration would tear the live EPS bearer down.
 func TestSessionTransferred_DropsRoutingWithoutReleasing(t *testing.T) {
 	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
 	if err != nil {
@@ -351,15 +347,13 @@ func TestSessionTransferred_DropsRoutingWithoutReleasing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Registering the UE binds the AMF's own (nil) session client, so the fake
-	// goes on afterwards.
 	fakeSmf := &deregisterTestSmf{}
 	ue.smf = fakeSmf
 
 	amfInstance.SessionTransferred(context.Background(), supi, 1, nil)
 
 	if len(fakeSmf.releaseCalls) != 0 {
-		t.Errorf("released %v, want nothing: the session lives on over EPS", fakeSmf.releaseCalls)
+		t.Errorf("released %v, want nothing", fakeSmf.releaseCalls)
 	}
 
 	if _, exists := ue.SmContextFindByPDUSessionID(1); exists {
@@ -370,7 +364,6 @@ func TestSessionTransferred_DropsRoutingWithoutReleasing(t *testing.T) {
 		t.Error("routing context for an unrelated PDU session was dropped")
 	}
 
-	// The consequence: deregistering from 5GS now releases only what 5GS holds.
 	ue.Deregister(context.Background())
 
 	if want := []string{"still-on-5gs"}; !reflect.DeepEqual(fakeSmf.releaseCalls, want) {

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package interworking holds the scenarios that move a subscriber's session
-// between EPS and 5GS without an N26 interface, checking that the anchor keeps
-// the session so the UE keeps its address (TS 23.501 §5.17.2.3).
+// between EPS and 5GS without an N26 interface (TS 23.501 §5.17.2.3).
 package interworking
 
 import (
@@ -24,21 +23,15 @@ import (
 )
 
 const (
-	// interworkingIMSI is the one subscriber both accesses serve; the whole point
-	// is that the same session follows it across them.
 	interworkingIMSI = "001010000000040"
 
-	// transferPDUSessionID is the identity the UE allocates and keeps on both
-	// accesses. It is what correlates the PDN connection with the PDU session
+	// transferPDUSessionID correlates the PDN connection with the PDU session
 	// (TS 23.501 §5.17.2.1).
 	transferPDUSessionID uint8 = 1
 
 	ranUENGAPID int64 = 1
 )
 
-// fixture provisions the one dual-access subscriber the transfer scenarios need.
-// The default profile permits both accesses, which is what lets one subscriber
-// be served on either.
 func fixture(scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers:         []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(interworkingIMSI, "")},
@@ -101,13 +94,9 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 	})
 }
 
-// s1mmePort is the standard S1-MME SCTP port (TS 36.412); the eNB reaches the
-// core on the same host the gNB uses for N2.
+// s1mmePort is the standard S1-MME SCTP port (TS 36.412).
 const s1mmePort = "36412"
 
-// newFiveGUE builds the 5GS side of the subscriber. requestType selects what the
-// UE asks for once registered: an initial request establishes a session, and
-// "existing PDU session" moves the PDN connection it holds in EPS.
 func newFiveGUE(gNodeB *gnb.GnodeB, requestType fgs.RequestType) (*ue.UE, error) {
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
@@ -144,7 +133,6 @@ func newFiveGUE(gNodeB *gnb.GnodeB, requestType fgs.RequestType) (*ue.UE, error)
 	return newUE, nil
 }
 
-// newEPSUE builds the EPS side of the same subscriber.
 func newEPSUE(e *s1enb.ENB) (*s1enb.UE, error) {
 	var k, opc [16]byte
 

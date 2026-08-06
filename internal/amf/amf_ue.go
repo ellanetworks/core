@@ -56,10 +56,7 @@ type UeContext struct {
 
 	Location models.UserLocation
 	Tai      models.Tai
-	// gmmCapability is the UE's 5GMM capability from the REGISTRATION REQUEST
-	// (TS 24.501 §9.11.3.1); nil until one arrives. It carries the S1 mode bit
-	// that decides whether the UE is told how this network interworks with EPS.
-	// Guarded by mu.
+	// Nil until a REGISTRATION REQUEST carries one; guarded by mu.
 	gmmCapability *fgs.GMMCapability
 	// Written on every UE-specific NGAP message; guarded by mu.
 	lastSeen atomic.Int64 // Unix nanoseconds; use lastSeenTime()/TouchLastSeen()
@@ -780,8 +777,7 @@ func (ue *UeContext) PagingActive() bool {
 }
 
 // SetGMMCapability records the UE's 5GMM capability. A registration that omits
-// the element leaves the stored one in place: the UE keeps its capabilities for
-// the registration's lifetime, and periodic updating omits the element.
+// the element leaves the stored one in place (TS 24.501 §9.11.3.1).
 func (ue *UeContext) SetGMMCapability(c *fgs.GMMCapability) {
 	if c == nil {
 		return
@@ -793,9 +789,6 @@ func (ue *UeContext) SetGMMCapability(c *fgs.GMMCapability) {
 	ue.gmmCapability = c
 }
 
-// SupportsS1Mode reports whether the UE told the network it supports S1 mode, so
-// it can move to EPS (TS 24.501 §9.11.3.1). A UE that said nothing is treated as
-// not supporting it.
 func (ue *UeContext) SupportsS1Mode() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

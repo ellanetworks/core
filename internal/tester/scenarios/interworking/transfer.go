@@ -33,9 +33,7 @@ func init() {
 }
 
 // run5GSToEPS establishes a PDU session over 5GS, then has the UE re-attach over
-// EPS asking to transfer it (TS 23.502 §4.11.2.2 step 13). The address and the
-// anchor have to survive the move, and traffic has to flow on the S1-U tunnel
-// afterwards — that is what "interworking without N26" buys.
+// EPS asking to transfer it (TS 23.502 §4.11.2.2 step 13).
 func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
@@ -75,8 +73,6 @@ func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 
 	logger.Logger.Info("established over 5GS", zap.String("ue-ip", before.UEIP))
 
-	// The UE arrives on E-UTRAN and asks for its session by the identity it
-	// allocated for it, rather than for a new PDN connection.
 	epsUE, err := newEPSUE(e)
 	if err != nil {
 		return err
@@ -102,9 +98,8 @@ func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 	return nil
 }
 
-// runEPSTo5GS is the mirror: establish a PDN connection over EPS naming it with a
-// PDU session identity, then register over 5GS and move it with request type
-// "existing PDU session" (TS 23.502 §4.11.2.3 step 9).
+// runEPSTo5GS establishes a PDN connection over EPS, then registers over 5GS and
+// moves it with request type "existing PDU session" (TS 23.502 §4.11.2.3 step 9).
 func runEPSTo5GS(ctx context.Context, env scenarios.Env) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
@@ -125,7 +120,6 @@ func runEPSTo5GS(ctx context.Context, env scenarios.Env) error {
 		return err
 	}
 
-	// A UE supporting N1 mode names the connection so it can be moved later.
 	epsUE.AllocatePDUSessionID(transferPDUSessionID)
 
 	res, err := e.Attach(epsUE, 15*time.Second)

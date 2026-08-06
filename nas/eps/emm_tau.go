@@ -38,9 +38,7 @@ type TrackingAreaUpdateRequest struct {
 	// EPSBearerContextStatus reports which EPS bearer contexts are active.
 	EPSBearerContextStatus *nas.EPSBearerContextStatus
 	// UENetworkCapability is the UE's supported algorithms and per-release
-	// feature bits (§9.9.3.34). A UE re-sends it here when its capabilities
-	// changed, notably to indicate N1 mode support it did not have at attach
-	// (§5.5.3.2.4); nil when the element was absent.
+	// feature bits (§9.9.3.34); nil when the element was absent.
 	UENetworkCapability *UENetworkCapability
 
 	// Unrecognized carries the optional information elements this message does
@@ -177,9 +175,7 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 			return true, nil
 		case ieiUENetworkCapability:
 			// A syntactically incorrect optional element leaves the rest of the
-			// message usable (TS 24.301 §7.7.1), and this one is only ever an
-			// update to capabilities the MME already holds, so a malformed value
-			// reads as absent rather than failing the update.
+			// message usable (TS 24.301 §7.7.1).
 			if parsed, err := ParseUENetworkCapability(value); err == nil {
 				m.UENetworkCapability = &parsed
 			}

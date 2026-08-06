@@ -47,8 +47,7 @@ type epsSessionManager interface {
 	// programs the default bearer, returning the negotiated type, the addresses,
 	// and the S-GW S1-U F-TEID for the eNB to send uplink to.
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
-	// ModifyEPSSession sets the downlink endpoint to the eNB S1-U F-TEID. ref is
-	// the PDN connection's anchor session handle.
+	// ModifyEPSSession sets the downlink endpoint to the eNB S1-U F-TEID.
 	ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID) error
 	// UpdateEPSSessionAMBR updates the Session-AMBR enforced by the UPF QER for a
 	// PDN connection's default bearer, in the "<n> <unit>" form.
@@ -192,11 +191,8 @@ const (
 	defaultNASGuardMaxRetransmit = 4
 )
 
-// T3489 supervises the ESM information request procedure: the MME resends on
-// the first two expiries and aborts on the third, rejecting the PDN
-// connectivity procedure with ESM cause #53 (TS 24.301 §6.6.1.2.6 a, table
-// 10.2.1). Both the interval and the retransmission count differ from the EMM
-// common-procedure guard's.
+// T3489 supervises the ESM information request procedure (TS 24.301
+// §6.6.1.2.6 a, table 10.2.1).
 const (
 	defaultT3489Timeout       = 4 * time.Second
 	defaultT3489MaxRetransmit = 2
@@ -254,9 +250,8 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 }
 
 // NetworkFeatureSupport returns the EPS network feature support advertised to a
-// UE (TS 24.301 §9.9.3.12A). The IWK N26 indicator is per-UE: only a UE that
-// said it supports N1 mode is told how this network interworks with 5GS
-// (§5.5.1.2.4, §5.5.3.2.4), mirroring the AMF's 5GS counterpart.
+// UE (TS 24.301 §9.9.3.12A). The IWK N26 indicator is per-UE: it goes only to a
+// UE that supports N1 mode (§5.5.1.2.4, §5.5.3.2.4).
 func (m *MME) NetworkFeatureSupport(ue *UeContext) *eps.NetworkFeatureSupport {
 	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
 	if m.EPSNetworkFeatureSupport != nil {

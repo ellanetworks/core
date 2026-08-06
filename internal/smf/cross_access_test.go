@@ -13,9 +13,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// An EPS bearer identity names a slot the UE re-uses, so a session is addressed
-// by its ref: the superseded instance's ref must not reach the session that took
-// the slot over.
 func TestModifyEPSSessionRejectsSupersededRef(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

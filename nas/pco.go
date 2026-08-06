@@ -18,10 +18,7 @@ const (
 	PCOContainerIPv4LinkMTU               uint16 = 0x0010
 )
 
-// The two identities a PDN connection in EPS needs to carry to be transferable
-// to 5GS (TS 23.501 §5.17.2.1). Unlike the identifiers above these are
-// single-direction: each is reserved in the other direction, so neither is a
-// request/answer pair.
+// Container identifiers reserved in one direction (TS 24.008 §10.5.6.3).
 const (
 	// PCOContainerPDUSessionID carries, MS to network, the PDU session identity
 	// the MS allocated for the PDN connection (TS 24.007 §11.2.3.1b).
@@ -33,9 +30,8 @@ const (
 )
 
 // PDUSessionID returns the PDU session identity the MS allocated for the PDN
-// connection, and whether the element carried one (TS 24.008 §10.5.6.3). A
-// container whose content is not the single octet TS 24.007 §11.2.3.1b defines
-// reports absent, so a malformed one is ignored rather than taken as identity 0.
+// connection, and whether the element carried one. A container whose content is
+// not the single octet TS 24.007 §11.2.3.1b defines reports absent.
 func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 	for _, c := range p.Containers {
 		if c.ID == PCOContainerPDUSessionID && len(c.Content) == 1 {
@@ -46,11 +42,9 @@ func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 	return 0, false
 }
 
-// NewSNSSAIContainer builds the network-to-MS S-NSSAI container: one S-NSSAI
-// value followed by one PLMN identity that the S-NSSAI relates to
-// (TS 24.008 §10.5.6.3). snssaiValue is the value part of an S-NSSAI
-// information element (TS 24.501 §9.11.2.8); the identity is encoded as the
-// PLMN identity of the CN operator element (§10.5.5.36).
+// NewSNSSAIContainer builds the network-to-MS S-NSSAI container (TS 24.008
+// §10.5.6.3): the value part of an S-NSSAI information element (TS 24.501
+// §9.11.2.8) followed by one PLMN identity encoded as in §10.5.5.36.
 func NewSNSSAIContainer(snssaiValue []byte, plmn PLMN) (PCOContainer, error) {
 	if len(snssaiValue) == 0 {
 		return PCOContainer{}, fmt.Errorf("nas: S-NSSAI container: empty S-NSSAI value")

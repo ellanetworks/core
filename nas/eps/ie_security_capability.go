@@ -160,9 +160,7 @@ type UENetworkCapability struct {
 }
 
 // N1Mode reports whether the UE supports N1 mode for 3GPP access (octet 9,
-// bit 6, TS 24.301 §9.9.3.34), which is what tells the MME the UE can move to
-// 5GS. The per-release feature octets are carried verbatim in Rest, which
-// starts at octet 7, so the bit is read from there rather than duplicated.
+// bit 6, TS 24.301 §9.9.3.34). Rest holds the feature octets from octet 7 on.
 func (c UENetworkCapability) N1Mode() bool {
 	const octet9 = 2
 

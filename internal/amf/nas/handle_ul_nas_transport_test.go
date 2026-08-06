@@ -1075,11 +1075,6 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 // that has no amf.AMF-side SM context and omits the RequestType IE.
 // The code reaches `switch requestType.GetRequestTypeValue()` with requestType == nil.
 
-// A UE moving from EPS without N26 transfers each PDN connection with request
-// type "existing PDU session" for a PDU session the AMF holds no routing
-// context for (TS 23.502 §4.11.2.3 step 9). The SMF holds it, so the AMF routes
-// the message rather than reporting it as not forwarded
-// (TS 24.501 §5.4.5.2.5 item 7).
 func TestTransport5GSMMessage_NoSmContext_ExistingPDUSession_CreateSmContext(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {

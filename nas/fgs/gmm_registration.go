@@ -39,10 +39,8 @@ type RegistrationRequest struct {
 	NgKSI            nas.KeySetIdentifier // bits 5-8
 	MobileIdentity   MobileIdentity       // mandatory 5GS mobile identity (type 6, LVE)
 
-	GMMCapability *GMMCapability // IEI 0x10
-	// UEStatus reports the UE's registration status in each system, which is
-	// what tells the network the UE is moving between them (§9.11.3.56).
-	UEStatus                *UEStatus
+	GMMCapability           *GMMCapability        // IEI 0x10
+	UEStatus                *UEStatus             // IEI 0x2B
 	UESecurityCapability    *UESecurityCapability // IEI 0x2E
 	RequestedNSSAI          NSSAI                 // IEI 0x2F
 	UplinkDataStatus        *PSIBitmap            // IEI 0x40
@@ -879,9 +877,7 @@ func boolBit(set bool, pos uint8) uint8 {
 }
 
 // UEStatus is the UE status information element (TS 24.501 §9.11.3.56): the UE's
-// registration status in each system. A UE moving between EPS and 5GS reports
-// itself still registered in the one it is leaving, which is how the network
-// recognises the move (§5.5.1.3.2 case e).
+// registration status in each system.
 type UEStatus struct {
 	// S1ModeReg reports the UE in EMM-REGISTERED state (octet 3, bit 1).
 	S1ModeReg bool

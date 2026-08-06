@@ -484,10 +484,7 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 }
 
 // SessionTransferred drops the AMF's routing context for a PDU session the UE
-// moved to EPS (TS 23.502 §4.11.2.2 step 14). The anchor still holds the
-// session, on the other access, so nothing here releases it: leaving the
-// context in place would let a later 5GS deregistration tear down a session the
-// UE is using on EPS.
+// moved to EPS, leaving the session anchored (TS 23.502 §4.11.2.2 step 14).
 func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Release []byte) {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
@@ -499,10 +496,6 @@ func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessi
 	logger.From(ctx, logger.AmfLog).Info("dropped routing context for a PDU session moved to EPS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
-	// A single-registration UE has already left NR, so there is no connection and
-	// nothing to release. A dual-registration UE is still here, and NG-RAN would
-	// otherwise hold the moved session's resources forever. No N1 container: the
-	// UE is on EPS and has nothing to answer (TS 23.502 §4.11.2.2 step 14).
 	ueConn := ue.Conn()
 	if ueConn == nil || n2Release == nil {
 		return
@@ -512,6 +505,7 @@ func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessi
 		{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Release)},
 	}
 
+	// No NAS PDU: the UE is on EPS (TS 23.502 §4.11.2.2 step 14).
 	if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, nil, list); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to release NG-RAN resources for a moved PDU session",
 			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))

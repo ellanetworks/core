@@ -16,14 +16,8 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// activateFromAccept unprotects an Attach Accept and decodes the embedded
-// Activate Default EPS Bearer Context Request.
-// testSnssai is the slice the test bearer store binds every policy to.
 var testSnssai = models.Snssai{Sst: 1, Sd: "102030"}
 
-// wantSnssaiContainer is the PCO S-NSSAI container the MME appends to every
-// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.501 §6.1.4.2): the S-NSSAI
-// value part followed by the serving PLMN, MCC 001 MNC 01.
 func wantSnssaiContainer(t *testing.T) nas.PCOContainer {
 	t.Helper()
 
@@ -35,6 +29,8 @@ func wantSnssaiContainer(t *testing.T) nas.PCOContainer {
 	return c
 }
 
+// activateFromAccept unprotects an Attach Accept and decodes the embedded
+// Activate Default EPS Bearer Context Request.
 func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
@@ -255,9 +251,6 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 	}
 }
 
-// The IWK N26 indicator tells a UE how this network interworks with 5GS, so it
-// goes only to a UE that said it supports N1 mode (TS 24.301 §5.5.1.2.4). It is
-// the EPS mirror of the AMF's 5GS network feature support bit.
 func TestAttachAcceptIWKN26FollowsN1ModeSupport(t *testing.T) {
 	// N1 mode is octet 9 bit 6 of the UE network capability (TS 24.301
 	// §9.9.3.34); Rest starts at octet 7.

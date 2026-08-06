@@ -10,8 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// epsRequestWithPDUSessionID is a 4G PDN connection whose UE supplied a PDU
-// session identity in the PCO, on the given default bearer.
 func epsRequestWithPDUSessionID(ebi, pduSessionID uint8) models.EPSBearerRequest {
 	req := epsRequest(1)
 	req.EPSBearerIdentity = ebi
@@ -21,10 +19,7 @@ func epsRequestWithPDUSessionID(ebi, pduSessionID uint8) models.EPSBearerRequest
 	return req
 }
 
-// A PDN connection the UE named with a PDU session identity is keyed by it, so
-// the UE address survives a move to 5GS under the same identity
-// (TS 23.501 §5.17.2.1). The default bearer still resolves it by EPS bearer
-// identity, which is all the MME knows.
+// TS 23.501 §5.17.2.1.
 func TestCreateEPSSessionKeysOnUEPDUSessionID(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -49,11 +44,9 @@ func TestCreateEPSSessionKeysOnUEPDUSessionID(t *testing.T) {
 
 	ids := store.allocSessionIDs()
 	if len(ids) != 1 || ids[0] != 3 {
-		t.Errorf("lease session ids = %v, want [3] — the identity that survives the move to 5GS", ids)
+		t.Errorf("lease session ids = %v, want [3]", ids)
 	}
 
-	// The MME addresses the default bearer by EPS bearer identity at
-	// establishment, so re-establishing supersedes rather than duplicating.
 	again, err := s.CreateEPSSession(context.Background(), epsRequestWithPDUSessionID(epsTestEBI, 3))
 	if err != nil {
 		t.Fatalf("CreateEPSSession (re-establish): %v", err)
@@ -68,10 +61,8 @@ func TestCreateEPSSessionKeysOnUEPDUSessionID(t *testing.T) {
 	}
 }
 
-// A UE must not reuse a live PDU session identity (TS 24.007 §11.2.3.1b).
-// Honouring a duplicate would give two PDN connections one session key, hence
-// one UE address, so the identity is dropped and the connection is simply not
-// transferable — the case TS 23.502 §4.11.1.1 NOTE 5 covers.
+// TS 23.502 §4.11.1.1 NOTE 5: the PDN connection establishes without one and is
+// then not transferable to 5GS.
 func TestCreateEPSSessionIgnoresUnusablePDUSessionID(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
@@ -101,11 +92,11 @@ func TestCreateEPSSessionIgnoresUnusablePDUSessionID(t *testing.T) {
 			}
 
 			if sc.PDUSessionID != 0 {
-				t.Errorf("PDUSessionID = %d, want 0: the identity is unusable", sc.PDUSessionID)
+				t.Errorf("PDUSessionID = %d, want 0", sc.PDUSessionID)
 			}
 
 			if s.GetSession(first.Ref) == nil {
-				t.Error("the first PDN connection was superseded by an unusable identity")
+				t.Error("the first PDN connection is no longer in the pool")
 			}
 
 			ids := store.allocSessionIDs()

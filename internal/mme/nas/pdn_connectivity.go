@@ -288,12 +288,9 @@ func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.
 	return nasreply.Handled()
 }
 
-// rejectPDNConnectivity refuses a PDN CONNECTIVITY REQUEST with an ESM cause
-// (TS 24.301 §6.5.1.4).
-// sessionSetupESMCause is the ESM cause for a PDN connectivity request the
-// anchor refused. The anchor names one when the refusal has a cause the UE can
-// act on — a transfer of a PDN connection it does not hold draws #54
-// (TS 24.301 §6.5.1.6 b) — and leaves it unset otherwise.
+// sessionSetupESMCause is the ESM cause for a session the anchor refused; the
+// anchor names one when the refusal has a cause the UE can act on, such as #54
+// for a transfer of a PDN connection it does not hold (TS 24.301 §6.5.1.6 b).
 func sessionSetupESMCause(bearer models.EPSBearer) eps.ESMCause {
 	if bearer.ESMCause != 0 {
 		return bearer.ESMCause
@@ -302,6 +299,8 @@ func sessionSetupESMCause(bearer models.EPSBearer) eps.ESMCause {
 	return eps.ESMCauseRequestRejectedUnspecified
 }
 
+// rejectPDNConnectivity refuses a PDN CONNECTIVITY REQUEST with an ESM cause
+// (TS 24.301 §6.5.1.4).
 func rejectPDNConnectivity(ctx context.Context, ue *mme.UeContext, pti uint8, cause eps.ESMCause) {
 	ue.Conn().SendDownlinkProtected(ctx, &eps.PDNConnectivityReject{
 		PTI:   nas.ProcedureTransactionIdentity(pti),

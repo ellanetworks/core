@@ -186,10 +186,6 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 	}
 }
 
-// The IWK N26 indicator tells a UE how this network interworks with EPS, so it
-// goes only to a UE that said it supports S1 mode (TS 24.501 §5.5.1.2.4). Its
-// value is "interworking without N26 supported": this core has no N26 interface,
-// so a UE moving to EPS re-requests its sessions there (TS 23.501 §5.17.2.3).
 func TestBuildRegistrationAccept_IWKN26FollowsS1ModeSupport(t *testing.T) {
 	for _, tc := range []struct {
 		name       string

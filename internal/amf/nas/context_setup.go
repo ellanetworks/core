@@ -30,11 +30,9 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	conn.RegistrationRequest = msg
 	conn.RegistrationRequestPlain = plain
 
-	// The 5GMM capability is not a cleartext IE (TS 24.501 §4.4.6), so a UE with
-	// no valid 5G NAS security context sends it only in the NAS message container
-	// of SECURITY MODE COMPLETE. This is the first point at which the complete
-	// message is known, for both of §4.4.6's cases. Its S1 mode bit decides
-	// whether the UE is told how this network interworks with EPS.
+	// The 5GMM capability is not a cleartext IE (TS 24.501 §4.4.6): a UE with no
+	// valid 5G NAS security context sends it in the NAS message container of
+	// SECURITY MODE COMPLETE.
 	if msg != nil {
 		ue.SetGMMCapability(msg.GMMCapability)
 	}

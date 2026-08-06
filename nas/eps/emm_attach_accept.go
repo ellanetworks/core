@@ -62,17 +62,11 @@ type NetworkFeatureSupport struct {
 	ERwoPDN bool  // attach without PDN connectivity (octet 3, bit 7)
 	CPCIoT  bool  // control plane CIoT EPS optimisation (octet 3, bit 8)
 
-	// IWKN26 is the interworking without N26 interface indicator (octet 4,
-	// bit 7): set, the network supports EPS↔5GS interworking without an N26
-	// interface, so a UE moving between the systems re-requests its connections
-	// on the target one (TS 23.501 §5.17.2.3). Its 5GS counterpart is the IWK N26
-	// bit of the 5GS network feature support IE.
-	IWKN26 bool
+	IWKN26 bool // interworking without N26 interface (octet 4, bit 7)
 
-	// HasOctet4 records whether the sender included octet 4, so an element that
-	// carries no octet-4 bit still re-encodes at the length it arrived with;
-	// Octet4Spare carries the octet-4 bits this codec does not interpret, and
-	// Rest octet 5 onwards.
+	// HasOctet4 records whether the sender included octet 4, so the element
+	// re-encodes at the length it arrived with; Octet4Spare carries the octet-4
+	// bits this codec does not interpret, and Rest octet 5 onwards.
 	HasOctet4   bool
 	Octet4Spare uint8
 	Rest        []byte
@@ -122,7 +116,6 @@ func ParseNetworkFeatureSupport(b []byte) (NetworkFeatureSupport, error) {
 
 // AppendBinary encodes the EPS network feature support IE value onto b.
 func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
-	// Setting an octet-4 bit is itself a request for octet 4.
 	hasOctet4 := n.HasOctet4 || n.IWKN26 || n.Octet4Spare != 0
 
 	if len(n.Rest) > 0 && !hasOctet4 {
@@ -342,10 +335,8 @@ func ParseAttachComplete(b []byte) (*AttachComplete, error) {
 // REJECT.
 type AttachReject struct {
 	Cause EMMCause
-	// ESMMessageContainer carries the PDN CONNECTIVITY REJECT that failed the
-	// attach's ESM procedure (§8.2.3.2). TS 24.301 §5.5.1.2.5 pairs it with EMM
-	// cause #19 "ESM failure", so the UE learns why the PDN connection was
-	// refused rather than only that the attach was. Empty omits the IE.
+	// ESMMessageContainer carries the ESM reject that accompanies EMM cause #19
+	// "ESM failure" (TS 24.301 §5.5.1.2.5); empty omits the IE.
 	ESMMessageContainer []byte
 	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16A); 0 omits the IE.
 	T3402 *nas.GPRSTimer2

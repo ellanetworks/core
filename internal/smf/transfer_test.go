@@ -15,8 +15,7 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// transferTestPDUSessionID is the identity the UE allocates and keeps across
-// both accesses; buildPDUSessionEstRequest names it on the 5GS side.
+// transferTestPDUSessionID is the identity buildPDUSessionEstRequest names.
 const transferTestPDUSessionID uint8 = 1
 
 func epsTransferRequest(t *testing.T, requestType eps.RequestType) models.EPSBearerRequest {
@@ -46,10 +45,7 @@ func rejectCause(t *testing.T, raw []byte) fgs.GSMCause {
 	return reject.Cause
 }
 
-// A UE moving 5GS→EPS transfers its PDU session onto a PDN connection with
-// request type "handover" (TS 23.502 §4.11.2.2 step 13). The anchor keeps the
-// session, so the UE keeps its address and the UPF session is neither
-// re-established nor re-leased.
+// TS 23.502 §4.11.2.2 step 13.
 func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -111,7 +107,6 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 		t.Errorf("uplink TEID = %#x, want it preserved at %#x", sc.Tunnel.DataPath.UpLinkTunnel.TEID, ulTEID)
 	}
 
-	// The QFI the target access marks with comes from the policy it resolved.
 	if sc.PolicyData == nil || sc.PolicyData.Ambr.Uplink.Bps() == 0 {
 		t.Error("transferred session has no policy from the target access")
 	}
@@ -121,13 +116,10 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 	}
 
 	if moved := amfCb.movedAway(); len(moved) != 1 || moved[0] != transferTestPDUSessionID {
-		t.Errorf("AMF told of moved sessions = %v, want [%d]: a routing context left behind would let a 5GS deregistration tear down the live EPS bearer",
-			moved, transferTestPDUSessionID)
+		t.Errorf("AMF told of moved sessions = %v, want [%d]", moved, transferTestPDUSessionID)
 	}
 
-	// A dual-registration UE stays on NG-RAN, so the resources of the session it
-	// moved have to be released or they are stranded there
-	// (TS 23.502 §4.11.2.2 step 14).
+	// TS 23.502 §4.11.2.2 step 14.
 	amfCb.mu.Lock()
 	releases := amfCb.transferReleases
 	amfCb.mu.Unlock()
@@ -144,8 +136,7 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 	}
 }
 
-// The mirror: a UE moving EPS→5GS transfers its PDN connection with request
-// type "existing PDU session" (TS 23.502 §4.11.2.3 step 9).
+// TS 23.502 §4.11.2.3 step 9.
 func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -211,7 +202,6 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 			sc.PFCPContext.LocalSEID, sc.Tunnel.DataPath.UpLinkTunnel.TEID, seid, ulTEID)
 	}
 
-	// The 5GS side needs the QFI the EPS policy does not carry.
 	if sc.PolicyData == nil || sc.PolicyData.QosData.QFI == 0 {
 		t.Error("transferred session has no 5GS QoS flow identifier")
 	}
@@ -221,8 +211,7 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 	}
 
 	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
-		t.Errorf("MME told of moved connections = %v, want [%d]: a PDN connection left behind would let a detach tear down the live PDU session",
-			moved, epsTestEBI)
+		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
 	}
 
 	upf.mu.Lock()
@@ -233,10 +222,7 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 	}
 }
 
-// A transfer the anchor cannot honour is refused with the cause each access
-// defines for it, so the UE establishes the connection afresh instead of
-// retrying the transfer: ESM #54 (TS 24.301 §6.5.1.4 b) and 5GSM #54
-// (TS 24.501 §6.4.1.4 d).
+// ESM #54 (TS 24.301 §6.5.1.4 b) and 5GSM #54 (TS 24.501 §6.4.1.4 d).
 func TestTransferOfUnknownSessionIsRefused(t *testing.T) {
 	t.Run("to EPS", func(t *testing.T) {
 		pcf, store, upf, amfCb := defaultFakes()
@@ -279,8 +265,6 @@ func TestTransferOfUnknownSessionIsRefused(t *testing.T) {
 	})
 }
 
-// The UE names the data network as well as the PDU session identity, so a
-// session under a different one is not the session it described.
 func TestTransferRefusedOnDataNetworkMismatch(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -307,10 +291,6 @@ func TestTransferRefusedOnDataNetworkMismatch(t *testing.T) {
 	}
 }
 
-// Two transfers of one session racing each other must not both commit. Before
-// the procedure guard the second read the access the first had just moved to as
-// the one being left, and told that access to forget a session it had just been
-// given — leaving a live session no control plane owned.
 func TestConcurrentTransfersDoNotBothCommit(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -346,8 +326,6 @@ func TestConcurrentTransfersDoNotBothCommit(t *testing.T) {
 		t.Errorf("%d of 2 racing transfers committed, want exactly 1", succeeded)
 	}
 
-	// Exactly one hand-off: the access the session left is told once, and the
-	// access it arrived on is never told to forget it.
 	if moved := amfCb.movedAway(); len(moved) != 1 {
 		t.Errorf("AMF told of moved sessions = %v, want exactly one", moved)
 	}

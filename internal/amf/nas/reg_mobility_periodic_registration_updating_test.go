@@ -850,27 +850,19 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	}
 }
 
-// A UE moving from EPC lists the PDN connections it is about to transfer in the
-// PDU session status, and this AMF holds none of them. Synchronising against
-// that would report every one inactive, and the UE "shall perform a local
-// release" of exactly the sessions it came to move (TS 24.501 §5.5.1.3.4) —
-// defeating the address preservation the move exists for. TS 23.502 §4.11.2.3
-// steps 3 and 7 have the AMF skip the synchronisation instead.
 func TestMobilityReg_MovingFromEPC_SkipsPDUSessionStatusSync(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
 
-	// The UE reports every PDU session inactive on the 5GS side, as it must:
-	// the connections are still in EPS.
 	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]uint8{0x00, 0x00})
 	ue.Conn().RegistrationRequest.UEStatus = &fgs.UEStatus{S1ModeReg: true}
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
 	if len(fakeSmf.ReleaseSmContextCalls) != 0 {
-		t.Errorf("released %v, want nothing: the UE is moving its connections, not abandoning them", fakeSmf.ReleasedSmContext)
+		t.Errorf("released %v, want nothing", fakeSmf.ReleasedSmContext)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -887,9 +879,7 @@ func TestMobilityReg_MovingFromEPC_SkipsPDUSessionStatusSync(t *testing.T) {
 		t.Fatalf("parse RegistrationAccept: %v", err)
 	}
 
-	// Omitting the IE is what leaves the UE's sessions alone: the local release
-	// is conditioned on the network reporting them inactive.
 	if accept.PDUSessionStatus != nil {
-		t.Errorf("Registration Accept carries a PDU session status %v, want none for a UE moving from EPC", accept.PDUSessionStatus)
+		t.Errorf("PDU session status = %v, want none", accept.PDUSessionStatus)
 	}
 }

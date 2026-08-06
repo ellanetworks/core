@@ -106,10 +106,6 @@ func TestIngestAttachRequest_SoftIEErrorKeepsRequest(t *testing.T) {
 	}
 }
 
-// TestIngestAttachRequestExtractsPDUSessionID covers the identity leg of EPS↔5GS
-// interworking: a UE supporting N1 mode allocates a PDU session identity for the
-// PDN connection and sends it in the PCO (TS 24.301 §6.5.1.2). Without it the
-// connection cannot be transferred to 5GS.
 func TestIngestAttachRequestExtractsPDUSessionID(t *testing.T) {
 	withPSI := nas.ProtocolConfigurationOptions{
 		ConfigProtocol: nas.PCOConfigProtocolPPP,

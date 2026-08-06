@@ -10,11 +10,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// The two enumerations agree only on IPv4/IPv6/IPv4v6. Above them PDN type 5 is
-// non-IP and 6 Ethernet, while PDU session type 4 is Unstructured and 5
-// Ethernet, so a numeric cast would read an Ethernet PDU session as a non-IP PDN
-// connection. This pins the shared range and that the divergent values are
-// refused rather than mistranslated.
 func TestSessionTypeConversionsCoverOnlyTheSharedRange(t *testing.T) {
 	shared := []struct {
 		pduSessionType fgs.PDUSessionType
@@ -37,25 +32,21 @@ func TestSessionTypeConversionsCoverOnlyTheSharedRange(t *testing.T) {
 		}
 	}
 
-	// 4 is Unstructured as a PDU session type and unassigned as a PDN type; 5 is
-	// Ethernet on one side and non-IP on the other; 6 is Ethernet as a PDN type
-	// and reserved as a PDU session type.
+	// The enumerations diverge at 4 and above.
 	for _, v := range []uint8{0, 4, 5, 6, 7} {
 		if got, err := pdnTypeFor(v); err == nil {
-			t.Errorf("pdnTypeFor(%d) = %d, want a refusal: the enumerations diverge here", v, got)
+			t.Errorf("pdnTypeFor(%d) = %d, want a refusal", v, got)
 		}
 	}
 
 	for _, v := range []uint8{0, 4, 5, 6, 7} {
 		if got, err := pduSessionTypeFor(v); err == nil {
-			t.Errorf("pduSessionTypeFor(%d) = %d, want a refusal: the enumerations diverge here", v, got)
+			t.Errorf("pduSessionTypeFor(%d) = %d, want a refusal", v, got)
 		}
 	}
 }
 
-// A UE told only "request rejected, unspecified" cannot tell that retrying the
-// same PDN type is futile (TS 24.301 §6.5.1.4.1), so EPS names the cause as 5GS
-// already does.
+// TS 24.301 §6.5.1.4.1.
 func TestPDNTypeRejectCause(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -75,22 +66,19 @@ func TestPDNTypeRejectCause(t *testing.T) {
 	}
 }
 
-// The EPS bearer identity is the MME's to allocate from 5..15; 1..4 are reserved
-// (TS 24.301 §6.1) and name no session.
+// TS 24.301 §6.1: 1..4 are reserved.
 func TestSessionIdentityRejectsReservedBearerIdentities(t *testing.T) {
 	for ebi := uint8(1); ebi <= 4; ebi++ {
 		if (SessionIdentity{EBI: ebi}).valid() {
-			t.Errorf("EBI %d accepted, want it refused as reserved", ebi)
+			t.Errorf("valid() = true for EBI %d, want false", ebi)
 		}
 	}
 
 	if !(SessionIdentity{EBI: 5}).valid() {
-		t.Error("EBI 5 refused, want it accepted")
+		t.Error("valid() = false for EBI 5, want true")
 	}
 
-	// A reserved bearer identity alongside a usable PDU session identity is still
-	// a malformed identity, not a degrade.
 	if (SessionIdentity{PDUSessionID: 3, EBI: 2}).valid() {
-		t.Error("reserved EBI accepted because a PDU session identity was present")
+		t.Error("valid() = true for a reserved EBI with a PDU session identity, want false")
 	}
 }

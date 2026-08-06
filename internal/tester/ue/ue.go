@@ -84,11 +84,8 @@ type UE struct {
 	DNN            string
 	PDUSessionID   uint8
 	PDUSessionType fgs.PDUSessionType
-	// SessionRequestType is the request type the UE uses for the PDU session it
-	// establishes after registering (TS 24.501 §9.11.3.47). Zero means "initial
-	// request"; "existing PDU session" moves a PDN connection the UE holds in
-	// EPS, which is what a single-registration UE does on arriving in 5GS
-	// (TS 23.502 §4.11.2.3 step 9).
+	// SessionRequestType is the request type for the PDU session established
+	// after registering (TS 24.501 §9.11.3.47); zero means initial request.
 	SessionRequestType     fgs.RequestType
 	Snssai                 models.Snssai
 	amfInfo                Amf
@@ -804,8 +801,7 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 }
 
 // TransferPDNConnection asks 5GS to take over a PDN connection the UE holds in
-// EPS, naming it by the PDU session identity it allocated there
-// (TS 23.502 §4.11.2.3 step 9).
+// EPS, named by pduSessionID (TS 23.502 §4.11.2.3 step 9).
 func (ue *UE) TransferPDNConnection(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai) error {
 	return ue.sendPDUSessionEstablishmentRequest(amfUENGAPID, ranUENGAPID, pduSessionID, dnn, snssai, fgs.RequestTypeExistingPDUSession)
 }

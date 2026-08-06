@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-// A PDN connection the UE moved to 5GS is still anchored and still carrying the
-// UE's traffic there, so the MME must forget it rather than release it
-// (TS 23.502 §4.11.2.3 step 10). Left on the UE, a later detach would tear the
-// live PDU session down.
 func TestSessionTransferredDropsPDNWithoutReleasing(t *testing.T) {
 	m := newTestMME(t)
 	sm := &fakeSessionManager{}
@@ -30,7 +26,7 @@ func TestSessionTransferredDropsPDNWithoutReleasing(t *testing.T) {
 	m.SessionTransferred(context.Background(), testSubscriber.IMSI, moved.Ebi)
 
 	if sm.released {
-		t.Error("released the anchor session: it lives on over 5GS")
+		t.Error("released the anchor session, want no release")
 	}
 
 	if m.LookupPDN(ue, moved.Ebi) != nil {
@@ -41,7 +37,6 @@ func TestSessionTransferredDropsPDNWithoutReleasing(t *testing.T) {
 		t.Error("an unrelated PDN connection was dropped")
 	}
 
-	// The consequence: detaching from EPS now releases only what EPS holds.
 	m.ReleaseAllSessions(context.Background(), ue)
 
 	if want := []string{"still-on-eps"}; !equalStrings(sm.releasedRefs, want) {

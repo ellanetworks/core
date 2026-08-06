@@ -258,15 +258,12 @@ func (f *fakeUPF) UnregisterIPv6Session(_ context.Context, _ uint32) error {
 }
 
 type fakeAMF struct {
-	mu           sync.Mutex
-	n1Calls      []n1Call
-	n1n2Calls    []n1n2Call
-	modifyCalls  []n1n2Call
-	releaseCalls []releaseCall
-	pageCalls    []pageCall
-	// transferredAway holds the PDU session identity of each session the anchor
-	// reported as moved to EPS, and transferReleases counts those that came with
-	// an N2 release for the resources NG-RAN still held.
+	mu               sync.Mutex
+	n1Calls          []n1Call
+	n1n2Calls        []n1n2Call
+	modifyCalls      []n1n2Call
+	releaseCalls     []releaseCall
+	pageCalls        []pageCall
 	transferredAway  []uint8
 	transferReleases int
 	err              error
@@ -345,8 +342,6 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 	return f.err
 }
 
-// transferredAway records the identity of each session the anchor reported as
-// moved to the other access.
 func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionID uint8, n2Release []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -358,7 +353,6 @@ func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionI
 	}
 }
 
-// movedAway returns the identities reported as moved to the other access.
 func (f *fakeAMF) movedAway() []uint8 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -368,10 +362,8 @@ func (f *fakeAMF) movedAway() []uint8 {
 
 // fakeMME records 4G paging calls, standing in for the MME's smf.MMECallback.
 type fakeMME struct {
-	mu        sync.Mutex
-	pagedIMSI []string
-	// transferredAway holds the EPS bearer identity of each PDN connection the
-	// anchor reported as moved to 5GS.
+	mu              sync.Mutex
+	pagedIMSI       []string
 	transferredAway []uint8
 	err             error
 }
@@ -383,7 +375,6 @@ func (f *fakeMME) SessionTransferred(_ context.Context, _ string, ebi uint8) {
 	f.transferredAway = append(f.transferredAway, ebi)
 }
 
-// movedAway returns the identities reported as moved to the other access.
 func (f *fakeMME) movedAway() []uint8 {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -715,10 +706,6 @@ func TestConcurrentSessionCreation(t *testing.T) {
 	}
 }
 
-// A UE's concurrent sessions coexist in the pool, each addressable by its own
-// ref. Two sessions for the *same* identity no longer can — NewSession refuses
-// the second, see TestNewSessionRefusesAClaimedKey — so the slot's release
-// ordering is exercised there instead.
 func TestNewSession_DistinctInstancesCoexist(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

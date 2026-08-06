@@ -255,9 +255,8 @@ func BuildRegistrationAccept(
 			IMSVoPS3GPP: nfs.ImsVoPS != 0,
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
-			// Only a UE that said it supports S1 mode is told how this network
-			// interworks with EPS (TS 24.501 §5.5.1.2.4); to any other UE the bit
-			// means nothing and stays clear.
+			// TS 24.501 §5.5.1.2.4: the IWK N26 indicator goes only to a UE that
+			// supports S1 mode.
 			IWKN26: models.InterworkingWithoutN26 && ue.SupportsS1Mode(),
 			MPSI:   nfs.Mpsi != 0,
 			EMCN3:  nfs.EmcN3 != 0,

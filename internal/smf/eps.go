@@ -19,12 +19,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// The SMF (combined PGW-C, TS 23.501) names each 4G PDN connection by its
-// default bearer's EPS bearer identity, in the converged key space that keeps
-// it disjoint from the PDU session identities a UE allocates (epsBearerKey).
-// Established sessions are addressed by Ref, as on the 5G side; the EPS bearer
-// identity resolves a session only where no Ref exists yet.
-
 // validateEPSBearerRequest rejects inputs the data path would otherwise accept
 // and degrade: a zero AMBR programs a zero-rate QER, and a non-IP DNS drops the
 // DNS option. An EBI outside 5..15 is not a valid default bearer (TS 24.007).
@@ -51,13 +45,10 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) 
 	return models.Ambr{Uplink: req.AMBRUplink, Downlink: req.AMBRDownlink}, nil
 }
 
-// ueAllocatedPDUSessionID vets the PDU session identity the UE allocated for a
-// PDN connection and sent in the PCO (TS 23.501 §5.17.2.1). It returns 0 — the
-// PDN connection is then simply not transferable to 5GS, the case TS 23.502
-// §4.11.1.1 NOTE 5 already covers — when the UE sent none or sent one outside
-// the range it may allocate (TS 24.007 §11.2.3.1b). Whether the identity is
-// free is not decided here: that test has to happen in the same critical
-// section that claims it, so NewSession makes it.
+// ueAllocatedPDUSessionID vets the PDU session identity the UE sent in the PCO
+// (TS 23.501 §5.17.2.1), returning 0 for one outside the range a UE may
+// allocate (TS 24.007 §11.2.3.1b). A PDN connection without one is not
+// transferable to 5GS (TS 23.502 §4.11.1.1 NOTE 5).
 func ueAllocatedPDUSessionID(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) uint8 {
 	if pduSessionID == 0 {
 		return 0
@@ -74,9 +65,7 @@ func ueAllocatedPDUSessionID(ctx context.Context, supi etsi.SUPI, pduSessionID u
 }
 
 // establishESMCause maps an establishment failure to the ESM cause the MME
-// rejects with. A session identity another session already holds is transient —
-// the UE retries — so it draws #26 rather than the generic #31, matching the
-// 5GSM cause the same failure draws on the other access.
+// rejects with.
 func establishESMCause(err error) eps.ESMCause {
 	if errors.Is(err, errSessionIdentityInUse) {
 		return eps.ESMCauseInsufficientResources
@@ -120,16 +109,14 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		MTU:      req.MTU,
 	}
 
-	// The UE transfers a PDU session it holds in 5GS rather than asking for a new
-	// PDN connection (TS 24.301 §6.5.1.2, TS 23.502 §4.11.2.2 step 13).
+	// TS 24.301 §6.5.1.2, TS 23.502 §4.11.2.2 step 13: a handover request type
+	// transfers a PDU session the UE holds in 5GS.
 	if req.RequestType == eps.RequestTypeHandover {
 		return s.transferToEPS(ctx, supi, req, policy)
 	}
 
-	// Ella Core serves no emergency bearer services and no RLOS (§1), so those
-	// request types are refused rather than silently served as ordinary PDN
-	// connections. A transfer of an emergency PDU session names one the anchor
-	// cannot hold, which is the #54 case (TS 24.301 §6.5.1.6 e).
+	// Ella Core serves no emergency bearer services and no RLOS (§1), so the
+	// anchor holds no emergency PDN connection to transfer (TS 24.301 §6.5.1.6 e).
 	switch req.RequestType {
 	case eps.RequestTypeHandoverOfEmergencyBearerServices:
 		return models.EPSBearer{ESMCause: eps.ESMCausePDNConnectionDoesNotExist},
@@ -139,10 +126,9 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 			fmt.Errorf("request type %s is not served", req.RequestType)
 	}
 
-	// Unconditional, and before the type negotiation that may reject: the UE's
-	// request supersedes the stale context either way (TS 24.301 §5.5.1.2.4 case f),
-	// as it does on 5GS. It must also precede establishSession, whose new session
-	// would already hold the address the superseded context's release frees.
+	// TS 24.301 §5.5.1.2.4 case f: the request supersedes the stale context. It
+	// precedes establishSession, whose new session would already hold the address
+	// the superseded context's release frees.
 	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
@@ -206,9 +192,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 // transferToEPS moves a PDU session the UE holds in 5GS onto the default bearer
 // it just asked for, keeping the UE address and the UPF session
-// (TS 23.502 §4.11.2.2 step 13). The returned bearer describes the session as
-// CreateEPSSession describes a new one, so the MME's Activate Default and the
-// eNB's E-RAB setup follow unchanged.
+// (TS 23.502 §4.11.2.2 step 13).
 func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSBearerRequest, policy *Policy) (models.EPSBearer, error) {
 	transfer := transferRequest{
 		Access: Access4G,
@@ -220,13 +204,11 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 
 	sc, err := s.findTransferable(supi, req.PDUSessionID, transfer)
 	if err != nil {
-		// The MME rejects the PDN connectivity procedure with ESM cause #54, so the
-		// UE knows to establish the connection afresh (TS 24.301 §6.5.1.6 b).
 		return models.EPSBearer{ESMCause: eps.ESMCausePDNConnectionDoesNotExist}, err
 	}
 
 	// The default bearer identity the MME assigned may still name a stale PDN
-	// connection, as it may on an initial request.
+	// connection.
 	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil && existing != sc {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
@@ -259,9 +241,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		bearer.DNS = ipToNetip(policy.DNS)
 	}
 
-	// The transferred session keeps the type it was established with. A UE that
-	// mapped its PDU session type to a wider PDN type is told which family it
-	// actually has (TS 24.301 §6.5.1.3).
+	// TS 24.301 §6.5.1.3: the UE learns which family the transferred session has.
 	switch narrowPDUType(req.RequestedPDNType, sc.PDUSessionType) {
 	case narrowIPv4Only:
 		bearer.ESMCause = eps.ESMCausePDNTypeIPv4OnlyAllowed
@@ -417,9 +397,8 @@ func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {
 	return s.DeactivateSmContext(ctx, ref)
 }
 
-// epsSessionAttributes labels a span with the session's EPS identity. SUPI is
-// immutable, but a transfer reassigns the bearer identity, so that half is read
-// under the session lock.
+// epsSessionAttributes labels a span with the session's EPS identity. A
+// transfer reassigns the bearer identity under the session lock.
 func epsSessionAttributes(smContext *SMContext) trace.SpanStartEventOption {
 	smContext.Mutex.Lock()
 	ebi := smContext.EBI

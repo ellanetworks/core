@@ -19,8 +19,7 @@ type Scenario struct {
 	Name string
 
 	// BindFlags attaches scenario-specific flags to fs; its return value is
-	// handed to Run as-is. Nil for a scenario that takes no flags, in which case
-	// Run receives a nil params.
+	// handed to Run as-is. Nil when the scenario takes no flags.
 	BindFlags func(fs *pflag.FlagSet) any
 
 	Run func(ctx context.Context, env Env, params any) error

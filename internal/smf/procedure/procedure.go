@@ -24,10 +24,8 @@ var (
 	ErrNotActive     = engine.ErrNotActive
 )
 
-// The procedures tracked for one session. Unlike the AMF's and MME's, these do
-// not share a key chain: they are mutually exclusive because each rewrites the
-// session's ownership or its programming across several blocking calls to the
-// UPF, so two running at once would interleave partial states.
+// The procedures tracked for one session. They are mutually exclusive: each
+// rewrites the session across several blocking UPF calls.
 const (
 	// Transfer moves a session to the other access (TS 23.502 §4.11.2).
 	Transfer Type = "Transfer"

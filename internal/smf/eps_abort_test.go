@@ -10,11 +10,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
-// A session key is also the UE IP lease key, so two sessions holding one key
-// would be handed one address. NewSession therefore tests and claims the keys in
-// one critical section and refuses a key a live session already holds — a caller
-// cannot make the test itself, because between its check and the insert another
-// create can claim the key.
 func TestNewSessionRefusesAClaimedKey(t *testing.T) {
 	s := &SMF{pool: make(map[string]*SMContext), byKey: make(map[string]*SMContext)}
 
@@ -42,9 +37,7 @@ func TestNewSessionRefusesAClaimedKey(t *testing.T) {
 		t.Errorf("pool holds %d sessions, want only the live one", got)
 	}
 
-	// A PDU session identity the UE allocated is dropped instead, so the session
-	// still establishes on its EPS bearer key and is simply not transferable
-	// (TS 23.502 §4.11.1.1 NOTE 5).
+	// A duplicate UE-allocated identity is dropped (TS 23.502 §4.11.1.1 NOTE 5).
 	fiveG, err := s.NewSession(supi, Access5G, SessionIdentity{PDUSessionID: 3}, "internet", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -52,27 +45,26 @@ func TestNewSessionRefusesAClaimedKey(t *testing.T) {
 
 	degraded, err := s.NewSession(supi, Access4G, SessionIdentity{PDUSessionID: 3, EBI: ebi + 1}, "internet", nil)
 	if err != nil {
-		t.Fatalf("a duplicate UE-allocated identity must degrade, not fail: %v", err)
+		t.Fatalf("NewSession with a duplicate PDU session identity: %v", err)
 	}
 
 	if degraded.PDUSessionID != 0 || degraded.EBI != ebi+1 {
-		t.Errorf("identity = pdu-session-id %d ebi %d, want the duplicate dropped and the bearer kept", degraded.PDUSessionID, degraded.EBI)
+		t.Errorf("identity = pdu-session-id %d ebi %d, want 0 and %d", degraded.PDUSessionID, degraded.EBI, ebi+1)
 	}
 
 	if s.currentPDUSession(supi, 3) != fiveG {
-		t.Error("the degraded create stole the PDU session identity")
+		t.Error("PDU session identity 3 no longer resolves the 5G session")
 	}
 
-	// A 5G session has no other identity to fall back on, so a duplicate is refused.
+	// A 5G session has no other identity to fall back on.
 	if _, err := s.NewSession(supi, Access5G, SessionIdentity{PDUSessionID: 3}, "internet", nil); err == nil {
 		t.Error("second 5G session for the same PDU session identity = nil error, want a refusal")
 	}
 }
 
 // TestAbortSessionOwnsByHandle checks that rolling back a partially-created
-// session removes only that exact context from the pool. If a later create has
-// taken over the slot, the rollback must leave the live session intact rather
-// than tearing down the second call's session (F4).
+// session removes only that exact context from the pool, leaving intact a
+// later create that has taken over the slot (F4).
 func TestAbortSessionOwnsByHandle(t *testing.T) {
 	s := &SMF{pool: make(map[string]*SMContext), byKey: make(map[string]*SMContext)}
 
@@ -88,8 +80,7 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The slot is superseded the way CreateEPSSession supersedes it, releasing the
-	// key before the replacement claims it. scA stays reachable by its own Ref.
+	// Supersede the slot, releasing the key before the replacement claims it.
 	s.dropFromPool(scA)
 
 	scB, err := s.NewSession(supi, Access4G, SessionIdentity{EBI: ebi}, "internet", nil)

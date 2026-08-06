@@ -146,8 +146,6 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 	})
 
 	t.Run("RejectWithESMContainer", func(t *testing.T) {
-		// An attach whose ESM procedure failed carries the PDN CONNECTIVITY REJECT
-		// that says why, under EMM cause #19 (TS 24.301 §5.5.1.2.5).
 		esm, err := (&PDNConnectivityReject{PTI: 1, Cause: ESMCausePDNConnectionDoesNotExist}).MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
@@ -285,10 +283,8 @@ func TestNetworkFeatureSupportRoundTrips(t *testing.T) {
 	})
 }
 
-// TestNetworkFeatureSupportIWKN26 pins the interworking indicator's placement:
-// octet 4 bit 7 of the EPS network feature support IE (TS 24.301 §9.9.3.12A).
-// Setting it is itself a request for octet 4, which the minimum-length element
-// omits.
+// TestNetworkFeatureSupportIWKN26 pins the indicator at octet 4 bit 7 of the EPS
+// network feature support IE (TS 24.301 §9.9.3.12A).
 func TestNetworkFeatureSupportIWKN26(t *testing.T) {
 	withoutOctet4, err := NetworkFeatureSupport{IMSVoPS: true}.MarshalBinary()
 	if err != nil {
@@ -317,7 +313,6 @@ func TestNetworkFeatureSupportIWKN26(t *testing.T) {
 		t.Fatalf("round-trip = %+v, want IMS VoPS and IWK N26 with no other octet-4 bit", out)
 	}
 
-	// Octet-4 bits this codec does not interpret survive alongside it.
 	mixed, err := ParseNetworkFeatureSupport([]byte{0x01, 0xC1})
 	if err != nil {
 		t.Fatal(err)
@@ -338,7 +333,7 @@ func TestNetworkFeatureSupportIWKN26(t *testing.T) {
 }
 
 // TestUENetworkCapabilityN1Mode pins the N1 mode bit at octet 9 bit 6
-// (TS 24.301 §9.9.3.34), read out of the verbatim feature octets.
+// (TS 24.301 §9.9.3.34).
 func TestUENetworkCapabilityN1Mode(t *testing.T) {
 	for _, tc := range []struct {
 		name string

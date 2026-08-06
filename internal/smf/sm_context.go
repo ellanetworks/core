@@ -48,11 +48,8 @@ type SMContext struct {
 	PolicyData  *Policy
 	PFCPContext *PFCPSessionContext
 
-	// SessionIdentity holds the session's PDU session identity and EPS bearer
-	// identity. The PDU session half is assigned at creation and never changes,
-	// so sessionKey — which names the pool slot and keys the UE IP leases — is
-	// stable for the session's life. The EPS half is reassigned when the session
-	// moves access (setEPSBearerIdentity), under Mutex and the registry lock.
+	// The PDU session half is fixed at creation; the EPS half is reassigned on an
+	// access change under Mutex and the registry lock.
 	SessionIdentity
 
 	FramedRoutes   []netip.Prefix
@@ -67,9 +64,8 @@ type SMContext struct {
 
 	// Access is the radio access the session is established over: Access4G marks
 	// the PGW-C role and the S1-U user plane, Access5G the N3 user plane with
-	// 5GSM terminated in the SMF. It does not name the session, so it can change
-	// without re-keying. Downlink data for an EPS session is paged via the MME
-	// (TS 23.401 §5.3.4.3).
+	// 5GSM terminated in the SMF. Downlink data for an EPS session is paged via
+	// the MME (TS 23.401 §5.3.4.3).
 	Access AccessType
 
 	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
@@ -79,8 +75,7 @@ type SMContext struct {
 	outstandingPTIs map[uint8]struct{}
 
 	// procedures serialises the session-management procedures that rewrite this
-	// session across several blocking UPF calls, so two never interleave their
-	// partial states. Not guarded by Mutex: the registry has its own.
+	// session. Not guarded by Mutex: the registry has its own.
 	procedures *procedure.Registry
 
 	// procedureTimer is the T3591/T3592 retransmission guard for the outstanding

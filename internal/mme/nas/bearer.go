@@ -42,9 +42,6 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	// The UE deferred its APN and PCO behind the ESM information transfer flag,
-	// so neither the data network nor the PDU session identity that makes the
-	// connection transferable is known yet (TS 24.301 §6.5.1.3).
 	if requestESMInformation(ctx, m, ue) {
 		return
 	}
@@ -92,10 +89,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		RequestedPDNType:  ue.RequestedPDNType,
 	})
 	if err != nil {
-		// The ESM procedure of the attach failed — no PDN type the UE requested can
-		// be served, or it asked to transfer a PDN connection the anchor does not
-		// hold. TS 24.301 §5.5.1.2.5 pairs EMM cause #19 "ESM failure" with the PDN
-		// CONNECTIVITY REJECT that says which.
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
 		rejectAttachESM(ctx, m, ue, sessionSetupESMCause(bearer))
@@ -358,8 +351,6 @@ func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	ue.Conn().SendDownlinkProtected(ctx, info)
 }
 
-// snssaiContainer builds the PCO container carrying a PDN connection's S-NSSAI
-// and the PLMN it relates to (TS 24.008 §10.5.6.3).
 func snssaiContainer(snssai models.Snssai, plmn models.PlmnID) (nas.PCOContainer, error) {
 	ie, err := snssai.NAS()
 	if err != nil {
@@ -431,12 +422,9 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
 
-	// The network provides the UE with the S-NSSAI the PDN connection belongs to
-	// and the PLMN it relates to, which the UE stores against the PDU session
-	// identity it allocated and uses to move the connection to 5GS
-	// (TS 24.501 §6.1.4.2, TS 23.501 §5.15.7.1). The mapped 5GS QoS parameters
-	// that accompany it under N26 are withheld while the network advertises
-	// interworking without N26 (TS 23.501 §5.17.2.3.1).
+	// The UE stores the S-NSSAI and PLMN against the PDU session identity it
+	// allocated and uses them to move the connection to 5GS
+	// (TS 24.501 §6.1.4.2, TS 23.501 §5.15.7.1).
 	snssai, err := snssaiContainer(qos.Snssai, plmn)
 	if err != nil {
 		return nil, err

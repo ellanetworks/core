@@ -24,8 +24,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
-	// The access is mutable — a transfer changes it — so it is read under the
-	// session lock, and the notification follows the session to wherever it now is.
+	// A transfer changes the access under the session lock.
 	smContext.Mutex.Lock()
 	isEPS := smContext.IsEPS()
 	smContext.Mutex.Unlock()

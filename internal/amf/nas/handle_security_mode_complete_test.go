@@ -302,12 +302,6 @@ func buildTestSecurityModeCompleteMessageWithRegistrationRequest() (*fgs.Securit
 	return &fgs.SecurityModeComplete{NASMessageContainer: regReq}, nil
 }
 
-// The 5GMM capability is not a cleartext IE (TS 24.501 §4.4.6), so a UE with no
-// valid 5G NAS security context sends it only in the NAS message container of
-// SECURITY MODE COMPLETE. The AMF has to ingest it from there — reading it off
-// the cleartext REGISTRATION REQUEST leaves the S1 mode bit unset for every
-// first registration, and with it the IWK N26 indicator the UE needs to know how
-// this network interworks with EPS.
 func TestHandleSecurityMode_GMMCapabilityFromNASMessageContainer(t *testing.T) {
 	amfInstance := amf.New(
 		&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"1\"]"}},

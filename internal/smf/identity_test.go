@@ -23,9 +23,6 @@ func TestSessionKeyRangesAreDisjoint(t *testing.T) {
 func TestSessionKeyPrefersPDUSessionID(t *testing.T) {
 	both := SessionIdentity{PDUSessionID: 3, EBI: 7}
 
-	// The PDU session identity is assigned first on either access, so keying on
-	// it keeps the key — and the UE IP lease — stable when an EPS bearer
-	// identity is added later.
 	if got := both.sessionKey(); got != 3 {
 		t.Errorf("sessionKey() = %d, want 3", got)
 	}

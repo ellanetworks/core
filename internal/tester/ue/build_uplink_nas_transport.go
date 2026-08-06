@@ -16,9 +16,8 @@ type UplinkNasTransportOpts struct {
 	PayloadContainer []byte
 	DNN              string
 	SNSSAI           models.Snssai
-	// RequestType names what the UE is asking for (TS 24.501 §9.11.3.47). Zero
-	// means "initial request"; "existing PDU session" moves a PDN connection the
-	// UE holds in EPS onto 5GS (TS 23.502 §4.11.2.3 step 9).
+	// RequestType is the request type (TS 24.501 §9.11.3.47); zero means initial
+	// request.
 	RequestType fgs.RequestType
 }
 
