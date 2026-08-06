@@ -13,6 +13,18 @@ import "github.com/ellanetworks/core/nas/eps"
 // short-MAC) before a context is bound, so they never reach this EMM dispatch path;
 // EXTENDED and CONTROL PLANE SERVICE REQUEST are CS-fallback/CIoT procedures Ella Core
 // does not implement.
+// cipheringRequired reports whether a security-protected uplink message of this
+// type has to arrive ciphered once ciphering has started. TS 24.301 §4.4.5 has
+// the UE send ATTACH REQUEST and TRACKING AREA UPDATE REQUEST always unciphered.
+func cipheringRequired(mt eps.MessageType) bool {
+	switch mt {
+	case eps.MsgAttachRequest, eps.MsgTrackingAreaUpdateRequest:
+		return false
+	}
+
+	return true
+}
+
 func plainNasAllowed(mt eps.MessageType) bool {
 	switch mt {
 	case eps.MsgAttachRequest,

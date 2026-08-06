@@ -105,6 +105,10 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 const s1mmePort = "36412"
 
 func newFiveGUE(gNodeB *gnb.GnodeB, requestType fgs.RequestType) (*ue.UE, error) {
+	return newFiveGUEOnSlice(gNodeB, requestType, scenarios.DefaultSST, scenarios.DefaultSD)
+}
+
+func newFiveGUEOnSlice(gNodeB *gnb.GnodeB, requestType fgs.RequestType, sst int32, sd string) (*ue.UE, error) {
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   transferPDUSessionID,
@@ -122,8 +126,8 @@ func newFiveGUE(gNodeB *gnb.GnodeB, requestType fgs.RequestType) (*ue.UE, error)
 		},
 		RoutingIndicator: scenarios.DefaultRoutingIndicator,
 		DNN:              scenarios.DefaultDNN,
-		Sst:              scenarios.DefaultSST,
-		Sd:               scenarios.DefaultSD,
+		Sst:              sst,
+		Sd:               sd,
 		IMEISV:           scenarios.DefaultIMEISV,
 		UeSecurityCapability: testutil.GetUESecurityCapability(&testutil.UeSecurityCapability{
 			Integrity: testutil.IntegrityAlgorithms{Nia2: true},

@@ -354,3 +354,65 @@ func TestUENetworkCapabilityN1Mode(t *testing.T) {
 		})
 	}
 }
+
+// TS 24.301 §9.9.3.12A pins the ePCO indicator at octet 4 bit 4, alongside the
+// IWK N26 indicator at bit 7.
+func TestNetworkFeatureSupportEPCO(t *testing.T) {
+	raw, err := (&NetworkFeatureSupport{IMSVoPS: true, EPCO: true}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(raw) != 2 {
+		t.Fatalf("value is %d octets, want 2", len(raw))
+	}
+
+	if raw[1]&(1<<3) == 0 {
+		t.Errorf("octet 4 = %#02x, want bit 4 set", raw[1])
+	}
+
+	if raw[1]&(1<<6) != 0 {
+		t.Errorf("octet 4 = %#02x, want the IWK N26 bit clear", raw[1])
+	}
+
+	back, err := ParseNetworkFeatureSupport(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !back.EPCO || back.IWKN26 {
+		t.Errorf("round-trip ePCO=%v IWKN26=%v, want true and false", back.EPCO, back.IWKN26)
+	}
+}
+
+// TS 24.301 §6.5.1.2 lets the UE carry the PDU session identity in either the
+// Protocol configuration options IE or the Extended one.
+func TestPDNConnectivityRequestCarriesIdentityInExtendedPCO(t *testing.T) {
+	epco := nas.ProtocolConfigurationOptions{
+		Direction:      nas.PCOMSToNetwork,
+		ConfigProtocol: 0,
+		Containers:     []nas.PCOContainer{{ID: nas.PCOContainerPDUSessionID, Content: []byte{7}}},
+	}
+
+	raw, err := (&PDNConnectivityRequest{
+		PTI: 1, RequestType: RequestTypeHandover, PDNType: PDNTypeIPv4,
+		ExtendedProtocolConfigurationOptions: &epco,
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := ParsePDNConnectivityRequest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if back.ExtendedProtocolConfigurationOptions == nil {
+		t.Fatal("the extended container did not survive the round trip")
+	}
+
+	id, ok := back.ExtendedProtocolConfigurationOptions.PDUSessionID()
+	if !ok || id != 7 {
+		t.Errorf("PDU session identity = %d (present %v), want 7", id, ok)
+	}
+}

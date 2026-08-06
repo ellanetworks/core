@@ -153,16 +153,24 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 // requestedPDUSessionID returns the PDU session identity the UE sent in the PCO,
 // or 0 when it sent none (TS 24.301 §6.5.1.2).
 func requestedPDUSessionID(pc *eps.PDNConnectivityRequest) uint8 {
-	if pc.ProtocolConfigurationOptions == nil {
-		return 0
+	return pduSessionIDFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
+}
+
+// pduSessionIDFromPCOs reads the identity from whichever container carried it:
+// TS 24.301 §6.5.1.2 lets the UE use the Protocol configuration options IE or
+// the Extended protocol configuration options IE.
+func pduSessionIDFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) uint8 {
+	for _, p := range []*nas.ProtocolConfigurationOptions{pco, epco} {
+		if p == nil {
+			continue
+		}
+
+		if id, ok := p.PDUSessionID(); ok {
+			return id
+		}
 	}
 
-	id, ok := pc.ProtocolConfigurationOptions.PDUSessionID()
-	if !ok {
-		return 0
-	}
-
-	return id
+	return 0
 }
 
 // isNativeGUTI reports whether a GUTI was assigned by this MME (its serving PLMN

@@ -63,6 +63,7 @@ type NetworkFeatureSupport struct {
 	CPCIoT  bool  // control plane CIoT EPS optimisation (octet 3, bit 8)
 
 	IWKN26 bool // interworking without N26 interface (octet 4, bit 7)
+	EPCO   bool // extended protocol configuration options supported (octet 4, bit 4)
 
 	// HasOctet4 records whether the sender included octet 4, so the element
 	// re-encodes at the length it arrived with; Octet4Spare carries the octet-4
@@ -72,8 +73,12 @@ type NetworkFeatureSupport struct {
 	Rest        []byte
 }
 
-// iwkN26Bit is the IWK N26 indicator's bit in octet 4 (TS 24.301 §9.9.3.12A).
-const iwkN26Bit = 1 << 6
+// iwkN26Bit is the IWK N26 indicator's bit in octet 4, and ePCOBit the extended
+// protocol configuration options indicator's (TS 24.301 §9.9.3.12A).
+const (
+	iwkN26Bit = 1 << 6
+	ePCOBit   = 1 << 3
+)
 
 // maxNetworkFeatureSupportLen is the element's longest value: TS 24.301
 // §9.9.3.12A caps the element at 5 octets, two of which are its IEI and length.
@@ -104,7 +109,8 @@ func ParseNetworkFeatureSupport(b []byte) (NetworkFeatureSupport, error) {
 	if len(b) > 1 {
 		out.HasOctet4 = true
 		out.IWKN26 = b[1]&iwkN26Bit != 0
-		out.Octet4Spare = b[1] &^ iwkN26Bit
+		out.EPCO = b[1]&ePCOBit != 0
+		out.Octet4Spare = b[1] &^ (iwkN26Bit | ePCOBit)
 	}
 
 	if len(b) > 2 {
@@ -116,7 +122,7 @@ func ParseNetworkFeatureSupport(b []byte) (NetworkFeatureSupport, error) {
 
 // AppendBinary encodes the EPS network feature support IE value onto b.
 func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
-	hasOctet4 := n.HasOctet4 || n.IWKN26 || n.Octet4Spare != 0
+	hasOctet4 := n.HasOctet4 || n.IWKN26 || n.EPCO || n.Octet4Spare != 0
 
 	if len(n.Rest) > 0 && !hasOctet4 {
 		return b, fmt.Errorf("nas/eps: EPS network feature support: octet 5 onwards requires octet 4")
@@ -137,9 +143,13 @@ func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
 		return b, nil
 	}
 
-	octet4 := n.Octet4Spare &^ iwkN26Bit
+	octet4 := n.Octet4Spare &^ (iwkN26Bit | ePCOBit)
 	if n.IWKN26 {
 		octet4 |= iwkN26Bit
+	}
+
+	if n.EPCO {
+		octet4 |= ePCOBit
 	}
 
 	return append(append(b, octet4), n.Rest...), nil

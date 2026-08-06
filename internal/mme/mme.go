@@ -260,6 +260,10 @@ func (m *MME) NetworkFeatureSupport(ue *UeContext) *eps.NetworkFeatureSupport {
 
 	nfs.IWKN26 = models.InterworkingWithoutN26 && ue.UeNetCap().N1Mode()
 
+	// Supporting inter-system change with 5GS obliges the MME to support the
+	// extended element, which it advertises to a UE that does too (§5.5.1.2.4).
+	nfs.EPCO = ue.UeNetCap().EPCO()
+
 	return &nfs
 }
 

@@ -14,8 +14,11 @@ import (
 const (
 	ieiESMInformationTransferFlag   uint8 = 0xD0 // type 1
 	ieiProtocolConfigurationOptions uint8 = 0x27
-	ieiAccessPointName              uint8 = 0x28
-	ieiESMCause                     uint8 = 0x58
+	// ieiExtendedProtocolConfigurationOptions is the ePCO IE (TS 24.301 §9.9.4.26),
+	// a type-6 TLV-E carrying the same content as the classic element.
+	ieiExtendedProtocolConfigurationOptions uint8 = 0x7B
+	ieiAccessPointName                      uint8 = 0x28
+	ieiESMCause                             uint8 = 0x58
 	// ieiNewEPSQoS and ieiRequiredTrafficFlowQoS are the same EPS quality of
 	// service element under the two names its messages give it.
 	ieiNewEPSQoS              uint8 = 0x5B

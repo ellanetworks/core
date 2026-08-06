@@ -167,6 +167,15 @@ func (c UENetworkCapability) N1Mode() bool {
 	return len(c.Rest) > octet9 && c.Rest[octet9]&(1<<5) != 0
 }
 
+// EPCO reports whether the UE supports the Extended protocol configuration
+// options IE (octet 8, bit 8, TS 24.301 §9.9.3.34). Rest holds the feature
+// octets from octet 7 on.
+func (c UENetworkCapability) EPCO() bool {
+	const octet8 = 1
+
+	return len(c.Rest) > octet8 && c.Rest[octet8]&(1<<7) != 0
+}
+
 // ParseUENetworkCapability decodes a UE network capability IE value.
 func ParseUENetworkCapability(b []byte) (UENetworkCapability, error) {
 	// TS 24.301 table 9.9.3.34.1 pairs the algorithm octets, so an odd count

@@ -179,3 +179,30 @@ func TestT3489ThirdExpiryRejectsTheAttach(t *testing.T) {
 		t.Errorf("ESM cause = %s, want #53 ESM information not received", esmReject.Cause)
 	}
 }
+
+// TS 24.301 §6.5.1.2: the identity may arrive in either configuration-options
+// container, and §6.6.1.2.4 has the response replace what the request carried.
+func TestESMInformationIdentityFromExtendedPCO(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.AwaitingESMInformation = true
+	ue.RequestedPTI = 3
+
+	epco := nas.ProtocolConfigurationOptions{
+		Direction:  nas.PCOMSToNetwork,
+		Containers: []nas.PCOContainer{{ID: nas.PCOContainerPDUSessionID, Content: []byte{9}}},
+	}
+
+	apn := eps.APN("internet")
+
+	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
+		PTI:                                  3,
+		AccessPointName:                      &apn,
+		ExtendedProtocolConfigurationOptions: &epco,
+	})
+
+	if ue.RequestedPDUSessionID != 9 {
+		t.Errorf("RequestedPDUSessionID = %d, want 9 from the extended container", ue.RequestedPDUSessionID)
+	}
+}

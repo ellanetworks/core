@@ -81,11 +81,10 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		ue.RequestedAPN = string(*req.AccessPointName)
 	}
 
-	if req.ProtocolConfigurationOptions != nil {
-		ue.RequestedPDUSessionID = 0
-		if id, ok := req.ProtocolConfigurationOptions.PDUSessionID(); ok {
-			ue.RequestedPDUSessionID = id
-		}
+	// The response's containers replace any the PDN CONNECTIVITY REQUEST carried
+	// (TS 24.301 §6.6.1.2.4), and either may hold the identity (§6.5.1.2).
+	if req.ProtocolConfigurationOptions != nil || req.ExtendedProtocolConfigurationOptions != nil {
+		ue.RequestedPDUSessionID = pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information",

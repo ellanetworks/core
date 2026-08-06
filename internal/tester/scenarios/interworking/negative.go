@@ -16,7 +16,16 @@ import (
 
 // mismatchDNN is a second data network the subscriber is entitled to, used to
 // ask for a transfer onto a data network the session is not on.
-const mismatchDNN = "enterprise"
+const (
+	mismatchDNN = "enterprise"
+
+	// mismatchSlice is a second slice carrying the same data network, so a
+	// transfer can name a session whose S-NSSAI differs while its DNN matches.
+	// Policies are unique per (profile, slice, data network), so both coexist.
+	mismatchSlice          = "interworking-alt"
+	mismatchSliceSST int32 = 2
+	mismatchSliceSD        = "112233"
+)
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
@@ -30,6 +39,11 @@ func init() {
 			return runTransferWithoutPDUSessionID(ctx, env)
 		},
 		Fixture: fixture,
+	})
+	scenarios.Register(scenarios.Scenario{
+		Name:    "interworking/transfer_slice_mismatch",
+		Run:     func(ctx context.Context, env scenarios.Env, _ any) error { return runTransferSliceMismatch(ctx, env) },
+		Fixture: sliceMismatchFixture,
 	})
 	scenarios.Register(scenarios.Scenario{
 		Name:    "interworking/transfer_data_network_mismatch",
@@ -134,4 +148,56 @@ func runTransferDNNMismatch(_ context.Context, env scenarios.Env) error {
 	}
 
 	return expectESMReject(env, mismatchDNN, transferPDUSessionID, eps.ESMCauseMissingOrUnknownAPN)
+}
+
+// sliceMismatchFixture adds a second slice carrying the default data network.
+// The MME resolves an APN to the first policy that names it, which is the
+// baseline one on the default slice, so a session established on the second
+// slice is refused a transfer for a slice it is not on.
+func sliceMismatchFixture(env scenarios.Env) scenarios.FixtureSpec {
+	spec := fixture(env)
+
+	spec.Slices = []scenarios.SliceSpec{
+		{Name: mismatchSlice, SST: int(mismatchSliceSST), SD: mismatchSliceSD},
+	}
+	spec.Policies = []scenarios.PolicySpec{
+		{
+			Name:                mismatchSlice,
+			ProfileName:         scenarios.DefaultProfileName,
+			SliceName:           mismatchSlice,
+			DataNetworkName:     scenarios.DefaultDNN,
+			SessionAmbrUplink:   "30 Mbps",
+			SessionAmbrDownlink: "60 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+		},
+	}
+
+	return spec
+}
+
+// A transfer whose data network matches but whose slice does not is refused #31:
+// the session exists and is reachable, so neither #54 nor #27 describes it.
+func runTransferSliceMismatch(_ context.Context, env scenarios.Env) error {
+	gNodeB, err := startGNB(env)
+	if err != nil {
+		return err
+	}
+
+	defer gNodeB.Close()
+
+	fiveGUE, err := newFiveGUEOnSlice(gNodeB, fgs.RequestTypeInitialRequest, mismatchSliceSST, mismatchSliceSD)
+	if err != nil {
+		return err
+	}
+
+	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
+		RANUENGAPID:  ranUENGAPID,
+		PDUSessionID: transferPDUSessionID,
+		UE:           fiveGUE,
+	}); err != nil {
+		return fmt.Errorf("establish over 5GS on the second slice: %w", err)
+	}
+
+	return expectESMReject(env, scenarios.DefaultDNN, transferPDUSessionID, eps.ESMCauseRequestRejectedUnspecified)
 }
