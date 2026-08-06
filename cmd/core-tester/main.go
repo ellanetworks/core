@@ -151,7 +151,11 @@ func scenarioSubcommand(sc scenarios.Scenario) *cobra.Command {
 	}
 
 	fs := pflag.NewFlagSet(sc.Name, pflag.ContinueOnError)
-	params = sc.BindFlags(fs)
+
+	if sc.BindFlags != nil {
+		params = sc.BindFlags(fs)
+	}
+
 	cmd.Flags().AddFlagSet(fs)
 
 	return cmd
