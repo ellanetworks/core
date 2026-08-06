@@ -119,15 +119,15 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	requestType := ulNasTransport.RequestType
 
-	if requestType != nil {
-		switch *requestType {
-		case fgs.RequestTypeInitialEmergencyRequest,
-			fgs.RequestTypeExistingEmergencyPDUSession:
-			logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
-			sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
+	// An emergency session this core never establishes cannot be transferred
+	// either; the SMF answers that with 5GSM #54, which tells the UE to stop
+	// retrying the transfer (TS 24.501 §6.4.1.7 d). Only the establishment of a
+	// new emergency session is refused here, since there is no SMF to route it to.
+	if requestType != nil && *requestType == fgs.RequestTypeInitialEmergencyRequest {
+		logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
+		sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
 
-			return
-		}
+		return
 	}
 
 	smContext, smContextExist := ue.SmContextFindByPDUSessionID(uint8(pduSessionID))
@@ -139,9 +139,10 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// establishment request for a session the AMF has no routing context for
 	// (TS 23.502 §4.11.2.3 step 9). The SMF holds it, so the request is routed
 	// like an initial one rather than reported as not forwarded
-	// (TS 24.501 §5.4.5.2.5 item 7).
+	// (TS 24.501 §5.4.5.2.3 a)1)iv)).
 	isExistingSession := requestType != nil &&
-		*requestType == fgs.RequestTypeExistingPDUSession
+		(*requestType == fgs.RequestTypeExistingPDUSession ||
+			*requestType == fgs.RequestTypeExistingEmergencyPDUSession)
 
 	// Duplicate PDU session ID: an initial request for an active session locally
 	// releases it and re-establishes (TS 24.501).
@@ -211,6 +212,17 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 
 	if ulNasTransport.SNSSAI != nil {
 		snssai = models.SnssaiFromNAS(*ulNasTransport.SNSSAI)
+
+		// A slice the network has not allowed this UE is not routed to an SMF
+		// (TS 24.501 §5.4.5.2.3): without this the UE picks which of its
+		// subscribed policies applies to the session.
+		if !ue.IsAllowedNssai(snssai) {
+			logger.From(ctx, logger.AmfLog).Warn("requested S-NSSAI is not in the allowed NSSAI",
+				zap.Any("snssai", snssai), logger.PDUSessionID(pduSessionID))
+			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
+
+			return
+		}
 	} else {
 		if len(ue.AllowedNssai) == 0 {
 			logger.From(ctx, logger.AmfLog).Warn("allowed nssai is empty in UE context")

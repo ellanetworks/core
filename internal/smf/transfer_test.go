@@ -6,6 +6,7 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -122,6 +123,17 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 	if moved := amfCb.movedAway(); len(moved) != 1 || moved[0] != transferTestPDUSessionID {
 		t.Errorf("AMF told of moved sessions = %v, want [%d]: a routing context left behind would let a 5GS deregistration tear down the live EPS bearer",
 			moved, transferTestPDUSessionID)
+	}
+
+	// A dual-registration UE stays on NG-RAN, so the resources of the session it
+	// moved have to be released or they are stranded there
+	// (TS 23.502 §4.11.2.2 step 14).
+	amfCb.mu.Lock()
+	releases := amfCb.transferReleases
+	amfCb.mu.Unlock()
+
+	if releases != 1 {
+		t.Errorf("N2 releases for the moved session = %d, want 1", releases)
 	}
 
 	upf.mu.Lock()
@@ -292,5 +304,55 @@ func TestTransferRefusedOnDataNetworkMismatch(t *testing.T) {
 
 	if !errors.Is(err, smf.ErrSessionNotTransferable) {
 		t.Errorf("error = %v, want it to wrap ErrSessionNotTransferable", err)
+	}
+}
+
+// Two transfers of one session racing each other must not both commit. Before
+// the procedure guard the second read the access the first had just moved to as
+// the one being left, and told that access to forget a session it had just been
+// given — leaving a live session no control plane owned.
+func TestConcurrentTransfersDoNotBothCommit(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest()); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	var (
+		wg        sync.WaitGroup
+		mu        sync.Mutex
+		succeeded int
+	)
+
+	for range 2 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err == nil {
+				mu.Lock()
+				succeeded++
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if succeeded != 1 {
+		t.Errorf("%d of 2 racing transfers committed, want exactly 1", succeeded)
+	}
+
+	// Exactly one hand-off: the access the session left is told once, and the
+	// access it arrived on is never told to forget it.
+	if moved := amfCb.movedAway(); len(moved) != 1 {
+		t.Errorf("AMF told of moved sessions = %v, want exactly one", moved)
+	}
+
+	if fourG, _ := s.SessionCountByRAT(); fourG != 1 {
+		t.Errorf("EPS session count = %d, want the one transferred session", fourG)
 	}
 }

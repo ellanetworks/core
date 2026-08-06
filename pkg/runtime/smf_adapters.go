@@ -519,8 +519,8 @@ func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduS
 	return err
 }
 
-func (a *smfAMFAdapter) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) {
-	a.amf.SessionTransferred(ctx, supi, pduSessionID)
+func (a *smfAMFAdapter) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Release []byte) {
+	a.amf.SessionTransferred(ctx, supi, pduSessionID, n2Release)
 }
 
 func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {

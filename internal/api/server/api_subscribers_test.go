@@ -345,7 +345,7 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 	ue.ForceStateForTest(amf.Registered)
 
 	pduSessionID := uint8(1)
-	sc := testSmfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, nil)
+	sc, _ := testSmfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, nil)
 
 	err = ue.CreateSmContext(pduSessionID, sc.Ref, nil)
 	if err != nil {

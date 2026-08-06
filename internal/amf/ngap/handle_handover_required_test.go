@@ -130,7 +130,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 
-	smCtx := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+	smCtx, _ := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
 		Ambr: models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{
@@ -295,7 +295,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	msg := handoverRequired(t, 1, pduSessionID)
 
 	smfInstance := smf.New(nil, nil, nil, nil)
-	smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+	_, _ = smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
@@ -359,7 +359,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 
-	smCtx := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+	smCtx, _ := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
@@ -447,7 +447,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 
-	smCtx := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+	smCtx, _ := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
@@ -530,7 +530,7 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 			msg.HandoverType = ht
 
 			smfInstance := smf.New(nil, nil, nil, nil)
-			smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+			_, _ = smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 
 			amfUe := amf.NewUeContext()
 			amfUe.SetSupiForTest(supi)

@@ -301,3 +301,60 @@ func buildTestSecurityModeCompleteMessageWithRegistrationRequest() (*fgs.Securit
 
 	return &fgs.SecurityModeComplete{NASMessageContainer: regReq}, nil
 }
+
+// The 5GMM capability is not a cleartext IE (TS 24.501 §4.4.6), so a UE with no
+// valid 5G NAS security context sends it only in the NAS message container of
+// SECURITY MODE COMPLETE. The AMF has to ingest it from there — reading it off
+// the cleartext REGISTRATION REQUEST leaves the S1 mode bit unset for every
+// first registration, and with it the IWK N26 indicator the UE needs to know how
+// this network interworks with EPS.
+func TestHandleSecurityMode_GMMCapabilityFromNASMessageContainer(t *testing.T) {
+	amfInstance := amf.New(
+		&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"1\"]"}},
+		&fakeAusf{
+			AvKgAka: &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))},
+			Supi:    mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf:   []byte("testkey"),
+		},
+		&fakeSmf{},
+	)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(nas.CipheringAES)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
+
+	if ue.SupportsS1Mode() {
+		t.Fatal("S1 mode support before the capability arrives")
+	}
+
+	inner := &fgs.RegistrationRequest{
+		RegistrationType:     fgs.RegistrationTypeInitial,
+		FOR:                  true,
+		MobileIdentity:       testMobileIdentity(),
+		UESecurityCapability: &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0},
+		GMMCapability:        &fgs.GMMCapability{S1Mode: true},
+	}
+
+	raw, err := inner.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode registration request: %v", err)
+	}
+
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, &fgs.SecurityModeComplete{NASMessageContainer: raw}, true)
+
+	if !ue.SupportsS1Mode() {
+		t.Error("S1 mode support not ingested from the NAS message container")
+	}
+}

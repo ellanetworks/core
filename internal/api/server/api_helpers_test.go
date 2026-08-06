@@ -338,7 +338,7 @@ func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, 
 	return nil
 }
 
-func (f *fakeAMFCallback) SessionTransferred(_ context.Context, _ etsi.SUPI, _ uint8) {}
+func (f *fakeAMFCallback) SessionTransferred(_ context.Context, _ etsi.SUPI, _ uint8, _ []byte) {}
 
 // ── Profile test helpers ────────────────────────────────────────────────
 

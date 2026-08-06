@@ -41,6 +41,8 @@ func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, msg ep
 		return handleModifyBearerAccept(m, ue, msg)
 	case *eps.ModifyEPSBearerContextReject:
 		return handleModifyBearerReject(m, ue, msg)
+	case *eps.ESMInformationResponse:
+		return handleESMInformationResponse(ctx, m, ue, msg)
 	case *eps.ESMStatus:
 		return handleESMStatus(ctx, m, ue, msg)
 	case eps.ESMMessage:

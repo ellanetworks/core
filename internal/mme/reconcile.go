@@ -163,20 +163,32 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	m.modifyBearer(ctx, ue, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
-// dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
-// field alone (IP pools and MTU unchanged), so the bearer can be modified in
-// place without reactivation. A malformed stored fingerprint returns false,
-// so the caller falls back to the safe reactivation path. The fingerprint is
-// "ipv4pool|ipv6pool|dns|mtu" (EpsQoS.DnFingerprint).
+// dnsOnlyChange reports whether the fingerprint changed in the DNS field alone
+// (IP pools, MTU and slice unchanged), so the bearer can be modified in place
+// without reactivation. A malformed stored fingerprint returns false, so the
+// caller falls back to the safe reactivation path. The fingerprint is
+// "ipv4pool|ipv6pool|dns|mtu|sst-sd" (EpsQoS.DnFingerprint).
 func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
+	const fields = 5
+
 	o := strings.Split(oldFingerprint, "|")
 	n := strings.Split(newFingerprint, "|")
 
-	if len(o) != 4 || len(n) != 4 {
+	if len(o) != fields || len(n) != fields {
 		return false
 	}
 
-	return o[2] != n[2] && o[0] == n[0] && o[1] == n[1] && o[3] == n[3]
+	if o[2] == n[2] {
+		return false
+	}
+
+	for _, i := range []int{0, 1, 3, 4} {
+		if o[i] != n[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // modifyBearer updates an active default bearer in place with a single MODIFY EPS

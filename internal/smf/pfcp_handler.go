@@ -24,8 +24,14 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
+	// The access is mutable — a transfer changes it — so it is read under the
+	// session lock, and the notification follows the session to wherever it now is.
+	smContext.Mutex.Lock()
+	isEPS := smContext.IsEPS()
+	smContext.Mutex.Unlock()
+
 	// A 4G EPS session is paged via the MME (TS 23.401).
-	if smContext.IsEPS() {
+	if isEPS {
 		if s.mme == nil {
 			return fmt.Errorf("no MME registered to page EPS UE %s", smContext.Supi.IMSI())
 		}

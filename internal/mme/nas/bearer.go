@@ -42,13 +42,20 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
+	// The UE deferred its APN and PCO behind the ESM information transfer flag,
+	// so neither the data network nor the PDU session identity that makes the
+	// connection transferable is known yet (TS 24.301 §6.5.1.3).
+	if requestESMInformation(ctx, m, ue) {
+		return
+	}
+
 	qos, err := mme.ResolveAttachQoS(ctx, m, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
-		rejectAttach(ctx, m, ue, eps.EMMCauseESMFailure)
+		rejectAttachESM(ctx, m, ue, eps.ESMCauseMissingOrUnknownAPN)
 
 		return
 	}

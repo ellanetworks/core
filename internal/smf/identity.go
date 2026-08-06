@@ -60,10 +60,16 @@ func (id SessionIdentity) sessionKeys() []uint8 {
 	return keys
 }
 
-// valid reports whether the identity names a session at all. The ranges are the
-// UE-assignable ones; the SMF is not the allocator of either.
+// valid reports whether the identity names a session at all. The SMF allocates
+// neither half: the UE picks a PDU session identity from 1..15 (TS 24.007
+// §11.2.3.1b) and the MME an EPS bearer identity from 5..15, 1..4 being reserved
+// (TS 24.301 §6.1).
 func (id SessionIdentity) valid() bool {
-	if id.PDUSessionID > 15 || id.EBI > 15 {
+	if id.PDUSessionID > 15 {
+		return false
+	}
+
+	if id.EBI != 0 && (id.EBI < 5 || id.EBI > 15) {
 		return false
 	}
 

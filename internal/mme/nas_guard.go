@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -52,7 +53,27 @@ func (c *UeConn) ArmNASGuardAbortOnly(name string, nas []byte, onAbort func()) {
 	c.armNASGuardMode(name, nas, onAbort)
 }
 
+// ArmT3489 arms the EMM guard slot at T3489's interval and retransmission count
+// rather than the common-procedure guard's, for the ESM information request
+// procedure (TS 24.301 §6.6.1.2.6 a). It occupies the same slot because the
+// procedure runs inside the attach, which has no other EMM procedure in flight.
+func (c *UeConn) ArmT3489(name string, nas []byte, onAbort func()) {
+	if c == nil || c.ue == nil {
+		return
+	}
+
+	c.armNASGuardWith(c.m.t3489Cfg, name, nas, onAbort)
+}
+
 func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
+	if c == nil || c.ue == nil {
+		return
+	}
+
+	c.armNASGuardWith(c.m.nasGuardCfg, name, nas, onAbort)
+}
+
+func (c *UeConn) armNASGuardWith(cfg guard.TimerValue, name string, nas []byte, onAbort func()) {
 	if c == nil || c.ue == nil {
 		return
 	}
@@ -68,7 +89,7 @@ func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
 
 	c.nasGuardName = name
 	c.nasGuard.ArmWith(
-		m.nasGuardCfg,
+		cfg,
 		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
 		func() { c.expireNASGuard(ue, name, onAbort) },
 	)

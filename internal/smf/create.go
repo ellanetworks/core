@@ -119,10 +119,16 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
+	// TS 24.501 §6.4.1.7 d) treats both as a transfer, and an emergency session
+	// this core never establishes is one the anchor cannot hold — so it resolves
+	// nothing and draws the same #54.
+	isTransfer := requestType == fgs.RequestTypeExistingPDUSession ||
+		requestType == fgs.RequestTypeExistingEmergencyPDUSession
+
 	// An initial request for an identity an existing session holds locally
-	// releases that session (TS 24.501 §6.4.1.4 c). A transfer must not: the
+	// releases that session (TS 24.501 §6.4.1.7 c). A transfer must not: the
 	// session it names is the one it is moving.
-	if existing := s.currentPDUSession(supi, pduSessionID); existing != nil && requestType != fgs.RequestTypeExistingPDUSession {
+	if existing := s.currentPDUSession(supi, pduSessionID); existing != nil && !isTransfer {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
@@ -140,8 +146,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	// The UE transfers a PDN connection it holds in EPS rather than asking for a
 	// new PDU session (TS 24.501 §6.1.4.2, TS 23.502 §4.11.2.3 step 9).
-	if requestType == fgs.RequestTypeExistingPDUSession {
-		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, policy, req, reqPTI)
+	if isTransfer {
+		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, policy, req, reqPTI)
 		if err != nil {
 			establishmentResult = metrics.ResultReject
 		} else {
@@ -196,7 +202,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		span.SetStatus(codes.Error, "failed to create SM context")
 
 		cause := fgs.GSMCauseRequestRejectedUnspecified
-		if errors.Is(err, errUEAddressAllocation) {
+		if errors.Is(err, errUEAddressAllocation) || errors.Is(err, errSessionIdentityInUse) {
 			cause = fgs.GSMCauseInsufficientResources
 		}
 
@@ -246,12 +252,12 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 // (TS 23.502 §4.11.2.3 step 9). It answers with the same Establishment Accept an
 // initial request draws, so the N2 resource setup and the UE's view of the
 // session are identical to one established here.
-func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, policy *Policy, req *fgs.PDUSessionEstablishmentRequest, pti nas.ProcedureTransactionIdentity) (string, []byte, error) {
-	transfer := transferRequest{Access: Access5G, Dnn: dnn, Policy: policy}
+func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, policy *Policy, req *fgs.PDUSessionEstablishmentRequest, pti nas.ProcedureTransactionIdentity) (string, []byte, error) {
+	transfer := transferRequest{Access: Access5G, Dnn: dnn, Snssai: snssai, Policy: policy}
 
 	sc, err := s.findTransferable(supi, pduSessionID, transfer)
 	if err != nil {
-		// The UE knows to establish the session afresh (TS 24.501 §6.4.1.4 d).
+		// The UE knows to establish the session afresh (TS 24.501 §6.4.1.7 d).
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCausePDUSessionDoesNotExist)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("%v (build reject failed: %v)", err, buildErr)
@@ -281,8 +287,21 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 
 	sc.Mutex.Lock()
 	sessionType := sc.PDUSessionType
+	sc.Mutex.Unlock()
+
+	pduSessionType, err := pduSessionTypeFor(sessionType)
+	if err != nil {
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseUnknownPDUSessionType)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("%v (build reject failed: %v)", err, buildErr)
+		}
+
+		return "", rsp, err
+	}
+
+	sc.Mutex.Lock()
 	addrs := &smfNas.PDUSessionAddresses{
-		PDUSessionType: fgs.PDUSessionType(sessionType),
+		PDUSessionType: pduSessionType,
 		IPv4Address:    sc.PDUIPV4Address,
 		IPv6IID:        sc.IPv6IID,
 	}
@@ -306,6 +325,12 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 	}
 
 	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, uint8(pti), cause, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
+		// The move has committed and the access the session left has already been
+		// told to forget it, so neither access holds a ref: left alone the session
+		// would keep its UPF session and address with nothing able to release it.
+		// Release it and let the UE establish afresh.
+		_ = s.ReleaseSmContext(ctx, sc.Ref)
+
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept for a transferred session: %v", err)
 	}
 

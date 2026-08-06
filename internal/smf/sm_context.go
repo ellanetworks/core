@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/procedure"
 )
 
 type PFCPSessionContext struct {
@@ -48,8 +49,10 @@ type SMContext struct {
 	PFCPContext *PFCPSessionContext
 
 	// SessionIdentity holds the session's PDU session identity and EPS bearer
-	// identity. Assigned at creation and never mutated afterwards: sessionKey
-	// names the pool slot and keys the UE IP leases.
+	// identity. The PDU session half is assigned at creation and never changes,
+	// so sessionKey — which names the pool slot and keys the UE IP leases — is
+	// stable for the session's life. The EPS half is reassigned when the session
+	// moves access (setEPSBearerIdentity), under Mutex and the registry lock.
 	SessionIdentity
 
 	FramedRoutes   []netip.Prefix
@@ -74,6 +77,11 @@ type SMContext struct {
 	// or command-reject whose PTI is absent is a PTI mismatch (§7.3.1 a).
 	// Guarded by Mutex.
 	outstandingPTIs map[uint8]struct{}
+
+	// procedures serialises the session-management procedures that rewrite this
+	// session across several blocking UPF calls, so two never interleave their
+	// partial states. Not guarded by Mutex: the registry has its own.
+	procedures *procedure.Registry
 
 	// procedureTimer is the T3591/T3592 retransmission guard for the outstanding
 	// network-requested modification or release command (TS 24.501 §6.3.2.5,

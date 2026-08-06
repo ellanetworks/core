@@ -47,6 +47,14 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
+	// The UE may indicate N1 mode support for the first time here, and the accept's
+	// IWK N26 indicator is gated on it (TS 24.301 §5.5.3.2.4). The TAU is integrity
+	// protected against the stored context, so the write is as authenticated as the
+	// attach-time one.
+	if req.UENetworkCapability != nil {
+		ue.SetUESecurityCapability(*req.UENetworkCapability, ue.MsNetCap(), mme.MintAuthProofForAttachRequest())
+	}
+
 	// When the UE reports its EPS bearer context status, the MME deactivates the
 	// bearers it holds but the UE considers inactive, then reflects the resulting
 	// active set in the accept (TS 24.301 §5.5.3.2.4).

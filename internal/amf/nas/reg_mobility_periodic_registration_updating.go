@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -132,7 +133,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	var pduSessionStatus *[16]bool
-	if conn.RegistrationRequest.PDUSessionStatus != nil {
+	// A UE moving from EPC lists the PDN connections it is about to transfer in
+	// the PDU session status, and this AMF holds none of them. Synchronising
+	// against that would report every one inactive, and the UE "shall perform a
+	// local release" of exactly the sessions it came to move
+	// (TS 24.501 §5.5.1.3.4). TS 23.502 §4.11.2.3 steps 3 and 7 therefore have
+	// the AMF skip the synchronisation and leave the status unsynchronised —
+	// omitting the IE, which is what leaves the UE's sessions alone.
+	if conn.RegistrationRequest.PDUSessionStatus != nil && !movingFromEPC(conn.RegistrationRequest) {
 		pduSessionStatus = new([16]bool)
 
 		psiArray := conn.RegistrationRequest.PDUSessionStatus.PSI
@@ -293,4 +301,17 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
 		}
 	}
+}
+
+// movingFromEPC reports whether the UE indicated it is moving from EPC: it is
+// still registered in EMM while registering in 5GMM (TS 24.501 §5.5.1.3.2 case
+// e, §9.11.3.56). Only meaningful where the network provides interworking
+// without N26 — with N26 the two systems exchange the context and the AMF holds
+// the sessions itself.
+func movingFromEPC(req *fgs.RegistrationRequest) bool {
+	if !models.InterworkingWithoutN26 || req == nil || req.UEStatus == nil {
+		return false
+	}
+
+	return req.UEStatus.S1ModeReg
 }

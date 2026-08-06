@@ -356,7 +356,7 @@ func TestSessionTransferred_DropsRoutingWithoutReleasing(t *testing.T) {
 	fakeSmf := &deregisterTestSmf{}
 	ue.smf = fakeSmf
 
-	amfInstance.SessionTransferred(context.Background(), supi, 1)
+	amfInstance.SessionTransferred(context.Background(), supi, 1, nil)
 
 	if len(fakeSmf.releaseCalls) != 0 {
 		t.Errorf("released %v, want nothing: the session lives on over EPS", fakeSmf.releaseCalls)

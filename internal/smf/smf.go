@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf/procedure"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -141,9 +142,12 @@ type AMFCallback interface {
 
 	// SessionTransferred reports that the anchor no longer serves this PDU
 	// session over 5GS because the UE moved it to EPS, so the AMF drops its
-	// routing context for it (TS 23.502 §4.11.2.2 step 14). The session and the
-	// UE address live on, so nothing is released.
-	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8)
+	// routing context for it and releases the resources NG-RAN still holds for
+	// it (TS 23.502 §4.11.2.2 step 14). n2Release is the
+	// PDUSessionResourceReleaseCommandTransfer; it goes to the RAN without an N1
+	// container, because the UE is on the other access and has nothing to answer.
+	// The session and the UE address live on, so neither is released.
+	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Release []byte)
 }
 
 // MMECallback abstracts the SMF → MME communication for 4G paging, breaking the
@@ -273,14 +277,40 @@ func (s *SMF) AllocateLocalSEID() uint64 {
 // making it the current session for every identity that names it. It never
 // overwrites or orphans a prior session for the same slot: that session keeps
 // its own Ref and pool entry until it is explicitly released.
-func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) *SMContext {
+//
+// The keys are tested and claimed in one critical section. They cannot be
+// checked by the caller beforehand: the session key is also the UE IP lease key
+// (DNNStore), so two sessions that ended up holding one key would be handed one
+// address, and releasing either would free an address the other still forwards
+// on. A UE-allocated PDU session identity another live session already holds is
+// dropped rather than refused — the session keeps its EPS bearer key and the
+// PDN connection is simply not transferable to 5GS (TS 23.502 §4.11.1.1 NOTE 5)
+// — but an identity the session cannot do without is an error, so the caller
+// rejects the request instead of aliasing a slot.
+func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) (*SMContext, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if id.PDUSessionID != 0 && s.byKey[CanonicalName(supi, id.PDUSessionID)] != nil {
+		if id.EBI == 0 {
+			return nil, fmt.Errorf("PDU session identity %d is already in use", id.PDUSessionID)
+		}
+
+		logger.SmfLog.Warn("ignoring PDU session id from PCO already held by a live session",
+			logger.SUPI(supi.String()), logger.PDUSessionID(id.PDUSessionID))
+
+		id.PDUSessionID = 0
+	}
+
+	if id.EBI != 0 && s.byKey[CanonicalName(supi, epsBearerKey(id.EBI))] != nil {
+		return nil, fmt.Errorf("EPS bearer identity %d is already in use", id.EBI)
+	}
 
 	s.refSeq++
 
 	ctx := &SMContext{
 		SessionIdentity: id,
+		procedures:      procedure.NewRegistry(logger.SmfLog),
 		Supi:            supi,
 		Access:          access,
 		Dnn:             dnn,
@@ -294,7 +324,7 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		s.byKey[CanonicalName(supi, key)] = ctx
 	}
 
-	return ctx
+	return ctx, nil
 }
 
 // GetSession retrieves a session by its unique Ref.
@@ -333,10 +363,24 @@ func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
 // the session after an access change (TS 23.501 §5.17.2). Only the EPS half of
 // the identity moves: a transferable session always has a PDU session identity,
 // which stays its primary key, so its Ref and its UE IP lease are unaffected.
-// Caller holds sc.Mutex.
-func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) {
+//
+// It refuses a key another live session holds, for the reason NewSession does,
+// and refuses to re-index a session already dropped from the pool, which would
+// leave the index pointing at a context nothing can release. Caller holds
+// sc.Mutex.
+func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.pool[sc.Ref] != sc {
+		return fmt.Errorf("session %q is no longer in the pool", sc.Ref)
+	}
+
+	if ebi != 0 {
+		if held := s.byKey[CanonicalName(sc.Supi, epsBearerKey(ebi))]; held != nil && held != sc {
+			return fmt.Errorf("EPS bearer identity %d is already in use", ebi)
+		}
+	}
 
 	if sc.EBI != 0 {
 		key := CanonicalName(sc.Supi, epsBearerKey(sc.EBI))
@@ -350,6 +394,8 @@ func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) {
 	if ebi != 0 {
 		s.byKey[CanonicalName(sc.Supi, epsBearerKey(ebi))] = sc
 	}
+
+	return nil
 }
 
 // dropFromPool removes sc from the pool by its unique Ref, and from the secondary
@@ -423,11 +469,24 @@ func (s *SMF) SessionCount() int {
 // SessionCountByRAT returns the active session counts split by access technology:
 // 4G EPS sessions and 5G PDU sessions.
 func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
+	// A transfer changes the access under the session lock, so the scan has to
+	// take it — and the lock order is session then registry, never the reverse,
+	// so the pool is snapshotted first and the registry lock released.
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 
+	sessions := make([]*SMContext, 0, len(s.pool))
 	for _, ctx := range s.pool {
-		if ctx.IsEPS() {
+		sessions = append(sessions, ctx)
+	}
+
+	s.mu.RUnlock()
+
+	for _, ctx := range sessions {
+		ctx.Mutex.Lock()
+		isEPS := ctx.IsEPS()
+		ctx.Mutex.Unlock()
+
+		if isEPS {
 			fourG++
 		} else {
 			fiveG++

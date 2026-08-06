@@ -39,7 +39,10 @@ type RegistrationRequest struct {
 	NgKSI            nas.KeySetIdentifier // bits 5-8
 	MobileIdentity   MobileIdentity       // mandatory 5GS mobile identity (type 6, LVE)
 
-	GMMCapability           *GMMCapability        // IEI 0x10
+	GMMCapability *GMMCapability // IEI 0x10
+	// UEStatus reports the UE's registration status in each system, which is
+	// what tells the network the UE is moving between them (§9.11.3.56).
+	UEStatus                *UEStatus
 	UESecurityCapability    *UESecurityCapability // IEI 0x2E
 	RequestedNSSAI          NSSAI                 // IEI 0x2F
 	UplinkDataStatus        *PSIBitmap            // IEI 0x40
@@ -106,6 +109,15 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiGMMCapability, raw)
+	}
+
+	if m.UEStatus != nil {
+		raw, err := m.UEStatus.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiUEStatus, raw)
 	}
 
 	if m.UESecurityCapability != nil {
@@ -254,6 +266,13 @@ func ParseRegistrationRequest(b []byte) (*RegistrationRequest, error) {
 			}
 
 			out.GMMCapability = &parsed
+		case ieiUEStatus:
+			parsed, err := ParseUEStatus(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.UEStatus = &parsed
 		case ieiUESecurityCapability:
 			parsed, err := ParseUESecurityCapability(value)
 			if err != nil {
@@ -858,3 +877,31 @@ func boolBit(set bool, pos uint8) uint8 {
 
 	return 0
 }
+
+// UEStatus is the UE status information element (TS 24.501 §9.11.3.56): the UE's
+// registration status in each system. A UE moving between EPS and 5GS reports
+// itself still registered in the one it is leaving, which is how the network
+// recognises the move (§5.5.1.3.2 case e).
+type UEStatus struct {
+	// S1ModeReg reports the UE in EMM-REGISTERED state (octet 3, bit 1).
+	S1ModeReg bool
+	// N1ModeReg reports the UE in 5GMM-REGISTERED state (octet 3, bit 2).
+	N1ModeReg bool
+}
+
+// ParseUEStatus decodes a UE status IE value.
+func ParseUEStatus(b []byte) (UEStatus, error) {
+	if len(b) != 1 {
+		return UEStatus{}, fmt.Errorf("nas/fgs: UE status is %d octets, want 1", len(b))
+	}
+
+	return UEStatus{S1ModeReg: b[0]&1 != 0, N1ModeReg: b[0]&(1<<1) != 0}, nil
+}
+
+// AppendBinary encodes the UE status IE value onto b.
+func (u UEStatus) AppendBinary(b []byte) ([]byte, error) {
+	return append(b, boolBit(u.S1ModeReg, 0)|boolBit(u.N1ModeReg, 1)), nil
+}
+
+// MarshalBinary encodes the UE status IE value.
+func (u UEStatus) MarshalBinary() ([]byte, error) { return u.AppendBinary(nil) }

@@ -810,6 +810,8 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 
 	msg.DNN = new(fgs.DNN("internet"))
 
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+
 	fakeSmf := &fakeSmf{
 		CreateSmContextRef: "new-ctx-ref",
 	}
@@ -1093,6 +1095,8 @@ func TestTransport5GSMMessage_NoSmContext_ExistingPDUSession_CreateSmContext(t *
 
 	msg.SNSSAI = &fgs.SNSSAI{SST: 1, SD: &[3]byte{1, 2, 3}}
 	msg.DNN = new(fgs.DNN("internet"))
+
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	fakeSmf := &fakeSmf{CreateSmContextRef: "transferred-ctx-ref"}
 

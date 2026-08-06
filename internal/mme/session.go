@@ -111,4 +111,27 @@ func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8) {
 
 	logger.From(ctx, logger.MmeLog).Info("dropped PDN connection moved to 5GS",
 		zap.String("imsi", imsi), zap.Uint8("ebi", ebi))
+
+	// An attached EPS UE always holds at least one PDN connection
+	// (TS 23.401 §5.10.3), so moving its last one to 5GS detaches it. Left
+	// registered it would fail its next Initial Context Setup, which has no
+	// bearer to set up. 5GS has no counterpart: a registered UE with no PDU
+	// session is normal there, which is why the two callbacks differ.
+	if ue.PDNCount() == 0 {
+		logger.From(ctx, logger.MmeLog).Info("last PDN connection moved to 5GS, detaching",
+			zap.String("imsi", imsi))
+		ue.TransitionTo(EMMDeregistered)
+		// The UE context release takes the whole S1 context with it, E-RABs
+		// included, so no per-bearer release is needed here.
+		m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+
+		return
+	}
+
+	// The UE keeps other connections, so only the moved bearer's radio leg goes.
+	// No NAS PDU: the deactivation toward the UE is the part TS 23.502
+	// §4.11.2.3 step 10 excepts, since the UE moved the connection itself.
+	if ue.Connected() {
+		m.sendERABRelease(ctx, ue, &PdnConnection{Ebi: ebi}, nil)
+	}
 }

@@ -21,11 +21,12 @@ import (
 // establishSession failure classes, so an adapter can map a failure to the NAS
 // cause its access uses.
 var (
-	errUEAddressAllocation = errors.New("UE address allocation failed")
-	errFramedRouteResolve  = errors.New("framed route resolution failed")
-	errStaticIPResolve     = errors.New("static IP resolution failed")
-	errDataPathActivation  = errors.New("data path activation failed")
-	errUPFSession          = errors.New("UPF session establishment failed")
+	errUEAddressAllocation  = errors.New("UE address allocation failed")
+	errFramedRouteResolve   = errors.New("framed route resolution failed")
+	errStaticIPResolve      = errors.New("static IP resolution failed")
+	errDataPathActivation   = errors.New("data path activation failed")
+	errUPFSession           = errors.New("UPF session establishment failed")
+	errSessionIdentityInUse = errors.New("session identity is already in use")
 )
 
 // SessionRequest is the RAT-agnostic input to establishSession, common to the
@@ -63,7 +64,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
 
-	sc := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
+	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
+	if err != nil {
+		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errSessionIdentityInUse, err)
+	}
 
 	committed := false
 

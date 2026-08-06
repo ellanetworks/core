@@ -176,11 +176,14 @@ func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork, sns
 	}, nil
 }
 
-// DnFingerprint summarises the data-network parameters delivered to the UE at
-// bearer setup (IP pools, DNS, MTU). A change between attach and a later
-// reconcile means the UE's bearer must be re-established to pick it up.
+// DnFingerprint summarises the parameters delivered to the UE at bearer setup
+// (IP pools, DNS, MTU, and the slice). A change between attach and a later
+// reconcile means the UE's bearer must be re-established to pick it up. The
+// S-NSSAI is in it because the UE stores what the PCO carried and uses it to
+// move the connection to 5GS (TS 24.501 §6.1.4.2), so a stale one would not
+// resolve the session there.
 func (q *EpsQoS) DnFingerprint() string {
-	return fmt.Sprintf("%s|%s|%s|%d", q.IPv4Pool, q.IPv6Pool, q.DNS, q.MTU)
+	return fmt.Sprintf("%s|%s|%s|%d|%d-%s", q.IPv4Pool, q.IPv6Pool, q.DNS, q.MTU, q.Snssai.Sst, q.Snssai.Sd)
 }
 
 // ResolveAttachQoS resolves the default-bearer QoS for an attaching UE. It honours

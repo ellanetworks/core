@@ -265,9 +265,11 @@ type fakeAMF struct {
 	releaseCalls []releaseCall
 	pageCalls    []pageCall
 	// transferredAway holds the PDU session identity of each session the anchor
-	// reported as moved to EPS.
-	transferredAway []uint8
-	err             error
+	// reported as moved to EPS, and transferReleases counts those that came with
+	// an N2 release for the resources NG-RAN still held.
+	transferredAway  []uint8
+	transferReleases int
+	err              error
 }
 
 type n1Call struct {
@@ -345,11 +347,15 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 
 // transferredAway records the identity of each session the anchor reported as
 // moved to the other access.
-func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionID uint8) {
+func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionID uint8, n2Release []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.transferredAway = append(f.transferredAway, pduSessionID)
+
+	if len(n2Release) > 0 {
+		f.transferReleases++
+	}
 }
 
 // movedAway returns the identities reported as moved to the other access.
@@ -455,7 +461,7 @@ func TestNewSession_AddsToPool(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	if smCtx == nil {
 		t.Fatal("expected non-nil SMContext")
 	}
@@ -492,7 +498,7 @@ func TestRemoveSession_RemovesFromPool(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	ref := smCtx.Ref
 
 	s.RemoveSession(bgCtx, ref)
@@ -509,7 +515,7 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	ref := smCtx.Ref
 
@@ -547,13 +553,13 @@ func TestSessionCount(t *testing.T) {
 		t.Fatal("expected 0 sessions initially")
 	}
 
-	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+	_, _ = s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	if s.SessionCount() != 1 {
 		t.Fatal("expected 1 session")
 	}
 
-	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 2}, testDNN, testSnssai)
+	_, _ = s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 2}, testDNN, testSnssai)
 
 	if s.SessionCount() != 2 {
 		t.Fatal("expected 2 sessions")
@@ -565,9 +571,9 @@ func TestSessionsByDNN(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "internet", testSnssai)
-	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 2}, "ims", testSnssai)
-	s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 3}, "internet", testSnssai)
+	_, _ = s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "internet", testSnssai)
+	_, _ = s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 2}, "ims", testSnssai)
+	_, _ = s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 3}, "internet", testSnssai)
 
 	internet := s.SessionsByDNN("internet")
 	if len(internet) != 2 {
@@ -590,7 +596,7 @@ func TestGetSessionBySEID(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	smCtx := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateLocalSEID()
 	smCtx.SetPFCPSession(seid)
@@ -698,7 +704,7 @@ func TestConcurrentSessionCreation(t *testing.T) {
 			defer wg.Done()
 
 			supi := testSUPI()
-			s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: id}, testDNN, testSnssai)
+			_, _ = s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: id}, testDNN, testSnssai)
 		}(uint8(i))
 	}
 
@@ -709,16 +715,25 @@ func TestConcurrentSessionCreation(t *testing.T) {
 	}
 }
 
+// A UE's concurrent sessions coexist in the pool, each addressable by its own
+// ref. Two sessions for the *same* identity no longer can — NewSession refuses
+// the second, see TestNewSessionRefusesAClaimedKey — so the slot's release
+// ordering is exercised there instead.
 func TestNewSession_DistinctInstancesCoexist(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
-	ctx1 := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
-	ctx2 := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "ims", testSnssai)
+	ctx1, err := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	// Two sessions for the same (SUPI, id) get distinct refs and both stay in the
-	// pool, each retrievable by its own ref — neither overwrites the other.
+	ctx2, err := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 2}, "ims", testSnssai)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if ctx1.Ref == ctx2.Ref {
 		t.Fatalf("second session must get a distinct ref, got %q twice", ctx1.Ref)
 	}
