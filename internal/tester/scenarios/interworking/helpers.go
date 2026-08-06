@@ -81,6 +81,13 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 
 	g := env.FirstGNB()
 
+	// The eNB and the gNB are up together for the whole transfer, and GTP-U is
+	// UDP 2152 on both S1-U and N3, so the two user planes need separate
+	// addresses.
+	if g.N3Secondary == "" {
+		return nil, fmt.Errorf("gNB %q has no secondary N3 address for the eNB user plane", g.Name)
+	}
+
 	return s1enb.Start(&s1enb.StartOpts{
 		ENBID:            uint32(enbID),
 		MCC:              scenarios.DefaultMCC,
@@ -89,7 +96,7 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 		Name:             "Ella-Core-Tester-Interworking-eNB",
 		CoreS1MMEAddress: net.JoinHostPort(host, s1mmePort),
 		ENBAddress:       g.N2Address,
-		ENBN3Address:     g.N3Address,
+		ENBN3Address:     g.N3Secondary,
 		EnableDatapath:   true,
 	})
 }

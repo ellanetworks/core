@@ -105,6 +105,14 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		IPv6Only:  true,
 		DualStack: true,
 	},
+	"interworking/transfer_5gs_to_eps": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
+	"interworking/transfer_eps_to_5gs": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
 }
 
 // TestIntegrationTester brings the core-tester compose up once,
