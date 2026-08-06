@@ -135,6 +135,14 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	isInitialRequest := requestType != nil &&
 		*requestType == fgs.RequestTypeInitialRequest
 
+	// A UE moving from EPS without N26 transfers each PDN connection with an
+	// establishment request for a session the AMF has no routing context for
+	// (TS 23.502 §4.11.2.3 step 9). The SMF holds it, so the request is routed
+	// like an initial one rather than reported as not forwarded
+	// (TS 24.501 §5.4.5.2.5 item 7).
+	isExistingSession := requestType != nil &&
+		*requestType == fgs.RequestTypeExistingPDUSession
+
 	// Duplicate PDU session ID: an initial request for an active session locally
 	// releases it and re-establishes (TS 24.501).
 	if smContextExist && isInitialRequest {
@@ -160,8 +168,8 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return
 	}
 
-	if isInitialRequest {
-		establishPDUSession(ctx, amfInstance, ue, ueConn, ulNasTransport, uint8(pduSessionID), smMessage)
+	if isInitialRequest || isExistingSession {
+		establishPDUSession(ctx, amfInstance, ue, ueConn, ulNasTransport, uint8(pduSessionID), *requestType, smMessage)
 		return
 	}
 
@@ -190,11 +198,12 @@ func isStatus5GSM(smMessage []byte) bool {
 	return mt == fgs.MsgGSMStatus
 }
 
-// establishPDUSession selects an SMF and creates the SM context for an initial
-// request (TS 24.501). When the SMF rejects, its reject message
-// is returned to the UE; when it produces none, the payload is reported as not
-// forwarded.
-func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn, ulNasTransport *fgs.ULNASTransport, pduSessionID uint8, smMessage []byte) {
+// establishPDUSession selects an SMF and creates the SM context for a request
+// the AMF has no routing context for — an initial request, or the transfer of a
+// PDN connection the UE holds in EPS (TS 24.501 §5.4.5.2.5). When the SMF
+// rejects, its reject message is returned to the UE; when it produces none, the
+// payload is reported as not forwarded.
+func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn, ulNasTransport *fgs.ULNASTransport, pduSessionID uint8, requestType fgs.RequestType, smMessage []byte) {
 	var (
 		snssai *models.Snssai
 		dnn    string
@@ -227,7 +236,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn = dnnResp
 	}
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, smMessage)
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).

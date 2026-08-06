@@ -114,6 +114,12 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		MTU:      req.MTU,
 	}
 
+	// The UE transfers a PDU session it holds in 5GS rather than asking for a new
+	// PDN connection (TS 24.301 §6.5.1.2, TS 23.502 §4.11.2.2 step 13).
+	if req.RequestType == eps.RequestTypeHandover {
+		return s.transferToEPS(ctx, supi, req, policy)
+	}
+
 	pdnType, err := s.negotiatePDUSessionType(ctx, req.RequestedPDNType, policy)
 	if err != nil {
 		return models.EPSBearer{}, fmt.Errorf("negotiate PDN type: %w", err)
@@ -167,6 +173,68 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	bearer.SGW = models.FTEID{TEID: ul.TEID, Addr: ul.N3IPv4}
 	bearer.SGWN3IPv6 = ul.N3IPv6
 	sc.Mutex.Unlock()
+
+	return bearer, nil
+}
+
+// transferToEPS moves a PDU session the UE holds in 5GS onto the default bearer
+// it just asked for, keeping the UE address and the UPF session
+// (TS 23.502 §4.11.2.2 step 13). The returned bearer describes the session as
+// CreateEPSSession describes a new one, so the MME's Activate Default and the
+// eNB's E-RAB setup follow unchanged.
+func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSBearerRequest, policy *Policy) (models.EPSBearer, error) {
+	transfer := transferRequest{
+		Access: Access4G,
+		EBI:    req.EPSBearerIdentity,
+		Dnn:    req.APN,
+		Policy: policy,
+	}
+
+	sc, err := s.findTransferable(supi, req.PDUSessionID, transfer)
+	if err != nil {
+		// The MME rejects the PDN connectivity procedure with ESM cause #54, so the
+		// UE knows to establish the connection afresh (TS 24.301 §6.5.1.4 b).
+		return models.EPSBearer{ESMCause: eps.ESMCausePDNConnectionDoesNotExist}, err
+	}
+
+	// The default bearer identity the MME assigned may still name a stale PDN
+	// connection, as it may on an initial request.
+	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil && existing != sc {
+		s.handlePduSessionContextReplacement(ctx, existing)
+	}
+
+	if err := s.transferSession(ctx, sc, transfer); err != nil {
+		return models.EPSBearer{}, err
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	ul := sc.Tunnel.DataPath.UpLinkTunnel
+
+	bearer := models.EPSBearer{
+		Ref:        sc.Ref,
+		PDNType:    eps.PDNType(sc.PDUSessionType),
+		IPv4:       ipToNetip(sc.PDUIPV4Address),
+		IPv6Prefix: ipToNetip(sc.PDUIPV6Prefix),
+		IPv6IID:    sc.IPv6IID,
+		SGW:        models.FTEID{TEID: ul.TEID, Addr: ul.N3IPv4},
+		SGWN3IPv6:  ul.N3IPv6,
+	}
+
+	if policy.DNS != nil {
+		bearer.DNS = ipToNetip(policy.DNS)
+	}
+
+	// The transferred session keeps the type it was established with. A UE that
+	// mapped its PDU session type to a wider PDN type is told which family it
+	// actually has (TS 24.301 §6.5.1.3).
+	switch narrowPDUType(req.RequestedPDNType, sc.PDUSessionType) {
+	case narrowIPv4Only:
+		bearer.ESMCause = eps.ESMCausePDNTypeIPv4OnlyAllowed
+	case narrowIPv6Only:
+		bearer.ESMCause = eps.ESMCausePDNTypeIPv6OnlyAllowed
+	}
 
 	return bearer, nil
 }

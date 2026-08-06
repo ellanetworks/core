@@ -145,6 +145,37 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 		}
 	})
 
+	t.Run("RejectWithESMContainer", func(t *testing.T) {
+		// An attach whose ESM procedure failed carries the PDN CONNECTIVITY REJECT
+		// that says why, under EMM cause #19 (TS 24.301 §5.5.1.2.5).
+		esm, err := (&PDNConnectivityReject{PTI: 1, Cause: ESMCausePDNConnectionDoesNotExist}).MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		in := &AttachReject{Cause: EMMCauseESMFailure, ESMMessageContainer: esm}
+
+		b, err := in.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// IEI 0x78, two-octet length (TLV-E, TS 24.301 table 8.2.3.1).
+		want := append([]byte{b[0], b[1], byte(EMMCauseESMFailure), 0x78, 0x00, byte(len(esm))}, esm...)
+		if !bytes.Equal(b, want) {
+			t.Fatalf("ATTACH REJECT ESM container encoding = % x, want % x", b, want)
+		}
+
+		out, err := ParseAttachReject(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if out.Cause != EMMCauseESMFailure || !bytes.Equal(out.ESMMessageContainer, esm) {
+			t.Fatalf("ESM container round-trip: got %+v, want cause #19 with % x", out, esm)
+		}
+	})
+
 	t.Run("RejectWithT3402", func(t *testing.T) {
 		t3402, err := nas.GPRSTimer2FromDuration(12 * time.Minute)
 		if err != nil {

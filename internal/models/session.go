@@ -89,6 +89,10 @@ type EPSBearerRequest struct {
 	DNS              string
 	MTU              uint16
 	RequestedPDNType uint8
+	// RequestType is the UE's request type (TS 24.301 §9.9.4.14). "Handover" asks
+	// to transfer a PDU session the UE holds in 5GS onto this PDN connection
+	// rather than to establish a new one.
+	RequestType eps.RequestType
 }
 
 // EPSBearer is the result of establishing a default bearer: the negotiated PDN

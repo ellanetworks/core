@@ -34,6 +34,7 @@ const (
 	ieiNetworkDaylightSavingTime      uint8 = 0x49 // EMM INFORMATION
 	ieiHashMME                        uint8 = 0x4F // SECURITY MODE COMMAND
 	ieiReplayedNASMessage             uint8 = 0x79 // SECURITY MODE COMPLETE (TS 24.301 table 8.2.21.1)
+	ieiESMMessageContainer            uint8 = 0x78 // ATTACH REJECT (TS 24.301 table 8.2.3.1)
 	ieiGUTI                           uint8 = 0x50 // ATTACH ACCEPT / TAU ACCEPT: assigned GUTI
 	ieiAdditionalGUTI                 uint8 = 0x50 // ATTACH REQUEST / TAU REQUEST (same octet as the assigned GUTI)
 	ieiLastVisitedRegisteredTAI       uint8 = 0x52

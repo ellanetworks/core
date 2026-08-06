@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 // An EPS bearer identity names a slot the UE re-uses, so a session is addressed
@@ -71,7 +72,7 @@ func TestCreateEPSSessionKeeps5GSessionWithSameID(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest())
+	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -108,7 +109,7 @@ func TestCreateSmContextKeepsEPSSessionWithSameID(t *testing.T) {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest())
+	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -134,7 +135,7 @@ func TestLeaseKeysDistinctAcrossAccesses(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest()); err != nil {
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest()); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 

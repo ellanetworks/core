@@ -1072,3 +1072,41 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 // dereference when a UE sends a ULNASTransport with N1SM payload for a PDU session
 // that has no amf.AMF-side SM context and omits the RequestType IE.
 // The code reaches `switch requestType.GetRequestTypeValue()` with requestType == nil.
+
+// A UE moving from EPS without N26 transfers each PDN connection with request
+// type "existing PDU session" for a PDU session the AMF holds no routing
+// context for (TS 23.502 §4.11.2.3 step 9). The SMF holds it, so the AMF routes
+// the message rather than reporting it as not forwarded
+// (TS 24.501 §5.4.5.2.5 item 7).
+func TestTransport5GSMMessage_NoSmContext_ExistingPDUSession_CreateSmContext(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
+
+	var pduSessionID uint8 = 1
+
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeExistingPDUSession)
+
+	msg.SNSSAI = &fgs.SNSSAI{SST: 1, SD: &[3]byte{1, 2, 3}}
+	msg.DNN = new(fgs.DNN("internet"))
+
+	fakeSmf := &fakeSmf{CreateSmContextRef: "transferred-ctx-ref"}
+
+	transport5GSMMessage(t.Context(), amf.New(&fakeDBInstance{}, nil, fakeSmf), ue, fgsULNAS(t, msg))
+
+	if len(fakeSmf.CreateSmContextCalls) != 1 {
+		t.Fatalf("CreateSmContext calls = %d, want 1", len(fakeSmf.CreateSmContextCalls))
+	}
+
+	if got := fakeSmf.CreateSmContextCalls[0].RequestType; got != fgs.RequestTypeExistingPDUSession {
+		t.Errorf("request type forwarded = %v, want %v", got, fgs.RequestTypeExistingPDUSession)
+	}
+
+	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); !exists {
+		t.Error("no SM context after the transfer was routed")
+	}
+}

@@ -72,6 +72,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
 		PDUSessionID:      ue.RequestedPDUSessionID,
+		RequestType:       ue.RequestedType,
 		Snssai:            &qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
@@ -84,11 +85,13 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		RequestedPDNType:  ue.RequestedPDNType,
 	})
 	if err != nil {
-		// No PDN type the UE requested can be served (e.g. it asked for IPv6 on an
-		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
+		// The ESM procedure of the attach failed — no PDN type the UE requested can
+		// be served, or it asked to transfer a PDN connection the anchor does not
+		// hold. TS 24.301 §5.5.1.2.5 pairs EMM cause #19 "ESM failure" with the PDN
+		// CONNECTIVITY REJECT that says which.
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, eps.EMMCauseESMFailure)
+		rejectAttachESM(ctx, m, ue, sessionSetupESMCause(bearer))
 
 		return
 	}

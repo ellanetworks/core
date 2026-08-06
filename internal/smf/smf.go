@@ -316,6 +316,30 @@ func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
 	return s.currentSession(supi, SessionIdentity{EBI: ebi}.sessionKey())
 }
 
+// setEPSBearerIdentity assigns the session's EPS bearer identity and moves the
+// secondary-index key that names it, so a lookup in either namespace resolves
+// the session after an access change (TS 23.501 §5.17.2). Only the EPS half of
+// the identity moves: a transferable session always has a PDU session identity,
+// which stays its primary key, so its Ref and its UE IP lease are unaffected.
+// Caller holds sc.Mutex.
+func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if sc.EBI != 0 {
+		key := CanonicalName(sc.Supi, epsBearerKey(sc.EBI))
+		if s.byKey[key] == sc {
+			delete(s.byKey, key)
+		}
+	}
+
+	sc.EBI = ebi
+
+	if ebi != 0 {
+		s.byKey[CanonicalName(sc.Supi, epsBearerKey(ebi))] = sc
+	}
+}
+
 // dropFromPool removes sc from the pool by its unique Ref, and from the secondary
 // index only under the keys sc is still current for — so releasing a superseded
 // session cannot evict the newer one that replaced it. Caller must not hold s.mu.

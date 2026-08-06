@@ -528,7 +528,7 @@ func TestCreateSmContext_HappyPath(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequest()
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}
@@ -575,7 +575,7 @@ func TestCreateSmContext_PolicyNotFound(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequest()
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when policy not found")
 	}
@@ -599,7 +599,7 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequest()
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when DNN not found")
 	}
@@ -624,7 +624,7 @@ func TestCreateSmContext_DNNNotInSlice(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, buildPDUSessionEstRequest())
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
 	if err == nil {
 		t.Fatal("expected error when DNN not in slice")
 	}
@@ -648,7 +648,7 @@ func TestCreateSmContext_IPExhaustion(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequest()
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when IP exhausted")
 	}
@@ -671,7 +671,7 @@ func TestCreateSmContext_PFCPEstablishmentFailure(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequest()
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when PFCP establishment fails")
 	}
@@ -700,7 +700,7 @@ func TestCreateSmContext_InvalidNAS(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, []byte{0x00})
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, []byte{0x00})
 	if err == nil {
 		t.Fatal("expected error for invalid NAS message")
 	}
@@ -727,7 +727,7 @@ func TestCreateSmContext_WrongNASMessageType(t *testing.T) {
 	// A well-formed but inappropriate GSM message (release request, not establishment).
 	n1Msg := buildPDUSessionReleaseRequest(1, 10)
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error for unexpected NAS message type")
 	}
@@ -752,12 +752,12 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 	supi := testSUPI()
 	n1Msg := buildPDUSessionEstRequest()
 
-	ref1, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	ref1, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("first CreateSmContext failed: %v", err)
 	}
 
-	ref2, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	ref2, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("second CreateSmContext failed: %v", err)
 	}
@@ -2516,7 +2516,7 @@ func TestCreateSmContext_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
 	// A well-formed 5GSM header naming a message type 3GPP does not define.
 	n1Msg := []byte{uint8(fgs.EPD5GSM), session, pti, 0xFF}
 
-	ref, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), session, testDNN, testSnssai, n1Msg)
+	ref, rsp, err := s.CreateSmContext(context.Background(), testSUPI(), session, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected an error reporting the unimplemented message type")
 	}

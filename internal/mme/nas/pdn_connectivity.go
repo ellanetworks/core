@@ -102,6 +102,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: p.Ebi,
 		PDUSessionID:      requestedPDUSessionID(req),
+		RequestType:       req.RequestType,
 		Snssai:            &qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
@@ -117,7 +118,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: session setup failed",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Error(err))
 		m.DropPDN(ue, p.Ebi)
-		rejectPDNConnectivity(ctx, ue, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
+		rejectPDNConnectivity(ctx, ue, uint8(pti), sessionSetupESMCause(bearer))
 
 		return nasreply.Handled()
 	}
@@ -289,6 +290,18 @@ func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.
 
 // rejectPDNConnectivity refuses a PDN CONNECTIVITY REQUEST with an ESM cause
 // (TS 24.301 §6.5.1.4).
+// sessionSetupESMCause is the ESM cause for a PDN connectivity request the
+// anchor refused. The anchor names one when the refusal has a cause the UE can
+// act on — a transfer of a PDN connection it does not hold draws #54
+// (TS 24.301 §6.5.1.4 b) — and leaves it unset otherwise.
+func sessionSetupESMCause(bearer models.EPSBearer) eps.ESMCause {
+	if bearer.ESMCause != 0 {
+		return bearer.ESMCause
+	}
+
+	return eps.ESMCauseRequestRejectedUnspecified
+}
+
 func rejectPDNConnectivity(ctx context.Context, ue *mme.UeContext, pti uint8, cause eps.ESMCause) {
 	ue.Conn().SendDownlinkProtected(ctx, &eps.PDNConnectivityReject{
 		PTI:   nas.ProcedureTransactionIdentity(pti),

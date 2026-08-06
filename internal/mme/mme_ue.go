@@ -166,6 +166,10 @@ type UeContext struct {
 	// default bearer's PDN connection and sent in the PCO; 0 when it sent none
 	// (TS 24.301 §6.5.1.2).
 	RequestedPDUSessionID uint8
+	// RequestedType is the request type of the attach's PDN CONNECTIVITY REQUEST
+	// (TS 24.301 §9.9.4.14): "handover" transfers a PDU session the UE holds in
+	// 5GS onto this PDN connection.
+	RequestedType eps.RequestType
 
 	// tmsi is the M-TMSI of the GUTI assigned at attach (InvalidTMSI = none); it
 	// indexes the UE for S-TMSI-addressed procedures (Service Request, paging).

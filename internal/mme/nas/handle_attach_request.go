@@ -123,6 +123,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedAPN = ""
 	ue.RequestedPTI = 0
 	ue.RequestedPDUSessionID = 0
+	ue.RequestedType = eps.RequestTypeInitialRequest
 
 	// A syntactically incorrect optional element leaves the rest of the message
 	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the
@@ -139,6 +140,10 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 		}
 
 		ue.RequestedPDUSessionID = requestedPDUSessionID(pc)
+
+		if pc.RequestType != 0 {
+			ue.RequestedType = pc.RequestType
+		}
 	}
 }
 
@@ -236,11 +241,30 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, na
 
 // rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
 // cause, then releases the UE's S1 context.
+// rejectAttachESM rejects an attach whose ESM procedure failed, combining the
+// ATTACH REJECT with the PDN CONNECTIVITY REJECT that carries the ESM cause, so
+// the UE learns why the PDN connection was refused and not only that the attach
+// was (TS 24.301 §5.5.1.2.5).
+func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.ESMCause) {
+	esm, err := (&eps.PDNConnectivityReject{PTI: ue.RequestedPTI, Cause: cause}).MarshalBinary()
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to build PDN Connectivity Reject for Attach Reject", zap.Error(err))
+
+		esm = nil
+	}
+
+	rejectAttachWithESM(ctx, m, ue, eps.EMMCauseESMFailure, esm)
+}
+
 func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
+	rejectAttachWithESM(ctx, m, ue, cause, nil)
+}
+
+func rejectAttachWithESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause, esm []byte) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 	ue.Conn().StopNASGuard()
 
-	reject := &eps.AttachReject{Cause: cause}
+	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}
 
 	if timer, err := nas.GPRSTimer2FromDuration(mme.T3402Backoff); err == nil {
 		reject.T3402 = &timer

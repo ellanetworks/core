@@ -15,6 +15,14 @@ const (
 // IsEPS reports whether the session is a 4G EPS bearer (PGW-C role).
 func (sc *SMContext) IsEPS() bool { return sc.Access == Access4G }
 
+func (a AccessType) String() string {
+	if a == Access4G {
+		return "EPS"
+	}
+
+	return "5GS"
+}
+
 // usesPSC reports whether the user-plane GTP-U carries the PDU Session Container
 // (and thus the QFI). 5G N3/N9 do; 4G S1-U does not. TS 23.501, TS 38.415.
 func (a AccessType) usesPSC() bool { return a == Access5G }
