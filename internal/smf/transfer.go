@@ -60,7 +60,7 @@ func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferR
 	}
 
 	// A context evicted from the pool can still hold a tunnel when its teardown
-	// failed, so membership is checked rather than inferred from its rules.
+	// failed, so membership is an explicit test.
 	if s.GetSession(sc.Ref) != sc {
 		return nil, fmt.Errorf("%w: PDU session %d is not in the pool", ErrSessionNotMovable, pduSessionID)
 	}
@@ -77,9 +77,9 @@ func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferR
 
 // Caller holds sc.Mutex.
 func (sc *SMContext) transferable(req transferRequest) error {
-	// Telling the UE #54 for a session the network holds invites it to discard
-	// local state for a live session (TS 24.501 annex B), so the cases where the
-	// session exists carry their own errors.
+	// #54 tells the UE the network has no information about the PDU session
+	// (TS 24.501 annex B), which is untrue when it exists, so the cases where it
+	// does carry their own errors.
 	if sc.Access == req.Access {
 		return fmt.Errorf("%w: PDU session %d is already on %s", ErrSessionNotMovable, sc.PDUSessionID, req.Access)
 	}
@@ -90,11 +90,11 @@ func (sc *SMContext) transferable(req transferRequest) error {
 
 	// The only slice boundary on the transfer path, so an absent S-NSSAI on either
 	// side fails closed.
-	if (sc.Snssai == nil) != (req.Snssai == nil) {
+	if sc.Snssai == nil || req.Snssai == nil {
 		return fmt.Errorf("%w: PDU session %d cannot have its slice compared", ErrSessionNotMovable, sc.PDUSessionID)
 	}
 
-	if sc.Snssai != nil && !sc.Snssai.Equal(*req.Snssai) {
+	if !sc.Snssai.Equal(*req.Snssai) {
 		return fmt.Errorf("%w: PDU session %d is on slice %+v, not %+v", ErrSessionNotMovable, sc.PDUSessionID, sc.Snssai, req.Snssai)
 	}
 
@@ -139,18 +139,9 @@ func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRe
 
 	defer sc.procedures.End(procedure.Transfer)
 
-	from, sourceID, err := s.moveSession(ctx, sc, req)
-	if err != nil {
+	if _, _, err := s.moveSession(ctx, sc, req); err != nil {
 		return err
 	}
-
-	// The source access keeps routing until the target binds its downlink
-	// (TS 23.502 §4.11.2.2 step 14 follows step 13; §4.11.2.3 step 10 follows the
-	// user plane switch of step 9). A target that never binds releases the
-	// session, and that release drains this too.
-	sc.Mutex.Lock()
-	sc.pendingSourceRelease = &sourceRelease{from: from, id: sourceID}
-	sc.Mutex.Unlock()
 
 	return nil
 }
@@ -162,27 +153,48 @@ type sourceRelease struct {
 	id   SessionIdentity
 }
 
-// takeSourceRelease claims the outstanding source release, if any, so it runs
-// once however the transfer concludes.
-func (sc *SMContext) takeSourceRelease() *sourceRelease {
+// takeSourceReleases claims the outstanding source releases, so each runs once
+// however the transfer concludes.
+func (sc *SMContext) takeSourceReleases() []sourceRelease {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	pending := sc.pendingSourceRelease
-	sc.pendingSourceRelease = nil
+	pending := sc.pendingSourceReleases
+	sc.pendingSourceReleases = nil
 
 	return pending
+}
+
+// superviseTargetBind arms the release that bounds the window in which the source
+// access still routes a moved session. Caller holds sc.Mutex.
+func (s *SMF) superviseTargetBind(sc *SMContext) {
+	ref, supi, pduSessionID := sc.Ref, sc.Supi, sc.PDUSessionID
+
+	sc.transferTimer.Arm(s.transferBind, 0, nil, func() {
+		if s.GetSession(ref) == nil {
+			return
+		}
+
+		logger.SmfLog.Warn("target access never bound a transferred session; releasing it",
+			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+
+		if err := s.releaseSmContext(context.Background(), ref); err != nil {
+			logger.SmfLog.Error("failed to release a session whose target access never bound",
+				zap.Error(err), zap.String("smContextRef", ref))
+		}
+	})
 }
 
 // releaseTransferSource drops the routing the session left behind. Caller must
 // not hold sc.Mutex.
 func (s *SMF) releaseTransferSource(ctx context.Context, sc *SMContext) {
-	pending := sc.takeSourceRelease()
-	if pending == nil {
-		return
-	}
+	sc.Mutex.Lock()
+	sc.transferTimer.Stop()
+	sc.Mutex.Unlock()
 
-	s.dropSourceRouting(ctx, sc.Supi, sc.Ref, pending.from, pending.id)
+	for _, pending := range sc.takeSourceReleases() {
+		s.dropSourceRouting(ctx, sc.Supi, sc.Ref, pending.from, pending.id)
+	}
 }
 
 // transferESMCause maps a refused transfer to the ESM cause the MME rejects with.
@@ -298,9 +310,6 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		return from, sourceID, fmt.Errorf("suspend downlink: %w", err)
 	}
 
-	// The UE is not idle, so paging the access it left reaches nobody.
-	dl.FAR.ApplyAction.Nocp = false
-
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(sc.PFCPContext.RemoteSEID, policy.PolicyID, nil, farList, qerList)); err != nil {
 		restoreDownlink()
 		restoreQERs()
@@ -316,6 +325,16 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		s.restoreEPSBearerIdentity(ctx, sc, 0)
 	}
 
+	// The source access keeps routing until the target binds its downlink
+	// (TS 23.502 §4.11.2.2 step 14 follows step 13; §4.11.2.3 step 10 follows the
+	// user plane switch of step 9). Committed with the access change so a release
+	// landing between critical sections cannot leave it on a dead context.
+	// A round trip taken before the first source was dropped leaves two accesses
+	// routing the session, so each is recorded and each is dropped.
+	sc.pendingSourceReleases = append(sc.pendingSourceReleases, sourceRelease{from: from, id: sourceID})
+
+	s.superviseTargetBind(sc)
+
 	sc.Access = req.Access
 	sc.PolicyData = policy
 
@@ -323,8 +342,8 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		sc.Snssai = req.Snssai
 	}
 
-	// A T3591 expiry would apply a modification to a session the UE now holds on
-	// the other access (TS 24.501 §6.3.2.5 a).
+	// TS 24.501 §6.3.2.5 a) retransmits the PDU SESSION MODIFICATION COMMAND four
+	// times and then aborts; the command names the access the session has left.
 	sc.stopProcedureTimer()
 	sc.pendingPolicy = nil
 	sc.establishmentPTI = 0

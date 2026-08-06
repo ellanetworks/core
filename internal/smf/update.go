@@ -45,6 +45,11 @@ func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1M
 	}
 
 	smContext.Mutex.Lock()
+
+	// Deferred before the unlock, so it runs after it. A teardown reached from
+	// here can remove a session whose target access never bound, and the source
+	// access still has to be told.
+	defer func() { s.releaseTransferSource(ctx, smContext) }()
 	defer smContext.Mutex.Unlock()
 
 	rsp, err := s.handleUpdateN1Msg(ctx, n1Msg, smContext)
@@ -219,6 +224,15 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	}()
 	defer smContext.Mutex.Unlock()
 
+	// A late setup response for an abandoned 5G leg would point the downlink back
+	// at the gNB and undo the eNB binding of a session now on EPS.
+	if smContext.IsEPS() {
+		span.RecordError(fmt.Errorf("session is on EPS"))
+		span.SetStatus(codes.Error, "session is on EPS")
+
+		return fmt.Errorf("session %q is on %s", smContext.Ref, smContext.Access)
+	}
+
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
 		span.RecordError(fmt.Errorf("session already released"))
 		span.SetStatus(codes.Error, "session already released")
@@ -341,8 +355,11 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 	// A transfer whose target access never bound its downlink leaves the session
 	// reachable from neither access, so it is released and the UE re-establishes.
 	// The release also drops the routing the source access still holds.
+	//
+	// Only a session whose target is 5GS is concerned: a stale failure for the
+	// 5G leg of a session already moved to EPS says nothing about its EPS target.
 	smContext.Mutex.Lock()
-	moved := smContext.pendingSourceRelease != nil
+	moved := len(smContext.pendingSourceReleases) > 0 && !smContext.IsEPS()
 	smContext.Mutex.Unlock()
 
 	if moved {
@@ -391,6 +408,11 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	}
 
 	smContext.Mutex.Lock()
+
+	// Deferred before the unlock, so it runs after it. A teardown reached from
+	// here can remove a session whose target access never bound, and the source
+	// access still has to be told.
+	defer func() { s.releaseTransferSource(ctx, smContext) }()
 	defer smContext.Mutex.Unlock()
 
 	// N2 release complete; stop T3592 (TS 24.501 §6.3.3).

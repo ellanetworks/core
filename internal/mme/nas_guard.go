@@ -53,15 +53,37 @@ func (c *UeConn) ArmNASGuardAbortOnly(name string, nas []byte, onAbort func()) {
 	c.armNASGuardMode(name, nas, onAbort)
 }
 
-// ArmT3489 arms the EMM guard slot with T3489's interval and retransmission
-// count for the ESM information request procedure (TS 24.301 §6.6.1.2.6 a). The
-// procedure runs inside the attach, which has no other EMM procedure in flight.
+// ArmT3489 arms the ESM information request guard (TS 24.301 §6.6.1.2.6 a). It
+// has its own slot: the procedure is per-transaction and the standalone path
+// runs on an EMM-REGISTERED UE where an EMM procedure can be in flight.
 func (c *UeConn) ArmT3489(name string, nas []byte, onAbort func()) {
 	if c == nil || c.ue == nil {
 		return
 	}
 
-	c.armNASGuardWith(c.m.t3489Cfg, name, nas, onAbort)
+	m := c.m
+	ue := c.ue
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	c.esmInfoGuard.ArmWith(
+		c.m.t3489Cfg,
+		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
+		func() { c.expireNASGuard(ue, name, onAbort) },
+	)
+}
+
+// StopESMInfoGuard cancels the ESM information request guard.
+func (c *UeConn) StopESMInfoGuard() {
+	if c == nil {
+		return
+	}
+
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+
+	c.esmInfoGuard.Stop()
 }
 
 func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {

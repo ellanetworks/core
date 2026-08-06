@@ -43,6 +43,7 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 			// No UE to acknowledge and the user plane is already released, so remove
 			// the SM context immediately.
 			s.removeSessionUnlocked(ctx, smContext.Ref)
+
 			return nil
 		}
 
@@ -102,6 +103,10 @@ func (s *SMF) armRetransmit(smContext *SMContext, d time.Duration, resend func()
 			if sc == nil {
 				return
 			}
+
+			// Deferred before the unlock, so it runs after it: an abort that removes
+			// a session whose target access never bound still has to tell the source.
+			defer func() { s.releaseTransferSource(context.Background(), sc) }()
 
 			sc.Mutex.Lock()
 			defer sc.Mutex.Unlock()

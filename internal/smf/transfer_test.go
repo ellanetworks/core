@@ -10,11 +10,13 @@ import (
 	"net/netip"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 // enbFTEID is the S1-U endpoint an eNB reports once the default bearer is up.
@@ -78,9 +80,23 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 	establishesBefore := upf.lastEstablish
 	upf.mu.Unlock()
 
+	upf.mu.Lock()
+	modifiesBefore := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
 	bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover))
 	if err != nil {
 		t.Fatalf("CreateEPSSession(handover): %v", err)
+	}
+
+	// The QoS change and the downlink suspend travel in one PFCP modification, so
+	// a rejected transfer cannot leave the UPF holding half of it.
+	upf.mu.Lock()
+	modifies := len(upf.modifyCalls) - modifiesBefore
+	upf.mu.Unlock()
+
+	if modifies != 1 {
+		t.Errorf("UPF modifications during the transfer = %d, want 1", modifies)
 	}
 
 	if bearer.Ref != ref {
@@ -184,9 +200,22 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 	establishesBefore := upf.lastEstablish
 	upf.mu.Unlock()
 
+	upf.mu.Lock()
+	modifiesBefore := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
 	ref, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest())
 	if err != nil {
 		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
+	}
+
+	// One PFCP modification for the whole move; see the 5GS→EPS direction.
+	upf.mu.Lock()
+	modifies := len(upf.modifyCalls) - modifiesBefore
+	upf.mu.Unlock()
+
+	if modifies != 1 {
+		t.Errorf("UPF modifications during the transfer = %d, want 1", modifies)
 	}
 
 	if rejectN1 != nil {
@@ -438,5 +467,117 @@ func TestTransferRolledBackWhenTheUPFRejectsIt(t *testing.T) {
 
 	if moved := amfCb.movedAway(); len(moved) != 0 {
 		t.Errorf("AMF told of moved sessions = %v, want none", moved)
+	}
+}
+
+// A target access that never binds must not leave the session on one access
+// while the other still routes it, so the bind is supervised and its expiry
+// releases the session.
+func TestTransferReleasedWhenTheTargetNeverBinds(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithTransferBindTimeout(5*time.Millisecond))
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err != nil {
+		t.Fatalf("CreateEPSSession(handover): %v", err)
+	}
+
+	// No ModifyEPSSession: the eNB never answers.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if s.GetSession(ref) == nil {
+			break
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Fatal("the session survived a target access that never bound")
+	}
+
+	// The release drains the pending, so 5GS is told to stop routing it.
+	if moved := amfCb.movedAway(); len(moved) != 1 || moved[0] != transferTestPDUSessionID {
+		t.Errorf("AMF told of moved sessions = %v, want [%d]", moved, transferTestPDUSessionID)
+	}
+}
+
+// buildPDUSessionResourceSetupUnsuccessfulTransferForTest encodes the N2
+// container a gNB returns when it cannot set up a PDU session resource.
+func buildPDUSessionResourceSetupUnsuccessfulTransferForTest() ([]byte, error) {
+	t := libngap.PDUSessionResourceSetupUnsuccessfulTransfer{
+		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: 0},
+	}
+
+	b, err := t.Marshal()
+
+	return b, err
+}
+
+// A stale 5G setup failure arriving after the session moved to EPS says nothing
+// about its EPS target, so it must not release it. Two guards produce this: the
+// failure path requires the session to still be on 5GS, and the 5GS release
+// entry point refuses a session on EPS.
+func TestStale5GSetupFailureDoesNotReleaseAnEPSSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err != nil {
+		t.Fatalf("CreateEPSSession(handover): %v", err)
+	}
+
+	n2Fail, err := buildPDUSessionResourceSetupUnsuccessfulTransferForTest()
+	if err != nil {
+		t.Fatalf("build unsuccessful transfer: %v", err)
+	}
+
+	_ = s.UpdateSmContextN2InfoPduResSetupFail(ctx, ref, n2Fail)
+
+	if s.GetSession(ref) == nil {
+		t.Fatal("a stale 5G setup failure released the session after it moved to EPS")
+	}
+}
+
+// C4: a teardown reaching the session before its target bound still has to drop
+// the routing the source access holds.
+func TestTeardownDrainsThePendingSourceRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
+
+	bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeInitialRequest))
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err != nil {
+		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 0 {
+		t.Fatalf("MME told of moved connections before the gNB bind = %v, want none", moved)
+	}
+
+	// The UE releases before the gNB ever answers.
+	if err := s.ReleaseSmContext(ctx, bearer.Ref); err != nil {
+		t.Fatalf("ReleaseSmContext: %v", err)
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
+		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
 	}
 }

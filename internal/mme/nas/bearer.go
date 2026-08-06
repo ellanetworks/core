@@ -53,6 +53,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	}
 
 	if requestESMInformation(ctx, ue, func() {
+		ue.AwaitingESMInformation = false
 		rejectAttachESM(context.Background(), m, ue, eps.ESMCauseESMInformationNotReceived)
 	}) {
 		return
@@ -108,14 +109,19 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		return
 	}
 
-	// The anchor drops a PDU session identity a live session already holds
-	// (TS 23.502 §4.11.1.1 NOTE 5); the connection then cannot move to 5GS.
+	// The anchor drops a PDU session identity a live session already holds; the
+	// connection then cannot be correlated with a PDU session, so it cannot move
+	// to 5GS.
 	if ue.RequestedPDUSessionID != 0 && bearer.PDUSessionID != ue.RequestedPDUSessionID {
 		logger.From(ctx, logger.MmeLog).Warn("PDN connection is not transferable to 5GS: the anchor kept no PDU session identity",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("requested", ue.RequestedPDUSessionID), zap.Uint8("kept", bearer.PDUSessionID))
 	}
 
 	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer)
+
+	if p := m.DefaultPDN(ue); p != nil {
+		m.SetPDNRequestType(ue, p, ue.RequestedType)
+	}
 
 	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
 		zap.String("imsi", ue.IMSI()),
@@ -450,7 +456,17 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 	}
 
 	pco.Containers = append(pco.Containers, snssai)
-	activate.ProtocolConfigurationOptions = &pco
+
+	// TS 24.301 §6.6.1.1: where the extended element is supported end-to-end the
+	// options shall travel in it, and a PDN connection transferred from a PDU
+	// session at inter-system change is one such case. §8.3.6.9 and §8.3.6.15
+	// make the two mutually exclusive.
+	if p.SetupRequestType == eps.RequestTypeHandover {
+		pco.Direction = nas.PCONetworkToMS
+		activate.ExtendedProtocolConfigurationOptions = &pco
+	} else {
+		activate.ProtocolConfigurationOptions = &pco
+	}
 
 	// On an IPv4v6→single-stack downgrade, tell the UE which family was allowed
 	// (#50/#51) so it does not retry the other on this APN (TS 24.301).

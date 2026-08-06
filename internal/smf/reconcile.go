@@ -58,6 +58,10 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	}
 
 	smContext.Mutex.Lock()
+
+	// Deferred before the unlock, so it runs after it: a release started here can
+	// remove a session whose target access never bound.
+	defer func() { s.releaseTransferSource(ctx, smContext) }()
 	defer smContext.Mutex.Unlock()
 
 	if smContext.Tunnel == nil || !smContext.Tunnel.DataPath.Activated {

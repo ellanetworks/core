@@ -416,3 +416,83 @@ func TestPDNConnectivityRequestCarriesIdentityInExtendedPCO(t *testing.T) {
 		t.Errorf("PDU session identity = %d (present %v), want 7", id, ok)
 	}
 }
+
+// TS 24.301 §9.9.3.34 places the ePCO bit at octet 8 bit 8; Rest starts at octet 7.
+func TestUENetworkCapabilityEPCO(t *testing.T) {
+	if (UENetworkCapability{Rest: []byte{0x00, 0x80}}).EPCO() != true {
+		t.Error("EPCO() = false for octet 8 bit 8 set, want true")
+	}
+
+	if (UENetworkCapability{Rest: []byte{0x80, 0x00}}).EPCO() {
+		t.Error("EPCO() = true for the bit set in octet 7, want false")
+	}
+
+	if (UENetworkCapability{Rest: []byte{0x00}}).EPCO() {
+		t.Error("EPCO() = true with no octet 8, want false")
+	}
+}
+
+// §8.3.14.4: the ESM INFORMATION RESPONSE may carry the extended element, which
+// has to survive a round trip like the classic one.
+func TestESMInformationResponseExtendedPCORoundTrip(t *testing.T) {
+	epco := nas.ProtocolConfigurationOptions{
+		Direction:  nas.PCOMSToNetwork,
+		Containers: []nas.PCOContainer{{ID: nas.PCOContainerPDUSessionID, Content: []byte{4}}},
+	}
+
+	apn := APN("internet")
+
+	raw, err := (&ESMInformationResponse{PTI: 2, AccessPointName: &apn, ExtendedProtocolConfigurationOptions: &epco}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := ParseESMInformationResponse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if back.ExtendedProtocolConfigurationOptions == nil {
+		t.Fatal("the extended element did not survive the round trip")
+	}
+
+	id, ok := back.ExtendedProtocolConfigurationOptions.PDUSessionID()
+	if !ok || id != 4 {
+		t.Errorf("PDU session identity = %d (present %v), want 4", id, ok)
+	}
+}
+
+// The extended element carries a two-octet length, so a value above 255 octets
+// frames correctly where the classic one could not (TS 24.008 §10.5.6.3A).
+func TestExtendedPCOFramesAboveOneOctet(t *testing.T) {
+	big := nas.ProtocolConfigurationOptions{
+		Direction:  nas.PCOMSToNetwork,
+		Containers: []nas.PCOContainer{{ID: nas.PCOContainerPDUSessionID, Content: []byte{1}}},
+	}
+
+	// A container length is one octet, so several are needed to pass 255 in total.
+	for range 3 {
+		big.Containers = append(big.Containers, nas.PCOContainer{ID: 0x000C, Content: make([]byte, 200)})
+	}
+
+	raw, err := (&PDNConnectivityRequest{
+		PTI: 1, RequestType: RequestTypeInitialRequest, PDNType: PDNTypeIPv4,
+		ExtendedProtocolConfigurationOptions: &big,
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	back, err := ParsePDNConnectivityRequest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if back.ExtendedProtocolConfigurationOptions == nil {
+		t.Fatal("a value above 255 octets did not survive the round trip")
+	}
+
+	if got := len(back.ExtendedProtocolConfigurationOptions.Containers); got != 4 {
+		t.Errorf("containers = %d, want 4", got)
+	}
+}

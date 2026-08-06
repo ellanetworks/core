@@ -66,6 +66,12 @@ type epsSessionManager interface {
 	// the same (IMSI, EBI).
 	ReleaseEPSSession(ctx context.Context, ref string) error
 
+	// ServesEPS reports whether the session is still on EPS. A transfer to 5GS
+	// leaves the reference valid for the session on the other access, so a
+	// procedure that signals a bearer without otherwise touching the anchor asks
+	// first.
+	ServesEPS(ctx context.Context, ref string) bool
+
 	// FramedRoutesChanged reports whether the subscriber's framed routes for the
 	// PDN connection differ from those installed at establishment, so the
 	// reconciler reactivates the bearer on a change (TS 23.501 §5.6.14).
@@ -253,16 +259,22 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 // UE (TS 24.301 §9.9.3.12A). The IWK N26 indicator is per-UE: it goes only to a
 // UE that supports N1 mode (§5.5.1.2.4, §5.5.3.2.4).
 func (m *MME) NetworkFeatureSupport(ue *UeContext) *eps.NetworkFeatureSupport {
+	return m.NetworkFeatureSupportFor(ue.UeNetCap())
+}
+
+// NetworkFeatureSupportFor computes the advertised feature support from a
+// specific UE network capability, for a procedure that has not stored it yet.
+func (m *MME) NetworkFeatureSupportFor(netCap eps.UENetworkCapability) *eps.NetworkFeatureSupport {
 	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
 	if m.EPSNetworkFeatureSupport != nil {
 		nfs = *m.EPSNetworkFeatureSupport
 	}
 
-	nfs.IWKN26 = models.InterworkingWithoutN26 && ue.UeNetCap().N1Mode()
+	nfs.IWKN26 = models.InterworkingWithoutN26 && netCap.N1Mode()
 
 	// Supporting inter-system change with 5GS obliges the MME to support the
 	// extended element, which it advertises to a UE that does too (§5.5.1.2.4).
-	nfs.EPCO = ue.UeNetCap().EPCO()
+	nfs.EPCO = netCap.EPCO()
 
 	return &nfs
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf/procedure"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -17,6 +18,20 @@ import (
 // ReleaseSmContext tears down a PDU session entirely: releases the IP address,
 // deletes the PFCP session on the UPF, and removes the context from the pool.
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+	// The 5GS entry point: a session moved to EPS keeps this Ref live on the AMF
+	// until the drain runs, so a release arriving there must not act on it.
+	if sc := s.GetSession(smContextRef); sc != nil {
+		if err := sc.servedBy(Access5G); err != nil {
+			return err
+		}
+	}
+
+	return s.releaseSmContext(ctx, smContextRef)
+}
+
+// releaseSmContext is the access-agnostic implementation, for the per-access
+// entry points and for internal teardown that already knows the access.
+func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -34,6 +49,14 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 
 		return nil
 	}
+
+	// A transfer spans several blocking UPF calls; claiming the session keeps a
+	// release from committing against state the move is part-way through.
+	if err := smContext.procedures.Begin(procedure.Release); err != nil {
+		return fmt.Errorf("release session %q: %w", smContextRef, err)
+	}
+
+	defer smContext.procedures.End(procedure.Release)
 
 	smContext.Mutex.Lock()
 

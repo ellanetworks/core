@@ -242,3 +242,45 @@ func TestNewSNSSAIContainer(t *testing.T) {
 		t.Error("NewSNSSAIContainer with a malformed PLMN = nil error, want an error")
 	}
 }
+
+// Container 001AH is reserved network to MS (TS 24.008 §10.5.6.3), and the
+// identity a UE allocates is 1..15 (TS 24.007 §11.2.3.1b).
+func TestPCOPDUSessionIDDirectionAndRange(t *testing.T) {
+	withID := func(dir PCODirection, id byte) ProtocolConfigurationOptions {
+		return ProtocolConfigurationOptions{
+			Direction:  dir,
+			Containers: []PCOContainer{{ID: PCOContainerPDUSessionID, Content: []byte{id}}},
+		}
+	}
+
+	if id, ok := withID(PCOMSToNetwork, 5).PDUSessionID(); !ok || id != 5 {
+		t.Errorf("uplink identity = %d (present %v), want 5", id, ok)
+	}
+
+	if _, ok := withID(PCONetworkToMS, 5).PDUSessionID(); ok {
+		t.Error("a downlink element reported an identity, want none")
+	}
+
+	for _, id := range []byte{0, 16, 255} {
+		if _, ok := withID(PCOMSToNetwork, id).PDUSessionID(); ok {
+			t.Errorf("identity %d reported as present, want it refused", id)
+		}
+	}
+}
+
+// TS 24.501 table 9.11.2.8.1 defines S-NSSAI value lengths 1, 2, 4, 5 and 8.
+func TestNewSNSSAIContainerRejectsOtherLengths(t *testing.T) {
+	plmn := PLMN{MCC: "001", MNC: "01"}
+
+	for _, n := range []int{1, 2, 4, 5, 8} {
+		if _, err := NewSNSSAIContainer(make([]byte, n), plmn); err != nil {
+			t.Errorf("NewSNSSAIContainer(%d octets) = %v, want it accepted", n, err)
+		}
+	}
+
+	for _, n := range []int{0, 3, 6, 7, 9} {
+		if _, err := NewSNSSAIContainer(make([]byte, n), plmn); err == nil {
+			t.Errorf("NewSNSSAIContainer(%d octets) = nil error, want a refusal", n)
+		}
+	}
+}

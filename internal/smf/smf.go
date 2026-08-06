@@ -155,6 +155,10 @@ type MMECallback interface {
 	// SessionTransferred reports a PDN connection moved to 5GS (TS 23.502
 	// §4.11.2.3 step 10). The session and the UE address live on.
 	SessionTransferred(ctx context.Context, imsi string, ebi uint8, ref string)
+
+	// SessionReleased reports a PDN connection whose anchor session the SMF
+	// released, so the MME drops the connection naming it.
+	SessionReleased(ctx context.Context, imsi string, ebi uint8, ref string)
 }
 
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
@@ -201,8 +205,9 @@ type SMF struct {
 
 	seidCounter uint64 // atomic; local SEID allocation
 
-	t3591 time.Duration // network-requested modification command retransmission
-	t3592 time.Duration // network-requested release command retransmission
+	t3591        time.Duration // network-requested modification command retransmission
+	t3592        time.Duration // network-requested release command retransmission
+	transferBind time.Duration // supervision of a transfer's target-access bind
 }
 
 // maxSMProcedureRetransmissions is the number of command retransmissions before
@@ -223,6 +228,10 @@ func WithT3591(d time.Duration) Option { return func(s *SMF) { s.t3591 = d } }
 // WithT3592 overrides the network-requested release retransmission interval.
 func WithT3592(d time.Duration) Option { return func(s *SMF) { s.t3592 = d } }
 
+// WithTransferBindTimeout overrides how long a transfer waits for its target
+// access to bind before the session is released.
+func WithTransferBindTimeout(d time.Duration) Option { return func(s *SMF) { s.transferBind = d } }
+
 // New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
@@ -235,6 +244,9 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		clock: time.Now,
 		t3591: 16 * time.Second, // TS 24.501 table 10.3.2
 		t3592: 16 * time.Second, // TS 24.501 table 10.3.2
+		// The RAN answers a resource setup well inside this; it bounds the window
+		// in which one access still routes a session another owns.
+		transferBind: 30 * time.Second,
 	}
 	for _, o := range opts {
 		o(s)
@@ -389,11 +401,24 @@ func (s *SMF) dropFromPool(sc *SMContext) {
 
 // GetSessionBySEID finds a session by its local PFCP SEID.
 func (s *SMF) GetSessionBySEID(seid uint64) *SMContext {
+	// The pool is snapshotted before the session locks are taken: PFCPContext is
+	// guarded by SMContext.Mutex and nilled by releaseTunnel under it, and the
+	// lock order is session then registry.
 	s.mu.RLock()
-	defer s.mu.RUnlock()
+	sessions := make([]*SMContext, 0, len(s.pool))
 
 	for _, ctx := range s.pool {
-		if ctx.PFCPContext != nil && ctx.PFCPContext.LocalSEID == seid {
+		sessions = append(sessions, ctx)
+	}
+
+	s.mu.RUnlock()
+
+	for _, ctx := range sessions {
+		ctx.Mutex.Lock()
+		match := ctx.PFCPContext != nil && ctx.PFCPContext.LocalSEID == seid
+		ctx.Mutex.Unlock()
+
+		if match {
 			return ctx
 		}
 	}

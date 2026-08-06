@@ -599,6 +599,20 @@ func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *mod
 	return nil
 }
 
+// SmContextRefAndActive returns the SM context's ref and whether its user plane
+// is active, read together so a concurrent SetSmContextInactive cannot split them.
+func (ue *UeContext) SmContextRefAndActive(pduSessionID uint8) (string, bool, bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	sc, ok := ue.SmContextList[pduSessionID]
+	if !ok {
+		return "", false, false
+	}
+
+	return sc.Ref, !sc.PduSessionInactive, true
+}
+
 func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

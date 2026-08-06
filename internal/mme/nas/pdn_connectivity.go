@@ -49,6 +49,17 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
+	// TS 24.301 §6.5.1.6 a): a retransmission carrying a PTI already in use is
+	// answered by resending the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST and
+	// continuing the previous procedure, not by opening a second connection.
+	if prev := m.FindPDNBySetupPTI(ue, uint8(pti)); prev != nil {
+		logger.From(ctx, logger.MmeLog).Info("retransmitted PDN connectivity request; resending the activate",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Uint8("ebi", prev.Ebi))
+		ue.Conn().SendDownlinkNASTransport(ctx, prev.SetupPdu)
+
+		return nasreply.Handled()
+	}
+
 	if ue.EMMState() != mme.EMMRegistered || !ue.Connected() {
 		rejectPDNConnectivity(ctx, ue, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
 		return nasreply.Handled()
@@ -60,9 +71,10 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		apn = string(*req.AccessPointName)
 	}
 
-	if req.ProtocolConfigurationOptions != nil {
-		ue.RequestedPDUSessionID = requestedPDUSessionID(req)
-	}
+	// Assigned unconditionally: the identity may arrive in either container, and
+	// the field otherwise carries the previous request's value into this one.
+	// resumePDNConnectivity re-enters with the deferred value already stored.
+	ue.RequestedPDUSessionID = requestedPDUSessionID(req)
 
 	// The UE may hold the APN and PCO back until the ESM information exchange
 	// (TS 24.301 §6.5.1.2); #53 follows only once T3489 has expired (§6.5.1.6 c).
@@ -70,20 +82,21 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		ue.RequestedAPN = apn
 		ue.RequestedPTI = pti
 		ue.AwaitingESMInformation = true
-		ue.PendingPDN = &mme.PendingPDNConnectivity{
+		ue.SetPendingPDN(&mme.PendingPDNConnectivity{
 			PTI:         uint8(pti),
 			PDNType:     uint8(req.PDNType),
 			RequestType: req.RequestType,
-		}
+		})
 
-		if requestESMInformation(ctx, ue, func() {
-			ue.PendingPDN = nil
+		// The wait was just set, so the request is always issued and the procedure
+		// continues in handleESMInformationResponse.
+		requestESMInformation(ctx, ue, func() {
+			ue.SetPendingPDN(nil)
+			ue.AwaitingESMInformation = false
 			rejectPDNConnectivity(context.Background(), ue, uint8(pti), eps.ESMCauseESMInformationNotReceived)
-		}) {
-			return nasreply.Handled()
-		}
+		})
 
-		ue.PendingPDN = nil
+		return nasreply.Handled()
 	}
 
 	if apn == "" {
@@ -91,10 +104,10 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	// A handover request type names a PDU session the UE holds in 5GS rather than
-	// asking for a second connection to the APN, and TS 23.502 §4.11.2.2 step 13
-	// has the UE move each of them. #55 covers only the case where multiple PDN
-	// connections for an APN are not allowed (TS 24.301 §6.5.1.6 a).
+	// A handover request type names a PDU session the UE holds in 5GS, not a second
+	// connection to the APN, and TS 23.502 §4.11.2.2 step 13 has the UE move each
+	// of them. #55 covers only the case where multiple PDN connections for an APN
+	// are not allowed (TS 24.301 §6.5.1.6 a).
 	if req.RequestType != eps.RequestTypeHandover && m.FindPDNByAPN(ue, apn) != nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: APN already connected",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", apn))
@@ -155,6 +168,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	m.FillBearer(ue, p, qos, bearer)
 
+	m.SetPDNRequestType(ue, p, req.RequestType)
+
 	operator, err := m.Operator(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to read operator configuration", zap.Error(err))
@@ -179,6 +194,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
+	m.RecordPDNSetup(ue, p, uint8(pti), req.RequestType, naspdu)
+
 	logger.From(ctx, logger.MmeLog).Info("opening additional PDN connection",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Uint8("ebi", p.Ebi))
 	sendERABSetup(ctx, m, ue, p, qos, naspdu)
@@ -189,8 +206,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 // resumePDNConnectivity re-runs the standalone request with the APN and PCO the
 // UE deferred (TS 24.301 §6.6.1.2.4).
 func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	pending := ue.PendingPDN
-	ue.PendingPDN = nil
+	pending := ue.TakePendingPDN()
 
 	if pending == nil {
 		return

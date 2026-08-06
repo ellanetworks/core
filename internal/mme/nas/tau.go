@@ -54,7 +54,16 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		reconcileBearerContextStatus(ctx, m, ue, *req.EPSBearerContextStatus)
 	}
 
+	// The accept advertises ePCO and IWK N26 from the capability the UE signalled
+	// in this request (TS 24.301 §5.5.3.2.4), which is stored only once the accept
+	// is built.
+	netCap := ue.UeNetCap()
+	if req.UENetworkCapability != nil {
+		netCap = *req.UENetworkCapability
+	}
+
 	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
+		netCap:              netCap,
 		combined:            isCombinedUpdate(uint8(req.EPSUpdateType)),
 		includeBearerStatus: req.EPSBearerContextStatus != nil,
 	})
@@ -75,7 +84,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 			msNetCap = ue.MsNetCap()
 		}
 
-		ue.SetUESecurityCapability(*req.UENetworkCapability, msNetCap, mme.MintAuthProofForAttachRequest())
+		ue.SetUESecurityCapability(*req.UENetworkCapability, msNetCap, mme.MintAuthProofForTrackingAreaUpdate())
 	}
 
 	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
@@ -185,6 +194,9 @@ func isCombinedUpdate(updateType uint8) bool {
 type tauAcceptOptions struct {
 	combined            bool
 	includeBearerStatus bool
+	// netCap is the capability this TAU carried, which decides the advertised
+	// feature support before the store commits it (TS 24.301 §5.5.3.2.4).
+	netCap eps.UENetworkCapability
 }
 
 // trackingAreaUpdateAccept builds a TRACKING AREA UPDATE ACCEPT with the operator's
@@ -224,7 +236,7 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		TAIList:         &taiList,
 		// Re-advertise IMS voice over PS session so the indication is not lost on a
 		// periodic TAU (TS 24.301), consistent with the Attach Accept.
-		NetworkFeatureSupport: m.NetworkFeatureSupport(ue),
+		NetworkFeatureSupport: m.NetworkFeatureSupportFor(opts.netCap),
 	}
 
 	if opts.combined {

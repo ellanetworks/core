@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -147,5 +148,140 @@ func TestLeaseKeysDistinctAcrossAccesses(t *testing.T) {
 
 	if ids[0] == ids[1] {
 		t.Errorf("both accesses allocated under lease session id %d, want distinct ids", ids[0])
+	}
+}
+
+// TS 24.501 §6.4.1.7 c): an initial request naming an identity already in use
+// locally releases the existing session and proceeds. TS 23.501 §5.17.2.1 makes
+// the identity span both systems, so the released one can be a PDN connection.
+func TestInitialRequestLocallyReleasesThePDNConnectionHoldingTheIdentity(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
+
+	bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeInitialRequest))
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	ref, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext(initial request): %v", err)
+	}
+
+	if rejectN1 != nil {
+		t.Fatalf("initial request rejected with 5GSM cause %s, want the existing session released", rejectCause(t, rejectN1))
+	}
+
+	if ref == bearer.Ref {
+		t.Error("the new session reused the released session's ref")
+	}
+
+	if s.GetSession(bearer.Ref) != nil {
+		t.Error("the PDN connection's session survived the local release")
+	}
+
+	if released := mmeCb.releasedAway(); len(released) != 1 || released[0] != epsTestEBI {
+		t.Errorf("MME told of released connections = %v, want [%d]", released, epsTestEBI)
+	}
+}
+
+// A reference outlives a move, so the per-access entry points refuse a session
+// the other access now serves.
+func TestEPSEntryPointsRefuseASessionMovedTo5GS(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
+
+	bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeInitialRequest))
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err != nil {
+		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
+	}
+
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enbFTEID()); err == nil {
+		t.Error("ModifyEPSSession on a session moved to 5GS = nil error, want a refusal")
+	}
+
+	if err := s.UpdateEPSSessionAMBR(ctx, bearer.Ref, models.MustParseBitRate("1 Mbps"), models.MustParseBitRate("1 Mbps")); err == nil {
+		t.Error("UpdateEPSSessionAMBR on a session moved to 5GS = nil error, want a refusal")
+	}
+
+	if err := s.ReleaseEPSSession(ctx, bearer.Ref); err == nil {
+		t.Error("ReleaseEPSSession on a session moved to 5GS = nil error, want a refusal")
+	}
+
+	if s.ServesEPS(ctx, bearer.Ref) {
+		t.Error("ServesEPS = true for a session moved to 5GS, want false")
+	}
+
+	if s.GetSession(bearer.Ref) == nil {
+		t.Error("an EPS entry point tore down the session after the move")
+	}
+}
+
+// TS 23.501 §5.17.2: a session that moves out and back keeps its address and its
+// single lease, and each access is told once.
+func TestRoundTripKeepsTheAddressAndLease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	sc := s.GetSession(ref)
+
+	sc.Mutex.Lock()
+	ip := sc.PDUIPV4Address.String()
+	sc.Mutex.Unlock()
+
+	// 5GS -> EPS, then bind the eNB so the source release drains.
+	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err != nil {
+		t.Fatalf("CreateEPSSession(handover): %v", err)
+	}
+
+	if err := s.ModifyEPSSession(ctx, ref, enbFTEID()); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	// EPS -> 5GS.
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err != nil {
+		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
+	}
+
+	sc.Mutex.Lock()
+	back := sc.PDUIPV4Address.String()
+	onEPS := sc.IsEPS()
+	sc.Mutex.Unlock()
+
+	if back != ip {
+		t.Errorf("UE address after the round trip = %s, want the original %s", back, ip)
+	}
+
+	if onEPS {
+		t.Error("session is on EPS after moving back to 5GS")
+	}
+
+	if ids := store.allocSessionIDs(); len(ids) != 1 {
+		t.Errorf("lease allocations = %v, want the one from the first establishment", ids)
+	}
+
+	if moved := amfCb.movedAway(); len(moved) != 1 {
+		t.Errorf("AMF told of moved sessions = %v, want exactly one", moved)
 	}
 }

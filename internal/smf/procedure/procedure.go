@@ -24,11 +24,14 @@ var (
 	ErrNotActive     = engine.ErrNotActive
 )
 
-// The procedures tracked for one session. A transfer rewrites the session across
-// several blocking UPF calls, so only one runs at a time.
+// The procedures tracked for one session. Each rewrites the session across
+// blocking UPF calls, and the registry makes them mutually exclusive so one
+// cannot commit against state another is mid-way through changing.
 const (
 	// Transfer moves a session to the other access (TS 23.502 §4.11.2).
 	Transfer Type = "Transfer"
+	// Release tears the session down (TS 23.502 §4.3.4).
+	Release Type = "Release"
 )
 
 func NewRegistry(log *zap.Logger) *Registry { return engine.NewRegistry(log) }

@@ -3,6 +3,8 @@
 
 package smf
 
+import "fmt"
+
 // AccessType is the radio access a session is established over. As the combined
 // SMF+PGW-C (TS 23.501), the SMF keys its 4G/5G differences off it.
 type AccessType uint8
@@ -14,6 +16,21 @@ const (
 
 // IsEPS reports whether the session is a 4G EPS bearer (PGW-C role).
 func (sc *SMContext) IsEPS() bool { return sc.Access == Access4G }
+
+// servedBy reports whether the session is still on the access an entry point
+// speaks for. A transfer leaves the source access holding a live Ref until its
+// target binds, so a request arriving on the access the session left must not
+// act on it. Caller must not hold sc.Mutex.
+func (sc *SMContext) servedBy(access AccessType) error {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if sc.Access != access {
+		return fmt.Errorf("session %q is on %s", sc.Ref, sc.Access)
+	}
+
+	return nil
+}
 
 func (a AccessType) String() string {
 	if a == Access4G {

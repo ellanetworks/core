@@ -160,9 +160,16 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 		return
 	}
 
+	// The QoS/DNS-only path signals the UE without otherwise touching the anchor,
+	// so the access is checked here rather than falling out of an anchor call.
+	if !m.PDNIsCurrent(ue, p) || !m.Session.ServesEPS(ctx, sessionRef) {
+		return
+	}
+
 	logger.From(ctx, ue.Conn().Log).Info("policy/data-network changed; modifying EPS bearer in place",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn),
 		zap.Bool("dns", dnChanged), zap.Bool("session-ambr", ambrChanged), zap.Bool("qos", qosChanged))
+
 	m.modifyBearer(ctx, ue, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
@@ -329,5 +336,15 @@ func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, p *PdnConnectio
 // §6.4.4.2). The request is guarded and retransmitted until the UE answers with
 // DEACTIVATE EPS BEARER CONTEXT ACCEPT.
 func (m *MME) reactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	// The snapshot this decision rests on predates several unlocked DB round
+	// trips, during which a transfer to 5GS can have dropped the connection. Its
+	// SessionRef stays valid for the session on the other access.
+	if !m.PDNIsCurrent(ue, p) {
+		logger.From(ctx, logger.MmeLog).Debug("skipping reactivation of a PDN connection the UE does not hold",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
+
+		return
+	}
+
 	m.DeactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false)
 }

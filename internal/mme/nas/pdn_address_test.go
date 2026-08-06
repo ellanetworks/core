@@ -29,11 +29,13 @@ func wantSnssaiContainer(t *testing.T) nas.PCOContainer {
 	return c
 }
 
-// unprotectDownlink decodes a security-protected downlink NAS PDU sent to ue.
+// unprotectDownlink decodes a security-protected downlink NAS PDU sent to ue,
+// accepting only the ciphered form: once ciphering has started the network sends
+// every message but SECURITY MODE COMMAND ciphered (TS 24.301 §4.4.5).
 func unprotectDownlink(t *testing.T, ue *mme.UeContext, wire []byte) []byte {
 	t.Helper()
 
-	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()), eps.SHTIntegrityProtectedCiphered))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,5 +310,53 @@ func TestAttachAcceptIWKN26FollowsN1ModeSupport(t *testing.T) {
 				t.Errorf("IWK N26 = %v, want %v", accept.NetworkFeatureSupport.IWKN26, tc.want)
 			}
 		})
+	}
+}
+
+// TS 24.301 §6.6.1.1: where the extended element is supported end-to-end the
+// options travel in it, and a PDN connection transferred from a PDU session at
+// inter-system change is such a case. §8.3.6.9/§8.3.6.15 make the two exclusive.
+func TestTransferredBearerCarriesOptionsInExtendedPCO(t *testing.T) {
+	p := &mme.PdnConnection{
+		Ebi:              5,
+		PdnType:          eps.PDNTypeIPv4,
+		UeIP:             netip.MustParseAddr("10.45.0.2"),
+		SetupRequestType: eps.RequestTypeHandover,
+	}
+	qos := &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400, Snssai: testSnssai}
+
+	raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	act, err := eps.ParseActivateDefaultEPSBearerContextRequest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if act.ExtendedProtocolConfigurationOptions == nil {
+		t.Fatal("a transferred connection carried no extended protocol configuration options")
+	}
+
+	if act.ProtocolConfigurationOptions != nil {
+		t.Error("both configuration-options elements are present, want only the extended one")
+	}
+
+	// An initial request keeps the classic element.
+	p.SetupRequestType = eps.RequestTypeInitialRequest
+
+	raw, err = buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	act, err = eps.ParseActivateDefaultEPSBearerContextRequest(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if act.ProtocolConfigurationOptions == nil || act.ExtendedProtocolConfigurationOptions != nil {
+		t.Error("an initial request did not carry the classic protocol configuration options alone")
 	}
 }

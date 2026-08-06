@@ -493,15 +493,13 @@ func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessi
 
 	// TS 23.502 §4.11.2.2 step 14: the N2 release is skipped when the PDU
 	// session's user plane is not active.
-	sc, held := ue.SmContextFindByPDUSessionID(pduSessionID)
+	scRef, upActive, held := ue.SmContextRefAndActive(pduSessionID)
 
 	// A UE that moved the session back to 5GS already has a fresh context under
 	// this identity; only the one the move left behind is dropped.
-	if !held || sc.Ref != ref {
+	if !held || scRef != ref {
 		return
 	}
-
-	upActive := !sc.PduSessionInactive
 
 	// The context goes before the release command: the RAN's release response
 	// resolves the session by this context and would tear down the session the

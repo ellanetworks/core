@@ -23,7 +23,7 @@ func (t AttachType) String() string {
 // fgs.RequestType, whose values TS 24.501 §9.11.3.47 assigns differently.
 type RequestType uint8
 
-// Request type values (TS 24.008 §10.5.6.17, table 10.5.156a). All other values
+// Request type values (TS 24.008 §10.5.6.17, table 10.5.173). All other values
 // are reserved.
 const (
 	RequestTypeInitialRequest                    RequestType = 1
@@ -33,7 +33,7 @@ const (
 	RequestTypeHandoverOfEmergencyBearerServices RequestType = 6
 )
 
-// Served reports whether the value is one table 10.5.156a defines.
+// Served reports whether the value is one table 10.5.173 defines.
 func (t RequestType) Served() bool {
 	switch t {
 	case RequestTypeInitialRequest, RequestTypeHandover, RequestTypeRLOS,

@@ -86,10 +86,16 @@ type SMContext struct {
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
 
-	// pendingSourceRelease names the access a transfer moved the session off,
+	// transferTimer supervises the target access's bind after a transfer. Its
+	// expiry releases the session, so a RAN that never answers cannot leave one
+	// access routing a session another owns. Guarded by Mutex.
+	transferTimer guard.Guard
+
+	// pendingSourceReleases names each access a transfer moved the session off,
 	// held until the target access binds its downlink (TS 23.502 §4.11.2.2
-	// step 14, §4.11.2.3 step 10). Guarded by Mutex.
-	pendingSourceRelease *sourceRelease
+	// step 14, §4.11.2.3 step 10). A round trip taken before the first is dropped
+	// leaves two. Guarded by Mutex.
+	pendingSourceReleases []sourceRelease
 
 	releasing        bool  // guarded by Mutex
 	establishmentPTI uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex

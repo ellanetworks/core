@@ -269,9 +269,9 @@ func (p ProtocolConfigurationOptions) AppendBinary(b []byte) ([]byte, error) {
 		return b, err
 	}
 
-	// The encoder caps at the extended element's maximum; a value bound for the
-	// classic one is bounded further by its own one-octet length, which the
-	// writer enforces when the element is framed.
+	// The encoder caps at the extended element's maximum. Which IE frames the
+	// value is the caller's choice, so the classic element's tighter bound is
+	// enforced by the one-octet length the writer emits for it.
 	if len(out)-len(b) > maxExtendedPCOLen {
 		return b, fmt.Errorf(
 			"nas: protocol configuration options is %d octets, want at most %d", len(out)-len(b), maxExtendedPCOLen)

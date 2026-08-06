@@ -42,3 +42,33 @@ func TestPlainNasAllowed(t *testing.T) {
 		})
 	}
 }
+
+// TS 24.301 §4.4.5 exempts only ATTACH REQUEST and TRACKING AREA UPDATE REQUEST
+// from ciphering once it has started. An ESM message is not an EMM message, so
+// the exemption test must not read it as one.
+func TestCipheringRequiredForESMMessage(t *testing.T) {
+	// PD 0x02 (ESM), EBI 0, PTI 1, ESM INFORMATION RESPONSE.
+	esm := []byte{0x02, 0x01, 0xDA}
+
+	if !cipheringRequiredFor(esm) {
+		t.Error("cipheringRequiredFor(ESM INFORMATION RESPONSE) = false, want true")
+	}
+
+	// PD 0x07 (EMM), ATTACH REQUEST.
+	attach := []byte{0x07, 0x41}
+
+	if cipheringRequiredFor(attach) {
+		t.Error("cipheringRequiredFor(ATTACH REQUEST) = true, want false")
+	}
+
+	tau := []byte{0x07, 0x48}
+
+	if cipheringRequiredFor(tau) {
+		t.Error("cipheringRequiredFor(TRACKING AREA UPDATE REQUEST) = true, want false")
+	}
+
+	// A truncated message cannot be shown exempt, so it requires ciphering.
+	if !cipheringRequiredFor([]byte{0x07}) {
+		t.Error("cipheringRequiredFor(truncated) = false, want true")
+	}
+}

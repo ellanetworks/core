@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
@@ -117,8 +118,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	// Ella Core serves no emergency bearer services (§1), so the anchor holds no
-	// emergency PDU session to transfer (TS 24.501 §6.4.1.7 d).
+	// Ella Core serves no emergency bearer services. An initial emergency request
+	// is refused (TS 24.501 §6.4.1.7 a), and there is no emergency PDU session for
+	// an "existing emergency PDU session" request to name (§6.4.1.7 d).
 	switch requestType {
 	case fgs.RequestTypeInitialEmergencyRequest, fgs.RequestTypeExistingEmergencyPDUSession:
 		establishmentResult = metrics.ResultReject
@@ -137,24 +139,10 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	// (TS 24.501 §6.4.1.7 c); a transfer names that same session
 	// (§6.4.1.2 e)2)ii).
 	if existing := s.currentPDUSession(supi, pduSessionID); existing != nil && !isTransfer {
-		existing.Mutex.Lock()
-		onEPS := existing.IsEPS()
-		existing.Mutex.Unlock()
-
-		// The identity is correlated across both systems (TS 23.501 §5.17.2.1), so
-		// it can name a live PDN connection. Superseding that one would strand the
-		// MME's routing context and the UE's EPS bearer.
-		if onEPS {
-			establishmentResult = metrics.ResultReject
-
-			rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, fgs.GSMCauseInsufficientResources)
-			if buildErr != nil {
-				return "", nil, fmt.Errorf("build identity-in-use refusal failed: %v", buildErr)
-			}
-
-			return "", rsp, fmt.Errorf("PDU session identity %d names a PDN connection on EPS", pduSessionID)
-		}
-
+		// TS 24.501 §6.4.1.7 c) is unconditional: the SMF shall locally release the
+		// session holding the identity and proceed. The identity is correlated
+		// across both systems (TS 23.501 §5.17.2.1), so the one released may be a
+		// PDN connection, and the MME is told so it does not keep naming it.
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
@@ -312,6 +300,13 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 
 	pduSessionType, err := servedPDUSessionType(sessionType)
 	if err != nil {
+		// The move has committed and neither access holds a reference, so nothing
+		// else will release this session.
+		if relErr := s.releaseSmContext(ctx, sc.Ref); relErr != nil {
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a session whose PDU session type could not be reported",
+				zap.Error(relErr), zap.String("smContextRef", sc.Ref))
+		}
+
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseUnknownPDUSessionType)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("%v (build reject failed: %v)", err, buildErr)
@@ -355,8 +350,26 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 }
 
 func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SMContext) {
+	var releasedEBI uint8
+
+	// Deferred before the unlock, so both run after it: the callbacks must not be
+	// entered under the session lock.
+	defer func() {
+		// A superseded session that never bound its target still holds the source
+		// access's routing.
+		s.releaseTransferSource(ctx, smCtxt)
+
+		if releasedEBI != 0 && s.mme != nil {
+			s.mme.SessionReleased(ctx, smCtxt.Supi.IMSI(), releasedEBI, smCtxt.Ref)
+		}
+	}()
+
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
+
+	if smCtxt.IsEPS() {
+		releasedEBI = smCtxt.EBI
+	}
 
 	// Stop the superseded context's outstanding procedure retransmission.
 	smCtxt.stopProcedureTimer()

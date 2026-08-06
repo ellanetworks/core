@@ -5,10 +5,12 @@ package nas
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -30,9 +32,20 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 
 	naspdu, err := ue.ProtectDownlink(esm, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
+		mme.ReportProtectFailure(ctx, ue.Conn(), "ESM Information Request", err)
+
+		// An exhausted downlink COUNT has already released the connection, and the
+		// abort's reject would fail to protect for the same reason. Clear the wait
+		// so no late response resumes a procedure that is over.
+		if errors.Is(err, nas.ErrCountExhausted) {
+			ue.AwaitingESMInformation = false
+			ue.SetPendingPDN(nil)
+
+			return true
+		}
+
 		// Returning with no request sent and no T3489 armed would leave the attach
 		// waiting on ESM information the UE was never asked for.
-		mme.ReportProtectFailure(ctx, ue.Conn(), "ESM Information Request", err)
 		onAbort()
 
 		return true
@@ -56,6 +69,16 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 // resumes the attach. Its PCO replaces any the PDN CONNECTIVITY REQUEST carried
 // (TS 24.301 §6.6.1.2.4).
 func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.ESMInformationResponse) nasreply.Disposition {
+	// TS 24.301 §7.3.2 e): a response naming an assigned or reserved EPS bearer
+	// identity is ignored. §6.6.1.2.3 has the UE set "no EPS bearer identity
+	// assigned".
+	if req.EPSBearerIdentity != 0 {
+		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response with an assigned EPS bearer identity, ignoring",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", uint8(req.EPSBearerIdentity)))
+
+		return nasreply.Handled()
+	}
+
 	// TS 24.301 §7.3.1 e): an unassigned or reserved PTI is ignored, and an
 	// assigned one matching no ongoing transaction draws ESM STATUS #81.
 	pti := uint8(req.PTI)
@@ -69,12 +92,12 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	if !ue.AwaitingESMInformation || pti != uint8(ue.RequestedPTI) {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response for no ongoing transaction",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti), zap.Uint8("pti-in-use", uint8(ue.RequestedPTI)))
-		egress{conn: ue.Conn()}.SendSMStatus(ctx, uint8(eps.ESMCauseInvalidPTIValue))
+		egress{conn: ue.Conn()}.SendSMStatusFor(ctx, uint8(eps.ESMCauseInvalidPTIValue), pti, uint8(req.EPSBearerIdentity))
 
 		return nasreply.Handled()
 	}
 
-	ue.Conn().StopNASGuard()
+	ue.Conn().StopESMInfoGuard()
 	ue.AwaitingESMInformation = false
 
 	if req.AccessPointName != nil {
@@ -90,7 +113,7 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
 
-	if ue.PendingPDN != nil {
+	if ue.PendingPDNSet() {
 		resumePDNConnectivity(ctx, m, ue)
 
 		return nasreply.Handled()

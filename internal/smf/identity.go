@@ -45,7 +45,7 @@ func (id SessionIdentity) sessionKeys() []uint8 {
 	return keys
 }
 
-// EPS bearer identities 1..4 are refused: TS 24.301 §5.5.1.2.x NOTE 2 has them
+// EPS bearer identities 1..4 are refused: TS 24.301 §6.5.0 NOTE 2 has them
 // treated as reserved by a UE or network not supporting 15 bearer contexts, and
 // this core does not (§9.3.2).
 func (id SessionIdentity) valid() bool {

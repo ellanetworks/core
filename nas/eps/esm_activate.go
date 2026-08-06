@@ -25,6 +25,11 @@ type ActivateDefaultEPSBearerContextRequest struct {
 	// ProtocolConfigurationOptions carries the network-to-UE PCO value (e.g. DNS
 	// server addresses), encoded as the PCO TLV optional IE (IEI 0x27).
 	ProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
+	// ExtendedProtocolConfigurationOptions carries the same content under a
+	// two-octet length (IEI 0x7B, TS 24.301 §8.3.6.15). §8.3.6.9 conditions the
+	// classic element on the extended one not being supported end-to-end, so at
+	// most one of the two is present.
+	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -40,6 +45,7 @@ var activateDefaultEPSBearerContextRequestIEs = []nas.OptionalIE{
 	{IEI: ieiAPNAMBR, Format: nas.IETLV, Name: "APN-AMBR"},
 	{IEI: ieiESMCause, Format: nas.IETV3, Len: 1, Name: "ESM cause"},
 	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
+	{IEI: ieiExtendedProtocolConfigurationOptions, Format: nas.IETLVE, Name: "Extended protocol configuration options"},
 }
 
 // AppendBinary encodes the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST message.
@@ -90,6 +96,15 @@ func (m *ActivateDefaultEPSBearerContextRequest) AppendBinary(b []byte) ([]byte,
 		}
 
 		o.TLV(ieiProtocolConfigurationOptions, raw)
+	}
+
+	if m.ExtendedProtocolConfigurationOptions != nil {
+		raw, err := m.ExtendedProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiExtendedProtocolConfigurationOptions, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -166,6 +181,13 @@ func ParseActivateDefaultEPSBearerContextRequest(b []byte) (*ActivateDefaultEPSB
 			}
 
 			m.ProtocolConfigurationOptions = &parsed
+		case ieiExtendedProtocolConfigurationOptions:
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCONetworkToMS)
+			if err != nil {
+				return false, err
+			}
+
+			m.ExtendedProtocolConfigurationOptions = &parsed
 		default:
 			return false, nil
 		}

@@ -125,6 +125,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedPDUSessionID = 0
 	ue.RequestedType = eps.RequestTypeInitialRequest
 	ue.AwaitingESMInformation = false
+	ue.SetPendingPDN(nil)
 
 	// A syntactically incorrect optional element leaves the rest of the message
 	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the

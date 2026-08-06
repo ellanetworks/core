@@ -16,6 +16,18 @@ import (
 // DeactivateSmContext switches the downlink FAR to buffering when the UE goes
 // idle, via a PFCP session modification.
 func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
+	// The 5GS entry point; see ReleaseSmContext.
+	if sc := s.GetSession(smContextRef); sc != nil {
+		if err := sc.servedBy(Access5G); err != nil {
+			return err
+		}
+	}
+
+	return s.deactivateSmContext(ctx, smContextRef)
+}
+
+// deactivateSmContext is the access-agnostic implementation.
+func (s *SMF) deactivateSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(

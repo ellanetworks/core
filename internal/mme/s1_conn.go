@@ -105,6 +105,12 @@ type UeConn struct {
 	// nasGuardName is the EMM procedure the guard currently supervises, for the status
 	// export. Set at arm and cleared at stop under m.mu, so a plain string suffices.
 	nasGuardName string
+	// esmInfoGuard supervises the ESM information request procedure (T3489). It is
+	// its own slot because the procedure runs before any PDN connection exists, so
+	// it has no per-bearer guard, and it must not displace an EMM procedure: the
+	// standalone path runs on an EMM-REGISTERED UE where a T3450 can be in flight.
+	esmInfoGuard guard.Guard
+
 	// releaseGuard supervises a sent UE Context Release Command: armed when the command
 	// is sent, stopped on the Release Complete; a lost Complete fires it once and runs
 	// the EMMState-keyed local cleanup so the UeConn + M-TMSI cannot leak.

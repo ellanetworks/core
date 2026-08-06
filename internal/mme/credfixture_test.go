@@ -138,6 +138,8 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string) er
 	return nil
 }
 
+func (f *fakeSessionManager) ServesEPS(_ context.Context, _ string) bool { return true }
+
 func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
 	return f.framedChanged, f.framedErr
 }

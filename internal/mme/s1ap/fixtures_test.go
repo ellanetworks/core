@@ -111,6 +111,8 @@ type fakeSessionManager struct {
 	deactivated bool
 }
 
+func (f *fakeSessionManager) ServesEPS(_ context.Context, _ string) bool { return true }
+
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
 	f.lastRequest = req
 

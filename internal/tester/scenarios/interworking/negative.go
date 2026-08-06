@@ -14,8 +14,8 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// mismatchDNN is a second data network the subscriber is entitled to, used to
-// ask for a transfer onto a data network the session is not on.
+// mismatchDNN is a second data network the subscriber is entitled to, so a
+// transfer can name a data network the session is not on.
 const (
 	mismatchDNN = "enterprise"
 
