@@ -42,7 +42,19 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	if requestESMInformation(ctx, m, ue) {
+	// A reserved request type value names no procedure this core can run
+	// (TS 24.008 table 10.5.156a, TS 24.301 §7.5.3 a).
+	if ue.RequestedType != 0 && !ue.RequestedType.Served() {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: reserved request type",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("request-type", uint8(ue.RequestedType)))
+		rejectAttachESM(ctx, m, ue, eps.ESMCauseInvalidMandatoryInfo)
+
+		return
+	}
+
+	if requestESMInformation(ctx, ue, func() {
+		rejectAttachESM(context.Background(), m, ue, eps.ESMCauseESMInformationNotReceived)
+	}) {
 		return
 	}
 
@@ -94,6 +106,13 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		rejectAttachESM(ctx, m, ue, sessionSetupESMCause(bearer))
 
 		return
+	}
+
+	// The anchor drops a PDU session identity a live session already holds
+	// (TS 23.502 §4.11.1.1 NOTE 5); the connection then cannot move to 5GS.
+	if ue.RequestedPDUSessionID != 0 && bearer.PDUSessionID != ue.RequestedPDUSessionID {
+		logger.From(ctx, logger.MmeLog).Warn("PDN connection is not transferable to 5GS: the anchor kept no PDU session identity",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("requested", ue.RequestedPDUSessionID), zap.Uint8("kept", bearer.PDUSessionID))
 	}
 
 	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer)

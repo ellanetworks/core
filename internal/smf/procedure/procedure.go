@@ -24,8 +24,8 @@ var (
 	ErrNotActive     = engine.ErrNotActive
 )
 
-// The procedures tracked for one session. They are mutually exclusive: each
-// rewrites the session across several blocking UPF calls.
+// The procedures tracked for one session. A transfer rewrites the session across
+// several blocking UPF calls, so only one runs at a time.
 const (
 	// Transfer moves a session to the other access (TS 23.502 §4.11.2).
 	Transfer Type = "Transfer"

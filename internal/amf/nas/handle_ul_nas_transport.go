@@ -119,11 +119,14 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	requestType := ulNasTransport.RequestType
 
-	if requestType != nil && *requestType == fgs.RequestTypeInitialEmergencyRequest {
-		logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
-		sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
+	if requestType != nil {
+		switch *requestType {
+		case fgs.RequestTypeInitialEmergencyRequest, fgs.RequestTypeExistingEmergencyPDUSession:
+			logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
+			sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
 
-		return
+			return
+		}
 	}
 
 	smContext, smContextExist := ue.SmContextFindByPDUSessionID(uint8(pduSessionID))
@@ -134,9 +137,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// A UE moving from EPS transfers each PDN connection with an establishment
 	// request for a session the AMF holds no routing context for
 	// (TS 23.502 §4.11.2.3 step 9).
-	isExistingSession := requestType != nil &&
-		(*requestType == fgs.RequestTypeExistingPDUSession ||
-			*requestType == fgs.RequestTypeExistingEmergencyPDUSession)
+	isExistingSession := requestType != nil && *requestType == fgs.RequestTypeExistingPDUSession
 
 	// Duplicate PDU session ID: an initial request for an active session locally
 	// releases it and re-establishes (TS 24.501).

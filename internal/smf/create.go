@@ -117,12 +117,44 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	isTransfer := requestType == fgs.RequestTypeExistingPDUSession ||
-		requestType == fgs.RequestTypeExistingEmergencyPDUSession
+	// Ella Core serves no emergency bearer services (§1), so the anchor holds no
+	// emergency PDU session to transfer (TS 24.501 §6.4.1.7 d).
+	switch requestType {
+	case fgs.RequestTypeInitialEmergencyRequest, fgs.RequestTypeExistingEmergencyPDUSession:
+		establishmentResult = metrics.ResultReject
 
-	// TS 24.501 §6.4.1.7 c): an initial request supersedes the session holding
-	// the identity; a transfer names that same session.
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, fgs.GSMCausePDUSessionDoesNotExist)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("build emergency refusal failed: %v", buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("request type %v is not served", requestType)
+	}
+
+	isTransfer := requestType == fgs.RequestTypeExistingPDUSession
+
+	// An initial request supersedes the session holding the identity
+	// (TS 24.501 §6.4.1.7 c); a transfer names that same session
+	// (§6.4.1.2 e)2)ii).
 	if existing := s.currentPDUSession(supi, pduSessionID); existing != nil && !isTransfer {
+		existing.Mutex.Lock()
+		onEPS := existing.IsEPS()
+		existing.Mutex.Unlock()
+
+		// The identity is correlated across both systems (TS 23.501 §5.17.2.1), so
+		// it can name a live PDN connection. Superseding that one would strand the
+		// MME's routing context and the UE's EPS bearer.
+		if onEPS {
+			establishmentResult = metrics.ResultReject
+
+			rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, fgs.GSMCauseInsufficientResources)
+			if buildErr != nil {
+				return "", nil, fmt.Errorf("build identity-in-use refusal failed: %v", buildErr)
+			}
+
+			return "", rsp, fmt.Errorf("PDU session identity %d names a PDN connection on EPS", pduSessionID)
+		}
+
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
@@ -246,7 +278,7 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 
 	sc, err := s.findTransferable(supi, pduSessionID, transfer)
 	if err != nil {
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCausePDUSessionDoesNotExist)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, transfer5GSMCause(err))
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("%v (build reject failed: %v)", err, buildErr)
 		}
@@ -256,7 +288,8 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 
 	pco, err := parsePDUSessionRequest(req)
 	if err != nil {
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseRequestRejectedUnspecified)
+		// The only failure is a PDU session type outside the modelled range.
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseUnknownPDUSessionType)
 		if buildErr != nil {
 			return "", nil, fmt.Errorf("parse PDU session request failed: %v (build reject failed: %v)", err, buildErr)
 		}
@@ -277,7 +310,7 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 	sessionType := sc.PDUSessionType
 	sc.Mutex.Unlock()
 
-	pduSessionType, err := pduSessionTypeFor(sessionType)
+	pduSessionType, err := servedPDUSessionType(sessionType)
 	if err != nil {
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseUnknownPDUSessionType)
 		if buildErr != nil {
@@ -295,7 +328,7 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 	}
 	sc.Mutex.Unlock()
 
-	// TS 24.501 §6.4.1.3: the UE learns which family the transferred session has.
+	// The UE learns which family the transferred session has.
 	var cause *fgs.GSMCause
 
 	requestedType := fgs.PDUSessionTypeIPv4
@@ -403,11 +436,33 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	)
 	defer span.End()
 
+	// A transfer rewrites the access, the slice and the tunnel, so the message
+	// content is taken in one critical section. The AMF call below is made
+	// outside it.
 	smContext.Mutex.Lock()
 	smContext.establishmentPTI = pti
+
+	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || smContext.Tunnel.DataPath.UpLinkTunnel == nil {
+		smContext.Mutex.Unlock()
+
+		return fmt.Errorf("session %q has no uplink tunnel", smContext.Ref)
+	}
+
+	var (
+		supi         = smContext.Supi
+		pduSessionID = smContext.PDUSessionID
+		snssai       = smContext.Snssai
+		dnn          = smContext.Dnn
+		ngapPDUType  = nasToNgapPDUSessionType(smContext.PDUSessionType)
+		ul           = smContext.Tunnel.DataPath.UpLinkTunnel
+		ulTEID       = ul.TEID
+		ulN3IPv4     = ul.N3IPv4
+		ulN3IPv6     = ul.N3IPv6
+	)
+
 	smContext.Mutex.Unlock()
 
-	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
+	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, pduSessionID, pti, snssai, dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session establishment accept")
@@ -415,9 +470,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
 
-	ngapPDUType := nasToNgapPDUSessionType(smContext.PDUSessionType)
-
-	n2Msg, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, ngapPDUType)
+	n2Msg, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, ulTEID, ulN3IPv4, ulN3IPv6, ngapPDUType)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
@@ -427,7 +480,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 
 	smContext.SetPolicyData(policy)
 
-	err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
+	err = s.amf.TransferN1N2(ctx, supi, pduSessionID, snssai, n1Msg, n2Msg)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to transfer N1N2 message")

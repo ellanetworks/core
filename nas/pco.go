@@ -33,8 +33,13 @@ const (
 // connection, and whether the element carried one. A container whose content is
 // not the single octet TS 24.007 §11.2.3.1b defines reports absent.
 func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
+	// 001AH is reserved in the network-to-MS direction (TS 24.008 §10.5.6.3).
+	if p.Direction != PCOMSToNetwork {
+		return 0, false
+	}
+
 	for _, c := range p.Containers {
-		if c.ID == PCOContainerPDUSessionID && len(c.Content) == 1 {
+		if c.ID == PCOContainerPDUSessionID && len(c.Content) == 1 && c.Content[0] >= 1 && c.Content[0] <= 15 {
 			return c.Content[0], true
 		}
 	}
@@ -46,8 +51,10 @@ func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 // §10.5.6.3): the value part of an S-NSSAI information element (TS 24.501
 // §9.11.2.8) followed by one PLMN identity encoded as in §10.5.5.36.
 func NewSNSSAIContainer(snssaiValue []byte, plmn PLMN) (PCOContainer, error) {
-	if len(snssaiValue) == 0 {
-		return PCOContainer{}, fmt.Errorf("nas: S-NSSAI container: empty S-NSSAI value")
+	switch len(snssaiValue) {
+	case 1, 2, 4, 5, 8:
+	default:
+		return PCOContainer{}, fmt.Errorf("nas: S-NSSAI container: S-NSSAI value is %d octets, want 1, 2, 4, 5 or 8", len(snssaiValue))
 	}
 
 	octets, err := plmn.Octets()

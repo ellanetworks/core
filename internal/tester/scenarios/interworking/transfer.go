@@ -4,10 +4,12 @@
 package interworking
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/probe"
@@ -15,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -97,6 +100,36 @@ func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 	return nil
 }
 
+// checkSNSSAIContainer verifies the S-NSSAI the network returned for the PDN
+// connection: the value part of an S-NSSAI IE followed by the PLMN it relates to
+// (TS 24.008 §10.5.6.3 container 001BH, TS 24.501 §9.11.2.8).
+func checkSNSSAIContainer(content []byte) error {
+	if len(content) == 0 {
+		return fmt.Errorf("the network returned no S-NSSAI container, so the connection cannot be mapped to a slice in 5GS")
+	}
+
+	ie, err := (models.Snssai{Sst: scenarios.DefaultSST, Sd: scenarios.DefaultSD}).NAS()
+	if err != nil {
+		return err
+	}
+
+	value, err := ie.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	want, err := nas.NewSNSSAIContainer(value, nas.PLMN{MCC: scenarios.DefaultMCC, MNC: scenarios.DefaultMNC})
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(content, want.Content) {
+		return fmt.Errorf("S-NSSAI container = %x, want %x", content, want.Content)
+	}
+
+	return nil
+}
+
 // TS 23.502 §4.11.2.3 step 9.
 func runEPSTo5GS(ctx context.Context, env scenarios.Env) error {
 	gNodeB, err := startGNB(env)
@@ -127,6 +160,10 @@ func runEPSTo5GS(ctx context.Context, env scenarios.Env) error {
 
 	if res.UEIPv4 == "" {
 		return fmt.Errorf("EPS attach assigned no address")
+	}
+
+	if err := checkSNSSAIContainer(res.SNSSAIContainer); err != nil {
+		return err
 	}
 
 	if err := pingOverS1U(ctx, e, res, "iw4g1"); err != nil {

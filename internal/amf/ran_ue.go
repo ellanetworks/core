@@ -98,6 +98,11 @@ type UeConn struct {
 	resyncTried bool
 
 	RegistrationRequest *fgs.RegistrationRequest
+	// RegistrationRequestProtected records whether the stored request arrived
+	// integrity protected. A UE whose initial message was cleartext-only has to
+	// repeat it in the NAS message container of SECURITY MODE COMPLETE
+	// (TS 24.501 §4.4.6), so the stored one carries no authenticated IEs.
+	RegistrationRequestProtected bool
 	// RegistrationRequestPlain is compared byte-for-byte for duplicate detection
 	// (TS 24.501 §5.5.1.2.8), immune to the decoder dropping IEs it does not model.
 	RegistrationRequestPlain        []byte

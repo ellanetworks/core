@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -28,6 +29,10 @@ type AttachResult struct {
 	// PDNType is the PDN type negotiated for the default bearer in the Attach
 	// Accept (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
 	PDNType eps.PDNType
+
+	// SNSSAIContainer is the raw 001BH container value the network returned: the
+	// S-NSSAI followed by the PLMN identity it relates to. Nil when absent.
+	SNSSAIContainer []byte
 
 	// QCI is the default bearer's QoS Class Identifier from the Activate Default
 	// EPS Bearer Context Request (TS 24.301 §9.9.4.3, octet 1 of the EPS QoS IE).
@@ -63,9 +68,18 @@ type AttachResult struct {
 	DLTEID     uint32 // eNB downlink TEID reported to the MME
 }
 
-// Attach drives a full EPS attach for ue (TS 24.301 §5.5.1.2), returning once
-// Attach Complete is sent.
-func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
+// attachSession is an attach in progress, from the Initial UE Message through
+// the security mode procedure.
+type attachSession struct {
+	enbUEID           int64
+	mmeUEID           int64
+	identityRequested bool
+}
+
+// authenticateAttach drives an attach from the Initial UE Message through
+// SECURITY MODE COMPLETE (TS 24.301 §5.5.1.2). From that point the network
+// either accepts the attach or rejects its ESM procedure.
+func (e *ENB) authenticateAttach(ue *UE, timeout time.Duration) (*attachSession, error) {
 	enbUEID := e.AllocateENBUEID()
 
 	attachReq, err := ue.buildAttachRequest()
@@ -134,6 +148,19 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, smcComplete); err != nil {
 		return nil, err
 	}
+
+	return &attachSession{enbUEID: enbUEID, mmeUEID: mmeUEID, identityRequested: identityRequested}, nil
+}
+
+// Attach drives a full EPS attach for ue (TS 24.301 §5.5.1.2), returning once
+// Attach Complete is sent.
+func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
+	session, err := e.authenticateAttach(ue, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	enbUEID, mmeUEID, identityRequested := session.enbUEID, session.mmeUEID, session.identityRequested
 
 	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
@@ -204,6 +231,17 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		res.QCI = act.EPSQoS.QCI
 
 		res.APN = string(act.AccessPointName)
+
+		// The network returns the S-NSSAI the PDN connection maps to, which the UE
+		// stores against its PDU session identity to move the connection to 5GS
+		// (TS 24.008 §10.5.6.3 container 001BH, TS 24.501 §6.1.4.2).
+		if act.ProtocolConfigurationOptions != nil {
+			for _, c := range act.ProtocolConfigurationOptions.Containers {
+				if c.ID == nas.PCOContainerSNSSAI {
+					res.SNSSAIContainer = append([]byte(nil), c.Content...)
+				}
+			}
+		}
 
 		if act.APNAMBR != nil {
 			dlKbps, ulKbps, _ := act.APNAMBR.Kbps()

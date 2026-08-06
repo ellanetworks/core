@@ -33,6 +33,17 @@ const (
 	RequestTypeHandoverOfEmergencyBearerServices RequestType = 6
 )
 
+// Served reports whether the value is one table 10.5.156a defines.
+func (t RequestType) Served() bool {
+	switch t {
+	case RequestTypeInitialRequest, RequestTypeHandover, RequestTypeRLOS,
+		RequestTypeEmergency, RequestTypeHandoverOfEmergencyBearerServices:
+		return true
+	}
+
+	return false
+}
+
 func (t RequestType) String() string {
 	return enumString(uint8(t), map[uint8]string{
 		uint8(RequestTypeInitialRequest):                    "Initial request",

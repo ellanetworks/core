@@ -36,6 +36,11 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	}
 
 	smContext.Mutex.Lock()
+
+	// Deferred before the unlock, so it runs after it. A session released before
+	// its target access bound the downlink still has to drop the routing the
+	// source access holds.
+	defer func() { s.releaseTransferSource(ctx, smContext) }()
 	defer smContext.Mutex.Unlock()
 
 	// Stop any outstanding network-requested procedure retransmission so it does

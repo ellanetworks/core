@@ -110,6 +110,10 @@ type EPSBearer struct {
 	// ESMCause, when non-zero, is the reason the assigned PDN type is narrower
 	// than requested (#50 IPv4-only / #51 IPv6-only allowed, TS 24.301 §6.5.1.3).
 	ESMCause eps.ESMCause
+	// PDUSessionID is the identity the anchor kept for the connection, 0 when it
+	// kept none. A connection without one cannot be correlated with a PDU session,
+	// so it is not transferable to 5GS.
+	PDUSessionID uint8
 }
 
 // FAR describes a Forwarding Action Rule for the UPF session API.

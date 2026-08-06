@@ -99,13 +99,15 @@ func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 // SessionTransferred drops the PDN connection the UE moved to 5GS, freeing its
 // EPS bearer identity and leaving the session anchored (TS 23.502 §4.11.2.3
 // step 10).
-func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8) {
+func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, ref string) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return
 	}
 
-	m.DropPDN(ue, ebi)
+	if !m.DropPDNRef(ue, ebi, ref) {
+		return
+	}
 
 	logger.From(ctx, logger.MmeLog).Info("dropped PDN connection moved to 5GS",
 		zap.String("imsi", imsi), zap.Uint8("ebi", ebi))
@@ -121,9 +123,7 @@ func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8) {
 		return
 	}
 
-	// No NAS PDU: TS 23.502 §4.11.2.3 step 10 excepts the deactivation toward the
-	// UE.
-	if ue.Connected() {
-		m.sendERABRelease(ctx, ue, &PdnConnection{Ebi: ebi}, nil)
-	}
+	// TS 23.502 §4.11.2.3 step 10 excludes steps 4-7 of TS 23.401 §5.4.4.1, and
+	// step 4c is the S1-AP Deactivate Bearer Request. The EPS bearer state
+	// resynchronises at the next ECM-IDLE to ECM-CONNECTED transition.
 }

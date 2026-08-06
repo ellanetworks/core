@@ -342,7 +342,7 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 	return f.err
 }
 
-func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionID uint8, n2Release []byte) {
+func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionID uint8, _ string, n2Release []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -368,7 +368,7 @@ type fakeMME struct {
 	err             error
 }
 
-func (f *fakeMME) SessionTransferred(_ context.Context, _ string, ebi uint8) {
+func (f *fakeMME) SessionTransferred(_ context.Context, _ string, ebi uint8, _ string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

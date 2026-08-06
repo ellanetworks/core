@@ -37,6 +37,7 @@ var canonicalValues = map[uint8][]byte{
 	ieiIMEISVRequest:                 {0x01},
 	ieiLocalTimeZone:                 {0x00},
 	ieiMICOIndication:                {0x01},
+	ieiUEStatus:                      {0x01},
 	ieiNASMessageContainer:           {uint8(EPD5GMM), 0x00, uint8(MsgRegistrationRequest), 0x01, 0x00, 0x01, 0x00},
 	ieiNetworkDaylightSavingTime:     {0x00},
 	ieiNon3GppDeregTimer:             {0x21},
@@ -133,7 +134,7 @@ func canonicalCases(t *testing.T) []canonicalCase {
 		{
 			name:  "RegistrationRequest (TS 24.501 §8.2.6)",
 			bare:  &RegistrationRequest{},
-			order: []canonicalIE{{ieiGMMCapability, nas.IETLV}, {ieiUESecurityCapability, nas.IETLV}, {ieiRequestedNSSAI, nas.IETLV}, {ieiUplinkDataStatus, nas.IETLV}, {ieiPDUSessionStatus, nas.IETLV}, {ieiMICOIndication, nas.IETV1}, {ieiAllowedPDUSessionStatus, nas.IETLV}, {ieiRequestedDRXParameters, nas.IETLV}, {ieiUpdateType5GS, nas.IETLV}, {ieiNASMessageContainer, nas.IETLVE}},
+			order: []canonicalIE{{ieiGMMCapability, nas.IETLV}, {ieiUESecurityCapability, nas.IETLV}, {ieiRequestedNSSAI, nas.IETLV}, {ieiUplinkDataStatus, nas.IETLV}, {ieiPDUSessionStatus, nas.IETLV}, {ieiMICOIndication, nas.IETV1}, {ieiUEStatus, nas.IETLV}, {ieiAllowedPDUSessionStatus, nas.IETLV}, {ieiRequestedDRXParameters, nas.IETLV}, {ieiUpdateType5GS, nas.IETLV}, {ieiNASMessageContainer, nas.IETLVE}},
 		},
 		{
 			name:   "RegistrationAccept (TS 24.501 §8.2.7)",

@@ -204,7 +204,19 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
+	bound := false
+
 	smContext.Mutex.Lock()
+
+	// Deferred before the unlock, so it runs after it: the AMF and MME callbacks
+	// must not be entered under the session lock.
+	defer func() {
+		if bound {
+			// The gNB downlink is bound, so the access the session came from can
+			// stop routing it (TS 23.502 §4.11.2.3 step 10).
+			s.releaseTransferSource(ctx, smContext)
+		}
+	}()
 	defer smContext.Mutex.Unlock()
 
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
@@ -243,6 +255,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+	bound = true
 
 	return nil
 }
@@ -302,7 +316,7 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.
 func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error {
-	_, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -322,7 +336,23 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	return handlePDUSessionResourceSetupUnsuccessfulTransfer(n2Data)
+	err := handlePDUSessionResourceSetupUnsuccessfulTransfer(n2Data)
+
+	// A transfer whose target access never bound its downlink leaves the session
+	// reachable from neither access, so it is released and the UE re-establishes.
+	// The release also drops the routing the source access still holds.
+	smContext.Mutex.Lock()
+	moved := smContext.pendingSourceRelease != nil
+	smContext.Mutex.Unlock()
+
+	if moved {
+		if relErr := s.ReleaseSmContext(ctx, smContextRef); relErr != nil {
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a transferred session whose target access setup failed",
+				zap.Error(relErr), zap.String("smContextRef", smContextRef))
+		}
+	}
+
+	return err
 }
 
 func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {

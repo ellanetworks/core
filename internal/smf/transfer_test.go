@@ -6,6 +6,8 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"net"
+	"net/netip"
 	"sync"
 	"testing"
 
@@ -14,6 +16,11 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
+
+// enbFTEID is the S1-U endpoint an eNB reports once the default bearer is up.
+func enbFTEID() models.FTEID {
+	return models.FTEID{TEID: 0x7001, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 4})}
+}
 
 // transferTestPDUSessionID is the identity buildPDUSessionEstRequest names.
 const transferTestPDUSessionID uint8 = 1
@@ -88,31 +95,43 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 		t.Errorf("S-GW S1-U TEID = %#x, want the anchor's uplink TEID %#x", bearer.SGW.TEID, ulTEID)
 	}
 
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
+	func() {
+		sc.Mutex.Lock()
+		defer sc.Mutex.Unlock()
 
-	if !sc.IsEPS() {
-		t.Error("session is still on 5GS after the transfer")
-	}
+		if !sc.IsEPS() {
+			t.Error("session is still on 5GS after the transfer")
+		}
 
-	if sc.EBI != epsTestEBI || sc.PDUSessionID != transferTestPDUSessionID {
-		t.Errorf("identity = ebi %d pdu-session-id %d, want %d and %d", sc.EBI, sc.PDUSessionID, epsTestEBI, transferTestPDUSessionID)
-	}
+		if sc.EBI != epsTestEBI || sc.PDUSessionID != transferTestPDUSessionID {
+			t.Errorf("identity = ebi %d pdu-session-id %d, want %d and %d", sc.EBI, sc.PDUSessionID, epsTestEBI, transferTestPDUSessionID)
+		}
 
-	if sc.PFCPContext.LocalSEID != seid {
-		t.Errorf("SEID = %d, want it preserved at %d", sc.PFCPContext.LocalSEID, seid)
-	}
+		if sc.PFCPContext.LocalSEID != seid {
+			t.Errorf("SEID = %d, want it preserved at %d", sc.PFCPContext.LocalSEID, seid)
+		}
 
-	if sc.Tunnel.DataPath.UpLinkTunnel.TEID != ulTEID {
-		t.Errorf("uplink TEID = %#x, want it preserved at %#x", sc.Tunnel.DataPath.UpLinkTunnel.TEID, ulTEID)
-	}
+		if sc.Tunnel.DataPath.UpLinkTunnel.TEID != ulTEID {
+			t.Errorf("uplink TEID = %#x, want it preserved at %#x", sc.Tunnel.DataPath.UpLinkTunnel.TEID, ulTEID)
+		}
 
-	if sc.PolicyData == nil || sc.PolicyData.Ambr.Uplink.Bps() == 0 {
-		t.Error("transferred session has no policy from the target access")
-	}
+		if sc.PolicyData == nil || sc.PolicyData.Ambr.Uplink.Bps() == 0 {
+			t.Error("transferred session has no policy from the target access")
+		}
+	}()
 
 	if ids := store.allocSessionIDs(); len(ids) != 1 {
 		t.Errorf("lease allocations = %v, want the one from the 5GS establishment", ids)
+	}
+
+	// TS 23.502 §4.11.2.2: step 14 follows step 13, so 5GS still routes the
+	// session until the eNB downlink is bound.
+	if moved := amfCb.movedAway(); len(moved) != 0 {
+		t.Errorf("AMF told of moved sessions before the eNB bind = %v, want none", moved)
+	}
+
+	if err := s.ModifyEPSSession(ctx, sc.Ref, enbFTEID()); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
 	if moved := amfCb.movedAway(); len(moved) != 1 || moved[0] != transferTestPDUSessionID {
@@ -178,36 +197,52 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 		t.Errorf("SM context ref = %q, want the EPS session's %q", ref, bearer.Ref)
 	}
 
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
+	func() {
+		sc.Mutex.Lock()
+		defer sc.Mutex.Unlock()
 
-	if sc.IsEPS() {
-		t.Error("session is still on EPS after the transfer")
-	}
+		if sc.IsEPS() {
+			t.Error("session is still on EPS after the transfer")
+		}
 
-	if sc.EBI != 0 {
-		t.Errorf("EBI = %d, want it given up with the PDN connection", sc.EBI)
-	}
+		if sc.EBI != 0 {
+			t.Errorf("EBI = %d, want it given up with the PDN connection", sc.EBI)
+		}
 
-	if sc.PDUSessionID != transferTestPDUSessionID {
-		t.Errorf("PDU session id = %d, want %d", sc.PDUSessionID, transferTestPDUSessionID)
-	}
+		if sc.PDUSessionID != transferTestPDUSessionID {
+			t.Errorf("PDU session id = %d, want %d", sc.PDUSessionID, transferTestPDUSessionID)
+		}
 
-	if sc.PDUIPV4Address.String() != ip {
-		t.Errorf("UE address = %s, want the one it held on EPS, %s", sc.PDUIPV4Address, ip)
-	}
+		if sc.PDUIPV4Address.String() != ip {
+			t.Errorf("UE address = %s, want the one it held on EPS, %s", sc.PDUIPV4Address, ip)
+		}
 
-	if sc.PFCPContext.LocalSEID != seid || sc.Tunnel.DataPath.UpLinkTunnel.TEID != ulTEID {
-		t.Errorf("SEID/uplink TEID = %d/%#x, want them preserved at %d/%#x",
-			sc.PFCPContext.LocalSEID, sc.Tunnel.DataPath.UpLinkTunnel.TEID, seid, ulTEID)
-	}
+		if sc.PFCPContext.LocalSEID != seid || sc.Tunnel.DataPath.UpLinkTunnel.TEID != ulTEID {
+			t.Errorf("SEID/uplink TEID = %d/%#x, want them preserved at %d/%#x",
+				sc.PFCPContext.LocalSEID, sc.Tunnel.DataPath.UpLinkTunnel.TEID, seid, ulTEID)
+		}
 
-	if sc.PolicyData == nil || sc.PolicyData.QosData.QFI == 0 {
-		t.Error("transferred session has no 5GS QoS flow identifier")
-	}
+		if sc.PolicyData == nil || sc.PolicyData.QosData.QFI == 0 {
+			t.Error("transferred session has no 5GS QoS flow identifier")
+		}
+	}()
 
 	if ids := store.allocSessionIDs(); len(ids) != 1 {
 		t.Errorf("lease allocations = %v, want the one from the EPS establishment", ids)
+	}
+
+	// TS 23.502 §4.11.2.3: step 10 follows the user plane switch of step 9.
+	if moved := mmeCb.movedAway(); len(moved) != 0 {
+		t.Errorf("MME told of moved connections before the gNB bind = %v, want none", moved)
+	}
+
+	n2Data, err := buildPDUSessionResourceSetupResponseTransferIPv6(0x2222, net.ParseIP("10.0.0.9"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, sc.Ref, n2Data); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
 	}
 
 	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
@@ -282,12 +317,14 @@ func TestTransferRefusedOnDataNetworkMismatch(t *testing.T) {
 		t.Fatal("CreateEPSSession(handover) for another data network = nil error")
 	}
 
-	if bearer.ESMCause != eps.ESMCausePDNConnectionDoesNotExist {
-		t.Errorf("ESM cause = %s, want #54 PDN connection does not exist", bearer.ESMCause)
+	// The session exists, so #54 would invite the UE to discard state for a live
+	// PDU session (TS 24.501 annex B).
+	if bearer.ESMCause != eps.ESMCauseMissingOrUnknownAPN {
+		t.Errorf("ESM cause = %s, want #27 missing or unknown APN", bearer.ESMCause)
 	}
 
-	if !errors.Is(err, smf.ErrSessionNotTransferable) {
-		t.Errorf("error = %v, want it to wrap ErrSessionNotTransferable", err)
+	if !errors.Is(err, smf.ErrSessionOnOtherDNN) {
+		t.Errorf("error = %v, want it to wrap ErrSessionOnOtherDNN", err)
 	}
 }
 
@@ -304,6 +341,7 @@ func TestConcurrentTransfersDoNotBothCommit(t *testing.T) {
 		wg        sync.WaitGroup
 		mu        sync.Mutex
 		succeeded int
+		ref       string
 	)
 
 	for range 2 {
@@ -312,9 +350,10 @@ func TestConcurrentTransfersDoNotBothCommit(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err == nil {
+			if bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err == nil {
 				mu.Lock()
 				succeeded++
+				ref = bearer.Ref
 				mu.Unlock()
 			}
 		}()
@@ -326,11 +365,78 @@ func TestConcurrentTransfersDoNotBothCommit(t *testing.T) {
 		t.Errorf("%d of 2 racing transfers committed, want exactly 1", succeeded)
 	}
 
+	if err := s.ModifyEPSSession(ctx, ref, enbFTEID()); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
 	if moved := amfCb.movedAway(); len(moved) != 1 {
 		t.Errorf("AMF told of moved sessions = %v, want exactly one", moved)
 	}
 
 	if fourG, _ := s.SessionCountByRAT(); fourG != 1 {
 		t.Errorf("EPS session count = %d, want the one transferred session", fourG)
+	}
+}
+
+// A transfer the UPF rejects leaves nothing half-applied: the session stays on
+// the source access with its QoS, its downlink and its identity intact.
+func TestTransferRolledBackWhenTheUPFRejectsIt(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	sc := s.GetSession(ref)
+
+	sc.Mutex.Lock()
+	qer := sc.Tunnel.DataPath.DownLinkTunnel.PDR.QER
+	qfiBefore := qer.QFI
+	forwBefore := sc.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Forw
+	sc.Mutex.Unlock()
+
+	upf.mu.Lock()
+	upf.err = errors.New("UPF rejected the modification")
+	modifiesBefore := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
+	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err == nil {
+		t.Fatal("CreateEPSSession(handover) with a failing UPF = nil error")
+	}
+
+	// The QoS change and the downlink suspend are one modification, so a rejected
+	// transfer cannot leave the UPF holding half of it.
+	upf.mu.Lock()
+	modifies := len(upf.modifyCalls) - modifiesBefore
+	upf.mu.Unlock()
+
+	if modifies != 1 {
+		t.Errorf("UPF modifications during the transfer = %d, want 1", modifies)
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if sc.IsEPS() {
+		t.Error("the session moved to EPS despite the UPF rejecting the change")
+	}
+
+	if qer.QFI != qfiBefore {
+		t.Errorf("QER QFI = %d, want it restored to %d", qer.QFI, qfiBefore)
+	}
+
+	if got := sc.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Forw; got != forwBefore {
+		t.Errorf("downlink Forw = %v, want it restored to %v", got, forwBefore)
+	}
+
+	if sc.EBI != 0 {
+		t.Errorf("EBI = %d, want the target identity given up", sc.EBI)
+	}
+
+	if moved := amfCb.movedAway(); len(moved) != 0 {
+		t.Errorf("AMF told of moved sessions = %v, want none", moved)
 	}
 }

@@ -38,6 +38,47 @@ func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
 	return uint8(reject.Cause), nil
 }
 
+// AttachExpectESMReject drives a full authenticated attach and expects the
+// network to refuse its ESM procedure. It returns the EMM cause of the ATTACH
+// REJECT and the ESM cause of the PDN CONNECTIVITY REJECT it carries; the pair
+// is #19 "ESM failure" plus the ESM cause (TS 24.301 §5.5.1.2.5).
+//
+// Unlike AttachExpectReject, which covers a refusal before security is
+// activated, this reject arrives integrity protected and ciphered
+// (TS 24.301 §4.4.4.2).
+func (e *ENB) AttachExpectESMReject(ue *UE, timeout time.Duration) (eps.EMMCause, eps.ESMCause, error) {
+	session, err := e.authenticateAttach(ue, timeout)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	wire, _, err := e.WaitForDownlinkNAS(session.enbUEID, timeout)
+	if err != nil {
+		return 0, 0, fmt.Errorf("await Attach Reject: %w", err)
+	}
+
+	plain, err := ue.unprotectDownlink(wire)
+	if err != nil {
+		return 0, 0, fmt.Errorf("unprotect Attach Reject: %w", err)
+	}
+
+	reject, err := expectDownlink[*eps.AttachReject](plain)
+	if err != nil {
+		return 0, 0, fmt.Errorf("await Attach Reject: %w", err)
+	}
+
+	if len(reject.ESMMessageContainer) == 0 {
+		return reject.Cause, 0, fmt.Errorf("Attach Reject carries no ESM message container")
+	}
+
+	esmReject, err := eps.ParsePDNConnectivityReject(reject.ESMMessageContainer)
+	if err != nil {
+		return reject.Cause, 0, fmt.Errorf("parse PDN Connectivity Reject: %w", err)
+	}
+
+	return reject.Cause, esmReject.Cause, nil
+}
+
 // AttachExpectAuthReject answers the Authentication Request expecting an
 // AUTHENTICATION REJECT, the MME's response when RES does not match (TS 24.301
 // §5.4.2.5). ue must hold credentials that do not match the provisioned subscriber.

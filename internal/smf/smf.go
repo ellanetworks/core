@@ -142,7 +142,7 @@ type AMFCallback interface {
 	// SessionTransferred reports a PDU session moved to EPS (TS 23.502 §4.11.2.2
 	// step 14). The session and the UE address live on. n2Release is a
 	// PDUSessionResourceReleaseCommandTransfer, carrying no N1 container.
-	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Release []byte)
+	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Release []byte)
 }
 
 // MMECallback abstracts the SMF → MME communication for 4G paging, breaking the
@@ -154,7 +154,7 @@ type MMECallback interface {
 
 	// SessionTransferred reports a PDN connection moved to 5GS (TS 23.502
 	// §4.11.2.3 step 10). The session and the UE address live on.
-	SessionTransferred(ctx context.Context, imsi string, ebi uint8)
+	SessionTransferred(ctx context.Context, imsi string, ebi uint8, ref string)
 }
 
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.

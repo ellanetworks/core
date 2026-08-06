@@ -86,6 +86,11 @@ type SMContext struct {
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
 
+	// pendingSourceRelease names the access a transfer moved the session off,
+	// held until the target access binds its downlink (TS 23.502 §4.11.2.2
+	// step 14, §4.11.2.3 step 10). Guarded by Mutex.
+	pendingSourceRelease *sourceRelease
+
 	releasing        bool  // guarded by Mutex
 	establishmentPTI uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 }
@@ -148,8 +153,4 @@ func (smContext *SMContext) SetPFCPSession(seid uint64) {
 	smContext.PFCPContext = &PFCPSessionContext{
 		LocalSEID: seid,
 	}
-}
-
-func (smContext *SMContext) CanonicalName() string {
-	return CanonicalName(smContext.Supi, smContext.sessionKey())
 }

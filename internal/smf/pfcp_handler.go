@@ -6,6 +6,7 @@ package smf
 import (
 	"context"
 	"fmt"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -24,9 +25,26 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
-	// A transfer changes the access under the session lock.
+	// A transfer rewrites the access, the policy and the tunnel together, so the
+	// paging decision and the N2 content come from one critical section.
 	smContext.Mutex.Lock()
+
 	isEPS := smContext.IsEPS()
+	hasUplink := smContext.Tunnel != nil && smContext.Tunnel.DataPath != nil && smContext.Tunnel.DataPath.UpLinkTunnel != nil
+	policy := smContext.PolicyData
+	pduSessionID := smContext.PDUSessionID
+	snssai := smContext.Snssai
+	ngapPDUType := nasToNgapPDUSessionType(smContext.PDUSessionType)
+
+	var ulTEID uint32
+
+	var ulN3IPv4, ulN3IPv6 netip.Addr
+
+	if hasUplink {
+		ul := smContext.Tunnel.DataPath.UpLinkTunnel
+		ulTEID, ulN3IPv4, ulN3IPv6 = ul.TEID, ul.N3IPv4, ul.N3IPv6
+	}
+
 	smContext.Mutex.Unlock()
 
 	// A 4G EPS session is paged via the MME (TS 23.401).
@@ -38,12 +56,16 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return s.mme.Page(ctx, smContext.Supi.IMSI())
 	}
 
-	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
+	if !hasUplink || policy == nil {
+		return fmt.Errorf("session %q has no uplink tunnel or policy to page for", smContext.Ref)
+	}
+
+	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, ulTEID, ulN3IPv4, ulN3IPv6, ngapPDUType)
 	if err != nil {
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}
 
-	if err := s.amf.N2TransferOrPage(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n2Pdu); err != nil {
+	if err := s.amf.N2TransferOrPage(ctx, smContext.Supi, pduSessionID, snssai, n2Pdu); err != nil {
 		return fmt.Errorf("failed to send N1N2MessageTransfer to AMF: %v", err)
 	}
 

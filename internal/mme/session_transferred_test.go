@@ -23,7 +23,7 @@ func TestSessionTransferredDropsPDNWithoutReleasing(t *testing.T) {
 	kept := ue.EnsurePDN(DefaultERABID + 1)
 	kept.SessionRef = "still-on-eps"
 
-	m.SessionTransferred(context.Background(), testSubscriber.IMSI, moved.Ebi)
+	m.SessionTransferred(context.Background(), testSubscriber.IMSI, moved.Ebi, moved.SessionRef)
 
 	if sm.released {
 		t.Error("released the anchor session, want no release")
@@ -41,6 +41,28 @@ func TestSessionTransferredDropsPDNWithoutReleasing(t *testing.T) {
 
 	if want := []string{"still-on-eps"}; !equalStrings(sm.releasedRefs, want) {
 		t.Errorf("detach released %v, want %v", sm.releasedRefs, want)
+	}
+}
+
+// A UE that moved the PDN connection back to EPS holds a fresh one under the same
+// EPS bearer identity, which the late notification for the old session must not
+// drop (TS 23.502 §4.11.2.3 step 10).
+func TestSessionTransferredIgnoresAStaleSessionRef(t *testing.T) {
+	m := newTestMME(t)
+	sm := &fakeSessionManager{}
+	m.Session = sm
+
+	ue := m.NewUe(&captureConn{}, 7)
+	m.RegisterUEForTest(ue, testSubscriber.IMSI)
+	ue.ForceStateForTest(EMMRegistered)
+
+	current := ue.EnsurePDN(DefaultERABID)
+	current.SessionRef = "back-on-eps"
+
+	m.SessionTransferred(context.Background(), testSubscriber.IMSI, current.Ebi, "moved-to-5gs")
+
+	if m.LookupPDN(ue, current.Ebi) != current {
+		t.Error("the notification for the earlier session dropped the current PDN connection")
 	}
 }
 

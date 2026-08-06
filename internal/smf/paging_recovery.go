@@ -16,6 +16,10 @@ func (s *SMF) ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSes
 		return nil
 	}
 
+	if err := pagedOn(smContext, Access5G); err != nil {
+		return nil
+	}
+
 	s.clearDownlinkDataNotification(ctx, smContext)
 
 	return nil
@@ -29,6 +33,10 @@ func (s *SMF) ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi ui
 
 	smContext := s.currentEPSSession(supi, ebi)
 	if smContext == nil {
+		return nil
+	}
+
+	if err := pagedOn(smContext, Access4G); err != nil {
 		return nil
 	}
 

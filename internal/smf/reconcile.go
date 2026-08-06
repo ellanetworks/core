@@ -431,8 +431,30 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 		return fmt.Errorf("PFCP session not established")
 	}
 
+	qerList, restore, err := stageSessionQERs(smContext, qfi, ambrUplink, ambrDownlink)
+	if err != nil {
+		return err
+	}
+
+	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
+		smContext.PFCPContext.RemoteSEID,
+		policyID,
+		nil, nil, qerList,
+	)); err != nil {
+		restore()
+
+		return fmt.Errorf("failed to modify PFCP session: %w", err)
+	}
+
+	return nil
+}
+
+// stageSessionQERs sets every distinct session QER (deduped across UL/DL) to the
+// policy's QFI and AMBR in memory, returning the rules to send and a closure
+// that puts the previous values back. Caller holds smContext.Mutex.
+func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink models.BitRate) ([]*QER, func(), error) {
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
-		return fmt.Errorf("data path not available")
+		return nil, nil, fmt.Errorf("data path not available")
 	}
 
 	dataPath := smContext.Tunnel.DataPath
@@ -482,24 +504,16 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 	}
 
 	if len(qerList) == 0 {
-		return fmt.Errorf("no QERs to update")
+		return nil, nil, fmt.Errorf("no QERs to update")
 	}
 
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		policyID,
-		nil, nil, qerList,
-	)); err != nil {
+	return qerList, func() {
 		for _, snap := range snapshots {
 			snap.qer.MBR = snap.mbr
 			snap.qer.QFI = snap.qfi
 			snap.qer.State = snap.state
 		}
-
-		return fmt.Errorf("failed to modify PFCP session: %w", err)
-	}
-
-	return nil
+	}, nil
 }
 
 // framedRoutesChanged reports whether the subscriber's currently provisioned

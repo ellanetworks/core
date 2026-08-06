@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // validateEPSBearerRequest rejects inputs the data path would otherwise accept
@@ -45,8 +46,8 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) 
 	return models.Ambr{Uplink: req.AMBRUplink, Downlink: req.AMBRDownlink}, nil
 }
 
-// Out of range (TS 24.007 §11.2.3.1b) becomes 0, and a PDN connection without
-// one is not transferable to 5GS (TS 23.502 §4.11.1.1 NOTE 5).
+// Out of range (TS 24.007 §11.2.3.1b) becomes 0. Without one the PDN connection
+// cannot be correlated with a PDU session, so it is not transferable to 5GS.
 func ueAllocatedPDUSessionID(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) uint8 {
 	if pduSessionID == 0 {
 		return 0
@@ -84,7 +85,13 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	)
 	defer span.End()
 
-	defer func() { recordSessionEstablishment(metrics.RAT4G, err) }()
+	countEstablishment := true
+
+	defer func() {
+		if countEstablishment {
+			recordSessionEstablishment(metrics.RAT4G, err)
+		}
+	}()
 
 	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
 	if err != nil {
@@ -106,13 +113,17 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	}
 
 	// TS 24.301 §6.5.1.2, TS 23.502 §4.11.2.2 step 13: a handover request type
-	// transfers a PDU session the UE holds in 5GS.
+	// transfers a PDU session the UE holds in 5GS. It moves one session rather
+	// than establishing another, so it is not counted as an establishment.
 	if req.RequestType == eps.RequestTypeHandover {
+		countEstablishment = false
+
 		return s.transferToEPS(ctx, supi, req, policy)
 	}
 
-	// Ella Core serves no emergency bearer services and no RLOS (§1), so the
-	// anchor holds no emergency PDN connection to transfer (TS 24.301 §6.5.1.6 e).
+	// Ella Core serves no emergency bearer services and no RLOS (§1). There is no
+	// emergency PDN connection to hand over (TS 24.301 §6.5.1.6 e), and an
+	// emergency or RLOS request is refused outright (§6.5.1.6 d, f).
 	switch req.RequestType {
 	case eps.RequestTypeHandoverOfEmergencyBearerServices:
 		return models.EPSBearer{ESMCause: eps.ESMCausePDNConnectionDoesNotExist},
@@ -159,12 +170,13 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	}
 
 	bearer = models.EPSBearer{
-		Ref:        sc.Ref,
-		PDNType:    pdnTypeIE,
-		DNS:        dns.Unmap(),
-		IPv4:       addrs.IPv4,
-		IPv6Prefix: addrs.IPv6Prefix,
-		IPv6IID:    addrs.IPv6IID,
+		Ref:          sc.Ref,
+		PDUSessionID: sc.PDUSessionID,
+		PDNType:      pdnTypeIE,
+		DNS:          dns.Unmap(),
+		IPv4:         addrs.IPv4,
+		IPv6Prefix:   addrs.IPv6Prefix,
+		IPv6IID:      addrs.IPv6IID,
 	}
 
 	// When the UE asked for IPv4v6 but the data network offers a single family,
@@ -199,7 +211,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 
 	sc, err := s.findTransferable(supi, req.PDUSessionID, transfer)
 	if err != nil {
-		return models.EPSBearer{ESMCause: eps.ESMCausePDNConnectionDoesNotExist}, err
+		return models.EPSBearer{ESMCause: transferESMCause(err)}, err
 	}
 
 	// The default bearer identity the MME assigned may still name a stale PDN
@@ -212,24 +224,43 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		return models.EPSBearer{ESMCause: eps.ESMCauseInsufficientResources}, err
 	}
 
+	// The move has committed and neither access holds a reference yet, so a
+	// failure below has to release the session itself. Registered before the lock
+	// so it runs after the unlock.
+	var releaseRef string
+
+	defer func() {
+		if releaseRef == "" {
+			return
+		}
+
+		if relErr := s.ReleaseSmContext(ctx, releaseRef); relErr != nil {
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a session whose PDN type could not be reported",
+				zap.Error(relErr), logger.SUPI(supi.String()))
+		}
+	}()
+
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
 	pdnTypeIE, err := pdnTypeFor(sc.PDUSessionType)
 	if err != nil {
+		releaseRef = sc.Ref
+
 		return models.EPSBearer{ESMCause: eps.ESMCauseUnknownPDNType}, err
 	}
 
 	ul := sc.Tunnel.DataPath.UpLinkTunnel
 
 	bearer := models.EPSBearer{
-		Ref:        sc.Ref,
-		PDNType:    pdnTypeIE,
-		IPv4:       ipToNetip(sc.PDUIPV4Address),
-		IPv6Prefix: ipToNetip(sc.PDUIPV6Prefix),
-		IPv6IID:    sc.IPv6IID,
-		SGW:        models.FTEID{TEID: ul.TEID, Addr: ul.N3IPv4},
-		SGWN3IPv6:  ul.N3IPv6,
+		Ref:          sc.Ref,
+		PDUSessionID: sc.PDUSessionID,
+		PDNType:      pdnTypeIE,
+		IPv4:         ipToNetip(sc.PDUIPV4Address),
+		IPv6Prefix:   ipToNetip(sc.PDUIPV6Prefix),
+		IPv6IID:      sc.IPv6IID,
+		SGW:          models.FTEID{TEID: ul.TEID, Addr: ul.N3IPv4},
+		SGWN3IPv6:    ul.N3IPv6,
 	}
 
 	if policy.DNS != nil {
@@ -257,11 +288,29 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID
 	ctx, span := tracer.Start(ctx, "smf/modify_eps_session", epsSessionAttributes(smContext))
 	defer span.End()
 
+	if err := s.bindEPSDownlink(ctx, smContext, enb); err != nil {
+		return err
+	}
+
+	// The eNB downlink is bound, so the access the session came from can stop
+	// routing it (TS 23.502 §4.11.2.2 step 14).
+	s.releaseTransferSource(ctx, smContext)
+
+	return nil
+}
+
+func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb models.FTEID) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	// An S1AP response for a session already moved to 5GS would point the
+	// downlink back at the eNB.
+	if !smContext.IsEPS() {
+		return fmt.Errorf("session %q is on %s", smContext.Ref, smContext.Access)
+	}
+
 	if smContext.Tunnel == nil || !smContext.Tunnel.DataPath.Activated {
-		return fmt.Errorf("EPS session %q is not activated", ref)
+		return fmt.Errorf("EPS session %q is not activated", smContext.Ref)
 	}
 
 	dl := smContext.Tunnel.DataPath.DownLinkTunnel.PDR
@@ -321,6 +370,12 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, 
 
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
+
+	// The reference outlives a move to 5GS, where the EPS AMBR is not the session's
+	// (TS 23.501 §5.7.2.6).
+	if !smContext.IsEPS() {
+		return fmt.Errorf("session %q is on %s", smContext.Ref, smContext.Access)
+	}
 
 	var (
 		policyID string

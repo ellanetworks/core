@@ -122,6 +122,12 @@ func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
 		return b, fmt.Errorf("nas/eps: EPS network feature support: octet 5 onwards requires octet 4")
 	}
 
+	// Octet 3, octet 4 and Rest are the whole value, capped at
+	// maxNetworkFeatureSupportLen (TS 24.301 §9.9.3.12A).
+	if content := 1 + len(n.Rest); hasOctet4 && content+1 > maxNetworkFeatureSupportLen {
+		return b, fmt.Errorf("nas/eps: EPS network feature support value is %d octets, want at most %d", content+1, maxNetworkFeatureSupportLen)
+	}
+
 	octet := boolBit(n.IMSVoPS, 0) | boolBit(n.EMCBS, 1) | boolBit(n.EPCLCS, 2) |
 		n.CSLCS&0x03<<3 | boolBit(n.ESRPS, 5) | boolBit(n.ERwoPDN, 6) | boolBit(n.CPCIoT, 7)
 

@@ -5,6 +5,7 @@ package nas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -71,10 +72,22 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return nasreply.Handled()
 	}
 
+	// TS 24.501 §4.4.6: a UE whose initial REGISTRATION REQUEST was cleartext-only
+	// repeats it here, so its absence leaves the non-cleartext IEs unauthenticated.
+	if !conn.RegistrationRequestProtected {
+		abortRegistration(ctx, amfInstance, ue, "NAS message container", errNoRegistrationContainer)
+
+		return nasreply.Handled()
+	}
+
 	contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest, conn.RegistrationRequestPlain)
 
 	return nasreply.Handled()
 }
+
+// errNoRegistrationContainer reports a SECURITY MODE COMPLETE that omits the
+// REGISTRATION REQUEST a cleartext-only initial message has to repeat.
+var errNoRegistrationContainer = errors.New("SECURITY MODE COMPLETE carries no NAS message container")
 
 // imeiFromPEI renders a decoded IMEISV mobile identity as the shared equipment
 // identity type (TS 24.501 §9.11.3.4).

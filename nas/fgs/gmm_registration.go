@@ -109,15 +109,6 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiGMMCapability, raw)
 	}
 
-	if m.UEStatus != nil {
-		raw, err := m.UEStatus.MarshalBinary()
-		if err != nil {
-			return b, err
-		}
-
-		o.TLV(ieiUEStatus, raw)
-	}
-
 	if m.UESecurityCapability != nil {
 		raw, err := m.UESecurityCapability.MarshalBinary()
 		if err != nil {
@@ -156,6 +147,15 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 
 	if m.MICOIndication != nil {
 		o.TV1(ieiMICOIndication, m.MICOIndication.Nibble())
+	}
+
+	if m.UEStatus != nil {
+		raw, err := m.UEStatus.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiUEStatus, raw)
 	}
 
 	if m.AllowedPDUSessionStatus != nil {

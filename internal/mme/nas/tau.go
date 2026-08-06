@@ -47,12 +47,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// The TAU is integrity protected against the stored context, so the capability
-	// it carries is as authenticated as the attach-time one (TS 24.301 §5.5.3.2.4).
-	if req.UENetworkCapability != nil {
-		ue.SetUESecurityCapability(*req.UENetworkCapability, ue.MsNetCap(), mme.MintAuthProofForAttachRequest())
-	}
-
 	// When the UE reports its EPS bearer context status, the MME deactivates the
 	// bearers it holds but the UE considers inactive, then reflects the resulting
 	// active set in the accept (TS 24.301 §5.5.3.2.4).
@@ -67,6 +61,21 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		return nasreply.Handled()
+	}
+
+	// The TAU is integrity protected against the stored context, so the capability
+	// it carries is as authenticated as the attach-time one (TS 24.301 §5.5.3.2.4).
+	// It is stored only once the accept is built, so a TAU that is never accepted
+	// leaves the held capability alone.
+	if req.UENetworkCapability != nil {
+		// TS 24.301 §5.5.3.2.4: the UE may replay the UE network capability, the MS
+		// network capability, or both. An absent MS capability keeps the held one.
+		msNetCap := req.MSNetworkCapability
+		if msNetCap == nil {
+			msNetCap = ue.MsNetCap()
+		}
+
+		ue.SetUESecurityCapability(*req.UENetworkCapability, msNetCap, mme.MintAuthProofForAttachRequest())
 	}
 
 	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted

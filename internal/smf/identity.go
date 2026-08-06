@@ -14,12 +14,12 @@ import (
 type SessionIdentity struct {
 	// UE-allocated, 1..15 (TS 24.007 §11.2.3.1b). 0 when unassigned.
 	PDUSessionID uint8
-	// Default bearer's, 5..15 (TS 24.301 §6.1). 0 when unassigned.
+	// Default bearer's, 5..15 (TS 24.301 §9.3.2). 0 when unassigned.
 	EBI uint8
 }
 
-// TS 29.571 §5.2.2: 64..95 is core-network-allocated, disjoint from the 1..15 a
-// UE allocates.
+// An internal alias into 64..95, the range TS 29.571 table 5.4.2-1 reserves for
+// core-network allocation and so disjoint from the 1..15 a UE allocates.
 func epsBearerKey(ebi uint8) uint8 { return 64 + ebi }
 
 // The key names the session's slot for its whole life.
@@ -45,7 +45,9 @@ func (id SessionIdentity) sessionKeys() []uint8 {
 	return keys
 }
 
-// EPS bearer identities 1..4 are reserved (TS 24.301 §6.1).
+// EPS bearer identities 1..4 are refused: TS 24.301 §5.5.1.2.x NOTE 2 has them
+// treated as reserved by a UE or network not supporting 15 bearer contexts, and
+// this core does not (§9.3.2).
 func (id SessionIdentity) valid() bool {
 	if id.PDUSessionID > 15 {
 		return false

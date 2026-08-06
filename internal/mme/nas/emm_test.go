@@ -44,6 +44,14 @@ func (c *captureConn) count() int {
 	return len(c.sent)
 }
 
+// snapshot copies the messages sent so far. Safe for concurrent use.
+func (c *captureConn) snapshot() [][]byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([][]byte(nil), c.sent...)
+}
+
 func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 	t.Helper()
 

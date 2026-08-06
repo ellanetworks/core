@@ -29,6 +29,18 @@ func wantSnssaiContainer(t *testing.T) nas.PCOContainer {
 	return c
 }
 
+// unprotectDownlink decodes a security-protected downlink NAS PDU sent to ue.
+func unprotectDownlink(t *testing.T, ue *mme.UeContext, wire []byte) []byte {
+	t.Helper()
+
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return plain
+}
+
 // activateFromAccept unprotects an Attach Accept and decodes the embedded
 // Activate Default EPS Bearer Context Request.
 func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
@@ -155,7 +167,7 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
 	}
 
-	rej, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseAttachReject(unprotectDownlink(t, ue, decodeDownlinkNAS(t, cc.sent[0])))
 	if err != nil {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
@@ -180,7 +192,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
 	}
 
-	rej, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseAttachReject(unprotectDownlink(t, ue, decodeDownlinkNAS(t, cc.sent[0])))
 	if err != nil {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}

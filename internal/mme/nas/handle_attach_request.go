@@ -270,7 +270,15 @@ func rejectAttachWithESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, cau
 		reject.T3402 = &timer
 	}
 
-	ue.Conn().SendDownlinkMessage(ctx, reject)
+	// A UE that has established secure exchange discards an unprotected reject,
+	// and the ESM container is an ESM message besides (TS 24.301 §4.4.4.2). The
+	// plain form is for the rejects that precede security activation.
+	if ue.Secured() {
+		ue.Conn().SendDownlinkProtected(ctx, reject)
+	} else {
+		ue.Conn().SendDownlinkMessage(ctx, reject)
+	}
+
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }
 

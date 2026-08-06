@@ -113,6 +113,15 @@ type PdnConnection struct {
 	guard guard.Guard
 }
 
+// PendingPDNConnectivity is the standalone PDN CONNECTIVITY REQUEST waiting on
+// the ESM information the UE deferred (TS 24.301 §6.5.1.2). Nil when the ESM
+// information procedure is not running for one.
+type PendingPDNConnectivity struct {
+	PTI         uint8
+	PDNType     uint8
+	RequestType eps.RequestType
+}
+
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
 // EPS NAS security context, and the bearer state.
 type UeContext struct {
@@ -142,7 +151,10 @@ type UeContext struct {
 	// RequestedPTI is the procedure transaction identity of the PDN Connectivity
 	// Request the ATTACH REQUEST carried, replayed in the default bearer's
 	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
-	RequestedPTI   nas.ProcedureTransactionIdentity
+	RequestedPTI nas.ProcedureTransactionIdentity
+	// PendingPDN is the standalone PDN CONNECTIVITY REQUEST the ESM information
+	// procedure is running for, nil when it runs for the attach.
+	PendingPDN     *PendingPDNConnectivity
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 	// HashmmeInput is the plain Attach Request to hash into the SECURITY MODE
 	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
@@ -526,14 +538,40 @@ func (m *MME) FindPDNByAPN(ue *UeContext, apn string) *PdnConnection {
 // DropPDN removes a PDN connection from the UE without releasing a session, for
 // rolling back a connection reserved but never established.
 func (m *MME) DropPDN(ue *UeContext, ebi uint8) {
+	m.dropPDN(ue, ebi, "")
+}
+
+// DropPDNRef drops the connection only when it is still the one named by ref, so
+// a UE that moved the session back to EPS keeps its fresh connection. It reports
+// whether anything was dropped.
+func (m *MME) DropPDNRef(ue *UeContext, ebi uint8, ref string) bool {
+	return m.dropPDN(ue, ebi, ref)
+}
+
+func (m *MME) dropPDN(ue *UeContext, ebi uint8, ref string) bool {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
+
+	p := ue.Pdns[ebi]
+
+	if p == nil || (ref != "" && p.SessionRef != ref) {
+		ue.mu.Unlock()
+
+		return false
+	}
 
 	delete(ue.Pdns, ebi)
 
 	if ue.DefaultEBI == ebi {
 		ue.DefaultEBI = 0
 	}
+
+	ue.mu.Unlock()
+
+	// The guard holds the detached connection, and its abort releases the session
+	// by a reference the move to the other access leaves valid.
+	m.StopESMGuard(p)
+
+	return true
 }
 
 // NewUeConn allocates an MME-UE-S1AP-ID and registers a bare UE-associated

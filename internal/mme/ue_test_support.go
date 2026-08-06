@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
@@ -209,6 +210,12 @@ func (m *MME) IndexRadioForTest(conn S1APWriter, supportedTAIs []SupportedTAI) {
 }
 
 func (m *MME) SetHandoverGuardTimeoutForTest(d time.Duration) { m.handoverGuardTimeout = d }
+
+// SetT3489ForTest shortens the ESM information request guard so a test can reach
+// its third expiry without waiting out the real 4 s interval.
+func (m *MME) SetT3489ForTest(d time.Duration, retries int32) {
+	m.t3489Cfg = guard.TimerValue{Enable: true, ExpireTime: d, MaxRetryTimes: retries}
+}
 
 // ESMGuardActiveForTest reports whether the PDN connection's ESM bearer-procedure
 // guard (T3485/T3486/T3495) is currently armed.

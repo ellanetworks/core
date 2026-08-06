@@ -13,6 +13,17 @@ import (
 // The EPS PDN type (TS 24.301 §9.9.4.10) and the 5GS PDU session type
 // (TS 24.501 §9.11.4.11) agree on IPv4, IPv6 and IPv4v6, and diverge above them.
 
+// servedPDUSessionType vets a stored 5GS PDU session type against the range this
+// core serves.
+func servedPDUSessionType(pduSessionType uint8) (fgs.PDUSessionType, error) {
+	switch t := fgs.PDUSessionType(pduSessionType); t {
+	case fgs.PDUSessionTypeIPv4, fgs.PDUSessionTypeIPv6, fgs.PDUSessionTypeIPv4v6:
+		return t, nil
+	}
+
+	return 0, fmt.Errorf("PDU session type %d is not served", pduSessionType)
+}
+
 // TS 24.501 §6.1.4.2 b.
 func pdnTypeFor(pduSessionType uint8) (eps.PDNType, error) {
 	switch fgs.PDUSessionType(pduSessionType) {

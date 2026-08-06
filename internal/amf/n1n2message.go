@@ -485,19 +485,34 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 
 // SessionTransferred drops the AMF's routing context for a PDU session the UE
 // moved to EPS, leaving the session anchored (TS 23.502 §4.11.2.2 step 14).
-func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Release []byte) {
+func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Release []byte) {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return
 	}
 
+	// TS 23.502 §4.11.2.2 step 14: the N2 release is skipped when the PDU
+	// session's user plane is not active.
+	sc, held := ue.SmContextFindByPDUSessionID(pduSessionID)
+
+	// A UE that moved the session back to 5GS already has a fresh context under
+	// this identity; only the one the move left behind is dropped.
+	if !held || sc.Ref != ref {
+		return
+	}
+
+	upActive := !sc.PduSessionInactive
+
+	// The context goes before the release command: the RAN's release response
+	// resolves the session by this context and would tear down the session the
+	// move just handed to EPS.
 	ue.DeleteSmContext(pduSessionID)
 
 	logger.From(ctx, logger.AmfLog).Info("dropped routing context for a PDU session moved to EPS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
 	ueConn := ue.Conn()
-	if ueConn == nil || n2Release == nil {
+	if ueConn == nil || n2Release == nil || !upActive {
 		return
 	}
 

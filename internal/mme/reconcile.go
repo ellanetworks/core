@@ -66,6 +66,9 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	// stored config while the reconciler reads them.
 	ue.mu.Lock()
 
+	// A transfer to 5GS drops the connection from the UE while this snapshot is
+	// held, and its SessionRef stays valid for the session on the other access.
+	current := ue.Pdns[p.Ebi] == p
 	busy := p.Deactivating || p.Modifying
 	curDNConfig := p.DnConfig
 	curSessAmbrDLBps, curSessAmbrULBps := p.SessAmbrDLBps, p.SessAmbrULBps
@@ -74,7 +77,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 
 	ue.mu.Unlock()
 
-	if busy {
+	if !current || busy {
 		return
 	}
 
