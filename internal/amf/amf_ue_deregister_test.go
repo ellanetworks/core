@@ -6,6 +6,7 @@ package amf
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -326,5 +327,53 @@ func TestAbandonPaging_SuppressesAllSessions(t *testing.T) {
 
 	if fake.suppressCalls != 2 {
 		t.Fatalf("suppress calls = %d, want 2 (one per SM context)", fake.suppressCalls)
+	}
+}
+
+// A PDU session the UE moved to EPS is still anchored and still carrying the
+// UE's traffic there, so the AMF must forget it rather than release it
+// (TS 23.502 §4.11.2.2 step 14). Left in the routing context, a later 5GS
+// deregistration would tear the live EPS bearer down.
+func TestSessionTransferred_DropsRoutingWithoutReleasing(t *testing.T) {
+	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	amfInstance := New(nil, nil, nil)
+
+	ue := NewUeContext()
+	ue.SetSupiForTest(supi)
+	ue.SmContextList[1] = &SmContext{Ref: "moved-to-eps"}
+	ue.SmContextList[2] = &SmContext{Ref: "still-on-5gs"}
+
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Registering the UE binds the AMF's own (nil) session client, so the fake
+	// goes on afterwards.
+	fakeSmf := &deregisterTestSmf{}
+	ue.smf = fakeSmf
+
+	amfInstance.SessionTransferred(context.Background(), supi, 1)
+
+	if len(fakeSmf.releaseCalls) != 0 {
+		t.Errorf("released %v, want nothing: the session lives on over EPS", fakeSmf.releaseCalls)
+	}
+
+	if _, exists := ue.SmContextFindByPDUSessionID(1); exists {
+		t.Error("routing context for the moved PDU session is still present")
+	}
+
+	if _, exists := ue.SmContextFindByPDUSessionID(2); !exists {
+		t.Error("routing context for an unrelated PDU session was dropped")
+	}
+
+	// The consequence: deregistering from 5GS now releases only what 5GS holds.
+	ue.Deregister(context.Background())
+
+	if want := []string{"still-on-5gs"}; !reflect.DeepEqual(fakeSmf.releaseCalls, want) {
+		t.Errorf("deregistration released %v, want %v", fakeSmf.releaseCalls, want)
 	}
 }

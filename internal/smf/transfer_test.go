@@ -119,6 +119,11 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 		t.Errorf("lease allocations = %v, want the one from the 5GS establishment", ids)
 	}
 
+	if moved := amfCb.movedAway(); len(moved) != 1 || moved[0] != transferTestPDUSessionID {
+		t.Errorf("AMF told of moved sessions = %v, want [%d]: a routing context left behind would let a 5GS deregistration tear down the live EPS bearer",
+			moved, transferTestPDUSessionID)
+	}
+
 	upf.mu.Lock()
 	defer upf.mu.Unlock()
 
@@ -133,6 +138,9 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
+
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
 
 	bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeInitialRequest))
 	if err != nil {
@@ -198,6 +206,11 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 
 	if ids := store.allocSessionIDs(); len(ids) != 1 {
 		t.Errorf("lease allocations = %v, want the one from the EPS establishment", ids)
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
+		t.Errorf("MME told of moved connections = %v, want [%d]: a PDN connection left behind would let a detach tear down the live PDU session",
+			moved, epsTestEBI)
 	}
 
 	upf.mu.Lock()

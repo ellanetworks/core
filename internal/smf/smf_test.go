@@ -264,7 +264,10 @@ type fakeAMF struct {
 	modifyCalls  []n1n2Call
 	releaseCalls []releaseCall
 	pageCalls    []pageCall
-	err          error
+	// transferredAway holds the PDU session identity of each session the anchor
+	// reported as moved to EPS.
+	transferredAway []uint8
+	err             error
 }
 
 type n1Call struct {
@@ -340,11 +343,46 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 	return f.err
 }
 
+// transferredAway records the identity of each session the anchor reported as
+// moved to the other access.
+func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionID uint8) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.transferredAway = append(f.transferredAway, pduSessionID)
+}
+
+// movedAway returns the identities reported as moved to the other access.
+func (f *fakeAMF) movedAway() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.transferredAway)
+}
+
 // fakeMME records 4G paging calls, standing in for the MME's smf.MMECallback.
 type fakeMME struct {
 	mu        sync.Mutex
 	pagedIMSI []string
-	err       error
+	// transferredAway holds the EPS bearer identity of each PDN connection the
+	// anchor reported as moved to 5GS.
+	transferredAway []uint8
+	err             error
+}
+
+func (f *fakeMME) SessionTransferred(_ context.Context, _ string, ebi uint8) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.transferredAway = append(f.transferredAway, ebi)
+}
+
+// movedAway returns the identities reported as moved to the other access.
+func (f *fakeMME) movedAway() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Clone(f.transferredAway)
 }
 
 func (f *fakeMME) Page(_ context.Context, imsi string) error {

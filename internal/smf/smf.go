@@ -138,6 +138,12 @@ type AMFCallback interface {
 
 	// N2TransferOrPage sends an N2 message to the radio, paging the UE if needed.
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
+
+	// SessionTransferred reports that the anchor no longer serves this PDU
+	// session over 5GS because the UE moved it to EPS, so the AMF drops its
+	// routing context for it (TS 23.502 §4.11.2.2 step 14). The session and the
+	// UE address live on, so nothing is released.
+	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8)
 }
 
 // MMECallback abstracts the SMF → MME communication for 4G paging, breaking the
@@ -146,6 +152,12 @@ type MMECallback interface {
 	// Page triggers an S1AP Paging for the idle UE identified by IMSI so it
 	// re-establishes the bearer (TS 23.401 §5.3.4.3).
 	Page(ctx context.Context, imsi string) error
+
+	// SessionTransferred reports that the anchor no longer serves this PDN
+	// connection over EPS because the UE moved it to 5GS, so the MME drops the
+	// connection (TS 23.502 §4.11.2.3 step 10). The session and the UE address
+	// live on, so nothing is released.
+	SessionTransferred(ctx context.Context, imsi string, ebi uint8)
 }
 
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.

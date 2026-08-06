@@ -95,3 +95,20 @@ func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 		}
 	}
 }
+
+// SessionTransferred drops the PDN connection the UE moved to 5GS
+// (TS 23.502 §4.11.2.3 step 10), freeing its EPS bearer identity. The anchor
+// still holds the session, on the other access, so nothing here releases it:
+// leaving the connection in place would let a later detach or S1 release tear
+// down a session the UE is using on 5GS.
+func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8) {
+	ue, ok := m.LookupUeByIMSI(imsi)
+	if !ok {
+		return
+	}
+
+	m.DropPDN(ue, ebi)
+
+	logger.From(ctx, logger.MmeLog).Info("dropped PDN connection moved to 5GS",
+		zap.String("imsi", imsi), zap.Uint8("ebi", ebi))
+}

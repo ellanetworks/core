@@ -77,10 +77,43 @@ func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferR
 // resource setup response on 5GS), and that is what re-points the downlink FAR
 // and sets the PDU Session Container behaviour for the new access.
 func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRequest) error {
+	from, sourceID, err := s.moveSession(ctx, sc, req)
+	if err != nil {
+		return err
+	}
+
+	// The access the session left still routes to it. Left in place, that
+	// context's own release path would tear down a session the UE is now using
+	// on the other access, so the anchor tells it the session is gone — without
+	// releasing the session or the UE address (TS 23.502 §4.11.2.2 step 14,
+	// §4.11.2.3 step 10). Called outside the session lock, as every call out of
+	// the SMF is.
+	s.dropSourceRouting(ctx, sc.Supi, from, sourceID)
+
+	return nil
+}
+
+// dropSourceRouting tells the access a session left to forget it.
+func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, from AccessType, id SessionIdentity) {
+	switch from {
+	case Access5G:
+		if s.amf != nil {
+			s.amf.SessionTransferred(ctx, supi, id.PDUSessionID)
+		}
+	case Access4G:
+		if s.mme != nil {
+			s.mme.SessionTransferred(ctx, supi.IMSI(), id.EBI)
+		}
+	}
+}
+
+// moveSession performs the move itself, returning the access the session left
+// and the identity it had there.
+func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferRequest) (AccessType, SessionIdentity, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	from := sc.Access
+	from, sourceID := sc.Access, sc.SessionIdentity
 
 	policy := req.Policy
 	if len(policy.NetworkRules) == 0 && sc.PolicyData != nil {
@@ -92,12 +125,12 @@ func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRe
 	// Session-AMBR and the QFI the user plane is marked with are resolved per
 	// access, so the target's policy has to reach the UPF before its RAN does.
 	if err := s.applySessionQERs(ctx, sc, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink); err != nil {
-		return fmt.Errorf("apply target access QoS: %w", err)
+		return from, sourceID, fmt.Errorf("apply target access QoS: %w", err)
 	}
 
 	farList, err := handleUpCnxStateDeactivate(sc)
 	if err != nil {
-		return fmt.Errorf("suspend downlink: %w", err)
+		return from, sourceID, fmt.Errorf("suspend downlink: %w", err)
 	}
 
 	// Buffer without a downlink data notification: the UE is not idle, it is on
@@ -105,7 +138,7 @@ func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRe
 	sc.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = false
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(sc.PFCPContext.RemoteSEID, policy.PolicyID, nil, farList, nil)); err != nil {
-		return fmt.Errorf("suspend downlink in the UPF: %w", err)
+		return from, sourceID, fmt.Errorf("suspend downlink in the UPF: %w", err)
 	}
 
 	sc.Access = req.Access
@@ -117,7 +150,7 @@ func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRe
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID),
 		zap.Stringer("from", from), zap.Stringer("to", req.Access))
 
-	return nil
+	return from, sourceID, nil
 }
 
 // ipToNetip is the inverse of netipToIP, unmapping the IPv4-in-IPv6 form so an

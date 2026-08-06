@@ -482,3 +482,20 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 
 	return id
 }
+
+// SessionTransferred drops the AMF's routing context for a PDU session the UE
+// moved to EPS (TS 23.502 §4.11.2.2 step 14). The anchor still holds the
+// session, on the other access, so nothing here releases it: leaving the
+// context in place would let a later 5GS deregistration tear down a session the
+// UE is using on EPS.
+func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) {
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return
+	}
+
+	ue.DeleteSmContext(pduSessionID)
+
+	logger.From(ctx, logger.AmfLog).Info("dropped routing context for a PDU session moved to EPS",
+		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+}

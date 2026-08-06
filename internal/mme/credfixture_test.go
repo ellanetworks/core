@@ -57,6 +57,7 @@ type fakeSessionManager struct {
 	lastRequest     models.EPSBearerRequest
 	modifiedENB     models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
 	released        bool
+	releasedRefs    []string
 	deactivated     bool
 	ambrUpdated     bool
 	ambrUplink      models.BitRate // records the last UpdateEPSSessionAMBR uplink value
@@ -130,8 +131,9 @@ func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ stri
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string) error {
 	f.released = true
+	f.releasedRefs = append(f.releasedRefs, ref)
 
 	return nil
 }
