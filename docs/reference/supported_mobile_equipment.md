@@ -4,7 +4,9 @@ description: Reference for supported mobile radios and user equipment (UE).
 
 # Supported Mobile Equipment
 
-Ella Core's control plane and user plane interfaces follow 3GPP standards. This means that any radio and user equipment (UE) that follows the same standards should be compatible with Ella Core.
+Ella Core's control plane and user plane interfaces follow 3GPP standards. This means that any radio and user equipment (UE) that follows the same standards should be compatible.
+
+This lists contains radios and UEs that were explicitely validated against Ella Core.
 
 > Some integrations were validated by third-party vendors, partners, or the open-source community.
 
@@ -13,7 +15,8 @@ Ella Core's control plane and user plane interfaces follow 3GPP standards. This 
 ### Commercial Radios
 
 - **[CableFree 5G Small Cell](https://www.cablefree.net/5g-lte/5g-small-cell-base-station-radios/)**
-- **[Baicells Stellar 227](https://baicells.com/Product/Details?id=17aaad9c-190a-4acc-bb91-1d5695e01167#description)**
+- **[Baicells Stellar 227](https://www.baicells.com/stellar227)**
+- **[Baicells Neutrino 220](https://www.baicells.com/neutrino220)**
 - **[Vankom VKScell-g3](https://www.vankom.com/nps-scell-en/)**
 
 ### Open RAN Radios & SDR Platforms
