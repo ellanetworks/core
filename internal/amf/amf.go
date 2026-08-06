@@ -94,7 +94,6 @@ type NetworkFeatureSupport5GS struct {
 	ImsVoPS uint8
 	Emc     uint8
 	Emf     uint8
-	IwkN26  uint8
 	Mpsi    uint8
 	EmcN3   uint8
 	Mcsi    uint8

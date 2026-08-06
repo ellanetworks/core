@@ -255,10 +255,13 @@ func BuildRegistrationAccept(
 			IMSVoPS3GPP: nfs.ImsVoPS != 0,
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
-			IWKN26:      nfs.IwkN26 != 0,
-			MPSI:        nfs.Mpsi != 0,
-			EMCN3:       nfs.EmcN3 != 0,
-			MCSI:        nfs.Mcsi != 0,
+			// Only a UE that said it supports S1 mode is told how this network
+			// interworks with EPS (TS 24.501 §5.5.1.2.4); to any other UE the bit
+			// means nothing and stays clear.
+			IWKN26: models.InterworkingWithoutN26 && ue.SupportsS1Mode(),
+			MPSI:   nfs.Mpsi != 0,
+			EMCN3:  nfs.EmcN3 != 0,
+			MCSI:   nfs.Mcsi != 0,
 		}
 	}
 

@@ -190,6 +190,10 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		acceptRegistrationUESecurityCapability(ctx, ue, req.UESecurityCapability)
 	}
 
+	// The S1 mode bit decides whether the UE is told how this network interworks
+	// with EPS (TS 24.501 §5.5.1.2.4).
+	ue.SetGMMCapability(req.GMMCapability)
+
 	return nil
 }
 

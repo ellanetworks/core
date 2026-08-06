@@ -267,7 +267,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, fmt.Errorf("encode T3412: %w", err)
 	}
 
-	nfs := m.NetworkFeatureSupport()
+	nfs := m.NetworkFeatureSupport(ue)
 
 	accept := &eps.AttachAccept{
 		EPSAttachResult:     eps.AttachResultEPS,

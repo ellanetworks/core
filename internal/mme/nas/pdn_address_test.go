@@ -254,3 +254,54 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 		})
 	}
 }
+
+// The IWK N26 indicator tells a UE how this network interworks with 5GS, so it
+// goes only to a UE that said it supports N1 mode (TS 24.301 §5.5.1.2.4). It is
+// the EPS mirror of the AMF's 5GS network feature support bit.
+func TestAttachAcceptIWKN26FollowsN1ModeSupport(t *testing.T) {
+	// N1 mode is octet 9 bit 6 of the UE network capability (TS 24.301
+	// §9.9.3.34); Rest starts at octet 7.
+	withN1 := eps.UENetworkCapability{EEA: 0xF0, EIA: 0x70, Rest: []byte{0x00, 0x00, 0x20}}
+	withoutN1 := eps.UENetworkCapability{EEA: 0xF0, EIA: 0x70, Rest: []byte{0x00, 0x00, 0x00}}
+
+	for _, tc := range []struct {
+		name  string
+		uecap eps.UENetworkCapability
+		want  bool
+	}{
+		{"UE supports N1 mode", withN1, true},
+		{"UE does not support N1 mode", withoutN1, false},
+		{"UE sent no feature octets", eps.UENetworkCapability{EEA: 0xF0, EIA: 0x70}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, _ := securedUE(t, m)
+			ue.SetUESecurityCapability(tc.uecap, nil, mme.MintAuthProofForAttachRequest())
+			testPDN(ue).PdnType = eps.PDNTypeIPv4
+			testPDN(ue).UeIP = testUEIP
+
+			wire, err := buildProtectedAttachAccept(context.Background(), m, ue, &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400, Snssai: testSnssai})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			accept, err := eps.ParseAttachAccept(plain)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if accept.NetworkFeatureSupport == nil {
+				t.Fatal("Attach Accept carries no EPS network feature support")
+			}
+
+			if accept.NetworkFeatureSupport.IWKN26 != tc.want {
+				t.Errorf("IWK N26 = %v, want %v", accept.NetworkFeatureSupport.IWKN26, tc.want)
+			}
+		})
+	}
+}

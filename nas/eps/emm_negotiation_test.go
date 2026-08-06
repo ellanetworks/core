@@ -284,3 +284,78 @@ func TestNetworkFeatureSupportRoundTrips(t *testing.T) {
 		}
 	})
 }
+
+// TestNetworkFeatureSupportIWKN26 pins the interworking indicator's placement:
+// octet 4 bit 7 of the EPS network feature support IE (TS 24.301 §9.9.3.12A).
+// Setting it is itself a request for octet 4, which the minimum-length element
+// omits.
+func TestNetworkFeatureSupportIWKN26(t *testing.T) {
+	withoutOctet4, err := NetworkFeatureSupport{IMSVoPS: true}.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(withoutOctet4) != 1 {
+		t.Fatalf("element without octet 4 = % x, want one octet", withoutOctet4)
+	}
+
+	raw, err := NetworkFeatureSupport{IMSVoPS: true, IWKN26: true}.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := []byte{0x01, 0x40}; !bytes.Equal(raw, want) {
+		t.Fatalf("element with IWK N26 = % x, want % x", raw, want)
+	}
+
+	out, err := ParseNetworkFeatureSupport(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !out.IWKN26 || !out.IMSVoPS || out.Octet4Spare != 0 {
+		t.Fatalf("round-trip = %+v, want IMS VoPS and IWK N26 with no other octet-4 bit", out)
+	}
+
+	// Octet-4 bits this codec does not interpret survive alongside it.
+	mixed, err := ParseNetworkFeatureSupport([]byte{0x01, 0xC1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !mixed.IWKN26 || mixed.Octet4Spare != 0x81 {
+		t.Fatalf("mixed octet 4 = %+v, want IWK N26 set and 0x81 spare", mixed)
+	}
+
+	again, err := mixed.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want := []byte{0x01, 0xC1}; !bytes.Equal(again, want) {
+		t.Fatalf("re-encode = % x, want % x", again, want)
+	}
+}
+
+// TestUENetworkCapabilityN1Mode pins the N1 mode bit at octet 9 bit 6
+// (TS 24.301 §9.9.3.34), read out of the verbatim feature octets.
+func TestUENetworkCapabilityN1Mode(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		rest []byte
+		want bool
+	}{
+		{"supported", []byte{0x00, 0x00, 0x20}, true},
+		{"not supported", []byte{0x00, 0x00, 0x00}, false},
+		{"another octet-9 bit", []byte{0x00, 0x00, 0x10}, false},
+		{"element stops before octet 9", []byte{0x00, 0x00}, false},
+		{"no feature octets", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := UENetworkCapability{EEA: 0xF0, EIA: 0x70, Rest: tc.rest}
+			if got := c.N1Mode(); got != tc.want {
+				t.Errorf("N1Mode() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

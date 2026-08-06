@@ -241,15 +241,19 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 	}
 }
 
-// NetworkFeatureSupport returns the EPS network feature support advertised to UEs
-// (TS 24.301 §9.9.3.12A), or the default when unset.
-func (m *MME) NetworkFeatureSupport() *eps.NetworkFeatureSupport {
+// NetworkFeatureSupport returns the EPS network feature support advertised to a
+// UE (TS 24.301 §9.9.3.12A). The IWK N26 indicator is per-UE: only a UE that
+// said it supports N1 mode is told how this network interworks with 5GS
+// (§5.5.1.2.4, §5.5.3.2.4), mirroring the AMF's 5GS counterpart.
+func (m *MME) NetworkFeatureSupport(ue *UeContext) *eps.NetworkFeatureSupport {
+	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
 	if m.EPSNetworkFeatureSupport != nil {
-		nfs := *m.EPSNetworkFeatureSupport
-		return &nfs
+		nfs = *m.EPSNetworkFeatureSupport
 	}
 
-	return &eps.NetworkFeatureSupport{IMSVoPS: true}
+	nfs.IWKN26 = models.InterworkingWithoutN26 && ue.UeNetCap().N1Mode()
+
+	return &nfs
 }
 
 // Tracer instruments the MME's S1AP/EMM control plane.

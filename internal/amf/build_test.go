@@ -185,3 +185,42 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 		t.Fatal("expected AllowedNSSAI to be absent when list is empty")
 	}
 }
+
+// The IWK N26 indicator tells a UE how this network interworks with EPS, so it
+// goes only to a UE that said it supports S1 mode (TS 24.501 §5.5.1.2.4). Its
+// value is "interworking without N26 supported": this core has no N26 interface,
+// so a UE moving to EPS re-requests its sessions there (TS 23.501 §5.17.2.3).
+func TestBuildRegistrationAccept_IWKN26FollowsS1ModeSupport(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		capability *fgs.GMMCapability
+		want       bool
+	}{
+		{"UE supports S1 mode", &fgs.GMMCapability{S1Mode: true}, true},
+		{"UE does not support S1 mode", &fgs.GMMCapability{}, false},
+		{"UE sent no 5GMM capability", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ue := buildTestUE(t)
+			ue.SetGMMCapability(tc.capability)
+
+			raw, err := amf.BuildRegistrationAccept(amf.New(nil, nil, nil), ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
+			if err != nil {
+				t.Fatalf("BuildRegistrationAccept failed: %v", err)
+			}
+
+			ra, err := fgs.ParseRegistrationAccept(decryptNAS(t, ue, raw))
+			if err != nil {
+				t.Fatalf("parse RegistrationAccept: %v", err)
+			}
+
+			if ra.NetworkFeatureSupport == nil {
+				t.Fatal("Registration Accept carries no 5GS network feature support")
+			}
+
+			if ra.NetworkFeatureSupport.IWKN26 != tc.want {
+				t.Errorf("IWK N26 = %v, want %v", ra.NetworkFeatureSupport.IWKN26, tc.want)
+			}
+		})
+	}
+}
