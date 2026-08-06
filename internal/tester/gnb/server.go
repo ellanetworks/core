@@ -34,9 +34,10 @@ const (
 
 // dialN2 establishes the N2 SCTP association, retrying with a fresh socket on
 // transient connect failures (e.g. EISCONN from a lingering association left by
-// a prior gNB process on the same source address). Bounded so a genuinely
-// unreachable core still fails within ~2s.
-func dialN2(local, rem *sctp.SCTPAddr, address string) (*sctp.SCTPConn, error) {
+// a prior gNB process on the same source address). Each attempt is bounded by
+// n2DialTimeout, so an unreachable core fails the whole loop in ~12s rather
+// than hanging on the kernel's INIT retries.
+func dialN2(local, rem *sctp.SCTPAddr) (*sctp.SCTPConn, error) {
 	var lastErr error
 
 	for attempt := 0; attempt < n2DialAttempts; attempt++ {
@@ -52,7 +53,7 @@ func dialN2(local, rem *sctp.SCTPAddr, address string) (*sctp.SCTPConn, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("dial %s: %w", address, lastErr)
+	return nil, fmt.Errorf("%d attempts: %w", n2DialAttempts, lastErr)
 }
 
 // dialN2Once performs a single bounded handshake attempt.
@@ -530,7 +531,7 @@ func (g *GnodeB) n2DialAndActivateLocked(idx int) error {
 		return fmt.Errorf("resolve %s: %w", peer.address, err)
 	}
 
-	conn, err := dialN2(g.n2Local, rem, peer.address)
+	conn, err := dialN2(g.n2Local, rem)
 	if err != nil {
 		peer.state = n2StateFailed
 		return err

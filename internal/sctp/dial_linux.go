@@ -25,7 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"runtime"
+	"os"
 	"syscall"
 	"time"
 	"unsafe"
@@ -45,12 +45,21 @@ const dialedEvents = sctpEventDataIO | sctpEventShutdown | sctpEventAssociation 
 
 const assocChangeBufSize = 512
 
+// ErrMissingAddress is returned by Dial when raddr names no address to connect
+// to. It is a sentinel rather than a formatted error because the alternative is
+// silently connecting to the wildcard address.
+var ErrMissingAddress = errors.New("sctp: dial requires a remote address")
+
 // getAddrsOld is struct sctp_getaddrs_old (include/uapi/linux/sctp.h). AddrNum
 // holds the byte length of the packed sockaddr array, not a count of addresses.
+//
+// Addrs is a real pointer rather than a uintptr so the garbage collector tracks
+// the buffer it refers to; a uintptr would be outside the unsafe.Pointer rules
+// and would need pinning by hand. Width and offsets are unchanged.
 type getAddrsOld struct {
 	AssocID int32
 	AddrNum int32
-	Addrs   uintptr
+	Addrs   unsafe.Pointer
 }
 
 // sctpConnect starts the association handshake towards every address in raddr.
@@ -63,19 +72,45 @@ func sctpConnect(fd int, raddr *SCTPAddr) error {
 
 	param := getAddrsOld{
 		AddrNum: int32(len(buf)),
-		Addrs:   uintptr(unsafe.Pointer(&buf[0])),
+		Addrs:   unsafe.Pointer(&buf[0]),
 	}
 
 	// The kernel reads the length with get_user(int, optlen), so it must be a
 	// 4-byte int rather than a uintptr.
 	optlen := int32(unsafe.Sizeof(param))
 
-	err := getsockopt(fd, sctpOptConnectX3, unsafe.Pointer(&param), unsafe.Pointer(&optlen))
+	return getsockopt(fd, sctpOptConnectX3, unsafe.Pointer(&param), unsafe.Pointer(&optlen))
+}
 
-	// param.Addrs is an integer to the collector, so buf is pinned by hand.
-	runtime.KeepAlive(buf)
+// validNetwork reports the network name to use, or an error for one this
+// package does not speak. An empty name means "sctp", matching ResolveSCTPAddr.
+func validNetwork(network string) (string, error) {
+	switch network {
+	case "":
+		return "sctp", nil
+	case "sctp", "sctp4", "sctp6":
+		return network, nil
+	default:
+		return "", net.UnknownNetworkError(network)
+	}
+}
 
-	return err
+// dialError gives every dial failure the shape the net package uses, so callers
+// can classify it with errors.Is or net.Error.Timeout.
+func dialError(network string, laddr, raddr *SCTPAddr, err error) error {
+	opErr := &net.OpError{Op: "dial", Net: network, Err: err}
+
+	// Assigned only when non-nil: a typed-nil in the net.Addr interface would
+	// reach SCTPAddr.String and panic when OpError formats itself.
+	if laddr != nil {
+		opErr.Source = laddr
+	}
+
+	if raddr != nil {
+		opErr.Addr = raddr
+	}
+
+	return opErr
 }
 
 // Dial establishes an SCTP association with raddr, binding to laddr when it is
@@ -84,8 +119,23 @@ func sctpConnect(fd int, raddr *SCTPAddr) error {
 // the kernel retries the INIT, which InitMsg.MaxAttempts and
 // InitMsg.MaxInitTimeout govern.
 func Dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options InitMsg) (*SCTPConn, error) {
+	resolved, err := validNetwork(network)
+	if err != nil {
+		// Reported against the name the caller passed, not the resolved one.
+		return nil, dialError(network, laddr, raddr, err)
+	}
+
+	conn, err := dial(ctx, resolved, laddr, raddr, options)
+	if err != nil {
+		return nil, dialError(resolved, laddr, raddr, err)
+	}
+
+	return conn, nil
+}
+
+func dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options InitMsg) (*SCTPConn, error) {
 	if raddr == nil || len(raddr.IPAddrs) == 0 {
-		return nil, fmt.Errorf("sctp: dial requires a remote address")
+		return nil, ErrMissingAddress
 	}
 
 	af, ipv6only := favoriteAddrFamily(network, laddr, raddr, "dial")
@@ -129,19 +179,20 @@ func Dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options I
 		}
 	}
 
+	// newSCTPConn owns the descriptor from here whether or not it succeeds.
 	conn := newSCTPConn(sock)
+	ownsSock = false
+
 	if conn == nil {
 		return nil, fmt.Errorf("sctp: could not hand socket to the runtime poller")
 	}
-
-	ownsSock = false
 
 	// Before connecting: the handshake's outcome is one of these events, and the
 	// kernel only generates an event subscribed to at the time it occurs.
 	if err := conn.subscribeEvents(dialedEvents); err != nil {
 		_ = conn.Abort()
 
-		return nil, fmt.Errorf("subscribe events: %w", err)
+		return nil, err
 	}
 
 	if err := conn.connect(ctx, raddr); err != nil {
@@ -149,7 +200,7 @@ func Dial(ctx context.Context, network string, laddr, raddr *SCTPAddr, options I
 		// spend the drain timeout establishing that.
 		_ = conn.Abort()
 
-		return nil, fmt.Errorf("dial %s: %w", raddr.String(), err)
+		return nil, err
 	}
 
 	return conn, nil
@@ -183,20 +234,22 @@ func (c *SCTPConn) connect(ctx context.Context, raddr *SCTPAddr) error {
 
 // awaitAssocChange waits for the kernel to report how the handshake ended.
 //
-// Write readiness cannot be used as the completion signal: sctp_poll marks a
-// socket writable as soon as its send buffer has room, which holds throughout
-// the handshake (net/sctp/socket.c). The outcome arrives instead as an
-// SCTP_ASSOC_CHANGE notification on the receive queue — SCTP_COMM_UP on
-// success, SCTP_CANT_STR_ASSOC when the INIT is aborted or runs out of attempts
-// — which is delivered through sk_data_ready.
+// The outcome arrives as an SCTP_ASSOC_CHANGE notification on the receive queue:
+// SCTP_COMM_UP on success, SCTP_CANT_STR_ASSOC when the INIT is aborted or runs
+// out of attempts (net/sctp/sm_sideeffect.c sctp_cmd_init_failed). Write
+// readiness would also signal completion — sctp_poll suppresses EPOLLOUT while
+// the socket is CLOSED, which covers the whole handshake — but it cannot say
+// why a handshake failed, and the notification can.
 func (c *SCTPConn) awaitAssocChange(ctx context.Context) error {
+	// Cleared unconditionally. The watcher below installs aLongTimeAgo for any
+	// cancellable context, not only one carrying a deadline, and a deadline left
+	// behind on a conn that dialled successfully would fail every later read.
+	defer func() { _ = c.setReadDeadline(time.Time{}) }()
+
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := c.setReadDeadline(deadline); err != nil {
 			return err
 		}
-
-		// Cleared so the deadline cannot expire a later read on the association.
-		defer func() { _ = c.setReadDeadline(time.Time{}) }()
 	}
 
 	if done := ctx.Done(); done != nil {
@@ -213,8 +266,8 @@ func (c *SCTPConn) awaitAssocChange(ctx context.Context) error {
 			}
 		}()
 
-		// Registered after the deadline reset so it runs first, and waits for the
-		// watcher so no deadline can be installed after that reset.
+		// Registered after the reset so it runs first, and waits for the watcher
+		// so no deadline can be installed after that reset.
 		defer func() {
 			close(stop)
 			<-watcherDone
@@ -226,12 +279,7 @@ func (c *SCTPConn) awaitAssocChange(ctx context.Context) error {
 	for {
 		delivery, err := c.readMsgOnce(buf)
 		if err != nil {
-			// A cancelled context unparks the read through the deadline above.
-			if ctxErr := ctx.Err(); ctxErr != nil {
-				return ctxErr
-			}
-
-			return err
+			return dialCtxErr(ctx, err)
 		}
 
 		change, ok := delivery.notification.(*SCTPAssocChangeEvent)
@@ -240,11 +288,29 @@ func (c *SCTPConn) awaitAssocChange(ctx context.Context) error {
 		}
 
 		if change.State() == SCTPCommUp {
-			return nil
+			// A cancellation landing as the association comes up still means the
+			// caller no longer wants it (net/fd_unix.go, Go issue 16523).
+			return ctx.Err()
 		}
 
 		return c.assocFailure(change)
 	}
+}
+
+// dialCtxErr reports why the handshake read ended. The read deadline is only
+// ever installed from ctx, so its expiry means ctx is done or about to be: the
+// poller's timer and the context's fire at the same instant and either can win,
+// which would otherwise make the returned error nondeterministic.
+func dialCtxErr(ctx context.Context, err error) error {
+	if ctx.Done() != nil && errors.Is(err, os.ErrDeadlineExceeded) {
+		<-ctx.Done()
+	}
+
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+
+	return err
 }
 
 // assocFailure turns a non-COMM_UP association change into an error, preferring

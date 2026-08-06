@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
+//go:build linux && !386
 
 package sctp
 
@@ -23,8 +24,10 @@ func TestGetAddrsOldMatchesKernelLayout(t *testing.T) {
 		t.Errorf("offsetof(AddrNum) = %d, want 4", got)
 	}
 
-	if got := unsafe.Offsetof(param.Addrs); got != unsafe.Sizeof(uintptr(0)) {
-		t.Errorf("offsetof(Addrs) = %d, want %d", got, unsafe.Sizeof(uintptr(0)))
+	// 8 on both LP64 and ILP32: two 32-bit fields precede it, and the pointer's
+	// own alignment never pushes it past that.
+	if got := unsafe.Offsetof(param.Addrs); got != 8 {
+		t.Errorf("offsetof(Addrs) = %d, want 8", got)
 	}
 }
 

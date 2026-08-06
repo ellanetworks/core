@@ -280,7 +280,7 @@ func (e *ENB) dialAndActivateLocked(idx int) error {
 	conn, err := sctp.Dial(dialCtx, "sctp", e.mmeLocal, rem, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
 	if err != nil {
 		peer.state = mmeStateFailed
-		return fmt.Errorf("dial %s: %w", peer.address, err)
+		return err
 	}
 
 	peer.conn = conn

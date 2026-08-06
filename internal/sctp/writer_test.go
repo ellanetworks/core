@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"runtime"
 	"syscall"
 	"testing"
@@ -241,10 +242,21 @@ func TestWriter_WriteDeadlineFailsAssociation(t *testing.T) {
 	// Stay well under writeQueueDepth so the deadline, not queue overflow, is
 	// what fails the association.
 	payload := make([]byte, 4096)
+
 	for i := 0; i < 16; i++ {
-		if _, err := serverConn.WriteMsg(payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
-			t.Fatalf("enqueue %d: %v", i, err)
+		_, err := serverConn.WriteMsg(payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0})
+		if err == nil {
+			continue
 		}
+
+		// The writer goroutine can abort mid-loop — that is the outcome under
+		// test, so stop enqueuing rather than failing on it. Anything else is a
+		// real error.
+		if errors.Is(err, net.ErrClosed) {
+			break
+		}
+
+		t.Fatalf("enqueue %d: %v", i, err)
 	}
 
 	select {

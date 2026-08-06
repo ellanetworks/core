@@ -444,6 +444,9 @@ func newSCTPConn(fd int) *SCTPConn {
 
 	f := os.NewFile(uintptr(fd), "sctp")
 	if f == nil {
+		// Ownership was taken regardless, so the caller must not close as well.
+		_ = syscall.Close(fd)
+
 		return nil
 	}
 
@@ -566,7 +569,9 @@ func sctpGetAddrs(fd, id, optname int) (*SCTPAddr, error) {
 	param := getaddrs{
 		assocID: int32(id),
 	}
-	optlen := unsafe.Sizeof(param)
+
+	// A 4-byte int, for the reason sctpConnect documents.
+	optlen := int32(unsafe.Sizeof(param))
 
 	err := getsockopt(fd, uintptr(optname), unsafe.Pointer(&param), unsafe.Pointer(&optlen))
 	if err != nil {

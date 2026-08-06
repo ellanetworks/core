@@ -9,8 +9,10 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -27,16 +29,16 @@ const echoStream = 1
 
 // echoServer starts a Server on 127.0.0.1:port that echoes every dispatched
 // message straight back to its sender.
-func echoServer(t *testing.T, port int, ppid uint32) *Server {
+func echoServer(t *testing.T, port int) *Server {
 	t.Helper()
 
 	srv := NewServer(Config{
-		PPID:   ppid,
+		PPID:   testPPID,
 		Name:   "TEST",
 		Logger: zap.NewNop(),
 	}, Callbacks{
 		Dispatch: func(_ context.Context, conn *SCTPConn, msg []byte) {
-			if _, err := conn.WriteMsg(msg, &SndRcvInfo{PPID: PPIDWireOrder(ppid), Stream: echoStream}); err != nil {
+			if _, err := conn.WriteMsg(msg, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: echoStream}); err != nil {
 				t.Errorf("echo write: %v", err)
 			}
 		},
@@ -51,7 +53,11 @@ func echoServer(t *testing.T, port int, ppid uint32) *Server {
 
 	t.Cleanup(func() {
 		cancel()
-		srv.Shutdown(context.Background())
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+
+		srv.Shutdown(shutdownCtx)
 	})
 
 	return srv
@@ -90,7 +96,7 @@ func TestDial_RoundTrip(t *testing.T) {
 
 	const port = 29601
 
-	echoServer(t, port, testPPID)
+	echoServer(t, port)
 
 	conn := dialLoopback(t, port)
 
@@ -133,7 +139,7 @@ func TestDial_RemoteAddrResolved(t *testing.T) {
 
 	const port = 29602
 
-	echoServer(t, port, testPPID)
+	echoServer(t, port)
 
 	conn := dialLoopback(t, port)
 
@@ -156,7 +162,7 @@ func TestDial_PeerShutdownReportsEOF(t *testing.T) {
 
 	const port = 29603
 
-	srv := echoServer(t, port, testPPID)
+	srv := echoServer(t, port)
 
 	conn := dialLoopback(t, port)
 
@@ -174,7 +180,10 @@ func TestDial_PeerShutdownReportsEOF(t *testing.T) {
 		t.Fatalf("ReadMsg echo: %v", err)
 	}
 
-	srv.Shutdown(context.Background())
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	srv.Shutdown(shutdownCtx)
 
 	for {
 		_, _, err := conn.ReadMsg(buf)
@@ -215,6 +224,16 @@ func TestDial_NoListenerFails(t *testing.T) {
 		t.Fatalf("dial hit the context deadline instead of the peer's refusal: %v", err)
 	}
 
+	// The kernel's ABORT reaches the caller as an errno, not as a bare failure.
+	if !errors.Is(err, syscall.ECONNREFUSED) {
+		t.Errorf("err = %v, want ECONNREFUSED", err)
+	}
+
+	var netErr net.Error
+	if !errors.As(err, &netErr) {
+		t.Errorf("err %v (%T) does not satisfy net.Error", err, err)
+	}
+
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("refused dial took %v; the ABORT should surface immediately", elapsed)
 	}
@@ -253,6 +272,12 @@ func TestDial_ContextBoundsUnreachablePeer(t *testing.T) {
 		return
 	}
 
+	// Only an immediate failure can be the no-route case; anything that ran to
+	// the deadline must report the deadline.
+	if elapsed > 50*time.Millisecond {
+		t.Fatalf("dial ran for %v then failed with %v, want context.DeadlineExceeded", elapsed, err)
+	}
+
 	t.Logf("no route to TEST-NET-1; connectx refused early with %v (deadline path not exercised)", err)
 }
 
@@ -265,11 +290,23 @@ func TestDial_RejectsMissingRemote(t *testing.T) {
 		"empty set": {IPAddrs: []net.IPAddr{}, Port: 38412},
 	} {
 		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+
 			conn, err := Dial(context.Background(), "sctp", nil, raddr, dialTestInit)
 			if err == nil {
 				_ = conn.Close()
 
 				t.Fatal("Dial accepted an address with no remote IP")
+			}
+
+			// Without the guard the wildcard sockaddr dials localhost, which also
+			// fails — but only after a round trip, and with a different error.
+			if !errors.Is(err, ErrMissingAddress) {
+				t.Errorf("err = %v, want ErrMissingAddress", err)
+			}
+
+			if elapsed := time.Since(start); elapsed > 20*time.Millisecond {
+				t.Errorf("rejected in %v; the guard should not reach the network", elapsed)
 			}
 		})
 	}
@@ -400,4 +437,294 @@ func TestBindAddrDoesNotMutateCaller(t *testing.T) {
 	if bindAddr(explicit, syscall.AF_INET) != explicit {
 		t.Error("bindAddr copied an address that already had IPs")
 	}
+}
+
+// TestDial_BoundToLocalAddress exercises the bind path every production caller
+// uses: the association must come up sourced from the address named in laddr.
+func TestDial_BoundToLocalAddress(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29606
+
+	echoServer(t, port)
+
+	laddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.2")}}}
+	raddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: port}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := Dial(ctx, "sctp", laddr, raddr, dialTestInit)
+	if err != nil {
+		t.Fatalf("Dial from %s: %v", laddr, err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	local := conn.LocalAddr()
+	if local == nil {
+		t.Fatal("LocalAddr is nil on an established association")
+	}
+
+	if !strings.HasPrefix(local.String(), "127.0.0.2:") {
+		t.Errorf("LocalAddr = %s, want a 127.0.0.2 source", local)
+	}
+}
+
+// TestDial_Multihomed exercises the reason sctpConnect packs a list of
+// sockaddrs at all: bindx and connectx both take every address at once.
+func TestDial_Multihomed(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29607
+
+	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()},
+		Callbacks{Dispatch: func(context.Context, *SCTPConn, []byte) {}})
+
+	// Listening on the wildcard so the server answers on both loopback aliases.
+	srvCtx, srvCancel := context.WithCancel(context.Background())
+
+	if err := srv.ListenAndServe(srvCtx, "0.0.0.0", port, ""); err != nil {
+		srvCancel()
+		t.Fatalf("ListenAndServe: %v", err)
+	}
+
+	t.Cleanup(func() {
+		srvCancel()
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+
+		srv.Shutdown(shutdownCtx)
+	})
+
+	laddr := &SCTPAddr{IPAddrs: []net.IPAddr{
+		{IP: net.ParseIP("127.0.0.2")},
+		{IP: net.ParseIP("127.0.0.3")},
+	}}
+
+	raddr, err := ResolveSCTPAddr("sctp", "127.0.0.1:"+strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("ResolveSCTPAddr: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := Dial(ctx, "sctp", laddr, raddr, dialTestInit)
+	if err != nil {
+		t.Fatalf("multihomed Dial: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	// Both bound addresses should show up in the association's local set.
+	local := conn.LocalAddr()
+	if local == nil {
+		t.Fatal("LocalAddr is nil")
+	}
+
+	for _, want := range []string{"127.0.0.2", "127.0.0.3"} {
+		if !strings.Contains(local.String(), want) {
+			t.Errorf("LocalAddr = %s, missing bound address %s", local, want)
+		}
+	}
+}
+
+// TestDial_IPv6 covers the AF_INET6 path through favoriteAddrFamily and bindx.
+func TestDial_IPv6(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29608
+
+	srv := NewServer(Config{PPID: testPPID, Name: "TEST", Logger: zap.NewNop()},
+		Callbacks{Dispatch: func(context.Context, *SCTPConn, []byte) {}})
+
+	srvCtx, srvCancel := context.WithCancel(context.Background())
+
+	if err := srv.ListenAndServe(srvCtx, "::1", port, ""); err != nil {
+		srvCancel()
+		t.Skipf("no IPv6 loopback listener: %v", err)
+	}
+
+	t.Cleanup(func() {
+		srvCancel()
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+
+		srv.Shutdown(shutdownCtx)
+	})
+
+	raddr, err := ResolveSCTPAddr("sctp6", "[::1]:"+strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("ResolveSCTPAddr: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := Dial(ctx, "sctp6", nil, raddr, dialTestInit)
+	if err != nil {
+		t.Fatalf("Dial over IPv6: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	if remote := conn.RemoteAddr(); remote == nil || !strings.Contains(remote.String(), "::1") {
+		t.Errorf("RemoteAddr = %v, want ::1", remote)
+	}
+}
+
+// TestDial_CancelDoesNotPoisonConn covers Go issue 16523: a cancellation racing
+// the handshake must never yield a conn whose reads are already expired.
+//
+// The cancel is jittered across the handshake window, so some iterations cancel
+// before the association comes up (Dial fails, which is fine) and some land
+// just after (Dial must then either fail or return a usable conn).
+func TestDial_CancelDoesNotPoisonConn(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const cancelDialAttempts = 400
+
+	const port = 29609
+
+	echoServer(t, port)
+
+	raddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: port}
+
+	dialed := 0
+
+	for i := 0; i < cancelDialAttempts; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		go func(delay time.Duration) {
+			time.Sleep(delay)
+			cancel()
+		}(time.Duration(i%50) * time.Microsecond)
+
+		conn, err := Dial(ctx, "sctp", nil, raddr, dialTestInit)
+		if err != nil {
+			cancel()
+			continue
+		}
+
+		dialed++
+
+		// Bounce a message off the echo server rather than reading blind: a
+		// healthy conn answers in microseconds and a poisoned one fails just as
+		// fast with a deadline error, so neither outcome parks the test. Setting
+		// a read deadline here instead would clear the very poison being looked
+		// for.
+		if _, werr := conn.WriteMsg([]byte("ping"), &SndRcvInfo{PPID: PPIDWireOrder(testPPID)}); werr != nil {
+			_ = conn.Close()
+
+			cancel()
+
+			continue
+		}
+
+		_, _, rerr := conn.ReadMsg(make([]byte, 256))
+
+		_ = conn.Close()
+
+		cancel()
+
+		if rerr != nil && errors.Is(rerr, os.ErrDeadlineExceeded) {
+			t.Fatalf("iteration %d: Dial returned a conn with an expired read deadline", i)
+		}
+	}
+
+	t.Logf("%d/%d dials completed before cancellation", dialed, cancelDialAttempts)
+}
+
+// TestDial_ClearsReadDeadline pins that a dial's own deadline does not outlive
+// it. Deliberately does not set a read deadline of its own, which would mask a
+// stale one.
+func TestDial_ClearsReadDeadline(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29610
+
+	echoServer(t, port)
+
+	raddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: port}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+
+	conn, err := Dial(ctx, "sctp", nil, raddr, dialTestInit)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	// Outlive the dial's deadline before using the association.
+	time.Sleep(600 * time.Millisecond)
+
+	if _, err := conn.WriteMsg([]byte("after"), &SndRcvInfo{PPID: PPIDWireOrder(testPPID)}); err != nil {
+		t.Fatalf("WriteMsg after the dial deadline passed: %v", err)
+	}
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, _, rerr := conn.ReadMsg(make([]byte, 2048))
+		done <- rerr
+	}()
+
+	select {
+	case rerr := <-done:
+		if rerr != nil && errors.Is(rerr, os.ErrDeadlineExceeded) {
+			t.Fatalf("read failed with the dial's deadline: %v", rerr)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("read never returned")
+	}
+}
+
+// TestDial_RejectsUnknownNetwork covers the network-name guard, which stands
+// between an unvalidated string and an out-of-range index in
+// favoriteAddrFamily.
+func TestDial_RejectsUnknownNetwork(t *testing.T) {
+	raddr := &SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: 29611}
+
+	conn, err := Dial(context.Background(), "tcp", nil, raddr, dialTestInit)
+	if err == nil {
+		_ = conn.Close()
+
+		t.Fatal("Dial accepted network \"tcp\"")
+	}
+
+	var unknown net.UnknownNetworkError
+	if !errors.As(err, &unknown) {
+		t.Errorf("err = %v (%T), want net.UnknownNetworkError", err, err)
+	}
+}
+
+// TestDial_EmptyNetworkMatchesResolve pins the two halves of the API to the same
+// contract: ResolveSCTPAddr documents "" as sctp, so Dial must not reject or
+// crash on it.
+func TestDial_EmptyNetworkMatchesResolve(t *testing.T) {
+	skipIfNoSCTP(t)
+
+	const port = 29612
+
+	echoServer(t, port)
+
+	raddr, err := ResolveSCTPAddr("", "127.0.0.1:"+strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("ResolveSCTPAddr: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := Dial(ctx, "", nil, raddr, dialTestInit)
+	if err != nil {
+		t.Fatalf("Dial with an empty network: %v", err)
+	}
+
+	_ = conn.Close()
 }
