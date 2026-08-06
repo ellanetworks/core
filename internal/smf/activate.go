@@ -29,7 +29,12 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.Mutex.Lock()
+	// The reference outlives a move, so a 5GS entry point must not act on a
+	// session served by the other access.
+	if err := smContext.lockServedBy(Access5G); err != nil {
+		return nil, err
+	}
+
 	defer smContext.Mutex.Unlock()
 
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || smContext.Tunnel.DataPath.UpLinkTunnel == nil {

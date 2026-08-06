@@ -159,7 +159,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
-		Ref:    smf.CanonicalName(supi, pduSessionID),
+		Ref:    smCtx.Ref,
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
@@ -295,7 +295,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 	msg := handoverRequired(t, 1, pduSessionID)
 
 	smfInstance := smf.New(nil, nil, nil, nil)
-	_, _ = smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+	smCtx, _ := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
@@ -306,7 +306,7 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
-		Ref:    smf.CanonicalName(supi, pduSessionID),
+		Ref:    smCtx.Ref,
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
@@ -380,7 +380,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
-		Ref:    smf.CanonicalName(supi, pduSessionID),
+		Ref:    smCtx.Ref,
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
@@ -463,7 +463,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
-	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smf.CanonicalName(supi, pduSessionID), Snssai: &models.Snssai{Sst: 1}}
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smCtx.Ref, Snssai: &models.Snssai{Sst: 1}}
 
 	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
 	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
@@ -530,7 +530,7 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 			msg.HandoverType = ht
 
 			smfInstance := smf.New(nil, nil, nil, nil)
-			_, _ = smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
+			smCtx, _ := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 
 			amfUe := amf.NewUeContext()
 			amfUe.SetSupiForTest(supi)
@@ -540,7 +540,7 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 			amfUe.SetNHForTest(make([]byte, 32))
 			amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 			amfUe.SmContextList[pduSessionID] = &amf.SmContext{
-				Ref:    smf.CanonicalName(supi, pduSessionID),
+				Ref:    smCtx.Ref,
 				Snssai: &models.Snssai{Sst: 1},
 			}
 

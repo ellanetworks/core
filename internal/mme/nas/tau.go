@@ -55,8 +55,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	// The accept advertises ePCO and IWK N26 from the capability the UE signalled
-	// in this request (TS 24.301 §5.5.3.2.4), which is stored only once the accept
-	// is built.
+	// in this request (TS 24.301 §5.5.3.2.4).
 	netCap := ue.UeNetCap()
 	if req.UENetworkCapability != nil {
 		netCap = *req.UENetworkCapability

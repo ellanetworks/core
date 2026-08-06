@@ -63,6 +63,18 @@ func ueAllocatedPDUSessionID(ctx context.Context, supi etsi.SUPI, pduSessionID u
 	return pduSessionID
 }
 
+// transferESMCause maps a refused transfer to the ESM cause the MME rejects with.
+func transferESMCause(err error) eps.ESMCause {
+	switch {
+	case errors.Is(err, ErrSessionOnOtherDNN):
+		return eps.ESMCauseMissingOrUnknownAPN
+	case errors.Is(err, ErrSessionNotMovable):
+		return eps.ESMCauseRequestRejectedUnspecified
+	default:
+		return eps.ESMCausePDNConnectionDoesNotExist
+	}
+}
+
 func establishESMCause(err error) eps.ESMCause {
 	if errors.Is(err, errSessionIdentityInUse) {
 		return eps.ESMCauseInsufficientResources
@@ -122,8 +134,9 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	}
 
 	// Ella Core serves no emergency bearer services, so there is no emergency PDN
-	// connection to hand over (TS 24.301 §6.5.1.6 e) and an emergency request is
-	// refused with #31.
+	// connection to hand over, which TS 24.301 §6.5.1.6 e) refuses with ESM #54.
+	// Request type "emergency" draws ESM #31 by local choice: the spec assumes a
+	// network offering emergency service and gives no refusal.
 	switch req.RequestType {
 	case eps.RequestTypeHandoverOfEmergencyBearerServices:
 		return models.EPSBearer{ESMCause: eps.ESMCausePDNConnectionDoesNotExist},
@@ -237,7 +250,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 			return
 		}
 
-		if relErr := s.releaseSmContext(ctx, releaseRef); relErr != nil {
+		if relErr := s.releaseSmContext(ctx, releaseRef, anyAccess); relErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a session whose PDN type could not be reported",
 				zap.Error(relErr), logger.SUPI(supi.String()))
 		}
@@ -306,11 +319,11 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID
 		// A session that has since moved off EPS is a different case: this is a
 		// stale eNB response, and its own target is not the one that failed.
 		smContext.Mutex.Lock()
-		moved := len(smContext.pendingSourceReleases) > 0 && smContext.Access == Access4G
+		moved := len(smContext.transfer.pendingReleases) > 0 && smContext.IsEPS()
 		smContext.Mutex.Unlock()
 
 		if moved {
-			if relErr := s.releaseSmContext(ctx, smContext.Ref); relErr != nil {
+			if relErr := s.releaseSmContext(ctx, smContext.Ref, anyAccess); relErr != nil {
 				logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a transferred session whose eNB bind failed",
 					zap.Error(relErr), zap.String("smContextRef", smContext.Ref))
 			}
@@ -332,8 +345,8 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 
 	// An S1AP response for a session already moved to 5GS would point the
 	// downlink back at the eNB.
-	if !smContext.IsEPS() {
-		return fmt.Errorf("session %q is on %s", smContext.Ref, smContext.Access)
+	if err := smContext.servedBy(Access4G); err != nil {
+		return err
 	}
 
 	if smContext.Tunnel == nil || !smContext.Tunnel.DataPath.Activated {
@@ -395,14 +408,13 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, 
 	ctx, span := tracer.Start(ctx, "smf/update_eps_session_ambr", epsSessionAttributes(smContext))
 	defer span.End()
 
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
 	// The reference outlives a move to 5GS, where the APN-AMBR this carries is not
 	// the session's rate limit.
-	if !smContext.IsEPS() {
-		return fmt.Errorf("session %q is on %s", smContext.Ref, smContext.Access)
+	if err := smContext.lockServedBy(Access4G); err != nil {
+		return err
 	}
+
+	defer smContext.Mutex.Unlock()
 
 	var (
 		policyID string
@@ -432,13 +444,7 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, 
 // Releasing by ref targets the exact instance, so superseding an old context cannot
 // tear down a newer session that reused the (IMSI, EBI) slot.
 func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
-	if sc := s.GetSession(ref); sc != nil {
-		if err := sc.servedBy(Access4G); err != nil {
-			return err
-		}
-	}
-
-	return s.releaseSmContext(ctx, ref)
+	return s.releaseSmContext(ctx, ref, onlyOn(Access4G))
 }
 
 // ServesEPS reports whether the session is still on EPS. An unknown session is
@@ -449,6 +455,9 @@ func (s *SMF) ServesEPS(_ context.Context, ref string) bool {
 		return false
 	}
 
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
 	return sc.servedBy(Access4G) == nil
 }
 
@@ -456,50 +465,37 @@ func (s *SMF) ServesEPS(_ context.Context, ref string) bool {
 // for the EPS session differ from those installed at establishment (TS 23.501
 // §5.6.14). An unknown session reports no change.
 func (s *SMF) FramedRoutesChanged(ctx context.Context, ref string) (bool, error) {
-	smContext := s.GetSession(ref)
-	if smContext == nil {
-		return false, nil
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	if smContext.Access != Access4G {
-		return false, nil
-	}
-
-	return s.framedRoutesChanged(ctx, smContext)
+	return s.epsSubscriptionChanged(ctx, ref, s.framedRoutesChanged)
 }
 
 // StaticIPChanged reports whether the subscriber's reserved static IP for the
 // EPS session changed since establishment. An unknown session reports no change.
 func (s *SMF) StaticIPChanged(ctx context.Context, ref string) (bool, error) {
+	return s.epsSubscriptionChanged(ctx, ref, s.staticIPChanged)
+}
+
+// A session unknown to the pool or moved off EPS has nothing the MME can act on,
+// so neither is reported as a change.
+func (s *SMF) epsSubscriptionChanged(ctx context.Context, ref string, changed func(context.Context, *SMContext) (bool, error)) (bool, error) {
 	smContext := s.GetSession(ref)
 	if smContext == nil {
 		return false, nil
 	}
 
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	if smContext.Access != Access4G {
+	if err := smContext.lockServedBy(Access4G); err != nil {
 		return false, nil
 	}
 
-	return s.staticIPChanged(ctx, smContext)
+	defer smContext.Mutex.Unlock()
+
+	return changed(ctx, smContext)
 }
 
 // DeactivateEPSSession puts the retained 4G default bearer into buffering mode when
 // the UE goes ECM-IDLE: the downlink FAR buffers packets, so downlink
 // data raises a paging notification and never reaches the released eNB tunnel.
 func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {
-	if sc := s.GetSession(ref); sc != nil {
-		if err := sc.servedBy(Access4G); err != nil {
-			return err
-		}
-	}
-
-	return s.deactivateSmContext(ctx, ref)
+	return s.deactivateSmContext(ctx, ref, Access4G)
 }
 
 // A transfer reassigns the bearer identity under the session lock.
@@ -512,4 +508,15 @@ func epsSessionAttributes(smContext *SMContext) trace.SpanStartEventOption {
 		attribute.String("ue.imsi", smContext.Supi.IMSI()),
 		attribute.Int("eps.bearer_id", int(ebi)),
 	)
+}
+
+// Unmapping the IPv4-in-IPv6 form keeps the address in the family it was
+// allocated in.
+func ipToNetip(ip net.IP) netip.Addr {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return netip.Addr{}
+	}
+
+	return addr.Unmap()
 }

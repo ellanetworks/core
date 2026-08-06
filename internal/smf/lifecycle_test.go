@@ -75,7 +75,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateLocalSEID()
-	smCtx.SetPFCPSession(seid)
+	s.AssignPFCPSession(smCtx, seid)
 	smCtx.PFCPContext.RemoteSEID = 100
 
 	ulPdr := smf.NewPDR(1, 1)
@@ -1923,7 +1923,7 @@ func TestHandleDownlinkDataReportEPS(t *testing.T) {
 	supi := testSUPI()
 	smCtx, _ := s.NewSession(supi, smf.Access4G, smf.SessionIdentity{EBI: 5}, testDNN, testSnssai) // EPS session keyed by the default bearer EBI
 	seid := s.AllocateLocalSEID()
-	smCtx.SetPFCPSession(seid)
+	s.AssignPFCPSession(smCtx, seid)
 
 	if err := s.HandleDownlinkDataReport(context.Background(), &models.DownlinkDataReport{SEID: seid}); err != nil {
 		t.Fatalf("HandleDownlinkDataReport: %v", err)

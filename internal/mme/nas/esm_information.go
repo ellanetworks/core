@@ -18,7 +18,7 @@ import (
 // requestESMInformation asks the UE for the ESM information it deferred and
 // reports whether the attach waits for it (TS 24.301 §6.6.1.2.2).
 func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func()) bool {
-	if !ue.AwaitingESMInformation {
+	if !ue.AwaitingESMInformation() {
 		return false
 	}
 
@@ -38,8 +38,7 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 		// abort's reject would fail to protect for the same reason. Clear the wait
 		// so no late response resumes a procedure that is over.
 		if errors.Is(err, nas.ErrCountExhausted) {
-			ue.AwaitingESMInformation = false
-			ue.SetPendingPDN(nil)
+			ue.TakeESMInfoWait()
 
 			return true
 		}
@@ -89,7 +88,8 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	if !ue.AwaitingESMInformation || pti != uint8(ue.RequestedPTI) {
+	wait := ue.TakeESMInfoWait()
+	if wait == nil || pti != uint8(ue.RequestedPTI) {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response for no ongoing transaction",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti), zap.Uint8("pti-in-use", uint8(ue.RequestedPTI)))
 		egress{conn: ue.Conn()}.SendSMStatusFor(ctx, uint8(eps.ESMCauseInvalidPTIValue), pti, uint8(req.EPSBearerIdentity))
@@ -98,7 +98,6 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	}
 
 	ue.Conn().StopESMInfoGuard()
-	ue.AwaitingESMInformation = false
 
 	if req.AccessPointName != nil {
 		ue.RequestedAPN = string(*req.AccessPointName)
@@ -113,8 +112,8 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
 
-	if ue.PendingPDNSet() {
-		resumePDNConnectivity(ctx, m, ue)
+	if wait.Standalone != nil {
+		resumePDNConnectivity(ctx, m, ue, wait.Standalone)
 
 		return nasreply.Handled()
 	}

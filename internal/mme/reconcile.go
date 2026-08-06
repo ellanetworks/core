@@ -161,7 +161,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	}
 
 	// The QoS/DNS-only path signals the UE without otherwise touching the anchor,
-	// so the access is checked here rather than falling out of an anchor call.
+	// so it checks the access itself.
 	if !m.PDNIsCurrent(ue, p) || !m.Session.ServesEPS(ctx, sessionRef) {
 		return
 	}

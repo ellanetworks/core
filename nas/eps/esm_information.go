@@ -101,7 +101,7 @@ func (m *ESMInformationResponse) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	if m.ProtocolConfigurationOptions != nil {
-		raw, err := m.ProtocolConfigurationOptions.MarshalBinary()
+		raw, err := m.ProtocolConfigurationOptions.MarshalClassic()
 		if err != nil {
 			return b, err
 		}

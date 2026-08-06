@@ -16,18 +16,12 @@ import (
 // DeactivateSmContext switches the downlink FAR to buffering when the UE goes
 // idle, via a PFCP session modification.
 func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
-	// The 5GS entry point; see ReleaseSmContext.
-	if sc := s.GetSession(smContextRef); sc != nil {
-		if err := sc.servedBy(Access5G); err != nil {
-			return err
-		}
-	}
-
-	return s.deactivateSmContext(ctx, smContextRef)
+	return s.deactivateSmContext(ctx, smContextRef, Access5G)
 }
 
-// deactivateSmContext is the access-agnostic implementation.
-func (s *SMF) deactivateSmContext(ctx context.Context, smContextRef string) error {
+// deactivateSmContext applies servedBy under the same lock hold as the
+// modification, so no transfer can land between them.
+func (s *SMF) deactivateSmContext(ctx context.Context, smContextRef string, access AccessType) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -45,7 +39,10 @@ func (s *SMF) deactivateSmContext(ctx context.Context, smContextRef string) erro
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.Mutex.Lock()
+	if err := smContext.lockServedBy(access); err != nil {
+		return err
+	}
+
 	defer smContext.Mutex.Unlock()
 
 	// Leave any network-requested procedure timer running: CM/ECM-IDLE is resolved

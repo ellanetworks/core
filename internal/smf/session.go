@@ -219,7 +219,7 @@ func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
 		dl.FAR.ForwardingParameters = &models.ForwardingParameters{}
 	}
 
-	s1u := sc.Access == Access4G
+	s1u := sc.IsEPS()
 
 	if an.IPv6 != nil {
 		dl.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{

@@ -66,10 +66,8 @@ type epsSessionManager interface {
 	// the same (IMSI, EBI).
 	ReleaseEPSSession(ctx context.Context, ref string) error
 
-	// ServesEPS reports whether the session is still on EPS. A transfer to 5GS
-	// leaves the reference valid for the session on the other access, so a
-	// procedure that signals a bearer without otherwise touching the anchor asks
-	// first.
+	// ServesEPS reports whether the session is still on EPS: a transfer to 5GS
+	// leaves the reference valid for the session on the other access.
 	ServesEPS(ctx context.Context, ref string) bool
 
 	// FramedRoutesChanged reports whether the subscriber's framed routes for the

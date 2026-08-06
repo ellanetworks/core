@@ -284,3 +284,22 @@ func TestNewSNSSAIContainerRejectsOtherLengths(t *testing.T) {
 		}
 	}
 }
+
+// The classic element sits in a type-4 IE capped at 253 octets, 251 of value
+// (TS 24.008 §10.5.6.3); the extended one carries a two-octet length.
+func TestMarshalClassicBoundsAtTheClassicMaximum(t *testing.T) {
+	p := ProtocolConfigurationOptions{Direction: PCOMSToNetwork}
+
+	// Containers carry a one-octet length, so several are needed to pass 251.
+	for range 3 {
+		p.Containers = append(p.Containers, PCOContainer{ID: 0x000C, Content: make([]byte, 100)})
+	}
+
+	if _, err := p.MarshalClassic(); err == nil {
+		t.Error("MarshalClassic on an over-long value = nil error, want a refusal")
+	}
+
+	if _, err := p.MarshalBinary(); err != nil {
+		t.Errorf("MarshalBinary on the same value = %v, want it accepted for the extended element", err)
+	}
+}

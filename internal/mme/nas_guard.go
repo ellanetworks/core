@@ -6,7 +6,6 @@ package mme
 import (
 	"context"
 
-	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -53,9 +52,7 @@ func (c *UeConn) ArmNASGuardAbortOnly(name string, nas []byte, onAbort func()) {
 	c.armNASGuardMode(name, nas, onAbort)
 }
 
-// ArmT3489 arms the ESM information request guard (TS 24.301 §6.6.1.2.6 a). It
-// has its own slot: the procedure is per-transaction and the standalone path
-// runs on an EMM-REGISTERED UE where an EMM procedure can be in flight.
+// ArmT3489 arms the ESM information request guard (TS 24.301 §6.6.1.2.6 a).
 func (c *UeConn) ArmT3489(name string, nas []byte, onAbort func()) {
 	if c == nil || c.ue == nil {
 		return
@@ -70,7 +67,7 @@ func (c *UeConn) ArmT3489(name string, nas []byte, onAbort func()) {
 	c.esmInfoGuard.ArmWith(
 		c.m.t3489Cfg,
 		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
-		func() { c.expireNASGuard(ue, name, onAbort) },
+		func() { c.expireNASGuard(ue, name, expiryFinalise, onAbort) },
 	)
 }
 
@@ -91,14 +88,6 @@ func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
 		return
 	}
 
-	c.armNASGuardWith(c.m.nasGuardCfg, name, nas, onAbort)
-}
-
-func (c *UeConn) armNASGuardWith(cfg guard.TimerValue, name string, nas []byte, onAbort func()) {
-	if c == nil || c.ue == nil {
-		return
-	}
-
 	m := c.m
 	// Capture the UE context at arm time: it stays valid for the callbacks even if the
 	// connection is later released (which nils c.ue); the ue.Conn() != c check then
@@ -110,9 +99,9 @@ func (c *UeConn) armNASGuardWith(cfg guard.TimerValue, name string, nas []byte, 
 
 	c.nasGuardName = name
 	c.nasGuard.ArmWith(
-		cfg,
+		c.m.nasGuardCfg,
 		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
-		func() { c.expireNASGuard(ue, name, onAbort) },
+		func() { c.expireNASGuard(ue, name, nasGuardExpiry(onAbort), onAbort) },
 	)
 }
 
@@ -144,7 +133,7 @@ func (m *MME) armESMGuardMode(ue *UeContext, p *PdnConnection, name string, nas 
 	p.guard.ArmWith(
 		m.esmGuardCfg,
 		func(attempt int32) { conn.retransmitNASGuard(ue, name, nas, attempt) },
-		func() { conn.expireNASGuard(ue, name, onAbort) },
+		func() { conn.expireNASGuard(ue, name, nasGuardExpiry(onAbort), onAbort) },
 	)
 }
 
@@ -207,7 +196,29 @@ func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, pdu []byte, atte
 // runs its finalizer and leaves the UE connected. It no-ops when the guarded
 // connection is not current, so a guard that outlives its connection neither
 // releases the UE nor runs its finalizer.
-func (c *UeConn) expireNASGuard(ue *UeContext, name string, onAbort func()) {
+// nasGuardExpiry maps the EMM guard's two arming modes onto the outcome: an
+// abort-only arming finalises locally, a plain one releases the UE.
+func nasGuardExpiry(onAbort func()) guardExpiry {
+	if onAbort != nil {
+		return expiryFinalise
+	}
+
+	return expiryReleaseUE
+}
+
+// guardExpiry says what a guard's exhaustion does: finalise the procedure
+// locally, leaving the UE connected, or release the UE.
+type guardExpiry uint8
+
+const (
+	// expiryReleaseUE ends the UE's connection. It is the EMM common-procedure
+	// outcome: the UE never answered a procedure the network requires.
+	expiryReleaseUE guardExpiry = iota
+	// expiryFinalise runs a per-procedure finaliser and leaves the UE connected.
+	expiryFinalise
+)
+
+func (c *UeConn) expireNASGuard(ue *UeContext, name string, outcome guardExpiry, onAbort func()) {
 	m := c.m
 	m.mu.Lock()
 
@@ -220,11 +231,13 @@ func (c *UeConn) expireNASGuard(ue *UeContext, name string, onAbort func()) {
 
 	m.mu.Unlock()
 
-	if onAbort != nil {
+	if outcome == expiryFinalise {
 		logger.MmeLog.Info("NAS procedure timed out, aborting (UE stays connected)",
 			zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
 
-		onAbort()
+		if onAbort != nil {
+			onAbort()
+		}
 
 		return
 	}

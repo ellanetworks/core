@@ -16,11 +16,7 @@ func (s *SMF) ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSes
 		return nil
 	}
 
-	if err := pagedOn(smContext, Access5G); err != nil {
-		return nil
-	}
-
-	s.clearDownlinkDataNotification(ctx, smContext)
+	s.clearDownlinkDataNotification(ctx, smContext, Access5G)
 
 	return nil
 }
@@ -36,17 +32,17 @@ func (s *SMF) ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi ui
 		return nil
 	}
 
-	if err := pagedOn(smContext, Access4G); err != nil {
-		return nil
-	}
-
-	s.clearDownlinkDataNotification(ctx, smContext)
+	s.clearDownlinkDataNotification(ctx, smContext, Access4G)
 
 	return nil
 }
 
-func (s *SMF) clearDownlinkDataNotification(ctx context.Context, smContext *SMContext) {
-	smContext.Mutex.Lock()
+// A session that has moved holds no suppression on the access it left.
+func (s *SMF) clearDownlinkDataNotification(ctx context.Context, smContext *SMContext, access AccessType) {
+	if err := smContext.lockServedBy(access); err != nil {
+		return
+	}
+
 	pfcp := smContext.PFCPContext
 	smContext.Mutex.Unlock()
 

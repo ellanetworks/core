@@ -124,8 +124,10 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedPTI = 0
 	ue.RequestedPDUSessionID = 0
 	ue.RequestedType = eps.RequestTypeInitialRequest
-	ue.AwaitingESMInformation = false
-	ue.SetPendingPDN(nil)
+	// The abort of an abandoned deferral would otherwise fire against this attach,
+	// clearing its wait and emitting a reject with the earlier transaction's PTI.
+	ue.Conn().StopESMInfoGuard()
+	ue.TakeESMInfoWait()
 
 	// A syntactically incorrect optional element leaves the rest of the message
 	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the
@@ -147,7 +149,9 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 			ue.RequestedType = pc.RequestType
 		}
 
-		ue.AwaitingESMInformation = pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag
+		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {
+			ue.AwaitESMInformation(nil)
+		}
 	}
 }
 

@@ -20,16 +20,46 @@ func (sc *SMContext) IsEPS() bool { return sc.Access == Access4G }
 // servedBy reports whether the session is still on the access an entry point
 // speaks for. A transfer leaves the source access holding a live Ref until its
 // target binds, so a request arriving on the access the session left must not
-// act on it. Caller must not hold sc.Mutex.
+// act on it. Caller holds Mutex.
 func (sc *SMContext) servedBy(access AccessType) error {
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
 	if sc.Access != access {
 		return fmt.Errorf("session %q is on %s", sc.Ref, sc.Access)
 	}
 
 	return nil
+}
+
+// accessCheck refuses a session that is not on the access an operation is scoped
+// to, for operations whose implementation takes Mutex itself. Caller holds Mutex.
+type accessCheck func(*SMContext) error
+
+// onlyOn scopes an operation to the access its entry point speaks for.
+func onlyOn(access AccessType) accessCheck {
+	return func(sc *SMContext) error { return sc.servedBy(access) }
+}
+
+// anyAccess scopes an operation to neither access, for internal teardown that
+// has already established which one it acts for.
+func anyAccess(*SMContext) error { return nil }
+
+// lockChecked takes Mutex and applies check under it, so a transfer cannot land
+// between the check and the work it guards. Mutex is held on return only when
+// the error is nil, and the caller unlocks it.
+func (sc *SMContext) lockChecked(check accessCheck) error {
+	sc.Mutex.Lock()
+
+	if err := check(sc); err != nil {
+		sc.Mutex.Unlock()
+
+		return err
+	}
+
+	return nil
+}
+
+// lockServedBy is lockChecked for an entry point that speaks for one access.
+func (sc *SMContext) lockServedBy(access AccessType) error {
+	return sc.lockChecked(onlyOn(access))
 }
 
 func (a AccessType) String() string {

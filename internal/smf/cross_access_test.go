@@ -190,7 +190,7 @@ func TestInitialRequestLocallyReleasesThePDNConnectionHoldingTheIdentity(t *test
 }
 
 // A reference outlives a move, so the per-access entry points refuse a session
-// the other access now serves.
+// served by the other access.
 func TestEPSEntryPointsRefuseASessionMovedTo5GS(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -283,5 +283,31 @@ func TestRoundTripKeepsTheAddressAndLease(t *testing.T) {
 
 	if moved := amfCb.movedAway(); len(moved) != 1 {
 		t.Errorf("AMF told of moved sessions = %v, want exactly one", moved)
+	}
+}
+
+// TS 24.501 §6.4.1.7 c) locally releases the session holding the identity. The
+// access serving it has to be told, whichever one it is.
+func TestSupersedingA5GSessionTellsTheAMF(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	first, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	second, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext(supersede): %v", err)
+	}
+
+	if first == second {
+		t.Fatal("the superseding session reused the superseded ref")
+	}
+
+	if released := amfCb.releasedPDUSessions(); len(released) != 1 || released[0] != transferTestPDUSessionID {
+		t.Errorf("AMF told of released sessions = %v, want [%d]", released, transferTestPDUSessionID)
 	}
 }

@@ -18,7 +18,7 @@ import (
 // or ESM STATUS is protected once the UE holds a security context and sent plain otherwise, so
 // a peer the MME could not resolve to a secured context still receives the mandated STATUS.
 // Unlike the AMF — which relays 5GSM to the SMF — the MME hosts ESM, so it emits the ESM
-// STATUS itself (TS 24.301 §8.3.13).
+// STATUS itself (TS 24.301 §8.3.15).
 type egress struct{ conn *mme.UeConn }
 
 type nasMarshaler interface {
@@ -34,7 +34,7 @@ func (e egress) SendSMStatus(ctx context.Context, cause uint8) {
 }
 
 // SendSMStatusFor reports an ESM protocol error naming the transaction it
-// refuses, so the UE can correlate it (TS 24.301 §8.3.13).
+// refuses, so the UE can correlate it (TS 24.301 §8.3.15).
 func (e egress) SendSMStatusFor(ctx context.Context, cause, pti, ebi uint8) {
 	e.emit(ctx, &eps.ESMStatus{
 		EPSBearerIdentity: eps.EPSBearerIdentity(ebi),

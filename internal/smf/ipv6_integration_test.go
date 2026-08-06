@@ -476,7 +476,7 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateLocalSEID()
-	smCtx.SetPFCPSession(seid)
+	s.AssignPFCPSession(smCtx, seid)
 	smCtx.PFCPContext.RemoteSEID = 100
 
 	ulPdr := smf.NewPDR(1, 1)

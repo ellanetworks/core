@@ -143,6 +143,10 @@ type AMFCallback interface {
 	// step 14). The session and the UE address live on. n2Release is a
 	// PDUSessionResourceReleaseCommandTransfer, carrying no N1 container.
 	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Release []byte)
+
+	// SessionReleased reports a PDU session whose anchor session the SMF
+	// released, so the AMF drops the routing context naming it.
+	SessionReleased(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string)
 }
 
 // MMECallback abstracts the SMF → MME communication for 4G paging, breaking the
@@ -193,7 +197,11 @@ type SMF struct {
 	pool map[string]*SMContext // key: SMContext.Ref (unique per session instance)
 	// Indexed under every identity that names the session (TS 23.501 §5.17.2). A
 	// superseded session keeps its pool entry but not its byKey entries.
-	byKey  map[string]*SMContext
+	byKey map[string]*SMContext
+
+	// bySEID resolves a session from a PFCP report without walking the pool, so
+	// the receive path does not wait on the lock of every unrelated session.
+	bySEID map[uint64]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
 	pcf   PCF
@@ -235,18 +243,19 @@ func WithTransferBindTimeout(d time.Duration) Option { return func(s *SMF) { s.t
 // New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
-		pool:  make(map[string]*SMContext),
-		byKey: make(map[string]*SMContext),
-		pcf:   pcf,
-		store: store,
-		upf:   upf,
-		amf:   amf,
-		clock: time.Now,
-		t3591: 16 * time.Second, // TS 24.501 table 10.3.2
-		t3592: 16 * time.Second, // TS 24.501 table 10.3.2
-		// The RAN answers a resource setup well inside this; it bounds the window
-		// in which one access still routes a session another owns.
-		transferBind: 30 * time.Second,
+		pool:   make(map[string]*SMContext),
+		byKey:  make(map[string]*SMContext),
+		bySEID: make(map[uint64]*SMContext),
+		pcf:    pcf,
+		store:  store,
+		upf:    upf,
+		amf:    amf,
+		clock:  time.Now,
+		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
+		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
+		// A backstop, not a spec timer: it has to outlast the retransmission budget
+		// of the target access it waits on. The MME's is 8 s x (4 + 1) = 40 s.
+		transferBind: 60 * time.Second,
 	}
 	for _, o := range opts {
 		o(s)
@@ -288,7 +297,7 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if id.PDUSessionID != 0 && s.byKey[CanonicalName(supi, id.PDUSessionID)] != nil {
+	if id.PDUSessionID != 0 && s.byKey[canonicalName(supi, id.PDUSessionID)] != nil {
 		if id.EBI == 0 {
 			return nil, fmt.Errorf("PDU session identity %d is already in use", id.PDUSessionID)
 		}
@@ -299,7 +308,7 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		id.PDUSessionID = 0
 	}
 
-	if id.EBI != 0 && s.byKey[CanonicalName(supi, epsBearerKey(id.EBI))] != nil {
+	if id.EBI != 0 && s.byKey[canonicalName(supi, epsBearerKey(id.EBI))] != nil {
 		return nil, fmt.Errorf("EPS bearer identity %d is already in use", id.EBI)
 	}
 
@@ -312,13 +321,13 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		Access:          access,
 		Dnn:             dnn,
 		Snssai:          snssai,
-		Ref:             fmt.Sprintf("%s#%d", CanonicalName(supi, id.sessionKey()), s.refSeq),
+		Ref:             fmt.Sprintf("%s#%d", canonicalName(supi, id.sessionKey()), s.refSeq),
 	}
 
 	s.pool[ctx.Ref] = ctx
 
 	for _, key := range id.sessionKeys() {
-		s.byKey[CanonicalName(supi, key)] = ctx
+		s.byKey[canonicalName(supi, key)] = ctx
 	}
 
 	return ctx, nil
@@ -338,7 +347,7 @@ func (s *SMF) currentSession(supi etsi.SUPI, sessionKey uint8) *SMContext {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.byKey[CanonicalName(supi, sessionKey)]
+	return s.byKey[canonicalName(supi, sessionKey)]
 }
 
 func (s *SMF) currentPDUSession(supi etsi.SUPI, pduSessionID uint8) *SMContext {
@@ -361,13 +370,13 @@ func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 	}
 
 	if ebi != 0 {
-		if held := s.byKey[CanonicalName(sc.Supi, epsBearerKey(ebi))]; held != nil && held != sc {
+		if held := s.byKey[canonicalName(sc.Supi, epsBearerKey(ebi))]; held != nil && held != sc {
 			return fmt.Errorf("EPS bearer identity %d is already in use", ebi)
 		}
 	}
 
 	if sc.EBI != 0 {
-		key := CanonicalName(sc.Supi, epsBearerKey(sc.EBI))
+		key := canonicalName(sc.Supi, epsBearerKey(sc.EBI))
 		if s.byKey[key] == sc {
 			delete(s.byKey, key)
 		}
@@ -376,7 +385,7 @@ func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 	sc.EBI = ebi
 
 	if ebi != 0 {
-		s.byKey[CanonicalName(sc.Supi, epsBearerKey(ebi))] = sc
+		s.byKey[canonicalName(sc.Supi, epsBearerKey(ebi))] = sc
 	}
 
 	return nil
@@ -391,8 +400,14 @@ func (s *SMF) dropFromPool(sc *SMContext) {
 
 	delete(s.pool, sc.Ref)
 
+	for seid, indexed := range s.bySEID {
+		if indexed == sc {
+			delete(s.bySEID, seid)
+		}
+	}
+
 	for _, k := range sc.sessionKeys() {
-		key := CanonicalName(sc.Supi, k)
+		key := canonicalName(sc.Supi, k)
 		if s.byKey[key] == sc {
 			delete(s.byKey, key)
 		}
@@ -400,30 +415,22 @@ func (s *SMF) dropFromPool(sc *SMContext) {
 }
 
 // GetSessionBySEID finds a session by its local PFCP SEID.
+// AssignPFCPSession gives a session its local PFCP SEID and indexes it under
+// that SEID, so a report can be resolved without walking the pool.
+func (s *SMF) AssignPFCPSession(sc *SMContext, seid uint64) {
+	sc.SetPFCPSession(seid)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.bySEID[seid] = sc
+}
+
 func (s *SMF) GetSessionBySEID(seid uint64) *SMContext {
-	// The pool is snapshotted before the session locks are taken: PFCPContext is
-	// guarded by SMContext.Mutex and nilled by releaseTunnel under it, and the
-	// lock order is session then registry.
 	s.mu.RLock()
-	sessions := make([]*SMContext, 0, len(s.pool))
+	defer s.mu.RUnlock()
 
-	for _, ctx := range s.pool {
-		sessions = append(sessions, ctx)
-	}
-
-	s.mu.RUnlock()
-
-	for _, ctx := range sessions {
-		ctx.Mutex.Lock()
-		match := ctx.PFCPContext != nil && ctx.PFCPContext.LocalSEID == seid
-		ctx.Mutex.Unlock()
-
-		if match {
-			return ctx
-		}
-	}
-
-	return nil
+	return s.bySEID[seid]
 }
 
 // RemoveSession tears down a session's user plane, releases its addresses, and

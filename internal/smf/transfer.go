@@ -7,16 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
-	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/internal/smf/procedure"
-	"github.com/ellanetworks/core/nas/eps"
-	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -59,8 +56,8 @@ func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferR
 		return nil, fmt.Errorf("%w: no session with PDU session id %d", ErrSessionNotTransferable, pduSessionID)
 	}
 
-	// A context evicted from the pool can still hold a tunnel when its teardown
-	// failed, so membership is an explicit test.
+	// Only the session the pool holds under this ref is movable; membership is a
+	// precondition of the move, stated here.
 	if s.GetSession(sc.Ref) != sc {
 		return nil, fmt.Errorf("%w: PDU session %d is not in the pool", ErrSessionNotMovable, pduSessionID)
 	}
@@ -132,37 +129,42 @@ func downlinkSnapshot(dl *PDR) func() {
 // SEID and its uplink F-TEID all survive the move. The downlink buffers until
 // the target access binds its own RAN endpoint.
 func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRequest) error {
-	// The move spans several blocking UPF calls.
+	// A conflicting procedure holds sc.Mutex across blocking UPF calls, so the
+	// registry refuses the move instead of queueing it behind one.
 	if err := sc.procedures.Begin(procedure.Transfer); err != nil {
 		return fmt.Errorf("%w: %v", ErrSessionNotTransferable, err)
 	}
 
 	defer sc.procedures.End(procedure.Transfer)
 
-	if _, _, err := s.moveSession(ctx, sc, req); err != nil {
-		return err
-	}
+	return s.moveSession(ctx, sc, req)
+}
 
-	return nil
+// transferState is what a session carries from the commit of a move until the
+// target access binds its downlink.
+type transferState struct {
+	// epoch counts the moves this session has made. Ref is invariant across a
+	// transfer, so it cannot tell a session that came back from the one a stale
+	// notification names; the epoch can.
+	epoch uint64
+
+	// timer supervises the target access's bind. Its expiry releases the session,
+	// so a RAN that never answers cannot leave one access routing a session
+	// another owns.
+	timer guard.Guard
+
+	// pendingReleases names each access a transfer moved the session off, held
+	// until the target access binds its downlink (TS 23.502 §4.11.2.2 step 14,
+	// §4.11.2.3 step 10). A round trip taken before the first is dropped leaves two.
+	pendingReleases []sourceRelease
 }
 
 // sourceRelease is the access a transfer moved a session off, and the identity
 // it held there.
 type sourceRelease struct {
-	from AccessType
-	id   SessionIdentity
-}
-
-// takeSourceReleases claims the outstanding source releases, so each runs once
-// however the transfer concludes.
-func (sc *SMContext) takeSourceReleases() []sourceRelease {
-	sc.Mutex.Lock()
-	defer sc.Mutex.Unlock()
-
-	pending := sc.pendingSourceReleases
-	sc.pendingSourceReleases = nil
-
-	return pending
+	from  AccessType
+	id    SessionIdentity
+	epoch uint64
 }
 
 // superviseTargetBind arms the release that bounds the window in which the source
@@ -170,54 +172,85 @@ func (sc *SMContext) takeSourceReleases() []sourceRelease {
 func (s *SMF) superviseTargetBind(sc *SMContext) {
 	ref, supi, pduSessionID := sc.Ref, sc.Supi, sc.PDUSessionID
 
-	sc.transferTimer.Arm(s.transferBind, 0, nil, func() {
-		if s.GetSession(ref) == nil {
+	sc.transfer.timer.Arm(s.transferBind, 0, nil, func() {
+		live := s.GetSession(ref)
+		if live == nil {
+			return
+		}
+
+		// The guard drops its own lock before running this, so a Stop racing the
+		// firing cannot cancel it. The outstanding release is the authority on
+		// whether the bind is still pending, and it is cleared under sc.Mutex.
+		live.Mutex.Lock()
+		pending := len(live.transfer.pendingReleases) > 0
+		target := live.Access
+		live.Mutex.Unlock()
+
+		if !pending {
 			return
 		}
 
 		logger.SmfLog.Warn("target access never bound a transferred session; releasing it",
 			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
-		if err := s.releaseSmContext(context.Background(), ref); err != nil {
+		// The target access installed its own state from the accept it already
+		// sent, and the release below tells only the source, so it is told here.
+		s.reportReleaseToTargetAccess(context.Background(), live, target)
+
+		if err := s.releaseSmContext(context.Background(), ref, anyAccess); err != nil {
 			logger.SmfLog.Error("failed to release a session whose target access never bound",
 				zap.Error(err), zap.String("smContextRef", ref))
 		}
 	})
 }
 
+// reportReleaseToTargetAccess tells the access a transfer moved the session onto
+// that its anchor session is gone, so it does not keep state naming a dead one.
+// Caller must not hold sc.Mutex.
+func (s *SMF) reportReleaseToTargetAccess(ctx context.Context, sc *SMContext, target AccessType) {
+	sc.Mutex.Lock()
+	id, ref := sc.SessionIdentity, sc.Ref
+	sc.Mutex.Unlock()
+
+	switch {
+	case target == Access4G && s.mme != nil:
+		s.mme.SessionReleased(ctx, sc.Supi.IMSI(), id.EBI, ref)
+	case target == Access5G && s.amf != nil:
+		s.amf.SessionReleased(ctx, sc.Supi, id.PDUSessionID, ref)
+	}
+}
+
+// drainOnTeardown drops the routing a removed session left behind. A session
+// still in the pool is mid-transfer, and its source access keeps routing until
+// the target binds. Caller must not hold sc.Mutex.
+func (s *SMF) drainOnTeardown(ctx context.Context, sc *SMContext) {
+	if s.GetSession(sc.Ref) != nil {
+		return
+	}
+
+	s.releaseTransferSource(ctx, sc)
+}
+
 // releaseTransferSource drops the routing the session left behind. Caller must
 // not hold sc.Mutex.
 func (s *SMF) releaseTransferSource(ctx context.Context, sc *SMContext) {
+	// Claimed under one hold, so each release runs once however the transfer
+	// concludes and no move can land between the epoch and the entries it filters.
 	sc.Mutex.Lock()
-	sc.transferTimer.Stop()
+	sc.transfer.timer.Stop()
+	epoch := sc.transfer.epoch
+	claimed := sc.transfer.pendingReleases
+	sc.transfer.pendingReleases = nil
 	sc.Mutex.Unlock()
 
-	for _, pending := range sc.takeSourceReleases() {
+	for _, pending := range claimed {
+		// A move landing between the record and the drop makes this notification
+		// stale: the access it names may be the one serving the session again.
+		if pending.epoch != epoch {
+			continue
+		}
+
 		s.dropSourceRouting(ctx, sc.Supi, sc.Ref, pending.from, pending.id)
-	}
-}
-
-// transferESMCause maps a refused transfer to the ESM cause the MME rejects with.
-func transferESMCause(err error) eps.ESMCause {
-	switch {
-	case errors.Is(err, ErrSessionOnOtherDNN):
-		return eps.ESMCauseMissingOrUnknownAPN
-	case errors.Is(err, ErrSessionNotMovable):
-		return eps.ESMCauseRequestRejectedUnspecified
-	default:
-		return eps.ESMCausePDNConnectionDoesNotExist
-	}
-}
-
-// transfer5GSMCause maps a refused transfer to the 5GSM cause the AMF rejects with.
-func transfer5GSMCause(err error) fgs.GSMCause {
-	switch {
-	case errors.Is(err, ErrSessionOnOtherDNN):
-		return fgs.GSMCauseMissingOrUnknownDNN
-	case errors.Is(err, ErrSessionNotMovable):
-		return fgs.GSMCauseRequestRejectedUnspecified
-	default:
-		return fgs.GSMCausePDUSessionDoesNotExist
 	}
 }
 
@@ -248,9 +281,11 @@ func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, ref string,
 	}
 }
 
-// A failure leaves the session's EPS bearer identity out of step with the access
-// it is on. Caller holds sc.Mutex.
-func (s *SMF) restoreEPSBearerIdentity(ctx context.Context, sc *SMContext, ebi uint8) {
+// assignEPSBearerIdentity is setEPSBearerIdentity where the caller has no answer
+// to a failure: it is either unwinding an abandoned move or has already
+// committed one, and both leave the identity out of step with the access the
+// session is on. Caller holds sc.Mutex.
+func (s *SMF) assignEPSBearerIdentity(ctx context.Context, sc *SMContext, ebi uint8) {
 	if err := s.setEPSBearerIdentity(sc, ebi); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Error("failed to set the EPS bearer identity of a moved session",
 			zap.Error(err), logger.SUPI(sc.Supi.String()),
@@ -258,7 +293,54 @@ func (s *SMF) restoreEPSBearerIdentity(ctx context.Context, sc *SMContext, ebi u
 	}
 }
 
-func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferRequest) (AccessType, SessionIdentity, error) {
+// recordSourceRelease names the access the session is leaving, held until the
+// target binds its downlink (TS 23.502 §4.11.2.2 step 14 follows step 13;
+// §4.11.2.3 step 10 follows the user plane switch of step 9). Caller holds Mutex.
+func (sc *SMContext) recordSourceRelease(source sourceRelease, target AccessType) {
+	// A round trip taken before the first source was dropped returns the session
+	// to an access it is recorded as having left. Ref is invariant across a
+	// transfer, so that stale entry names the live session and the drop-callback
+	// ref guards cannot tell them apart; it is discarded.
+	kept := sc.transfer.pendingReleases[:0]
+
+	for _, pending := range sc.transfer.pendingReleases {
+		if pending.from != target {
+			kept = append(kept, pending)
+		}
+	}
+
+	sc.transfer.epoch++
+	source.epoch = sc.transfer.epoch
+	sc.transfer.pendingReleases = append(kept, source)
+}
+
+// discardOutstandingProcedures drops the 5GSM procedures the session left behind
+// on the access it moved off: TS 24.501 §6.3.2.5 a) retransmits the PDU SESSION
+// MODIFICATION COMMAND four times and then aborts, and the command names that
+// access. Caller holds Mutex.
+func (sc *SMContext) discardOutstandingProcedures() {
+	sc.stopProcedureTimer()
+	sc.pendingPolicy = nil
+	sc.establishmentPTI = 0
+	sc.outstandingPTIs = nil
+}
+
+// undoStack unwinds staged changes in the reverse of the order they were made,
+// so each undo sees the state its own stage left behind. Running it empties it,
+// so a caller that unwinds and returns cannot unwind twice.
+type undoStack []func()
+
+func (u *undoStack) push(undo func()) { *u = append(*u, undo) }
+
+func (u *undoStack) run() {
+	for i := len(*u) - 1; i >= 0; i-- {
+		(*u)[i]()
+	}
+
+	*u = nil
+}
+
+func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferRequest) error {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
@@ -266,16 +348,22 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 
 	// A release, a replacement or another transfer can land before this lock.
 	if err := sc.transferable(req); err != nil {
-		return from, sourceID, err
+		return err
 	}
 
+	// Everything up to the UPF modification is staged and undoable, so a refusal
+	// anywhere in the ladder leaves the session on the access it started from.
+	var unwind undoStack
+
 	// Claiming the target access's bearer identity can fail, so it precedes the
-	// UPF change and is undone on abort. Giving up the source one cannot be undone
-	// reliably — another session may claim it meanwhile — so it follows.
+	// UPF change. Giving up the source one cannot be undone reliably — another
+	// session may claim it meanwhile — so it follows.
 	if req.EBI != 0 {
 		if err := s.setEPSBearerIdentity(sc, req.EBI); err != nil {
-			return from, sourceID, err
+			return err
 		}
+
+		unwind.push(func() { s.assignEPSBearerIdentity(ctx, sc, sourceID.EBI) })
 	}
 
 	policy := req.Policy
@@ -288,51 +376,35 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 	// a rejected transfer cannot leave the UPF holding half of it.
 	qerList, restoreQERs, err := stageSessionQERs(sc, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
 	if err != nil {
-		if req.EBI != 0 {
-			s.restoreEPSBearerIdentity(ctx, sc, sourceID.EBI)
-		}
+		unwind.run()
 
-		return from, sourceID, fmt.Errorf("stage target access QoS: %w", err)
+		return fmt.Errorf("stage target access QoS: %w", err)
 	}
 
-	dl := sc.Tunnel.DataPath.DownLinkTunnel.PDR
-	restoreDownlink := downlinkSnapshot(dl)
+	unwind.push(restoreQERs)
+
+	unwind.push(downlinkSnapshot(sc.Tunnel.DataPath.DownLinkTunnel.PDR))
 
 	farList, err := handleUpCnxStateDeactivate(sc)
 	if err != nil {
-		restoreDownlink()
-		restoreQERs()
+		unwind.run()
 
-		if req.EBI != 0 {
-			s.restoreEPSBearerIdentity(ctx, sc, sourceID.EBI)
-		}
-
-		return from, sourceID, fmt.Errorf("suspend downlink: %w", err)
+		return fmt.Errorf("suspend downlink: %w", err)
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(sc.PFCPContext.RemoteSEID, policy.PolicyID, nil, farList, qerList)); err != nil {
-		restoreDownlink()
-		restoreQERs()
+		unwind.run()
 
-		if req.EBI != 0 {
-			s.restoreEPSBearerIdentity(ctx, sc, sourceID.EBI)
-		}
-
-		return from, sourceID, fmt.Errorf("move session in the UPF: %w", err)
+		return fmt.Errorf("move session in the UPF: %w", err)
 	}
 
 	if req.EBI == 0 {
-		s.restoreEPSBearerIdentity(ctx, sc, 0)
+		s.assignEPSBearerIdentity(ctx, sc, 0)
 	}
 
-	// The source access keeps routing until the target binds its downlink
-	// (TS 23.502 §4.11.2.2 step 14 follows step 13; §4.11.2.3 step 10 follows the
-	// user plane switch of step 9). Committed with the access change so a release
-	// landing between critical sections cannot leave it on a dead context.
-	// A round trip taken before the first source was dropped leaves two accesses
-	// routing the session, so each is recorded and each is dropped.
-	sc.pendingSourceReleases = append(sc.pendingSourceReleases, sourceRelease{from: from, id: sourceID})
-
+	// Recorded with the access change so a release landing between critical
+	// sections cannot leave it on a dead context.
+	sc.recordSourceRelease(sourceRelease{from: from, id: sourceID}, req.Access)
 	s.superviseTargetBind(sc)
 
 	sc.Access = req.Access
@@ -342,27 +414,11 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		sc.Snssai = req.Snssai
 	}
 
-	// TS 24.501 §6.3.2.5 a) retransmits the PDU SESSION MODIFICATION COMMAND four
-	// times and then aborts; the command names the access the session has left.
-	sc.stopProcedureTimer()
-	sc.pendingPolicy = nil
-	sc.establishmentPTI = 0
-	sc.outstandingPTIs = nil
+	sc.discardOutstandingProcedures()
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("moved session to the other access",
 		logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID),
 		zap.Stringer("from", from), zap.Stringer("to", req.Access))
 
-	return from, sourceID, nil
-}
-
-// Unmapping the IPv4-in-IPv6 form keeps the address in the family it was
-// allocated in.
-func ipToNetip(ip net.IP) netip.Addr {
-	addr, ok := netip.AddrFromSlice(ip)
-	if !ok {
-		return netip.Addr{}
-	}
-
-	return addr.Unmap()
+	return nil
 }

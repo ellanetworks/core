@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package procedure is the per-UE procedure registry engine shared by the 4G MME
-// and 5G AMF. Each RAT tracks a small set of mutually-exclusive key-changing
-// procedures, of which at most one runs per UE at a time; the registry holds that
-// single active procedure and supervises it with an optional deadline and cancel
-// callback. The RAT-specific procedure type set lives with each RAT; this package
-// is the mechanism only.
+// Package procedure is the procedure registry engine used by the 4G MME and 5G
+// AMF per UE and by the SMF per session. Each owner defines a small set of
+// mutually-exclusive procedures, of which at most one runs at a time; the
+// registry holds that single active procedure and supervises it with an optional
+// deadline and cancel callback. The procedure type set lives with each owner;
+// this package is the mechanism only.
 package procedure
 
 import (
@@ -19,7 +19,7 @@ import (
 )
 
 // Type identifies a kind of procedure tracked by the registry. Its values are
-// defined per-RAT.
+// defined by each owner.
 type Type string
 
 // Sentinel errors.
@@ -38,7 +38,7 @@ type held struct {
 	cancel func(context.Context) error
 }
 
-// Registry tracks the one active key-changing procedure for a single UE.
+// Registry tracks the one active procedure of a single UE or session.
 type Registry struct {
 	mu     sync.Mutex
 	log    *zap.Logger

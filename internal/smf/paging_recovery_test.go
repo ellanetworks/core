@@ -19,7 +19,7 @@ func TestClearEPSPagingSuppression_ClearsDownlinkNotification(t *testing.T) {
 	const ebi = 5
 
 	smCtx, _ := s.NewSession(supi, smf.Access4G, smf.SessionIdentity{EBI: ebi}, testDNN, testSnssai)
-	smCtx.SetPFCPSession(s.AllocateLocalSEID())
+	s.AssignPFCPSession(smCtx, s.AllocateLocalSEID())
 	smCtx.PFCPContext.RemoteSEID = 7
 
 	if err := s.ClearEPSPagingSuppression(context.Background(), testIMSI, ebi); err != nil {
@@ -40,7 +40,7 @@ func TestClearPagingSuppression_ClearsDownlinkNotification(t *testing.T) {
 	const pduSessionID = 1
 
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, testDNN, testSnssai)
-	smCtx.SetPFCPSession(s.AllocateLocalSEID())
+	s.AssignPFCPSession(smCtx, s.AllocateLocalSEID())
 	smCtx.PFCPContext.RemoteSEID = 4242
 
 	if err := s.ClearPagingSuppression(context.Background(), supi, pduSessionID); err != nil {

@@ -269,9 +269,8 @@ func (p ProtocolConfigurationOptions) AppendBinary(b []byte) ([]byte, error) {
 		return b, err
 	}
 
-	// The encoder caps at the extended element's maximum. Which IE frames the
-	// value is the caller's choice, so the classic element's tighter bound is
-	// enforced by the one-octet length the writer emits for it.
+	// The extended element's maximum; MarshalClassic applies the tighter bound the
+	// classic element carries.
 	if len(out)-len(b) > maxExtendedPCOLen {
 		return b, fmt.Errorf(
 			"nas: protocol configuration options is %d octets, want at most %d", len(out)-len(b), maxExtendedPCOLen)
@@ -282,6 +281,23 @@ func (p ProtocolConfigurationOptions) AppendBinary(b []byte) ([]byte, error) {
 
 // MarshalBinary encodes the Protocol Configuration Options value.
 func (p ProtocolConfigurationOptions) MarshalBinary() ([]byte, error) { return p.AppendBinary(nil) }
+
+// MarshalClassic encodes the value for the classic element, whose type-4 IE caps
+// the value at maxPCOLen (TS 24.008 §10.5.6.3). AppendBinary can only apply the
+// extended bound, because which element frames the value is the caller's choice.
+func (p ProtocolConfigurationOptions) MarshalClassic() ([]byte, error) {
+	out, err := p.AppendBinary(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(out) > maxPCOLen {
+		return nil, fmt.Errorf(
+			"nas: protocol configuration options is %d octets, want at most %d for the classic element", len(out), maxPCOLen)
+	}
+
+	return out, nil
+}
 
 // Empty reports whether there is nothing to convey, in which case the sender
 // omits the information element.

@@ -43,7 +43,7 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	// A reserved request type value names no procedure this core can run
-	// (TS 24.008 table 10.5.156a, TS 24.301 §7.5.3 a).
+	// (TS 24.008 table 10.5.173, TS 24.301 §7.5.3 a).
 	if ue.RequestedType != 0 && !ue.RequestedType.Served() {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: reserved request type",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("request-type", uint8(ue.RequestedType)))
@@ -53,7 +53,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	}
 
 	if requestESMInformation(ctx, ue, func() {
-		ue.AwaitingESMInformation = false
 		rejectAttachESM(context.Background(), m, ue, eps.ESMCauseESMInformationNotReceived)
 	}) {
 		return
@@ -263,7 +262,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn)
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, ue.UsesExtendedPCO(p))
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +391,7 @@ func snssaiContainer(snssai models.Snssai, plmn models.PlmnID) (nas.PCOContainer
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
 // REQUEST for a PDN connection (TS 24.301 §8.3.1).
-func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID) ([]byte, error) {
+func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID, usesExtendedPCO bool) ([]byte, error) {
 	apn := eps.APN(qos.APN)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -461,8 +460,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 	// options shall travel in it, and a PDN connection transferred from a PDU
 	// session at inter-system change is one such case. §8.3.6.9 and §8.3.6.15
 	// make the two mutually exclusive.
-	if p.SetupRequestType == eps.RequestTypeHandover {
-		pco.Direction = nas.PCONetworkToMS
+	if usesExtendedPCO {
 		activate.ExtendedProtocolConfigurationOptions = &pco
 	} else {
 		activate.ProtocolConfigurationOptions = &pco

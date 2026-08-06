@@ -20,18 +20,12 @@ import (
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	// The 5GS entry point: a session moved to EPS keeps this Ref live on the AMF
 	// until the drain runs, so a release arriving there must not act on it.
-	if sc := s.GetSession(smContextRef); sc != nil {
-		if err := sc.servedBy(Access5G); err != nil {
-			return err
-		}
-	}
-
-	return s.releaseSmContext(ctx, smContextRef)
+	return s.releaseSmContext(ctx, smContextRef, onlyOn(Access5G))
 }
 
-// releaseSmContext is the access-agnostic implementation, for the per-access
-// entry points and for internal teardown that already knows the access.
-func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string) error {
+// releaseSmContext applies servedBy under the same lock hold as the teardown, so
+// no transfer can land between them.
+func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string, servedBy accessCheck) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -50,20 +44,22 @@ func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string) error {
 		return nil
 	}
 
-	// A transfer spans several blocking UPF calls; claiming the session keeps a
-	// release from committing against state the move is part-way through.
+	// A transfer holds sc.Mutex across blocking UPF calls, so the registry refuses
+	// the release instead of queueing it behind one and committing against state
+	// the move has since changed.
 	if err := smContext.procedures.Begin(procedure.Release); err != nil {
 		return fmt.Errorf("release session %q: %w", smContextRef, err)
 	}
 
 	defer smContext.procedures.End(procedure.Release)
 
-	smContext.Mutex.Lock()
+	if err := smContext.lockChecked(servedBy); err != nil {
+		return err
+	}
 
-	// Deferred before the unlock, so it runs after it. A session released before
-	// its target access bound the downlink still has to drop the routing the
-	// source access holds.
-	defer func() { s.releaseTransferSource(ctx, smContext) }()
+	// drainOnTeardown retakes the session lock and enters the AMF and MME
+	// callbacks, which re-enter the SMF, so it runs unlocked.
+	defer func() { s.drainOnTeardown(ctx, smContext) }()
 	defer smContext.Mutex.Unlock()
 
 	// Stop any outstanding network-requested procedure retransmission so it does

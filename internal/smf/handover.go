@@ -38,7 +38,12 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.Mutex.Lock()
+	// The reference outlives a move, so a 5GS entry point must not act on a
+	// session served by the other access.
+	if err := smContext.lockServedBy(Access5G); err != nil {
+		return nil, err
+	}
+
 	defer smContext.Mutex.Unlock()
 
 	if err := handleHandoverRequiredTransfer(n2Data); err != nil {
@@ -90,7 +95,12 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.Mutex.Lock()
+	// The reference outlives a move, so a 5GS entry point must not act on a
+	// session served by the other access.
+	if err := smContext.lockServedBy(Access5G); err != nil {
+		return nil, err
+	}
+
 	defer smContext.Mutex.Unlock()
 
 	if err := handleHandoverRequestAcknowledgeTransfer(n2Data, smContext); err != nil {
@@ -135,7 +145,12 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.Mutex.Lock()
+	// The reference outlives a move, so a 5GS entry point must not act on a
+	// session served by the other access.
+	if err := smContext.lockServedBy(Access5G); err != nil {
+		return err
+	}
+
 	defer smContext.Mutex.Unlock()
 
 	if smContext.Tunnel.DataPath.Activated {
@@ -209,7 +224,12 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	smContext.Mutex.Lock()
+	// The reference outlives a move, so a 5GS entry point must not act on a
+	// session served by the other access.
+	if err := smContext.lockServedBy(Access5G); err != nil {
+		return nil, err
+	}
+
 	defer smContext.Mutex.Unlock()
 
 	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)

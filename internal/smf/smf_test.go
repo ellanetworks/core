@@ -258,6 +258,7 @@ func (f *fakeUPF) UnregisterIPv6Session(_ context.Context, _ uint32) error {
 }
 
 type fakeAMF struct {
+	releasedPSIs     []uint8
 	mu               sync.Mutex
 	n1Calls          []n1Call
 	n1n2Calls        []n1n2Call
@@ -340,6 +341,21 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 	f.pageCalls = append(f.pageCalls, pageCall{supi, pduSessionID, snssai, n2Msg})
 
 	return f.err
+}
+
+func (f *fakeAMF) SessionReleased(_ context.Context, _ etsi.SUPI, pduSessionID uint8, _ string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.releasedPSIs = append(f.releasedPSIs, pduSessionID)
+}
+
+// releasedPDUSessions lists the PDU session identities the SMF reported as released.
+func (f *fakeAMF) releasedPDUSessions() []uint8 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]uint8(nil), f.releasedPSIs...)
 }
 
 func (f *fakeAMF) SessionTransferred(_ context.Context, _ etsi.SUPI, pduSessionID uint8, _ string, n2Release []byte) {
@@ -606,7 +622,7 @@ func TestGetSessionBySEID(t *testing.T) {
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateLocalSEID()
-	smCtx.SetPFCPSession(seid)
+	s.AssignPFCPSession(smCtx, seid)
 
 	got := s.GetSessionBySEID(seid)
 	if got != smCtx {

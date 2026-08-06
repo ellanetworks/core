@@ -53,7 +53,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
-		Ref:    smf.CanonicalName(supi, pduSessionID),
+		Ref:    smCtx.Ref,
 		Snssai: &models.Snssai{Sst: 1},
 	}
 

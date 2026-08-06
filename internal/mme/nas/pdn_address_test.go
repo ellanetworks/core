@@ -325,7 +325,7 @@ func TestTransferredBearerCarriesOptionsInExtendedPCO(t *testing.T) {
 	}
 	qos := &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400, Snssai: testSnssai}
 
-	raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"})
+	raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,10 +343,9 @@ func TestTransferredBearerCarriesOptionsInExtendedPCO(t *testing.T) {
 		t.Error("both configuration-options elements are present, want only the extended one")
 	}
 
-	// An initial request keeps the classic element.
-	p.SetupRequestType = eps.RequestTypeInitialRequest
-
-	raw, err = buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"})
+	// A UE that never advertised ePCO reads only the classic element, so a
+	// transferred connection still uses it (TS 24.301 §6.6.1.1).
+	raw, err = buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

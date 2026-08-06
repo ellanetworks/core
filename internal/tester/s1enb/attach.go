@@ -235,8 +235,17 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		// The network returns the S-NSSAI the PDN connection maps to, which the UE
 		// stores against its PDU session identity to move the connection to 5GS
 		// (TS 24.008 §10.5.6.3 container 001BH, TS 24.501 §6.1.4.2).
-		if act.ProtocolConfigurationOptions != nil {
-			for _, c := range act.ProtocolConfigurationOptions.Containers {
+		// A transferred connection carries them in the extended element
+		// (TS 24.301 §6.6.1.1), so both are read.
+		for _, pco := range []*nas.ProtocolConfigurationOptions{
+			act.ProtocolConfigurationOptions,
+			act.ExtendedProtocolConfigurationOptions,
+		} {
+			if pco == nil {
+				continue
+			}
+
+			for _, c := range pco.Containers {
 				if c.ID == nas.PCOContainerSNSSAI {
 					res.SNSSAIContainer = append([]byte(nil), c.Content...)
 				}

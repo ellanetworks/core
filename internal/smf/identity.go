@@ -64,6 +64,7 @@ func (id SessionIdentity) String() string {
 	return fmt.Sprintf("pdu-session-id=%d ebi=%d", id.PDUSessionID, id.EBI)
 }
 
-func CanonicalName(identifier etsi.SUPI, sessionKey uint8) string {
+// canonicalName is the secondary index key: one session per (subscriber, session key).
+func canonicalName(identifier etsi.SUPI, sessionKey uint8) string {
 	return fmt.Sprintf("%s-%d", identifier.String(), sessionKey)
 }

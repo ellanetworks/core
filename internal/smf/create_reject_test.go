@@ -12,7 +12,9 @@ import (
 )
 
 // Ella Core serves no emergency bearer services, so neither emergency request
-// type is served (TS 24.501 §6.4.1.7 a, d).
+// type is served. TS 24.501 §6.4.1.7 d) refuses an "existing emergency PDU
+// session" request naming no session with 5GSM #54; an initial emergency
+// request draws the same cause by local choice.
 func TestEmergencyRequestTypesRefused(t *testing.T) {
 	for _, rt := range []fgs.RequestType{fgs.RequestTypeInitialEmergencyRequest, fgs.RequestTypeExistingEmergencyPDUSession} {
 		pcf, store, upf, amfCb := defaultFakes()

@@ -90,7 +90,7 @@ func (m *ActivateDefaultEPSBearerContextRequest) AppendBinary(b []byte) ([]byte,
 	}
 
 	if m.ProtocolConfigurationOptions != nil {
-		raw, err := m.ProtocolConfigurationOptions.MarshalBinary()
+		raw, err := m.ProtocolConfigurationOptions.MarshalClassic()
 		if err != nil {
 			return b, err
 		}

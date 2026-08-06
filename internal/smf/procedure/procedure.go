@@ -18,15 +18,10 @@ type (
 	Registry = engine.Registry
 )
 
-var (
-	ErrConflict      = engine.ErrConflict
-	ErrAlreadyActive = engine.ErrAlreadyActive
-	ErrNotActive     = engine.ErrNotActive
-)
-
-// The procedures tracked for one session. Each rewrites the session across
-// blocking UPF calls, and the registry makes them mutually exclusive so one
-// cannot commit against state another is mid-way through changing.
+// The procedures tracked for one session. Each rewrites the session while
+// holding its lock across blocking UPF calls, so the registry refuses a second
+// one instead of leaving it queued behind the first to commit against state the
+// first has since changed.
 const (
 	// Transfer moves a session to the other access (TS 23.502 §4.11.2).
 	Transfer Type = "Transfer"

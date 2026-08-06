@@ -17,6 +17,10 @@ type ModifyEPSBearerContextRequest struct {
 	NewEPSQoS                    *EPSQoS  // optional (IEI 0x5B)
 	APNAMBR                      *APNAMBR // optional (IEI 0x5E)
 	ProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
+	// ExtendedProtocolConfigurationOptions carries the same content under a
+	// two-octet length (IEI 0x7B, TS 24.301 table 8.3.18.1). A connection whose
+	// options are exchanged in the extended element keeps using it (§6.6.1.1).
+	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -30,6 +34,7 @@ var modifyEPSBearerContextRequestIEs = []nas.OptionalIE{
 	{IEI: ieiNegotiatedLLCSAPI, Format: nas.IETV3, Len: 1, Name: "Negotiated LLC SAPI"},
 	{IEI: ieiAPNAMBR, Format: nas.IETLV, Name: "APN-AMBR"},
 	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
+	{IEI: ieiExtendedProtocolConfigurationOptions, Format: nas.IETLVE, Name: "Extended protocol configuration options"},
 }
 
 // AppendBinary encodes the MODIFY EPS BEARER CONTEXT REQUEST.
@@ -60,12 +65,21 @@ func (m *ModifyEPSBearerContextRequest) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	if m.ProtocolConfigurationOptions != nil {
-		raw, err := m.ProtocolConfigurationOptions.MarshalBinary()
+		raw, err := m.ProtocolConfigurationOptions.MarshalClassic()
 		if err != nil {
 			return b, err
 		}
 
 		o.TLV(ieiProtocolConfigurationOptions, raw)
+	}
+
+	if m.ExtendedProtocolConfigurationOptions != nil {
+		raw, err := m.ExtendedProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiExtendedProtocolConfigurationOptions, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -112,6 +126,13 @@ func ParseModifyEPSBearerContextRequest(b []byte) (*ModifyEPSBearerContextReques
 			}
 
 			m.ProtocolConfigurationOptions = &parsed
+		case ieiExtendedProtocolConfigurationOptions:
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCONetworkToMS)
+			if err != nil {
+				return false, err
+			}
+
+			m.ExtendedProtocolConfigurationOptions = &parsed
 		default:
 			return false, nil
 		}

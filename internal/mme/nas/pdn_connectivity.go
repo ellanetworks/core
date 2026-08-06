@@ -49,17 +49,6 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	// TS 24.301 §6.5.1.6 a): a retransmission carrying a PTI already in use is
-	// answered by resending the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST and
-	// continuing the previous procedure, not by opening a second connection.
-	if prev := m.FindPDNBySetupPTI(ue, uint8(pti)); prev != nil {
-		logger.From(ctx, logger.MmeLog).Info("retransmitted PDN connectivity request; resending the activate",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Uint8("ebi", prev.Ebi))
-		ue.Conn().SendDownlinkNASTransport(ctx, prev.SetupPdu)
-
-		return nasreply.Handled()
-	}
-
 	if ue.EMMState() != mme.EMMRegistered || !ue.Connected() {
 		rejectPDNConnectivity(ctx, ue, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
 		return nasreply.Handled()
@@ -81,18 +70,16 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
 		ue.RequestedAPN = apn
 		ue.RequestedPTI = pti
-		ue.AwaitingESMInformation = true
-		ue.SetPendingPDN(&mme.PendingPDNConnectivity{
+		ue.AwaitESMInformation(&mme.PendingPDNConnectivity{
 			PTI:         uint8(pti),
 			PDNType:     uint8(req.PDNType),
 			RequestType: req.RequestType,
 		})
 
-		// The wait was just set, so the request is always issued and the procedure
-		// continues in handleESMInformationResponse.
+		// The abort runs on a build or protect failure and on T3489 expiry, the last
+		// of which outlives the request's context.
 		requestESMInformation(ctx, ue, func() {
-			ue.SetPendingPDN(nil)
-			ue.AwaitingESMInformation = false
+			ue.TakeESMInfoWait()
 			rejectPDNConnectivity(context.Background(), ue, uint8(pti), eps.ESMCauseESMInformationNotReceived)
 		})
 
@@ -101,6 +88,27 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	if apn == "" {
 		rejectPDNConnectivity(ctx, ue, uint8(pti), eps.ESMCauseMissingOrUnknownAPN)
+		return nasreply.Handled()
+	}
+
+	return openPDNConnection(ctx, m, ue, apn, uint8(pti), req.PDNType, req.RequestType)
+}
+
+// openPDNConnection commits a PDN connection whose parameters are already
+// resolved. It reads the PDU session identity from ue, so a resumed request
+// carries the one the UE deferred.
+func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn string, ptiValue uint8, pdnType eps.PDNType, requestType eps.RequestType) nasreply.Disposition {
+	pti := nas.ProcedureTransactionIdentity(ptiValue)
+	req := &eps.PDNConnectivityRequest{PTI: pti, PDNType: pdnType, RequestType: requestType}
+
+	// TS 24.301 §6.5.1.6 a): a request repeating the PTI, APN and PDN type of a
+	// connection whose ACTIVATE ACCEPT has not arrived is a retransmission, and is
+	// answered by resending that message and continuing the previous procedure.
+	if prev, pdu := m.FindRetransmittedPDN(ue, ptiValue, apn, pdnType); prev != nil {
+		logger.From(ctx, logger.MmeLog).Info("retransmitted PDN connectivity request; resending the activate",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", ptiValue), zap.Uint8("ebi", prev.Ebi))
+		ue.Conn().SendDownlinkNASTransport(ctx, pdu)
+
 		return nasreply.Handled()
 	}
 
@@ -178,7 +186,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), operator.PLMN())
+	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), operator.PLMN(), ue.UsesExtendedPCO(p))
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)
@@ -194,7 +202,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	m.RecordPDNSetup(ue, p, uint8(pti), req.RequestType, naspdu)
+	m.RecordPDNSetup(ue, p, uint8(pti), naspdu)
 
 	logger.From(ctx, logger.MmeLog).Info("opening additional PDN connection",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Uint8("ebi", p.Ebi))
@@ -205,25 +213,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 // resumePDNConnectivity re-runs the standalone request with the APN and PCO the
 // UE deferred (TS 24.301 §6.6.1.2.4).
-func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	pending := ue.TakePendingPDN()
-
-	if pending == nil {
-		return
-	}
-
-	req := &eps.PDNConnectivityRequest{
-		PTI:         nas.ProcedureTransactionIdentity(pending.PTI),
-		PDNType:     eps.PDNType(pending.PDNType),
-		RequestType: pending.RequestType,
-	}
-
-	if ue.RequestedAPN != "" {
-		apn := eps.APN(ue.RequestedAPN)
-		req.AccessPointName = &apn
-	}
-
-	handlePDNConnectivityRequest(ctx, m, ue, req)
+func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext, pending *mme.PendingPDNConnectivity) {
+	openPDNConnection(ctx, m, ue, ue.RequestedAPN, pending.PTI, eps.PDNType(pending.PDNType), pending.RequestType)
 }
 
 // sendERABSetup asks the eNB to set up the radio leg of a new PDN connection,
@@ -330,6 +321,10 @@ func rejectPDNDisconnect(ctx context.Context, ue *mme.UeContext, pti uint8, caus
 // §6.4.1).
 func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, accept *eps.ActivateDefaultEPSBearerContextAccept) nasreply.Disposition {
 	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
+	if p != nil {
+		m.ClearPDNSetupRecord(ue, p)
+	}
+
 	if p == nil {
 		logger.MmeLog.Warn("Activate Default Accept for an unknown EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", uint8(accept.EPSBearerIdentity)))

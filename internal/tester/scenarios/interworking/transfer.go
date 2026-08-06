@@ -91,6 +91,12 @@ func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("address after the move to EPS = %s, want the one held on 5GS, %s", res.UEIPv4, before.UEIP)
 	}
 
+	// The transferred connection carries the slice it maps to, which the UE needs
+	// to move it back (TS 24.501 §6.1.4.2).
+	if err := checkSNSSAIContainer(res.SNSSAIContainer); err != nil {
+		return err
+	}
+
 	if err := pingOverS1U(ctx, e, res, "iw4g0"); err != nil {
 		return fmt.Errorf("after the move to EPS: %w", err)
 	}

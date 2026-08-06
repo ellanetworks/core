@@ -581,3 +581,369 @@ func TestTeardownDrainsThePendingSourceRelease(t *testing.T) {
 		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
 	}
 }
+
+// movedFromEPSTo5GS establishes a PDN connection and moves it to 5GS, leaving the
+// gNB unbound so the source access still routes the session. It returns the MME
+// callback the SMF was given and the session's ref, which the move preserves.
+func movedFromEPSTo5GS(t *testing.T, s *smf.SMF) (*fakeMME, string) {
+	t.Helper()
+
+	ctx := context.Background()
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
+
+	bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeInitialRequest))
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err != nil {
+		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 0 {
+		t.Fatalf("MME told of moved connections before the gNB bind = %v, want none", moved)
+	}
+
+	return mmeCb, bearer.Ref
+}
+
+// A UE-signalled release completing before the target access bound still has to
+// drop the routing the source access holds.
+func TestNASReleaseCompleteDrainsThePendingSourceRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb, ref := movedFromEPSTo5GS(t, s)
+
+	const pti = 5
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseRequest(transferTestPDUSessionID, pti)); err != nil {
+		t.Fatalf("UpdateSmContextN1Msg(PDU session release request): %v", err)
+	}
+
+	// The session is still in the pool, mid release procedure, so the source
+	// access keeps routing it.
+	if moved := mmeCb.movedAway(); len(moved) != 0 {
+		t.Fatalf("MME told of moved connections before the release completed = %v, want none", moved)
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(transferTestPDUSessionID, pti)); err != nil {
+		t.Fatalf("UpdateSmContextN1Msg(PDU session release complete): %v", err)
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Fatal("the session survived the release complete")
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
+		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
+	}
+}
+
+// An N2 release response tearing the session down before the target access bound
+// still has to drop the routing the source access holds.
+func TestN2ReleaseResponseDrainsThePendingSourceRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb, ref := movedFromEPSTo5GS(t, s)
+
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp: %v", err)
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Fatal("the session survived the N2 release response")
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
+		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
+	}
+}
+
+// TS 24.501 §6.4.1.7 c): an initial request supersedes the session holding the
+// identity. One superseded before its target access bound still holds the source
+// access's routing.
+func TestSupersedingATransferredSessionDrainsThePendingSourceRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb, ref := movedFromEPSTo5GS(t, s)
+
+	newRef, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext(initial request): %v", err)
+	}
+
+	if rejectN1 != nil {
+		t.Fatalf("initial request rejected with 5GSM cause %s, want the existing session superseded", rejectCause(t, rejectN1))
+	}
+
+	if newRef == ref {
+		t.Errorf("the superseding session reused the superseded session's ref %q", ref)
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Error("the superseded session is still in the pool")
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
+		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
+	}
+}
+
+// TS 23.501 §5.17.2: a session moved out and back before its first target bound
+// is returned to the access it is recorded as having left, so only the access it
+// left last is told to stop routing it.
+func TestRoundTripWithoutABindTellsOnlyTheAccessLeftLast(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err != nil {
+		t.Fatalf("CreateEPSSession(handover): %v", err)
+	}
+
+	// No ModifyEPSSession: the eNB never binds before the UE moves back.
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err != nil {
+		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
+	}
+
+	n2Data, err := buildPDUSessionResourceSetupResponseTransferIPv6(0x3333, net.ParseIP("10.0.0.11"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2Data); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
+		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
+	}
+
+	// 5GS serves the session again under the same ref, so the entry recorded when
+	// it first left 5GS names the live session.
+	if moved := amfCb.movedAway(); len(moved) != 0 {
+		t.Errorf("AMF told of moved sessions = %v, want none", moved)
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Fatal("the session was released by the round trip")
+	}
+}
+
+// The supervision that releases a session whose target access never binds is
+// stopped by the bind, so a bound session outlives the timeout.
+func TestTargetBindStopsTheTransferSupervision(t *testing.T) {
+	const bindTimeout = 10 * time.Millisecond
+
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithTransferBindTimeout(bindTimeout))
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err != nil {
+		t.Fatalf("CreateEPSSession(handover): %v", err)
+	}
+
+	if err := s.ModifyEPSSession(ctx, ref, enbFTEID()); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	time.Sleep(20 * bindTimeout)
+
+	if s.GetSession(ref) == nil {
+		t.Fatalf("the session was released %s after the eNB bound, want it kept", 20*bindTimeout)
+	}
+
+	if fourG, _ := s.SessionCountByRAT(); fourG != 1 {
+		t.Errorf("EPS session count = %d, want the one bound session", fourG)
+	}
+}
+
+// gatedUPF holds one session modification open, so a caller can act while the
+// transfer that issued it is in flight.
+type gatedUPF struct {
+	*fakeUPF
+
+	arm     chan struct{}
+	entered chan struct{}
+	proceed chan struct{}
+}
+
+func newGatedUPF(upf *fakeUPF) *gatedUPF {
+	g := &gatedUPF{
+		fakeUPF: upf,
+		arm:     make(chan struct{}, 1),
+		entered: make(chan struct{}),
+		proceed: make(chan struct{}),
+	}
+	g.arm <- struct{}{}
+
+	return g
+}
+
+func (g *gatedUPF) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
+	select {
+	case <-g.arm:
+		close(g.entered)
+		<-g.proceed
+	default:
+	}
+
+	return g.fakeUPF.ModifySession(ctx, req)
+}
+
+// A release and a transfer both rewrite the session across blocking UPF calls, so
+// one has to lose. The session is left on exactly one access, whichever wins.
+func TestReleaseRacingATransferLeavesOneOutcome(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	gated := newGatedUPF(upf)
+	s := newTestSMF(pcf, store, gated, amfCb)
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	transferred := make(chan error, 1)
+
+	go func() {
+		_, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover))
+		transferred <- err
+	}()
+
+	<-gated.entered
+
+	released := make(chan error, 1)
+
+	go func() { released <- s.ReleaseSmContext(ctx, ref) }()
+
+	close(gated.proceed)
+
+	transferErr := <-transferred
+	releaseErr := <-released
+
+	if transferErr != nil && releaseErr != nil {
+		t.Fatalf("both procedures failed: transfer %v, release %v; want exactly one to commit", transferErr, releaseErr)
+	}
+
+	sc := s.GetSession(ref)
+
+	switch {
+	case transferErr == nil && releaseErr == nil:
+		t.Error("the transfer and the release both committed against the same session")
+	case transferErr == nil:
+		if sc == nil {
+			t.Fatal("the session is gone after a committed transfer and a refused release")
+		}
+
+		sc.Mutex.Lock()
+		onEPS := sc.IsEPS()
+		sc.Mutex.Unlock()
+
+		if !onEPS {
+			t.Error("session is on 5GS after a committed transfer to EPS")
+		}
+	default:
+		if sc != nil {
+			t.Error("the session is still in the pool after a committed release")
+		}
+	}
+}
+
+// TS 24.501 §6.3.3.5: the release command is retransmitted four times and then
+// abandoned, tearing the session down. One abandoned before its target access
+// bound still holds the source access's routing.
+func TestReleaseRetransmissionAbortDrainsThePendingSourceRelease(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb, smf.WithT3592(2*time.Millisecond))
+	ctx := context.Background()
+
+	mmeCb, ref := movedFromEPSTo5GS(t, s)
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseRequest(transferTestPDUSessionID, 5)); err != nil {
+		t.Fatalf("UpdateSmContextN1Msg(PDU session release request): %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && s.GetSession(ref) != nil {
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Fatal("the session survived the release command retransmission limit")
+	}
+
+	if moved := mmeCb.movedAway(); len(moved) != 1 || moved[0] != epsTestEBI {
+		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
+	}
+}
+
+// A transfer's commit spans several blocking UPF calls. An initial request
+// naming the same identity meanwhile leaves the transferred session alone, so the
+// supersede cannot tear down state the move is part-way through writing; the
+// identity stays in use and the establishment is refused.
+func TestSupersedeSkippedWhileATransferHoldsTheSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	gated := newGatedUPF(upf)
+	s := newTestSMF(pcf, store, gated, amfCb)
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+	if err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	transferred := make(chan error, 1)
+
+	go func() {
+		_, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover))
+		transferred <- err
+	}()
+
+	<-gated.entered
+
+	newRef, _, createErr := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
+
+	close(gated.proceed)
+
+	if transferErr := <-transferred; transferErr != nil {
+		t.Fatalf("CreateEPSSession(handover): %v", transferErr)
+	}
+
+	if createErr == nil {
+		t.Errorf("CreateSmContext(initial request) during a transfer = ref %q and nil error, want a refusal", newRef)
+	}
+
+	sc := s.GetSession(ref)
+	if sc == nil {
+		t.Fatal("the transferred session was superseded while the transfer held it")
+	}
+
+	sc.Mutex.Lock()
+	onEPS := sc.IsEPS()
+	sc.Mutex.Unlock()
+
+	if !onEPS {
+		t.Error("the transferred session is on 5GS, want it on EPS")
+	}
+}

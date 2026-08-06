@@ -109,12 +109,11 @@ func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 
 // RecordPDNSetup stores the transaction and the message that opened a PDN
 // connection, so a retransmission of the request can be answered by resending it.
-func (m *MME) RecordPDNSetup(ue *UeContext, p *PdnConnection, pti uint8, requestType eps.RequestType, pdu []byte) {
+func (m *MME) RecordPDNSetup(ue *UeContext, p *PdnConnection, pti uint8, pdu []byte) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	p.SetupPTI = pti
-	p.SetupRequestType = requestType
 
 	p.SetupPdu = append([]byte(nil), pdu...)
 }

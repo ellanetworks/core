@@ -29,7 +29,7 @@ func TestESMInformationCarriesTheDeferredIdentity(t *testing.T) {
 
 	ingestAttachRequest(context.Background(), ue, &eps.AttachRequest{ESMMessageContainer: esm})
 
-	if !ue.AwaitingESMInformation {
+	if !ue.AwaitingESMInformation() {
 		t.Fatal("the ESM information transfer flag was not recorded")
 	}
 
@@ -58,7 +58,7 @@ func TestESMInformationCarriesTheDeferredIdentity(t *testing.T) {
 		ProtocolConfigurationOptions: &pco,
 	})
 
-	if ue.AwaitingESMInformation {
+	if ue.AwaitingESMInformation() {
 		t.Error("still awaiting ESM information after the response")
 	}
 
@@ -75,7 +75,7 @@ func TestESMInformationResponseWhenNoneWasRequested(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 
-	ue.AwaitingESMInformation = false
+	ue.TakeESMInfoWait()
 	ue.RequestedPDUSessionID = 4
 
 	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{PTI: 1})
@@ -101,11 +101,11 @@ func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 		ESMInformationTransferFlag: &eit,
 	})
 
-	if !ue.AwaitingESMInformation {
+	if !ue.AwaitingESMInformation() {
 		t.Fatal("the standalone request did not start the ESM information procedure")
 	}
 
-	if !ue.PendingPDNSet() {
+	if !ue.AwaitingESMInformation() {
 		t.Fatal("the standalone request was not recorded for resume")
 	}
 
@@ -186,7 +186,7 @@ func TestESMInformationIdentityFromExtendedPCO(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 
-	ue.AwaitingESMInformation = true
+	ue.AwaitESMInformation(nil)
 	ue.RequestedPTI = 3
 
 	epco := nas.ProtocolConfigurationOptions{
@@ -208,13 +208,13 @@ func TestESMInformationIdentityFromExtendedPCO(t *testing.T) {
 }
 
 // TS 24.301 §7.3.1 e): an assigned PTI naming no ongoing transaction draws ESM
-// STATUS #81, and §8.3.13 has it name the transaction it refuses. §7.3.2 e)
+// STATUS #81, and §8.3.15 has it name the transaction it refuses. §7.3.2 e)
 // ignores a response carrying an assigned EPS bearer identity.
 func TestESMInformationResponsePTIAndEBIHandling(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	ue.AwaitingESMInformation = true
+	ue.AwaitESMInformation(nil)
 	ue.RequestedPTI = 3
 
 	// An assigned EBI is ignored: no status, and the wait survives.
@@ -226,7 +226,7 @@ func TestESMInformationResponsePTIAndEBIHandling(t *testing.T) {
 		t.Error("a response with an assigned EPS bearer identity drew a reply, want it ignored")
 	}
 
-	if !ue.AwaitingESMInformation {
+	if !ue.AwaitingESMInformation() {
 		t.Error("a response with an assigned EPS bearer identity ended the wait")
 	}
 
@@ -300,17 +300,22 @@ func TestStandaloneDeferralResumesWithTheDeferredAPN(t *testing.T) {
 		ESMInformationTransferFlag: &eit,
 	})
 
-	if !ue.PendingPDNSet() {
+	if !ue.AwaitingESMInformation() {
 		t.Fatal("the standalone request did not record a deferral")
 	}
 
 	apn := eps.APN("internet")
 
+	epco := nas.ProtocolConfigurationOptions{
+		Direction:  nas.PCOMSToNetwork,
+		Containers: []nas.PCOContainer{{ID: nas.PCOContainerPDUSessionID, Content: []byte{3}}},
+	}
+
 	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
-		PTI: 4, AccessPointName: &apn,
+		PTI: 4, AccessPointName: &apn, ExtendedProtocolConfigurationOptions: &epco,
 	})
 
-	if ue.PendingPDNSet() {
+	if ue.AwaitingESMInformation() {
 		t.Error("the deferral survived the response")
 	}
 
@@ -318,8 +323,13 @@ func TestStandaloneDeferralResumesWithTheDeferredAPN(t *testing.T) {
 		t.Errorf("RequestedAPN = %q, want the deferred \"internet\"", ue.RequestedAPN)
 	}
 
-	// The resume opened the connection rather than falling through to the attach.
-	if m.DefaultPDN(ue) == nil && len(m.SnapshotPDNs(ue)) == 0 {
+	// The identity the UE deferred has to reach the anchor: without it the
+	// connection cannot be correlated with a PDU session.
+	if ue.RequestedPDUSessionID != 3 {
+		t.Errorf("RequestedPDUSessionID = %d, want the deferred 3", ue.RequestedPDUSessionID)
+	}
+
+	if len(m.SnapshotPDNs(ue)) == 0 {
 		t.Error("the resumed request opened no PDN connection")
 	}
 }

@@ -125,6 +125,10 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		IPv6Only:  true,
 		DualStack: true,
 	},
+	"interworking/transfer_slice_mismatch": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
 }
 
 // TestIntegrationTester brings the core-tester compose up once,

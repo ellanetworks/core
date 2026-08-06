@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"github.com/ellanetworks/core/internal/smf/procedure"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
@@ -36,6 +37,77 @@ func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 	}
 }
 
+// transfer5GSMCause maps a refused transfer to the 5GSM cause the AMF rejects with.
+func transfer5GSMCause(err error) fgs.GSMCause {
+	switch {
+	case errors.Is(err, ErrSessionOnOtherDNN):
+		return fgs.GSMCauseMissingOrUnknownDNN
+	case errors.Is(err, ErrSessionNotMovable):
+		return fgs.GSMCauseRequestRejectedUnspecified
+	default:
+		return fgs.GSMCausePDUSessionDoesNotExist
+	}
+}
+
+// parseEstablishmentRequest decodes and polices the UE's message before any
+// state is allocated, so a refusal can still answer it. A nil request means the
+// message was answered — or, for a reserved PTI, deliberately not — without an
+// establishment being attempted.
+func parseEstablishmentRequest(pduSessionID uint8, n1Msg []byte) (*fgs.PDUSessionEstablishmentRequest, []byte, error) {
+	// A message that will not decode draws a protocol error; a well-formed message
+	// of the wrong type is a protocol-state mismatch.
+	msg, err := fgs.ParseMessage(n1Msg)
+	if err != nil && !nas.SoftOnly(err) {
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), 0, fgs.GSMCauseProtocolErrorUnspecified)
+		if buildErr != nil {
+			return nil, nil, fmt.Errorf("error decoding NAS message: %v (build reject failed: %v)", err, buildErr)
+		}
+
+		return nil, rsp, fmt.Errorf("error decoding NAS message: %v", err)
+	}
+
+	// A message type this codec does not model draws a 5GSM STATUS naming that,
+	// not a reject of a procedure the UE never started: TS 24.501 §7.4 has the
+	// network ignore such a message except to return a STATUS with cause #97,
+	// where #98 reports a message the receiver does understand arriving in the
+	// wrong state.
+	if unknown, isUnknown := msg.(*fgs.UnknownGSMMessage); isUnknown {
+		rsp, buildErr := smfNas.BuildGSM5GSMStatus(unknown.PDUSessionID, unknown.PTI,
+			fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
+		if buildErr != nil {
+			return nil, nil, fmt.Errorf("unimplemented 5GSM message type %#02x (build 5GSM STATUS failed: %v)", uint8(unknown.Type), buildErr)
+		}
+
+		return nil, rsp, fmt.Errorf("unimplemented 5GSM message type %#02x", uint8(unknown.Type))
+	}
+
+	req, ok := msg.(*fgs.PDUSessionEstablishmentRequest)
+	if !ok {
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), 0, fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState)
+		if buildErr != nil {
+			return nil, nil, fmt.Errorf("unexpected NAS message %T (build reject failed: %v)", msg, buildErr)
+		}
+
+		return nil, rsp, fmt.Errorf("unexpected NAS message: %T", msg)
+	}
+
+	// TS 24.501 §7.3.1: an unassigned PTI yields a 5GSM STATUS (#81); a reserved
+	// PTI is ignored — no context and no response.
+	switch verdict, cause := smfNas.PolicePTI(fgs.MsgPDUSessionEstablishmentRequest, uint8(req.PTI), func(uint8) bool { return false }); verdict {
+	case smfNas.PTIIgnore:
+		return nil, nil, nil
+	case smfNas.PTIRespondStatus:
+		rsp, buildErr := smfNas.BuildGSM5GSMStatus(fgs.PDUSessionID(pduSessionID), req.PTI, cause)
+		if buildErr != nil {
+			return nil, nil, fmt.Errorf("build 5GSM STATUS failed: %v", buildErr)
+		}
+
+		return nil, rsp, nil
+	}
+
+	return req, nil, nil
+}
+
 // CreateSmContext establishes a new 5G PDU session from the UE's NAS
 // establishment request, returning the SM context ref or a NAS reject message.
 func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error) {
@@ -54,83 +126,46 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", nil, fmt.Errorf("PDU session id %d out of range (1..15)", pduSessionID)
 	}
 
-	// Decode before any state changes so a failure can still build a reject. A
-	// message that will not decode draws a protocol error; a well-formed message
-	// of the wrong type is a protocol-state mismatch.
-	msg, err := fgs.ParseMessage(n1Msg)
-	if err != nil && !nas.SoftOnly(err) {
+	req, rsp, err := parseEstablishmentRequest(pduSessionID, n1Msg)
+	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to decode NAS message")
-
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), 0, fgs.GSMCauseProtocolErrorUnspecified)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("error decoding NAS message: %v (build reject failed: %v)", err, buildErr)
-		}
-
-		return "", rsp, fmt.Errorf("error decoding NAS message: %v", err)
+		span.SetStatus(codes.Error, "failed to accept the establishment request")
 	}
 
-	// A message type this codec does not model draws a 5GSM STATUS naming that,
-	// not a reject of a procedure the UE never started: TS 24.501 §7.4 has the
-	// network ignore such a message except to return a STATUS with cause #97,
-	// where #98 reports a message the receiver does understand arriving in the
-	// wrong state.
-	if unknown, isUnknown := msg.(*fgs.UnknownGSMMessage); isUnknown {
-		rsp, buildErr := smfNas.BuildGSM5GSMStatus(unknown.PDUSessionID, unknown.PTI,
-			fgs.GSMCauseMessageTypeNonExistentOrNotImplemented)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("unimplemented 5GSM message type %#02x (build 5GSM STATUS failed: %v)", uint8(unknown.Type), buildErr)
-		}
-
-		return "", rsp, fmt.Errorf("unimplemented 5GSM message type %#02x", uint8(unknown.Type))
+	if req == nil {
+		return "", rsp, err
 	}
 
-	req, ok := msg.(*fgs.PDUSessionEstablishmentRequest)
-	if !ok {
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), 0, fgs.GSMCauseMessageTypeNotCompatibleWithTheProtocolState)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("unexpected NAS message %T (build reject failed: %v)", msg, buildErr)
-		}
-
-		return "", rsp, fmt.Errorf("unexpected NAS message: %T", msg)
-	}
-
-	// Police the PTI before allocating any state (TS 24.501 §7.3.1): an
-	// unassigned PTI yields a 5GSM STATUS (#81); a reserved PTI is ignored —
-	// no context and no response.
 	reqPTI := req.PTI
 
-	switch verdict, cause := smfNas.PolicePTI(fgs.MsgPDUSessionEstablishmentRequest, uint8(reqPTI), func(uint8) bool { return false }); verdict {
-	case smfNas.PTIIgnore:
-		return "", nil, nil
-	case smfNas.PTIRespondStatus:
-		rsp, buildErr := smfNas.BuildGSM5GSMStatus(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("build 5GSM STATUS failed: %v", buildErr)
-		}
-
-		return "", rsp, nil
-	}
-
-	// Record exactly one establishment outcome per attempt; the returns above are
-	// not establishment attempts, so they precede this defer.
+	// Record exactly one establishment outcome per attempt; parsing the request is
+	// not an establishment attempt, so it precedes this defer.
 	var establishmentResult string
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	// Ella Core serves no emergency bearer services. An initial emergency request
-	// is refused (TS 24.501 §6.4.1.7 a), and there is no emergency PDU session for
-	// an "existing emergency PDU session" request to name (§6.4.1.7 d).
-	switch requestType {
-	case fgs.RequestTypeInitialEmergencyRequest, fgs.RequestTypeExistingEmergencyPDUSession:
+	// reject answers the UE with a 5GSM cause and records the refusal.
+	reject := func(cause fgs.GSMCause, err error) ([]byte, error) {
 		establishmentResult = metrics.ResultReject
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, fgs.GSMCausePDUSessionDoesNotExist)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
 		if buildErr != nil {
-			return "", nil, fmt.Errorf("build emergency refusal failed: %v", buildErr)
+			return nil, fmt.Errorf("%w (build reject failed: %v)", err, buildErr)
 		}
 
-		return "", rsp, fmt.Errorf("request type %v is not served", requestType)
+		return rsp, err
+	}
+
+	// Ella Core serves no emergency bearer services, so neither emergency request
+	// type is served. No emergency PDU session exists for an "existing emergency
+	// PDU session" request to name, which TS 24.501 §6.4.1.7 d) refuses with 5GSM
+	// #54. An initial emergency request draws the same cause by local choice: the
+	// spec assumes a network offering emergency service and gives no refusal.
+	switch requestType {
+	case fgs.RequestTypeInitialEmergencyRequest, fgs.RequestTypeExistingEmergencyPDUSession:
+		rsp, err := reject(fgs.GSMCausePDUSessionDoesNotExist, fmt.Errorf("request type %v is not served", requestType))
+
+		return "", rsp, err
 	}
 
 	isTransfer := requestType == fgs.RequestTypeExistingPDUSession
@@ -148,14 +183,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
 	if err != nil {
-		establishmentResult = metrics.ResultReject
+		rsp, err := reject(establishmentRejectCause(err), fmt.Errorf("failed to find subscriber policy: %w", err))
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, establishmentRejectCause(err))
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("failed to find subscriber policy: %v (build reject failed: %v)", err, buildErr)
-		}
-
-		return "", rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
+		return "", rsp, err
 	}
 
 	if isTransfer {
@@ -176,26 +206,16 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	negotiatedType, err := s.negotiatePDUSessionType(ctx, uint8(requestedType), policy)
 	if err != nil {
-		establishmentResult = metrics.ResultReject
+		rsp, err := reject(pduSessionTypeRejectCause(uint8(requestedType), policy), fmt.Errorf("PDU session type negotiation failed: %w", err))
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, pduSessionTypeRejectCause(uint8(requestedType), policy))
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("PDU session type negotiation failed: %v (build reject failed: %v)", err, buildErr)
-		}
-
-		return "", rsp, fmt.Errorf("PDU session type negotiation failed: %v", err)
+		return "", rsp, err
 	}
 
 	pco, err := parsePDUSessionRequest(req)
 	if err != nil {
-		establishmentResult = metrics.ResultReject
+		rsp, err := reject(fgs.GSMCauseRequestRejectedUnspecified, fmt.Errorf("parse PDU session request failed: %w", err))
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, fgs.GSMCauseRequestRejectedUnspecified)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("parse PDU session request failed: %v (build reject failed: %v)", err, buildErr)
-		}
-
-		return "", rsp, fmt.Errorf("parse PDU session request failed: %v", err)
+		return "", rsp, err
 	}
 
 	sc, _, err := s.establishSession(ctx, SessionRequest{
@@ -208,8 +228,6 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		Policy:   policy,
 	})
 	if err != nil {
-		establishmentResult = metrics.ResultReject
-
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create SM context")
 
@@ -218,12 +236,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 			cause = fgs.GSMCauseInsufficientResources
 		}
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("failed to create SM Context: %v (build reject failed: %v)", err, buildErr)
-		}
+		rsp, err := reject(cause, fmt.Errorf("failed to create SM Context: %w", err))
 
-		return "", rsp, fmt.Errorf("failed to create SM Context: %v", err)
+		return "", rsp, err
 	}
 
 	// IPv4v6 narrowed to a single family is signalled in the accept with 5GSM
@@ -302,7 +317,7 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 	if err != nil {
 		// The move has committed and neither access holds a reference, so nothing
 		// else will release this session.
-		if relErr := s.releaseSmContext(ctx, sc.Ref); relErr != nil {
+		if relErr := s.releaseSmContext(ctx, sc.Ref, anyAccess); relErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a session whose PDU session type could not be reported",
 				zap.Error(relErr), zap.String("smContextRef", sc.Ref))
 		}
@@ -339,8 +354,6 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 	}
 
 	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, uint8(pti), cause, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
-		// The move has committed and neither access holds a ref for the session,
-		// so nothing else can release it.
 		_ = s.ReleaseSmContext(ctx, sc.Ref)
 
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept for a transferred session: %v", err)
@@ -350,25 +363,46 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 }
 
 func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SMContext) {
-	var releasedEBI uint8
+	var (
+		releasedEBI uint8
+		releasedPSI uint8
+	)
 
-	// Deferred before the unlock, so both run after it: the callbacks must not be
-	// entered under the session lock.
+	// drainOnTeardown retakes the session lock, and the MME callback re-enters the
+	// SMF, so both run unlocked.
 	defer func() {
 		// A superseded session that never bound its target still holds the source
 		// access's routing.
-		s.releaseTransferSource(ctx, smCtxt)
+		s.drainOnTeardown(ctx, smCtxt)
 
 		if releasedEBI != 0 && s.mme != nil {
 			s.mme.SessionReleased(ctx, smCtxt.Supi.IMSI(), releasedEBI, smCtxt.Ref)
 		}
+
+		if releasedPSI != 0 && s.amf != nil {
+			s.amf.SessionReleased(ctx, smCtxt.Supi, releasedPSI, smCtxt.Ref)
+		}
 	}()
+
+	// A transfer holds sc.Mutex across blocking UPF calls, so the registry refuses
+	// this teardown instead of queueing it behind one and landing between the
+	// calls the move commits across.
+	if err := smCtxt.procedures.Begin(procedure.Release); err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Warn("skipping supersede of a session with a procedure in flight",
+			zap.Error(err), zap.String("smContextRef", smCtxt.Ref))
+
+		return
+	}
+
+	defer smCtxt.procedures.End(procedure.Release)
 
 	smCtxt.Mutex.Lock()
 	defer smCtxt.Mutex.Unlock()
 
 	if smCtxt.IsEPS() {
 		releasedEBI = smCtxt.EBI
+	} else {
+		releasedPSI = smCtxt.PDUSessionID
 	}
 
 	// Stop the superseded context's outstanding procedure retransmission.

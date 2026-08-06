@@ -57,11 +57,15 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		return fmt.Errorf("sm context not found: %s", req.SmContextRef)
 	}
 
-	smContext.Mutex.Lock()
+	// Reconciliation signals 5GSM, so a session served by the other access is
+	// left to the MME's own reconciler.
+	if err := smContext.lockServedBy(Access5G); err != nil {
+		return nil
+	}
 
-	// Deferred before the unlock, so it runs after it: a release started here can
-	// remove a session whose target access never bound.
-	defer func() { s.releaseTransferSource(ctx, smContext) }()
+	// drainOnTeardown retakes the session lock and enters the AMF and MME
+	// callbacks, which re-enter the SMF, so it runs unlocked.
+	defer func() { s.drainOnTeardown(ctx, smContext) }()
 	defer smContext.Mutex.Unlock()
 
 	if smContext.Tunnel == nil || !smContext.Tunnel.DataPath.Activated {

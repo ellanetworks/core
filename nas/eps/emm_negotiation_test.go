@@ -432,8 +432,8 @@ func TestUENetworkCapabilityEPCO(t *testing.T) {
 	}
 }
 
-// §8.3.14.4: the ESM INFORMATION RESPONSE may carry the extended element, which
-// has to survive a round trip like the classic one.
+// TS 24.301 §8.3.14.4: the ESM INFORMATION RESPONSE may carry the extended
+// element, which has to survive a round trip like the classic one.
 func TestESMInformationResponseExtendedPCORoundTrip(t *testing.T) {
 	epco := nas.ProtocolConfigurationOptions{
 		Direction:  nas.PCOMSToNetwork,

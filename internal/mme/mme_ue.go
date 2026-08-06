@@ -108,8 +108,9 @@ type PdnConnection struct {
 
 	// SetupPTI is the procedure transaction identity of the PDN CONNECTIVITY
 	// REQUEST that opened this connection, and SetupPdu the ACTIVATE DEFAULT EPS
-	// BEARER CONTEXT REQUEST sent for it. A retransmission carrying the same PTI
-	// is answered by resending it (TS 24.301 §6.5.1.6 a).
+	// BEARER CONTEXT REQUEST sent for it, retained only until the UE accepts.
+	// TS 24.301 §6.5.1.6 a) resends it for a request repeating the same PTI, APN
+	// and PDN type before the ACTIVATE ACCEPT arrives.
 	SetupPTI uint8
 	SetupPdu []byte
 	// SetupRequestType is the request type that opened the connection. A
@@ -123,6 +124,13 @@ type PdnConnection struct {
 	// have an ESM procedure outstanding on each at once; the guard invalidates a
 	// callback whose firing races a stop, release or re-arm.
 	guard guard.Guard
+}
+
+// ESMInfoWait is an outstanding ESM information request procedure
+// (TS 24.301 §6.6.1.2). Standalone is nil when the procedure runs inside an
+// attach.
+type ESMInfoWait struct {
+	Standalone *PendingPDNConnectivity
 }
 
 // PendingPDNConnectivity is the standalone PDN CONNECTIVITY REQUEST waiting on
@@ -164,10 +172,11 @@ type UeContext struct {
 	// Request the ATTACH REQUEST carried, replayed in the default bearer's
 	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
 	RequestedPTI nas.ProcedureTransactionIdentity
-	// pendingPDN is the standalone PDN CONNECTIVITY REQUEST the ESM information
-	// procedure is running for, nil when it runs for the attach. Written from the
-	// guard's timer goroutine as well as the NAS one, so it is behind ue.mu.
-	pendingPDN     *PendingPDNConnectivity
+	// esmInfoWait is the outstanding ESM information request, nil when none. Its
+	// Standalone field distinguishes a standalone PDN CONNECTIVITY REQUEST from
+	// the attach, so the two states cannot disagree. Written from the guard's
+	// timer goroutine as well as the NAS one, so it is behind ue.mu.
+	esmInfoWait    *ESMInfoWait
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 	// HashmmeInput is the plain Attach Request to hash into the SECURITY MODE
 	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
@@ -194,7 +203,6 @@ type UeContext struct {
 	RequestedType eps.RequestType
 	// The attach's PDN CONNECTIVITY REQUEST set the ESM information transfer flag,
 	// so its APN and PCO arrive in an ESM INFORMATION RESPONSE (TS 24.301 §6.5.1.2).
-	AwaitingESMInformation bool
 
 	// tmsi is the M-TMSI of the GUTI assigned at attach (InvalidTMSI = none); it
 	// indexes the UE for S-TMSI-addressed procedures (Service Request, paging).
@@ -548,51 +556,70 @@ func (m *MME) FindPDNByAPN(ue *UeContext, apn string) *PdnConnection {
 	return ue.PdnForAPN(apn)
 }
 
-// DropPDN removes a PDN connection from the UE without releasing a session, for
-// rolling back a connection reserved but never established.
-// SetPendingPDN records the standalone request the ESM information procedure is
-// running for; nil clears it.
-func (ue *UeContext) SetPendingPDN(p *PendingPDNConnectivity) {
+// AwaitESMInformation records that an ESM information request is outstanding.
+// standalone is nil when the procedure runs inside an attach.
+func (ue *UeContext) AwaitESMInformation(standalone *PendingPDNConnectivity) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.pendingPDN = p
+	ue.esmInfoWait = &ESMInfoWait{Standalone: standalone}
 }
 
-// TakePendingPDN returns the standalone request the ESM information procedure is
-// running for and clears it, so only one caller resumes it.
-func (ue *UeContext) TakePendingPDN() *PendingPDNConnectivity {
+// TakeESMInfoWait ends the ESM information procedure and returns what it was
+// running for, so exactly one caller concludes it. The two halves of the state
+// are read and cleared together, so no caller sees them disagree.
+func (ue *UeContext) TakeESMInfoWait() *ESMInfoWait {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	p := ue.pendingPDN
-	ue.pendingPDN = nil
+	w := ue.esmInfoWait
+	ue.esmInfoWait = nil
 
-	return p
+	return w
 }
 
-// PendingPDNSet reports whether a standalone request is awaiting ESM information.
-func (ue *UeContext) PendingPDNSet() bool {
+func (ue *UeContext) AwaitingESMInformation() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.pendingPDN != nil
+	return ue.esmInfoWait != nil
 }
 
-// FindPDNBySetupPTI returns the PDN connection opened by the transaction pti
-// names, or nil. A PTI identifies one transaction, so a request carrying one
-// already in use is a retransmission of it.
-func (m *MME) FindPDNBySetupPTI(ue *UeContext, pti uint8) *PdnConnection {
+// FindRetransmittedPDN returns the PDN connection whose PDN CONNECTIVITY REQUEST
+// carried this PTI, APN and PDN type and whose ACTIVATE DEFAULT EPS BEARER
+// CONTEXT ACCEPT has not arrived, or nil (TS 24.301 §6.5.1.6 a).
+func (m *MME) FindRetransmittedPDN(ue *UeContext, pti uint8, apn string, pdnType eps.PDNType) (*PdnConnection, []byte) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	for _, p := range ue.Pdns {
-		if p.SetupPTI == pti && len(p.SetupPdu) > 0 {
-			return p
+		if p.SetupPTI == pti && len(p.SetupPdu) > 0 && p.Apn == apn && p.PdnType == pdnType {
+			return p, append([]byte(nil), p.SetupPdu...)
 		}
 	}
 
-	return nil
+	return nil, nil
+}
+
+// ClearPDNSetupRecord drops the retained request once the procedure completes,
+// so a PTI the UE may legally reuse (TS 24.007 §11.2.3.1a) cannot match it.
+func (m *MME) ClearPDNSetupRecord(ue *UeContext, p *PdnConnection) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	p.SetupPdu = nil
+}
+
+// UsesExtendedPCO reports whether this connection's configuration options travel
+// in the extended element. TS 24.301 §6.6.1.1 makes that so for a PDN connection
+// transferred from a PDU session at inter-system change, and the UE reads it only
+// where the network advertised support — which it does only for a UE that
+// advertised it first (§5.5.1.2.4).
+func (ue *UeContext) UsesExtendedPCO(p *PdnConnection) bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return p.SetupRequestType == eps.RequestTypeHandover && ue.ueNetCap.EPCO()
 }
 
 // PDNIsCurrent reports whether p is still the UE's connection for its EPS bearer
@@ -604,6 +631,8 @@ func (m *MME) PDNIsCurrent(ue *UeContext, p *PdnConnection) bool {
 	return ue.Pdns[p.Ebi] == p
 }
 
+// DropPDN removes a PDN connection from the UE without releasing a session, for
+// rolling back a connection reserved but never established.
 func (m *MME) DropPDN(ue *UeContext, ebi uint8) {
 	m.dropPDN(ue, ebi, "")
 }
@@ -796,6 +825,9 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	// fire on a detached connection.
 	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
+	old.esmInfoGuard.Stop()
+
+	ue.esmInfoWait = nil
 	// Detaching the connection ends any in-flight key-changing procedure on it
 	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
 	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).

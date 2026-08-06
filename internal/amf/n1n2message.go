@@ -485,6 +485,25 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 
 // SessionTransferred drops the AMF's routing context for a PDU session the UE
 // moved to EPS, leaving the session anchored (TS 23.502 §4.11.2.2 step 14).
+// SessionReleased drops the AMF's routing context for a PDU session whose anchor
+// session the SMF released on its own initiative.
+func (amf *AMF) SessionReleased(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string) {
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return
+	}
+
+	scRef, _, held := ue.SmContextRefAndActive(pduSessionID)
+	if !held || scRef != ref {
+		return
+	}
+
+	ue.DeleteSmContext(pduSessionID)
+
+	logger.From(ctx, logger.AmfLog).Info("dropped routing context for a released PDU session",
+		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+}
+
 func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Release []byte) {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {

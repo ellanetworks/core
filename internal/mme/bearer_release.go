@@ -37,6 +37,13 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	// and frees the tunnel before the UE's DEACTIVATE EPS BEARER CONTEXT ACCEPT. The PDN
 	// connection is retained for the ESM handshake (T3495); its later session release is
 	// then an idempotent no-op.
+	if !m.PDNIsCurrent(ue, p) {
+		logger.From(ctx, logger.MmeLog).Debug("skipping deactivation of a PDN connection the UE does not hold",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
+
+		return
+	}
+
 	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to release EPS session on deactivation",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
