@@ -193,9 +193,8 @@ func isStatus5GSM(smMessage []byte) bool {
 	return mt == fgs.MsgGSMStatus
 }
 
-// establishPDUSession selects an SMF and creates the SM context for a request
-// the AMF has no routing context for: an initial request, or the transfer of a
-// PDN connection the UE holds in EPS (TS 24.501 §5.4.5.2.5).
+// Covers both an initial request and the transfer of a PDN connection the UE
+// holds in EPS (TS 24.501 §5.4.5.2.5).
 func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn, ulNasTransport *fgs.ULNASTransport, pduSessionID uint8, requestType fgs.RequestType, smMessage []byte) {
 	var (
 		snssai *models.Snssai

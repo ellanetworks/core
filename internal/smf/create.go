@@ -239,9 +239,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	return sc.Ref, nil, nil
 }
 
-// transferTo5GS moves a PDN connection the UE holds in EPS onto the PDU session
-// it just asked for, keeping the UE address and the UPF session
-// (TS 23.502 §4.11.2.3 step 9).
+// The UE address and the UPF session survive the move (TS 23.502 §4.11.2.3
+// step 9).
 func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, policy *Policy, req *fgs.PDUSessionEstablishmentRequest, pti nas.ProcedureTransactionIdentity) (string, []byte, error) {
 	transfer := transferRequest{Access: Access5G, Dnn: dnn, Snssai: snssai, Policy: policy}
 

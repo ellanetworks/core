@@ -31,5 +31,4 @@ const (
 	Transfer Type = "Transfer"
 )
 
-// NewRegistry returns a registry for one session's procedures.
 func NewRegistry(log *zap.Logger) *Registry { return engine.NewRegistry(log) }

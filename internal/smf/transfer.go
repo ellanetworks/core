@@ -18,28 +18,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrSessionNotTransferable reports that the session a UE asked to move to the
-// access it is now on does not exist, or exists but is not the one the UE
-// described. Each access maps it to ESM #54 "PDN connection does not exist"
-// (TS 24.301 §6.5.1.6 b) or 5GSM #54 "PDU session does not exist"
-// (TS 24.501 §6.4.1.7 d).
 var ErrSessionNotTransferable = errors.New("session does not exist on the other access")
 
-// transferRequest is what the target access brings to a transfer. The PDU
-// session identity is absent: it is the correlator that found the session, and
-// it does not change.
 type transferRequest struct {
 	Access AccessType
-	// EBI is the default bearer's EPS bearer identity on EPS, and 0 on 5GS.
+	// EBI is 0 on 5GS.
 	EBI    uint8
 	Dnn    string
 	Snssai *models.Snssai
 	Policy *Policy
 }
 
-// findTransferable resolves the session a UE asked to move to the other access,
-// correlated by PDU session identity (TS 23.502 §4.11.2.2 step 13,
-// §4.11.2.3 step 9).
+// The PDU session identity correlates the two accesses (TS 23.502 §4.11.2.2
+// step 13, §4.11.2.3 step 9).
 func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
 	if pduSessionID == 0 {
 		return nil, fmt.Errorf("%w: the UE named no PDU session identity", ErrSessionNotTransferable)
@@ -64,8 +55,7 @@ func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferR
 	return sc, nil
 }
 
-// transferable reports whether the session can move as req describes. Caller
-// holds sc.Mutex.
+// Caller holds sc.Mutex.
 func (sc *SMContext) transferable(req transferRequest) error {
 	if sc.Access == req.Access {
 		return fmt.Errorf("%w: PDU session %d is already on %s", ErrSessionNotTransferable, sc.PDUSessionID, req.Access)
@@ -91,8 +81,7 @@ func (sc *SMContext) transferable(req transferRequest) error {
 	return nil
 }
 
-// downlinkSnapshot captures the downlink rule state a suspend overwrites, and
-// returns a closure that puts it back. Caller holds sc.Mutex.
+// Caller holds sc.Mutex.
 func downlinkSnapshot(dl *PDR) func() {
 	state, action := dl.State, dl.FAR.ApplyAction
 	farState := dl.FAR.State
@@ -110,13 +99,11 @@ func downlinkSnapshot(dl *PDR) func() {
 	}
 }
 
-// transferSession moves an established session to the other access with session
-// continuity (TS 23.501 §5.17.2): the UE keeps its address, and the anchor keeps
-// the UPF session, its SEID and its uplink F-TEID. The downlink is left
-// buffering until the target access binds its own RAN endpoint.
+// Session continuity (TS 23.501 §5.17.2): the UE address, the UPF session, its
+// SEID and its uplink F-TEID all survive the move. The downlink buffers until
+// the target access binds its own RAN endpoint.
 func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRequest) error {
-	// One transfer at a time per session: the move spans several blocking UPF
-	// calls.
+	// The move spans several blocking UPF calls.
 	if err := sc.procedures.Begin(procedure.Transfer); err != nil {
 		return fmt.Errorf("%w: %v", ErrSessionNotTransferable, err)
 	}
@@ -133,9 +120,8 @@ func (s *SMF) transferSession(ctx context.Context, sc *SMContext, req transferRe
 	return nil
 }
 
-// dropSourceRouting tells the access a session left to forget it and to release
-// what its radio still holds for it, without releasing the session or the UE
-// address (TS 23.502 §4.11.2.2 step 14, §4.11.2.3 step 10).
+// The session and the UE address survive (TS 23.502 §4.11.2.2 step 14,
+// §4.11.2.3 step 10).
 func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, from AccessType, id SessionIdentity) {
 	switch from {
 	case Access5G:
@@ -143,9 +129,8 @@ func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, from Access
 			return
 		}
 
-		// A UE in dual-registration mode stays on NG-RAN while it moves sessions
-		// one at a time, so the moved session's resources are stranded unless the
-		// RAN is told to release them.
+		// A UE in dual-registration mode stays on NG-RAN while it moves sessions one
+		// at a time, stranding the moved session's radio resources.
 		n2Release, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 		if err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
@@ -162,16 +147,13 @@ func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, from Access
 	}
 }
 
-// moveSession performs the move itself, returning the access the session left
-// and the identity it had there.
 func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferRequest) (AccessType, SessionIdentity, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
 	from, sourceID := sc.Access, sc.SessionIdentity
 
-	// A release, a replacement or another transfer can land between the request
-	// and this lock.
+	// A release, a replacement or another transfer can land before this lock.
 	if err := sc.transferable(req); err != nil {
 		return from, sourceID, err
 	}
@@ -191,7 +173,6 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		return from, sourceID, fmt.Errorf("apply target access QoS: %w", err)
 	}
 
-	// The snapshot keeps memory and the UPF in step if the UPF rejects the change.
 	dl := sc.Tunnel.DataPath.DownLinkTunnel.PDR
 	restore := downlinkSnapshot(dl)
 
@@ -220,8 +201,8 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 		sc.Snssai = req.Snssai
 	}
 
-	// The move ends whatever the source access had outstanding: a T3592 expiry
-	// aborts a session the UE still holds (TS 24.501 §6.3.2.5, §6.3.3).
+	// A T3592 expiry would abort a session the UE still holds (TS 24.501
+	// §6.3.2.5, §6.3.3).
 	sc.stopProcedureTimer()
 	sc.pendingPolicy = nil
 	sc.establishmentPTI = 0
@@ -234,8 +215,8 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 	return from, sourceID, nil
 }
 
-// ipToNetip is the inverse of netipToIP, unmapping the IPv4-in-IPv6 form so an
-// address round-trips to the family it was allocated in.
+// Unmapping the IPv4-in-IPv6 form keeps the address in the family it was
+// allocated in.
 func ipToNetip(ip net.IP) netip.Addr {
 	addr, ok := netip.AddrFromSlice(ip)
 	if !ok {

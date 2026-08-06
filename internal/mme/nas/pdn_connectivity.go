@@ -288,9 +288,8 @@ func handleActivateDefaultBearerReject(ctx context.Context, m *mme.MME, ue *mme.
 	return nasreply.Handled()
 }
 
-// sessionSetupESMCause is the ESM cause for a session the anchor refused; the
-// anchor names one when the refusal has a cause the UE can act on, such as #54
-// for a transfer of a PDN connection it does not hold (TS 24.301 §6.5.1.6 b).
+// The anchor names a cause only when the UE can act on it, such as #54 for a
+// transfer of a PDN connection it does not hold (TS 24.301 §6.5.1.6 b).
 func sessionSetupESMCause(bearer models.EPSBearer) eps.ESMCause {
 	if bearer.ESMCause != 0 {
 		return bearer.ESMCause

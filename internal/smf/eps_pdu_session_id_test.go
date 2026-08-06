@@ -96,7 +96,7 @@ func TestCreateEPSSessionIgnoresUnusablePDUSessionID(t *testing.T) {
 			}
 
 			if s.GetSession(first.Ref) == nil {
-				t.Error("the first PDN connection is no longer in the pool")
+				t.Error("the first PDN connection is not in the pool")
 			}
 
 			ids := store.allocSessionIDs()

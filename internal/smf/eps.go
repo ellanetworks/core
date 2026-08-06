@@ -45,10 +45,8 @@ func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) 
 	return models.Ambr{Uplink: req.AMBRUplink, Downlink: req.AMBRDownlink}, nil
 }
 
-// ueAllocatedPDUSessionID vets the PDU session identity the UE sent in the PCO
-// (TS 23.501 §5.17.2.1), returning 0 for one outside the range a UE may
-// allocate (TS 24.007 §11.2.3.1b). A PDN connection without one is not
-// transferable to 5GS (TS 23.502 §4.11.1.1 NOTE 5).
+// Out of range (TS 24.007 §11.2.3.1b) becomes 0, and a PDN connection without
+// one is not transferable to 5GS (TS 23.502 §4.11.1.1 NOTE 5).
 func ueAllocatedPDUSessionID(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) uint8 {
 	if pduSessionID == 0 {
 		return 0
@@ -64,8 +62,6 @@ func ueAllocatedPDUSessionID(ctx context.Context, supi etsi.SUPI, pduSessionID u
 	return pduSessionID
 }
 
-// establishESMCause maps an establishment failure to the ESM cause the MME
-// rejects with.
 func establishESMCause(err error) eps.ESMCause {
 	if errors.Is(err, errSessionIdentityInUse) {
 		return eps.ESMCauseInsufficientResources
@@ -190,9 +186,8 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	return bearer, nil
 }
 
-// transferToEPS moves a PDU session the UE holds in 5GS onto the default bearer
-// it just asked for, keeping the UE address and the UPF session
-// (TS 23.502 §4.11.2.2 step 13).
+// The UE address and the UPF session survive the move (TS 23.502 §4.11.2.2
+// step 13).
 func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSBearerRequest, policy *Policy) (models.EPSBearer, error) {
 	transfer := transferRequest{
 		Access: Access4G,
@@ -252,9 +247,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 	return bearer, nil
 }
 
-// ModifyEPSSession sets the established session's downlink endpoint to the eNB
-// S1-U F-TEID, so the UPF encapsulates downlink traffic toward the eNB
-// (PSC-less GTP-U on S1-U).
+// S1-U carries PSC-less GTP-U.
 func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID) error {
 	smContext := s.GetSession(ref)
 	if smContext == nil {
@@ -361,9 +354,8 @@ func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
 }
 
 // FramedRoutesChanged reports whether the subscriber's provisioned framed routes
-// for the EPS session differ from those installed at establishment. The MME
-// reconciler reactivates the bearer on a change (TS 23.501 §5.6.14). An unknown
-// session reports no change.
+// for the EPS session differ from those installed at establishment (TS 23.501
+// §5.6.14). An unknown session reports no change.
 func (s *SMF) FramedRoutesChanged(ctx context.Context, ref string) (bool, error) {
 	smContext := s.GetSession(ref)
 	if smContext == nil {
@@ -377,7 +369,7 @@ func (s *SMF) FramedRoutesChanged(ctx context.Context, ref string) (bool, error)
 }
 
 // StaticIPChanged reports whether the subscriber's reserved static IP for the
-// EPS session changed since establishment; an unknown session reports no change.
+// EPS session changed since establishment. An unknown session reports no change.
 func (s *SMF) StaticIPChanged(ctx context.Context, ref string) (bool, error) {
 	smContext := s.GetSession(ref)
 	if smContext == nil {
@@ -397,8 +389,7 @@ func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {
 	return s.DeactivateSmContext(ctx, ref)
 }
 
-// epsSessionAttributes labels a span with the session's EPS identity. A
-// transfer reassigns the bearer identity under the session lock.
+// A transfer reassigns the bearer identity under the session lock.
 func epsSessionAttributes(smContext *SMContext) trace.SpanStartEventOption {
 	smContext.Mutex.Lock()
 	ebi := smContext.EBI

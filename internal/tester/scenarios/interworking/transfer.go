@@ -32,8 +32,7 @@ func init() {
 	})
 }
 
-// run5GSToEPS establishes a PDU session over 5GS, then has the UE re-attach over
-// EPS asking to transfer it (TS 23.502 §4.11.2.2 step 13).
+// TS 23.502 §4.11.2.2 step 13.
 func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
@@ -98,8 +97,7 @@ func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 	return nil
 }
 
-// runEPSTo5GS establishes a PDN connection over EPS, then registers over 5GS and
-// moves it with request type "existing PDU session" (TS 23.502 §4.11.2.3 step 9).
+// TS 23.502 §4.11.2.3 step 9.
 func runEPSTo5GS(ctx context.Context, env scenarios.Env) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {

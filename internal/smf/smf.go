@@ -59,9 +59,8 @@ type PCF interface {
 }
 
 // DNNStore is the session-data surface bound to one data network resolved once
-// via SessionStore.ResolveDNN. Leases are keyed by the session's converged key
-// (SessionIdentity.sessionKey), which is stable across an access change, so a
-// session that moves between 4G and 5G keeps its address.
+// via SessionStore.ResolveDNN. Leases are keyed by the converged session key,
+// which is stable across an access change.
 type DNNStore interface {
 	AllocateIP(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
 
@@ -140,11 +139,9 @@ type AMFCallback interface {
 	// N2TransferOrPage sends an N2 message to the radio, paging the UE if needed.
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
 
-	// SessionTransferred reports that the UE moved this PDU session to EPS, so
-	// the AMF drops its routing context and releases the resources NG-RAN holds
-	// (TS 23.502 §4.11.2.2 step 14). n2Release is the
-	// PDUSessionResourceReleaseCommandTransfer, sent without an N1 container.
-	// The session and the UE address live on.
+	// SessionTransferred reports a PDU session moved to EPS (TS 23.502 §4.11.2.2
+	// step 14). The session and the UE address live on. n2Release is a
+	// PDUSessionResourceReleaseCommandTransfer, carrying no N1 container.
 	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Release []byte)
 }
 
@@ -155,9 +152,8 @@ type MMECallback interface {
 	// re-establishes the bearer (TS 23.401 §5.3.4.3).
 	Page(ctx context.Context, imsi string) error
 
-	// SessionTransferred reports that the UE moved this PDN connection to 5GS, so
-	// the MME drops it (TS 23.502 §4.11.2.3 step 10). The session and the UE
-	// address live on.
+	// SessionTransferred reports a PDN connection moved to 5GS (TS 23.502
+	// §4.11.2.3 step 10). The session and the UE address live on.
 	SessionTransferred(ctx context.Context, imsi string, ebi uint8)
 }
 
@@ -191,10 +187,8 @@ type Policy struct {
 type SMF struct {
 	mu   sync.RWMutex
 	pool map[string]*SMContext // key: SMContext.Ref (unique per session instance)
-	// byKey indexes the current session under every identity that names it, so a
-	// lookup in either namespace resolves the same session (TS 23.501 §5.17.2). A
-	// superseded session stays in pool under its own Ref until released, but is
-	// not the byKey current.
+	// Indexed under every identity that names the session (TS 23.501 §5.17.2). A
+	// superseded session keeps its pool entry but not its byKey entries.
 	byKey  map[string]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
@@ -270,16 +264,14 @@ func (s *SMF) AllocateLocalSEID() uint64 {
 }
 
 // NewSession creates a new SMContext with a unique Ref and adds it to the pool,
-// making it the current session for every identity that names it. It never
-// overwrites or orphans a prior session for the same slot: that session keeps
-// its own Ref and pool entry until it is explicitly released.
+// making it current for every identity that names it. A prior session for the
+// same slot keeps its Ref and pool entry until it is explicitly released.
 //
-// The keys are tested and claimed in one critical section, because the session
-// key is also the UE IP lease key (DNNStore) and two sessions holding one key
-// are handed one address. A UE-allocated PDU session identity a live session
-// already holds is dropped and the PDN connection is then not transferable to
-// 5GS (TS 23.502 §4.11.1.1 NOTE 5); an identity the session cannot do without
-// is an error.
+// The keys are tested and claimed in one critical section: the session key is
+// also the UE IP lease key, and two sessions holding one key are handed one
+// address. A PDU session identity a live session already holds is dropped, and
+// the PDN connection is then not transferable to 5GS (TS 23.502 §4.11.1.1
+// NOTE 5); an identity the session cannot do without is an error.
 func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) (*SMContext, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -328,10 +320,8 @@ func (s *SMF) GetSession(ref string) *SMContext {
 	return s.pool[ref]
 }
 
-// currentSession returns the live session a UE named with sessionKey, or nil.
-// Use it for operations that act on whichever session is current (paging
-// suppression, duplicate detection) — never for a release, which must target a
-// specific instance by its Ref so it cannot tear down a newer session.
+// A release must target an instance by Ref: the current session for a slot may
+// already be a newer one.
 func (s *SMF) currentSession(supi etsi.SUPI, sessionKey uint8) *SMContext {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -347,17 +337,15 @@ func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
 	return s.currentSession(supi, SessionIdentity{EBI: ebi}.sessionKey())
 }
 
-// setEPSBearerIdentity assigns the session's EPS bearer identity and moves the
-// secondary-index key that names it (TS 23.501 §5.17.2). Only the EPS half of
-// the identity moves: a transferable session's PDU session identity stays its
-// primary key, so its Ref and its UE IP lease are unaffected. Caller holds
-// sc.Mutex.
+// Only the EPS half of the identity moves (TS 23.501 §5.17.2): the PDU session
+// identity stays the primary key, leaving the Ref and the UE IP lease alone.
+// Caller holds sc.Mutex.
 func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.pool[sc.Ref] != sc {
-		return fmt.Errorf("session %q is no longer in the pool", sc.Ref)
+		return fmt.Errorf("session %q is not in the pool", sc.Ref)
 	}
 
 	if ebi != 0 {

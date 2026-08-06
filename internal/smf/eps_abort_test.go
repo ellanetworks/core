@@ -53,7 +53,7 @@ func TestNewSessionRefusesAClaimedKey(t *testing.T) {
 	}
 
 	if s.currentPDUSession(supi, 3) != fiveG {
-		t.Error("PDU session identity 3 no longer resolves the 5G session")
+		t.Error("PDU session identity 3 does not resolve the 5G session")
 	}
 
 	// A 5G session has no other identity to fall back on.

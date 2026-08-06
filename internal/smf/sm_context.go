@@ -37,8 +37,7 @@ type SMContext struct {
 
 	// Ref is the session's unique pool key, assigned once at creation and never
 	// reused: two sessions for the same slot get distinct Refs, so a release
-	// targets the exact instance and cannot tear down a newer session that reused
-	// the slot. CanonicalName is the secondary index key.
+	// targets an exact instance. CanonicalName is the secondary index key.
 	Ref string
 
 	Supi        etsi.SUPI
@@ -48,8 +47,8 @@ type SMContext struct {
 	PolicyData  *Policy
 	PFCPContext *PFCPSessionContext
 
-	// The PDU session half is fixed at creation; the EPS half is reassigned on an
-	// access change under Mutex and the registry lock.
+	// The PDU session half is fixed at creation; the EPS half is reassigned under
+	// Mutex and the registry lock.
 	SessionIdentity
 
 	FramedRoutes   []netip.Prefix
@@ -62,10 +61,8 @@ type SMContext struct {
 	PDUSessionType                 uint8   // negotiated type: nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
 	PDUSessionReleaseDueToDupPduID bool
 
-	// Access is the radio access the session is established over: Access4G marks
-	// the PGW-C role and the S1-U user plane, Access5G the N3 user plane with
-	// 5GSM terminated in the SMF. Downlink data for an EPS session is paged via
-	// the MME (TS 23.401 §5.3.4.3).
+	// Access4G marks the PGW-C role and the S1-U user plane, with paging via the
+	// MME (TS 23.401 §5.3.4.3); Access5G marks N3 with 5GSM terminated in the SMF.
 	Access AccessType
 
 	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
@@ -74,8 +71,7 @@ type SMContext struct {
 	// Guarded by Mutex.
 	outstandingPTIs map[uint8]struct{}
 
-	// procedures serialises the session-management procedures that rewrite this
-	// session. Not guarded by Mutex: the registry has its own.
+	// Not guarded by Mutex: the registry has its own.
 	procedures *procedure.Registry
 
 	// procedureTimer is the T3591/T3592 retransmission guard for the outstanding

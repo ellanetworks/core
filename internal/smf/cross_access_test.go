@@ -44,7 +44,7 @@ func TestModifyEPSSessionRejectsSupersededRef(t *testing.T) {
 
 	sc := s.GetSession(live.Ref)
 	if sc == nil {
-		t.Fatal("live EPS session is no longer in the pool")
+		t.Fatal("live EPS session is not in the pool")
 	}
 
 	sc.Mutex.Lock()
