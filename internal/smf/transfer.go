@@ -147,6 +147,16 @@ func (s *SMF) dropSourceRouting(ctx context.Context, supi etsi.SUPI, from Access
 	}
 }
 
+// A failed restore leaves the session on the source access while the target
+// access's bearer identity names it. Caller holds sc.Mutex.
+func (s *SMF) restoreEPSBearerIdentity(ctx context.Context, sc *SMContext, ebi uint8) {
+	if err := s.setEPSBearerIdentity(sc, ebi); err != nil {
+		logger.WithTrace(ctx, logger.SmfLog).Error("failed to restore the EPS bearer identity of an aborted transfer",
+			zap.Error(err), logger.SUPI(sc.Supi.String()),
+			logger.PDUSessionID(sc.PDUSessionID), zap.Uint8("ebi", ebi))
+	}
+}
+
 func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferRequest) (AccessType, SessionIdentity, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
@@ -169,7 +179,8 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 	}
 
 	if err := s.applySessionQERs(ctx, sc, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink); err != nil {
-		s.setEPSBearerIdentity(sc, sourceID.EBI) //nolint:errcheck // restoring a key this session just held
+		s.restoreEPSBearerIdentity(ctx, sc, sourceID.EBI)
+
 		return from, sourceID, fmt.Errorf("apply target access QoS: %w", err)
 	}
 
@@ -179,7 +190,7 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 	farList, err := handleUpCnxStateDeactivate(sc)
 	if err != nil {
 		restore()
-		s.setEPSBearerIdentity(sc, sourceID.EBI) //nolint:errcheck // restoring a key this session just held
+		s.restoreEPSBearerIdentity(ctx, sc, sourceID.EBI)
 
 		return from, sourceID, fmt.Errorf("suspend downlink: %w", err)
 	}
@@ -189,7 +200,7 @@ func (s *SMF) moveSession(ctx context.Context, sc *SMContext, req transferReques
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(sc.PFCPContext.RemoteSEID, policy.PolicyID, nil, farList, nil)); err != nil {
 		restore()
-		s.setEPSBearerIdentity(sc, sourceID.EBI) //nolint:errcheck // restoring a key this session just held
+		s.restoreEPSBearerIdentity(ctx, sc, sourceID.EBI)
 
 		return from, sourceID, fmt.Errorf("suspend downlink in the UPF: %w", err)
 	}
