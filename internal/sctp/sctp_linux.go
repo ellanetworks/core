@@ -271,6 +271,32 @@ func (c *SCTPConn) readMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 	return reassemble(c.readMsgOnce, b)
 }
 
+// ReadMsg reads one complete message into b and returns its SCTP receive
+// metadata. Events are consumed rather than surfaced; one that ends the
+// association reports io.EOF. Server instead dispatches them via readMsg.
+func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, error) {
+	for {
+		n, info, notification, err := c.readMsg(b)
+		if err != nil {
+			return n, info, err
+		}
+
+		if notification == nil {
+			return n, info, nil
+		}
+
+		switch event := notification.(type) {
+		case *SCTPShutdownEventNotification:
+			return 0, nil, io.EOF
+		case *SCTPAssocChangeEvent:
+			switch event.State() {
+			case SCTPCommLost, SCTPShutdownComp, SCTPCantStrAssoc:
+				return 0, nil, io.EOF
+			}
+		}
+	}
+}
+
 func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo, Notification, error) {
 	total := 0
 

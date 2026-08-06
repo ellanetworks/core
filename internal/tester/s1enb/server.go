@@ -18,17 +18,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/s1ap"
-	"github.com/ishidawataru/sctp"
 	"go.uber.org/zap"
 )
 
-// s1apPPID is the SCTP payload protocol identifier for S1AP (18, TS 36.412),
-// pre-encoded in network byte order the way the SCTP socket layer expects. The pinned
-// ishidawataru/sctp release writes SndRcvInfo.PPID verbatim, so the value must
-// already be byte-swapped; the MME converts it back with sctp.PPIDWireOrder.
-const s1apPPID uint32 = 0x12000000
+// s1apPPID is the SCTP payload protocol identifier for S1AP (TS 36.412), in
+// host order; sctp.PPIDWireOrder byte-swaps it at each write.
+const s1apPPID uint32 = 18
+
+// s1DialTimeout bounds one handshake so an MME that never answers the INIT
+// cannot stall the failover to the next peer.
+const s1DialTimeout = 2 * time.Second
 
 // ErrNoActiveMME indicates no S1-MME peer is usable. Returned by
 // SendMessage when every configured peer has failed.
@@ -272,17 +274,13 @@ func (e *ENB) dialAndActivateLocked(idx int) error {
 		return fmt.Errorf("resolve %s: %w", peer.address, err)
 	}
 
-	conn, err := sctp.DialSCTPExt("sctp", e.mmeLocal, rem, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
+	dialCtx, cancel := context.WithTimeout(context.Background(), s1DialTimeout)
+	defer cancel()
+
+	conn, err := sctp.Dial(dialCtx, "sctp", e.mmeLocal, rem, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
 	if err != nil {
 		peer.state = mmeStateFailed
 		return fmt.Errorf("dial %s: %w", peer.address, err)
-	}
-
-	if err := conn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO); err != nil {
-		_ = conn.Close()
-		peer.state = mmeStateFailed
-
-		return fmt.Errorf("subscribe SCTP events on %s: %w", peer.address, err)
 	}
 
 	peer.conn = conn
@@ -487,7 +485,7 @@ func writeMessage(conn *sctp.SCTPConn, pdu []byte, ueAssociated bool) error {
 		stream = 1
 	}
 
-	if _, err := conn.SCTPWrite(pdu, &sctp.SndRcvInfo{Stream: stream, PPID: s1apPPID}); err != nil {
+	if _, err := conn.WriteMsg(pdu, &sctp.SndRcvInfo{Stream: stream, PPID: sctp.PPIDWireOrder(s1apPPID)}); err != nil {
 		return fmt.Errorf("s1enb: SCTP write: %w", err)
 	}
 
@@ -570,7 +568,7 @@ func (e *ENB) runReceiver(idx int, conn *sctp.SCTPConn) {
 	buf := make([]byte, 65535)
 
 	for {
-		n, info, err := conn.SCTPRead(buf)
+		n, info, err := conn.ReadMsg(buf)
 		if err != nil {
 			e.promoteNextFromReceiver(idx, conn)
 			return

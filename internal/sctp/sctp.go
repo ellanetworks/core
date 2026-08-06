@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -75,6 +76,7 @@ const (
 	sctpOptBindxRem      = 101
 	sctpOptGetPeerAddrs  = 108
 	sctpOptGetLocalAddrs = 109
+	sctpOptConnectX3     = 111
 )
 
 const (
@@ -327,6 +329,53 @@ func (a *SCTPAddr) String() string {
 }
 
 func (a *SCTPAddr) Network() string { return "sctp" }
+
+// ResolveSCTPAddr parses "host:port", or "host1/host2/...:port" for a
+// multihomed association — the inverse of SCTPAddr.String. Only the final
+// element carries the port.
+func ResolveSCTPAddr(network, address string) (*SCTPAddr, error) {
+	var tcpNet string
+
+	// SCTP shares TCP's address syntax, so parsing is delegated to the resolver.
+	switch network {
+	case "", "sctp":
+		tcpNet = "tcp"
+	case "sctp4":
+		tcpNet = "tcp4"
+	case "sctp6":
+		tcpNet = "tcp6"
+	default:
+		return nil, fmt.Errorf("sctp: unknown network %q", network)
+	}
+
+	elems := strings.Split(address, "/")
+	last := len(elems) - 1
+
+	ipAddrs := make([]net.IPAddr, 0, len(elems))
+
+	// The leading elements are bare hosts; ResolveTCPAddr requires a port.
+	for _, host := range elems[:last] {
+		addr, err := net.ResolveTCPAddr(tcpNet, host+":0")
+		if err != nil {
+			return nil, err
+		}
+
+		ipAddrs = append(ipAddrs, net.IPAddr{IP: addr.IP, Zone: addr.Zone})
+	}
+
+	addr, err := net.ResolveTCPAddr(tcpNet, elems[last])
+	if err != nil {
+		return nil, err
+	}
+
+	// An omitted host means the wildcard, which SCTPAddr represents as an empty
+	// list rather than an entry with a nil IP.
+	if addr.IP != nil {
+		ipAddrs = append(ipAddrs, net.IPAddr{IP: addr.IP, Zone: addr.Zone})
+	}
+
+	return &SCTPAddr{IPAddrs: ipAddrs, Port: addr.Port}, nil
+}
 
 func sctpBind(fd int, addr *SCTPAddr, flags int) error {
 	var option uintptr

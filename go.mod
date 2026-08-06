@@ -12,7 +12,6 @@ require (
 	github.com/hashicorp/raft v1.7.3
 	github.com/hashicorp/raft-autopilot v0.3.0
 	github.com/hashicorp/raft-boltdb/v2 v2.3.1
-	github.com/ishidawataru/sctp v0.0.0-20250303034628-ecf9ed6df987
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/moby/moby/client v0.5.1
 	github.com/osrg/gobgp/v4 v4.7.0

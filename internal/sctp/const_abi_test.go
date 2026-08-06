@@ -3,7 +3,30 @@
 
 package sctp
 
-import "testing"
+import (
+	"testing"
+	"unsafe"
+)
+
+// getAddrsOld is passed to the kernel as struct sctp_getaddrs_old, which
+// rejects anything shorter and reads past anything longer.
+func TestGetAddrsOldMatchesKernelLayout(t *testing.T) {
+	var param getAddrsOld
+
+	// sctp_assoc_t (4) + int (4) + a pointer aligned to its own width.
+	want := 8 + unsafe.Sizeof(uintptr(0))
+	if got := unsafe.Sizeof(param); got != want {
+		t.Errorf("sizeof(getAddrsOld) = %d, want %d", got, want)
+	}
+
+	if got := unsafe.Offsetof(param.AddrNum); got != 4 {
+		t.Errorf("offsetof(AddrNum) = %d, want 4", got)
+	}
+
+	if got := unsafe.Offsetof(param.Addrs); got != unsafe.Sizeof(uintptr(0)) {
+		t.Errorf("offsetof(Addrs) = %d, want %d", got, unsafe.Sizeof(uintptr(0)))
+	}
+}
 
 // These constants are kernel ABI (include/uapi/linux/sctp.h). Most are declared
 // positionally with iota, so adding or removing a member silently renumbers the
@@ -23,6 +46,7 @@ func TestConstantsMatchKernelABI(t *testing.T) {
 		{"SCTP_SOCKOPT_BINDX_ADD", sctpOptBindxAdd, 100},
 		{"SCTP_GET_PEER_ADDRS", sctpOptGetPeerAddrs, 108},
 		{"SCTP_GET_LOCAL_ADDRS", sctpOptGetLocalAddrs, 109},
+		{"SCTP_SOCKOPT_CONNECTX3", sctpOptConnectX3, 111},
 		{"SCTP_CMSG_INIT", sctpCMsgInit, 0},
 		{"SCTP_CMSG_SNDRCV", sctpCMsgSndRcv, 1},
 		{"SCTP_DATA_IO_EVENT", sctpEventDataIO, 1},
