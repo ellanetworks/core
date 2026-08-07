@@ -48,7 +48,7 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
+	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
@@ -93,6 +93,10 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
+	}
+
 	if err := handleHandoverRequestAcknowledgeTransfer(n2Data, smContext); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle handover request acknowledge transfer")
@@ -100,7 +104,7 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
+	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build handover command transfer")
@@ -138,7 +142,9 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel.DataPath.Activated {
+	smContext.handoverSourceAN = nil
+
+	if smContext.Tunnel.Activated {
 		if smContext.PFCPContext == nil {
 			span.RecordError(fmt.Errorf("pfcp session context not found"))
 			span.SetStatus(codes.Error, "pfcp session context not found")
@@ -146,21 +152,12 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 			return fmt.Errorf("pfcp session context not found")
 		}
 
-		var (
-			pdrList []*PDR
-			farList []*FAR
-		)
-
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
-
 		if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-			smContext.PFCPContext.RemoteSEID,
+			smContext.PFCPContext.SEID,
 			"",
-			pdrList, farList, nil,
+			[]*PDR{smContext.Tunnel.UplinkPDR},
+			[]*FAR{smContext.Tunnel.DownlinkPDR.FAR},
+			nil,
 		)); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to modify PFCP session")
@@ -184,11 +181,68 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %w", err)
 	}
 
+	// The UE only moves at HANDOVER NOTIFY; a cancel in between has to restore
+	// this, or a later modification pushes a FAR aimed at a gNB it never reached.
+	source := smContext.Tunnel.AN
+	smContext.handoverSourceAN = &source
+
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel))
 
-	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
+	return nil
+}
+
+// Idempotent: a session with no prepared handover, or one already completed, is
+// a no-op.
+func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRef string) error {
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_canceled",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
+	if smContextRef == "" {
+		return fmt.Errorf("SM Context reference is missing")
 	}
+
+	smContext := s.GetSession(smContextRef)
+	if smContext == nil {
+		return nil
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	source := smContext.handoverSourceAN
+	if source == nil || smContext.Tunnel == nil {
+		return nil
+	}
+
+	smContext.handoverSourceAN = nil
+
+	smContext.bindAccessTunnel(*source)
+
+	if !smContext.Tunnel.Activated || smContext.PFCPContext == nil {
+		return nil
+	}
+
+	// Pushed, not just fixed in memory: a modification that landed while the
+	// target binding was in place would otherwise leave the UPF forwarding to the
+	// target until something else happens to push again.
+	dlFAR := smContext.Tunnel.DownlinkPDR.FAR
+	ulPDR := smContext.Tunnel.UplinkPDR
+
+	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
+		smContext.PFCPContext.SEID,
+		"",
+		[]*PDR{ulPDR}, []*FAR{dlFAR}, nil,
+	)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to restore the source access tunnel")
+
+		return fmt.Errorf("failed to restore the source access tunnel: %w", err)
+	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Info("restored the source access tunnel after an abandoned N2 handover",
+		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
 }
@@ -212,6 +266,10 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
+	}
+
 	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
 	if err != nil {
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
@@ -222,7 +280,7 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
+		smContext.PFCPContext.SEID,
 		"",
 		pdrList, farList, nil,
 	)); err != nil {
@@ -244,22 +302,19 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContex
 		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
 	}
 
-	n2Buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
+	n2Buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
 	}
 
-	var pdrList []*PDR
+	var (
+		pdrList []*PDR
+		farList []*FAR
+	)
 
-	var farList []*FAR
-
-	if smContext.Tunnel.DataPath.Activated {
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-
-		// Include the UL PDR so its updated OuterHeaderRemoval reaches the UPF.
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
+	if smContext.Tunnel.Activated {
+		pdrList = []*PDR{smContext.Tunnel.UplinkPDR}
+		farList = []*FAR{smContext.Tunnel.DownlinkPDR.FAR}
 	}
 
 	return pdrList, farList, n2Buf, nil
@@ -272,10 +327,6 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	}
 
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel))
-
-	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-	}
 
 	return nil
 }

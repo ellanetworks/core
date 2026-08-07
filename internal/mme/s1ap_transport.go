@@ -42,7 +42,7 @@ func (c *UeConn) SendS1AP(ctx context.Context, messageType S1APProcedure, b []by
 		return
 	}
 
-	c.m.SendToRadio(ctx, c.conn, messageType, b)
+	c.m.SendToRadio(ctx, c.Conn(), messageType, b)
 }
 
 // s1apStreamForProcedure returns the SCTP stream for an S1AP procedure: the reserved

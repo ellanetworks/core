@@ -26,8 +26,8 @@ func epsTestSMF() (*fakeStore, *fakeUPF) {
 		releasedIP:    netip.AddrFrom4([4]byte{10, 45, 0, 7}),
 	}
 	upf := &fakeUPF{establishResult: &models.EstablishResponse{
-		RemoteSEID:  0x99,
-		CreatedPDRs: []models.CreatedPDR{{PDRID: 1, TEID: 0xABCD, N3IPv4: netip.AddrFrom4([4]byte{10, 3, 0, 2})}},
+		N3TEID: 0xABCD,
+		N3IPv4: netip.AddrFrom4([4]byte{10, 3, 0, 2}),
 	}}
 
 	return store, upf
@@ -201,8 +201,9 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			store, _ := epsTestSMF()
 			upf := &fakeUPF{establishResult: &models.EstablishResponse{
-				RemoteSEID:  0x99,
-				CreatedPDRs: []models.CreatedPDR{{PDRID: 1, TEID: 0xABCD, N3IPv4: tc.n3v4, N3IPv6: tc.n3v6}},
+				N3TEID: 0xABCD,
+				N3IPv4: tc.n3v4,
+				N3IPv6: tc.n3v6,
 			}}
 			s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
@@ -225,7 +226,8 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 // TestCreateEPSSessionUPFFailureReleasesTunnel verifies that when the UPF
 // establish fails mid-create, the abort path releases the tunnel — freeing the
 // PDR/FAR/QER/URR IDs that ActivateTunnelAndPDR allocated before establish, even
-// though RemoteSEID is still 0 (regression for the leaked-rule-ID bug, F2).
+// though the PFCP session was never established (regression for F2, the leaked
+// rule IDs).
 // releaseTunnel running is observable via the UPF DeleteSession call it issues.
 func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
 	store, upf := epsTestSMF()
@@ -395,8 +397,9 @@ func TestReleaseEPSSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(upf.deleteCalls) != 1 || upf.deleteCalls[0].remoteSEID != 0x99 {
-		t.Fatalf("expected 1 DeleteSession for SEID 0x99, got %+v", upf.deleteCalls)
+	// One SEID, so the UPF is addressed by the same value throughout.
+	if len(upf.deleteCalls) != 1 || upf.deleteCalls[0].seid != upf.lastEstablish.SEID {
+		t.Fatalf("expected 1 DeleteSession for SEID %d, got %+v", upf.lastEstablish.SEID, upf.deleteCalls)
 	}
 
 	if len(store.releasedIPs) != 1 {

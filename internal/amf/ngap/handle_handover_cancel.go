@@ -44,7 +44,14 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		target.SendUEContextReleaseCommand(ctx, cause)
 	}
 
-	// The acknowledge is mandatory, so it is sent regardless of the target-release
-	// outcome (TS 38.413 §8.4.5).
+	if aborted {
+		amfInstance.UnbindHandoverTarget(ctx, amfUe)
+	}
+
+	// Sent after the unbind, not before: TS 36.413 §8.4.5.2 has the core release
+	// the handover-preparation resources and then acknowledge, so the source is
+	// not told the UE is back on it while the downlink still points at the target.
+	// A missing acknowledge is not fatal either way — the source treats it as
+	// success (TS 38.413 §8.4.5.4).
 	sourceUe.SendHandoverCancelAcknowledge(ctx)
 }

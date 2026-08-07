@@ -19,8 +19,8 @@ func TestHandleEPSPagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 	const ebi = 5
 
 	smCtx := s.NewSession(supi, smf.Access4G, ebi, testDNN, testSnssai)
-	smCtx.SetPFCPSession(s.AllocateLocalSEID())
-	smCtx.PFCPContext.RemoteSEID = 7
+	smCtx.SetPFCPSession(s.AllocateSEID())
+	smCtx.PFCPContext.SEID = 7
 
 	if err := s.HandleEPSPagingFailure(context.Background(), testIMSI, ebi); err != nil {
 		t.Fatalf("HandleEPSPagingFailure: %v", err)
@@ -40,8 +40,8 @@ func TestHandlePagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 	const pduSessionID = 1
 
 	smCtx := s.NewSession(supi, smf.Access5G, pduSessionID, testDNN, testSnssai)
-	smCtx.SetPFCPSession(s.AllocateLocalSEID())
-	smCtx.PFCPContext.RemoteSEID = 4242
+	smCtx.SetPFCPSession(s.AllocateSEID())
+	smCtx.PFCPContext.SEID = 4242
 
 	if err := s.HandlePagingFailure(context.Background(), supi, pduSessionID); err != nil {
 		t.Fatalf("HandlePagingFailure: %v", err)

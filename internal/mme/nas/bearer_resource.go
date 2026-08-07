@@ -16,7 +16,7 @@ import (
 
 // handleBearerResourceAllocationRequest always rejects: the bearer QoS is
 // network-determined, not UE-modifiable (TS 24.301 §6.5.3).
-func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContext, req *eps.BearerResourceAllocationRequest) nasreply.Disposition {
+func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.BearerResourceAllocationRequest) nasreply.Disposition {
 	pti := req.PTI
 
 	cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity))
@@ -25,14 +25,14 @@ func handleBearerResourceAllocationRequest(ctx context.Context, ue *mme.UeContex
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("bearer resource allocation rejected", zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
-	rejectBearerResourceAllocation(ctx, ue, uint8(pti), cause)
+	rejectBearerResourceAllocation(ctx, ueConn, uint8(pti), cause)
 
 	return nasreply.Handled()
 }
 
 // handleBearerResourceModificationRequest always rejects: the bearer QoS is
 // network-determined, not UE-modifiable (TS 24.301 §6.5.4).
-func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeContext, req *eps.BearerResourceModificationRequest) nasreply.Disposition {
+func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.BearerResourceModificationRequest) nasreply.Disposition {
 	pti := req.PTI
 
 	cause := esmRequestHeaderCause(uint8(pti), uint8(req.EPSBearerIdentity))
@@ -42,20 +42,20 @@ func handleBearerResourceModificationRequest(ctx context.Context, ue *mme.UeCont
 
 	logger.From(ctx, logger.MmeLog).Info("bearer resource modification rejected",
 		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(pti)), zap.Stringer("esm-cause", cause))
-	rejectBearerResourceModification(ctx, ue, uint8(pti), cause)
+	rejectBearerResourceModification(ctx, ueConn, uint8(pti), cause)
 
 	return nasreply.Handled()
 }
 
-func rejectBearerResourceAllocation(ctx context.Context, ue *mme.UeContext, pti uint8, cause eps.ESMCause) {
-	ue.Conn().SendDownlinkProtected(ctx, &eps.BearerResourceAllocationReject{
+func rejectBearerResourceAllocation(ctx context.Context, ueConn *mme.UeConn, pti uint8, cause eps.ESMCause) {
+	ueConn.SendDownlinkProtected(ctx, &eps.BearerResourceAllocationReject{
 		PTI:   nas.ProcedureTransactionIdentity(pti),
 		Cause: cause,
 	})
 }
 
-func rejectBearerResourceModification(ctx context.Context, ue *mme.UeContext, pti uint8, cause eps.ESMCause) {
-	ue.Conn().SendDownlinkProtected(ctx, &eps.BearerResourceModificationReject{
+func rejectBearerResourceModification(ctx context.Context, ueConn *mme.UeConn, pti uint8, cause eps.ESMCause) {
+	ueConn.SendDownlinkProtected(ctx, &eps.BearerResourceModificationReject{
 		PTI:   nas.ProcedureTransactionIdentity(pti),
 		Cause: cause,
 	})

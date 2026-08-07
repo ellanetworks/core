@@ -59,10 +59,10 @@ func TestEstablishSessionRollsBackOnFailure(t *testing.T) {
 	// 2 has neither an F-TEID nor a UE IP, so ExtractPDR fails after PDR 1 and the
 	// URR are already installed.
 	req := &models.EstablishRequest{
-		LocalSEID: seid,
-		IMSI:      "001010000000001",
-		URRs:      []models.URR{{URRID: 1}},
-		FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+		SEID: seid,
+		IMSI: "001010000000001",
+		URRs: []models.URR{{URRID: 1}},
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
 		PDRs: []models.PDR{
 			{PDRID: 1, FARID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
 			{PDRID: 2, FARID: 1, PDI: models.PDI{}},

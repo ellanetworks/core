@@ -19,47 +19,55 @@ import (
 var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownPairUES1APID}
 
 // resolveUE finds a UE-associated message's UE by its MME-UE-S1AP-ID and
-// cross-checks the eNB-UE-S1AP-ID, returning (nil, false) and an Error Indication
-// to the sender otherwise (TS 36.413). The MME-UE-S1AP-ID map is shared across
-// eNBs, so a hit is scoped to the sending association: this stops one eNB acting
-// on a UE attached through another.
-func resolveUE(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, bool) {
+// cross-checks the eNB-UE-S1AP-ID, returning (nil, nil, false) and an Error
+// Indication to the sender otherwise (TS 36.413). The MME-UE-S1AP-ID map is
+// shared across eNBs, so a hit is scoped to the sending association: this stops
+// one eNB acting on a UE attached through another.
+//
+// Handlers must use the returned connection rather than re-reading ue.Conn(),
+// which is nil in ECM-IDLE and can become nil at any point. A nil dereference
+// panics the dispatch goroutine, and the dispatcher answers by aborting the
+// association, dropping every other UE on that eNB.
+func resolveUE(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	ue, ok := m.LookupUe(mmeID)
 	if !ok {
 		logger.MmeLog.Warn("UE-associated S1AP message with unknown MME-UE-S1AP-ID",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
-		return nil, false
+		return nil, nil, false
 	}
 
-	if ue.Conn().Conn() != conn {
-		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
-			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
-		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
-
-		return nil, false
-	}
-
-	if !ue.Connected() {
+	// Before the checks, so they and the handler see one connection rather than
+	// whatever ue.active holds at each read.
+	ueConn := ue.Conn()
+	if ueConn == nil {
 		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
 
-		return nil, false
+		return nil, nil, false
 	}
 
-	if ue.Conn().ENBUES1APID != enbID {
+	if ueConn.Conn() != conn {
+		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID on a different S1 association",
+			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
+		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownMMEUES1APID)
+
+		return nil, nil, false
+	}
+
+	if ueConn.ENBUES1APID != enbID {
 		logger.MmeLog.Warn("UE-associated S1AP message with an inconsistent eNB-UE-S1AP-ID",
 			zap.Uint32("mme-ue-id", uint32(mmeID)),
-			zap.Uint32("stored-enb-ue-id", uint32(ue.Conn().ENBUES1APID)),
+			zap.Uint32("stored-enb-ue-id", uint32(ueConn.ENBUES1APID)),
 			zap.Uint32("received-enb-ue-id", uint32(enbID)))
 		sendErrorIndication(m, conn, &mmeID, &enbID, causeUnknownPairUES1APID)
 
-		return nil, false
+		return nil, nil, false
 	}
 
-	return ue, true
+	return ue, ueConn, true
 }
 
 // causeMissingUES1APID answers a UE-associated message that omitted a UE S1AP
@@ -69,12 +77,12 @@ var causeMissingUES1APID = s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1a
 
 // resolveUEIDs is resolveUE for a message whose UE S1AP IDs carry ignore
 // criticality and may therefore be absent.
-func resolveUEIDs(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID) (*mme.UeContext, bool) {
+func resolveUEIDs(m *mme.MME, conn mme.S1APWriter, mmeID *s1ap.MMEUES1APID, enbID *s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	if mmeID == nil || enbID == nil {
 		logger.MmeLog.Warn("UE-associated S1AP message without both UE S1AP IDs")
 		sendErrorIndication(m, conn, mmeID, enbID, causeMissingUES1APID)
 
-		return nil, false
+		return nil, nil, false
 	}
 
 	return resolveUE(m, conn, *mmeID, *enbID)
@@ -321,8 +329,9 @@ func handleErrorIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 	}
 
 	// The MME-UE-S1AP-ID space is shared across eNBs, so releasing on the id
-	// alone would let any eNB tear down a UE attached through another.
-	if ue.Conn() == nil || ue.Conn().Conn() != radio.Conn {
+	// alone would let any eNB tear down a UE attached through another. One read,
+	// not two: a detach between them leaves the second dereferencing nil.
+	if ueConn := ue.Conn(); ueConn == nil || ueConn.Conn() != radio.Conn {
 		logger.From(ctx, logger.MmeLog).Warn("Error Indication for an MME-UE-S1AP-ID on a different S1 association",
 			zap.Uint32("mme-ue-id", uint32(*msg.MMEUES1APID)))
 

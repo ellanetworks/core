@@ -52,3 +52,36 @@ func TestBuildS1SetupResponseMarshals(t *testing.T) {
 		t.Fatalf("ServedGUMMEIs mismatch: %+v", out.ServedGUMMEIs)
 	}
 }
+
+// An empty list broadcasts no PLMN at all, which is not the same as broadcasting
+// one this MME does not serve; the AMF reports unspecified for the same input.
+func TestServedTAICauseEmptySupportedTAs(t *testing.T) {
+	plmn := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
+
+	cause, ok := servedTAICause(s1ap.SupportedTAs{}, plmn, []uint16{1})
+	if ok {
+		t.Fatal("an empty Supported-TA list must not be accepted")
+	}
+
+	if cause != causeNoServedTAC {
+		t.Errorf("cause = %+v, want unspecified (%+v)", cause, causeNoServedTAC)
+	}
+}
+
+// A PLMN that is broadcast but not served is a genuine Unknown PLMN, so the two
+// rejections stay distinguishable.
+func TestServedTAICauseUnservedPLMN(t *testing.T) {
+	served := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
+	other := s1ap.PLMNIdentity{0x00, 0xf1, 0x20}
+
+	tas := s1ap.SupportedTAs{{TAC: 1, BroadcastPLMNs: []s1ap.PLMNIdentity{other}}}
+
+	cause, ok := servedTAICause(tas, served, []uint16{1})
+	if ok {
+		t.Fatal("an unserved PLMN must not be accepted")
+	}
+
+	if cause != causeUnknownPLMN {
+		t.Errorf("cause = %+v, want unknown-PLMN (%+v)", cause, causeUnknownPLMN)
+	}
+}

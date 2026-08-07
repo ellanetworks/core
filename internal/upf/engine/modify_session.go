@@ -32,12 +32,17 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	session := conn.GetSession(req.SEID)
 	if session == nil {
-		err := fmt.Errorf("session not found for SEID %d", req.SEID)
+		err := fmt.Errorf("%w: SEID %d", models.ErrSessionNotFound, req.SEID)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "session not found")
 
 		return err
 	}
+
+	// Held across resolve → apply, and before opMu (filterMu is the outermost
+	// engine lock), so the slot resolved here cannot be freed and reissued under it.
+	conn.filterMu.RLock()
+	defer conn.filterMu.RUnlock()
 
 	session.opMu.Lock()
 	defer session.opMu.Unlock()
@@ -139,6 +144,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			PdrInfo: ebpf.PdrInfo{
 				SEID:  req.SEID,
 				PdrID: uint32(pdr.PDRID),
+				IMSI:  session.IMSI(),
 			},
 		}
 
@@ -164,7 +170,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 				dir = models.DirectionDownlink
 			}
 
-			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndex(policyID, dir)
+			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndexLocked(policyID, dir)
 		}
 
 		session.PutPDR(spdrInfo.PdrID, spdrInfo)
@@ -175,12 +181,21 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		txn.onRollback(func() error { return unapplyPDR(spdrInfo, bpfObjects) })
 
-		bpfObjects.ClearNotified(req.SEID, pdr.PDRID, spdrInfo.PdrInfo.Qer.Qfi)
+		bpfObjects.ClearNotified(req.SEID, pdr.PDRID)
 	}
 
 	for _, pdr := range req.UpdatePDRs {
 		old, hadOld := session.LookupPDR(uint32(pdr.PDRID))
+
 		spdrInfo := old
+		if !hadOld {
+			// `old` is the zero value, so the rule would otherwise reach the
+			// datapath with neither SEID nor IMSI.
+			spdrInfo.PdrID = uint32(pdr.PDRID)
+			spdrInfo.PdrInfo.SEID = req.SEID
+			spdrInfo.PdrInfo.PdrID = uint32(pdr.PDRID)
+			spdrInfo.PdrInfo.IMSI = session.IMSI()
+		}
 
 		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
 			return fail(fmt.Errorf("couldn't extract PDR info: %w", err))
@@ -223,7 +238,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			}
 		}
 
-		bpfObjects.ClearNotified(req.SEID, pdr.PDRID, spdrInfo.PdrInfo.Qer.Qfi)
+		bpfObjects.ClearNotified(req.SEID, pdr.PDRID)
 	}
 
 	// --- Removals (best-effort; the create/update phase above has committed) ---

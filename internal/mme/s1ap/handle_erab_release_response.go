@@ -21,18 +21,18 @@ func HandleERABReleaseResponse(m *mme.MME, ctx context.Context, radio *mme.Radio
 		return
 	}
 
-	ue, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
-	captureUserLocation(ue, msg.UserLocationInformation)
+	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	for _, erab := range msg.ERABReleased {
-		ue.Conn().Log.Info("E-RAB released at eNB",
+		ueConn.Log.Info("E-RAB released at eNB",
 			zap.String("imsi", ue.IMSI()),
 			zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 	}

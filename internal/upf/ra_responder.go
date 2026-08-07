@@ -66,6 +66,7 @@ type RAResponder struct {
 
 	// RS ring buffer reader (from N3 XDP rs_event_map).
 	rsReader *ringbuf.Reader
+	rsDone   chan struct{} // closed when listenForRSEvents exits
 
 	// AF_PACKET injection socket on veth-smf.
 	injectFD    int
@@ -153,7 +154,15 @@ func (r *RAResponder) Start() error {
 	}
 
 	// Start the RS event consumer goroutine.
-	go r.listenForRSEvents() // #nosec: G118 -- lifecycle goroutine
+	r.rsDone = make(chan struct{})
+
+	done := r.rsDone
+
+	go func() { // #nosec: G118 -- lifecycle goroutine
+		defer close(done)
+
+		r.listenForRSEvents()
+	}()
 
 	logger.UpfLog.Info("RA responder started",
 		zap.String("veth_smf", VethSMFName),
@@ -180,6 +189,14 @@ func (r *RAResponder) Close() error {
 	// Close ring buffer reader first (unblocks the consumer goroutine).
 	if r.rsReader != nil {
 		_ = r.rsReader.Close()
+	}
+
+	// The consumer reads injectFD unguarded and may be inside Sendto on it;
+	// closing underneath races that read and, once the descriptor is recycled,
+	// sends an RA down whatever the kernel handed out next.
+	if r.rsDone != nil {
+		<-r.rsDone
+		r.rsDone = nil
 	}
 
 	if r.vethLink != nil {

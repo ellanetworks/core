@@ -120,3 +120,61 @@ func TestRepeatedIEUsesTheFirst(t *testing.T) {
 		t.Errorf("re-encoding kept %d occurrences, want both: % x", got, again)
 	}
 }
+
+// Critical is consulted only when the parse callback rejects a value or the
+// element overruns, so an element with no case in the callback can never fire it
+// and the table advertises a guarantee the parse path cannot deliver.
+func TestS1UENetworkCapabilityCriticalIsHonoured(t *testing.T) {
+	prefix := []byte{
+		uint8(EPD5GMM), 0x00, uint8(MsgRegistrationRequest),
+		0x01,                               // registration type / ngKSI
+		0x00, 0x07, 0xf4, 0, 1, 2, 3, 4, 5, // 5G-S-TMSI mobile identity (LV-E)
+	}
+
+	// TS 24.301 §9.9.3.34 bounds the value at 2..13 octets.
+	bad := append(append([]byte(nil), prefix...), ieiS1UENetworkCapability, 0x01, 0xf0)
+
+	msg, err := ParseRegistrationRequest(bad)
+	if err == nil {
+		t.Fatal("an out-of-range S1 UE network capability must be reported")
+	}
+
+	if nas.SoftOnly(err) {
+		t.Fatalf("the element is Critical, so its failure must be hard; got %v", err)
+	}
+
+	if msg != nil {
+		t.Fatal("a hard error must not yield a message")
+	}
+}
+
+// TS 24.501 §5.5.1.2.4 has the AMF store all received octets.
+func TestS1UENetworkCapabilityRoundTrips(t *testing.T) {
+	value := []byte{0xf0, 0xf0, 0xc0, 0x00, 0x40}
+
+	b := []byte{
+		uint8(EPD5GMM), 0x00, uint8(MsgRegistrationRequest),
+		0x01,
+		0x00, 0x07, 0xf4, 0, 1, 2, 3, 4, 5,
+	}
+	b = append(b, ieiS1UENetworkCapability, byte(len(value)))
+	b = append(b, value...)
+
+	msg, err := ParseRegistrationRequest(b)
+	if err != nil {
+		t.Fatalf("ParseRegistrationRequest: %v", err)
+	}
+
+	if !bytes.Equal(msg.S1UENetworkCapability, value) {
+		t.Fatalf("S1UENetworkCapability = % x, want % x", msg.S1UENetworkCapability, value)
+	}
+
+	again, err := msg.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	if !bytes.Equal(again, b) {
+		t.Errorf("re-encoding changed the message:\n got % x\nwant % x", again, b)
+	}
+}

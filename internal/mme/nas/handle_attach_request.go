@@ -19,14 +19,14 @@ import (
 
 // plain is the message as it arrived, kept for the byte-exact comparison that
 // recognises a retransmitted ATTACH REQUEST (TS 24.301 §5.5.1.2.7 d).
-func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.AttachRequest, plain []byte, integrityVerified bool) nasreply.Disposition {
+func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.AttachRequest, plain []byte, integrityVerified bool) nasreply.Disposition {
 	// A network-initiated detach is in progress ("re-attach not required", no EMM
 	// cause): ignore a colliding ATTACH REQUEST, leaving the detach in progress
 	// (TS 24.301 §5.5.2.3.4 case d). The MME's only network-initiated detach is
 	// subscriber deletion, so a re-attach would fail authentication regardless.
 	if ue.EMMState() == mme.EMMDeregistrationInitiated {
 		logger.From(ctx, logger.MmeLog).Info("ignoring Attach Request during network-initiated detach",
-			zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
+			zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
@@ -36,19 +36,19 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 	// one being served, it is a retransmission — resend the ATTACH ACCEPT and restart
 	// T3450 without re-authenticating. Differing IEs fall through to supersede the
 	// earlier attach with the new one.
-	if ue.RegStep() == mme.RegStepContextSetup && bytes.Equal(plain, ue.Conn().AttachRequestPlain) {
+	if ue.RegStep() == mme.RegStepContextSetup && bytes.Equal(plain, ueConn.AttachRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Attach Request with identical IEs; resending Attach Accept",
-			zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
-		ue.Conn().ResendAttachAccept(ctx)
+			zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
+		ueConn.ResendAttachAccept(ctx)
 
 		return nasreply.Handled()
 	}
 
 	// TS 24.301 §5.5.1.2.7 case e: an identical retransmission before the accept is ignored.
 	if step := ue.RegStep(); step == mme.RegStepAuthenticating || step == mme.RegStepSecurityMode {
-		if len(plain) > 0 && bytes.Equal(plain, ue.Conn().AttachRequestPlain) {
+		if len(plain) > 0 && bytes.Equal(plain, ueConn.AttachRequestPlain) {
 			logger.From(ctx, logger.MmeLog).Info("duplicate Attach Request with identical IEs before Attach Accept; ignoring (TS 24.301 §5.5.1.2.7 case e)",
-				zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
+				zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
 
 			return nasreply.Handled()
 		}
@@ -56,13 +56,13 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 
 	// The UE's serving cell must be in this MME's served area, or ATTACH REJECT #12
 	// (ServesTAI, TS 24.301 §5.5.1.2.5).
-	if served, err := m.ServesTAI(ctx, ue.Conn().ServingTAI); err != nil {
+	if served, err := m.ServesTAI(ctx, ueConn.ServingTAI); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for attach", zap.Error(err))
 		return nasreply.Handled()
 	} else if !served {
 		logger.From(ctx, logger.MmeLog).Info("Attach rejected [Tracking area not allowed]",
-			zap.Uint32("mme-ue-id", uint32(ue.Conn().MMEUES1APID)))
-		rejectAttach(ctx, m, ue, eps.EMMCauseTrackingAreaNotAllowed)
+			zap.Uint32("mme-ue-id", uint32(ueConn.MMEUES1APID)))
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseTrackingAreaNotAllowed)
 
 		return nasreply.Handled()
 	}
@@ -75,8 +75,9 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 		ue.HashmmeInput = plain
 	}
 
-	ingestAttachRequest(ctx, ue, req)
-	ue.Conn().AttachRequestPlain = plain
+	ingestAttachRequest(ctx, ue, ueConn, req)
+
+	ueConn.AttachRequestPlain = plain
 
 	// The attach procedure is under way until ATTACH COMPLETE (TS 24.301 §5.1.3.2):
 	// EMM-REGISTERED-INITIATED. An attach supersedes any prior state.
@@ -89,28 +90,28 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 	if ue.Secured() && integrityVerified {
 		ue.PinKeNBFreshness()
 		m.ReleaseAllSessions(ctx, ue)
-		activateDefaultBearer(ctx, m, ue)
+		activateDefaultBearer(ctx, m, ue, ueConn)
 
 		return nasreply.Handled()
 	}
 
 	if imsi := req.EPSMobileIdentity.IMSI; imsi != nil {
 		m.SetIMSI(ue, string(*imsi))
-		authenticateOrReject(ctx, m, ue)
+		authenticateOrReject(ctx, m, ue, ueConn)
 
 		return nasreply.Handled()
 	}
 
 	// A foreign or unknown GUTI cannot be resolved locally, so ask the UE for its
 	// IMSI.
-	ue.Conn().SendGuardedMessage(ctx, "Identity Request", &eps.IdentityRequest{IdentityType: 1})
+	ueConn.SendGuardedMessage(ctx, "Identity Request", &eps.IdentityRequest{IdentityType: 1})
 
 	return nasreply.Handled()
 }
 
 // ingestAttachRequest records the attach parameters the rest of the procedure
 // needs.
-func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.AttachRequest) {
+func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.AttachRequest) {
 	ue.SetUESecurityCapability(req.UENetworkCapability, req.MSNetworkCapability, mme.MintAuthProofForAttachRequest())
 	ue.CombinedAttach = req.EPSAttachType == eps.AttachTypeCombined
 	// The DRX parameter is not modelled by the codec, so it arrives among the
@@ -125,7 +126,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedPTI = 0
 	// An abandoned deferral's abort would otherwise emit a reject naming the
 	// earlier transaction.
-	ue.Conn().StopESMInfoGuard()
+	ueConn.StopESMInfoGuard()
 	ue.TakeESMInfoWait()
 
 	// A syntactically incorrect optional element leaves the rest of the message
@@ -170,7 +171,7 @@ func isNativeGUTI(ctx context.Context, m *mme.MME, id eps.GUTI) bool {
 // security mode procedure are then skipped, TS 24.301 §4.4.3); any other Attach stays
 // on the fresh context ue. It returns drop=true only for a colliding Attach during a
 // network-initiated detach (TS 24.301 §5.5.2.3.4 case d), which the caller drops.
-func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, nas []byte) (*mme.UeContext, bool) {
+func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, nas []byte) (*mme.UeContext, bool) {
 	body := nas
 	if sht, err := eps.PeekSecurityHeaderType(nas); err == nil && sht != eps.SHTPlain {
 		if len(nas) < 6 {
@@ -215,7 +216,7 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, na
 	// AttachUeConn primitive the S-TMSI resume uses; it detaches the discarded transient
 	// context). The uplink NAS COUNT and secure exchange are committed by the subsequent
 	// decode against this context, not here (TS 24.301 §4.4.3, §5.4.3.3).
-	m.AttachUeConn(existing, ue.Conn())
+	m.AttachUeConn(existing, ueConn)
 
 	logger.From(ctx, logger.MmeLog).Info("Attach with valid native GUTI: reusing security context, skipping authentication",
 		zap.String("imsi", existing.IMSI()))
@@ -225,11 +226,11 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, na
 
 // rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
 // cause, then releases the UE's S1 context.
-func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
-	sendAttachReject(ctx, m, ue, cause, nil)
+func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
+	sendAttachReject(ctx, m, ue, ueConn, cause, nil)
 }
 
-func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, pti uint8, esmCause eps.ESMCause) {
+func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, pti uint8, esmCause eps.ESMCause) {
 	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build the PDN Connectivity Reject carried by an Attach Reject",
@@ -238,12 +239,12 @@ func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, pti uin
 		esm = nil
 	}
 
-	sendAttachReject(ctx, m, ue, eps.EMMCauseESMFailure, esm)
+	sendAttachReject(ctx, m, ue, ueConn, eps.EMMCauseESMFailure, esm)
 }
 
-func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause, esm []byte) {
+func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause, esm []byte) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
-	ue.Conn().StopNASGuard()
+	ueConn.StopNASGuard()
 
 	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}
 
@@ -254,9 +255,9 @@ func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause 
 	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
 	// plain form is for the rejects preceding security activation.
 	if ue.Secured() {
-		ue.Conn().SendDownlinkProtected(ctx, reject)
+		ueConn.SendDownlinkProtected(ctx, reject)
 	} else {
-		ue.Conn().SendDownlinkMessage(ctx, reject)
+		ueConn.SendDownlinkMessage(ctx, reject)
 	}
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)

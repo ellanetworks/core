@@ -53,8 +53,6 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 		t.Fatalf("connectLoopback: %v", err)
 	}
 
-	t.Cleanup(func() { _ = syscall.Close(fd) })
-
 	client = newSCTPConn(fd)
 	if _, err := client.WriteMsg([]byte("trigger"), &SndRcvInfo{PPID: PPIDWireOrder(testPPID)}); err != nil {
 		t.Fatalf("client trigger write: %v", err)
@@ -66,8 +64,6 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 		t.Fatal("no message dispatched; never captured the accepted conn")
 	}
 
-	// newSCTPConn hands fd to an os.File, whose finalizer closes it once client
-	// becomes unreachable. Without this the peer association can end mid-test.
 	t.Cleanup(func() { runtime.KeepAlive(client) })
 
 	return srv, accepted, disconnected, client

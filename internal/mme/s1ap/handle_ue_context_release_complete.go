@@ -37,19 +37,19 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, mmeUEID, enbUEID)
+	ue, ueConn, ok := resolveUE(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextRelease, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
-	captureUserLocation(ue, msg.UserLocationInformation)
+	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	ue.TouchLastSeen()
 
 	// Cancel the release-supervision guard so it does not also run the cleanup.
-	ue.Conn().StopReleaseGuard()
+	ueConn.StopReleaseGuard()
 
 	// A UE that is not EMM-REGISTERED (detached, or an aborted in-progress attach) is
 	// deleted; a still-registered UE is retained in ECM-IDLE (TS 23.401).

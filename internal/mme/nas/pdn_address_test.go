@@ -132,7 +132,7 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
@@ -157,7 +157,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &erroringSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))

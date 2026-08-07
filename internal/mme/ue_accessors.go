@@ -17,11 +17,22 @@ import (
 // (kasme, knasInt, knasEnc) are never returned; the operations that use them are
 // methods so the keys stay inside the UeContext (TS 33.401).
 
-// Tmsi returns the UE's current M-TMSI (0 = none).
-func (ue *UeContext) Tmsi() etsi.TMSI { return ue.tmsi }
+// Writers hold MME.mu (to keep the uesByTmsi index in step) and ue.mu; callers
+// outside the registry lock read here, callers holding ue.mu read the field.
+func (ue *UeContext) Tmsi() etsi.TMSI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.tmsi
+}
 
 // OldTmsi returns the M-TMSI being replaced during a GUTI reallocation (0 = none).
-func (ue *UeContext) OldTmsi() etsi.TMSI { return ue.oldTmsi }
+func (ue *UeContext) OldTmsi() etsi.TMSI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.oldTmsi
+}
 
 // IMSI returns the UE's IMSI, or "" when the identity is unset.
 func (ue *UeContext) IMSI() string {
@@ -35,13 +46,8 @@ func (ue *UeContext) IMSI() string {
 	return ue.imsiOrEmpty()
 }
 
-// imsiOrEmpty returns the bare IMSI, or "" when the identity is unset; unlike
-// etsi.SUPI.IMSI() it does not panic on an unset SUPI.
+// The lock-free counterpart of IMSI(), for callers already holding ue.mu.
 func (ue *UeContext) imsiOrEmpty() string {
-	if !ue.supi.IsIMSI() {
-		return ""
-	}
-
 	return ue.supi.IMSI()
 }
 
@@ -341,8 +347,23 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 	return kenb, kenbCount, nil
 }
 
-// Conn returns the S1 association's writer (the eNB SCTP connection).
-func (c *UeConn) Conn() S1APWriter { return c.conn }
+func (c *UeConn) Conn() S1APWriter {
+	if c == nil {
+		return nil
+	}
+
+	w := c.conn.Load()
+	if w == nil {
+		return nil
+	}
+
+	return *w
+}
+
+// Boxing the interface is what makes the publish a single word-sized store.
+func (c *UeConn) setConn(w S1APWriter) {
+	c.conn.Store(&w)
+}
 
 // SetPDNEnbFTEID records the eNB S1-U endpoint on a PDN connection under the UE lock.
 func (m *MME) SetPDNEnbFTEID(ue *UeContext, p *PdnConnection, f models.FTEID) {

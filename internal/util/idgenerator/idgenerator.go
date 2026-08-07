@@ -7,7 +7,7 @@
 //
 // IDGenerator allocates IDs sequentially from minValue to maxValue with wrap-around
 // behavior when maxValue is reached. It tracks used IDs to prevent duplicates and
-// supports ID reclamation via FreeID() for true ID reuse.
+// supports ID reclamation via FreeID().
 //
 // Thread-Safety: All operations are protected by a mutex, making IDGenerator safe
 // for concurrent use.
@@ -17,11 +17,11 @@
 //	gen := NewGenerator(1, 65535)
 //	id1, _ := gen.Allocate()  // Returns 1
 //	id2, _ := gen.Allocate()  // Returns 2
-//	gen.FreeID(id1)           // Marks ID 1 for reuse
-//	id3, _ := gen.Allocate()  // Returns 1 (immediately reused)
+//	gen.FreeID(id1)           // Returns 1 to the pool
+//	id3, _ := gen.Allocate()  // Returns 3, not 1: reuse waits for a wrap
 //
 // When resources associated with an ID are deleted, FreeID() should be called
-// to mark the ID for reuse. This is critical for preventing ID exhaustion in
+// to return the ID to the pool. This is critical for preventing ID exhaustion in
 // long-running systems that create and destroy resources frequently.
 package idgenerator
 
@@ -84,9 +84,8 @@ func (idGenerator *IDGenerator) Allocate() (int64, error) {
 	return id, nil
 }
 
-// FreeID marks an ID as available for reuse.
-// Freed IDs become immediately available for the next Allocate() call.
-// This is critical for preventing ID exhaustion in long-running systems.
+// Not reissued on the next Allocate(): the offset is not rewound, so reuse waits
+// for a wrap. See the package doc — the delay is relied upon, not incidental.
 // If the ID is outside the valid range [minValue, maxValue], it is silently ignored.
 func (idGenerator *IDGenerator) FreeID(id int64) {
 	if id < idGenerator.minValue || id > idGenerator.maxValue {

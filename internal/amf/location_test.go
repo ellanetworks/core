@@ -154,7 +154,8 @@ func TestAgeOfLocation(t *testing.T) {
 
 func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
 	ue := &UeContext{}
-	c := &UeConn{ue: ue}
+	c := &UeConn{}
+	c.ue.Store(ue)
 
 	if !ue.IsUserLocationEmpty() {
 		t.Fatal("expected empty location initially")
@@ -187,7 +188,9 @@ func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 // synchronization.
 func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 	ue := &UeContext{}
-	c := &UeConn{ue: ue}
+	c := &UeConn{}
+	c.ue.Store(ue)
+
 	uli := testUserLocation(ngap.UserLocationNR, 0x123456789)
 
 	done := make(chan struct{})

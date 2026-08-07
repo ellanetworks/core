@@ -34,7 +34,7 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 	if !ok {
 		// A pair that still resolves to the UE's active connection is a stale notify for a
 		// completed handover; an erroneous pair draws an ERROR INDICATION (TS 36.413 §10.6).
-		if _, valid := resolveUE(m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
+		if _, _, valid := resolveUE(m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
 			logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
 		}
 
@@ -84,8 +84,10 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 
 	ue.TouchLastSeen()
 
-	if notify.EUTRANCGI != nil && notify.TAI != nil {
-		ue.Conn().UpdateLocation(*notify.EUTRANCGI, *notify.TAI)
+	// Re-read, not snapshotted: FinishHandoverCommit has just rebound the UE to
+	// the target association.
+	if ueConn := ue.Conn(); ueConn != nil && notify.EUTRANCGI != nil && notify.TAI != nil {
+		ueConn.UpdateLocation(*notify.EUTRANCGI, *notify.TAI)
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Handover Notify",

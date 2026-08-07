@@ -8,17 +8,17 @@ package util
 import (
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// SnssaiToModels renders a decoded S-NSSAI as the model form.
+// The SD is canonical (lowercase hex), as SNSSAIToModels renders it for NGAP, so
+// a slice resolves identically whichever protocol carried it.
 func SnssaiToModels(s fgs.SNSSAI) *models.Snssai {
 	out := models.Snssai{Sst: int32(s.SST)}
 	if s.SD != nil {
-		out.Sd = strings.ToUpper(hex.EncodeToString(s.SD[:]))
+		out.Sd = hex.EncodeToString(s.SD[:])
 	}
 
 	return &out

@@ -110,6 +110,27 @@ func NewProtocolConfigurationOptions(dnsServers [][]byte, ipv4LinkMTU uint16) Pr
 	return p
 }
 
+// DNSServers sizes the resolver by its own address family, never the one the UE
+// asked for: a 16-octet rendering of an IPv4 resolver is ::ffff:a.b.c.d, which
+// is not reachable, and an IPv6 one truncated to 4 is dropped. TS 24.008
+// §10.5.6.3 lets the network return containers the UE did not request.
+func DNSServers(addr netip.Addr) [][]byte {
+	if !addr.IsValid() {
+		return nil
+	}
+
+	addr = addr.Unmap()
+
+	if addr.Is4() {
+		b := addr.As4()
+		return [][]byte{b[:]}
+	}
+
+	b := addr.As16()
+
+	return [][]byte{b[:]}
+}
+
 // NewRequestedProtocolConfigurationOptions builds the UE-to-network (uplink)
 // options: one empty-content container per requested identifier.
 func NewRequestedProtocolConfigurationOptions(containerIDs ...uint16) ProtocolConfigurationOptions {

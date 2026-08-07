@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeContext, fail *eps.AuthenticationFailure) nasreply.Disposition {
+func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, fail *eps.AuthenticationFailure) nasreply.Disposition {
 	// An AUTHENTICATION FAILURE is admissible without integrity protection
 	// (TS 24.301 §4.4.4.3) and can be injected. It is valid only during the attach
 	// authentication sub-phase; in any other state its handling is
@@ -28,7 +28,7 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 
 	// No challenge is in flight during the identity sub-window, so an
 	// AUTHENTICATION FAILURE has nothing to fail.
-	c := ue.Conn()
+	c := ueConn
 	if c.AuthVector == nil {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Authentication Failure with no authentication in progress")
 
@@ -56,24 +56,24 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 
 		logger.From(ctx, logger.MmeLog).Info("re-synchronising SQN, re-authenticating")
 
-		if err := sendAuthRequest(ctx, m, ue, hex.EncodeToString(fail.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
+		if err := sendAuthRequest(ctx, m, ue, ueConn, hex.EncodeToString(fail.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("SQN re-synchronisation failed", zap.Error(err))
-			rejectAuthentication(ctx, m, ue)
+			rejectAuthentication(ctx, m, ue, ueConn)
 		}
 
 		return nasreply.Handled()
 	}
 
 	// The UE attaches with its IMSI, so per TS 24.301 these cases abort with a reject.
-	rejectAuthentication(ctx, m, ue)
+	rejectAuthentication(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
 }
 
-func rejectAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
+func rejectAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 
 	logger.From(ctx, logger.MmeLog).Info("authentication rejected", zap.String("imsi", ue.IMSI()))
-	ue.Conn().SendDownlinkMessage(ctx, &eps.AuthenticationReject{})
+	ueConn.SendDownlinkMessage(ctx, &eps.AuthenticationReject{})
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }

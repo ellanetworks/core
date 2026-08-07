@@ -63,11 +63,12 @@ func (s SUPI) String() string {
 	}
 }
 
-// IMSI returns the bare numeric IMSI digits. It panics if the SUPI is not
-// IMSI-based, so check IsIMSI first.
+// Total, like String() above: reached from the NGAP/S1AP dispatch goroutines,
+// where a panic aborts the whole radio association. Callers needing the
+// distinction have IsIMSI().
 func (s SUPI) IMSI() string {
 	if s.supiType != supiTypeIMSI {
-		panic("IMSI() called on non-IMSI SUPI")
+		return ""
 	}
 
 	return s.value

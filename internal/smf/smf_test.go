@@ -192,7 +192,7 @@ type fakeUPF struct {
 }
 
 type deletionCall struct {
-	remoteSEID uint64
+	seid uint64
 }
 
 func (f *fakeUPF) EstablishSession(_ context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
@@ -213,29 +213,29 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) er
 	return f.err
 }
 
-func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
+func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) error {
 	f.teardownSeq.record("delete-session")
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.deleteCalls = append(f.deleteCalls, deletionCall{remoteSEID})
+	f.deleteCalls = append(f.deleteCalls, deletionCall{seid})
 
 	return f.err
 }
 
-func (f *fakeUPF) SuppressDownlinkDataNotification(_ context.Context, remoteSEID uint64) {
+func (f *fakeUPF) SuppressDownlinkDataNotification(_ context.Context, seid uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.suppressDDNCalls = append(f.suppressDDNCalls, remoteSEID)
+	f.suppressDDNCalls = append(f.suppressDDNCalls, seid)
 }
 
-func (f *fakeUPF) ClearDownlinkDataNotification(_ context.Context, remoteSEID uint64) {
+func (f *fakeUPF) ClearDownlinkDataNotification(_ context.Context, seid uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.clearDDNCalls = append(f.clearDDNCalls, remoteSEID)
+	f.clearDDNCalls = append(f.clearDDNCalls, seid)
 }
 
 func (f *fakeUPF) FlushUsage(_ context.Context, _ uint64) {}
@@ -378,6 +378,14 @@ func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb sm
 	return smf.New(pcf, store, upf, amfCb)
 }
 
+// Holds the session's Mutex the way production callers do.
+func removeSession(s *smf.SMF, ctx context.Context, sc *smf.SMContext) {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	s.RemoveSession(ctx, sc.Ref)
+}
+
 func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	pcf := &fakePCF{
 		policy: &smf.Policy{
@@ -399,10 +407,8 @@ func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	}
 	upf := &fakeUPF{
 		establishResult: &models.EstablishResponse{
-			RemoteSEID: 100,
-			CreatedPDRs: []models.CreatedPDR{
-				{PDRID: 1, TEID: 5000, N3IPv4: netip.MustParseAddr("192.168.1.1")},
-			},
+			N3TEID: 5000,
+			N3IPv4: netip.MustParseAddr("192.168.1.1"),
 		},
 	}
 	amfCb := &fakeAMF{}
@@ -455,11 +461,10 @@ func TestRemoveSession_RemovesFromPool(t *testing.T) {
 	bgCtx := context.Background()
 
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
-	ref := smCtx.Ref
 
-	s.RemoveSession(bgCtx, ref)
+	removeSession(s, bgCtx, smCtx)
 
-	got := s.GetSession(ref)
+	got := s.GetSession(smCtx.Ref)
 	if got != nil {
 		t.Fatal("session should have been removed")
 	}
@@ -473,9 +478,8 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
-	ref := smCtx.Ref
 
-	s.RemoveSession(bgCtx, ref)
+	removeSession(s, bgCtx, smCtx)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -554,7 +558,7 @@ func TestGetSessionBySEID(t *testing.T) {
 
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
 
-	seid := s.AllocateLocalSEID()
+	seid := s.AllocateSEID()
 	smCtx.SetPFCPSession(seid)
 
 	got := s.GetSessionBySEID(seid)
@@ -568,13 +572,13 @@ func TestGetSessionBySEID(t *testing.T) {
 	}
 }
 
-func TestAllocateLocalSEID_Increments(t *testing.T) {
+func TestAllocateSEID_Increments(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	seid1 := s.AllocateLocalSEID()
-	seid2 := s.AllocateLocalSEID()
-	seid3 := s.AllocateLocalSEID()
+	seid1 := s.AllocateSEID()
+	seid2 := s.AllocateSEID()
+	seid3 := s.AllocateSEID()
 
 	if seid1 != 1 || seid2 != 2 || seid3 != 3 {
 		t.Fatalf("expected SEIDs 1,2,3 but got %d,%d,%d", seid1, seid2, seid3)

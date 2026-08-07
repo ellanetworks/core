@@ -42,7 +42,7 @@ func TestGUTIReallocationCommitsOnComplete(t *testing.T) {
 		t.Fatal("old M-TMSI must stay resolvable until the UE acknowledges")
 	}
 
-	handleGUTIReallocationComplete(context.Background(), m, ue)
+	handleGUTIReallocationComplete(context.Background(), m, ue, ue.Conn())
 
 	if _, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(first.GUTI.TMSI[:])); ok {
 		t.Fatal("old M-TMSI still resolvable after GUTI Reallocation Complete")

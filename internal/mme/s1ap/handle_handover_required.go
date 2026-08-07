@@ -29,12 +29,12 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverPreparation, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), req.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverPreparation, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), req.Diagnostics())
 
 	ue.TouchLastSeen()
 

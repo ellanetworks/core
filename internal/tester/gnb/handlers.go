@@ -27,8 +27,8 @@ func updateReceivedFramesMap(gnb *GnodeB, frame SCTPFrame) {
 	gnb.cond.Broadcast()
 }
 
-// HandleFrame decodes one inbound NGAP PDU, files it for WaitForMessage, and
-// runs the handler for the procedures this simulator answers on its own.
+// HandleFrame decodes one inbound NGAP PDU, runs the handler for the procedures
+// this simulator answers on its own, and files it for WaitForMessage.
 // internal/tester/s1enb dispatches S1AP the same way.
 func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 	pdu, err := ngap.Unmarshal(sctpFrame.Data)
@@ -47,7 +47,10 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 		return fmt.Errorf("NGAP PDU alternative is invalid: %T", pdu)
 	}
 
-	updateReceivedFramesMap(gnb, sctpFrame)
+	// File the frame once the handler has applied the state the PDU carries, so
+	// a scenario released by WaitForMessage observes it. Deferred so a handler
+	// error still leaves the frame available to the waiter.
+	defer updateReceivedFramesMap(gnb, sctpFrame)
 
 	return handleFrame(gnb, sctpFrame)
 }

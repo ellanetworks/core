@@ -68,7 +68,7 @@ func handleTAU(t *testing.T, m *mme.MME, ue *mme.UeContext, req *eps.TrackingAre
 		t.Fatalf("encode TAU Request: %v", err)
 	}
 
-	handleTrackingAreaUpdate(context.Background(), m, ue, req, plain)
+	handleTrackingAreaUpdate(context.Background(), m, ue, ue.Conn(), req, plain)
 }
 
 // tauOldGUTI is the mandatory Old GUTI (EPS mobile identity, LV) every TAU
@@ -308,7 +308,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 		t.Fatalf("TAU Accept GUTI = %+v, want M-TMSI %d", parsed.GUTI, ue.TmsiForTest())
 	}
 
-	handleTrackingAreaUpdateComplete(context.Background(), m, ue)
+	handleTrackingAreaUpdateComplete(context.Background(), m, ue, ue.Conn())
 
 	if !ue.OldTmsiUnsetForTest() {
 		t.Fatal("reallocation not committed after TAU Complete")
@@ -350,7 +350,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 		t.Fatal("GUTI reallocation not pending after TAU Accept")
 	}
 
-	handleTrackingAreaUpdateComplete(context.Background(), m, ue)
+	handleTrackingAreaUpdateComplete(context.Background(), m, ue, ue.Conn())
 
 	if !ue.OldTmsiUnsetForTest() {
 		t.Fatal("old M-TMSI not freed after TAU Complete")

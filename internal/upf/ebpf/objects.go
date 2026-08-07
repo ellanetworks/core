@@ -346,11 +346,18 @@ func (bpfObjects *BpfObjects) MarkNotified(d DataNotification) {
 	bpfObjects.pagingList[d] = true
 }
 
-func (bpfObjects *BpfObjects) ClearNotified(seid uint64, pdrid uint16, qfi uint8) {
+// Every QFI, because a caller only knows the PDR's current one and a policy
+// change moves it: deleting the exact triple strands the entry written under the
+// previous QFI until the session is deleted.
+func (bpfObjects *BpfObjects) ClearNotified(seid uint64, pdrid uint16) {
 	bpfObjects.pagingMu.Lock()
 	defer bpfObjects.pagingMu.Unlock()
 
-	delete(bpfObjects.pagingList, DataNotification{LocalSEID: seid, PdrID: pdrid, QFI: qfi})
+	for d := range bpfObjects.pagingList {
+		if d.LocalSEID == seid && d.PdrID == pdrid {
+			delete(bpfObjects.pagingList, d)
+		}
+	}
 }
 
 // ClearNotifiedForSEID removes every paging entry for a session so a released

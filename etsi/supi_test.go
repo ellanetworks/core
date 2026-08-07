@@ -180,21 +180,18 @@ func TestSUPIIMSI(t *testing.T) {
 	}
 }
 
-func TestSUPIIMSIPanicOnZero(t *testing.T) {
-	defer func() {
-		r := recover()
-		if r == nil {
-			t.Fatalf("expected panic, got none")
-		}
-
-		msg, ok := r.(string)
-		if !ok || msg != "IMSI() called on non-IMSI SUPI" {
-			t.Fatalf("expected panic message: IMSI() called on non-IMSI SUPI, got: %v", r)
-		}
-	}()
-
+// Reached from the NGAP/S1AP dispatch goroutines, where a panic aborts the radio
+// association.
+func TestSUPIIMSIIsTotal(t *testing.T) {
 	var zero etsi.SUPI
-	zero.IMSI()
+
+	if got := zero.IMSI(); got != "" {
+		t.Fatalf("zero SUPI IMSI() = %q, want \"\"", got)
+	}
+
+	if got := etsi.InvalidSUPI.IMSI(); got != "" {
+		t.Fatalf("InvalidSUPI IMSI() = %q, want \"\"", got)
+	}
 }
 
 func TestSUPIIsValid(t *testing.T) {

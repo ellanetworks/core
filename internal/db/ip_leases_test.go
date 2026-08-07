@@ -7,6 +7,7 @@ package db_test
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"path/filepath"
 	"testing"
@@ -1216,5 +1217,115 @@ func TestAllocateIPLease_DynamicSkipsReservedStatic(t *testing.T) {
 
 	if got != addr("192.168.1.2") {
 		t.Fatalf("expected next free address 192.168.1.2, got %s", got)
+	}
+}
+
+// A UE re-attaching on another node reuses the same natural key — sessionID is
+// derived from the PDU session id — so the allocate rebinds the existing row to
+// the new node. The stale release from the old node arrives up to an implicit
+// deregistration later and must not delete a lease the new node is serving.
+func TestReleaseIPLease_IgnoresLeaseReboundToAnotherNode(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	first, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (node 1): %s", err)
+	}
+
+	// The UE re-attaches on node 2 while node 1 still holds the session.
+	second, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 2)
+	if err != nil {
+		t.Fatalf("AllocateIPLease (node 2): %s", err)
+	}
+
+	if first != second {
+		t.Fatalf("failover changed the address: node1=%s node2=%s", first, second)
+	}
+
+	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	if err != nil {
+		t.Fatalf("ReleaseIPLease (stale, node 1): %s", err)
+	}
+
+	if released.IsValid() {
+		t.Errorf("stale release reported freeing %s; the lease belongs to node 2", released)
+	}
+
+	bound, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 7, imsi)
+	if err != nil {
+		t.Fatalf("lease serving node 2 was deleted by node 1's stale release: %s", err)
+	}
+
+	if bound.NodeID != 2 {
+		t.Errorf("lease owner = node %d, want node 2", bound.NodeID)
+	}
+
+	// Node 2's own release still frees it.
+	released2, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 2)
+	if err != nil {
+		t.Fatalf("ReleaseIPLease (node 2): %s", err)
+	}
+
+	if released2 != first {
+		t.Errorf("owner release returned %s, want %s", released2, first)
+	}
+
+	if _, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 7, imsi); !errors.Is(err, db.ErrNotFound) {
+		t.Errorf("lease survived its owner's release: %v", err)
+	}
+}
+
+// A static reservation outlives the session: the row is kept, only the binding
+// is cleared, so BGP (sessionID IS NOT NULL) drops the address.
+func TestReleaseIPLease_StaticKeepsRow(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", addr("192.168.1.50")); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1); err != nil {
+		t.Fatalf("AllocateIPLease: %s", err)
+	}
+
+	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	if err != nil {
+		t.Fatalf("ReleaseIPLease: %s", err)
+	}
+
+	if released != addr("192.168.1.50") {
+		t.Errorf("released = %s, want 192.168.1.50", released)
+	}
+
+	if _, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 7, imsi); !errors.Is(err, db.ErrNotFound) {
+		t.Errorf("static reservation still bound to the session: %v", err)
+	}
+
+	// Reserved, not gone: allocating again pins the same address.
+	again, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	if err != nil {
+		t.Fatalf("AllocateIPLease after release: %s", err)
+	}
+
+	if again != addr("192.168.1.50") {
+		t.Errorf("static reservation lost: re-allocated %s", again)
+	}
+}
+
+// Releasing a lease that is already gone is a no-op, so a retried teardown does
+// not error.
+func TestReleaseIPLease_MissingIsNoOp(t *testing.T) {
+	database, poolID, imsi, _ := setupLeaseTestDBWithProfile(t)
+	ctx := context.Background()
+
+	released, err := database.ReleaseIPLease(ctx, poolID, "ipv4", imsi, 7, 1)
+	if err != nil {
+		t.Fatalf("ReleaseIPLease on an absent lease: %s", err)
+	}
+
+	if released.IsValid() {
+		t.Errorf("released = %s, want the zero Addr", released)
 	}
 }

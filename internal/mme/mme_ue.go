@@ -480,7 +480,10 @@ func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPS
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.Ambr = &models.Ambr{Uplink: qos.SessAmbrUL, Downlink: qos.SessAmbrDL}
+	// The UE-AMBR, not the per-APN Session-AMBR: this is what the S1 handover
+	// signals to the target eNB, matching the ICS and E-RAB Setup paths. The
+	// Session-AMBR is per PDN connection and lives on PdnConnection.
+	ue.Ambr = &models.Ambr{Uplink: qos.AMBRUL, Downlink: qos.AMBRDL}
 
 	p := ue.EnsurePDN(DefaultERABID)
 	ue.DefaultEBI = DefaultERABID
@@ -581,7 +584,8 @@ func (m *MME) NewUeConn(conn S1APWriter, enbUEID s1ap.ENBUES1APID) *UeConn {
 		return nil
 	}
 
-	c := &UeConn{m: m, ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id), conn: conn}
+	c := &UeConn{m: m, ENBUES1APID: enbUEID, MMEUES1APID: s1ap.MMEUES1APID(id)}
+	c.setConn(conn)
 	c.Log = m.nodeLogLocked(conn).With(logger.MMEUeS1apID(uint32(c.MMEUES1APID)))
 	m.conns[id] = c
 
@@ -606,6 +610,14 @@ func (m *MME) allocConnIDLocked() (uint32, bool) {
 // releaseConnIDLocked drops a connection from the active table and returns its
 // MME-UE-S1AP-ID to the allocator for later reuse. The caller holds m.mu.
 func (m *MME) releaseConnIDLocked(id uint32) {
+	// A connection leaving the registry can no longer receive a Release Complete,
+	// so the guard would fire later and run ReleaseUEContextLocally on a context
+	// nothing references, re-arming the mobile-reachable chain behind it. Guard
+	// callbacks run without the guard's lock, so this cannot deadlock.
+	if c, ok := m.conns[id]; ok {
+		c.releaseGuard.Stop()
+	}
+
 	delete(m.conns, id)
 	m.connIDs.FreeID(int64(id))
 }
@@ -807,11 +819,20 @@ func (m *MME) ConnectedUEs() []*UeContext {
 // ReconcileReady reports whether a UE may receive bearer-reconciliation
 // signalling: registered, S1-connected, and not mid-handover (an E-RAB Modify or
 // Release would collide with handover bearer signalling, TS 36.413 §8.4.1.2).
-func (m *MME) ReconcileReady(ue *UeContext) bool {
+//
+// The returned connection must be carried rather than re-read: the reconciler
+// runs off the dispatch goroutine and makes database calls between deciding and
+// signalling, and a release in that window nils ue.Conn().
+func (m *MME) ReconcileReady(ue *UeContext) (*UeConn, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return ue.EMMState() == EMMRegistered && ue.Conn() != nil && ue.handover == nil
+	conn := ue.Conn()
+	if ue.EMMState() != EMMRegistered || conn == nil || ue.handover != nil {
+		return nil, false
+	}
+
+	return conn, true
 }
 
 // claimRelease atomically marks the UE's S1 connection as releasing, returning
@@ -862,7 +883,7 @@ func (m *MME) ConnsOnConn(conn S1APWriter) []*UeConn {
 	var out []*UeConn
 
 	for _, c := range m.conns {
-		if c.conn == conn {
+		if c.Conn() == conn {
 			out = append(out, c)
 		}
 	}
@@ -883,12 +904,12 @@ func (m *MME) ConnsForConnectionList(conn S1APWriter, items []s1ap.UEAssociatedL
 	for _, it := range items {
 		switch {
 		case it.MMEUES1APID != nil:
-			if c, ok := m.conns[uint32(*it.MMEUES1APID)]; ok && c.conn == conn {
+			if c, ok := m.conns[uint32(*it.MMEUES1APID)]; ok && c.Conn() == conn {
 				out = append(out, c)
 			}
 		case it.ENBUES1APID != nil:
 			for _, c := range m.conns {
-				if c.conn == conn && c.ENBUES1APID == *it.ENBUES1APID {
+				if c.Conn() == conn && c.ENBUES1APID == *it.ENBUES1APID {
 					out = append(out, c)
 					break
 				}
@@ -909,7 +930,7 @@ func (m *MME) DropStaleUe(conn S1APWriter, enbUEID s1ap.ENBUES1APID) {
 	var stale []*UeContext
 
 	for _, c := range m.conns {
-		if c.ue != nil && c.ue.Conn() == c && c.conn == conn && c.ENBUES1APID == enbUEID {
+		if c.ue != nil && c.ue.Conn() == c && c.Conn() == conn && c.ENBUES1APID == enbUEID {
 			stale = append(stale, c.ue)
 		}
 	}
@@ -933,7 +954,7 @@ func (m *MME) S1Identity(ue *UeContext) (S1APWriter, s1ap.MMEUES1APID, s1ap.ENBU
 		return nil, 0, 0
 	}
 
-	return ue.Conn().conn, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
+	return ue.Conn().Conn(), ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
 }
 
 // LookupUe finds the UE context bound to a connection by its MME-UE-S1AP-ID. A

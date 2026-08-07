@@ -42,6 +42,34 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 	for _, pduSession := range req.PDUSessionResourceSetup {
 		pduSessionID := int64(pduSession.PDUSessionID)
 
+		// Store the session before the NAS PDU reaches the UE: delivering it
+		// releases scenarios waiting on the PDU Session Establishment Accept,
+		// which then read this session. A missing transfer yields no UPF/TEID
+		// info; skip the store without failing the whole NGAP flow.
+		pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.Transfer)
+		if err != nil {
+			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store",
+				zap.Error(err), zap.Int64("PDU Session ID", pduSessionID))
+		} else {
+			pduSessionInfo.PDUSessionID = pduSessionID
+			pduSessionInfo.DLTeid = gnb.GenerateTEID()
+
+			logger.GnbLogger.Debug(
+				"Parsed PDU Session Resource Setup Request Transfer",
+				zap.Int64("AMF UE NGAP ID", amfUeNgapID),
+				zap.Int64("RAN UE NGAP ID", ranUeNgapID),
+				zap.Int64("PDU Session ID", pduSessionID),
+				zap.Uint32("UL TEID", pduSessionInfo.ULTeid),
+				zap.String("UPF Address", pduSessionInfo.UpfAddress),
+				zap.Int64("QOS ID", pduSessionInfo.QosId),
+				zap.Int64("5QI", pduSessionInfo.FiveQi),
+				zap.Int64("Priority ARP", pduSessionInfo.PriArp),
+				zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
+			)
+
+			gnb.StorePDUSession(ranUeNgapID, pduSessionInfo)
+		}
+
 		// Some AMF implementations omit the NAS-PDU when there is no NAS
 		// payload; this is non-fatal.
 		if pduSession.NASPDU == nil {
@@ -50,34 +78,6 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 		} else if err := ue.SendDownlinkNAS(*pduSession.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
 			return fmt.Errorf("HandleDownlinkNASTransport failed: %w", err)
 		}
-
-		// A missing transfer yields no UPF/TEID info; skip the store without
-		// failing the whole NGAP flow.
-		pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.Transfer)
-		if err != nil {
-			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store",
-				zap.Error(err), zap.Int64("PDU Session ID", pduSessionID))
-
-			continue
-		}
-
-		pduSessionInfo.PDUSessionID = pduSessionID
-		pduSessionInfo.DLTeid = gnb.GenerateTEID()
-
-		logger.GnbLogger.Debug(
-			"Parsed PDU Session Resource Setup Request Transfer",
-			zap.Int64("AMF UE NGAP ID", amfUeNgapID),
-			zap.Int64("RAN UE NGAP ID", ranUeNgapID),
-			zap.Int64("PDU Session ID", pduSessionID),
-			zap.Uint32("UL TEID", pduSessionInfo.ULTeid),
-			zap.String("UPF Address", pduSessionInfo.UpfAddress),
-			zap.Int64("QOS ID", pduSessionInfo.QosId),
-			zap.Int64("5QI", pduSessionInfo.FiveQi),
-			zap.Int64("Priority ARP", pduSessionInfo.PriArp),
-			zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
-		)
-
-		gnb.StorePDUSession(ranUeNgapID, pduSessionInfo)
 	}
 
 	if !gnb.N3Address.IsValid() {

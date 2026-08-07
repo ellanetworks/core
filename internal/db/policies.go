@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -483,7 +484,9 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 			sliceSd = *slice.Sd
 		}
 
-		if slice.Sst != sst || sliceSd != sd {
+		// A slice provisioned before SDs were stored canonical still holds the
+		// operator's spelling.
+		if slice.Sst != sst || models.NormalizeSD(sliceSd) != models.NormalizeSD(sd) {
 			continue
 		}
 

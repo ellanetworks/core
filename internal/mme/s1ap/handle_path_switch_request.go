@@ -62,8 +62,14 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 	ue.TouchLastSeen()
 
+	// Nil in ECM-IDLE, and a concurrent detach can nil it at any point.
+	ueLog := logger.MmeLog
+	if c := ue.Conn(); c != nil {
+		ueLog = c.Log
+	}
+
 	if !ue.Secured() || !ue.HasKASME() {
-		logger.From(ctx, ue.Conn().Log).Warn("Path Switch Request for a UE without a security context")
+		logger.From(ctx, ueLog).Warn("Path Switch Request for a UE without a security context")
 		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchNoSecurity)
 
 		return
@@ -103,7 +109,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	replayCaps := pathSwitchSecurityCapabilities(ue, req.UESecurityCapabilities)
+	replayCaps := pathSwitchSecurityCapabilities(ue, ueLog, req.UESecurityCapabilities)
 
 	// The UE may have been released during the unlocked switch above, so the commit is
 	// gated on the connection still being present. NCC is a 3-bit chaining counter
@@ -117,8 +123,18 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
+	// The commit rebound the UE to the target association; a release can still
+	// have beaten us to it.
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released immediately after the path switch",
+			zap.Uint32("mme-ue-id", uint32(mmeID)))
+
+		return
+	}
+
 	if req.EUTRANCGI != nil && req.TAI != nil {
-		ue.Conn().UpdateLocation(*req.EUTRANCGI, *req.TAI)
+		ueConn.UpdateLocation(*req.EUTRANCGI, *req.TAI)
 	}
 
 	ack := &s1ap.PathSwitchRequestAcknowledge{
@@ -133,7 +149,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		zap.Int("e-rabs-switched", switched),
 		zap.Uint8("ncc", ncc))
 
-	if err := ue.Conn().SendPathSwitchAcknowledge(ctx, ack); err != nil {
+	if err := ueConn.SendPathSwitchAcknowledge(ctx, ack); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to send Path Switch Request Acknowledge", zap.Error(err))
 	}
 }
@@ -218,7 +234,7 @@ func sendPathSwitchFailure(m *mme.MME, conn mme.S1APWriter, req *s1ap.PathSwitch
 // replay in the Acknowledge on a mismatch so the eNB corrects its context, or nil
 // (IE omitted) otherwise (TS 36.413, TS 33.401). The stored values are never
 // overwritten with the received ones.
-func pathSwitchSecurityCapabilities(ue *mme.UeContext, received *s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
+func pathSwitchSecurityCapabilities(ue *mme.UeContext, ueLog *zap.Logger, received *s1ap.UESecurityCapabilities) *s1ap.UESecurityCapabilities {
 	uecap := ue.UeNetCap()
 
 	stored := mme.S1apSecurityCapabilities(uecap)
@@ -227,7 +243,7 @@ func pathSwitchSecurityCapabilities(ue *mme.UeContext, received *s1ap.UESecurity
 		return nil
 	}
 
-	ue.Conn().Log.Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
+	ueLog.Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
 		zap.Uint16("received-eea", received.EncryptionAlgorithms),
 		zap.Uint16("received-eia", received.IntegrityProtectionAlgorithms),
 		zap.Uint16("stored-eea", stored.EncryptionAlgorithms),

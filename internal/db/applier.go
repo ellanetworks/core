@@ -506,6 +506,56 @@ func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload
 	return nil, nil
 }
 
+type releaseIPLeasePayload struct {
+	PoolID    string `json:"poolId"`
+	PoolType  string `json:"poolType"`
+	IMSI      string `json:"imsi"`
+	SessionID int    `json:"sessionId"`
+	NodeID    int    `json:"nodeId"`
+}
+
+func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePayload) (any, error) {
+	if p.IMSI == "" {
+		return nil, fmt.Errorf("IMSI required")
+	}
+
+	sessionID := p.SessionID
+	lease := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI, SessionID: &sessionID}
+
+	err := db.runner(ctx).Query(ctx, db.getLeaseBySessionStmt, lease).Get(&lease)
+
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", nil
+	case err != nil:
+		return nil, fmt.Errorf("get lease: %w", err)
+	}
+
+	if lease.NodeID != p.NodeID {
+		return "", nil
+	}
+
+	addr := lease.Address().String()
+
+	// A static reservation outlives the session; only its binding is cleared, so
+	// listActiveLeases and BGP (sessionID IS NOT NULL) drop the address.
+	if lease.Type == "static" {
+		lease.SessionID = nil
+
+		if _, applyErr := db.applyUpdateLeaseSession(ctx, &lease); applyErr != nil {
+			return nil, fmt.Errorf("clear static lease session: %w", applyErr)
+		}
+
+		return addr, nil
+	}
+
+	if _, applyErr := db.applyDeleteDynamicLease(ctx, &stringPayload{Value: lease.ID}); applyErr != nil {
+		return nil, fmt.Errorf("delete dynamic lease: %w", applyErr)
+	}
+
+	return addr, nil
+}
+
 // allocateIPLeasePayload is the wire payload for AllocateIPLease. The
 // caller does not pre-resolve the address — that is the whole point of
 // this op. The leader's apply function picks the address atomically

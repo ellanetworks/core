@@ -38,12 +38,13 @@ func (m *MME) ReconcileUE(ctx context.Context, ue *UeContext) {
 	// deferred while an S1 handover is in flight (an E-RAB Modify or Release would
 	// collide with the handover's bearer signalling, TS 36.413 §8.4.1.2); the next
 	// sweep re-converges the UE.
-	if !m.ReconcileReady(ue) {
+	ueConn, ready := m.ReconcileReady(ue)
+	if !ready {
 		return
 	}
 
 	for _, p := range m.SnapshotPDNs(ue) {
-		m.reconcileBearer(ctx, ue, p)
+		m.reconcileBearer(ctx, ue, ueConn, p)
 	}
 }
 
@@ -60,7 +61,7 @@ func ClearPendingModifyLocked(p *PdnConnection) {
 
 // reconcileBearer reconciles a single PDN connection against its current policy
 // and data-network configuration.
-func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnection) {
+func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p *PdnConnection) {
 	// Snapshot the connection's mutable policy state under the lock so a NAS
 	// handler or the NAS-guard timer does not mutate the in-flight flags or the
 	// stored config while the reconciler reads them.
@@ -89,7 +90,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	}
 
 	if framedChanged {
-		logger.From(ctx, ue.Conn().Log).Info("framed routes changed; reactivating EPS bearer",
+		logger.From(ctx, ueConn.Log).Info("framed routes changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
@@ -107,7 +108,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	}
 
 	if staticChanged {
-		logger.From(ctx, ue.Conn().Log).Info("static IP changed; reactivating EPS bearer",
+		logger.From(ctx, ueConn.Log).Info("static IP changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
@@ -121,7 +122,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 		// §5.4.4.1), symmetric with the 5G release on an unresolvable policy. Other
 		// errors are transient (DB/infra); skip and let the backstop retry.
 		if errors.Is(err, ErrUnknownAPN) {
-			logger.From(ctx, ue.Conn().Log).Info("APN no longer authorized; reactivating EPS bearer",
+			logger.From(ctx, ueConn.Log).Info("APN no longer authorized; reactivating EPS bearer",
 				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 			m.reactivateBearer(ctx, ue, p)
 
@@ -149,17 +150,17 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	// An IP-pool or MTU change cannot be adopted in place; reactivate so the UE
 	// re-establishes (the new bearer also picks up the new QoS/Session-AMBR).
 	if dnChanged && !dnsOnlyChange(curDNConfig, newFingerprint) {
-		logger.From(ctx, ue.Conn().Log).Info("data-network configuration changed; reactivating EPS bearer",
+		logger.From(ctx, ueConn.Log).Info("data-network configuration changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
 		return
 	}
 
-	logger.From(ctx, ue.Conn().Log).Info("policy/data-network changed; modifying EPS bearer in place",
+	logger.From(ctx, ueConn.Log).Info("policy/data-network changed; modifying EPS bearer in place",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn),
 		zap.Bool("dns", dnChanged), zap.Bool("session-ambr", ambrChanged), zap.Bool("qos", qosChanged))
-	m.modifyBearer(ctx, ue, p, qos, dnChanged, ambrChanged, qosChanged)
+	m.modifyBearer(ctx, ue, ueConn, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
 // dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
@@ -184,7 +185,7 @@ func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
 // (§9.9.4.2). The new values are committed only when the UE accepts, so an aborted
 // modification leaves the stored config stale for the backstop to retry. The
 // Session-AMBR is also pushed to the UPF QER so the data plane enforces it.
-func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection, qos *EpsQoS, includeDNS, includeAMBR, includeQoS bool) {
+func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p *PdnConnection, qos *EpsQoS, includeDNS, includeAMBR, includeQoS bool) {
 	req := &eps.ModifyEPSBearerContextRequest{
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
 		PTI:               0,
@@ -204,14 +205,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 
 		if parsed, err := netip.ParseAddr(qos.DNS); err == nil {
 			dns, dnsValid = parsed, true
-
-			if dns.Is4() {
-				b := dns.As4()
-				dnsServers = [][]byte{b[:]}
-			} else {
-				b := dns.As16()
-				dnsServers = [][]byte{b[:]}
-			}
+			dnsServers = nas.DNSServers(dns)
 		}
 
 		var ipv4LinkMTU uint16
@@ -247,7 +241,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 
 	naspdu, err := ue.ProtectDownlinkMessage(req)
 	if err != nil {
-		ReportProtectFailure(ctx, ue.Conn(), "Modify EPS Bearer Context Request", err)
+		ReportProtectFailure(ctx, ueConn, "Modify EPS Bearer Context Request", err)
 		return
 	}
 
@@ -267,11 +261,11 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 	if includeQoS {
 		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
 		// piggybacked in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2).
-		m.sendERABModify(ctx, ue, p, qos, naspdu)
+		m.sendERABModify(ctx, ueConn, p, qos, naspdu)
 	} else {
 		// DNS and/or Session-AMBR only: no radio change, so the NAS message is sent
 		// standalone in a Downlink NAS Transport (TS 23.401 §5.4.3).
-		ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
+		ueConn.SendDownlinkNASTransport(ctx, naspdu)
 	}
 
 	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", naspdu, func() {
@@ -286,23 +280,19 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 // the eNB, carrying the MODIFY EPS BEARER CONTEXT REQUEST piggybacked in the
 // NAS-PDU for the UE. Completion is the NAS Modify Accept, not the E-RAB Modify
 // Response, so this does not block on it.
-func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, p *PdnConnection, qos *EpsQoS, naspdu []byte) {
+func (m *MME) sendERABModify(ctx context.Context, ueConn *UeConn, p *PdnConnection, qos *EpsQoS, naspdu []byte) {
 	req := &s1ap.ERABModifyRequest{
 		ERABToBeModified: []s1ap.ERABToBeModifiedItemBearerModReq{{
 			ERABID: s1ap.ERABID(p.Ebi),
 			QoS: s1ap.ERABLevelQoSParameters{
 				QCI: s1ap.QCI(qos.QCI),
-				ARP: s1ap.AllocationAndRetentionPriority{
-					PriorityLevel:           qos.ARP,
-					PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
-					PreemptionVulnerability: s1ap.PreemptionNotPreemptable,
-				},
+				ARP: BearerARP(qos.ARP),
 			},
 			NASPDU: s1ap.NASPDU(naspdu),
 		}},
 	}
 
-	if err := ue.Conn().SendERABModify(ctx, req); err != nil {
+	if err := ueConn.SendERABModify(ctx, req); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to send E-RAB Modify Request", zap.Error(err))
 		return
 	}

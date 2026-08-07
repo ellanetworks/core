@@ -4,16 +4,22 @@
 package models
 
 import (
+	"errors"
 	"net"
 	"net/netip"
 
 	"github.com/ellanetworks/core/nas/eps"
 )
 
+// The only error that lets a caller conclude the UPF session is gone: on any
+// other failure the UPF still holds the session, and the SMF must keep the SEID
+// needed to delete it.
+var ErrSessionNotFound = errors.New("upf session not found")
+
 // EstablishRequest asks the UPF to create a new session with the
 // given packet detection, forwarding, QoS, and usage reporting rules.
 type EstablishRequest struct {
-	LocalSEID    uint64
+	SEID         uint64
 	IMSI         string
 	PolicyID     string
 	PDRs         []PDR
@@ -23,19 +29,12 @@ type EstablishRequest struct {
 	FramedRoutes []netip.Prefix
 }
 
-// EstablishResponse returns the allocated identifiers from the UPF.
+// No SEID: the UPF keys the session on the one the request named. One endpoint
+// and not a list, because exactly one PDR asks for an F-TEID.
 type EstablishResponse struct {
-	RemoteSEID  uint64
-	CreatedPDRs []CreatedPDR
-}
-
-// CreatedPDR describes a PDR created by the UPF with any allocated
-// resources (TEID for GTP uplink, or UE IP confirmation for downlink).
-type CreatedPDR struct {
-	PDRID  uint16
-	TEID   uint32
-	N3IPv4 netip.Addr // may be zero if not available
-	N3IPv6 netip.Addr // may be zero if not available
+	N3TEID uint32
+	N3IPv4 netip.Addr // zero if the N3 has no IPv4
+	N3IPv6 netip.Addr // zero if the N3 has no IPv6
 }
 
 // PDR describes a Packet Detection Rule for the UPF session API.
@@ -179,10 +178,8 @@ type URR struct {
 	URRID uint32
 }
 
-// ModifyRequest asks the UPF to modify an existing session.
-// Rules are split into separate Create/Update/Remove slices
-// mirroring the PFCP state machine (RuleInitial→Create,
-// RuleUpdate→Update, RuleRemove→Remove).
+// The SMF only ever sends updates: a session's rules are created with it and
+// removed with it.
 type ModifyRequest struct {
 	SEID     uint64
 	PolicyID string

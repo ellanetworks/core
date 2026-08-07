@@ -69,8 +69,12 @@ func (a *AMF) ReallocateGUTI(ctx context.Context, ue *UeContext) error {
 		return fmt.Errorf("failed to allocate TMSI: %v", err)
 	}
 
+	// Also read through Tmsi()/OldTmsi() by callers holding no registry lock, so
+	// writes take ue.mu too. Order amf.mu → ue.mu.
+	ue.mu.Lock()
 	ue.oldTmsi = ue.tmsi
 	ue.tmsi = tmsi
+	ue.mu.Unlock()
 
 	a.uesByTmsi[tmsi] = ue
 
@@ -144,7 +148,9 @@ func (a *AMF) CommitGUTIRealloc(ue *UeContext) {
 		a.freeTmsiLocked(ue.oldTmsi)
 	}
 
+	ue.mu.Lock()
 	ue.oldTmsi = etsi.InvalidTMSI
+	ue.mu.Unlock()
 }
 
 func (amf *AMF) StmsiToGuti(ctx context.Context, stmsi fgs.STMSI) (etsi.GUTI5G, error) {

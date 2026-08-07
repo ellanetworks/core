@@ -41,14 +41,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 			Arp:    &models.Arp{PriorityLevel: 8},
 		},
 	}
-	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel: &smf.GTPTunnel{
-				TEID:   1234,
-				N3IPv4: netip.MustParseAddr("10.0.0.1"),
-			},
-		},
-	}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)

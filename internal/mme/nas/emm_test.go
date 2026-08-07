@@ -318,7 +318,7 @@ func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 		t.Fatal("new M-TMSI not resolvable")
 	}
 
-	handleAttachComplete(context.Background(), m, existing)
+	handleAttachComplete(context.Background(), m, existing, existing.Conn())
 
 	if !existing.OldTmsiUnsetForTest() {
 		t.Fatal("GUTI reallocation not committed after Attach Complete")
@@ -660,7 +660,7 @@ func TestIdentityResponseIgnoredAfterAuthStarted(t *testing.T) {
 	// An IDENTITY RESPONSE carrying a different identity (type-of-identity = IMSI).
 	resp := &eps.IdentityResponse{MobileIdentity: eps.MobileIMSI("123456789")}
 
-	handleIdentityResponse(context.Background(), m, ue, resp)
+	handleIdentityResponse(context.Background(), m, ue, ue.Conn(), resp)
 
 	if ue.IMSI() != testSubscriber.IMSI {
 		t.Fatalf("out-of-order Identity Response overwrote the IMSI: got %q, want %q", ue.IMSI(), testSubscriber.IMSI)
@@ -733,7 +733,7 @@ func TestSecurityModeCompleteRecoversReplayedAttach(t *testing.T) {
 
 	smc := &eps.SecurityModeComplete{ReplayedNASMessageContainer: genuine}
 
-	handleSecurityModeComplete(context.Background(), m, ue, smc)
+	handleSecurityModeComplete(context.Background(), m, ue, ue.Conn(), smc)
 
 	if ue.CombinedAttach {
 		t.Fatal("MME must re-ingest the genuine (non-combined) Attach from the replayed NAS message container")
@@ -776,7 +776,7 @@ func TestDispatchEMM_UnhandledMessageReturnsEMMStatus(t *testing.T) {
 	// A plain EMM message (SHT=plain, PD=EMM) carrying an unassigned message type.
 	plain := []byte{0x07, 0x70}
 
-	d := HandleEmmMessage(context.Background(), m, ue, plain, true)
+	d := HandleEmmMessage(context.Background(), m, ue, ue.Conn(), plain, true)
 
 	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
 		t.Fatalf("disposition = %+v, want an EMM STATUS #97 (message type non-existent or not implemented)", d)
@@ -795,7 +795,7 @@ func TestDispatchESM_UnhandledMessageReturnsESMStatus(t *testing.T) {
 	// not handle (bearer 0/PTI in octet 1, unhandled message type in octet 3).
 	plain := []byte{0x02, 0x00, 0x55}
 
-	d := HandleEmmMessage(context.Background(), m, ue, plain, true)
+	d := HandleEmmMessage(context.Background(), m, ue, ue.Conn(), plain, true)
 
 	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainSM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
 		t.Fatalf("disposition = %+v, want an ESM STATUS #97 (message type non-existent or not implemented)", d)
@@ -816,7 +816,7 @@ func TestDispatchEMM_EMMStatusHandledNoReply(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleEmmMessage(context.Background(), m, ue, plain, true)
+	HandleEmmMessage(context.Background(), m, ue, ue.Conn(), plain, true)
 
 	if cc.count() != 0 {
 		t.Fatalf("EMM STATUS must be handled with no reply, got %d downlink(s)", cc.count())
@@ -847,7 +847,7 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 	ue.Conn().AttachRequestPlain = plain
 	ue.Conn().AttachAcceptPdu = []byte{0x07, 0x42, 0x01}
 
-	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
+	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 
 	if cc.count() != 1 {
 		t.Fatalf("expected the Attach Accept resent (one downlink), got %d", cc.count())
@@ -883,7 +883,7 @@ func TestAttachDuplicatePreAcceptIdenticalIEsIgnored(t *testing.T) {
 
 	ue.Conn().AttachRequestPlain = plain
 
-	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
+	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 
 	if cc.count() != 0 {
 		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", cc.count())
@@ -915,7 +915,7 @@ func TestAttachDuplicatePreAcceptSecurityModeIdenticalIEsIgnored(t *testing.T) {
 
 	ue.Conn().AttachRequestPlain = plain
 
-	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
+	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 
 	if cc.count() != 0 {
 		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", cc.count())
@@ -950,7 +950,7 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 	ue.Conn().AttachRequestPlain = []byte{0x07, 0x41, 0x99}
 	ue.Conn().AttachAcceptPdu = []byte{0x07, 0x42, 0x01}
 
-	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
+	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 
 	// Progressing an IMSI attach re-authenticates: it enters the authentication
 	// sub-phase and sends an AUTHENTICATION REQUEST, not a resent accept.
@@ -993,7 +993,7 @@ func TestAttachIgnoredDuringNetworkInitiatedDetach(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	handleAttachRequest(context.Background(), m, ue, attach, plain, false)
+	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 
 	if ue.EMMState() != mme.EMMDeregistrationInitiated {
 		t.Fatalf("attach during network-initiated detach must be ignored; state = %s, want EMM-DEREGISTERED-INITIATED", ue.EMMState())

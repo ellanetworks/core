@@ -23,8 +23,8 @@ func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	}
 }
 
-func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasreply.Disposition {
-	ue.Conn().StopNASGuard()
+func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
+	ueConn.StopNASGuard()
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
 	releaseDetachSessions(ctx, m, ue)
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
@@ -32,7 +32,7 @@ func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasr
 	return nasreply.Handled()
 }
 
-func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.DetachRequestUE, integrityVerified bool) nasreply.Disposition {
+func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.DetachRequestUE, integrityVerified bool) nasreply.Disposition {
 	// A UE holding keys must integrity-protect its DETACH REQUEST, so a forged plain
 	// detach cannot deregister an authenticated UE (TS 24.301 §4.4.4.3 defence in
 	// depth). A UE that lost its keys can recover via a fresh Attach.
@@ -57,7 +57,7 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 	releaseDetachSessions(ctx, m, ue)
 
 	if !req.SwitchOff {
-		ue.Conn().SendDownlinkProtected(ctx, &eps.DetachAccept{})
+		ueConn.SendDownlinkProtected(ctx, &eps.DetachAccept{})
 	}
 
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)

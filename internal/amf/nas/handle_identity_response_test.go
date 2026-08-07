@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -427,15 +428,19 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
-func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
-	testcases := []uint8{
-		uint8(fgs.RegistrationTypeInitial),
-		uint8(fgs.RegistrationTypeMobilityUpdating),
-		uint8(fgs.RegistrationTypePeriodicUpdating),
-	}
-
-	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
+// The only IDENTITY REQUEST the AMF sends goes out from authenticationProcedure,
+// so a response at any other step is unsolicited. Acting on one re-keys K_gNB
+// from the wrong NAS COUNT and releases every SM context (TS 33.501 §6.8.1.3).
+func TestHandleIdentityResponse_UnsolicitedIsIgnored(t *testing.T) {
+	for _, step := range []struct {
+		name string
+		step amf.RegStep
+	}{
+		{"context setup", amf.RegStepContextSetup},
+		{"security mode", amf.RegStepSecurityMode},
+		{"none", amf.RegStepNone},
+	} {
+		t.Run(step.name, func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
 			amfInstance := amf.New(&fakeDBInstance{
 				Operator: &db.Operator{
@@ -459,107 +464,49 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 
 			ue.Suci = "testsuci"
 			ue.SetSupiForTest(supi)
-			ue.Imei, _ = etsi.NewIMEIFromPEI("imei-353456789012345")
-			ue.ForceRegStepForTest(amf.RegStepContextSetup)
+			ue.ForceRegStepForTest(step.step)
 			ue.Tai = ue.Conn().Tai
 			ue.SetSecuredForTest(true)
-			{
-				ng := ue.NgKsiForTest()
-				ng.Ksi = 1
-				ue.SetNgKsiForTest(ng)
-			}
 
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-			algo := nas.CipheringAES
 
 			ue.SetKnasEncForTest(key)
 			ue.SetKnasIntForTest(key)
-			ue.SetCipheringAlgForTest(algo)
+			ue.SetCipheringAlgForTest(nas.CipheringAES)
 			ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
 			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
+			ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 
-			ue.Conn().RegistrationType5GS = fgs.RegistrationType(tc)
-			if fgs.RegistrationType(tc) == fgs.RegistrationTypeMobilityUpdating {
-				ue.Conn().RegistrationRequest.GMMCapability = &fgs.GMMCapability{}
+			// At RegStepContextSetup this is T3550 over the REGISTRATION ACCEPT.
+			conn := ue.Conn()
+			conn.NASGuardForTest().Arm(10*time.Minute, 5, func(int32) {}, func() {})
+
+			disp := handleIdentityResponse(context.TODO(), amfInstance, ue, buildTestIdentityResponse(t), true)
+
+			if disp.Reason != nasreply.ReasonOutOfState {
+				t.Errorf("disposition = %+v, want out-of-state", disp)
 			}
-
-			m := buildTestIdentityResponse(t)
-
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
-
-			if len(ngapSender.SentDownlinkNASTransport) != 1 {
-				t.Fatalf("should have sent a Downlink NAS Transport message")
-			}
-
-			resp := ngapSender.SentDownlinkNASTransport[0]
-			decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
-		})
-	}
-}
-
-func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
-	testcases := []uint8{
-		uint8(fgs.RegistrationTypeInitial),
-		uint8(fgs.RegistrationTypeMobilityUpdating),
-		uint8(fgs.RegistrationTypePeriodicUpdating),
-	}
-
-	for _, tc := range testcases {
-		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
-			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amfInstance := amf.New(&fakeDBInstance{}, &fakeAusf{
-				AvKgAka: &ausf.AuthResult{
-					Rand: hex.EncodeToString(make([]byte, 16)),
-					Autn: hex.EncodeToString(make([]byte, 16)),
-				},
-				Supi:  supi,
-				Kseaf: []byte("testkey"),
-			}, nil)
-
-			ue, ngapSender, err := buildUeAndRadio()
-			if err != nil {
-				t.Fatalf("could not create UE and radio: %v", err)
-			}
-
-			ue.Suci = "testsuci"
-			ue.SetSupiForTest(supi)
-			ue.Imei, _ = etsi.NewIMEIFromPEI("imei-353456789012345")
-			ue.ForceRegStepForTest(amf.RegStepContextSetup)
-			ue.Tai = ue.Conn().Tai
-			ue.SetSecuredForTest(true)
-			{
-				ng := ue.NgKsiForTest()
-				ng.Ksi = 1
-				ue.SetNgKsiForTest(ng)
-			}
-
-			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-			algo := nas.CipheringAES
-
-			ue.SetKnasEncForTest(key)
-			ue.SetKnasIntForTest(key)
-			ue.SetCipheringAlgForTest(algo)
-			ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-
-			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
-
-			ue.Conn().RegistrationType5GS = fgs.RegistrationType(tc)
-			if fgs.RegistrationType(tc) == fgs.RegistrationTypeMobilityUpdating {
-				ue.Conn().RegistrationRequest.GMMCapability = &fgs.GMMCapability{}
-			}
-
-			m := buildTestIdentityResponse(t)
-
-			handleIdentityResponse(context.TODO(), amfInstance, ue, m, true)
 
 			if len(ngapSender.SentDownlinkNASTransport) != 0 {
-				t.Fatalf("should not have sent a Downlink NAS Transport message")
+				t.Errorf("an unsolicited IDENTITY RESPONSE produced %d NAS message(s); it must produce none",
+					len(ngapSender.SentDownlinkNASTransport))
 			}
 
-			if len(ngapSender.SentUEContextReleaseCommand) != 1 {
-				t.Fatalf("expected a UE Context Release Command to release the aborted registration, got %d", len(ngapSender.SentUEContextReleaseCommand))
+			if len(ngapSender.SentInitialContextSetupRequest) != 0 {
+				t.Errorf("an unsolicited IDENTITY RESPONSE re-keyed the AS context via %d Initial Context Setup(s)",
+					len(ngapSender.SentInitialContextSetupRequest))
 			}
+
+			if !conn.NASGuardForTest().Active() {
+				t.Error("an unsolicited IDENTITY RESPONSE cancelled the guard supervising another procedure")
+			}
+
+			if ue.RegStep() != step.step {
+				t.Errorf("registration step moved to %v, want it left at %v", ue.RegStep(), step.step)
+			}
+
+			conn.NASGuardForTest().Stop()
 		})
 	}
 }
@@ -635,6 +582,8 @@ func TestHandleIdentityResponse_T3570Stopped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
+
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
 	conn := ue.Conn()
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(int32) {}, func() {})

@@ -35,7 +35,7 @@ func TestResolveUEUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 
 	conn := &captureConn{}
-	if ue, ok := resolveUE(m, conn, 4242, 7); ok || ue != nil {
+	if ue, ueConn, ok := resolveUE(m, conn, 4242, 7); ok || ue != nil || ueConn != nil {
 		t.Fatalf("expected resolution to fail for an unknown MME-UE-S1AP-ID")
 	}
 
@@ -62,7 +62,7 @@ func TestResolveUEInconsistentENBUES1APIDSendsErrorIndication(t *testing.T) {
 	m := newTestMME(t)
 	ue, conn := securedUE(t, m) // ENBUES1APID == 7
 
-	if got, ok := resolveUE(m, conn, ue.Conn().MMEUES1APID, 99); ok || got != nil {
+	if got, gotConn, ok := resolveUE(m, conn, ue.Conn().MMEUES1APID, 99); ok || got != nil || gotConn != nil {
 		t.Fatalf("expected resolution to fail for a mismatched eNB-UE-S1AP-ID")
 	}
 
@@ -89,9 +89,13 @@ func TestResolveUEValidPairResolves(t *testing.T) {
 	m := newTestMME(t)
 	ue, conn := securedUE(t, m) // ENBUES1APID == 7
 
-	got, ok := resolveUE(m, conn, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID)
+	got, gotConn, ok := resolveUE(m, conn, ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID)
 	if !ok || got != ue {
 		t.Fatalf("expected the valid AP-ID pair to resolve to the UE")
+	}
+
+	if gotConn != ue.Conn() {
+		t.Fatal("expected the UE's current connection to be returned alongside it")
 	}
 
 	if len(conn.sent) != 0 {

@@ -37,32 +37,33 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 		pduSessionID := int64(item.PDUSessionID)
 		ids = append(ids, pduSessionID)
 
-		if item.NASPDU != nil {
-			if err := ue.SendDownlinkNAS(*item.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
-				return fmt.Errorf("forward NAS PDU for PDU session %d: %w", pduSessionID, err)
-			}
-		}
-
+		// Apply the QoS before the NAS PDU reaches the UE: delivering it releases
+		// scenarios waiting on the PDU Session Modification Command, which then
+		// read this session's QoS.
 		modInfo, err := getPDUSessionInfoFromModifyRequestTransfer(item.Transfer)
 		if err != nil {
 			logger.GnbLogger.Debug("could not parse PDU Session Resource Modify Request Transfer",
 				zap.Error(err),
 				zap.Int64("PDU Session ID", pduSessionID),
 			)
+		} else {
+			gnb.UpdatePDUSessionQoS(ranUeNgapID, pduSessionID, modInfo)
 
-			continue
+			logger.GnbLogger.Debug(
+				"Updated PDU session QoS from Modify Request Transfer",
+				zap.Int64("PDU Session ID", pduSessionID),
+				zap.Int64("5QI", modInfo.FiveQi),
+				zap.Int64("ARP", modInfo.PriArp),
+				zap.Int64("AMBR DL", modInfo.AmbrDownlink),
+				zap.Int64("AMBR UL", modInfo.AmbrUplink),
+			)
 		}
 
-		gnb.UpdatePDUSessionQoS(ranUeNgapID, pduSessionID, modInfo)
-
-		logger.GnbLogger.Debug(
-			"Updated PDU session QoS from Modify Request Transfer",
-			zap.Int64("PDU Session ID", pduSessionID),
-			zap.Int64("5QI", modInfo.FiveQi),
-			zap.Int64("ARP", modInfo.PriArp),
-			zap.Int64("AMBR DL", modInfo.AmbrDownlink),
-			zap.Int64("AMBR UL", modInfo.AmbrUplink),
-		)
+		if item.NASPDU != nil {
+			if err := ue.SendDownlinkNAS(*item.NASPDU, amfUeNgapID, ranUeNgapID); err != nil {
+				return fmt.Errorf("forward NAS PDU for PDU session %d: %w", pduSessionID, err)
+			}
+		}
 	}
 
 	if err := gnb.SendPDUSessionResourceModifyResponse(&PDUSessionResourceModifyResponseOpts{
