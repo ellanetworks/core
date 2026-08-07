@@ -131,7 +131,6 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
-	// TS 24.501 §5.4.5.2.5 case 13.
 	if ulNasTransport.SNSSAI != nil && requestType != nil {
 		switch *requestType {
 		case fgs.RequestTypeInitialRequest, fgs.RequestTypeModificationRequest:

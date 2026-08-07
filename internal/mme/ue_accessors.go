@@ -209,9 +209,6 @@ func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia n
 		return err
 	}
 
-	// A new EPS security context starts both NAS COUNTs at zero, so the initial
-	// SECURITY MODE COMMAND rides downlink COUNT 0 (TS 24.301 §4.4.3.1). Zero is
-	// also the K_eNB freshness a fresh context derives from (TS 33.401 §7.2.5.2.3).
 	ue.ulCount.Reset()
 	ue.dlCount.Reset()
 	ue.kenbCount = 0
@@ -313,12 +310,8 @@ func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8,
 	return expSeq, ul, nil
 }
 
-// PinKeNBFreshness records the uplink NAS COUNT of the message just accepted as
-// the K_eNB derivation input. TS 33.401 §7.2.6.2 names the message that triggers
-// the AS SMC, and §7.2.5.2.2 has a NAS SECURITY MODE COMPLETE supersede it, which
-// the later call does. Reading the count at Initial Context Setup instead would
-// pick up any message that arrived in between, such as an ESM INFORMATION
-// RESPONSE, which the UE does not count.
+// Reading the count at Initial Context Setup instead would pick up any message
+// that arrived in between, which the UE does not count (TS 33.401 §7.2.6.2).
 func (ue *UeContext) PinKeNBFreshness() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -326,11 +319,6 @@ func (ue *UeContext) PinKeNBFreshness() {
 	ue.kenbCount = ue.ulCount.LastAccepted().Value()
 }
 
-// DeriveInitialKeNB derives K_eNB from K_ASME and the pinned uplink NAS COUNT and
-// seeds the X2-handover key chain (NH for NCC=1) for the first path switch
-// (TS 33.401). It returns K_eNB for delivery to the eNB in the Initial Context
-// Setup, plus the NAS COUNT it used (for diagnostics). K_ASME never leaves the
-// kernel.
 func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

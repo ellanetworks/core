@@ -18,17 +18,13 @@ type DecodeResult struct {
 	// IsGMM reports whether Plain is a 5GMM message; false for a standalone 5GSM message on N1.
 	IsGMM             bool
 	IntegrityVerified bool
-	// Distinct from a protected PDU whose MAC failed: only a UE holding no
-	// security context sends plain.
-	ArrivedPlain bool
+	ArrivedPlain      bool
 	// Plain is the decoded plain 5GMM message (after any decipher), the input for the
 	// nas/fgs handlers. It starts with the extended protocol discriminator, and is
 	// also the byte-for-byte duplicate-detection oracle (TS 24.501 §5.5.1.2.8).
 	Plain []byte
 }
 
-// A standalone 5GSM message, or one whose type will not peek, lands on the
-// required-ciphered default.
 func cipheringRequiredFor(plain []byte) bool {
 	mt, err := fgs.PeekMessageType(plain)
 	if err != nil {
@@ -38,9 +34,8 @@ func cipheringRequiredFor(plain []byte) bool {
 	return cipheringRequired(mt)
 }
 
-// TS 24.501 §4.4.6 has the UE set the security header type of an initial NAS
-// message to "integrity protected" and carry its non-cleartext IEs in the
-// ciphered NAS message container, so these four are unciphered by design.
+// TS 24.501 §4.4.6 has the UE set an initial NAS message to "integrity
+// protected" and cipher only its NAS message container.
 func cipheringRequired(mt fgs.MessageType) bool {
 	switch mt {
 	case fgs.MsgRegistrationRequest,

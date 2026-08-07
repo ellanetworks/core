@@ -72,7 +72,6 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return nasreply.Handled()
 	}
 
-	// TS 24.501 §4.4.6 case a) requires the replay in both its sub-cases.
 	if conn.RegistrationRequestReplayRequired {
 		abortRegistration(ctx, amfInstance, ue, "NAS message container", errNoRegistrationContainer)
 

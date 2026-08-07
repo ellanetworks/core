@@ -327,8 +327,7 @@ func ParseAttachComplete(b []byte) (*AttachComplete, error) {
 // the back-off before the UE retries, mirroring the 5G T3502 in REGISTRATION
 // REJECT.
 type AttachReject struct {
-	Cause EMMCause
-	// Accompanies EMM cause #19 (TS 24.301 §5.5.1.2.5); empty omits the IE.
+	Cause               EMMCause
 	ESMMessageContainer []byte
 	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16A); 0 omits the IE.
 	T3402 *nas.GPRSTimer2
@@ -338,7 +337,6 @@ type AttachReject struct {
 	Unrecognized []nas.RawIE
 }
 
-// Table 8.2.3.1 order.
 var attachRejectIEs = []nas.OptionalIE{
 	{IEI: ieiESMMessageContainer, Format: nas.IETLVE, Name: "ESM message container"},
 	{IEI: ieiT3402Value, Format: nas.IETLV, Name: "T3402 value"},

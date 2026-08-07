@@ -5,8 +5,6 @@ package mme
 
 import "github.com/ellanetworks/core/nas/eps"
 
-// An ESM message fails the EMM protocol-discriminator check, so it lands on the
-// required-ciphered default.
 func cipheringRequiredFor(plain []byte) bool {
 	mt, err := eps.PeekMessageType(plain)
 	if err != nil {
@@ -16,13 +14,8 @@ func cipheringRequiredFor(plain []byte) bool {
 	return cipheringRequired(mt)
 }
 
-// TS 24.301 §4.4.5 has the UE send ATTACH REQUEST and TRACKING AREA UPDATE
-// REQUEST always unciphered, and the initial NAS message of a new NAS signalling
-// connection unciphered whatever it is. An initial NAS message is one that can
-// trigger the establishment of that connection (§3.1), so for the types below
-// whether ciphering was owed depends on a UE-side decision the receiver cannot
-// observe; only the types that can never be initial are held to it. SERVICE
-// REQUEST carries its own security header type and never reaches here.
+// Each of these can be the initial NAS message of a new connection, which the UE
+// sends unciphered; the receiver cannot tell whether it was (TS 24.301 §4.4.5).
 func cipheringRequired(mt eps.MessageType) bool {
 	switch mt {
 	case eps.MsgAttachRequest,

@@ -443,7 +443,6 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.5.1.2: the withheld APN must not be mistaken for #27.
 func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -482,7 +481,6 @@ func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.5.1.6 c).
 func TestStandalonePDNConnectivityRejectsWhenESMInformationNeverArrives(t *testing.T) {
 	m := newTestMME(t)
 	m.SetT3489ConfigForTest(5*time.Millisecond, 1)

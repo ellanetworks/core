@@ -182,8 +182,8 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 
 			return true, nil
 		case ieiUENetworkCapability:
-			// Both are Critical, so a malformed value fails the message rather than
-			// taking the §7.7.1 not-present default.
+			// Critical, so a malformed value fails the message rather than taking
+			// the §7.7.1 not-present default.
 			parsed, err := ParseUENetworkCapability(value)
 			if err != nil {
 				return false, err

@@ -42,8 +42,6 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	// Both callers reach here with the security context up (TS 24.301 §6.6.1.2.2).
-	// The response re-enters this function.
 	if requestESMInformation(ctx, ue, func(pti uint8) {
 		// T3489's final expiry outlives the request's context.
 		rejectAttachESM(context.Background(), m, ue, pti, eps.ESMCauseESMInformationNotReceived)

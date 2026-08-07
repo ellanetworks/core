@@ -221,9 +221,6 @@ func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeConte
 		// protection relies on the SMC replay check (TS 33.501).
 		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
 	case amf.VerifyMismatch:
-		// TS 24.501 §5.5.1.3.4 has the AMF store what the request carries. Only an
-		// unverified request is refused: that is where a downgrade could enter
-		// (TS 33.501 §6.7.2).
 		if integrityVerified {
 			ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
 			return

@@ -60,8 +60,6 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		apn = string(*req.AccessPointName)
 	}
 
-	// The APN may be withheld until the ESM information exchange; #53 follows only
-	// once T3489 has expired (TS 24.301 §6.5.1.2, §6.5.1.6 c).
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
 		ue.RequestedAPN = apn
 		ue.AwaitESMInformation(uint8(pti), &mme.PendingPDNConnectivity{
@@ -89,7 +87,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn s
 	pti := nas.ProcedureTransactionIdentity(ptiValue)
 
 	// Re-checked: a resumed request arrives after a detach or S1 release may have
-	// intervened (TS 24.301 §6.5.1.1).
+	// intervened.
 	if ue.EMMState() != mme.EMMRegistered || !ue.Connected() {
 		rejectPDNConnectivity(ctx, ue, ptiValue, eps.ESMCauseRequestRejectedUnspecified)
 		return nasreply.Handled()

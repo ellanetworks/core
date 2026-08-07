@@ -395,8 +395,6 @@ func TestHandleSecurityMode_ProtectedRegistrationNeedsNoReplay(t *testing.T) {
 	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
-// TS 24.501 §4.4.6 case b) 3): a failed MAC does not turn a protected request
-// into case a), so the guard must not demand a replay the UE never owed.
 func TestHandleSecurityMode_ProtectedRegistrationWithFailedMACNeedsNoReplay(t *testing.T) {
 	amfInstance := amf.New(
 		&fakeDBInstance{

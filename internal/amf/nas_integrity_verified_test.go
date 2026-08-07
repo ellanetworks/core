@@ -29,8 +29,6 @@ func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8
 	return pdu
 }
 
-// wrapProtected builds the security header a UE uses for everything after the
-// security mode procedure: integrity protected and ciphered.
 func wrapProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
 	t.Helper()
 

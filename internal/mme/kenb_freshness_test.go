@@ -5,11 +5,6 @@ package mme
 
 import "testing"
 
-// TS 33.401 §7.2.5.2.2: with a NAS security mode control procedure before the AS
-// SMC, K_eNB derives from the uplink NAS COUNT of the SECURITY MODE COMPLETE. Any
-// uplink message the MME receives between it and the Initial Context Setup — an
-// ESM INFORMATION RESPONSE, say — advances the count but is not what the UE
-// derives from.
 func TestKeNBFreshnessSurvivesALaterUplinkMessage(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -43,8 +38,6 @@ func TestKeNBFreshnessSurvivesALaterUplinkMessage(t *testing.T) {
 	}
 }
 
-// A later procedure that triggers its own context setup re-pins, so a UE
-// returning from idle does not derive against the attach's count.
 func TestKeNBFreshnessRepinsForALaterTrigger(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -75,8 +68,6 @@ func TestKeNBFreshnessRepinsForALaterTrigger(t *testing.T) {
 	}
 }
 
-// A fresh security context restarts the counts, and zero is the freshness it
-// derives from (TS 33.401 §7.2.5.2.3).
 func TestKeNBFreshnessResetsWithTheSecurityContext(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

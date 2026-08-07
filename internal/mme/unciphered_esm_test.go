@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TS 24.301 §4.4.5.
 func TestDecodeNASMessageDiscardsAnUncipheredESMMessage(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -37,7 +36,6 @@ func TestDecodeNASMessageDiscardsAnUncipheredESMMessage(t *testing.T) {
 	}
 }
 
-// Pins the discard above to the ciphering requirement, not the message itself.
 func TestDecodeNASMessageAcceptsTheSameESMMessageCiphered(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -59,9 +57,6 @@ func TestDecodeNASMessageAcceptsTheSameESMMessageCiphered(t *testing.T) {
 	}
 }
 
-// TS 24.301 §3.1, §4.4.5: a message that can be the initial NAS message of a new
-// connection is legitimately unciphered, and the receiver cannot tell whether the
-// UE sent it as one. srsUE relies on this for the switch-off DETACH REQUEST.
 func TestDecodeNASMessageAcceptsTheUncipheredExemptMessages(t *testing.T) {
 	tests := []struct {
 		name string

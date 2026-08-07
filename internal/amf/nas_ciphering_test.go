@@ -10,12 +10,10 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TS 24.501 §4.4.5.
 func TestDecodeNASMessageDiscardsAnUncipheredMessageAfterCiphering(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)
 
-	// The first message establishes secure exchange on the connection.
 	if _, err := DecodeNASMessage(ue, wrapProtected(t, ue, encodePlainULNasTransport(t), 0)); err != nil {
 		t.Fatalf("first message not accepted: %v", err)
 	}
@@ -30,9 +28,6 @@ func TestDecodeNASMessageDiscardsAnUncipheredMessageAfterCiphering(t *testing.T)
 	}
 }
 
-// TS 24.501 §4.4.6 has the UE send an initial NAS message integrity protected
-// but not ciphered, with its non-cleartext IEs in the NAS message container, so
-// the guard must not discard one.
 func TestDecodeNASMessageAcceptsAnUncipheredInitialNASMessage(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)
@@ -46,8 +41,6 @@ func TestDecodeNASMessageAcceptsAnUncipheredInitialNASMessage(t *testing.T) {
 	}
 }
 
-// The initial NAS message of a new connection precedes secure exchange on it, so
-// nothing is held to ciphering there whatever its type.
 func TestDecodeNASMessageAcceptsAnUncipheredFirstMessage(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)

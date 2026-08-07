@@ -63,8 +63,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// TS 24.301 §5.5.3.2.4: either capability or both. Stored after the accept is
-	// built, so a TAU that is never accepted leaves the held one alone.
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
 		ueNetCap := ue.UeNetCap()
 		if req.UENetworkCapability != nil {
@@ -103,8 +101,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	if req.ActiveFlag {
-		// The TAU REQUEST triggers the context setup, so it names the K_eNB
-		// freshness (TS 33.401 §7.2.6.2).
 		ue.PinKeNBFreshness()
 
 		qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())

@@ -306,7 +306,6 @@ func TestTransport5GSMMessage_InitialRequest_NotAllowedNssai_NotForwarded(t *tes
 	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
-// TS 24.501 §5.4.5.2.5 case 13.
 func TestTransport5GSMMessage_ModificationRequest_NotAllowedNssai_NotForwarded(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

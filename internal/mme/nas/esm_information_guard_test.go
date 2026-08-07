@@ -26,7 +26,6 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
-// TS 24.301 §6.6.1.2.6 a).
 func TestT3489RetransmitsTwiceThenRejects(t *testing.T) {
 	m := esmInfoTestMME()
 	m.SetT3489ConfigForTest(5*time.Millisecond, 2)
@@ -98,8 +97,6 @@ func TestESMInformationResponseStopsT3489(t *testing.T) {
 	}
 }
 
-// Exactly one of the response and the final expiry may conclude the transaction,
-// or the attach would be both resumed and rejected.
 func TestESMInformationResponseRacesTheTimeout(t *testing.T) {
 	for range 200 {
 		m := esmInfoTestMME()

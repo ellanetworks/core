@@ -283,9 +283,7 @@ func TestTrackingAreaUpdateRequestRejectsMalformedCapabilities(t *testing.T) {
 		name string
 		ie   []byte
 	}{
-		// §9.9.3.34: the value is 2 octets, or 4 to 13.
 		{"UE network capability", []byte{0x58, 0x03, 0xe0, 0xe0, 0x00}},
-		// §9.9.3.20 / TS 24.008 §10.5.5.12: the value is at most 8 octets.
 		{"MS network capability", []byte{0x31, 0x09, 0xe5, 0xe0, 0, 0, 0, 0, 0, 0, 0}},
 	}
 

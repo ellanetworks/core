@@ -422,7 +422,6 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.4.
 func TestTrackingAreaUpdateStoresReplayedCapabilities(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

@@ -38,7 +38,6 @@ func parseESMInformationRequest(t *testing.T, ue *mme.UeContext, pdu []byte) *ep
 	return req
 }
 
-// TS 24.301 §6.6.1.2.2.
 func TestAttachWithESMInformationTransferFlagRequestsIt(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
@@ -64,7 +63,6 @@ func TestAttachWithESMInformationTransferFlagRequestsIt(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.6.1.2.4.
 func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
@@ -98,14 +96,12 @@ func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.5.1.6 c).
 func TestESMInformationTimeoutRejectsTheAttach(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
 	activateDefaultBearer(context.Background(), m, ue)
 
-	// The schedule that reaches this abort is covered by the T3489 tests.
 	rejectAttachESM(context.Background(), m, ue, 3, eps.ESMCauseESMInformationNotReceived)
 
 	if len(cc.sent) != 3 {
@@ -137,7 +133,6 @@ func TestESMInformationTimeoutRejectsTheAttach(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[2])
 }
 
-// TS 24.301 §7.3.1 e).
 func TestESMInformationResponseForAnotherTransactionIsRefused(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
@@ -168,7 +163,6 @@ func TestESMInformationResponseForAnotherTransactionIsRefused(t *testing.T) {
 	}
 }
 
-// TS 24.301 §7.3.1 e): ignored outright, with no ESM STATUS.
 func TestESMInformationResponseWithUnassignedPTIIsIgnored(t *testing.T) {
 	for _, pti := range []uint8{0, 255} {
 		m := esmInfoTestMME()
@@ -190,7 +184,6 @@ func TestESMInformationResponseWithUnassignedPTIIsIgnored(t *testing.T) {
 	}
 }
 
-// TS 24.301 §7.3.2 e).
 func TestESMInformationResponseWithAnEPSBearerIdentityIsIgnored(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)

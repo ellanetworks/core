@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Reports whether the procedure now waits for the response.
 func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(pti uint8)) bool {
 	wait := ue.PendingESMInfo()
 	if wait == nil {
@@ -32,7 +31,6 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 		onAbort(w.PTI)
 	}
 
-	// TS 24.301 §6.6.1.2.2 leaves the EPS bearer identity unassigned.
 	esm, err := (&eps.ESMInformationRequest{PTI: nas.ProcedureTransactionIdentity(wait.PTI)}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build ESM Information Request", zap.Error(err))
@@ -45,8 +43,7 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 	if err != nil {
 		mme.ReportProtectFailure(ctx, ue.Conn(), "ESM Information Request", err)
 
-		// The connection is gone, so the abort's reject could not be protected
-		// either; drop the wait without one.
+		// The connection is gone, so the abort's reject could not be protected.
 		if errors.Is(err, nas.ErrCountExhausted) {
 			ue.TakeESMInfoWait()
 
@@ -71,10 +68,7 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 	return true
 }
 
-// TS 24.301 §6.6.1.2.4 also has the response's PCO replace any received earlier
-// in the attach; the MME reads no uplink PCO, so there is nothing to replace.
 func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.ESMInformationResponse) nasreply.Disposition {
-	// TS 24.301 §7.3.2 e).
 	if req.EPSBearerIdentity != 0 {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response with an assigned EPS bearer identity, ignoring",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", uint8(req.EPSBearerIdentity)))
@@ -82,7 +76,6 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	// TS 24.301 §7.3.1 e).
 	pti := uint8(req.PTI)
 	if pti == 0 || pti == 255 {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response with an unassigned or reserved PTI, ignoring",

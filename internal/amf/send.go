@@ -205,9 +205,8 @@ func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCa
 				return nil, err
 			}
 
-			// A UE that has established secure exchange discards an unprotected
-			// downlink (TS 24.501 §4.4.4.2); the plain form is for the rejects that
-			// precede security activation, which §4.4.4.2 admits.
+			// A secured UE discards an unprotected downlink; the plain form is for
+			// the rejects preceding security activation (TS 24.501 §4.4.4.2).
 			if !ue.SecureExchangeEstablished() {
 				return plain, nil
 			}

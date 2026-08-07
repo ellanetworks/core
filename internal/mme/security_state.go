@@ -35,8 +35,6 @@ func MintAuthProofForAttachRequest() AuthProof {
 	return AuthProof{}
 }
 
-// Only for a TRACKING AREA UPDATE REQUEST that passed its integrity check: that
-// check is the downgrade protection on this path (TS 24.301 §4.4.4.3).
 func MintAuthProofForTrackingAreaUpdate() AuthProof {
 	return AuthProof{}
 }

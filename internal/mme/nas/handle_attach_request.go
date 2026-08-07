@@ -229,7 +229,6 @@ func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.
 	sendAttachReject(ctx, m, ue, cause, nil)
 }
 
-// TS 24.301 §5.5.1.2.5 pairs EMM cause #19 with the ESM reject that explains it.
 func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, pti uint8, esmCause eps.ESMCause) {
 	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause}).MarshalBinary()
 	if err != nil {

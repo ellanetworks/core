@@ -311,11 +311,9 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 	plain, _, uerr := fgs.Unprotect(payload, cnt, nas.DirectionUplink, ue.sc,
 		fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered, fgs.SHTIntegrityProtectedCipheredNewContext)
 	if uerr == nil {
-		// TS 24.501 §4.4.5: once ciphering has started the receiver discards an
-		// unciphered message that should have been ciphered. Checked before the
-		// commit so a discarded message does not advance the count, and before
-		// MarkSecureExchangeEstablished so the initial NAS message of a new
-		// connection stays outside the guard.
+		// Before the commit so a discarded message does not advance the count, and
+		// before MarkSecureExchangeEstablished so the initial NAS message of a new
+		// connection stays outside the guard (TS 24.501 §4.4.5).
 		if conn.SecureExchangeEstablished() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) {
 			logger.AmfLog.Warn("discarding unciphered NAS message received after ciphering started")
 

@@ -192,8 +192,7 @@ const (
 	defaultNASGuardMaxRetransmit = 4
 )
 
-// TS 24.301 §6.6.1.2.6 a) aborts on the third expiry, so two retransmissions
-// follow the initial request (table 10.2.2).
+// TS 24.301 §6.6.1.2.6 a) aborts on the third expiry.
 const (
 	defaultT3489Timeout       = 4 * time.Second
 	defaultT3489MaxRetransmit = 2

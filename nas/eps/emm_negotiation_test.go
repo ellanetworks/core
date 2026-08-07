@@ -218,7 +218,6 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 	})
 }
 
-// The encoder must not emit what ParseNetworkFeatureSupport rejects.
 func TestNetworkFeatureSupportRejectsAnOverlongValue(t *testing.T) {
 	in := NetworkFeatureSupport{IMSVoPS: true, HasOctet4: true, Rest: []byte{0x00, 0x00}}
 

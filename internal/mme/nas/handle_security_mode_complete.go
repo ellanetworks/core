@@ -60,8 +60,6 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		logger.From(ctx, logger.MmeLog).Info("recovered genuine Attach Request from replayed NAS message container", zap.String("imsi", ue.IMSI()))
 
 		ingestAttachRequest(ctx, ue, req)
-		// The container carries the genuine message, so it becomes the oracle a
-		// later retransmission is compared against (TS 24.301 §5.5.1.2.7 case d).
 		ue.Conn().AttachRequestPlain = slices.Clone(smc.ReplayedNASMessageContainer)
 	}
 

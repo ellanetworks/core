@@ -1420,10 +1420,6 @@ func TestHandleRegistrationRequest_ContextSetup_AfterSecurityModeContainer_Resen
 	}
 }
 
-// TS 24.501 §5.5.1.3.4: the AMF stores what the request carries. A mobility
-// update reaches a committed context only when its MAC verified, so a changed
-// capability there is authenticated and replaying the stale one would make the
-// UE reject the SECURITY MODE COMMAND (TS 33.501 §6.7.2 step 2a).
 func TestAcceptRegistrationUESecurityCapability_MobilityStoresVerifiedChange(t *testing.T) {
 	ue := newBoundUe(t)
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
