@@ -34,6 +34,12 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	// A session torn down but still in the pool — startRelease leaves it there for
+	// the whole T3592 window — has no tunnel to re-point.
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
+	}
+
 	qfis, err := handleModifyIndicationTransfer(n2Data, smContext)
 	if err != nil {
 		return nil, fmt.Errorf("error handling N2 message: %v", err)

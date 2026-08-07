@@ -256,6 +256,7 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 		// Too late to cancel: acknowledge but let the in-flight NOTIFY finish.
 	default:
 		target = ho.target
+		detachAbandonedTargetLocked(ue, ho)
 		ue.handover = nil
 		aborted = true
 	}
@@ -289,6 +290,22 @@ func (a *AMF) UnbindHandoverTarget(ctx context.Context, ue *UeContext) {
 	}
 }
 
+// detachAbandonedTargetLocked unbinds the UE from a target UeConn staged for a
+// handover that will not complete. Left bound, the target's release takes the
+// "connection still carries a UE" arm of ReleaseUeConn and deactivates every PDU
+// session of a UE that never left the source — undoing the tunnel restore. The
+// success path must not use this: attachUeConnLocked moves the UE onto the
+// target and detaches the source instead. Caller holds a.mu.
+func detachAbandonedTargetLocked(ue *UeContext, ho *handoverContext) {
+	if ho == nil || ho.target == nil {
+		return
+	}
+
+	if ho.target.ue.Load() == ue {
+		ho.target.ue.Store(nil)
+	}
+}
+
 // ClearHandover ends the handover FSM and its key-chain procedure. Idempotent; safe on a nil UE.
 func (a *AMF) ClearHandover(ue *UeContext) {
 	if ue == nil {
@@ -296,6 +313,7 @@ func (a *AMF) ClearHandover(ue *UeContext) {
 	}
 
 	a.mu.Lock()
+	detachAbandonedTargetLocked(ue, ue.handover)
 	ue.handover = nil
 	a.mu.Unlock()
 

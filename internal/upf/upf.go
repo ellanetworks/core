@@ -469,23 +469,22 @@ func (u *UPF) startFlowCollection(ctx context.Context) {
 //     and exit, closing fcDone.
 //  4. We wait on fcDone — all flows have been forwarded to the SMF.
 //
-// fcCancel is cleared while holding fcMu, before the wait. This eliminates the
-// ABA window where a concurrent startFlowCollection would see a non-nil fcCancel
-// (believing the pipeline is already running) while stopFlowCollection is
-// actively tearing it down.
+// The whole sequence runs under fcMu so that every caller gets the guarantee,
+// not just the first: a second caller must not observe the cleared fcCancel and
+// race ahead to BpfObjects.Close() while collectExpiredFlows is still reading the
+// map. Safe to hold across the waits because neither goroutine takes fcMu.
 func (u *UPF) stopFlowCollection() {
 	u.fcMu.Lock()
+	defer u.fcMu.Unlock()
 
 	if u.fcCancel == nil {
-		u.fcMu.Unlock()
 		return
 	}
 
 	cancel := u.fcCancel
 	scanDone := u.fcScanDone
 	done := u.fcDone
-	u.fcCancel = nil // clear under the lock; startFlowCollection may now proceed
-	u.fcMu.Unlock()
+	u.fcCancel = nil
 
 	cancel()
 	<-scanDone // wait for producer: BPF map is no longer accessed after this

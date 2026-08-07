@@ -196,6 +196,10 @@ type AnchorBinding struct {
 // access (4G S1-U vs 5G N3 PSC; TS 29.281). The endpoint is always recorded on
 // the tunnel; the FAR is updated only once the rules exist. Caller holds sc.Mutex.
 func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
+	if sc.Tunnel == nil {
+		return
+	}
+
 	sc.Tunnel.AN = an
 
 	if !sc.Tunnel.Activated {

@@ -93,6 +93,10 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
+	}
+
 	if err := handleHandoverRequestAcknowledgeTransfer(n2Data, smContext); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle handover request acknowledge transfer")
@@ -261,6 +265,10 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
+
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
+	}
 
 	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
 	if err != nil {
