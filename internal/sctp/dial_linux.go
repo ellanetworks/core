@@ -39,7 +39,7 @@ import (
 var aLongTimeAgo = time.Unix(1, 0)
 
 // dialedEvents matches what serveConn subscribes to. PartialDelivery is
-// required for correctness, not observability: without it the kernel abandons a
+// required for correctness: without it the kernel abandons a
 // partial message silently and the next message is read as its continuation.
 const dialedEvents = sctpEventDataIO | sctpEventShutdown | sctpEventAssociation | sctpEventPartialDelivery
 
