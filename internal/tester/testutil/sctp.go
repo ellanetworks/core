@@ -6,8 +6,7 @@ package testutil
 import (
 	"fmt"
 
-	coresctp "github.com/ellanetworks/core/internal/sctp"
-	"github.com/ishidawataru/sctp"
+	"github.com/ellanetworks/core/internal/sctp"
 )
 
 func ValidateSCTP(info *sctp.SndRcvInfo, expectedPPID uint32, expectedStreamID uint16) error {
@@ -15,8 +14,8 @@ func ValidateSCTP(info *sctp.SndRcvInfo, expectedPPID uint32, expectedStreamID u
 		return fmt.Errorf("missing SCTP SndRcvInfo")
 	}
 
-	if info.PPID != coresctp.PPIDWireOrder(expectedPPID) {
-		return fmt.Errorf("ppid=%d want %d (NGAP)", info.PPID, coresctp.PPIDWireOrder(expectedPPID))
+	if info.PPID != sctp.PPIDWireOrder(expectedPPID) {
+		return fmt.Errorf("ppid=%d want %d (NGAP)", info.PPID, sctp.PPIDWireOrder(expectedPPID))
 	}
 
 	if info.Stream != expectedStreamID {

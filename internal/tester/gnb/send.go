@@ -6,8 +6,8 @@ package gnb
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/ishidawataru/sctp"
 	"go.uber.org/zap"
 )
 
@@ -216,14 +216,6 @@ func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) erro
 		return fmt.Errorf("ran conn is nil")
 	}
 
-	// Deliberately no RemoteAddr() pre-check. SCTPConn.RemoteAddr converts an
-	// unsafe.Pointer to uintptr and passes it through an intermediate Go
-	// function before it reaches syscall.Syscall6, which only pins the buffer
-	// when the conversion appears directly in the syscall argument list. When
-	// entering that function grows the goroutine stack, the kernel writes the
-	// peer addresses to the abandoned stack, the address count stays zero and
-	// RemoteAddr reports nil for a perfectly healthy association. SCTPWrite
-	// below surfaces a genuinely unusable association with the real errno.
 	sid, err := getSCTPStreamID(msgType)
 	if err != nil {
 		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %s", msgType, err.Error())
@@ -235,10 +227,10 @@ func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) erro
 
 	info := sctp.SndRcvInfo{
 		Stream: sid,
-		PPID:   ngapPPID,
+		PPID:   sctp.PPIDWireOrder(ngapPPID),
 	}
 
-	if _, err := conn.SCTPWrite(packet, &info); err != nil {
+	if _, err := conn.WriteMsg(packet, &info); err != nil {
 		return fmt.Errorf("send write to sctp connection: %s", err.Error())
 	}
 

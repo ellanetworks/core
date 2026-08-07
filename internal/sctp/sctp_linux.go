@@ -22,6 +22,7 @@ package sctp
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -85,7 +86,16 @@ func (r listenRawConn) Write(func(fd uintptr) (done bool)) error {
 	return fmt.Errorf("sctp: Write not supported on a listener control connection")
 }
 
-// On an accepted association only the writer goroutine calls writeMsgSync.
+// retryableIO reports an error that means "nothing happened, go round again":
+// EAGAIN once the poller reports readiness, and EINTR when a signal arrives
+// mid-syscall, which acceptWouldBlock treats the same way.
+func retryableIO(err error) bool {
+	return errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EINTR)
+}
+
+// writeMsgSync sends one message. Accepted associations funnel through the
+// writer goroutine; dialled ones call it from the caller's goroutine, which is
+// safe because RawConn.Write serialises on the descriptor's write lock.
 func (c *SCTPConn) writeMsgSync(b []byte, info *SndRcvInfo) (int, error) {
 	if c.rc == nil {
 		return 0, syscall.EBADF
@@ -111,7 +121,7 @@ func (c *SCTPConn) writeMsgSync(b []byte, info *SndRcvInfo) (int, error) {
 
 	werr := c.rc.Write(func(fd uintptr) bool {
 		n, err = syscall.SendmsgN(int(fd), b, cbuf, nil, 0)
-		return err != syscall.EAGAIN
+		return !retryableIO(err)
 	})
 	if werr != nil {
 		return 0, werr
@@ -230,7 +240,7 @@ func (c *SCTPConn) readMsgOnce(b []byte) (delivery, error) {
 
 	rerr := c.rc.Read(func(fd uintptr) bool {
 		n, oobn, recvflags, _, err = syscall.Recvmsg(int(fd), b, oob[:], 0)
-		return err != syscall.EAGAIN
+		return !retryableIO(err)
 	})
 	if rerr != nil {
 		return delivery{}, rerr
@@ -269,6 +279,37 @@ func (c *SCTPConn) readMsgOnce(b []byte) (delivery, error) {
 // the caller as a whole message.
 func (c *SCTPConn) readMsg(b []byte) (int, *SndRcvInfo, Notification, error) {
 	return reassemble(c.readMsgOnce, b)
+}
+
+// ReadMsg reads one complete message into b and returns its SCTP receive
+// metadata. Events are consumed rather than surfaced; one that ends the
+// association reports io.EOF. Server instead dispatches them via readMsg.
+func (c *SCTPConn) ReadMsg(b []byte) (int, *SndRcvInfo, error) {
+	for {
+		n, info, notification, err := c.readMsg(b)
+		if err != nil {
+			return n, info, err
+		}
+
+		if notification == nil {
+			return n, info, nil
+		}
+
+		switch event := notification.(type) {
+		case *SCTPShutdownEventNotification:
+			return 0, nil, io.EOF
+		case *SCTPAssocChangeEvent:
+			switch event.State() {
+			// SCTPRestart belongs here: the peer re-INITed the same 5-tuple and
+			// the kernel swapped the TCB underneath, so every stream, TSN and
+			// piece of application state on the old association is gone
+			// (net/sctp/sm_statefuns.c sctp_sf_do_dupcook_a). Continuing to read
+			// would hand the caller a different association's traffic.
+			case SCTPCommLost, SCTPShutdownComp, SCTPCantStrAssoc, SCTPRestart:
+				return 0, nil, io.EOF
+			}
+		}
+	}
 }
 
 func reassemble(read func([]byte) (delivery, error), b []byte) (int, *SndRcvInfo, Notification, error) {
@@ -534,9 +575,9 @@ func (ln *sctpListener) Accept() (*SCTPConn, error) {
 		return nil, ln.acceptErr(err)
 	}
 
+	// newSCTPConn owns newFd whether or not it succeeds.
 	conn := newSCTPConn(newFd)
 	if conn == nil {
-		_ = syscall.Close(newFd)
 		return nil, fmt.Errorf("failed to wrap accepted fd %d", newFd)
 	}
 
