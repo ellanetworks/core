@@ -294,6 +294,60 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 }
 
 // DeleteDynamicLease deletes a dynamic lease by ID.
+// ReleaseIPLease frees the lease this node holds for (pool, IMSI, sessionID).
+// A lease rebound to another node, or already gone, is left alone and reported
+// as the zero Addr — see applyReleaseIPLease.
+func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (release)", "DELETE", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "release"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "release").Inc()
+
+	addrStr, err := opReleaseIPLease.Invoke(db, &releaseIPLeasePayload{
+		PoolID:    poolID,
+		PoolType:  poolType,
+		IMSI:      imsi,
+		SessionID: sessionID,
+		NodeID:    nodeID,
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, err
+	}
+
+	if addrStr == "" {
+		span.SetStatus(codes.Ok, "")
+		return netip.Addr{}, nil
+	}
+
+	addr, err := netip.ParseAddr(addrStr)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, fmt.Errorf("parse released address %q: %w", addrStr, err)
+	}
+
+	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetStatus(codes.Ok, "")
+
+	return addr, nil
+}
+
 func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) error {
 	_, span := tracer.Start(
 		ctx,

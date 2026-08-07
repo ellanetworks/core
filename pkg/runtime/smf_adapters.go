@@ -151,46 +151,15 @@ func (s *smfDNNStore) ReleaseIP(ctx context.Context, imsi string, pduSessionID u
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	lease, err := s.a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
+	addr, err := s.a.db.ReleaseIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
 	if err != nil {
-		// Reservation deleted while bound: nothing left to free.
-		if errors.Is(err, db.ErrNotFound) {
-			return netip.Addr{}, nil
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "lookup failed")
-
-		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
-	}
-
-	if err := s.a.releaseLease(ctx, lease); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release failed")
 
 		return netip.Addr{}, err
 	}
 
-	return lease.Address(), nil
-}
-
-// releaseLease clears a static reservation to reserved (row kept) or
-// deletes a dynamic lease. The explicit clear is required so
-// listActiveLeases / BGP (sessionID IS NOT NULL) drop the address.
-func (a *smfDBAdapter) releaseLease(ctx context.Context, lease *db.IPLease) error {
-	if lease.Type == "static" {
-		if err := a.db.ClearStaticLeaseSession(ctx, lease.ID); err != nil {
-			return fmt.Errorf("clear static lease session: %w", err)
-		}
-
-		return nil
-	}
-
-	if err := a.db.DeleteDynamicLease(ctx, lease.ID); err != nil {
-		return fmt.Errorf("delete lease: %w", err)
-	}
-
-	return nil
+	return addr, nil
 }
 
 func (s *smfDNNStore) AllocateIPv6(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
@@ -242,27 +211,15 @@ func (s *smfDNNStore) ReleaseIPv6(ctx context.Context, imsi string, pduSessionID
 		return netip.Addr{}, fmt.Errorf("resolve IPv6 pool: %w", err)
 	}
 
-	lease, err := s.a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
+	addr, err := s.a.db.ReleaseIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.NodeID())
 	if err != nil {
-		// Reservation deleted while bound: nothing left to free.
-		if errors.Is(err, db.ErrNotFound) {
-			return netip.Addr{}, nil
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "lookup failed")
-
-		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
-	}
-
-	if err := s.a.releaseLease(ctx, lease); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release IPv6 failed")
 
 		return netip.Addr{}, err
 	}
 
-	return lease.Address(), nil
+	return addr, nil
 }
 
 func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
