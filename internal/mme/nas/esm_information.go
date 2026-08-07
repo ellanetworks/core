@@ -99,10 +99,6 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		ue.RequestedAPN = string(*req.AccessPointName)
 	}
 
-	// The response's protocol configuration options replace any the PDN
-	// CONNECTIVITY REQUEST carried (TS 24.301 §6.5.1.2), so an element that
-	// arrives here overrides what the request said — including its absence, which
-	// withdraws an identity the request had offered.
 	if req.ProtocolConfigurationOptions != nil {
 		ue.RequestedPDUSessionID = pduSessionIDFromPCO(req.ProtocolConfigurationOptions)
 	}

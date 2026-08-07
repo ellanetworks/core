@@ -10,10 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// A PDN connection the UE named with a PDU session identity is anchored under
-// both identities, so the same session answers to either namespace
-// (TS 23.501 §5.17.2.1). The anchor reports back which identity it kept, since
-// the MME must not tell the UE the connection carries one the anchor dropped.
 func TestCreateEPSSessionKeepsTheUEAllocatedIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
@@ -45,9 +41,6 @@ func TestCreateEPSSessionKeepsTheUEAllocatedIdentity(t *testing.T) {
 	}
 }
 
-// A UE that sends no identity gets a connection anchored under its EPS bearer
-// identity alone. It works exactly as before; it just cannot move to 5GS
-// (TS 23.502 §4.11.1.1 NOTE 5).
 func TestCreateEPSSessionWithoutAnIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
@@ -66,9 +59,6 @@ func TestCreateEPSSessionWithoutAnIdentity(t *testing.T) {
 	}
 }
 
-// An identity a live session of the same UE already holds is dropped rather than
-// failing the connection: two sessions under one key would share a UE address.
-// The connection is then not transferable, which the MME learns from the bearer.
 func TestCreateEPSSessionDropsADuplicateIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
@@ -102,14 +92,11 @@ func TestCreateEPSSessionDropsADuplicateIdentity(t *testing.T) {
 		t.Errorf("session identity = %s, want the EPS bearer identity alone", sc.SessionIdentity)
 	}
 
-	// Both sessions are live and hold distinct addresses.
 	if s.SessionCount() != 2 {
 		t.Fatalf("expected 2 sessions, got %d", s.SessionCount())
 	}
 }
 
-// The two namespaces are disjoint, so an EPS bearer identity cannot be passed
-// off as a PDU session identity a UE allocated.
 func TestCreateEPSSessionRefusesAnUnallocatableIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})

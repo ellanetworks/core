@@ -75,8 +75,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
-	// A request type this network does not serve is refused rather than served as
-	// an ordinary connection (TS 24.301 §6.5.1.6).
 	if cause, refused := requestTypeRefusal(ue.RequestedType); refused {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served",
 			zap.String("imsi", ue.IMSI()), zap.Stringer("request-type", ue.RequestedType))
@@ -102,10 +100,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		RequestType:       ue.RequestedType,
 	})
 	if err != nil {
-		// Either no PDN type the UE requested can be served (e.g. it asked for IPv6
-		// on an IPv4-only data network), or a move it asked for cannot be made.
-		// Both reject with EMM cause #19 "ESM failure" carrying the ESM cause
-		// (TS 24.301 §5.5.1.2.5).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
 		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), attachBearerRejectCause(ue.RequestedType, err))
@@ -126,9 +120,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
 
-		// The UE will never bind this bearer. A connection the anchor moved rather
-		// than established leaves its session on the access still serving it;
-		// releasing it here would tear down a session the UE is using over N3.
 		if p := m.DefaultPDN(ue); p != nil {
 			m.UnwindPDN(ctx, ue, p, ue.RequestedType == eps.RequestTypeHandover)
 		}
@@ -375,8 +366,7 @@ func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 }
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
-// REQUEST for a PDN connection (TS 24.301 §8.3.1). plmn is the serving PLMN the
-// PDN connection's S-NSSAI relates to.
+// REQUEST for a PDN connection (TS 24.301 §8.3.1).
 func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID) ([]byte, error) {
 	apn := eps.APN(qos.APN)
 
@@ -422,13 +412,6 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
 
-	// EPS signals no S-NSSAI, so the network tells the UE which slice it
-	// associated with the PDN connection, and the PLMN that value relates to
-	// (TS 23.501 §5.15.7.1). The UE sends it back to move the connection to 5GS
-	// (TS 24.501 §6.4.1.2 c)2). Only this message carries it — the modify path
-	// does not (TS 24.501 §6.1.4.2). The mapped 5GS QoS parameters that would
-	// otherwise accompany it are withheld: TS 23.501 §5.17.2.3.1 forbids them
-	// while the network advertises interworking without N26.
 	if snssai := p.Snssai; snssai != nil {
 		container, err := snssaiPCOContainer(*snssai, plmn)
 		if err != nil {

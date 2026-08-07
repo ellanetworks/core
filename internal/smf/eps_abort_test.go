@@ -10,11 +10,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
-// TestAbortSessionOwnsByHandle checks that rolling back a partially-created
-// session removes only that exact context. A create supersedes the session
-// holding the slot before taking it, so a slow first create can find, when its
-// own establishment fails, that a second session already owns the key its
-// rollback is about to clear (F4).
 func TestAbortSessionOwnsByHandle(t *testing.T) {
 	s := &SMF{pool: make(map[string]*SMContext), byKey: make(map[string]*SMContext)}
 
@@ -30,14 +25,10 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The key is the UE IP lease key, so it is claimed exactly once: a second
-	// create for the same slot is refused until the first releases it.
 	if _, err := s.NewSession(supi, Access4G, SessionIdentity{EBI: ebi}, "internet", nil); err == nil {
 		t.Fatal("a second session claimed an EPS bearer identity a live session already holds")
 	}
 
-	// What a create does instead: supersede the session holding the slot, then
-	// take it. scA is now out of the pool but its establishment is still unwinding.
 	s.dropFromPool(scA)
 
 	scB, err := s.NewSession(supi, Access4G, SessionIdentity{EBI: ebi}, "internet", nil)
@@ -49,8 +40,6 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 		t.Fatalf("two sessions for the same slot must get distinct refs, got %q twice", scA.Ref)
 	}
 
-	// scA has no tunnel or leases, so only the pool removal runs — and it must
-	// leave scB, which owns the slot, intact.
 	s.abortSession(context.Background(), scA)
 
 	if s.GetSession(scB.Ref) != scB || s.currentEPSSession(supi, ebi) != scB {

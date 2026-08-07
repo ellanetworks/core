@@ -55,9 +55,6 @@ type SMContext struct {
 	Mutex sync.Mutex
 
 	// Ref is the session's unique pool key, assigned once at creation and never
-	// reused: two sessions for the same slot get distinct Refs, so a release
-	// targets the exact instance and cannot tear down a newer session that reused
-	// the slot. The canonical name is the secondary index key.
 	Ref string
 
 	Supi        etsi.SUPI
@@ -67,12 +64,6 @@ type SMContext struct {
 	PolicyData  *Policy
 	PFCPContext *PFCPSessionContext
 
-	// SessionIdentity holds the session's PDU session identity and EPS bearer
-	// identity. The half that sessionKey returns is immutable — it names the pool
-	// slot and keys the UE IP leases, so changing it would strand the address. The
-	// other half moves with the session: a session keyed on its PDU session
-	// identity takes a new EPS bearer identity each time it moves to EPS, since
-	// the MME allocates one per attach. Guarded by Mutex.
 	SessionIdentity
 
 	FramedRoutes   []netip.Prefix
@@ -85,11 +76,6 @@ type SMContext struct {
 	PDUSessionType                 uint8   // negotiated type: nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
 	PDUSessionReleaseDueToDupPduID bool
 
-	// Access is the radio access the session is established over: Access4G marks
-	// the PGW-C role and the S1-U user plane, Access5G the N3 user plane with
-	// 5GSM terminated in the SMF. It does not name the session, so it can change
-	// without re-keying. Downlink data for an EPS session is paged via the MME
-	// (TS 23.401 §5.3.4.3).
 	Access AccessType
 
 	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
@@ -119,13 +105,8 @@ type SMContext struct {
 	// Guarded by Mutex.
 	handoverSourceAN *AnchorBinding
 
-	// pending is the move to another access the UE asked for and the target has
-	// not yet bound (TS 23.502 §4.11.2). Guarded by Mutex.
 	pending *pendingTransfer
 
-	// procedures admits one multi-step procedure on this session at a time. A
-	// transfer drops the session lock between its UPF calls, so exclusion cannot
-	// come from the lock alone.
 	procedures *procedure.Registry
 }
 

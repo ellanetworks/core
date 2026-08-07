@@ -163,10 +163,6 @@ func NextNgKsi(current int32) int32 {
 	return 0
 }
 
-// SupportsS1Mode reports whether the UE indicated S1 mode in its 5GMM capability
-// (TS 24.501 §9.11.3.1), so it can move to E-UTRAN. That is what gates the IWK
-// N26 indication: a UE that cannot reach EPS has nothing to do with it
-// (TS 24.501 §5.5.1.2.4).
 func (ue *UeContext) SupportsS1Mode() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

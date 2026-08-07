@@ -32,11 +32,7 @@ type EpsQoS struct {
 	DNS        string // data-network DNS server, advertised to the UE via PCO
 	MTU        uint16
 	Allow4G    bool
-	// Snssai is the slice the policy binds the PDN connection to. EPS signals no
-	// S-NSSAI, so the network determines one (TS 23.501 §5.15.7.1) and returns it
-	// to the UE in the PCO; the UE sends it back when it moves the connection to
-	// 5GS. Nil only where the policy names no slice.
-	Snssai *models.Snssai
+	Snssai     *models.Snssai
 }
 
 // ResolveQoS maps the subscriber's profile → policy → data network to the EPS
@@ -116,10 +112,6 @@ func qosForPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Poli
 	return qosForPolicyDN(profile, pol, dn, snssai)
 }
 
-// snssaiForPolicy resolves the S-NSSAI the PDN connection belongs to. The policy
-// carries both the data network the UE asked for and the slice, so resolving the
-// APN to its policy yields the slice — the 4G counterpart of the AMF handing the
-// SMF an S-NSSAI at PDU session establishment.
 func snssaiForPolicy(ctx context.Context, m *MME, pol *db.Policy) (*models.Snssai, error) {
 	if pol.SliceID == "" {
 		return nil, nil
@@ -179,10 +171,6 @@ func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork, sns
 	}, nil
 }
 
-// DnFingerprint summarises what the UE was told at bearer setup and would have
-// to be re-established to relearn: the IP pools, DNS and MTU, and the S-NSSAI,
-// which the UE will send back to move the connection to 5GS — a stale one
-// resolves no session there.
 func (q *EpsQoS) DnFingerprint() string {
 	var snssai string
 	if q.Snssai != nil {

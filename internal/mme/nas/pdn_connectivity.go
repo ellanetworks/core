@@ -60,8 +60,6 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		apn = string(*req.AccessPointName)
 	}
 
-	// A request type this network does not serve is refused rather than served as
-	// an ordinary connection (TS 24.301 §6.5.1.6).
 	if cause, refused := requestTypeRefusal(req.RequestType); refused {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: request type not served",
 			zap.String("imsi", ue.IMSI()), zap.Stringer("request-type", req.RequestType))
@@ -171,8 +169,6 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	m.FillBearer(ue, p, qos, bearer)
 
-	// A connection the anchor moved rather than established keeps its session on
-	// the other access if anything below fails.
 	moved := ue.RequestedType == eps.RequestTypeHandover
 
 	plmn, err := m.OperatorPLMN(ctx)

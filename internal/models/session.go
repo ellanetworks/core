@@ -67,32 +67,20 @@ type FTEID struct {
 // that family; RequestedPDNType is the UE's requested type (1 IPv4, 2 IPv6,
 // 3 IPv4v6, TS 24.301 §9.9.4.10).
 type EPSBearerRequest struct {
-	IMSI string
-	// EPSBearerIdentity is the default bearer's EBI (5..15).
+	IMSI              string
 	EPSBearerIdentity uint8
-	// PDUSessionID is the 5GS PDU session identity the UE allocated for this PDN
-	// connection and sent in the PCO, or 0 when it sent none (TS 23.501
-	// §5.17.2.1). Only the UE can supply it, and without it the connection cannot
-	// be correlated with a PDU session, so it cannot move to 5GS.
-	PDUSessionID uint8
-	// Snssai is the slice the PDN connection belongs to, resolved from the policy.
-	// EPS does not signal it, so the network determines one and returns it to the
-	// UE in the PCO (TS 23.501 §5.15.7.1).
-	Snssai           *Snssai
-	PolicyID         string // policy DB ID, so the UPF binds the session to its network rules
-	APN              string
-	AMBRUplink       BitRate
-	AMBRDownlink     BitRate
-	IPv4Pool         string
-	IPv6Pool         string
-	DNS              string
-	MTU              uint16
-	RequestedPDNType uint8
-	// RequestType is the UE's request type (TS 24.301 §9.9.4.14). "Handover"
-	// asks the anchor to move an existing PDU session onto EPS rather than
-	// establish a new connection, which is what preserves the UE's address
-	// (TS 23.502 §4.11.2.2).
-	RequestType eps.RequestType
+	PDUSessionID      uint8
+	Snssai            *Snssai
+	PolicyID          string // policy DB ID, so the UPF binds the session to its network rules
+	APN               string
+	AMBRUplink        BitRate
+	AMBRDownlink      BitRate
+	IPv4Pool          string
+	IPv6Pool          string
+	DNS               string
+	MTU               uint16
+	RequestedPDNType  uint8
+	RequestType       eps.RequestType
 }
 
 // EPSBearer is the result of establishing a default bearer: the negotiated PDN
@@ -114,16 +102,9 @@ type EPSBearer struct {
 	SGWN3IPv6 netip.Addr
 	// ESMCause, when non-zero, is the reason the assigned PDN type is narrower
 	// than requested (#50 IPv4-only / #51 IPv6-only allowed, TS 24.301 §6.5.1.3).
-	ESMCause eps.ESMCause
-	// PDUSessionID is the identity the anchor kept for the connection, 0 when it
-	// kept none — the UE sent none, or one a live session of its own already
-	// held. A connection without one is not transferable to 5GS.
+	ESMCause     eps.ESMCause
 	PDUSessionID uint8
-	// Snssai is the slice the anchor holds the session on. It is what the UE is
-	// told in the PCO and sends back to move the session to 5GS
-	// (TS 24.501 §6.4.1.2 c)2), so it comes from the anchored session rather than
-	// from the policy the request quoted.
-	Snssai *Snssai
+	Snssai       *Snssai
 }
 
 // FAR describes a Forwarding Action Rule for the UPF session API.

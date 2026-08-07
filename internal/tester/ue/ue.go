@@ -797,10 +797,6 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 	return ue.sendPDUSessionRequest(amfUENGAPID, ranUENGAPID, pduSessionID, dnn, snssai, fgs.RequestTypeInitialRequest)
 }
 
-// MovePDUSessionFromEPC asks the anchor to move the PDU session the UE holds in
-// EPC under pduSessionID onto 5GS, keeping its address (TS 23.502 §4.11.2.3).
-// The S-NSSAI is the one the UE learned in the PCO while it was on EPS, which is
-// what resolves the session on the way back (TS 24.501 §6.4.1.2 c)2).
 func (ue *UE) MovePDUSessionFromEPC(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai) error {
 	return ue.sendPDUSessionRequest(amfUENGAPID, ranUENGAPID, pduSessionID, dnn, snssai, fgs.RequestTypeExistingPDUSession)
 }

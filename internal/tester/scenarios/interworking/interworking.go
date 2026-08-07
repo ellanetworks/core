@@ -1,14 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package interworking holds the scenarios that move one subscriber's session
-// between 4G and 5G and assert it survives the move: same IP address, same
-// anchored session, traffic flowing on the target access's tunnel
-// (TS 23.502 §4.11.2).
-//
-// Both scenarios drive a single-registration UE, which is on one radio at a
-// time: the source RAN is closed before the target starts, so they also share
-// the one N3/S1-U address the standard one-core one-tester topology provides.
 package interworking
 
 import (
@@ -25,21 +17,14 @@ import (
 )
 
 const (
-	// interworkingIMSI is the one subscriber both accesses serve; the whole point
-	// is that it is the same subscriber and the same session on either radio.
 	interworkingIMSI = "001017271246700"
 
-	// movedPDUSessionID is the PDU session identity the UE allocates. It is what
-	// correlates the two accesses (TS 23.501 §5.17.2.1): on 4G it travels in the
-	// PCO, on 5G it is the session identity itself.
 	movedPDUSessionID = 1
 
 	gnbTunIface   = "iwkgnbtun"
 	enbTunIface   = "iwkenbtun"
 	s1enbNodeName = "Ella-Core-Tester-IWK-S1eNB"
 
-	// The move re-points the UPF's downlink; give it a moment to take before
-	// probing, as the connectivity scenarios do.
 	datapathSettle = 500 * time.Millisecond
 
 	attachTimeout = 15 * time.Second
@@ -47,9 +32,6 @@ const (
 	s1MMEPort = "36412"
 )
 
-// fixture provisions the single subscriber both accesses share. Asserting usage
-// for it makes the runner check that bytes actually moved, so a move that
-// preserves the control-plane bookkeeping but not the user plane fails.
 func fixture(_ scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers:         []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(interworkingIMSI, "")},
@@ -117,8 +99,6 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 	return e, nil
 }
 
-// s1mmeAddress is the core's S1-MME endpoint, which shares the N2 address and
-// differs only in port.
 func s1mmeAddress(coreN2 string) (string, error) {
 	host, _, err := net.SplitHostPort(coreN2)
 	if err != nil {

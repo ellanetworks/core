@@ -268,7 +268,6 @@ type fakeAMF struct {
 	err              error
 }
 
-// transferredCall records the SMF telling the AMF a session moved to EPS.
 type transferredCall struct {
 	supi         etsi.SUPI
 	pduSessionID uint8
@@ -371,7 +370,6 @@ type fakeMME struct {
 	err              error
 }
 
-// mmeTransferredCall records the SMF telling the MME a session moved to 5GS.
 type mmeTransferredCall struct {
 	imsi string
 	ebi  uint8
@@ -701,8 +699,6 @@ func TestConcurrentSessionCreation(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	// One subscriber holds at most 15 sessions (TS 24.007 §11.2.3.1b), so the
-	// concurrency is across subscribers, each taking PDU session identity 1.
 	var wg sync.WaitGroup
 
 	for i := range 100 {
@@ -730,12 +726,6 @@ func TestConcurrentSessionCreation(t *testing.T) {
 	}
 }
 
-// A session identity is claimed exactly once. It is also the UE IP lease key
-// (TS 23.501 §5.17.2 has the anchor hold one address per session), so two
-// sessions holding it would be handed the same address, and releasing either
-// would free an address the other is still forwarding on. A UE re-requesting an
-// identity it already holds is served by superseding the session that holds it,
-// which is the create path's own first step.
 func TestNewSession_ClaimsAnIdentityOnce(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -750,16 +740,12 @@ func TestNewSession_ClaimsAnIdentityOnce(t *testing.T) {
 		t.Fatal("a second session claimed a PDU session identity a live session already holds")
 	}
 
-	// The identity a UE may not allocate is refused outright: 0 names no session,
-	// and 64.. is the core-allocated range the EPS bearer key lives in.
 	for _, id := range []uint8{0, 16, 64} {
 		if _, err := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: id}, testDNN, testSnssai); err == nil {
 			t.Errorf("NewSession accepted PDU session identity %d, which no UE may allocate", id)
 		}
 	}
 
-	// Releasing the holder frees the identity for the next session, which gets its
-	// own ref so a late release of the first cannot tear it down.
 	s.RemoveSession(t.Context(), ctx1.Ref)
 
 	ctx2, err := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, "ims", testSnssai)
@@ -782,9 +768,6 @@ func TestNewSession_ClaimsAnIdentityOnce(t *testing.T) {
 	}
 }
 
-// An EPS bearer identity and a PDU session identity of the same numeric value
-// are different sessions: the anchor holds both namespaces at once and the
-// bearer key sits in the core-allocated 64.. range (TS 29.571 §5.2.2).
 func TestNewSession_NamespacesAreDisjoint(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

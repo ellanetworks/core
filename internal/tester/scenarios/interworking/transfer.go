@@ -37,11 +37,6 @@ func init() {
 	})
 }
 
-// runTransfer5GSToEPS establishes a PDU session over NR, then re-attaches over
-// E-UTRAN with request type "handover", naming the same PDU session identity in
-// the PCO. The anchor moves the session rather than establishing a new one, so
-// the UE keeps its address and the data keeps flowing — over S1-U now
-// (TS 23.502 §4.11.2.2).
 func runTransfer5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 	fiveGSAddress, err := establishOn5GS(ctx, env)
 	if err != nil {
@@ -61,9 +56,6 @@ func runTransfer5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 	return nil
 }
 
-// runTransferEPSTo5GS is the mirror: attach over E-UTRAN announcing N1 mode and
-// a PDU session identity, then register over NR and ask for the session with
-// request type "existing PDU session" (TS 23.502 §4.11.2.3).
 func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
 	epsAddress, err := establishOnEPS(ctx, env)
 	if err != nil {
@@ -83,10 +75,6 @@ func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
 	return nil
 }
 
-// establishOn5GS registers over NR, brings up the session's user plane, and
-// returns the UE address. The gNB is closed before returning: a
-// single-registration UE leaves NR entirely, and the two RAN simulators share
-// one S1-U/N3 address in this topology.
 func establishOn5GS(ctx context.Context, env scenarios.Env) (string, error) {
 	gNodeB, err := startGNB(env)
 	if err != nil {
@@ -118,9 +106,6 @@ func establishOn5GS(ctx context.Context, env scenarios.Env) (string, error) {
 	return address, nil
 }
 
-// moveToEPS attaches over E-UTRAN with request type "handover", which asks the
-// anchor to move the session rather than establish one, and returns the address
-// the network assigned.
 func moveToEPS(ctx context.Context, env scenarios.Env) (string, error) {
 	e, err := startENB(env)
 	if err != nil {
@@ -164,8 +149,6 @@ func moveToEPS(ctx context.Context, env scenarios.Env) (string, error) {
 	return res.UEIPv4, nil
 }
 
-// establishOnEPS attaches over E-UTRAN announcing N1 mode and a PDU session
-// identity, so the connection the anchor establishes can later be moved to 5GS.
 func establishOnEPS(ctx context.Context, env scenarios.Env) (string, error) {
 	e, err := startENB(env)
 	if err != nil {
@@ -209,9 +192,6 @@ func establishOnEPS(ctx context.Context, env scenarios.Env) (string, error) {
 	return res.UEIPv4, nil
 }
 
-// moveTo5GS registers over NR and asks for the session with request type
-// "existing PDU session", naming the S-NSSAI the UE learned in the PCO while it
-// was on EPS.
 func moveTo5GS(ctx context.Context, env scenarios.Env) (string, error) {
 	gNodeB, err := startGNB(env)
 	if err != nil {
@@ -235,8 +215,6 @@ func moveTo5GS(ctx context.Context, env scenarios.Env) (string, error) {
 		return "", fmt.Errorf("registration accept over NR: %w", err)
 	}
 
-	// The session is not established: it is the one the UE holds in EPC, named by
-	// its identity and the slice the network gave it there.
 	if err := newUE.MovePDUSessionFromEPC(
 		gNodeB.GetAMFUENGAPID(ranUENGAPID), ranUENGAPID, movedPDUSessionID,
 		scenarios.DefaultDNN,
@@ -252,8 +230,6 @@ func moveTo5GS(ctx context.Context, env scenarios.Env) (string, error) {
 	return probeOver5GS(ctx, env, gNodeB, newUE, ranUENGAPID)
 }
 
-// probeOver5GS brings up the N3 tunnel for the UE's session and checks traffic
-// flows, returning the UE address.
 func probeOver5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, u *ue.UE, ranUENGAPID int64) (string, error) {
 	uePDUSession, err := u.WaitForPDUSession(movedPDUSessionID, attachTimeout)
 	if err != nil {

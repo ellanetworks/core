@@ -62,21 +62,14 @@ type NetworkFeatureSupport struct {
 	ERwoPDN bool  // attach without PDN connectivity (octet 3, bit 7)
 	CPCIoT  bool  // control plane CIoT EPS optimisation (octet 3, bit 8)
 
-	// IWKN26 indicates whether interworking without N26 is supported (octet 4,
-	// bit 7). It reads inverted from most feature bits: 1 means the network has
-	// no N26 interface and the UE must move its sessions itself, so a network
-	// that does have N26 sets it to 0 (TS 24.301 §9.9.3.12A).
 	IWKN26 bool
 
 	// HasOctet4 records whether the sender included octet 4, so the element
-	// re-encodes at the length it arrived with; Octet4Spare carries the octet-4
-	// bits this codec does not interpret, and Rest octet 5 onwards.
 	HasOctet4   bool
 	Octet4Spare uint8
 	Rest        []byte
 }
 
-// iwkN26Bit is the IWK N26 indicator's bit in octet 4 (TS 24.301 §9.9.3.12A).
 const iwkN26Bit = 1 << 6
 
 // maxNetworkFeatureSupportLen is the element's longest value: TS 24.301

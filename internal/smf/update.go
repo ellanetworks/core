@@ -213,18 +213,11 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return err
 	}
 
-	// The access the session left is told outside the session lock: its callbacks
-	// re-enter the SMF.
 	s.dropSourceRouting(ctx, smContext.Ref, dropped)
 
 	return nil
 }
 
-// bindNGRANDownlink points the session's downlink at the gNB the N2 response
-// names and states the result to the UPF. When the session is moving to 5GS,
-// this bind is the move's commit — TS 23.502 §4.3.2.2.1 step 16a NOTE 11
-// switches the user plane at exactly this point — so it also carries the target
-// access's QoS, and returns the access to stop routing the session.
 func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Data []byte, span trace.Span) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()

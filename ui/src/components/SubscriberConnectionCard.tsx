@@ -146,8 +146,6 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
-// A subscriber moving between 4G and 5G is registered on both while it
-// transfers its sessions, so every access it holds is shown.
 const AccessTypeChips: React.FC<{ accessTypes: string[] }> = ({
   accessTypes,
 }) => (

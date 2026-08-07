@@ -16,8 +16,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// interworkingFakes is one subscriber and one data network the same on both
-// accesses, which is what makes a session movable between them.
 func interworkingFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF, *fakeMME) {
 	pcf, store, upf, amfCb := defaultFakes()
 	store.allocatedIP = netip.AddrFrom4([4]byte{10, 45, 0, 7})
@@ -26,8 +24,6 @@ func interworkingFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF, *fakeMME) {
 	return pcf, store, upf, amfCb, &fakeMME{}
 }
 
-// epsMove is a PDN CONNECTIVITY REQUEST with request type "handover": the UE
-// naming a PDU session it holds in 5GS and asking the anchor to move it.
 func epsMove(pduSessionID uint8) models.EPSBearerRequest {
 	req := epsRequest(1)
 	req.APN = testDNN
@@ -37,13 +33,8 @@ func epsMove(pduSessionID uint8) models.EPSBearerRequest {
 	return req
 }
 
-// movedPDUSessionID is the identity the UE allocated for the session these tests
-// move between accesses; it is what correlates the two accesses
-// (TS 23.501 §5.17.2.1).
 const movedPDUSessionID uint8 = 3
 
-// establish5GS brings up a 5G session with its downlink bound to a gNB, which is
-// the state a UE is in before it moves the session to EPS.
 func establish5GS(t *testing.T, s *smf.SMF) *smf.SMContext {
 	t.Helper()
 
@@ -75,9 +66,6 @@ func establish5GS(t *testing.T, s *smf.SMF) *smf.SMContext {
 	return sc
 }
 
-// sessionInvariants is what a move must preserve: the UE keeps its address
-// because the anchor keeps the session, its UPF state and its uplink tunnel
-// (TS 23.502 §4.11.2.2 step 14).
 type sessionInvariants struct {
 	ipv4   string
 	seid   uint64
@@ -101,10 +89,6 @@ func invariantsOf(t *testing.T, sc *smf.SMContext) sessionInvariants {
 	}
 }
 
-// A UE that re-attaches in EPS with request type "handover" keeps its address,
-// because the anchor moves the session it already has rather than establishing a
-// new one. Nothing new is allocated: no second UPF session, no second lease, and
-// the uplink F-TEID the RAN sends to is unchanged.
 func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -130,8 +114,6 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 		t.Errorf("UE address after the move = %s, want %s", got, before.ipv4)
 	}
 
-	// The downlink stays on 5GS until the eNB endpoint arrives: TS 23.401 §5.10.2
-	// step 5 holds it at the PDN GW until step 13a.
 	sc.Mutex.Lock()
 	access := sc.Access
 	sc.Mutex.Unlock()
@@ -140,7 +122,6 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 		t.Error("the session left 5GS before the eNB bound its downlink")
 	}
 
-	// The eNB's S1-U endpoint commits the move.
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
 		t.Fatalf("ModifyEPSSession: %v", err)
@@ -163,7 +144,6 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 		t.Errorf("session EBI = %d, want the %d the MME allocated", ebi, epsTestEBI)
 	}
 
-	// One session, one lease: the move allocated neither.
 	if s.SessionCount() != 1 {
 		t.Errorf("sessions = %d, want 1: the move must not create a second", s.SessionCount())
 	}
@@ -172,8 +152,6 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 		t.Errorf("IP pool operations = %d, want %d: the move must not touch the lease", got, establishes)
 	}
 
-	// The access the session left is told to stop routing it, and to release the
-	// radio resources it still holds there — without releasing the session.
 	calls := amfCb.transferred()
 	if len(calls) != 1 {
 		t.Fatalf("AMF SessionTransferred calls = %d, want 1", len(calls))
@@ -192,8 +170,6 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 	}
 }
 
-// The mirror: a UE moving back to 5GS with request type "existing PDU session"
-// keeps the same address and the same anchored session.
 func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -237,7 +213,6 @@ func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 		t.Errorf("move returned ref %q, want the session's own %q", ref, sc.Ref)
 	}
 
-	// The gNB's N3 endpoint commits the move.
 	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
 	if err != nil {
 		t.Fatalf("build N2 setup response: %v", err)
@@ -259,8 +234,6 @@ func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 		t.Error("the session is not on 5GS after the gNB bound its downlink")
 	}
 
-	// The EPS bearer the UE left no longer exists, so the identity is dropped and
-	// the next attach may legitimately allocate it again.
 	if ebi != 0 {
 		t.Errorf("session still holds EPS bearer identity %d after moving to 5GS", ebi)
 	}
@@ -287,10 +260,6 @@ func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 	}
 }
 
-// A move of something the anchor does not hold draws #54 on either access, which
-// tells the UE to establish rather than retry (TS 24.301 §6.5.1.6 b,
-// TS 24.501 §6.4.1.7 d). A session it does hold but cannot move as asked draws
-// #26 instead: #54 would be untrue.
 func TestTransferRefusals(t *testing.T) {
 	t.Run("EPS: no such PDU session", func(t *testing.T) {
 		pcf, store, upf, amfCb, mmeCb := interworkingFakes()
@@ -314,8 +283,6 @@ func TestTransferRefusals(t *testing.T) {
 
 		establish5GS(t, s)
 
-		// A UE that sent no PDU session identity in its PCO has nothing to correlate
-		// the two accesses with, so there is no session to move.
 		if _, err := s.CreateEPSSession(context.Background(), epsMove(0)); !isNotTransferable(err) {
 			t.Errorf("error = %v, want it to report the session does not exist", err)
 		}
@@ -372,14 +339,10 @@ func TestTransferRefusals(t *testing.T) {
 			t.Fatal("a move onto the access already serving the session succeeded")
 		}
 
-		// The network does know this session, so #54 would be untrue.
 		assertGSMCause(t, reject, fgs.GSMCauseInsufficientResources)
 	})
 }
 
-// A UE moving to 5GS names the slice it holds for the session (TS 24.501
-// §6.4.1.2 c)2). Naming another one names another session, so the move is
-// refused rather than silently re-slicing the one the anchor holds.
 func TestTransferTo5GSChecksTheSlice(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -407,7 +370,6 @@ func TestTransferTo5GSChecksTheSlice(t *testing.T) {
 
 	assertGSMCause(t, reject, fgs.GSMCauseInsufficientResources)
 
-	// The session is untouched and still movable.
 	sc := s.GetSession(bearer.Ref)
 	if sc == nil {
 		t.Fatal("the refused move released the session")
@@ -422,9 +384,6 @@ func TestTransferTo5GSChecksTheSlice(t *testing.T) {
 	}
 }
 
-// Two moves of one session cannot run at once: each re-points the same user
-// plane, and each tells an access to forget the session, so the second would
-// leave a session no control plane owns.
 func TestOneTransferAtATime(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -438,7 +397,6 @@ func TestOneTransferAtATime(t *testing.T) {
 		t.Fatalf("first move: %v", err)
 	}
 
-	// The eNB has not bound the downlink yet, so the first move is still in flight.
 	second := epsMove(3)
 	second.EPSBearerIdentity = epsTestEBI + 1
 

@@ -445,12 +445,6 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 	return nil
 }
 
-// stageSessionQERs writes the QFI and AMBR-derived MBR onto the session's QER
-// and returns it for the caller's own statement to the UPF, together with the
-// undo the caller runs if the UPF refuses it — so the cached rules never run
-// ahead of the data plane. Splitting the staging from the send lets a transfer
-// carry the target access's QoS in the bind it was already making.
-// Caller holds smContext.Mutex.
 func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink models.BitRate) ([]*QER, func(), error) {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
 		return nil, nil, fmt.Errorf("PFCP session not established")

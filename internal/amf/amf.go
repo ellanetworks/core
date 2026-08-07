@@ -65,9 +65,6 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	// CreateSmContext establishes a PDU session, or — for request type "existing
-	// PDU session" — moves one the UE holds in EPC onto 5GS, keeping its address
-	// (TS 23.502 §4.11.2.3).
 	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string) error
@@ -93,12 +90,6 @@ type SmfSbi interface {
 	ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
 
-// NetworkFeatureSupport5GS is what the AMF advertises in the 5GS network feature
-// support IE. IWK N26 is deliberately absent: the indication is PLMN-wide and
-// per-UE gated on its S1-mode capability, so it comes from
-// models.InterworkingWithoutN26 rather than from configuration — a configured
-// value here could contradict the MME's and make the indication
-// one-directional.
 type NetworkFeatureSupport5GS struct {
 	Enable  bool
 	ImsVoPS uint8

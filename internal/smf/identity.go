@@ -9,32 +9,13 @@ import (
 	"github.com/ellanetworks/core/etsi"
 )
 
-// SessionIdentity names a session in the two identity namespaces a converged
-// SMF+PGW-C context holds at once (TS 23.501 §5.17.2): the 5GS PDU session
-// identity the UE allocates, and the default bearer's EPS bearer identity. Both
-// run 1..15 and are distinct, so neither can stand in for the other. A session
-// carries the identity of the access it was established over and gains the
-// other one only where interworking assigns it.
 type SessionIdentity struct {
-	// PDUSessionID is the UE-allocated 5GS PDU session identity (1..15,
-	// TS 24.007 §11.2.3.1b). Zero on an EPS session the UE named with none.
 	PDUSessionID uint8
-	// EBI is the default bearer's EPS bearer identity (5..15, TS 24.301 §6.1).
-	// Zero on a PDU session with no EPS bearer assigned.
-	EBI uint8
+	EBI          uint8
 }
 
-// epsBearerKey maps an EPS bearer identity into the SMF's converged key space.
-// The 64..95 range is core-network-allocated and never visible to the UE
-// (TS 29.571 §5.2.2), so it cannot collide with the 1..15 a UE allocates for a
-// PDU session identity.
 func epsBearerKey(ebi uint8) uint8 { return 64 + ebi }
 
-// sessionKey is the key naming the session's slot: its PDU session identity
-// when the UE allocated one, else its EPS bearer key. The canonical name is
-// built from it and the UE IP leases are keyed by it, so it has to hold for the
-// session's whole life. No key derives from the access, so an access change
-// does not re-key a live session.
 func (id SessionIdentity) sessionKey() uint8 {
 	if id.PDUSessionID != 0 {
 		return id.PDUSessionID
@@ -43,8 +24,6 @@ func (id SessionIdentity) sessionKey() uint8 {
 	return epsBearerKey(id.EBI)
 }
 
-// sessionKeys returns every key the session answers to, so a lookup in either
-// namespace resolves the one session that holds both identities.
 func (id SessionIdentity) sessionKeys() []uint8 {
 	keys := make([]uint8, 0, 2)
 
@@ -59,11 +38,6 @@ func (id SessionIdentity) sessionKeys() []uint8 {
 	return keys
 }
 
-// valid reports whether the identity names a session at all. The SMF allocates
-// neither half, so the ranges checked are the ones their allocators may use: a
-// UE picks the PDU session identity out of 1..15, and the MME picks the EPS
-// bearer identity out of 5..15, 1..4 being reserved for a network that does not
-// support 15 bearer contexts (TS 24.301 §6.1.1).
 func (id SessionIdentity) valid() bool {
 	if id.PDUSessionID > 15 {
 		return false
@@ -80,7 +54,6 @@ func (id SessionIdentity) String() string {
 	return fmt.Sprintf("pdu-session-id=%d ebi=%d", id.PDUSessionID, id.EBI)
 }
 
-// canonicalName is the secondary index key for a (SUPI, session key) slot.
 func canonicalName(identifier etsi.SUPI, sessionKey uint8) string {
 	return fmt.Sprintf("%s-%d", identifier.String(), sessionKey)
 }

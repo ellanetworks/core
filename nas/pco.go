@@ -18,19 +18,9 @@ const (
 	PCOContainerIPv4LinkMTU               uint16 = 0x0010
 )
 
-// Container identifiers reserved to one direction (TS 24.008 §10.5.6.3). They
-// carry, over EPS, the identity a PDN connection needs to be recognised as a
-// PDU session in 5GS (TS 23.501 §5.17.2.1).
 const (
-	// PCOContainerPDUSessionID carries, MS to network, the PDU session identity
-	// the MS allocated for the PDN connection (TS 24.007 §11.2.3.1b). The network
-	// cannot supply one: a UE that sends none has a connection it cannot later
-	// move to 5GS.
 	PCOContainerPDUSessionID uint16 = 0x001A
-	// PCOContainerSNSSAI carries, network to MS, the S-NSSAI the network
-	// associated with the PDN connection followed by the PLMN identity that
-	// S-NSSAI relates to (TS 23.501 §5.15.7.1). One container, not two.
-	PCOContainerSNSSAI uint16 = 0x001B
+	PCOContainerSNSSAI       uint16 = 0x001B
 )
 
 // PCOConfigProtocolPPP is the configuration-protocol octet for use with the IP
@@ -305,11 +295,6 @@ func (p ProtocolConfigurationOptions) DNSServers() []netip.Addr {
 	return out
 }
 
-// PDUSessionID returns the PDU session identity the MS allocated for the PDN
-// connection, and whether the element carried a usable one. Only the uplink
-// direction carries it, and only the single octet TS 24.007 §11.2.3.1b defines
-// within the range a UE may allocate; anything else reports absent, on which the
-// PDN connection is simply not transferable to 5GS.
 func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 	if p.Direction != PCOMSToNetwork {
 		return 0, false
@@ -324,14 +309,7 @@ func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 	return 0, false
 }
 
-// NewSNSSAIContainer builds the network-to-MS S-NSSAI container (TS 24.008
-// §10.5.6.3): the value part of an S-NSSAI information element (TS 24.501
-// §9.11.2.8) followed by one PLMN identity encoded as in §10.5.5.36. The value
-// part is passed already encoded, since the S-NSSAI element belongs to the 5GS
-// codec and this package sits beneath it.
 func NewSNSSAIContainer(snssaiValue []byte, plmn PLMN) (PCOContainer, error) {
-	// The lengths TS 24.501 §9.11.2.8 defines. A value of any other length would
-	// leave the UE unable to tell where the S-NSSAI ends and the PLMN begins.
 	switch len(snssaiValue) {
 	case 1, 2, 4, 5, 8:
 	default:

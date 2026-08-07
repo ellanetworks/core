@@ -24,10 +24,6 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
 }) => {
   const theme = useTheme();
 
-  // Network slices (S-NSSAI) are 5G-only, so the column is shown when any
-  // session runs on 5G. Read off the sessions rather than the subscriber: a
-  // subscriber moving between accesses is registered on both, and each session
-  // names the one it runs on.
   const has5G = sessions.some((s) => s.radio_access_type === "5G");
 
   const columns: GridColDef<SessionInfo>[] = useMemo(

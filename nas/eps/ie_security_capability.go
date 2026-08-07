@@ -388,19 +388,11 @@ func boolBit(set bool, pos uint8) uint8 {
 	return 1 << pos
 }
 
-// n1ModeOctet is octet 9 of the UE network capability, counting from octet 3;
-// Rest starts at octet 7 (TS 24.301 figure 9.9.3.34.1).
 const (
 	n1ModeOctet = 2
 	n1ModeBit   = 1 << 5
 )
 
-// SupportsN1Mode reports whether the UE indicated support for N1 mode for 3GPP
-// access (octet 9, bit 6). A UE that does can move between EPS and 5GS, which is
-// what gates the IWK N26 indication (TS 24.301 §5.5.1.2.4, §5.5.3.2.4). A UE
-// that sent a capability too short to carry the bit indicated nothing, which is
-// read as "not supported" — TS 24.301 §9.9.3.34 has the receiver treat absent
-// octets as all-zero.
 func (c UENetworkCapability) SupportsN1Mode() bool {
 	if len(c.Rest) <= n1ModeOctet {
 		return false

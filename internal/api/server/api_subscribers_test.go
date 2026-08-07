@@ -945,8 +945,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected radio_access_type '5G', got %q", session.RadioAccessType)
 		}
 
-		// A subscriber registered on one access lists exactly that one. The list is
-		// what a client reads to see both while a device moves between them.
 		if got := response.Result.Status.RadioAccessTypes; len(got) != 1 || got[0] != "5G" {
 			t.Fatalf("expected radio_access_types [5G], got %v", got)
 		}

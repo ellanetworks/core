@@ -19,7 +19,6 @@ func (sc *SMContext) IsEPS() bool { return sc.Access == Access4G }
 // (and thus the QFI). 5G N3/N9 do; 4G S1-U does not. TS 23.501, TS 38.415.
 func (a AccessType) usesPSC() bool { return a == Access5G }
 
-// String names the access in log fields and error messages.
 func (a AccessType) String() string {
 	if a == Access4G {
 		return "4G"

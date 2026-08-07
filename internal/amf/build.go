@@ -255,12 +255,8 @@ func BuildRegistrationAccept(
 			IMSVoPS3GPP: nfs.ImsVoPS != 0,
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
-			// The indication is PLMN-wide and goes only to a UE that indicated S1
-			// mode, since a UE that cannot reach E-UTRAN has nothing to do with it
-			// (TS 24.501 §5.5.1.2.4). The capability is not a cleartext IE, so this
-			// reads what contextSetup ingested from the complete message.
-			IWKN26: ue.SupportsS1Mode() && models.InterworkingWithoutN26,
-			MPSI:   nfs.Mpsi != 0,
+			IWKN26:      ue.SupportsS1Mode() && models.InterworkingWithoutN26,
+			MPSI:        nfs.Mpsi != 0,
 			// EMCN3 and MCSI are dropped unless octet 4 is asked for.
 			HasOctet4: true,
 			EMCN3:     nfs.EmcN3 != 0,

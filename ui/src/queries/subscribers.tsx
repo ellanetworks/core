@@ -5,8 +5,6 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type SubscriberListStatus = {
   registered?: boolean;
-  // Every access the subscriber is registered on. A device moving between 4G
-  // and 5G holds both while it transfers its sessions one at a time.
   radio_access_types?: string[];
   num_sessions?: number;
   last_seen_at?: string;
@@ -28,8 +26,6 @@ export type ListSubscribersResponse = {
 
 export type SubscriberDetailStatus = {
   registered?: boolean;
-  // Every access the subscriber is registered on. The algorithms and IMEI below
-  // belong to one of them; a dual-registered subscriber reports 5G's.
   radio_access_types?: string[];
   imei?: string;
   ciphering_algorithm?: string;

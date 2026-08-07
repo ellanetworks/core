@@ -13,12 +13,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// A default-bearer EBI (5..15, TS 24.301 §6.1) and a 5G PDU session identity
-// (1..15) can carry the same numeric value, and the anchor holds both
-// namespaces at once (TS 23.501 §5.17.2). An EPS operation names its session by
-// ref, so it cannot resolve the wrong one by numeric coincidence; the session it
-// does resolve still has to be on EPS, or the S1-U endpoint would be bound onto
-// a session the UE is running over NR.
 func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

@@ -97,24 +97,6 @@ func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 	}
 }
 
-// SessionTransferred drops the PDN connection for a session the UE moved to
-// 5GS, without releasing the anchor: the session, its user plane and the UE
-// address all survive on the other access (TS 23.502 §4.11.2.3 step 10). The
-// MME's own release path would otherwise tear down a session the UE is using
-// over N3.
-//
-// ref names the exact session instance, so a report arriving after the UE
-// re-established a PDN connection under the same bearer identity is ignored
-// rather than dropping the live one.
-//
-// §4.11.2.3 step 10 runs the EPS bearer deactivation of TS 23.401 §5.4.4.1
-// except its steps 4-7 — the NAS exchange with the UE, which has left EPS — so
-// the S1 E-RAB release is still in scope: a UE in dual-registration mode stays
-// on E-UTRAN while it moves its sessions one at a time, and the moved bearer's
-// radio resources would otherwise leak at the eNB. An attached UE always holds
-// at least one PDN connection (TS 23.401 §5.10.3), so losing its last one
-// detaches it; leaving it attached with none would hard-fail its next Initial
-// Context Setup and Attach Accept.
 func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, ref string) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
@@ -133,8 +115,6 @@ func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, re
 		zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.Bool("last-pdn", last))
 
 	if last {
-		// The detach takes the whole S1 context, including this bearer's E-RAB, so
-		// no separate release is needed.
 		ue.TransitionTo(EMMDeregistered)
 		m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
 
@@ -146,9 +126,6 @@ func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, re
 		return
 	}
 
-	// No NAS PDU: the UE is not being told its bearer was deactivated — it moved
-	// the session itself and §4.11.2.3 step 10 excludes the NAS exchange — only the
-	// eNB that this E-RAB is over.
 	cmd := &s1ap.ERABReleaseCommand{
 		ERABToBeReleased: []s1ap.ERABItem{{
 			ERABID: s1ap.ERABID(ebi),
@@ -162,9 +139,6 @@ func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, re
 	}
 }
 
-// takePDNByRef removes the PDN connection for ebi only when it still names ref,
-// and reports whether it was the UE's last one. Both under the lock, so the
-// caller's detach decision cannot race a concurrent release.
 func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -183,10 +157,6 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 	return p, len(ue.Pdns) == 0
 }
 
-// UnwindPDN undoes a PDN connection the MME set up but could not deliver to the
-// UE. A connection established with request type "handover" moved a session the
-// UE holds on the other access, and that session must survive: releasing it
-// would tear down one the UE is still using. Anything else is released as usual.
 func (m *MME) UnwindPDN(ctx context.Context, ue *UeContext, p *PdnConnection, moved bool) {
 	if !moved {
 		m.ReleasePDN(ctx, ue, p)

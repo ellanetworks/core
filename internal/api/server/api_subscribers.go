@@ -35,18 +35,10 @@ type UpdateSubscriberParams struct {
 
 // SubscriberStatus is the lightweight status returned by the list endpoint.
 type SubscriberStatus struct {
-	Registered bool `json:"registered"`
-	// RadioAccessTypes is every access the subscriber is currently registered on,
-	// in a stable order. It usually holds one, but a UE moving between 4G and 5G
-	// holds both while it transfers its sessions one at a time — the network
-	// cannot cancel the peer registration while it does (TS 23.501 §5.17.2.3.1).
-	// There is no single "current" access to report: a dual-registered subscriber
-	// is equally on both.
+	Registered       bool     `json:"registered"`
 	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
-	// NumSessions counts the subscriber's sessions across every access it is
-	// registered on.
-	NumSessions int    `json:"num_sessions"`
-	LastSeenAt  string `json:"last_seen_at,omitempty"`
+	NumSessions      int      `json:"num_sessions"`
+	LastSeenAt       string   `json:"last_seen_at,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
@@ -66,19 +58,13 @@ type ListSubscribersResponse struct {
 
 // SubscriberDetailStatus is the rich status returned by the get-single endpoint.
 type SubscriberDetailStatus struct {
-	Registered bool `json:"registered"`
-	// RadioAccessTypes is every access the subscriber is currently registered on;
-	// see SubscriberStatus.RadioAccessTypes.
-	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
-	// The security context and equipment identity below belong to one access. A
-	// dual-registered subscriber has a security context per access; 5G's is
-	// reported, since the accesses derive their keys independently and there is
-	// no combined view to give.
-	Imei               string `json:"imei"`
-	CipheringAlgorithm string `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string `json:"integrity_algorithm"`
-	LastSeenAt         string `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
+	Registered         bool     `json:"registered"`
+	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
+	Imei               string   `json:"imei"`
+	CipheringAlgorithm string   `json:"ciphering_algorithm"`
+	IntegrityAlgorithm string   `json:"integrity_algorithm"`
+	LastSeenAt         string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
@@ -307,9 +293,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				return
 			}
 
-			// A subscriber can hold a 4G and a 5G registration at once while it
-			// moves its sessions between the accesses, so both are read and merged
-			// rather than one being a fallback for the other.
 			amf5G, on5G := amf5GStatus[dbSubscriber.Imsi]
 			mme4G, on4G := mmeStatus[dbSubscriber.Imsi]
 
@@ -327,8 +310,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				}
 			}
 
-			// The fields that can only hold one access's value — the serving radio
-			// and the last-seen time — take 5G's when the subscriber holds both.
 			if on5G {
 				subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "5G")
 				subscriberStatus.NumSessions += amf5G.NumSessions
@@ -416,9 +397,6 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 
 		sessions := make([]Session, 0, len(pduSessions))
 
-		// Both accesses are read and merged: a subscriber can hold a 4G and a 5G
-		// registration at once while it moves its sessions between them. The
-		// sessions themselves are unambiguous — each names the access it runs on.
 		if mmeInstance != nil {
 			if cs, ok := mmeInstance.LookupSubscriber(imsi); ok {
 				subscriberStatus.Registered = true
@@ -438,8 +416,6 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			}
 		}
 
-		// The security context and equipment identity belong to one access, so they
-		// take 5G's when the subscriber holds both.
 		if found {
 			subscriberStatus.Registered = true
 			subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "5G")

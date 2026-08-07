@@ -119,9 +119,6 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	// A move is not an establishment: it precedes the supersede, which is the
-	// first step of establishing a new session and would tear down the very
-	// session the UE is asking to move.
 	if isTransferRequest(requestType) {
 		establishmentResult = metrics.ResultAccept
 
@@ -199,8 +196,6 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		case errors.Is(err, errUEAddressAllocation):
 			cause = fgs.GSMCauseInsufficientResources
 		case errors.Is(err, errSessionIdentity):
-			// The UE named an identity outside the range it may allocate, or one a
-			// live session of its own already holds (TS 24.501 §9.11.4.2 cause #43).
 			cause = fgs.GSMCauseInvalidPDUSessionIdentity
 		}
 

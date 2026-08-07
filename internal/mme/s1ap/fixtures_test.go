@@ -197,8 +197,6 @@ func (fakeBearerStore) GetDataNetworkByID(_ context.Context, id string) (*db.Dat
 	return &db.DataNetwork{Name: "internet"}, nil
 }
 
-// The policy binds the PDN connection to a slice; the MME returns that S-NSSAI
-// to the UE in the PCO so it can move the connection to 5GS.
 func (fakeBearerStore) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
 	sd := "000001"
 	return &db.NetworkSlice{ID: id, Sst: 1, Sd: &sd, Name: "test-slice"}, nil

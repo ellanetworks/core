@@ -483,20 +483,6 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 	return id
 }
 
-// SessionTransferred drops the AMF's routing context for a session the UE moved
-// to EPS, without releasing anything: the anchor session, its user plane and the
-// UE address all survive on the other access (TS 23.502 §4.11.2.2 step 14). The
-// AMF's own release path would otherwise tear down a session the UE is using
-// over S1-U.
-//
-// ref names the exact session instance, so a report that arrives after the UE
-// re-established a new session under the same identity is ignored rather than
-// dropping the live one.
-//
-// n2Transfer, when non-nil, releases the NG-RAN resources the moved session
-// held. It is sent with no N1 container: the UE is not told the session ended —
-// it has not — only the NG-RAN that this one is over. A UE that has left NR
-// entirely has no NG-RAN connection and there is nothing to release.
 func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
 	ctx, span := tracer.Start(
 		ctx,

@@ -163,15 +163,6 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	m.modifyBearer(ctx, ue, ueConn, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
-// dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
-// field alone, so the bearer can be modified in place without reactivation. A
-// malformed stored fingerprint returns false, so the caller falls back to the
-// safe reactivation path. The fingerprint is
-// "ipv4pool|ipv6pool|dns|mtu|snssai" (EpsQoS.DnFingerprint). Only the DNS is
-// carried by a MODIFY EPS BEARER CONTEXT REQUEST: the S-NSSAI reaches the UE in
-// the ACTIVATE DEFAULT message alone (TS 24.501 §6.1.4.2), so a slice change
-// takes the reactivation path too — a UE left holding a stale S-NSSAI would name
-// a slice that resolves no session when it moves to 5GS.
 func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
 	const fields = 5
 
