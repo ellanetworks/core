@@ -39,6 +39,10 @@ type bearerStore interface {
 	GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*db.Policy, error)
 	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
 	GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error)
+	// GetNetworkSliceByID resolves the slice the policy binds the PDN connection
+	// to. EPS does not signal an S-NSSAI, so the network determines one and tells
+	// the UE, which needs it to move the connection to 5GS (TS 23.501 §5.15.7.1).
+	GetNetworkSliceByID(ctx context.Context, id string) (*db.NetworkSlice, error)
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	// NodeID is the cluster node identity, used to make each HA node's MME Code
 	// (and hence its GUMMEI) distinct.

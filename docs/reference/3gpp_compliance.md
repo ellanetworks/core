@@ -32,6 +32,13 @@ Ella Core is a single binary and does not expose internal 3GPP interfaces. See [
 - **Service request.** An idle UE returns to connected mode to resume its session.
 - **Paging.** Ella Core pages an idle UE when downlink data arrives for it.
 - **Handover.** 4G: S1 handover, and X2 handover via the Path Switch procedure. 5G: Xn handover, and N2 handover between radios served by Ella Core.
+- **4G/5G interworking.** A device that moves between 4G and 5G keeps its IP address and its data session: Ella Core anchors both accesses on the same user plane, so the session changes access rather than being torn down and rebuilt.
+
+    !!! note
+
+        Session continuity depends on the device. It requires a device that supports both S1 and N1 mode in single-registration mode, and that re-requests its existing session on the target access — with request type `handover` on 4G, or `existing PDU session` on 5G. A device that performs a plain tracking area update instead gets a new session with a new address; the network advertises that it supports interworking, but cannot force the device to choose that path (TS 23.501 §5.17.2.3.2).
+
+        A device is briefly registered on both accesses while it moves its sessions, one at a time. That is expected: 3GPP requires the network not to cancel the peer registration during the move. The subscriber's `radio_access_types` reports every access it currently holds.
 
 ### Sessions
 
@@ -57,3 +64,4 @@ Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. See the [Location 
 - **No voice.** Ella Core provides no IMS, VoLTE, or VoNR.
 - **No emergency services.** Emergency sessions and emergency service requests are rejected.
 - **No roaming.** Ella Core is a self-contained core for a single network; there is no S6a, S8, or inter-operator interface.
+- **No N26 interface.** Moving between 4G and 5G is a re-registration on the target access, not a connected-mode handover, so there is a service gap of a few seconds. The IP address and the data session survive it — see 4G/5G interworking above.

@@ -427,17 +427,42 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 //
 // The caller holds smContext.Mutex.
 func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
+	qers, restore, err := stageSessionQERs(smContext, qfi, ambrUplink, ambrDownlink)
+	if err != nil {
+		return err
+	}
+
+	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
+		smContext.PFCPContext.SEID,
+		policyID,
+		nil, nil, qers,
+	)); err != nil {
+		restore()
+
+		return fmt.Errorf("failed to modify PFCP session: %w", err)
+	}
+
+	return nil
+}
+
+// stageSessionQERs writes the QFI and AMBR-derived MBR onto the session's QER
+// and returns it for the caller's own statement to the UPF, together with the
+// undo the caller runs if the UPF refuses it — so the cached rules never run
+// ahead of the data plane. Splitting the staging from the send lets a transfer
+// carry the target access's QoS in the bind it was already making.
+// Caller holds smContext.Mutex.
+func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink models.BitRate) ([]*QER, func(), error) {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
-		return fmt.Errorf("PFCP session not established")
+		return nil, nil, fmt.Errorf("PFCP session not established")
 	}
 
 	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
-		return fmt.Errorf("data path not available")
+		return nil, nil, fmt.Errorf("data path not available")
 	}
 
 	qer := smContext.Tunnel.QER
 	if qer == nil {
-		return fmt.Errorf("no QER to update")
+		return nil, nil, fmt.Errorf("no QER to update")
 	}
 
 	prevMBR, prevQFI := qer.MBR, qer.QFI
@@ -448,17 +473,7 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 		DLMBR: ambrDownlink.Kbps(),
 	}
 
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		policyID,
-		nil, nil, []*QER{qer},
-	)); err != nil {
-		qer.MBR, qer.QFI = prevMBR, prevQFI
-
-		return fmt.Errorf("failed to modify PFCP session: %w", err)
-	}
-
-	return nil
+	return []*QER{qer}, func() { qer.MBR, qer.QFI = prevMBR, prevQFI }, nil
 }
 
 // framedRoutesChanged reports whether the subscriber's currently provisioned

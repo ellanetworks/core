@@ -37,7 +37,7 @@ func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 
 // CreateSmContext establishes a new 5G PDU session from the UE's NAS
 // establishment request, returning the SM context ref or a NAS reject message.
-func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
+func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -119,7 +119,21 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	if existing := s.currentSession(supi, Access5G, pduSessionID); existing != nil {
+	// A move is not an establishment: it precedes the supersede, which is the
+	// first step of establishing a new session and would tear down the very
+	// session the UE is asking to move.
+	if isTransferRequest(requestType) {
+		establishmentResult = metrics.ResultAccept
+
+		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, req, uint8(reqPTI))
+		if err != nil {
+			establishmentResult = metrics.ResultReject
+		}
+
+		return ref, rsp, err
+	}
+
+	if existing := s.currentPDUSession(supi, pduSessionID); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
@@ -165,13 +179,13 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	}
 
 	sc, _, err := s.establishSession(ctx, SessionRequest{
-		Supi:    supi,
-		Key:     pduSessionID,
-		Dnn:     dnn,
-		Snssai:  snssai,
-		Access:  Access5G,
-		PDUType: negotiatedType,
-		Policy:  policy,
+		Supi:     supi,
+		Identity: SessionIdentity{PDUSessionID: pduSessionID},
+		Dnn:      dnn,
+		Snssai:   snssai,
+		Access:   Access5G,
+		PDUType:  negotiatedType,
+		Policy:   policy,
 	})
 	if err != nil {
 		establishmentResult = metrics.ResultReject
@@ -180,8 +194,14 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		span.SetStatus(codes.Error, "failed to create SM context")
 
 		cause := fgs.GSMCauseRequestRejectedUnspecified
-		if errors.Is(err, errUEAddressAllocation) {
+
+		switch {
+		case errors.Is(err, errUEAddressAllocation):
 			cause = fgs.GSMCauseInsufficientResources
+		case errors.Is(err, errSessionIdentity):
+			// The UE named an identity outside the range it may allocate, or one a
+			// live session of its own already holds (TS 24.501 §9.11.4.2 cause #43).
+			cause = fgs.GSMCauseInvalidPDUSessionIdentity
 		}
 
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, cause)

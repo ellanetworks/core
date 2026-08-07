@@ -5,10 +5,23 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type SubscriberListStatus = {
   registered?: boolean;
-  radio_access_type?: string; // "4G" | "5G", per the live connection
+  // The primary access; a subscriber registered on both reports "5G".
+  radio_access_type?: string; // "4G" | "5G"
+  // Every access the subscriber is registered on. A device moving between 4G
+  // and 5G holds both while it transfers its sessions one at a time.
+  radio_access_types?: string[];
   num_sessions?: number;
   last_seen_at?: string;
 };
+
+// accessTypesOf lists every access a subscriber is registered on, falling back
+// to the single primary value for a core that predates radio_access_types.
+export function accessTypesOf(
+  status?: { radio_access_type?: string; radio_access_types?: string[] } | null,
+): string[] {
+  if (status?.radio_access_types?.length) return status.radio_access_types;
+  return status?.radio_access_type ? [status.radio_access_type] : [];
+}
 
 export type APISubscriberSummary = {
   imsi: string;
@@ -26,7 +39,9 @@ export type ListSubscribersResponse = {
 
 export type SubscriberDetailStatus = {
   registered?: boolean;
-  radio_access_type?: string; // "4G" | "5G", per the live connection
+  // The primary access; the algorithms and IMEI below are that access's.
+  radio_access_type?: string; // "4G" | "5G"
+  radio_access_types?: string[];
   imei?: string;
   ciphering_algorithm?: string;
   integrity_algorithm?: string;

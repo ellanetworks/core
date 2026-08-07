@@ -33,10 +33,15 @@ type DeleteSubscriberOptions struct {
 
 // SubscriberStatus is the lightweight status carried in list responses.
 type SubscriberStatus struct {
-	Registered      bool   `json:"registered"`
-	RadioAccessType string `json:"radio_access_type,omitempty"`
-	NumSessions     int    `json:"num_sessions"`
-	LastSeenAt      string `json:"last_seen_at,omitempty"`
+	Registered bool `json:"registered"`
+	// RadioAccessType is the primary access, "4G" or "5G"; a subscriber
+	// registered on both reports 5G. RadioAccessTypes lists every access it
+	// holds — a device moving between 4G and 5G holds both while it transfers
+	// its sessions one at a time.
+	RadioAccessType  string   `json:"radio_access_type,omitempty"`
+	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
+	NumSessions      int      `json:"num_sessions"`
+	LastSeenAt       string   `json:"last_seen_at,omitempty"`
 }
 
 // Subscriber is the summary form returned by ListSubscribers.
@@ -62,13 +67,16 @@ type ListSubscribersResponse struct {
 
 // SubscriberDetailStatus is the rich status carried in GetSubscriber responses.
 type SubscriberDetailStatus struct {
-	Registered         bool   `json:"registered"`
-	RadioAccessType    string `json:"radio_access_type,omitempty"`
-	Imei               string `json:"imei"`
-	CipheringAlgorithm string `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string `json:"integrity_algorithm"`
-	LastSeenAt         string `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
+	Registered bool `json:"registered"`
+	// RadioAccessType is the primary access; the algorithms and IMEI below are
+	// that access's. RadioAccessTypes lists every access the subscriber holds.
+	RadioAccessType    string   `json:"radio_access_type,omitempty"`
+	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
+	Imei               string   `json:"imei"`
+	CipheringAlgorithm string   `json:"ciphering_algorithm"`
+	IntegrityAlgorithm string   `json:"integrity_algorithm"`
+	LastSeenAt         string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
 // SubscriberDetail is the full form returned by GetSubscriber.

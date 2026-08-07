@@ -76,6 +76,14 @@ type PdnConnection struct {
 	UeIPv6IID    [8]byte    // SLAAC interface identifier sent to the UE
 	Dns          netip.Addr // data-network DNS server, advertised to the UE via PCO
 	DnConfig     string     // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
+	// PDUSessionID is the 5GS PDU session identity the anchor holds this
+	// connection under, 0 when it holds none. Only a connection that has one can
+	// be moved to 5GS (TS 23.501 §5.17.2.1).
+	PDUSessionID uint8
+	// Snssai is the slice the anchor holds the session on, taken from the anchor
+	// rather than from the policy so the UE is told the value that will resolve
+	// the session when it moves it to 5GS. Nil when the anchor holds none.
+	Snssai *models.Snssai
 	// SessAmbrDLBps/ULBps are the per-APN Session-AMBR (bits/s), and qci/arp the
 	// E-RAB QoS (QCI, ARP priority), the bearer was set up with; a policy change
 	// triggers an in-place Modify EPS Bearer Context (QoS also an E-RAB Modify).
@@ -178,6 +186,16 @@ type UeContext struct {
 	Ambr             *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	RequestedPDNType uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
 	RequestedAPN     string       // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
+	// RequestedPDUSessionID is the 5GS PDU session identity the UE allocated for
+	// the PDN connection and sent in the PCO (TS 23.501 §5.17.2.1); 0 when it sent
+	// none, on which the connection cannot later move to 5GS. It arrives in the
+	// PDN CONNECTIVITY REQUEST or, for a UE that defers, in the ESM INFORMATION
+	// RESPONSE, whose containers replace the request's (TS 24.301 §6.6.1.2.4).
+	RequestedPDUSessionID uint8
+	// RequestedType is the UE's request type (TS 24.301 §9.9.4.14). "Handover"
+	// asks the anchor to move a PDU session the UE holds in 5GS onto EPS, keeping
+	// its address; "initial request" establishes a new connection.
+	RequestedType eps.RequestType
 
 	// tmsi is the M-TMSI of the GUTI assigned at attach (InvalidTMSI = none); it
 	// indexes the UE for S-TMSI-addressed procedures (Service Request, paging).
@@ -470,6 +488,11 @@ func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 	p.EsmCause = bearer.ESMCause
 	p.SgwFTEID = bearer.SGW
 	p.SgwN3IPv6 = bearer.SGWN3IPv6
+	// Both come from the anchor, not from the request or the policy: the anchor
+	// decides which identity it kept, and its S-NSSAI is the one that will resolve
+	// the session when the UE moves it to 5GS.
+	p.PDUSessionID = bearer.PDUSessionID
+	p.Snssai = bearer.Snssai
 }
 
 // InstallDefaultBearer publishes the UE-AMBR and the default PDN connection's

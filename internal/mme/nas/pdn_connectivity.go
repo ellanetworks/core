@@ -60,6 +60,19 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		apn = string(*req.AccessPointName)
 	}
 
+	// A request type this network does not serve is refused rather than served as
+	// an ordinary connection (TS 24.301 §6.5.1.6).
+	if cause, refused := requestTypeRefusal(req.RequestType); refused {
+		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: request type not served",
+			zap.String("imsi", ue.IMSI()), zap.Stringer("request-type", req.RequestType))
+		rejectPDNConnectivity(ctx, ueConn, uint8(pti), cause)
+
+		return nasreply.Handled()
+	}
+
+	ue.RequestedPDUSessionID = pduSessionIDFromPCO(req.ProtocolConfigurationOptions)
+	ue.RequestedType = req.RequestType
+
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
 		ue.RequestedAPN = apn
 		ue.AwaitESMInformation(uint8(pti), &mme.PendingPDNConnectivity{
@@ -134,6 +147,8 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: p.Ebi,
+		PDUSessionID:      ue.RequestedPDUSessionID,
+		Snssai:            qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
 		AMBRUplink:        qos.SessAmbrUL,
@@ -143,22 +158,35 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		DNS:               qos.DNS,
 		MTU:               qos.MTU,
 		RequestedPDNType:  uint8(pdnType),
+		RequestType:       ue.RequestedType,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: session setup failed",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Error(err))
 		m.DropPDN(ue, p.Ebi)
-		rejectPDNConnectivity(ctx, ueConn, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
+		rejectPDNConnectivity(ctx, ueConn, uint8(pti), attachBearerRejectCause(ue.RequestedType, err))
 
 		return nasreply.Handled()
 	}
 
 	m.FillBearer(ue, p, qos, bearer)
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(pti))
+	// A connection the anchor moved rather than established keeps its session on
+	// the other access if anything below fails.
+	moved := ue.RequestedType == eps.RequestTypeHandover
+
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the serving PLMN", zap.Error(err))
+		m.UnwindPDN(ctx, ue, p, moved)
+
+		return nasreply.Handled()
+	}
+
+	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), plmn)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
-		m.ReleasePDN(ctx, ue, p)
+		m.UnwindPDN(ctx, ue, p, moved)
 
 		return nasreply.Handled()
 	}
@@ -166,7 +194,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	naspdu, err := ue.ProtectDownlink(esm, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
 		mme.ReportProtectFailure(ctx, ueConn, "Activate Default EPS Bearer Context Request", err)
-		m.ReleasePDN(ctx, ue, p)
+		m.UnwindPDN(ctx, ue, p, moved)
 
 		return nasreply.Handled()
 	}

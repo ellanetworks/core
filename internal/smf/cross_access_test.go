@@ -10,18 +10,21 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// A default-bearer EBI (5..15, TS 24.007 §11.2.3.1b) and a 5G PDU session id
-// (1..15) can carry the same numeric value; sessions and leases are keyed in
-// the converged id space (TS 29.571 core-allocated range for 4G), so an EPS
-// operation must never resolve a 5G session.
+// A default-bearer EBI (5..15, TS 24.301 §6.1) and a 5G PDU session identity
+// (1..15) can carry the same numeric value, and the anchor holds both
+// namespaces at once (TS 23.501 §5.17.2). An EPS operation names its session by
+// ref, so it cannot resolve the wrong one by numeric coincidence; the session it
+// does resolve still has to be on EPS, or the S1-U endpoint would be bound onto
+// a session the UE is running over NR.
 func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest())
+	ref, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -36,8 +39,8 @@ func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 
-	if err := s.ModifyEPSSession(ctx, testIMSI, 5, enb); err == nil {
-		t.Error("ModifyEPSSession(ebi=5) = nil, want error: the only session with id 5 was established over 5G")
+	if err := s.ModifyEPSSession(ctx, ref, enb); err == nil {
+		t.Error("ModifyEPSSession on a 5G session = nil, want error: the session was established over 5G")
 	}
 
 	sc := s.GetSession(ref)
@@ -67,7 +70,7 @@ func TestCreateEPSSessionKeeps5GSessionWithSameID(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest())
+	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -104,7 +107,7 @@ func TestCreateSmContextKeepsEPSSessionWithSameID(t *testing.T) {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest())
+	ref5g, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest())
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -130,7 +133,7 @@ func TestLeaseKeysDistinctAcrossAccesses(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, buildPDUSessionEstRequest()); err != nil {
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 5, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest()); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 

@@ -208,6 +208,24 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
+	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data, span)
+	if err != nil {
+		return err
+	}
+
+	// The access the session left is told outside the session lock: its callbacks
+	// re-enter the SMF.
+	s.dropSourceRouting(ctx, smContext.Ref, dropped)
+
+	return nil
+}
+
+// bindNGRANDownlink points the session's downlink at the gNB the N2 response
+// names and states the result to the UPF. When the session is moving to 5GS,
+// this bind is the move's commit — TS 23.502 §4.3.2.2.1 step 16a NOTE 11
+// switches the user plane at exactly this point — so it also carries the target
+// access's QoS, and returns the access to stop routing the session.
+func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Data []byte, span trace.Span) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
@@ -215,7 +233,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		span.RecordError(fmt.Errorf("session already released"))
 		span.SetStatus(codes.Error, "session already released")
 
-		return fmt.Errorf("session already released")
+		return nil, fmt.Errorf("session already released")
 	}
 
 	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
@@ -223,32 +241,57 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle N2 message")
 
-		return fmt.Errorf("error handling N2 message: %v", err)
+		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
 	if smContext.PFCPContext == nil {
 		span.RecordError(fmt.Errorf("pfcp session context not found"))
 		span.SetStatus(codes.Error, "pfcp session context not found")
 
-		return fmt.Errorf("pfcp session context not found")
+		return nil, fmt.Errorf("pfcp session context not found")
+	}
+
+	commit, err := s.beginTransferCommit(ctx, smContext, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to move the session to 5GS")
+
+		return nil, fmt.Errorf("failed to move the session to 5GS: %w", err)
+	}
+
+	var qers []*QER
+
+	policyID := ""
+
+	if commit != nil {
+		qers = commit.qers
+		policyID = commit.policy.PolicyID
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
 		smContext.PFCPContext.SEID,
-		"",
-		pdrList, farList, nil,
+		policyID,
+		pdrList, farList, qers,
 	)); err != nil {
+		if commit != nil {
+			commit.restore()
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to modify PFCP session")
 
-		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-	return nil
+	if commit == nil {
+		return nil, nil
+	}
+
+	return smContext.finishTransferCommit(commit), nil
 }
 
 func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smContext *SMContext) ([]*PDR, []*FAR, error) {

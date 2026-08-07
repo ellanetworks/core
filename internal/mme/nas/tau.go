@@ -235,7 +235,7 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		TAIList:         &taiList,
 		// Re-advertise IMS voice over PS session so the indication is not lost on a
 		// periodic TAU (TS 24.301), consistent with the Attach Accept.
-		NetworkFeatureSupport: m.NetworkFeatureSupport(),
+		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap().SupportsN1Mode()),
 	}
 
 	if opts.combined {

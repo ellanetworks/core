@@ -128,7 +128,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 	)
 
 	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
-		ipv4, err := dn.AllocateIP(ctx, imsi, sc.keyID())
+		ipv4, err := dn.AllocateIP(ctx, imsi, sc.sessionKey())
 		if err != nil {
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv4: %w", err)
 		}
@@ -139,7 +139,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 	}
 
 	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv6 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
-		ipv6Prefix, err := dn.AllocateIPv6(ctx, imsi, sc.keyID())
+		ipv6Prefix, err := dn.AllocateIPv6(ctx, imsi, sc.sessionKey())
 		if err != nil {
 			s.releaseAllocatedAddresses(ctx, dn, sc)
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv6 prefix: %w", err)
@@ -169,7 +169,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 // clears them, so a later rollback does not double-release.
 func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smContext *SMContext) {
 	if smContext.PDUIPV4Address != nil {
-		if _, err := dn.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.keyID()); err != nil {
+		if _, err := dn.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.sessionKey()); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
 		}
 
@@ -177,7 +177,7 @@ func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smCont
 	}
 
 	if smContext.PDUIPV6Prefix != nil {
-		if _, err := dn.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.keyID()); err != nil {
+		if _, err := dn.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.sessionKey()); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
 		}
 

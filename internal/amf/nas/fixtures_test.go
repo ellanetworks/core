@@ -248,6 +248,7 @@ type SmfCreateSmContextCall struct {
 	PduSessionID uint8
 	Dnn          string
 	Snssai       *models.Snssai
+	RequestType  fgs.RequestType
 	N1Msg        []byte
 }
 
@@ -315,12 +316,13 @@ func (s *fakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string,
 	return s.UpdateN1MsgResponse, s.UpdateN1MsgError
 }
 
-func (s *fakeSmf) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
+func (s *fakeSmf) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error) {
 	s.CreateSmContextCalls = append(s.CreateSmContextCalls, SmfCreateSmContextCall{
 		Supi:         supi,
 		PduSessionID: pduSessionID,
 		Dnn:          dnn,
 		Snssai:       snssai,
+		RequestType:  requestType,
 		N1Msg:        n1Msg,
 	})
 

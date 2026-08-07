@@ -3799,10 +3799,24 @@ components:
         radio_access_type:
           type: string
           enum: ["4G", "5G"]
-          description: Radio access technology of the live connection. Omitted if not connected.
+          description: >-
+            Primary radio access technology of the live connection. Omitted if not
+            connected. A subscriber registered on both accesses reports 5G here;
+            see radio_access_types.
+        radio_access_types:
+          type: array
+          items:
+            type: string
+            enum: ["4G", "5G"]
+          description: >-
+            Every access the subscriber is currently registered on. Usually one,
+            but a device moving between 4G and 5G holds both while it transfers
+            its sessions one at a time.
         num_sessions:
           type: integer
-          description: Number of active sessions (5G PDU sessions / 4G PDN connections) for this subscriber.
+          description: >-
+            Number of active sessions (5G PDU sessions / 4G PDN connections) for
+            this subscriber, across every access it is registered on.
         last_seen_at:
           type: string
           format: date-time
@@ -3854,7 +3868,16 @@ components:
         radio_access_type:
           type: string
           enum: ["4G", "5G"]
-          description: Radio access technology of the live connection. Omitted if not connected.
+          description: >-
+            Primary radio access technology of the live connection. Omitted if not
+            connected. A subscriber registered on both accesses reports 5G here,
+            and the security algorithms and IMEI below are that access's.
+        radio_access_types:
+          type: array
+          items:
+            type: string
+            enum: ["4G", "5G"]
+          description: Every access the subscriber is currently registered on.
         imei:
           type: string
           description: IMEI of the connected device.

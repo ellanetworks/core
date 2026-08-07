@@ -134,20 +134,26 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	requestType := ulNasTransport.RequestType
 
-	if requestType != nil {
-		switch *requestType {
-		case fgs.RequestTypeInitialEmergencyRequest,
-			fgs.RequestTypeExistingEmergencyPDUSession:
-			logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
-			sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
+	// Ella Core serves no emergency sessions, so an initial emergency request is
+	// refused here. "Existing emergency PDU session" is not refused here: it names
+	// a session, and TS 24.501 §6.4.1.7 d) has the SMF answer with 5GSM #54 —
+	// "PDU session does not exist" — which is both true and what makes the UE
+	// establish rather than retry. Answering 5GMM #90 instead would tell it the
+	// payload was not forwarded, which is a protocol error the UE cannot act on.
+	if requestType != nil && *requestType == fgs.RequestTypeInitialEmergencyRequest {
+		logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
+		sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
 
-			return
-		}
+		return
 	}
 
 	if ulNasTransport.SNSSAI != nil && requestType != nil {
 		switch *requestType {
-		case fgs.RequestTypeInitialRequest, fgs.RequestTypeModificationRequest:
+		case fgs.RequestTypeInitialRequest, fgs.RequestTypeModificationRequest,
+			// A UE moving a session from EPC sends the S-NSSAI it learned in the PCO
+			// (TS 24.501 §6.4.1.2 c)2). It has to be one this AMF serves, or the
+			// session cannot run here (TS 24.501 §5.4.5.2.3).
+			fgs.RequestTypeExistingPDUSession:
 			if snssai := util.SnssaiToModels(*ulNasTransport.SNSSAI); !ue.IsAllowedNssai(snssai) {
 				logger.From(ctx, logger.AmfLog).Warn("requested S-NSSAI is not in the allowed NSSAI",
 					zap.Any("snssai", snssai), logger.PDUSessionID(uint8(pduSessionID)))
@@ -188,7 +194,14 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return
 	}
 
-	if isInitialRequest {
+	// A request naming a session this AMF has no routing context for reaches the
+	// SMF anyway when it is one the SMF can answer: an initial request
+	// establishes, and an "existing PDU session" is a UE moving a session it holds
+	// in EPC (TS 23.502 §4.11.2.3). The AMF holds no context for that session —
+	// the MME did — so answering 5GMM #90 out of hand would deny the move; the
+	// SMF resolves it against the anchor and answers 5GSM #54 if it holds none
+	// (TS 24.501 §5.4.5.2.3 a)1)iv), §6.4.1.7 d).
+	if isInitialRequest || requestTypeReachesSMF(requestType) {
 		establishPDUSession(ctx, amfInstance, ue, ueConn, ulNasTransport, uint8(pduSessionID), smMessage)
 		return
 	}
@@ -256,7 +269,16 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn = dnnResp
 	}
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, smMessage)
+	// The request type reaches the SMF because it decides what the request means:
+	// "initial request" establishes a session, "existing PDU session" moves one the
+	// UE holds in EPC (TS 23.502 §4.11.2.3). Absent, it defaults to an initial
+	// request, which is what a UE omitting the IE means (TS 24.501 §9.11.3.47).
+	requestType := fgs.RequestTypeInitialRequest
+	if ulNasTransport.RequestType != nil {
+		requestType = *ulNasTransport.RequestType
+	}
+
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).
@@ -342,4 +364,16 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	return nasreply.Handled()
+}
+
+// requestTypeReachesSMF reports whether a request naming a PDU session this AMF
+// has no routing context for should still reach the SMF. Both "existing" types
+// name a session the anchor may hold on the other access, and the SMF is what
+// can tell (TS 24.501 §6.4.1.7 d).
+func requestTypeReachesSMF(t *fgs.RequestType) bool {
+	if t == nil {
+		return false
+	}
+
+	return *t == fgs.RequestTypeExistingPDUSession || *t == fgs.RequestTypeExistingEmergencyPDUSession
 }

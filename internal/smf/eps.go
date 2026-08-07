@@ -17,10 +17,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// The SMF (combined PGW-C, TS 23.501) keys each 4G PDN connection by its
-// default bearer's EPS bearer identity (5..15) as the PDU session id. A
-// subscriber is never on 4G and 5G at once, so the EBI cannot collide with a
-// live 5G PDU session id.
+// The SMF is the combined PGW-C (TS 23.501), so a 4G PDN connection and a 5G
+// PDU session are the same anchored session under two identities. Established
+// connections are addressed by Ref, which the MME holds on the PDN connection:
+// an identity lookup would resolve whichever session is current for the slot,
+// and the operations below act on one specific instance.
 
 // validateEPSBearerRequest rejects inputs the data path would otherwise accept
 // and degrade: a zero AMBR programs a zero-rate QER, and a non-IP DNS drops the
@@ -83,6 +84,14 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		MTU:      req.MTU,
 	}
 
+	// A move is not an establishment: the anchored session, its address and its
+	// user plane already exist, and only the access changes (TS 23.502 §4.11.2.2).
+	// It precedes the supersede and the type negotiation below, both of which
+	// belong to establishing a new connection.
+	if req.RequestType == eps.RequestTypeHandover {
+		return s.transferToEPS(ctx, supi, req, policy)
+	}
+
 	pdnType, err := s.negotiatePDUSessionType(ctx, req.RequestedPDNType, policy)
 	if err != nil {
 		return models.EPSBearer{}, fmt.Errorf("negotiate PDN type: %w", err)
@@ -90,17 +99,22 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	// Must precede establishSession: the superseded context's release frees the address by
 	// (imsi, dnn, ebi), which the new session would already hold (TS 24.301 §5.5.1.2.4 case f).
-	if existing := s.currentSession(supi, Access4G, req.EPSBearerIdentity); existing != nil {
+	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing)
 	}
 
 	sc, addrs, err := s.establishSession(ctx, SessionRequest{
-		Supi:    supi,
-		Key:     req.EPSBearerIdentity,
-		Dnn:     req.APN,
-		Access:  Access4G,
-		PDUType: pdnType,
-		Policy:  policy,
+		Supi: supi,
+		// The UE allocates the PDU session identity and the MME the EPS bearer
+		// identity, so the session is created holding both (TS 23.501 §5.17.2.1).
+		// A UE-allocated identity a live session of the same UE already holds is
+		// dropped by NewSession rather than failing the connection.
+		Identity: SessionIdentity{PDUSessionID: req.PDUSessionID, EBI: req.EPSBearerIdentity},
+		Dnn:      req.APN,
+		Snssai:   req.Snssai,
+		Access:   Access4G,
+		PDUType:  pdnType,
+		Policy:   policy,
 	})
 	if err != nil {
 		return models.EPSBearer{}, err
@@ -118,6 +132,11 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		IPv4:       addrs.IPv4,
 		IPv6Prefix: addrs.IPv6Prefix,
 		IPv6IID:    addrs.IPv6IID,
+		// What the anchor kept, not what the request asked for: a UE-allocated
+		// identity already held by one of the UE's live sessions is dropped, and
+		// the MME must not then tell the UE the connection carries it.
+		PDUSessionID: sc.PDUSessionID,
+		Snssai:       sc.Snssai,
 	}
 
 	// When the UE asked for IPv4v6 but the data network offers a single family,
@@ -141,30 +160,57 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 // ModifyEPSSession sets the established session's downlink endpoint to the eNB
 // S1-U F-TEID, so the UPF encapsulates downlink traffic toward the eNB
 // (PSC-less GTP-U on S1-U).
-func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error {
+func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID) error {
 	ctx, span := tracer.Start(ctx, "smf/modify_eps_session",
-		trace.WithAttributes(
-			attribute.String("ue.imsi", imsi),
-			attribute.Int("eps.bearer_id", int(ebi)),
-		),
+		trace.WithAttributes(attribute.String("smf.session_ref", ref)),
 	)
 	defer span.End()
 
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
-	}
-
-	smContext := s.currentSession(supi, Access4G, ebi)
+	smContext := s.GetSession(ref)
 	if smContext == nil {
-		return fmt.Errorf("no EPS session for %s", imsi)
+		return fmt.Errorf("no EPS session %q", ref)
 	}
 
+	dropped, err := s.bindEPSDownlink(ctx, smContext, enb)
+	if err != nil {
+		return err
+	}
+
+	// The access the session left is told outside the session lock: its callbacks
+	// re-enter the SMF.
+	s.dropSourceRouting(ctx, smContext.Ref, dropped)
+
+	return nil
+}
+
+// bindEPSDownlink points the session's downlink at the eNB S1-U endpoint and
+// states the result to the UPF. When the session is moving to EPS, this bind is
+// the move's commit — TS 23.401 §5.10.2 step 13a prompts the PDN GW to start
+// routing to the new endpoint at exactly this point — so it also carries the
+// target access's QoS, and returns the access to stop routing the session.
+func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb models.FTEID) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	commit, err := s.beginTransferCommit(ctx, smContext, Access4G)
+	if err != nil {
+		return nil, fmt.Errorf("failed to move the session to EPS: %w", err)
+	}
+
+	// An eNB S1-U endpoint on a session the UE is running over NR would send its
+	// downlink to a RAN it is not camped on, and clear the PDU Session Container
+	// the N3 tunnel needs. A move puts the session on EPS above, so what this
+	// catches is an MME holding a ref for a session the UE has since moved off.
+	if smContext.Access != Access4G {
+		return nil, fmt.Errorf("session %q is on %s, not EPS", smContext.Ref, smContext.Access)
+	}
+
 	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
-		return fmt.Errorf("EPS session for %s is not activated", imsi)
+		if commit != nil {
+			commit.restore()
+		}
+
+		return nil, fmt.Errorf("EPS session %q is not activated", smContext.Ref)
 	}
 
 	dl := smContext.Tunnel.DownlinkPDR
@@ -172,7 +218,8 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 	dl.FAR.ApplyAction = models.ApplyAction{Forw: true}
 
 	// bindAccessTunnel aligns the uplink OuterHeaderRemoval, which defaults to IPv4
-	// at session creation, to the eNB's address family.
+	// at session creation, to the eNB's address family, and marks the downlink S1-U
+	// so the GTP-U carries no PDU Session Container.
 	enbIP := net.IP(enb.Addr.AsSlice())
 
 	an := AnchorBinding{TEID: enb.TEID}
@@ -184,9 +231,18 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 
 	smContext.bindAccessTunnel(an)
 
-	var policyID string
+	var (
+		policyID string
+		qers     []*QER
+	)
+
 	if smContext.PolicyData != nil {
 		policyID = smContext.PolicyData.PolicyID
+	}
+
+	if commit != nil {
+		policyID = commit.policy.PolicyID
+		qers = commit.qers
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
@@ -194,38 +250,38 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 		policyID,
 		[]*PDR{dl, ul},
 		[]*FAR{dl.FAR},
-		nil,
+		qers,
 	)); err != nil {
-		return err
+		if commit != nil {
+			commit.restore()
+		}
+
+		return nil, err
 	}
 
 	// Register the IPv6 session so the UPF's RA responder answers the UE's Router
 	// Solicitation with the /64 prefix. No-op for an IPv4-only bearer.
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
-	return nil
+	if commit == nil {
+		return nil, nil
+	}
+
+	return smContext.finishTransferCommit(commit), nil
 }
 
 // UpdateEPSSessionAMBR updates an established session's Session-AMBR in the UPF
 // QER so the data plane enforces the new per-session rate limit. The AMBR is
 // given in the "<n> <unit>" form used at session creation.
-func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink models.BitRate) error {
+func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error {
 	ctx, span := tracer.Start(ctx, "smf/update_eps_session_ambr",
-		trace.WithAttributes(
-			attribute.String("ue.imsi", imsi),
-			attribute.Int("eps.bearer_id", int(ebi)),
-		),
+		trace.WithAttributes(attribute.String("smf.session_ref", ref)),
 	)
 	defer span.End()
 
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
-	}
-
-	smContext := s.currentSession(supi, Access4G, ebi)
+	smContext := s.GetSession(ref)
 	if smContext == nil {
-		return fmt.Errorf("no EPS session for %s", imsi)
+		return fmt.Errorf("no EPS session %q", ref)
 	}
 
 	smContext.Mutex.Lock()
@@ -242,7 +298,7 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, 
 	}
 
 	if err := s.applySessionQERs(ctx, smContext, policyID, qfi, ambrUplink, ambrDownlink); err != nil {
-		return fmt.Errorf("update Session-AMBR for %s: %w", imsi, err)
+		return fmt.Errorf("update Session-AMBR for %q: %w", ref, err)
 	}
 
 	// Cache the new rate only after the data plane has accepted it.
@@ -263,36 +319,24 @@ func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
 }
 
 // FramedRoutesChanged reports whether the subscriber's provisioned framed routes
-// for the EPS session (imsi, ebi) differ from those installed at establishment.
-// The MME reconciler reactivates the bearer on a change (TS 23.501 §5.6.14). An
-// unknown session reports no change.
-func (s *SMF) FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (bool, error) {
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return false, fmt.Errorf("invalid imsi %q: %w", imsi, err)
-	}
-
-	smContext := s.currentSession(supi, Access4G, ebi)
-	if smContext == nil {
-		return false, nil
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	return s.framedRoutesChanged(ctx, smContext)
+// for the EPS session differ from those installed at establishment. The MME
+// reconciler reactivates the bearer on a change (TS 23.501 §5.6.14). An unknown
+// session reports no change.
+func (s *SMF) FramedRoutesChanged(ctx context.Context, ref string) (bool, error) {
+	return s.epsSubscriptionChanged(ctx, ref, s.framedRoutesChanged)
 }
 
 // StaticIPChanged reports whether the subscriber's reserved static IP for the
-// EPS session (imsi, ebi) changed since establishment; an unknown session
-// reports no change.
-func (s *SMF) StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool, error) {
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return false, fmt.Errorf("invalid imsi %q: %w", imsi, err)
-	}
+// EPS session changed since establishment; an unknown session reports no change.
+func (s *SMF) StaticIPChanged(ctx context.Context, ref string) (bool, error) {
+	return s.epsSubscriptionChanged(ctx, ref, s.staticIPChanged)
+}
 
-	smContext := s.currentSession(supi, Access4G, ebi)
+// epsSubscriptionChanged runs one subscription-drift check under the session
+// lock. A session the SMF no longer holds reports no change: the MME's reconcile
+// is periodic, so a release racing it must not surface as an error.
+func (s *SMF) epsSubscriptionChanged(ctx context.Context, ref string, changed func(context.Context, *SMContext) (bool, error)) (bool, error) {
+	smContext := s.GetSession(ref)
 	if smContext == nil {
 		return false, nil
 	}
@@ -300,22 +344,12 @@ func (s *SMF) StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	return s.staticIPChanged(ctx, smContext)
+	return changed(ctx, smContext)
 }
 
 // DeactivateEPSSession puts the retained 4G default bearer into buffering mode when
 // the UE goes ECM-IDLE: the downlink FAR buffers packets, so downlink
 // data raises a paging notification and never reaches the released eNB tunnel.
-func (s *SMF) DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error {
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
-	}
-
-	smContext := s.currentSession(supi, Access4G, ebi)
-	if smContext == nil {
-		return fmt.Errorf("no EPS session for %s", imsi)
-	}
-
-	return s.DeactivateSmContext(ctx, smContext.Ref)
+func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {
+	return s.DeactivateSmContext(ctx, ref)
 }

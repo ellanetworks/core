@@ -18,7 +18,7 @@ func TestHandleEPSPagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 
 	const ebi = 5
 
-	smCtx := s.NewSession(supi, smf.Access4G, ebi, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access4G, smf.SessionIdentity{EBI: ebi}, testDNN, testSnssai)
 	smCtx.SetPFCPSession(s.AllocateSEID())
 	smCtx.PFCPContext.SEID = 7
 
@@ -39,7 +39,7 @@ func TestHandlePagingFailure_SuppressesDownlinkNotification(t *testing.T) {
 
 	const pduSessionID = 1
 
-	smCtx := s.NewSession(supi, smf.Access5G, pduSessionID, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, testDNN, testSnssai)
 	smCtx.SetPFCPSession(s.AllocateSEID())
 	smCtx.PFCPContext.SEID = 4242
 

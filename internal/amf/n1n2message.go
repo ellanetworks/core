@@ -482,3 +482,62 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 
 	return id
 }
+
+// SessionTransferred drops the AMF's routing context for a session the UE moved
+// to EPS, without releasing anything: the anchor session, its user plane and the
+// UE address all survive on the other access (TS 23.502 §4.11.2.2 step 14). The
+// AMF's own release path would otherwise tear down a session the UE is using
+// over S1-U.
+//
+// ref names the exact session instance, so a report that arrives after the UE
+// re-established a new session under the same identity is ignored rather than
+// dropping the live one.
+//
+// n2Transfer, when non-nil, releases the NG-RAN resources the moved session
+// held. It is sent with no N1 container: the UE is not told the session ended —
+// it has not — only the NG-RAN that this one is over. A UE that has left NR
+// entirely has no NG-RAN connection and there is nothing to release.
+func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF SessionTransferred",
+		trace.WithAttributes(
+			attribute.String("supi", supi.String()),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
+		),
+	)
+	defer span.End()
+
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return
+	}
+
+	if !ue.DeleteSmContextRef(pduSessionID, ref) {
+		logger.From(ctx, logger.AmfLog).Debug("ignoring a transfer report for a session this AMF no longer routes",
+			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("ref", ref))
+
+		return
+	}
+
+	logger.From(ctx, logger.AmfLog).Info("PDU session moved to EPS; dropping the 5GS routing context",
+		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+
+	if n2Transfer == nil {
+		return
+	}
+
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		return
+	}
+
+	list := ngap.PDUSessionResourceToReleaseListRelCmd{
+		{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Transfer)},
+	}
+
+	if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, nil, list); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to release the NG-RAN resources of a moved PDU session",
+			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+	}
+}

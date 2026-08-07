@@ -888,3 +888,22 @@ func (ue *UeContext) IsUserLocationEmpty() bool {
 		loc.NrLocation == nil &&
 		loc.N3gaLocation == nil
 }
+
+// DeleteSmContextRef removes the routing context for pduSessionID only when it
+// still names ref, and reports whether it did. A session that moved to EPS is
+// reported asynchronously, by which time the UE may have established a new
+// session under the same identity; dropping that one would leave a live session
+// the AMF cannot route.
+func (ue *UeContext) DeleteSmContextRef(pduSessionID uint8, ref string) bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	sc, ok := ue.SmContextList[pduSessionID]
+	if !ok || sc.Ref != ref {
+		return false
+	}
+
+	delete(ue.SmContextList, pduSessionID)
+
+	return true
+}

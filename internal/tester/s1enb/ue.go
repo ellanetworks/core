@@ -46,6 +46,18 @@ type UE struct {
 	apn        string                 // requested APN in the Attach Request ("" = subscriber default)
 	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 
+	// n1Mode reports N1 mode support in the UE network capability, which is what
+	// gates the network's IWK N26 indication (TS 24.301 §5.5.1.2.4).
+	n1Mode bool
+	// requestType is the PDN CONNECTIVITY REQUEST's request type. "Handover" asks
+	// the anchor to move a PDU session the UE holds in 5GS onto EPS rather than
+	// establish a new connection (TS 23.502 §4.11.2.2).
+	requestType eps.RequestType
+	// pduSessionID is the 5GS PDU session identity the UE allocated for the
+	// connection and sends in the PCO, which is what correlates the two accesses
+	// (TS 23.501 §5.17.2.1). 0 sends none.
+	pduSessionID uint8
+
 	kasme   []byte
 	knasEnc [16]byte
 	knasInt [16]byte
@@ -63,6 +75,7 @@ func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
 	return &UE{
 		IMSI: imsi, K: k, OPc: opc, plmn: append([]byte(nil), e.plmn[:]...),
 		netCapEEA: 0xf0, netCapEIA: 0x70, pdnType: eps.PDNTypeIPv4, pti: 1,
+		requestType: eps.RequestTypeInitialRequest,
 	}
 }
 
@@ -117,11 +130,41 @@ func (ue *UE) S1APSecurityCapabilities() s1ap.UESecurityCapabilities {
 	}
 }
 
+// MoveSessionFromNR makes the next attach ask the anchor to move the PDU session
+// the UE holds in 5GS under pduSessionID onto EPS, keeping its address
+// (TS 23.502 §4.11.2.2). The identity travels in the PCO, which is the network's
+// only source for it, and N1 mode is implied — a UE that holds a 5GS session
+// supports it.
+func (ue *UE) MoveSessionFromNR(pduSessionID uint8) {
+	ue.requestType = eps.RequestTypeHandover
+	ue.pduSessionID = pduSessionID
+	ue.n1Mode = true
+}
+
+// AnnounceN1Mode makes the attach indicate N1 mode support and allocate a PDU
+// session identity for the connection, so the connection can later be moved to
+// 5GS and the network advertises IWK N26 to this UE.
+func (ue *UE) AnnounceN1Mode(pduSessionID uint8) {
+	ue.pduSessionID = pduSessionID
+	ue.n1Mode = true
+}
+
 func (ue *UE) buildAttachRequest() ([]byte, error) {
-	pc := &eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: ue.pdnType}
+	pc := &eps.PDNConnectivityRequest{PTI: 1, RequestType: ue.requestType, PDNType: ue.pdnType}
 
 	if ue.apn != "" {
 		pc.AccessPointName = new(eps.APN(ue.apn))
+	}
+
+	if ue.pduSessionID != 0 {
+		pco := nas.ProtocolConfigurationOptions{
+			ConfigProtocol: nas.PCOConfigProtocolPPP,
+			Direction:      nas.PCOMSToNetwork,
+			Containers: []nas.PCOContainer{
+				{ID: nas.PCOContainerPDUSessionID, Content: []byte{ue.pduSessionID}},
+			},
+		}
+		pc.ProtocolConfigurationOptions = &pco
 	}
 
 	esm, err := pc.MarshalBinary()
@@ -138,7 +181,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		EPSAttachType:       eps.AttachTypeEPS,
 		NASKeySetIdentifier: nas.NoKeySet,
 		EPSMobileIdentity:   identity,
-		UENetworkCapability: eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA},
+		UENetworkCapability: ue.ueNetworkCapability(),
 		ESMMessageContainer: esm,
 	}
 
@@ -395,4 +438,19 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 	copy(k[:], out[16:32])
 
 	return k, nil
+}
+
+// ueNetworkCapability is the UE's advertised capability. N1 mode sits in octet 9
+// bit 6, and Rest starts at octet 7, so indicating it means carrying octets 7
+// through 9 (TS 24.301 figure 9.9.3.34.1). The UMTS algorithm octets have to be
+// present for the feature octets to be reachable at all.
+func (ue *UE) ueNetworkCapability() eps.UENetworkCapability {
+	c := eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}
+
+	if ue.n1Mode {
+		c.HasUMTS = true
+		c.Rest = []byte{0x00, 0x00, 0x20}
+	}
+
+	return c
 }

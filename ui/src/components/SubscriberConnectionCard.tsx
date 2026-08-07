@@ -6,7 +6,10 @@ import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
 import AccessChip from "@/components/AccessChip";
-import type { SubscriberDetailStatus } from "@/queries/subscribers";
+import {
+  accessTypesOf,
+  type SubscriberDetailStatus,
+} from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {
@@ -146,8 +149,17 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
-const AccessTypeChip: React.FC<{ accessType?: string }> = ({ accessType }) =>
-  accessType ? <AccessChip label={accessType} /> : null;
+// A subscriber moving between 4G and 5G is registered on both while it
+// transfers its sessions, so every access it holds is shown.
+const AccessTypeChips: React.FC<{ accessTypes: string[] }> = ({
+  accessTypes,
+}) => (
+  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+    {accessTypes.map((accessType) => (
+      <AccessChip key={accessType} label={accessType} />
+    ))}
+  </Box>
+);
 
 const SecurityAlgorithmsValue: React.FC<{
   ciphering?: string;
@@ -180,6 +192,8 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
 }) => {
+  const accessTypes = accessTypesOf(status);
+
   return (
     <Card
       variant="outlined"
@@ -193,10 +207,10 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="State"
           value={<StateChip registered={status.registered} />}
         />
-        {status.radio_access_type && (
+        {accessTypes.length > 0 && (
           <InfoRow
-            label="Access Type"
-            value={<AccessTypeChip accessType={status.radio_access_type} />}
+            label={accessTypes.length > 1 ? "Access Types" : "Access Type"}
+            value={<AccessTypeChips accessTypes={accessTypes} />}
           />
         )}
         <InfoRow label="IMEI" value={status.imei} />

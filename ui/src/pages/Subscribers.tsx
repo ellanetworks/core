@@ -16,6 +16,7 @@ import {
   listSubscribers,
   type APISubscriberSummary,
   type ListSubscribersResponse,
+  accessTypesOf,
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
@@ -171,13 +172,22 @@ const SubscriberPage: React.FC = () => {
         flex: 0.4,
         minWidth: 90,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.radio_access_type ?? "",
+          accessTypesOf(row?.status).join(" "),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const rat = params.row?.status?.radio_access_type;
-          if (!rat) return "—";
+          const rats = accessTypesOf(params.row?.status);
+          if (rats.length === 0) return "—";
           return (
-            <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-              <AccessChip label={rat} />
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                height: "100%",
+                gap: 0.5,
+              }}
+            >
+              {rats.map((rat) => (
+                <AccessChip key={rat} label={rat} />
+              ))}
             </Box>
           );
         },

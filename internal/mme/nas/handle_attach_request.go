@@ -124,6 +124,8 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 	ue.RequestedPDNType = uint8(eps.PDNTypeIPv4)
 	ue.RequestedAPN = ""
 	ue.RequestedPTI = 0
+	ue.RequestedPDUSessionID = 0
+	ue.RequestedType = eps.RequestTypeInitialRequest
 	// An abandoned deferral's abort would otherwise emit a reject naming the
 	// earlier transaction.
 	ueConn.StopESMInfoGuard()
@@ -141,6 +143,12 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 
 		if pc.AccessPointName != nil {
 			ue.RequestedAPN = string(*pc.AccessPointName)
+		}
+
+		ue.RequestedPDUSessionID = pduSessionIDFromPCO(pc.ProtocolConfigurationOptions)
+
+		if pc.RequestType != 0 {
+			ue.RequestedType = pc.RequestType
 		}
 
 		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {

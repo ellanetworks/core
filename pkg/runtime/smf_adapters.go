@@ -483,3 +483,7 @@ func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pd
 		BinaryDataN2Information: n2Msg,
 	})
 }
+
+func (a *smfAMFAdapter) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+	a.amf.SessionTransferred(ctx, supi, pduSessionID, ref, n2Transfer)
+}

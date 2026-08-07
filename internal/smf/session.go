@@ -25,18 +25,19 @@ var (
 	errFramedRouteResolve  = errors.New("framed route resolution failed")
 	errStaticIPResolve     = errors.New("static IP resolution failed")
 	errUPFSession          = errors.New("UPF session establishment failed")
+	errSessionIdentity     = errors.New("session identity is unusable")
 )
 
 // SessionRequest is the RAT-agnostic input to establishSession, common to the
 // 5G and 4G paths.
 type SessionRequest struct {
-	Supi    etsi.SUPI
-	Key     uint8 // PDU Session ID (5G) or default-bearer EBI (4G)
-	Dnn     string
-	Snssai  *models.Snssai // nil for 4G
-	Access  AccessType
-	PDUType uint8 // the negotiated PDU/PDN type
-	Policy  *Policy
+	Supi     etsi.SUPI
+	Identity SessionIdentity
+	Dnn      string
+	Snssai   *models.Snssai
+	Access   AccessType
+	PDUType  uint8 // the negotiated PDU/PDN type
+	Policy   *Policy
 }
 
 // ueAddresses is the address set allocated for a session; the IPv6 prefix is the
@@ -58,7 +59,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
 
-	sc := s.NewSession(req.Supi, req.Access, req.Key, req.Dnn, req.Snssai)
+	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
+	if err != nil {
+		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errSessionIdentity, err)
+	}
 
 	committed := false
 
@@ -166,13 +170,13 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 			logger.SmfLog.Warn("failed to resolve data network to release UE addresses after aborted session", zap.String("imsi", imsi), zap.Error(err))
 		} else {
 			if sc.PDUIPV4Address != nil {
-				if _, err := dn.ReleaseIP(ctx, imsi, sc.keyID()); err != nil {
+				if _, err := dn.ReleaseIP(ctx, imsi, sc.sessionKey()); err != nil {
 					logger.SmfLog.Warn("failed to release UE IPv4 after aborted session", zap.String("imsi", imsi), zap.Error(err))
 				}
 			}
 
 			if sc.PDUIPV6Prefix != nil {
-				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.keyID()); err != nil {
+				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.sessionKey()); err != nil {
 					logger.SmfLog.Warn("failed to release UE IPv6 after aborted session", zap.String("imsi", imsi), zap.Error(err))
 				}
 			}

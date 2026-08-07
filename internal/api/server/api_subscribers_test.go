@@ -42,10 +42,11 @@ type CreateSubscriberSuccessResponse struct {
 
 // ListSubscriberStatus matches the lightweight status in list responses.
 type ListSubscriberStatus struct {
-	Registered      bool   `json:"registered"`
-	RadioAccessType string `json:"radio_access_type,omitempty"`
-	NumSessions     int    `json:"num_sessions"`
-	LastSeenAt      string `json:"last_seen_at,omitempty"`
+	Registered       bool     `json:"registered"`
+	RadioAccessType  string   `json:"radio_access_type,omitempty"`
+	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
+	NumSessions      int      `json:"num_sessions"`
+	LastSeenAt       string   `json:"last_seen_at,omitempty"`
 }
 
 // ListSubscriber matches the summary representation in list responses.
@@ -58,13 +59,14 @@ type ListSubscriber struct {
 
 // SubscriberDetailStatus matches the rich status in get-single responses.
 type SubscriberDetailStatus struct {
-	Registered         bool   `json:"registered"`
-	RadioAccessType    string `json:"radio_access_type,omitempty"`
-	Imei               string `json:"imei"`
-	CipheringAlgorithm string `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string `json:"integrity_algorithm"`
-	LastSeenAt         string `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
+	Registered         bool     `json:"registered"`
+	RadioAccessType    string   `json:"radio_access_type,omitempty"`
+	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
+	Imei               string   `json:"imei"`
+	CipheringAlgorithm string   `json:"ciphering_algorithm"`
+	IntegrityAlgorithm string   `json:"integrity_algorithm"`
+	LastSeenAt         string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
 type Slice struct {
@@ -345,7 +347,7 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 	ue.ForceStateForTest(amf.Registered)
 
 	pduSessionID := uint8(1)
-	sc := testSmfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, nil)
+	sc, _ := testSmfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, nil)
 
 	err = ue.CreateSmContext(pduSessionID, sc.Ref, nil)
 	if err != nil {
@@ -943,6 +945,16 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 		if session.RadioAccessType != "5G" {
 			t.Fatalf("expected radio_access_type '5G', got %q", session.RadioAccessType)
+		}
+
+		// A subscriber registered on one access lists exactly that one. The list is
+		// what a client reads to see both while a device moves between them.
+		if got := response.Result.Status.RadioAccessTypes; len(got) != 1 || got[0] != "5G" {
+			t.Fatalf("expected radio_access_types [5G], got %v", got)
+		}
+
+		if response.Result.Status.RadioAccessType != "5G" {
+			t.Fatalf("expected radio_access_type '5G', got %q", response.Result.Status.RadioAccessType)
 		}
 
 		if session.Status != "active" {

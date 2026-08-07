@@ -19,20 +19,11 @@ func (sc *SMContext) IsEPS() bool { return sc.Access == Access4G }
 // (and thus the QFI). 5G N3/N9 do; 4G S1-U does not. TS 23.501, TS 38.415.
 func (a AccessType) usesPSC() bool { return a == Access5G }
 
-// keyID maps a wire session identity into the SMF's converged id space. A 5G
-// session keeps its UE-assigned PDU session identity (1..15, TS 24.007
-// §11.2.3.1b); a 4G PDN connection is numbered 64+EBI, inside the
-// core-network-allocated PduSessionId range 64..95 that is only visible in the
-// core network (TS 29.571 §5.2.2). The two accesses therefore occupy disjoint
-// ids, and a lookup keyed on one access cannot resolve a session of the other.
-func (a AccessType) keyID(id uint8) uint8 {
+// String names the access in log fields and error messages.
+func (a AccessType) String() string {
 	if a == Access4G {
-		return 64 + id
+		return "4G"
 	}
 
-	return id
+	return "5G"
 }
-
-// keyID returns the session's id in the converged id space; it is the id the
-// session is indexed and its IP leases are keyed by.
-func (sc *SMContext) keyID() uint8 { return sc.Access.keyID(sc.PDUSessionID) }

@@ -179,3 +179,66 @@ func TestPCOTwoOctetLengthContainers(t *testing.T) {
 		t.Fatalf("uplink containers = %+v", up.Containers)
 	}
 }
+
+// The PDU session identity is what makes a PDN connection recognisable as a PDU
+// session on the other access (TS 23.501 §5.17.2.1), and the UE is its only
+// source. It is read only where it can legitimately appear.
+func TestPCOPDUSessionID(t *testing.T) {
+	container := func(content ...byte) ProtocolConfigurationOptions {
+		return ProtocolConfigurationOptions{
+			ConfigProtocol: PCOConfigProtocolPPP,
+			Direction:      PCOMSToNetwork,
+			Containers:     []PCOContainer{{ID: PCOContainerPDUSessionID, Content: content}},
+		}
+	}
+
+	if id, ok := container(5).PDUSessionID(); !ok || id != 5 {
+		t.Errorf("PDUSessionID() = %d, %v; want 5, true", id, ok)
+	}
+
+	// 001AH is reserved in the network-to-MS direction, so a network echoing it
+	// back is not a UE allocation.
+	downlink := container(5)
+	downlink.Direction = PCONetworkToMS
+
+	if _, ok := downlink.PDUSessionID(); ok {
+		t.Error("PDUSessionID() read an identity out of a network-to-MS element")
+	}
+
+	// Outside 1..15 no UE allocated it, and 0 is "no PDU session identity
+	// assigned" (TS 24.007 §11.2.3.1b).
+	for _, content := range [][]byte{{0}, {16}, {64}, {}, {5, 5}} {
+		if _, ok := container(content...).PDUSessionID(); ok {
+			t.Errorf("PDUSessionID() accepted container content % x", content)
+		}
+	}
+}
+
+// The S-NSSAI container is the S-NSSAI value part followed by the PLMN identity
+// it relates to, in one container (TS 24.008 §10.5.6.3, TS 23.501 §5.15.7.1).
+func TestNewSNSSAIContainer(t *testing.T) {
+	// SST 1 with an SD: the 4-octet form of TS 24.501 §9.11.2.8.
+	c, err := NewSNSSAIContainer([]byte{0x01, 0x00, 0x00, 0x7b}, PLMN{MCC: "001", MNC: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c.ID != PCOContainerSNSSAI {
+		t.Errorf("container id = %#04x, want %#04x", c.ID, PCOContainerSNSSAI)
+	}
+
+	want := []byte{0x01, 0x00, 0x00, 0x7b, 0x00, 0xf1, 0x10}
+	if !bytes.Equal(c.Content, want) {
+		t.Errorf("content = % x, want % x", c.Content, want)
+	}
+
+	// A value part of a length the S-NSSAI element does not define would leave the
+	// UE unable to find where the PLMN identity starts.
+	if _, err := NewSNSSAIContainer([]byte{0x01, 0x02, 0x03}, PLMN{MCC: "001", MNC: "01"}); err == nil {
+		t.Error("a 3-octet S-NSSAI value part was accepted")
+	}
+
+	if _, err := NewSNSSAIContainer([]byte{0x01}, PLMN{MCC: "00", MNC: "01"}); err == nil {
+		t.Error("a malformed PLMN was accepted")
+	}
+}
