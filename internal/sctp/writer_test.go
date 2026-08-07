@@ -53,12 +53,6 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 		t.Fatalf("connectLoopback: %v", err)
 	}
 
-	// No syscall.Close(fd) cleanup: newSCTPConn hands fd to an os.File, which
-	// owns it from here. Closing it here as well would free the number while the
-	// File still holds a finalizer for it, and the kernel reissues a freed
-	// descriptor to the very next socket() in the process (fs/file.c
-	// __put_unused_fd rewinds files->next_fd). The finalizer would then close a
-	// later test's socket, which fails its first write with EBADF.
 	client = newSCTPConn(fd)
 	if _, err := client.WriteMsg([]byte("trigger"), &SndRcvInfo{PPID: PPIDWireOrder(testPPID)}); err != nil {
 		t.Fatalf("client trigger write: %v", err)
@@ -70,9 +64,6 @@ func serverWithAcceptedConn(t *testing.T, port int) (server *Server, accepted *S
 		t.Fatal("no message dispatched; never captured the accepted conn")
 	}
 
-	// The os.File is the only owner, so its finalizer is what eventually closes
-	// the descriptor. Pin client for the whole test so that cannot happen while
-	// the association is still in use.
 	t.Cleanup(func() { runtime.KeepAlive(client) })
 
 	return srv, accepted, disconnected, client
