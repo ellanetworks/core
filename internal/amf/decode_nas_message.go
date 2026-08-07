@@ -252,7 +252,7 @@ func decodePlainNAS(payload []byte) (*DecodeResult, error) {
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS message type %d not permitted by TS 24.501 §4.4.4.3", msgType)
 	}
 
-	return &DecodeResult{MessageType: msgType, IsGMM: true, IntegrityVerified: false, Plain: payload}, nil
+	return &DecodeResult{MessageType: msgType, IsGMM: true, IntegrityVerified: false, ArrivedPlain: true, Plain: payload}, nil
 }
 
 func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payload []byte, conn *UeConn) (*DecodeResult, error) {

@@ -738,6 +738,12 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	// fire on a detached connection.
 	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
+	// The ESM information request procedure is bounded by the connection it runs
+	// on: its response can only arrive over that connection, and the reject its
+	// abort would emit could not be delivered. Dropping the wait keeps a later
+	// response on a fresh connection from resuming a procedure that is over.
+	old.esmInfoGuard.Stop()
+	ue.esmInfoWait.Store(nil)
 	// Detaching the connection ends any in-flight key-changing procedure on it
 	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
 	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).

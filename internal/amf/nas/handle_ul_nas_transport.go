@@ -131,6 +131,23 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
+	// TS 24.501 §5.4.5.2.5 case 13: on an initial or a modification request, a
+	// requested S-NSSAI the network does not allow is not routed to an SMF. The
+	// element the case names is the one this message carries, not the one the
+	// stored context holds.
+	if ulNasTransport.SNSSAI != nil && requestType != nil {
+		switch *requestType {
+		case fgs.RequestTypeInitialRequest, fgs.RequestTypeModificationRequest:
+			if snssai := util.SnssaiToModels(*ulNasTransport.SNSSAI); !ue.IsAllowedNssai(snssai) {
+				logger.From(ctx, logger.AmfLog).Warn("requested S-NSSAI is not in the allowed NSSAI",
+					zap.Any("snssai", snssai), logger.PDUSessionID(uint8(pduSessionID)))
+				sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
+
+				return
+			}
+		}
+	}
+
 	smContext, smContextExist := ue.SmContextFindByPDUSessionID(uint8(pduSessionID))
 
 	isInitialRequest := requestType != nil &&
@@ -201,18 +218,10 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn    string
 	)
 
+	// A requested S-NSSAI has already been checked against the allowed NSSAI
+	// (TS 24.501 §5.4.5.2.5 case 13).
 	if ulNasTransport.SNSSAI != nil {
 		snssai = util.SnssaiToModels(*ulNasTransport.SNSSAI)
-
-		// A requested S-NSSAI the network does not allow is not routed to an SMF
-		// (TS 24.501 §5.4.5.2.5 case 13).
-		if !ue.IsAllowedNssai(snssai) {
-			logger.From(ctx, logger.AmfLog).Warn("requested S-NSSAI is not in the allowed NSSAI",
-				zap.Any("snssai", snssai), logger.PDUSessionID(pduSessionID))
-			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
-
-			return
-		}
 	} else {
 		if len(ue.AllowedNssai) == 0 {
 			logger.From(ctx, logger.AmfLog).Warn("allowed nssai is empty in UE context")

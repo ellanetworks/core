@@ -141,8 +141,9 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 			ue.RequestedAPN = string(*pc.AccessPointName)
 		}
 
-		// The UE holds the APN and PCO back until the ESM information exchange, which
-		// runs once the security context is up (TS 24.301 §6.5.1.2, §6.6.1.2.2).
+		// The UE withholds its ESM information until the exchange that runs once the
+		// security context is up (TS 24.301 §6.5.1.2, §6.6.1.2.2). Of what it then
+		// sends, the MME reads the APN; it acts on no uplink PCO anywhere.
 		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {
 			ue.AwaitESMInformation(uint8(pc.PTI), nil)
 		}

@@ -186,12 +186,12 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 
 			return true, nil
 		case ieiUENetworkCapability:
-			// A syntactically incorrect optional element leaves the rest of the
-			// message usable (TS 24.301 §7.7.1). Declining it keeps it among the
-			// preserved elements, so the re-encoded message still carries it.
+			// Both capabilities are Critical: the MME stores what they replay
+			// (§5.5.3.2.4), so a malformed one fails the message rather than
+			// leaving the field silently absent.
 			parsed, err := ParseUENetworkCapability(value)
 			if err != nil {
-				return false, nil
+				return false, err
 			}
 
 			m.UENetworkCapability = &parsed
@@ -200,7 +200,7 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 		case ieiMSNetworkCapability:
 			parsed, err := ParseMSNetworkCapability(value)
 			if err != nil {
-				return false, nil
+				return false, err
 			}
 
 			m.MSNetworkCapability = &parsed

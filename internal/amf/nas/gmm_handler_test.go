@@ -18,7 +18,7 @@ func TestHandleGmmMessage_UnknownMessageType_NoOp(t *testing.T) {
 	ue := amf.NewUeContext()
 	amfInstance := amf.New(nil, nil, nil)
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, 0xFF, nil, true) // unassigned message type
+	HandleGmmMessage(context.Background(), amfInstance, ue, 0xFF, nil, true, false) // unassigned message type
 }
 
 // TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete verifies HandleGmmMessage
@@ -34,7 +34,7 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgConfigurationUpdateComplete), nil, true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgConfigurationUpdateComplete), nil, true, false)
 }
 
 // TestHandleGmmMessage_DispatchesToStatus5GMM verifies HandleGmmMessage routes a
@@ -49,5 +49,5 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgGMMStatus), buildTestStatus5gmmPlain(t), true)
+	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgGMMStatus), buildTestStatus5gmmPlain(t), true, false)
 }

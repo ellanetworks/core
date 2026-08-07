@@ -54,7 +54,7 @@ func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 
 	ue := amf.NewUeContext()
 
-	handleRegistrationRequest(ctx, &amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, &amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 }
 
 // TestHandleRegistrationRequest_ErrorMissingIdentity validates the graceful
@@ -74,7 +74,7 @@ func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, &amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, &amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
@@ -103,7 +103,7 @@ func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
@@ -144,7 +144,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("UE should be released to Deregistered after the reject, got %v", ue.State())
@@ -180,7 +180,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("UE should be released to Deregistered after the reject, got %v", ue.State())
@@ -218,7 +218,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *t
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("UE should be released to Deregistered after the reject, got %v", ue.State())
@@ -255,7 +255,7 @@ func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *te
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, regReqFgs(t, m), m, true); err != nil {
+	if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, regReqFgs(t, m), m, true, false); err != nil {
 		t.Fatalf("periodic registration without UE security capability should not be rejected here, got: %v", err)
 	}
 
@@ -294,7 +294,7 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.PagingActiveForTest() {
 		t.Fatalf("timer T3513 should have been stopped")
@@ -324,7 +324,7 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -367,7 +367,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -421,7 +421,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -475,7 +475,7 @@ func TestHandleRegistrationRequest_ContextSetup_IdenticalIEs_ResendsAccept(t *te
 	conn.RegistrationRequestPlain = m
 	conn.RegistrationAcceptPdu = []byte{0x7e, 0x00, 0x42}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected the Registration Accept to be resent, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
@@ -521,7 +521,7 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected the new registration to progress with an Authentication Request, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
@@ -573,7 +573,7 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 	// it, so the two differ in bytes while every field the AMF reads is equal.
 	incoming := append(append([]byte{}, m...), 0x35, 0x02, 0x01, 0x01)
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, incoming), incoming, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, incoming), incoming, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected the new registration to progress with an Authentication Request, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
@@ -617,7 +617,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message (AuthenticationRequest), got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -662,7 +662,7 @@ func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testin
 
 	ue.Conn().RegistrationRequestPlain = m
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -708,7 +708,7 @@ func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.
 
 	ue.Conn().RegistrationRequestPlain = m
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Fatalf("an identical pre-accept duplicate must be ignored (no downlink), got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -763,7 +763,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	// The prior registration is aborted: its context is deregistered and its NAS
 	// connection — carrying T3560 — is released. The new registration runs on a fresh
@@ -834,7 +834,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message")
@@ -896,7 +896,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	key = [16]uint8{0x00, 0x00, 0x00, 0x00, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	ue.SetKnasEncForTest(key)
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("UE should be released to Deregistered after the reject, got %v", ue.State())
@@ -950,7 +950,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, false)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, false, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("should have sent a Downlink NAS Transport message, got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -997,7 +997,7 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.NgKsiForTest().Ksi != 4 {
 		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.NgKsiForTest().Ksi)
@@ -1037,7 +1037,7 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.NgKsiForTest().Ksi != 0 {
 		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.NgKsiForTest().Ksi)
@@ -1077,7 +1077,7 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if ue.NgKsiForTest().Ksi != 0 {
 		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.NgKsiForTest().Ksi)
@@ -1169,7 +1169,7 @@ func TestHandleRegistrationRequestMessage_ContainerStoresOuterBytes(t *testing.T
 	outer := m
 	inner := append([]byte(nil), regReqFgs(t, outer).NASMessageContainer...)
 
-	_ = handleRegistrationRequestMessage(ctx, amfInstance, ue, regReqFgs(t, outer), outer, true)
+	_ = handleRegistrationRequestMessage(ctx, amfInstance, ue, regReqFgs(t, outer), outer, true, false)
 
 	stored := ue.Conn().RegistrationRequestPlain
 	if !bytes.Equal(stored, outer) {
@@ -1324,7 +1324,7 @@ func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistratio
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	// Progressed, not rejected: the de-registration must have been aborted.
 	if ue.State() == amf.DeregistrationInitiated {
@@ -1409,7 +1409,7 @@ func TestHandleRegistrationRequest_ContextSetup_AfterSecurityModeContainer_Resen
 
 	before := len(ngapSender.SentDownlinkNASTransport)
 
-	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, complete), complete, true)
+	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, complete), complete, true, false)
 
 	if got := len(ngapSender.SentDownlinkNASTransport) - before; got != 1 {
 		t.Fatalf("expected the Registration Accept to be resent, got %d downlinks", got)

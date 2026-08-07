@@ -81,7 +81,9 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 
 // handleESMInformationResponse takes the APN the UE deferred and resumes the
 // procedure that deferred it — the attach or a standalone PDN CONNECTIVITY
-// REQUEST (TS 24.301 §6.6.1.2.4).
+// REQUEST (TS 24.301 §6.6.1.2.4). §6.6.1.2.4 also has the response's protocol
+// configuration options replace any received earlier in the attach; the MME
+// reads no uplink PCO on any path, so there is nothing to replace.
 func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.ESMInformationResponse) nasreply.Disposition {
 	// TS 24.301 §7.3.2 e): a response naming an assigned or reserved EPS bearer
 	// identity is ignored. §6.6.1.2.3 has the UE set "no EPS bearer identity

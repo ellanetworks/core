@@ -137,3 +137,22 @@ func TestESMInformationResponseRacesTheTimeout(t *testing.T) {
 		}
 	}
 }
+
+// The procedure is bounded by the connection it runs on: releasing that
+// connection drops the wait, so a later response cannot resume it.
+func TestS1ReleaseDropsTheESMInformationWait(t *testing.T) {
+	m := esmInfoTestMME()
+	ue, _ := esmInfoAttachUe(t, m, 3)
+
+	activateDefaultBearer(context.Background(), m, ue)
+
+	if ue.PendingESMInfo() == nil {
+		t.Fatal("the ESM information procedure is not outstanding before the release")
+	}
+
+	m.FreeUeConn(ue)
+
+	if ue.PendingESMInfo() != nil {
+		t.Error("the ESM information wait survived the S1 release")
+	}
+}

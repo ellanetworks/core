@@ -307,6 +307,45 @@ func TestTransport5GSMMessage_InitialRequest_NotAllowedNssai_NotForwarded(t *tes
 	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
+// TS 24.501 §5.4.5.2.5 case 13 names "initial request" or "modification request",
+// so a modification request for an existing session is checked against the
+// allowed NSSAI too, and on the S-NSSAI this message carries.
+func TestTransport5GSMMessage_ModificationRequest_NotAllowedNssai_NotForwarded(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+
+	var pduSessionID uint8 = 5
+
+	// The session's own S-NSSAI is allowed; the one the message requests is not.
+	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 1, Sd: "010203"})
+
+	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
+
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeModificationRequest)
+
+	msg.SNSSAI = &fgs.SNSSAI{SST: 2, SD: &[3]byte{4, 5, 6}}
+
+	fakeSmf := &fakeSmf{}
+
+	transport5GSMMessage(t.Context(), amf.New(&fakeDBInstance{}, nil, fakeSmf), ue, fgsULNAS(t, msg))
+
+	if len(fakeSmf.UpdateN1MsgCalls) != 0 {
+		t.Fatalf("UpdateSmContextN1Msg call count is %d, want 0", len(fakeSmf.UpdateN1MsgCalls))
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("downlink NAS transport count is %d, want 1", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgDLNASTransport))
+}
+
 func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTransport(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

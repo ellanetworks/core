@@ -70,7 +70,7 @@ func TestHandleGmmMessage_DeregistrationAcceptDispatch(t *testing.T) {
 		t.Fatalf("could not build a DEREGISTRATION ACCEPT: %v", err)
 	}
 
-	HandleGmmMessage(t.Context(), conn.AMFForTest(), ue, uint8(fgs.MsgDeregistrationAcceptUETerm), plain, true)
+	HandleGmmMessage(t.Context(), conn.AMFForTest(), ue, uint8(fgs.MsgDeregistrationAcceptUETerm), plain, true, false)
 
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("expected UE to be deregistered, but was: %s", ue.State())

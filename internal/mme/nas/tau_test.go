@@ -491,3 +491,35 @@ func TestTrackingAreaUpdateWithoutCapabilityKeepsStored(t *testing.T) {
 			uint8(got.EEA), uint8(got.EIA), uint8(held.EEA), uint8(held.EIA))
 	}
 }
+
+// TS 24.301 §5.5.3.2.4 stores what the UE replays whether that is the UE network
+// capability, the MS network capability, or both, so a TAU carrying only the MS
+// capability is stored and the held UE capability kept.
+func TestTrackingAreaUpdateStoresAnMSCapabilityOnlyReplay(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	held := eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
+	ue.SetUESecurityCapability(held, nil, mme.MintAuthProofForAttachRequest())
+
+	replayed := eps.MSNetworkCapability{Rest: []byte{0xe5, 0xe0, 0x00}}
+
+	req := tauRequest(eps.EPSUpdateTypeTA)
+	req.MSNetworkCapability = &replayed
+
+	handleTAU(t, m, ue, req)
+
+	stored := ue.MsNetCap()
+	if stored == nil {
+		t.Fatal("MS network capability not stored, want the replayed one")
+	}
+
+	if !bytes.Equal(stored.Rest, replayed.Rest) {
+		t.Errorf("stored MS network capability = %x, want %x", stored.Rest, replayed.Rest)
+	}
+
+	if got := ue.UeNetCap(); got.EEA != held.EEA || got.EIA != held.EIA {
+		t.Errorf("stored UE network capability = EEA %#08b EIA %#08b, want the held EEA %#08b EIA %#08b",
+			uint8(got.EEA), uint8(got.EIA), uint8(held.EEA), uint8(held.EIA))
+	}
+}

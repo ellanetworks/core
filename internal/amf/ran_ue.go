@@ -101,13 +101,13 @@ type UeConn struct {
 	// RegistrationRequestPlain is compared byte-for-byte for duplicate detection
 	// (TS 24.501 §5.5.1.2.8), immune to the decoder dropping IEs it does not model.
 	RegistrationRequestPlain []byte
-	// RegistrationRequestProtected records whether the stored request arrived
-	// integrity protected, which decides whether its non-cleartext IEs are
-	// authenticated (TS 24.501 §4.4.6).
-	RegistrationRequestProtected    bool
-	RegistrationType5GS             fgs.RegistrationType
-	IdentityTypeUsedForRegistration uint8
-	RetransmissionOfInitialNASMsg   bool
+	// RegistrationRequestReplayRequired records that the stored request arrived as
+	// a plain NAS message, so the UE has to repeat it in the NAS message container
+	// of the SECURITY MODE COMPLETE (TS 24.501 §4.4.6 case a).
+	RegistrationRequestReplayRequired bool
+	RegistrationType5GS               fgs.RegistrationType
+	IdentityTypeUsedForRegistration   uint8
+	RetransmissionOfInitialNASMsg     bool
 
 	// RegistrationAcceptPdu is the REGISTRATION ACCEPT last sent, kept to resend on a
 	// duplicate REGISTRATION REQUEST with identical IEs while awaiting REGISTRATION

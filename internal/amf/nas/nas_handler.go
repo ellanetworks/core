@@ -106,7 +106,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		logger.SUPI(ue.UeContext().Supi().String()),
 	)
 
-	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), result.MessageType, result.Plain, integrityVerified)
+	return HandleGmmMessage(ctx, amfInstance, ue.UeContext(), result.MessageType, result.Plain, integrityVerified, result.ArrivedPlain)
 }
 
 // dispositionForUnresolved classifies a fresh-connection NAS PDU that established or resolved

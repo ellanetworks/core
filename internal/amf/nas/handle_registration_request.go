@@ -45,7 +45,7 @@ func isInitialRegistration(req *fgs.RegistrationRequest) bool {
 func registrationTypeName(t fgs.RegistrationType) string { return t.String() }
 
 // handleRegistrationRequestMessage processes the cleartext IEs of the Registration Request (TS 24.501).
-func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified bool) error {
+func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified, arrivedPlain bool) error {
 	conn := ue.Conn()
 	if conn == nil {
 		return fmt.Errorf("no active NAS connection")
@@ -103,7 +103,11 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	conn.RegistrationRequest = req
 	conn.RegistrationRequestPlain = slices.Clone(plain)
-	conn.RegistrationRequestProtected = integrityVerified
+	// TS 24.501 §4.4.6: only case a) — a UE with no valid 5G NAS security context,
+	// which therefore sends the request plain — has to replay it in the SECURITY
+	// MODE COMPLETE. A protected request whose MAC did not verify is case b), where
+	// the request the UE sent is complete as it stands.
+	conn.RegistrationRequestReplayRequired = arrivedPlain
 	conn.SetRegistrationType5GS(uint8(req.RegistrationType))
 
 	regName := registrationTypeName(conn.RegistrationType5GS)
@@ -237,7 +241,7 @@ func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeConte
 // the new registration re-authenticates and re-derives everything. The shared UeConn
 // transfers to the fresh context; the old context is superseded only once the new
 // registration is accepted (reg_initial).
-func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified bool) {
+func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified, arrivedPlain bool) {
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
@@ -252,10 +256,10 @@ func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF
 	fresh.SetSupi(supi)
 	amfInstance.AttachUeConn(fresh, ueConn)
 
-	handleRegistrationRequest(ctx, amfInstance, fresh, req, plain, integrityVerified)
+	handleRegistrationRequest(ctx, amfInstance, fresh, req, plain, integrityVerified, arrivedPlain)
 }
 
-func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified bool) nasreply.Disposition {
+func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, plain []byte, integrityVerified, arrivedPlain bool) nasreply.Disposition {
 	state := ue.State()
 	step := ue.RegStep()
 
@@ -270,7 +274,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	switch {
 	case state == amf.Deregistered, state == amf.Registered, step == amf.RegStepAuthenticating:
-		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, req, plain, integrityVerified); err != nil {
+		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, req, plain, integrityVerified, arrivedPlain); err != nil {
 			// Release the half-registered UE at the point of failure; a failed
 			// handleRegistrationRequestMessage (which may already have sent a REGISTRATION
 			// REJECT) releases nothing, leaking its open RAN connection under no supervision.
@@ -312,7 +316,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return nasreply.Handled()
 
 	case step == amf.RegStepSecurityMode:
-		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified)
+		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified, arrivedPlain)
 
 		return nasreply.Handled()
 	case step == amf.RegStepContextSetup:
@@ -325,14 +329,14 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			return nasreply.Handled()
 		}
 
-		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified)
+		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified, arrivedPlain)
 
 		return nasreply.Handled()
 	case state == amf.DeregistrationInitiated && isInitialRegistration(req):
 		// A UE-initiated initial or emergency registration during a network-initiated
 		// de-registration aborts the de-registration and progresses the registration
 		// (TS 24.501 §5.5.2.3.5 case d).
-		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified)
+		restartRegistrationOnFreshContext(ctx, amfInstance, ue, req, plain, integrityVerified, arrivedPlain)
 
 		return nasreply.Handled()
 	default:
