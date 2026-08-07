@@ -65,6 +65,22 @@ func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 	return []byte(dl.NASPDU)
 }
 
+// decodeProtectedDownlink returns the plaintext of a security-protected downlink
+// NAS message sent to a secured UE.
+func decodeProtectedDownlink(t *testing.T, ue *mme.UeContext, pdu []byte) []byte {
+	t.Helper()
+
+	dl := decodeDownlinkNAS(t, pdu)
+
+	plain, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink,
+		mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+	if err != nil {
+		t.Fatalf("unprotect downlink: %v", err)
+	}
+
+	return plain
+}
+
 // TestAttachAuthenticationAndSecurityMode drives the EMM engine through the
 // Attach → EPS-AKA → Security Mode exchange, with the test playing the UE.
 // TestAttachRecoveryAfterMMERestart reproduces the field case: after the MME

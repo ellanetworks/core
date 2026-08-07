@@ -122,6 +122,10 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedPDNType = uint8(eps.PDNTypeIPv4)
 	ue.RequestedAPN = ""
 	ue.RequestedPTI = 0
+	// The abort of an abandoned deferral would otherwise fire against this attach,
+	// clearing its wait and emitting a reject with the earlier transaction's PTI.
+	ue.Conn().StopESMInfoGuard()
+	ue.TakeESMInfoWait()
 
 	// A syntactically incorrect optional element leaves the rest of the message
 	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the
@@ -135,6 +139,12 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 
 		if pc.AccessPointName != nil {
 			ue.RequestedAPN = string(*pc.AccessPointName)
+		}
+
+		// The UE holds the APN and PCO back until the ESM information exchange, which
+		// runs once the security context is up (TS 24.301 §6.5.1.2, §6.6.1.2.2).
+		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {
+			ue.AwaitESMInformation(uint8(pc.PTI), nil)
 		}
 	}
 }
@@ -220,15 +230,17 @@ func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.
 	sendAttachReject(ctx, m, ue, cause, nil)
 }
 
-// rejectAttachESMFailure refuses an attach whose PDN CONNECTIVITY REQUEST the ESM
+// rejectAttachESM refuses an attach whose PDN CONNECTIVITY REQUEST the ESM
 // sublayer rejected. EMM cause #19 "ESM failure" is combined with the PDN
-// CONNECTIVITY REJECT carrying esmCause, which the UE needs to learn why the PDN
-// connection was refused (TS 24.301 §5.5.1.2.5).
-func rejectAttachESMFailure(ctx context.Context, m *mme.MME, ue *mme.UeContext, esmCause eps.ESMCause) {
-	esm, err := (&eps.PDNConnectivityReject{PTI: ue.RequestedPTI, Cause: esmCause}).MarshalBinary()
+// CONNECTIVITY REJECT carrying esmCause on transaction pti, which the UE needs
+// to learn why the PDN connection was refused (TS 24.301 §5.5.1.2.5).
+func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, pti uint8, esmCause eps.ESMCause) {
+	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build the PDN Connectivity Reject carried by an Attach Reject",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		esm = nil
 	}
 
 	sendAttachReject(ctx, m, ue, eps.EMMCauseESMFailure, esm)
@@ -244,7 +256,15 @@ func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause 
 		reject.T3402 = &timer
 	}
 
-	ue.Conn().SendDownlinkMessage(ctx, reject)
+	// A UE that has established secure exchange discards an unprotected downlink
+	// (TS 24.301 §4.4.4.2). The plain form is for the rejects that precede
+	// security activation.
+	if ue.Secured() {
+		ue.Conn().SendDownlinkProtected(ctx, reject)
+	} else {
+		ue.Conn().SendDownlinkMessage(ctx, reject)
+	}
+
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }
 

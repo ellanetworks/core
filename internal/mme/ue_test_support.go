@@ -221,6 +221,17 @@ func (m *MME) SetESMGuardConfigForTest(expire time.Duration, maxRetry int32) {
 	m.esmGuardCfg.MaxRetryTimes = maxRetry
 }
 
+// SetT3489ConfigForTest overrides the ESM information request guard's interval
+// and retry budget so a test can drive its expiry quickly.
+func (m *MME) SetT3489ConfigForTest(expire time.Duration, maxRetry int32) {
+	m.t3489Cfg.ExpireTime = expire
+	m.t3489Cfg.MaxRetryTimes = maxRetry
+}
+
+// T3489ActiveForTest reports whether the connection's ESM information request
+// guard is currently armed.
+func (c *UeConn) T3489ActiveForTest() bool { return c.esmInfoGuard.Active() }
+
 func (m *MME) FireHandoverGuardForTest(ue *UeContext) { m.abandonHandover(ue) }
 
 func (m *MME) ReclaimUEsOnConnLossForTest(conn S1APWriter) { m.reclaimUEsOnConnLoss(conn) }

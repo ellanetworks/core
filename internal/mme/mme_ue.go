@@ -113,6 +113,22 @@ type PdnConnection struct {
 	guard guard.Guard
 }
 
+// ESMInfoWait is an outstanding ESM information request procedure
+// (TS 24.301 §6.6.1.2). PTI is the transaction it belongs to, so a response
+// naming another one is refused without ending it (§7.3.1 e). Standalone is nil
+// when the procedure runs inside an attach.
+type ESMInfoWait struct {
+	PTI        uint8
+	Standalone *PendingPDNConnectivity
+}
+
+// PendingPDNConnectivity is the standalone PDN CONNECTIVITY REQUEST waiting on
+// the ESM information the UE deferred (TS 24.301 §6.5.1.2).
+type PendingPDNConnectivity struct {
+	PTI     uint8
+	PDNType uint8
+}
+
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
 // EPS NAS security context, and the bearer state.
 type UeContext struct {
@@ -142,7 +158,12 @@ type UeContext struct {
 	// RequestedPTI is the procedure transaction identity of the PDN Connectivity
 	// Request the ATTACH REQUEST carried, replayed in the default bearer's
 	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
-	RequestedPTI   nas.ProcedureTransactionIdentity
+	RequestedPTI nas.ProcedureTransactionIdentity
+	// esmInfoWait is the outstanding ESM information request, nil when none. It is
+	// swapped whole from the NAS goroutine and from the T3489 timer goroutine, so
+	// it is an atomic pointer and needs no ordering against ue.mu.
+	esmInfoWait atomic.Pointer[ESMInfoWait]
+
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 	// HashmmeInput is the plain Attach Request to hash into the SECURITY MODE
 	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
@@ -513,6 +534,40 @@ func (m *MME) FindPDNByAPN(ue *UeContext, apn string) *PdnConnection {
 	defer ue.mu.Unlock()
 
 	return ue.PdnForAPN(apn)
+}
+
+// AwaitESMInformation records that an ESM information request is outstanding for
+// transaction pti. standalone is nil when the procedure runs inside an attach.
+func (ue *UeContext) AwaitESMInformation(pti uint8, standalone *PendingPDNConnectivity) {
+	ue.esmInfoWait.Store(&ESMInfoWait{PTI: pti, Standalone: standalone})
+}
+
+// PendingESMInfo returns the outstanding ESM information request without ending
+// it, or nil when none is running.
+func (ue *UeContext) PendingESMInfo() *ESMInfoWait {
+	return ue.esmInfoWait.Load()
+}
+
+// TakeESMInfoWait ends the ESM information procedure and returns what it was
+// running for, so exactly one caller concludes it.
+func (ue *UeContext) TakeESMInfoWait() *ESMInfoWait {
+	return ue.esmInfoWait.Swap(nil)
+}
+
+// TakeESMInfoWaitFor ends the ESM information procedure only if pti names it,
+// returning nil otherwise so a response for another transaction leaves the
+// procedure running (TS 24.301 §7.3.1 e).
+func (ue *UeContext) TakeESMInfoWaitFor(pti uint8) *ESMInfoWait {
+	w := ue.esmInfoWait.Load()
+	if w == nil || w.PTI != pti {
+		return nil
+	}
+
+	if ue.esmInfoWait.CompareAndSwap(w, nil) {
+		return w
+	}
+
+	return nil
 }
 
 // DropPDN removes a PDN connection from the UE without releasing a session, for

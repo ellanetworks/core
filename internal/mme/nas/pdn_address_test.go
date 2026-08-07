@@ -138,7 +138,7 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
 	}
 
-	rej, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseAttachReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
 	if err != nil {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
 	}
 
-	rej, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseAttachReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
 	if err != nil {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}

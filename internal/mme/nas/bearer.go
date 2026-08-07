@@ -42,13 +42,23 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
+	// The security context is up by the time the attach reaches here, which is what
+	// the ESM information request procedure waits for (TS 24.301 §6.6.1.2.2). The
+	// response re-enters this function with the deferred APN in hand.
+	if requestESMInformation(ctx, ue, func(pti uint8) {
+		// T3489's final expiry outlives the request's context.
+		rejectAttachESM(context.Background(), m, ue, pti, eps.ESMCauseESMInformationNotReceived)
+	}) {
+		return
+	}
+
 	qos, err := mme.ResolveAttachQoS(ctx, m, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
-		rejectAttachESMFailure(ctx, m, ue, eps.ESMCauseMissingOrUnknownAPN)
+		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), eps.ESMCauseMissingOrUnknownAPN)
 
 		return
 	}
@@ -86,7 +96,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttachESMFailure(ctx, m, ue, eps.ESMCauseRequestRejectedUnspecified)
+		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)
 
 		return
 	}
