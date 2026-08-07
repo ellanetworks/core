@@ -131,6 +131,9 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
 			amfInstance.ClearHandover(sourceUeContext)
+			// The bind happens per session before this count is known, so a
+			// preparation that admits nothing still leaves one behind.
+			amfInstance.UnbindHandoverTarget(ctx, sourceUeContext)
 		}
 
 		if sourceUe.Radio() == nil {

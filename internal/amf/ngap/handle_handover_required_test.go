@@ -378,7 +378,8 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		Conn: &fakeNGAPSender{},
 	}
 
-	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
+	smfSbi := &fakeSmfSbi{SMF: smfInstance}
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, smfSbi)
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
@@ -416,6 +417,13 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 
 	if amfUe.Procedures().Active(procedure.N2Handover) {
 		t.Fatal("N2Handover procedure still active after guard expiry")
+	}
+
+	// The guard abandons the handover without answering any gNB, so nothing else
+	// would restore the downlink FAR that HANDOVER REQUEST ACKNOWLEDGE re-pointed.
+	wantRef := smf.CanonicalName(supi, smf.Access5G, pduSessionID)
+	if got := smfSbi.N2HandoverCanceledCalls; len(got) != 1 || got[0] != wantRef {
+		t.Fatalf("source access tunnel not restored on guard expiry: N2HandoverCanceled calls = %v, want [%s]", got, wantRef)
 	}
 }
 
@@ -455,7 +463,8 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smf.CanonicalName(supi, smf.Access5G, pduSessionID), Snssai: &models.Snssai{Sst: 1}}
 
 	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
-	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
+	smfSbi := &fakeSmfSbi{SMF: smfInstance}
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, smfSbi)
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
@@ -495,6 +504,11 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	if amfInstance.HandoverInProgress(amfUe) {
 		t.Fatal("handover FSM not cleared after source association removal")
+	}
+
+	wantRef := smf.CanonicalName(supi, smf.Access5G, pduSessionID)
+	if got := smfSbi.N2HandoverCanceledCalls; len(got) != 1 || got[0] != wantRef {
+		t.Fatalf("source access tunnel not restored on source association removal: N2HandoverCanceled calls = %v, want [%s]", got, wantRef)
 	}
 }
 

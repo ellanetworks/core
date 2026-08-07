@@ -49,7 +49,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	// Normally a no-op: a target answering with FAILURE never sent an ACKNOWLEDGE,
 	// so nothing bound its endpoint. Not free, though — a target sending both
 	// would otherwise leave the downlink aimed at a gNB that admitted nothing.
-	unbindHandoverTarget(ctx, amfInstance, amfUe)
+	amfInstance.UnbindHandoverTarget(ctx, amfUe)
 
 	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil {

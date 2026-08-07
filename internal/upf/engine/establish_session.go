@@ -50,6 +50,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}
 
 	sess := NewSession(seid)
+	sess.SetIMSI(req.IMSI)
 	span.AddEvent("session_created", trace.WithAttributes(attribute.Int64("models.seid", int64(seid))))
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))

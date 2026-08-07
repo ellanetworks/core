@@ -123,7 +123,10 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 	return func(cctx context.Context) error {
 		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
 
-		a.ClearHandover(sourceUe.UeContext())
+		amfUe := sourceUe.UeContext()
+
+		a.ClearHandover(amfUe)
+		a.UnbindHandoverTarget(cctx, amfUe)
 
 		targetUe.ReleaseAction = UeContextReleaseHandover
 
@@ -264,6 +267,26 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 	}
 
 	return target, aborted
+}
+
+// UnbindHandoverTarget restores the source access tunnel after an abandoned N2
+// handover. It must run on every abandonment path, not just the ones that answer
+// the gNB: HANDOVER REQUEST ACKNOWLEDGE points the SMF's downlink FAR at the
+// target, and a snapshot left behind here is later restored onto a gNB the UE
+// was never on. Idempotent — the SMF no-ops when it holds no snapshot — so it is
+// safe on paths that never reached the acknowledge. Must not be called holding
+// a.mu; it calls into the SMF.
+func (a *AMF) UnbindHandoverTarget(ctx context.Context, ue *UeContext) {
+	if ue == nil {
+		return
+	}
+
+	for _, ref := range ue.SmContextRefs() {
+		if err := a.Session.UpdateSmContextN2HandoverCanceled(ctx, ref.Ref); err != nil {
+			logger.From(ctx, logger.AmfLog).Error("failed to restore the source access tunnel after an abandoned handover",
+				zap.Error(err), zap.Uint8("pdu-session-id", ref.PduSessionID))
+		}
+	}
 }
 
 // ClearHandover ends the handover FSM and its key-chain procedure. Idempotent; safe on a nil UE.

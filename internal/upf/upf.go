@@ -400,14 +400,16 @@ func (u *UPF) startGC(ctx context.Context) {
 }
 
 // Waits, so a caller that goes on to close the BPF collection cannot pull the
-// maps out from under an in-flight NatCt.BatchLookup / BatchDelete. gcCancel is
-// cleared before the wait, so a concurrent startGC cannot mistake a pipeline
-// being torn down for one already running.
+// maps out from under an in-flight NatCt.BatchLookup / BatchDelete. The wait is
+// under gcMu so that every caller gets that guarantee, not just the first: a
+// second caller must not observe the cleared gcCancel and race ahead to
+// BpfObjects.Close() while the loop is still draining. Safe to hold across the
+// wait because the GC goroutine never takes gcMu.
 func (u *UPF) stopGC() {
 	u.gcMu.Lock()
+	defer u.gcMu.Unlock()
 
 	if u.gcCancel == nil {
-		u.gcMu.Unlock()
 		return
 	}
 
@@ -415,8 +417,6 @@ func (u *UPF) stopGC() {
 	done := u.gcDone
 	u.gcCancel = nil
 	u.gcDone = nil
-
-	u.gcMu.Unlock()
 
 	cancel()
 

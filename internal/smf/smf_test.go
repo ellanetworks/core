@@ -378,8 +378,7 @@ func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb sm
 	return smf.New(pcf, store, upf, amfCb)
 }
 
-// Holds the session's Mutex the way production callers do; the teardown drops
-// and retakes it around the lease release.
+// Holds the session's Mutex the way production callers do.
 func removeSession(s *smf.SMF, ctx context.Context, sc *smf.SMContext) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()

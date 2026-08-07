@@ -20,8 +20,12 @@ type Session struct {
 	opMu    sync.Mutex
 	deleted bool // guarded by opMu
 
-	mu           sync.RWMutex
-	SEID         uint64
+	mu   sync.RWMutex
+	SEID uint64
+	// Every PDR the datapath installs is keyed by subscriber, so a modify that
+	// creates or replaces one has to reproduce the IMSI established here; it is
+	// not carried on ModifyRequest because it cannot change for a live session.
+	imsi         string
 	policyID     string
 	pdrs         map[uint32]SPDRInfo
 	fars         map[uint32]ebpf.FarInfo
@@ -60,6 +64,20 @@ func (s *Session) SetPolicyID(id string) {
 	defer s.mu.Unlock()
 
 	s.policyID = id
+}
+
+func (s *Session) IMSI() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.imsi
+}
+
+func (s *Session) SetIMSI(imsi string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.imsi = imsi
 }
 
 func (s *Session) PutFar(id uint32, farInfo ebpf.FarInfo) {
