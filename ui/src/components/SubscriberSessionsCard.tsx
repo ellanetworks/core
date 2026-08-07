@@ -15,19 +15,20 @@ import AccessChip from "@/components/AccessChip";
 
 interface SubscriberSessionsCardProps {
   sessions: SessionInfo[];
-  accessType?: string;
   loading?: boolean;
 }
 
 const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
   sessions,
-  accessType,
   loading = false,
 }) => {
   const theme = useTheme();
 
-  // Network slices (S-NSSAI) are 5G-only.
-  const is4G = accessType === "4G";
+  // Network slices (S-NSSAI) are 5G-only, so the column is shown when any
+  // session runs on 5G. Read off the sessions rather than the subscriber: a
+  // subscriber moving between accesses is registered on both, and each session
+  // names the one it runs on.
+  const has5G = sessions.some((s) => s.radio_access_type === "5G");
 
   const columns: GridColDef<SessionInfo>[] = useMemo(
     () => [
@@ -119,9 +120,8 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
             "—"
           ),
       },
-      ...(is4G
-        ? []
-        : [
+      ...(has5G
+        ? [
             {
               field: "slice",
               headerName: "Slice",
@@ -135,7 +135,8 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
                   : `SST ${slice.sst}`;
               },
             } as GridColDef<SessionInfo>,
-          ]),
+          ]
+        : []),
       {
         field: "ambr_uplink",
         headerName: "Session Bitrate Uplink",
@@ -176,7 +177,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         },
       },
     ],
-    [theme, is4G],
+    [theme, has5G],
   );
 
   return (

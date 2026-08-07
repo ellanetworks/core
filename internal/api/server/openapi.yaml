@@ -3796,13 +3796,6 @@ components:
         registered:
           type: boolean
           description: Whether the device is currently registered on the network.
-        radio_access_type:
-          type: string
-          enum: ["4G", "5G"]
-          description: >-
-            Primary radio access technology of the live connection. Omitted if not
-            connected. A subscriber registered on both accesses reports 5G here;
-            see radio_access_types.
         radio_access_types:
           type: array
           items:
@@ -3811,7 +3804,7 @@ components:
           description: >-
             Every access the subscriber is currently registered on. Usually one,
             but a device moving between 4G and 5G holds both while it transfers
-            its sessions one at a time.
+            its sessions one at a time. Omitted if not connected.
         num_sessions:
           type: integer
           description: >-
@@ -3865,19 +3858,15 @@ components:
       properties:
         registered:
           type: boolean
-        radio_access_type:
-          type: string
-          enum: ["4G", "5G"]
-          description: >-
-            Primary radio access technology of the live connection. Omitted if not
-            connected. A subscriber registered on both accesses reports 5G here,
-            and the security algorithms and IMEI below are that access's.
         radio_access_types:
           type: array
           items:
             type: string
             enum: ["4G", "5G"]
-          description: Every access the subscriber is currently registered on.
+          description: >-
+            Every access the subscriber is currently registered on. The security
+            algorithms and IMEI below belong to one access; a dual-registered
+            subscriber reports 5G's.
         imei:
           type: string
           description: IMEI of the connected device.

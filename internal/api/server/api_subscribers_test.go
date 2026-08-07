@@ -43,7 +43,6 @@ type CreateSubscriberSuccessResponse struct {
 // ListSubscriberStatus matches the lightweight status in list responses.
 type ListSubscriberStatus struct {
 	Registered       bool     `json:"registered"`
-	RadioAccessType  string   `json:"radio_access_type,omitempty"`
 	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
 	NumSessions      int      `json:"num_sessions"`
 	LastSeenAt       string   `json:"last_seen_at,omitempty"`
@@ -60,7 +59,6 @@ type ListSubscriber struct {
 // SubscriberDetailStatus matches the rich status in get-single responses.
 type SubscriberDetailStatus struct {
 	Registered         bool     `json:"registered"`
-	RadioAccessType    string   `json:"radio_access_type,omitempty"`
 	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
 	Imei               string   `json:"imei"`
 	CipheringAlgorithm string   `json:"ciphering_algorithm"`
@@ -951,10 +949,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		// what a client reads to see both while a device moves between them.
 		if got := response.Result.Status.RadioAccessTypes; len(got) != 1 || got[0] != "5G" {
 			t.Fatalf("expected radio_access_types [5G], got %v", got)
-		}
-
-		if response.Result.Status.RadioAccessType != "5G" {
-			t.Fatalf("expected radio_access_type '5G', got %q", response.Result.Status.RadioAccessType)
 		}
 
 		if session.Status != "active" {

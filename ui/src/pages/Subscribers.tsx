@@ -16,7 +16,6 @@ import {
   listSubscribers,
   type APISubscriberSummary,
   type ListSubscribersResponse,
-  accessTypesOf,
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
@@ -172,9 +171,9 @@ const SubscriberPage: React.FC = () => {
         flex: 0.4,
         minWidth: 90,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          accessTypesOf(row?.status).join(" "),
+          (row?.status?.radio_access_types ?? []).join(" "),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const rats = accessTypesOf(params.row?.status);
+          const rats = params.row?.status?.radio_access_types ?? [];
           if (rats.length === 0) return "—";
           return (
             <Box

@@ -183,7 +183,6 @@ const SubscriberDetail: React.FC = () => {
 
             <SubscriberSessionsCard
               sessions={subscriber.sessions}
-              accessType={subscriber.status.radio_access_type}
               loading={subscriberQuery.isLoading}
             />
 

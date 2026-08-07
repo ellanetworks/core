@@ -6,10 +6,7 @@ import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
 import AccessChip from "@/components/AccessChip";
-import {
-  accessTypesOf,
-  type SubscriberDetailStatus,
-} from "@/queries/subscribers";
+import type { SubscriberDetailStatus } from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {
@@ -192,7 +189,7 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
 }) => {
-  const accessTypes = accessTypesOf(status);
+  const accessTypes = status.radio_access_types ?? [];
 
   return (
     <Card

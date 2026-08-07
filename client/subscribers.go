@@ -34,11 +34,9 @@ type DeleteSubscriberOptions struct {
 // SubscriberStatus is the lightweight status carried in list responses.
 type SubscriberStatus struct {
 	Registered bool `json:"registered"`
-	// RadioAccessType is the primary access, "4G" or "5G"; a subscriber
-	// registered on both reports 5G. RadioAccessTypes lists every access it
-	// holds — a device moving between 4G and 5G holds both while it transfers
-	// its sessions one at a time.
-	RadioAccessType  string   `json:"radio_access_type,omitempty"`
+	// RadioAccessTypes is every access the subscriber is registered on. A device
+	// moving between 4G and 5G holds both while it transfers its sessions one at
+	// a time.
 	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
 	NumSessions      int      `json:"num_sessions"`
 	LastSeenAt       string   `json:"last_seen_at,omitempty"`
@@ -68,9 +66,9 @@ type ListSubscribersResponse struct {
 // SubscriberDetailStatus is the rich status carried in GetSubscriber responses.
 type SubscriberDetailStatus struct {
 	Registered bool `json:"registered"`
-	// RadioAccessType is the primary access; the algorithms and IMEI below are
-	// that access's. RadioAccessTypes lists every access the subscriber holds.
-	RadioAccessType    string   `json:"radio_access_type,omitempty"`
+	// RadioAccessTypes is every access the subscriber is registered on. The
+	// algorithms and IMEI below belong to one of them; a dual-registered
+	// subscriber reports 5G's.
 	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
 	Imei               string   `json:"imei"`
 	CipheringAlgorithm string   `json:"ciphering_algorithm"`
