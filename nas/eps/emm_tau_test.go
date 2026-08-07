@@ -78,7 +78,7 @@ func TestTrackingAreaUpdateRequestBearerContextStatus(t *testing.T) {
 	preceded := []byte{0x07, byte(MsgTrackingAreaUpdateRequest), 0x1b}
 	preceded = append(preceded, 0x0b, 0xf2, 0x00, 0xf1, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01) // Old GUTI (LV, 11)
 	preceded = append(preceded, 0x52, 1, 2, 3, 4, 5)                                                    // Last visited TAI (TV3, 5)
-	preceded = append(preceded, 0x58, 0x03, 0xe0, 0xe0, 0x00)                                           // UE network capability (TLV, 3)
+	preceded = append(preceded, 0x58, 0x02, 0xe0, 0xe0)                                                 // UE network capability (TLV, 2)
 
 	statusRaw, err := status.MarshalBinary()
 	if err != nil {
@@ -275,5 +275,27 @@ func TestTrackingAreaUpdateRejectMarshal(t *testing.T) {
 
 	if parsed.Cause != 9 {
 		t.Fatalf("cause = %d, want 9", parsed.Cause)
+	}
+}
+
+func TestTrackingAreaUpdateRequestRejectsMalformedCapabilities(t *testing.T) {
+	tests := []struct {
+		name string
+		ie   []byte
+	}{
+		{"UE network capability", []byte{0x58, 0x03, 0xe0, 0xe0, 0x00}},
+		{"MS network capability", []byte{0x31, 0x09, 0xe5, 0xe0, 0, 0, 0, 0, 0, 0, 0}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			b := []byte{0x07, byte(MsgTrackingAreaUpdateRequest), 0x1b}
+			b = append(b, 0x0b, 0xf2, 0x00, 0xf1, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01)
+			b = append(b, tc.ie...)
+
+			if out, err := ParseTrackingAreaUpdateRequest(b); err == nil {
+				t.Fatalf("ParseTrackingAreaUpdateRequest = %+v, nil, want an error for a malformed %s", out, tc.name)
+			}
+		})
 	}
 }

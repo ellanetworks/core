@@ -37,6 +37,8 @@ type TrackingAreaUpdateRequest struct {
 	OldGUTI EPSMobileIdentity
 	// EPSBearerContextStatus reports which EPS bearer contexts are active.
 	EPSBearerContextStatus *nas.EPSBearerContextStatus
+	UENetworkCapability    *UENetworkCapability // §9.9.3.34
+	MSNetworkCapability    *MSNetworkCapability // §9.9.3.20
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -100,6 +102,15 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 
 	w.LV(oldGUTI)
 
+	if m.UENetworkCapability != nil {
+		raw, err := m.UENetworkCapability.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiUENetworkCapability, raw)
+	}
+
 	if m.EPSBearerContextStatus != nil {
 		raw, err := m.EPSBearerContextStatus.MarshalBinary()
 		if err != nil {
@@ -107,6 +118,15 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiEPSBearerContextStatus, raw)
+	}
+
+	if m.MSNetworkCapability != nil {
+		raw, err := m.MSNetworkCapability.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiMSNetworkCapability, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -151,18 +171,39 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 	}
 
 	_unrec, err := walkOptionalIEs(r, tauRequestOptionalIEs, func(iei uint8, value []byte) (bool, error) {
-		if iei != ieiEPSBearerContextStatus {
-			return false, nil
+		switch iei {
+		case ieiEPSBearerContextStatus:
+			status, err := nas.ParseEPSBearerContextStatus(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.EPSBearerContextStatus = &status
+
+			return true, nil
+		case ieiUENetworkCapability:
+			// Critical, so a malformed value fails the message rather than taking
+			// the §7.7.1 not-present default.
+			parsed, err := ParseUENetworkCapability(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.UENetworkCapability = &parsed
+
+			return true, nil
+		case ieiMSNetworkCapability:
+			parsed, err := ParseMSNetworkCapability(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.MSNetworkCapability = &parsed
+
+			return true, nil
 		}
 
-		status, err := nas.ParseEPSBearerContextStatus(value)
-		if err != nil {
-			return false, err
-		}
-
-		m.EPSBearerContextStatus = &status
-
-		return true, nil
+		return false, nil
 	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err

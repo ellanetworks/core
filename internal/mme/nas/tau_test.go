@@ -31,7 +31,7 @@ func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 		t.Fatal("expected a TAU Reject, got no downlink")
 	}
 
-	rej, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseTrackingAreaUpdateReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
 	if err != nil {
 		t.Fatalf("not a TAU Reject: %v", err)
 	}
@@ -419,5 +419,99 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 
 	if m.ConnCountForTest() != 0 {
 		t.Fatalf("bare connection not released after the TAU Reject: %d remain", m.ConnCountForTest())
+	}
+}
+
+func TestTrackingAreaUpdateStoresReplayedCapabilities(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	replayed := eps.UENetworkCapability{EEA: 0xe0, EIA: 0x60, HasUMTS: true, UEA: 0xc0, UIA: 0x40, Rest: []byte{0x00, 0x80, 0x20}}
+	msNetCap := eps.MSNetworkCapability{Rest: []byte{0xe5, 0xe0, 0x00}}
+
+	req := tauRequest(eps.EPSUpdateTypeTA)
+	req.UENetworkCapability = &replayed
+	req.MSNetworkCapability = &msNetCap
+
+	handleTAU(t, m, ue, req)
+
+	if got := ue.UeNetCap(); got.EEA != replayed.EEA || got.EIA != replayed.EIA {
+		t.Errorf("stored UE network capability = EEA %#08b EIA %#08b, want EEA %#08b EIA %#08b",
+			uint8(got.EEA), uint8(got.EIA), uint8(replayed.EEA), uint8(replayed.EIA))
+	}
+
+	stored := ue.MsNetCap()
+	if stored == nil {
+		t.Fatal("MS network capability not stored, want the replayed one")
+	}
+
+	if !bytes.Equal(stored.Rest, msNetCap.Rest) {
+		t.Errorf("stored MS network capability = %x, want %x", stored.Rest, msNetCap.Rest)
+	}
+}
+
+func TestTrackingAreaUpdateKeepsHeldMSCapability(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	held := eps.MSNetworkCapability{Rest: []byte{0xe5, 0xe0, 0x00}}
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}, &held, mme.MintAuthProofForAttachRequest())
+
+	req := tauRequest(eps.EPSUpdateTypeTA)
+	req.UENetworkCapability = &eps.UENetworkCapability{EEA: 0xe0, EIA: 0x60}
+
+	handleTAU(t, m, ue, req)
+
+	stored := ue.MsNetCap()
+	if stored == nil {
+		t.Fatal("held MS network capability dropped, want it kept")
+	}
+
+	if !bytes.Equal(stored.Rest, held.Rest) {
+		t.Errorf("stored MS network capability = %x, want the held %x", stored.Rest, held.Rest)
+	}
+}
+
+func TestTrackingAreaUpdateWithoutCapabilityKeepsStored(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	held := eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
+	ue.SetUESecurityCapability(held, nil, mme.MintAuthProofForAttachRequest())
+
+	handleTAU(t, m, ue, tauRequest(eps.EPSUpdateTypeTA))
+
+	if got := ue.UeNetCap(); got.EEA != held.EEA || got.EIA != held.EIA {
+		t.Errorf("stored UE network capability = EEA %#08b EIA %#08b, want the held EEA %#08b EIA %#08b",
+			uint8(got.EEA), uint8(got.EIA), uint8(held.EEA), uint8(held.EIA))
+	}
+}
+
+func TestTrackingAreaUpdateStoresAnMSCapabilityOnlyReplay(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	held := eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
+	ue.SetUESecurityCapability(held, nil, mme.MintAuthProofForAttachRequest())
+
+	replayed := eps.MSNetworkCapability{Rest: []byte{0xe5, 0xe0, 0x00}}
+
+	req := tauRequest(eps.EPSUpdateTypeTA)
+	req.MSNetworkCapability = &replayed
+
+	handleTAU(t, m, ue, req)
+
+	stored := ue.MsNetCap()
+	if stored == nil {
+		t.Fatal("MS network capability not stored, want the replayed one")
+	}
+
+	if !bytes.Equal(stored.Rest, replayed.Rest) {
+		t.Errorf("stored MS network capability = %x, want %x", stored.Rest, replayed.Rest)
+	}
+
+	if got := ue.UeNetCap(); got.EEA != held.EEA || got.EIA != held.EIA {
+		t.Errorf("stored UE network capability = EEA %#08b EIA %#08b, want the held EEA %#08b EIA %#08b",
+			uint8(got.EEA), uint8(got.EIA), uint8(held.EEA), uint8(held.EIA))
 	}
 }

@@ -113,6 +113,16 @@ type PdnConnection struct {
 	guard guard.Guard
 }
 
+type ESMInfoWait struct {
+	PTI        uint8
+	Standalone *PendingPDNConnectivity
+}
+
+type PendingPDNConnectivity struct {
+	PTI     uint8
+	PDNType uint8
+}
+
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
 // EPS NAS security context, and the bearer state.
 type UeContext struct {
@@ -142,7 +152,13 @@ type UeContext struct {
 	// RequestedPTI is the procedure transaction identity of the PDN Connectivity
 	// Request the ATTACH REQUEST carried, replayed in the default bearer's
 	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
-	RequestedPTI   nas.ProcedureTransactionIdentity
+	RequestedPTI nas.ProcedureTransactionIdentity
+	// kenbCount is the uplink NAS COUNT the K_eNB derivation uses, pinned when the
+	// message that names it is accepted (TS 33.401 §7.2.5.2.2, §7.2.6.2).
+	kenbCount uint32
+	// Swapped from the NAS goroutine and the T3489 timer goroutine.
+	esmInfoWait atomic.Pointer[ESMInfoWait]
+
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 	// HashmmeInput is the plain Attach Request to hash into the SECURITY MODE
 	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
@@ -515,6 +531,31 @@ func (m *MME) FindPDNByAPN(ue *UeContext, apn string) *PdnConnection {
 	return ue.PdnForAPN(apn)
 }
 
+func (ue *UeContext) AwaitESMInformation(pti uint8, standalone *PendingPDNConnectivity) {
+	ue.esmInfoWait.Store(&ESMInfoWait{PTI: pti, Standalone: standalone})
+}
+
+func (ue *UeContext) PendingESMInfo() *ESMInfoWait {
+	return ue.esmInfoWait.Load()
+}
+
+func (ue *UeContext) TakeESMInfoWait() *ESMInfoWait {
+	return ue.esmInfoWait.Swap(nil)
+}
+
+func (ue *UeContext) TakeESMInfoWaitFor(pti uint8) *ESMInfoWait {
+	w := ue.esmInfoWait.Load()
+	if w == nil || w.PTI != pti {
+		return nil
+	}
+
+	if ue.esmInfoWait.CompareAndSwap(w, nil) {
+		return w
+	}
+
+	return nil
+}
+
 // DropPDN removes a PDN connection from the UE without releasing a session, for
 // rolling back a connection reserved but never established.
 func (m *MME) DropPDN(ue *UeContext, ebi uint8) {
@@ -683,6 +724,10 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	// fire on a detached connection.
 	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
+	// The response can only arrive over this connection, so a surviving wait could
+	// only be concluded by an unrelated one.
+	old.esmInfoGuard.Stop()
+	ue.esmInfoWait.Store(nil)
 	// Detaching the connection ends any in-flight key-changing procedure on it
 	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
 	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).

@@ -18,10 +18,34 @@ type DecodeResult struct {
 	// IsGMM reports whether Plain is a 5GMM message; false for a standalone 5GSM message on N1.
 	IsGMM             bool
 	IntegrityVerified bool
+	ArrivedPlain      bool
 	// Plain is the decoded plain 5GMM message (after any decipher), the input for the
 	// nas/fgs handlers. It starts with the extended protocol discriminator, and is
 	// also the byte-for-byte duplicate-detection oracle (TS 24.501 §5.5.1.2.8).
 	Plain []byte
+}
+
+func cipheringRequiredFor(plain []byte) bool {
+	mt, err := fgs.PeekMessageType(plain)
+	if err != nil {
+		return true
+	}
+
+	return cipheringRequired(mt)
+}
+
+// TS 24.501 §4.4.6 has the UE set an initial NAS message to "integrity
+// protected" and cipher only its NAS message container.
+func cipheringRequired(mt fgs.MessageType) bool {
+	switch mt {
+	case fgs.MsgRegistrationRequest,
+		fgs.MsgDeregistrationRequestUEOrig,
+		fgs.MsgServiceRequest,
+		fgs.MsgControlPlaneServiceRequest:
+		return false
+	}
+
+	return true
 }
 
 // plainNasAllowed reports whether a NAS message type may be processed without a verified

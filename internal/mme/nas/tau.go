@@ -63,6 +63,20 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
+	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
+		ueNetCap := ue.UeNetCap()
+		if req.UENetworkCapability != nil {
+			ueNetCap = *req.UENetworkCapability
+		}
+
+		msNetCap := req.MSNetworkCapability
+		if msNetCap == nil {
+			msNetCap = ue.MsNetCap()
+		}
+
+		ue.SetUESecurityCapability(ueNetCap, msNetCap, mme.MintAuthProofForTrackingAreaUpdate())
+	}
+
 	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
 	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
 	naspdu, err := ue.ProtectDownlinkMessage(accept)
@@ -87,6 +101,8 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	if req.ActiveFlag {
+		ue.PinKeNBFreshness()
+
 		qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
@@ -118,7 +134,16 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 	ue.Conn().StopNASGuard()
-	ue.Conn().SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
+
+	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
+	// plain form is for the rejects preceding security activation.
+	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
+	if ue.Secured() {
+		ue.Conn().SendDownlinkProtected(ctx, reject)
+	} else {
+		ue.Conn().SendDownlinkMessage(ctx, reject)
+	}
+
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }
 

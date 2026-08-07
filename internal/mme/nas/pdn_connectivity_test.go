@@ -442,3 +442,74 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 		t.Fatalf("ESM cause = %d, want %d (last PDN disconnect not allowed)", reject.Cause, eps.ESMCauseLastPDNDisconnectionNotAllow)
 	}
 }
+
+func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	testPDN(ue).Apn = "internet"
+
+	eit := true
+	handlePDNConnectivityRequest(context.Background(), m, ue, &eps.PDNConnectivityRequest{
+		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, ESMInformationTransferFlag: &eit,
+	})
+
+	wait := ue.PendingESMInfo()
+	if wait == nil {
+		t.Fatal("the ESM information transfer flag did not defer the request")
+	}
+
+	if wait.Standalone == nil || wait.Standalone.PTI != 2 {
+		t.Fatalf("deferral is not recorded as the standalone request on PTI 2: %+v", wait.Standalone)
+	}
+
+	if ue.PdnForAPN("ims") != nil {
+		t.Error("a PDN connection was opened before the deferred APN arrived")
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("downlink count is %d, want 1 (the ESM Information Request)", len(cc.sent))
+	}
+
+	apn := eps.APN("ims")
+	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
+		PTI: 2, AccessPointName: &apn,
+	})
+
+	if ue.PdnForAPN("ims") == nil {
+		t.Fatal("the resumed request did not open the PDN connection for the deferred APN")
+	}
+}
+
+func TestStandalonePDNConnectivityRejectsWhenESMInformationNeverArrives(t *testing.T) {
+	m := newTestMME(t)
+	m.SetT3489ConfigForTest(5*time.Millisecond, 1)
+
+	ue, cc := securedUE(t, m)
+
+	testPDN(ue).Apn = "internet"
+
+	eit := true
+	handlePDNConnectivityRequest(context.Background(), m, ue, &eps.PDNConnectivityRequest{
+		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, ESMInformationTransferFlag: &eit,
+	})
+
+	waitFor(t, "T3489 to exhaust its retransmissions", func() bool { return cc.count() >= 3 })
+
+	rej, err := eps.ParsePDNConnectivityReject(decodeProtectedDownlink(t, ue, cc.sent[2]))
+	if err != nil {
+		t.Fatalf("not a PDN Connectivity Reject: %v", err)
+	}
+
+	if rej.Cause != eps.ESMCauseESMInformationNotReceived {
+		t.Errorf("ESM cause = %d, want %d", rej.Cause, eps.ESMCauseESMInformationNotReceived)
+	}
+
+	if rej.PTI != 2 {
+		t.Errorf("PDN Connectivity Reject PTI = %d, want 2", rej.PTI)
+	}
+
+	if !ue.Connected() {
+		t.Error("the UE was released; a failed standalone PDN connectivity leaves it connected")
+	}
+}

@@ -63,6 +63,9 @@ func canonicalCases(t *testing.T) []canonicalCase {
 	// EPS reuses 0x5B for the T3442 value in EMM and the new EPS QoS in ESM.
 	qos := map[uint8][]byte{ieiNewEPSQoS: {0x09}}
 	imeisv := map[uint8][]byte{ieiIMEISV: {0x33, 0x21, 0x43, 0x65, 0x87, 0x09, 0x21, 0x43, 0xf5}}
+	// EPS reuses 0x58 for the UE network capability in TAU REQUEST and the ESM
+	// cause in ESM messages.
+	ueNetCap := map[uint8][]byte{ieiUENetworkCapability: {0xf0, 0x70}}
 
 	return []canonicalCase{
 		{
@@ -163,7 +166,12 @@ func canonicalCases(t *testing.T) []canonicalCase {
 				NASKeySetIdentifier: nas.NoKeySet,
 				OldGUTI:             GUTIIdentity(GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{0, 0, 0, 1}}),
 			},
-			order: []canonicalIE{{ieiEPSBearerContextStatus, nas.IETLV}},
+			order: []canonicalIE{
+				{ieiUENetworkCapability, nas.IETLV},
+				{ieiEPSBearerContextStatus, nas.IETLV},
+				{ieiMSNetworkCapability, nas.IETLV},
+			},
+			values: ueNetCap,
 		},
 	}
 }

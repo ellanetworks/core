@@ -135,7 +135,7 @@ func TestHandleGmmMessage_UnimplementedType_ReturnsStatus97(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, uint8(fgs.MsgRegistrationReject), reject, true)
+	d := HandleGmmMessage(context.Background(), amf.New(nil, nil, nil), ue, uint8(fgs.MsgRegistrationReject), reject, true, false)
 
 	if d.Action != nasreply.ActionStatus || d.Domain != nasreply.DomainMM || d.Cause != nasreply.CauseMessageTypeNotImplemented {
 		t.Errorf("disposition = %+v, want a 5GMM STATUS #97 (message type non-existent or not implemented)", d)

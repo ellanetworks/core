@@ -7,7 +7,7 @@ package mme
 // AuthProof is an unforgeable witness that the caller is entitled to mutate
 // security-critical state on a UeContext: installing the NAS security context or
 // committing the UE identity. It has no exported constructor and is minted only
-// by the two functions below.
+// by the functions below.
 type AuthProof struct {
 	_ struct{} // unexported field forbids struct-literal construction outside this package
 }
@@ -32,6 +32,10 @@ func MintAuthProofForAttachCommit() AuthProof {
 // one audited path. Downgrade protection itself is the HashMME replay check
 // (TS 24.301 §5.4.3.2).
 func MintAuthProofForAttachRequest() AuthProof {
+	return AuthProof{}
+}
+
+func MintAuthProofForTrackingAreaUpdate() AuthProof {
 	return AuthProof{}
 }
 

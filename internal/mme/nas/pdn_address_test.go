@@ -138,7 +138,7 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
 	}
 
-	rej, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseAttachReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
 	if err != nil {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
@@ -163,13 +163,30 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
 	}
 
-	rej, err := eps.ParseAttachReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseAttachReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
 	if err != nil {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
 	if rej.Cause != eps.EMMCauseESMFailure {
 		t.Fatalf("Attach Reject cause = %d, want %d (ESM failure)", rej.Cause, eps.EMMCauseESMFailure)
+	}
+
+	if len(rej.ESMMessageContainer) == 0 {
+		t.Fatal("Attach Reject with EMM cause #19 carries no ESM message container")
+	}
+
+	esm, err := eps.ParsePDNConnectivityReject(rej.ESMMessageContainer)
+	if err != nil {
+		t.Fatalf("ESM message container is not a PDN Connectivity Reject: %v", err)
+	}
+
+	if esm.Cause != eps.ESMCauseRequestRejectedUnspecified {
+		t.Errorf("carried ESM cause = %d, want %d", esm.Cause, eps.ESMCauseRequestRejectedUnspecified)
+	}
+
+	if esm.PTI != ue.RequestedPTI {
+		t.Errorf("carried PTI = %d, want the requested %d", esm.PTI, ue.RequestedPTI)
 	}
 
 	parseUEContextReleaseCommand(t, cc.sent[1])

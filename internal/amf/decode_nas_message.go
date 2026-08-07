@@ -252,7 +252,7 @@ func decodePlainNAS(payload []byte) (*DecodeResult, error) {
 		return nil, silentDecode(nasreply.ReasonIntegrityFail, "plain NAS message type %d not permitted by TS 24.501 §4.4.4.3", msgType)
 	}
 
-	return &DecodeResult{MessageType: msgType, IsGMM: true, IntegrityVerified: false, Plain: payload}, nil
+	return &DecodeResult{MessageType: msgType, IsGMM: true, IntegrityVerified: false, ArrivedPlain: true, Plain: payload}, nil
 }
 
 func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payload []byte, conn *UeConn) (*DecodeResult, error) {
@@ -311,6 +311,15 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 	plain, _, uerr := fgs.Unprotect(payload, cnt, nas.DirectionUplink, ue.sc,
 		fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered, fgs.SHTIntegrityProtectedCipheredNewContext)
 	if uerr == nil {
+		// Before the commit so a discarded message does not advance the count, and
+		// before MarkSecureExchangeEstablished so the initial NAS message of a new
+		// connection stays outside the guard (TS 24.501 §4.4.5).
+		if conn.SecureExchangeEstablished() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) {
+			logger.AmfLog.Warn("discarding unciphered NAS message received after ciphering started")
+
+			return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.501 §4.4.5)")
+		}
+
 		// MAC verified: commit the estimated count and establish secure exchange on the
 		// connection before dispatch, so a replay estimates to a count whose MAC fails
 		// (TS 24.501 §4.4.4.3).

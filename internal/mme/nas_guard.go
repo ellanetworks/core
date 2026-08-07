@@ -52,6 +52,35 @@ func (c *UeConn) ArmNASGuardAbortOnly(name string, nas []byte, onAbort func()) {
 	c.armNASGuardMode(name, nas, onAbort)
 }
 
+func (c *UeConn) ArmT3489(name string, nas []byte, onAbort func()) {
+	if c == nil || c.ue == nil {
+		return
+	}
+
+	m := c.m
+	ue := c.ue
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	c.esmInfoGuard.ArmWith(
+		m.t3489Cfg,
+		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
+		func() { c.expireNASGuard(ue, name, onAbort) },
+	)
+}
+
+func (c *UeConn) StopESMInfoGuard() {
+	if c == nil {
+		return
+	}
+
+	c.m.mu.Lock()
+	defer c.m.mu.Unlock()
+
+	c.esmInfoGuard.Stop()
+}
+
 func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
 	if c == nil || c.ue == nil {
 		return

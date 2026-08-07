@@ -289,6 +289,172 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	}
 }
 
+func TestHandleSecurityMode_PlainRegistrationNotReplayed_Aborts(t *testing.T) {
+	amfInstance := amf.New(
+		&fakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				SupportedTACs: "[\"1\"]",
+			},
+		},
+		&fakeAusf{
+			AvKgAka: &ausf.AuthResult{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf: []byte("testkey"),
+		},
+		&fakeSmf{},
+	)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	conn := ue.Conn()
+	conn.RegistrationType5GS = fgs.RegistrationTypeInitial
+	conn.RegistrationRequest = &fgs.RegistrationRequest{
+		RegistrationType:     fgs.RegistrationTypeInitial,
+		MobileIdentity:       testMobileIdentity(),
+		UESecurityCapability: &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0},
+	}
+	conn.RegistrationRequestReplayRequired = true
+
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, buildTestSecurityModeCompleteMessage(), true)
+
+	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
+		t.Fatalf("UE Context Release Command count is %d, want 1", len(ngapSender.SentUEContextReleaseCommand))
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("Downlink NAS Transport count is %d, want 0", len(ngapSender.SentDownlinkNASTransport))
+	}
+}
+
+func TestHandleSecurityMode_ProtectedRegistrationNeedsNoReplay(t *testing.T) {
+	amfInstance := amf.New(
+		&fakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				SupportedTACs: "[\"1\"]",
+			},
+		},
+		&fakeAusf{
+			AvKgAka: &ausf.AuthResult{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf: []byte("testkey"),
+		},
+		&fakeSmf{},
+	)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(nas.CipheringAES)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
+
+	conn := ue.Conn()
+	conn.RegistrationType5GS = fgs.RegistrationTypeInitial
+	conn.RegistrationRequest = &fgs.RegistrationRequest{
+		RegistrationType:     fgs.RegistrationTypeInitial,
+		FOR:                  true,
+		MobileIdentity:       testMobileIdentity(),
+		UESecurityCapability: &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0},
+	}
+	conn.RegistrationRequestReplayRequired = false
+
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, buildTestSecurityModeCompleteMessage(), true)
+
+	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
+		t.Fatalf("UE Context Release Command count is %d, want 0", len(ngapSender.SentUEContextReleaseCommand))
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("Downlink NAS Transport count is %d, want 1", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgRegistrationAccept))
+}
+
+func TestHandleSecurityMode_ProtectedRegistrationWithFailedMACNeedsNoReplay(t *testing.T) {
+	amfInstance := amf.New(
+		&fakeDBInstance{
+			Operator: &db.Operator{
+				Mcc:           "001",
+				Mnc:           "01",
+				SupportedTACs: "[\"1\"]",
+			},
+		},
+		&fakeAusf{
+			AvKgAka: &ausf.AuthResult{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf: []byte("testkey"),
+		},
+		&fakeSmf{},
+	)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(nas.CipheringAES)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
+
+	m, err := buildTestRegistrationRequestMessage(nas.CipheringAES, &key, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	if err := handleRegistrationRequestMessage(t.Context(), amfInstance, ue,
+		mustParseRegistrationRequest(t, m), m, false, false); err != nil {
+		t.Fatalf("handle registration request message: %v", err)
+	}
+
+	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+
+	handleSecurityModeComplete(t.Context(), amfInstance, ue, buildTestSecurityModeCompleteMessage(), true)
+
+	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
+		t.Fatalf("UE Context Release Command count is %d, want 0; the registration was aborted", len(ngapSender.SentUEContextReleaseCommand))
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("Downlink NAS Transport count is %d, want 1", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgRegistrationAccept))
+}
+
 func buildTestSecurityModeCompleteMessage() *fgs.SecurityModeComplete {
 	return &fgs.SecurityModeComplete{}
 }

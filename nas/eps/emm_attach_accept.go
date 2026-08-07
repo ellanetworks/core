@@ -113,6 +113,13 @@ func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
 		return b, fmt.Errorf("nas/eps: EPS network feature support: octet 5 onwards requires octet 4")
 	}
 
+	if n.HasOctet4 {
+		if size := 2 + len(n.Rest); size > maxNetworkFeatureSupportLen {
+			return b, fmt.Errorf(
+				"nas/eps: EPS network feature support value is %d octets, want at most %d", size, maxNetworkFeatureSupportLen)
+		}
+	}
+
 	octet := boolBit(n.IMSVoPS, 0) | boolBit(n.EMCBS, 1) | boolBit(n.EPCLCS, 2) |
 		n.CSLCS&0x03<<3 | boolBit(n.ESRPS, 5) | boolBit(n.ERwoPDN, 6) | boolBit(n.CPCIoT, 7)
 
@@ -320,7 +327,8 @@ func ParseAttachComplete(b []byte) (*AttachComplete, error) {
 // the back-off before the UE retries, mirroring the 5G T3502 in REGISTRATION
 // REJECT.
 type AttachReject struct {
-	Cause EMMCause
+	Cause               EMMCause
+	ESMMessageContainer []byte
 	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16A); 0 omits the IE.
 	T3402 *nas.GPRSTimer2
 
@@ -329,9 +337,8 @@ type AttachReject struct {
 	Unrecognized []nas.RawIE
 }
 
-// attachRejectIEs are the optional IEs Ella Core emits in an ATTACH REJECT: the
-// T3402 value, a type-4 (TLV) "GPRS timer 2" IE with a one-octet value (§8.2.3.4).
 var attachRejectIEs = []nas.OptionalIE{
+	{IEI: ieiESMMessageContainer, Format: nas.IETLVE, Name: "ESM message container"},
 	{IEI: ieiT3402Value, Format: nas.IETLV, Name: "T3402 value"},
 }
 
@@ -344,6 +351,10 @@ func (m *AttachReject) AppendBinary(b []byte) ([]byte, error) {
 
 	writeEMMHeader(w, MsgAttachReject)
 	w.U8(uint8(m.Cause))
+
+	if len(m.ESMMessageContainer) > 0 {
+		o.TLVE(ieiESMMessageContainer, m.ESMMessageContainer)
+	}
 
 	if m.T3402 != nil {
 		raw, err := m.T3402.MarshalBinary()
@@ -379,18 +390,23 @@ func ParseAttachReject(b []byte) (*AttachReject, error) {
 	m := &AttachReject{Cause: EMMCause(cause)}
 
 	_unrec, err := walkOptionalIEs(r, attachRejectIEs, func(iei uint8, value []byte) (bool, error) {
-		if iei != ieiT3402Value {
-			return false, nil
+		switch iei {
+		case ieiESMMessageContainer:
+			m.ESMMessageContainer = value
+
+			return true, nil
+		case ieiT3402Value:
+			timer, err := nas.ParseGPRSTimer2(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.T3402 = &timer
+
+			return true, nil
 		}
 
-		timer, err := nas.ParseGPRSTimer2(value)
-		if err != nil {
-			return false, err
-		}
-
-		m.T3402 = &timer
-
-		return true, nil
+		return false, nil
 	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err

@@ -9,6 +9,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -30,6 +31,14 @@ func (e egress) SendMMStatus(ctx context.Context, cause uint8) {
 
 func (e egress) SendSMStatus(ctx context.Context, cause uint8) {
 	e.emit(ctx, &eps.ESMStatus{Cause: eps.ESMCause(cause)})
+}
+
+func (e egress) SendSMStatusFor(ctx context.Context, cause, pti, ebi uint8) {
+	e.emit(ctx, &eps.ESMStatus{
+		EPSBearerIdentity: eps.EPSBearerIdentity(ebi),
+		PTI:               nas.ProcedureTransactionIdentity(pti),
+		Cause:             eps.ESMCause(cause),
+	})
 }
 
 func (e egress) emit(ctx context.Context, msg nasMarshaler) {

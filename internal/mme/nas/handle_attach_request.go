@@ -87,6 +87,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 	// §5.4.3.3). Its old EPS bearers are deleted (§5.5.1.2.4 case f) before the new
 	// default bearer is activated.
 	if ue.Secured() && integrityVerified {
+		ue.PinKeNBFreshness()
 		m.ReleaseAllSessions(ctx, ue)
 		activateDefaultBearer(ctx, m, ue)
 
@@ -122,6 +123,10 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedPDNType = uint8(eps.PDNTypeIPv4)
 	ue.RequestedAPN = ""
 	ue.RequestedPTI = 0
+	// An abandoned deferral's abort would otherwise emit a reject naming the
+	// earlier transaction.
+	ue.Conn().StopESMInfoGuard()
+	ue.TakeESMInfoWait()
 
 	// A syntactically incorrect optional element leaves the rest of the message
 	// usable (TS 24.301 §7.7.1), so only a hard failure falls back to the
@@ -135,6 +140,10 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 
 		if pc.AccessPointName != nil {
 			ue.RequestedAPN = string(*pc.AccessPointName)
+		}
+
+		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {
+			ue.AwaitESMInformation(uint8(pc.PTI), nil)
 		}
 	}
 }
@@ -217,16 +226,39 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, na
 // rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
 // cause, then releases the UE's S1 context.
 func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
+	sendAttachReject(ctx, m, ue, cause, nil)
+}
+
+func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, pti uint8, esmCause eps.ESMCause) {
+	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause}).MarshalBinary()
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to build the PDN Connectivity Reject carried by an Attach Reject",
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		esm = nil
+	}
+
+	sendAttachReject(ctx, m, ue, eps.EMMCauseESMFailure, esm)
+}
+
+func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause, esm []byte) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 	ue.Conn().StopNASGuard()
 
-	reject := &eps.AttachReject{Cause: cause}
+	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}
 
 	if timer, err := nas.GPRSTimer2FromDuration(mme.T3402Backoff); err == nil {
 		reject.T3402 = &timer
 	}
 
-	ue.Conn().SendDownlinkMessage(ctx, reject)
+	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
+	// plain form is for the rejects preceding security activation.
+	if ue.Secured() {
+		ue.Conn().SendDownlinkProtected(ctx, reject)
+	} else {
+		ue.Conn().SendDownlinkMessage(ctx, reject)
+	}
+
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }
 
