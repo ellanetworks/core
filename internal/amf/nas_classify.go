@@ -18,10 +18,8 @@ type DecodeResult struct {
 	// IsGMM reports whether Plain is a 5GMM message; false for a standalone 5GSM message on N1.
 	IsGMM             bool
 	IntegrityVerified bool
-	// ArrivedPlain reports that the PDU carried security header type "plain 5GS
-	// NAS message", which a UE sends when it holds no 5G NAS security context to
-	// protect with. It tells that case apart from a protected PDU whose MAC did
-	// not verify, which TS 24.501 §4.4.6 treats differently.
+	// Distinct from a protected PDU whose MAC failed: only a UE holding no
+	// security context sends plain.
 	ArrivedPlain bool
 	// Plain is the decoded plain 5GMM message (after any decipher), the input for the
 	// nas/fgs handlers. It starts with the extended protocol discriminator, and is

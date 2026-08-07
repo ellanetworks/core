@@ -103,10 +103,6 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	conn.RegistrationRequest = req
 	conn.RegistrationRequestPlain = slices.Clone(plain)
-	// TS 24.501 §4.4.6: only case a) — a UE with no valid 5G NAS security context,
-	// which therefore sends the request plain — has to replay it in the SECURITY
-	// MODE COMPLETE. A protected request whose MAC did not verify is case b), where
-	// the request the UE sent is complete as it stands.
 	conn.RegistrationRequestReplayRequired = arrivedPlain
 	conn.SetRegistrationType5GS(uint8(req.RegistrationType))
 

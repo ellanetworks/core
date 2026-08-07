@@ -13,9 +13,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// esmInfoAttachUe returns a secured UE whose attach carried a PDN CONNECTIVITY
-// REQUEST with the ESM information transfer flag set on transaction pti, so the
-// APN and PCO are withheld (TS 24.301 §6.5.1.2).
 func esmInfoAttachUe(t *testing.T, m *mme.MME, pti uint8) (*mme.UeContext, *captureConn) { //nolint:unparam // the transaction identity is part of the helper's shape
 	t.Helper()
 
@@ -30,8 +27,6 @@ func esmInfoTestMME() *mme.MME {
 	return mme.New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &fakeSessionManager{})
 }
 
-// parseESMInformationRequest asserts the downlink is a protected ESM INFORMATION
-// REQUEST and returns it.
 func parseESMInformationRequest(t *testing.T, ue *mme.UeContext, pdu []byte) *eps.ESMInformationRequest {
 	t.Helper()
 
@@ -43,9 +38,7 @@ func parseESMInformationRequest(t *testing.T, ue *mme.UeContext, pdu []byte) *ep
 	return req
 }
 
-// TS 24.301 §6.6.1.2.2: with the flag set, the attach does not activate the
-// default bearer but asks the UE for the ESM information it withheld. The request
-// names the PDN CONNECTIVITY REQUEST's transaction and no EPS bearer identity.
+// TS 24.301 §6.6.1.2.2.
 func TestAttachWithESMInformationTransferFlagRequestsIt(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
@@ -71,8 +64,7 @@ func TestAttachWithESMInformationTransferFlagRequestsIt(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.6.1.2.4: the response's APN is taken and the deferred attach
-// resumes, activating the default bearer against that APN.
+// TS 24.301 §6.6.1.2.4.
 func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
@@ -97,8 +89,6 @@ func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 		t.Fatal("the attach was aborted rather than resumed")
 	}
 
-	// The Attach Accept rides the Initial Context Setup, so the resumed attach adds
-	// an S1AP message rather than a further downlink NAS transport.
 	if len(cc.sent) != 2 {
 		t.Fatalf("message count is %d, want 2 (ESM Information Request, Initial Context Setup)", len(cc.sent))
 	}
@@ -108,17 +98,14 @@ func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.5.1.6 c): with no ESM information before T3489's final expiry the
-// attach is rejected, EMM cause #19 combined with a PDN CONNECTIVITY REJECT
-// carrying ESM cause #53.
+// TS 24.301 §6.5.1.6 c).
 func TestESMInformationTimeoutRejectsTheAttach(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
 	activateDefaultBearer(context.Background(), m, ue)
 
-	// Drive the abort directly: T3489's schedule is the guard's contract, tested
-	// where the guard is.
+	// The schedule that reaches this abort is covered by the T3489 tests.
 	rejectAttachESM(context.Background(), m, ue, 3, eps.ESMCauseESMInformationNotReceived)
 
 	if len(cc.sent) != 3 {
@@ -150,8 +137,7 @@ func TestESMInformationTimeoutRejectsTheAttach(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[2])
 }
 
-// TS 24.301 §7.3.1 e): a response naming another assigned transaction draws ESM
-// STATUS #81 and leaves the procedure running.
+// TS 24.301 §7.3.1 e).
 func TestESMInformationResponseForAnotherTransactionIsRefused(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
@@ -182,8 +168,7 @@ func TestESMInformationResponseForAnotherTransactionIsRefused(t *testing.T) {
 	}
 }
 
-// TS 24.301 §7.3.1 e): an unassigned or reserved PTI is ignored outright — no
-// ESM STATUS, and the ongoing procedure keeps running.
+// TS 24.301 §7.3.1 e): ignored outright, with no ESM STATUS.
 func TestESMInformationResponseWithUnassignedPTIIsIgnored(t *testing.T) {
 	for _, pti := range []uint8{0, 255} {
 		m := esmInfoTestMME()
@@ -205,8 +190,7 @@ func TestESMInformationResponseWithUnassignedPTIIsIgnored(t *testing.T) {
 	}
 }
 
-// TS 24.301 §7.3.2 e), §6.6.1.2.3: the UE sets "no EPS bearer identity assigned",
-// so a response naming one is ignored.
+// TS 24.301 §7.3.2 e).
 func TestESMInformationResponseWithAnEPSBearerIdentityIsIgnored(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
@@ -227,8 +211,6 @@ func TestESMInformationResponseWithAnEPSBearerIdentityIsIgnored(t *testing.T) {
 	}
 }
 
-// Without the flag the attach proceeds straight to the default bearer, so the
-// procedure costs nothing for a UE that does not defer.
 func TestAttachWithoutESMInformationTransferFlagDoesNotRequestIt(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := securedUE(t, m)
@@ -248,8 +230,6 @@ func TestAttachWithoutESMInformationTransferFlagDoesNotRequestIt(t *testing.T) {
 	}
 }
 
-// A second attach on the same connection clears the earlier deferral, so its
-// abandoned abort cannot fire against the new attach (TS 24.301 §5.5.1.2.6).
 func TestAttachClearsAnAbandonedESMInformationWait(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := esmInfoAttachUe(t, m, 3)
@@ -268,7 +248,6 @@ func TestAttachClearsAnAbandonedESMInformationWait(t *testing.T) {
 	}
 }
 
-// The flag on a new attach re-arms the procedure for that attach's transaction.
 func TestAttachIngestRecordsTheDeferral(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := securedUE(t, m)
@@ -294,8 +273,6 @@ func TestAttachIngestRecordsTheDeferral(t *testing.T) {
 	}
 }
 
-// mustPDNConnectivityRequest encodes the PDN CONNECTIVITY REQUEST an ATTACH
-// REQUEST carries, with the ESM information transfer flag set to eit.
 func mustPDNConnectivityRequest(t *testing.T, pti uint8, eit bool) []byte {
 	t.Helper()
 

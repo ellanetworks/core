@@ -443,9 +443,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.5.1.2: a standalone PDN CONNECTIVITY REQUEST may defer its APN to
-// the ESM information exchange, so no connection opens until the response
-// arrives — and the missing APN is not mistaken for #27.
+// TS 24.301 §6.5.1.2: the withheld APN must not be mistaken for #27.
 func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -484,8 +482,7 @@ func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 	}
 }
 
-// The final expiry of T3489 rejects the standalone request with ESM cause #53
-// and leaves the UE connected (TS 24.301 §6.5.1.6 c).
+// TS 24.301 §6.5.1.6 c).
 func TestStandalonePDNConnectivityRejectsWhenESMInformationNeverArrives(t *testing.T) {
 	m := newTestMME(t)
 	m.SetT3489ConfigForTest(5*time.Millisecond, 1)
@@ -499,7 +496,6 @@ func TestStandalonePDNConnectivityRejectsWhenESMInformationNeverArrives(t *testi
 		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, ESMInformationTransferFlag: &eit,
 	})
 
-	// The request, one retransmission, then the reject.
 	waitFor(t, "T3489 to exhaust its retransmissions", func() bool { return cc.count() >= 3 })
 
 	rej, err := eps.ParsePDNConnectivityReject(decodeProtectedDownlink(t, ue, cc.sent[2]))

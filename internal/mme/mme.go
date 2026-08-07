@@ -192,9 +192,8 @@ const (
 	defaultNASGuardMaxRetransmit = 4
 )
 
-// T3489 supervises the ESM information request procedure. Its third expiry
-// aborts the procedure, so the initial request is followed by two
-// retransmissions (TS 24.301 §6.6.1.2.6 a, table 10.2.1).
+// TS 24.301 §6.6.1.2.6 a) aborts on the third expiry, so two retransmissions
+// follow the initial request (table 10.2.2).
 const (
 	defaultT3489Timeout       = 4 * time.Second
 	defaultT3489MaxRetransmit = 2

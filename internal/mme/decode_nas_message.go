@@ -108,11 +108,8 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// is dropped (TS 24.301).
 	p, count, err := ue.TryUnprotectUplink(nas)
 	if err == nil {
-		// TS 24.301 §4.4.5: once ciphering has started the receiver discards an
-		// unciphered message that should have been ciphered. An integrity-only
-		// message carries its plaintext, so its type is readable here. Secure
-		// exchange is per connection, which leaves the initial NAS message of a new
-		// connection — legitimately unciphered — outside this guard.
+		// connSecured is per connection, so the initial NAS message of a new one —
+		// legitimately unciphered — stays outside this guard (TS 24.301 §4.4.5).
 		if connSecured && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) {
 			logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
 				zap.String("imsi", ue.IMSI()))

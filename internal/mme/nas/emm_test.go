@@ -65,8 +65,6 @@ func decodeDownlinkNAS(t *testing.T, pdu []byte) []byte {
 	return []byte(dl.NASPDU)
 }
 
-// decodeProtectedDownlink returns the plaintext of a security-protected downlink
-// NAS message sent to a secured UE.
 func decodeProtectedDownlink(t *testing.T, ue *mme.UeContext, pdu []byte) []byte {
 	t.Helper()
 

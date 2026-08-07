@@ -101,9 +101,8 @@ type UeConn struct {
 	// RegistrationRequestPlain is compared byte-for-byte for duplicate detection
 	// (TS 24.501 §5.5.1.2.8), immune to the decoder dropping IEs it does not model.
 	RegistrationRequestPlain []byte
-	// RegistrationRequestReplayRequired records that the stored request arrived as
-	// a plain NAS message, so the UE has to repeat it in the NAS message container
-	// of the SECURITY MODE COMPLETE (TS 24.501 §4.4.6 case a).
+	// Plain arrival means the UE held no security context, so it must repeat the
+	// request in the SECURITY MODE COMPLETE (TS 24.501 §4.4.6 case a).
 	RegistrationRequestReplayRequired bool
 	RegistrationType5GS               fgs.RegistrationType
 	IdentityTypeUsedForRegistration   uint8

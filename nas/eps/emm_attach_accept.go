@@ -113,8 +113,6 @@ func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
 		return b, fmt.Errorf("nas/eps: EPS network feature support: octet 5 onwards requires octet 4")
 	}
 
-	// Octet 3, octet 4 and Rest are the whole value, which the element caps at
-	// maxNetworkFeatureSupportLen (TS 24.301 §9.9.3.12A).
 	if n.HasOctet4 {
 		if size := 2 + len(n.Rest); size > maxNetworkFeatureSupportLen {
 			return b, fmt.Errorf(
@@ -330,8 +328,7 @@ func ParseAttachComplete(b []byte) (*AttachComplete, error) {
 // REJECT.
 type AttachReject struct {
 	Cause EMMCause
-	// ESMMessageContainer carries the ESM reject that accompanies EMM cause #19
-	// "ESM failure" (TS 24.301 §5.5.1.2.5); empty omits the IE.
+	// Accompanies EMM cause #19 (TS 24.301 §5.5.1.2.5); empty omits the IE.
 	ESMMessageContainer []byte
 	// T3402 is the encoded one-octet GPRS timer value (§9.9.3.16A); 0 omits the IE.
 	T3402 *nas.GPRSTimer2
@@ -341,9 +338,7 @@ type AttachReject struct {
 	Unrecognized []nas.RawIE
 }
 
-// attachRejectIEs are the optional IEs Ella Core emits in an ATTACH REJECT: the
-// ESM message container, a type-6 (TLV-E) IE, and the T3402 value, a type-4
-// (TLV) "GPRS timer 2" IE with a one-octet value (§8.2.3.2, §8.2.3.4).
+// Table 8.2.3.1 order.
 var attachRejectIEs = []nas.OptionalIE{
 	{IEI: ieiESMMessageContainer, Format: nas.IETLVE, Name: "ESM message container"},
 	{IEI: ieiT3402Value, Format: nas.IETLV, Name: "T3402 value"},

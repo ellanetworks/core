@@ -63,14 +63,8 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// The TAU is integrity protected against the stored context, so the capability
-	// it carries is as authenticated as the attach-time one (TS 24.301 §5.5.3.2.4).
-	// It is stored only once the accept is built, so a TAU that is never accepted
-	// leaves the held capability alone.
-	//
-	// TS 24.301 §5.5.3.2.4: the UE may replay the UE network capability, the MS
-	// network capability, or both, and the MME stores what arrives. An absent one
-	// keeps the held value.
+	// TS 24.301 §5.5.3.2.4: either capability or both. Stored after the accept is
+	// built, so a TAU that is never accepted leaves the held one alone.
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
 		ueNetCap := ue.UeNetCap()
 		if req.UENetworkCapability != nil {

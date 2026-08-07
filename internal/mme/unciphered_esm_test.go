@@ -10,9 +10,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TS 24.301 §4.4.5: once ciphering has started the receiver discards a message
-// that should have been ciphered. Only two EMM messages are exempt, so every ESM
-// message arriving integrity-protected only is discarded.
+// TS 24.301 §4.4.5.
 func TestDecodeNASMessageDiscardsAnUncipheredESMMessage(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -39,8 +37,7 @@ func TestDecodeNASMessageDiscardsAnUncipheredESMMessage(t *testing.T) {
 	}
 }
 
-// The same message ciphered is accepted, so the discard above is the ciphering
-// requirement and not a rejection of the message itself.
+// Pins the discard above to the ciphering requirement, not the message itself.
 func TestDecodeNASMessageAcceptsTheSameESMMessageCiphered(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -62,8 +59,7 @@ func TestDecodeNASMessageAcceptsTheSameESMMessageCiphered(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.5 has the UE send ATTACH REQUEST and TRACKING AREA UPDATE
-// REQUEST always unciphered, so neither is discarded by the ciphering guard.
+// The two TS 24.301 §4.4.5 exempts.
 func TestDecodeNASMessageAcceptsTheUncipheredExemptMessages(t *testing.T) {
 	tests := []struct {
 		name string

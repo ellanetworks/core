@@ -278,9 +278,6 @@ func TestTrackingAreaUpdateRejectMarshal(t *testing.T) {
 	}
 }
 
-// Both replayed capabilities are Critical (TS 24.301 §5.5.3.2.4 has the MME store
-// them), so a malformed value fails the message rather than leaving the field
-// silently absent.
 func TestTrackingAreaUpdateRequestRejectsMalformedCapabilities(t *testing.T) {
 	tests := []struct {
 		name string

@@ -35,10 +35,8 @@ func MintAuthProofForAttachRequest() AuthProof {
 	return AuthProof{}
 }
 
-// MintAuthProofForTrackingAreaUpdate returns an AuthProof gating the store of UE
-// security capabilities replayed in a TRACKING AREA UPDATE REQUEST
-// (TS 24.301 §5.5.3.2.4). It must only be called for a request that passed its
-// integrity check, which is the downgrade protection on this path (§4.4.4.3).
+// Only for a TRACKING AREA UPDATE REQUEST that passed its integrity check: that
+// check is the downgrade protection on this path (TS 24.301 §4.4.4.3).
 func MintAuthProofForTrackingAreaUpdate() AuthProof {
 	return AuthProof{}
 }

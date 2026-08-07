@@ -176,8 +176,6 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 		}
 	})
 
-	// EMM cause #19 "ESM failure" comes with the ESM reject in the ESM message
-	// container, a type-6 (TLV-E) IE (TS 24.301 §5.5.1.2.5, table 8.2.3.1).
 	t.Run("RejectWithESMMessageContainer", func(t *testing.T) {
 		esm, err := (&PDNConnectivityReject{PTI: 1, Cause: ESMCauseMissingOrUnknownAPN}).MarshalBinary()
 		if err != nil {
@@ -220,9 +218,7 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 	})
 }
 
-// The element caps its value at maxNetworkFeatureSupportLen (TS 24.301
-// §9.9.3.12A), so the encoder does not emit what ParseNetworkFeatureSupport
-// rejects.
+// The encoder must not emit what ParseNetworkFeatureSupport rejects.
 func TestNetworkFeatureSupportRejectsAnOverlongValue(t *testing.T) {
 	in := NetworkFeatureSupport{IMSVoPS: true, HasOctet4: true, Rest: []byte{0x00, 0x00}}
 

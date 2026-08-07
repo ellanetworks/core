@@ -5,11 +5,8 @@ package mme
 
 import "github.com/ellanetworks/core/nas/eps"
 
-// cipheringRequiredFor reports whether a plain uplink NAS message has to arrive
-// ciphered once ciphering has started (TS 24.301 §4.4.5). Only two EMM messages
-// are exempt, so anything that does not decode as one of those — every ESM
-// message included, since its protocol discriminator fails the EMM peek —
-// requires ciphering.
+// An ESM message fails the EMM protocol-discriminator check, so it lands on the
+// required-ciphered default.
 func cipheringRequiredFor(plain []byte) bool {
 	mt, err := eps.PeekMessageType(plain)
 	if err != nil {
@@ -19,9 +16,7 @@ func cipheringRequiredFor(plain []byte) bool {
 	return cipheringRequired(mt)
 }
 
-// cipheringRequired reports whether a security-protected uplink message of this
-// type has to arrive ciphered once ciphering has started. TS 24.301 §4.4.5 has
-// the UE send ATTACH REQUEST and TRACKING AREA UPDATE REQUEST always unciphered.
+// TS 24.301 §4.4.5 has the UE send these two always unciphered.
 func cipheringRequired(mt eps.MessageType) bool {
 	switch mt {
 	case eps.MsgAttachRequest, eps.MsgTrackingAreaUpdateRequest:

@@ -42,9 +42,8 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 }
 
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	// The security context is up by the time the attach reaches here, which is what
-	// the ESM information request procedure waits for (TS 24.301 §6.6.1.2.2). The
-	// response re-enters this function with the deferred APN in hand.
+	// Both callers reach here with the security context up (TS 24.301 §6.6.1.2.2).
+	// The response re-enters this function.
 	if requestESMInformation(ctx, ue, func(pti uint8) {
 		// T3489's final expiry outlives the request's context.
 		rejectAttachESM(context.Background(), m, ue, pti, eps.ESMCauseESMInformationNotReceived)

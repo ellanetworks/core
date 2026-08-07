@@ -37,12 +37,8 @@ type TrackingAreaUpdateRequest struct {
 	OldGUTI EPSMobileIdentity
 	// EPSBearerContextStatus reports which EPS bearer contexts are active.
 	EPSBearerContextStatus *nas.EPSBearerContextStatus
-	// UENetworkCapability is the UE's supported algorithms and per-release
-	// feature bits (§9.9.3.34); nil when the element was absent.
-	UENetworkCapability *UENetworkCapability
-	// MSNetworkCapability carries the GERAN/UTRAN algorithms (§9.9.3.20). The UE
-	// may replay either capability or both (§5.5.3.2.4); nil when absent.
-	MSNetworkCapability *MSNetworkCapability
+	UENetworkCapability    *UENetworkCapability // §9.9.3.34
+	MSNetworkCapability    *MSNetworkCapability // §9.9.3.20
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -186,9 +182,8 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 
 			return true, nil
 		case ieiUENetworkCapability:
-			// Both capabilities are Critical: the MME stores what they replay
-			// (§5.5.3.2.4), so a malformed one fails the message rather than
-			// leaving the field silently absent.
+			// Both are Critical, so a malformed value fails the message rather than
+			// taking the §7.7.1 not-present default.
 			parsed, err := ParseUENetworkCapability(value)
 			if err != nil {
 				return false, err

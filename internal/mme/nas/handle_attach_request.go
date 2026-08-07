@@ -122,8 +122,8 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 	ue.RequestedPDNType = uint8(eps.PDNTypeIPv4)
 	ue.RequestedAPN = ""
 	ue.RequestedPTI = 0
-	// The abort of an abandoned deferral would otherwise fire against this attach,
-	// clearing its wait and emitting a reject with the earlier transaction's PTI.
+	// An abandoned deferral's abort would otherwise emit a reject naming the
+	// earlier transaction.
 	ue.Conn().StopESMInfoGuard()
 	ue.TakeESMInfoWait()
 
@@ -141,9 +141,6 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 			ue.RequestedAPN = string(*pc.AccessPointName)
 		}
 
-		// The UE withholds its ESM information until the exchange that runs once the
-		// security context is up (TS 24.301 §6.5.1.2, §6.6.1.2.2). Of what it then
-		// sends, the MME reads the APN; it acts on no uplink PCO anywhere.
 		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {
 			ue.AwaitESMInformation(uint8(pc.PTI), nil)
 		}
@@ -231,10 +228,7 @@ func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.
 	sendAttachReject(ctx, m, ue, cause, nil)
 }
 
-// rejectAttachESM refuses an attach whose PDN CONNECTIVITY REQUEST the ESM
-// sublayer rejected. EMM cause #19 "ESM failure" is combined with the PDN
-// CONNECTIVITY REJECT carrying esmCause on transaction pti, which the UE needs
-// to learn why the PDN connection was refused (TS 24.301 §5.5.1.2.5).
+// TS 24.301 §5.5.1.2.5 pairs EMM cause #19 with the ESM reject that explains it.
 func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, pti uint8, esmCause eps.ESMCause) {
 	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: esmCause}).MarshalBinary()
 	if err != nil {
@@ -257,9 +251,8 @@ func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause 
 		reject.T3402 = &timer
 	}
 
-	// A UE that has established secure exchange discards an unprotected downlink
-	// (TS 24.301 §4.4.4.2). The plain form is for the rejects that precede
-	// security activation.
+	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
+	// plain form is for the rejects preceding security activation.
 	if ue.Secured() {
 		ue.Conn().SendDownlinkProtected(ctx, reject)
 	} else {

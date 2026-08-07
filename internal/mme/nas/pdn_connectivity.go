@@ -60,8 +60,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		apn = string(*req.AccessPointName)
 	}
 
-	// The UE may hold the APN back until the ESM information exchange
-	// (TS 24.301 §6.5.1.2); #53 follows only once T3489 has expired (§6.5.1.6 c).
+	// The APN may be withheld until the ESM information exchange; #53 follows only
+	// once T3489 has expired (TS 24.301 §6.5.1.2, §6.5.1.6 c).
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
 		ue.RequestedAPN = apn
 		ue.AwaitESMInformation(uint8(pti), &mme.PendingPDNConnectivity{
@@ -69,8 +69,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 			PDNType: uint8(req.PDNType),
 		})
 
-		// The abort runs on a build or protect failure and on T3489's final expiry,
-		// the last of which outlives this request's context.
+		// T3489's final expiry outlives this request's context.
 		requestESMInformation(ctx, ue, func(abortedPTI uint8) {
 			rejectPDNConnectivity(context.Background(), ue, abortedPTI, eps.ESMCauseESMInformationNotReceived)
 		})
@@ -86,15 +85,11 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	return openPDNConnection(ctx, m, ue, apn, uint8(pti), req.PDNType)
 }
 
-// openPDNConnection commits a PDN connection whose parameters are already
-// resolved, so a request resumed after the ESM information exchange re-enters
-// here with the APN the UE deferred.
 func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn string, ptiValue uint8, pdnType eps.PDNType) nasreply.Disposition {
 	pti := nas.ProcedureTransactionIdentity(ptiValue)
 
-	// A resumed request re-enters here from the ESM information response, which can
-	// arrive after a detach or an S1 release has ended the procedure (TS 24.301
-	// §6.5.1.1: the UE must be EMM-REGISTERED to request a PDN connection).
+	// Re-checked: a resumed request arrives after a detach or S1 release may have
+	// intervened (TS 24.301 §6.5.1.1).
 	if ue.EMMState() != mme.EMMRegistered || !ue.Connected() {
 		rejectPDNConnectivity(ctx, ue, ptiValue, eps.ESMCauseRequestRejectedUnspecified)
 		return nasreply.Handled()
@@ -185,8 +180,6 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn s
 	return nasreply.Handled()
 }
 
-// resumePDNConnectivity re-runs the standalone request with the APN the UE
-// deferred (TS 24.301 §6.6.1.2.4).
 func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext, pending *mme.PendingPDNConnectivity) {
 	openPDNConnection(ctx, m, ue, ue.RequestedAPN, pending.PTI, eps.PDNType(pending.PDNType))
 }

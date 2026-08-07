@@ -284,7 +284,6 @@ func TestTransport5GSMMessage_InitialRequest_NotAllowedNssai_NotForwarded(t *tes
 	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
 	setRequestType(msg, fgs.RequestTypeInitialRequest)
 
-	// SST=2 is outside the UE's allowed NSSAI.
 	msg.SNSSAI = &fgs.SNSSAI{SST: 2, SD: &[3]byte{4, 5, 6}}
 	msg.DNN = new(fgs.DNN("internet"))
 
@@ -307,9 +306,7 @@ func TestTransport5GSMMessage_InitialRequest_NotAllowedNssai_NotForwarded(t *tes
 	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgDLNASTransport))
 }
 
-// TS 24.501 §5.4.5.2.5 case 13 names "initial request" or "modification request",
-// so a modification request for an existing session is checked against the
-// allowed NSSAI too, and on the S-NSSAI this message carries.
+// TS 24.501 §5.4.5.2.5 case 13.
 func TestTransport5GSMMessage_ModificationRequest_NotAllowedNssai_NotForwarded(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -321,7 +318,6 @@ func TestTransport5GSMMessage_ModificationRequest_NotAllowedNssai_NotForwarded(t
 
 	var pduSessionID uint8 = 5
 
-	// The session's own S-NSSAI is allowed; the one the message requests is not.
 	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 1, Sd: "010203"})
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}

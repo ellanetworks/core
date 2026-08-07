@@ -72,13 +72,7 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return nasreply.Handled()
 	}
 
-	// TS 24.501 §4.4.6 case a: a UE with no valid 5G NAS security context sends the
-	// REGISTRATION REQUEST plain and repeats it here, in both sub-cases 1) and 2).
-	// Its absence leaves the stored request unverified, so it is not built on.
-	//
-	// Case b) is excluded: there the UE protected the request, and it omits the
-	// container whenever it had no non-cleartext IEs to send (§5.4.2.3), so
-	// demanding one would abort a registration the spec completes.
+	// TS 24.501 §4.4.6 case a) requires the replay in both its sub-cases.
 	if conn.RegistrationRequestReplayRequired {
 		abortRegistration(ctx, amfInstance, ue, "NAS message container", errNoRegistrationContainer)
 
@@ -90,8 +84,6 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	return nasreply.Handled()
 }
 
-// errNoRegistrationContainer reports a SECURITY MODE COMPLETE that omits the
-// REGISTRATION REQUEST a cleartext-only initial message has to repeat.
 var errNoRegistrationContainer = errors.New("SECURITY MODE COMPLETE carries no NAS message container")
 
 // imeiFromPEI renders a decoded IMEISV mobile identity as the shared equipment

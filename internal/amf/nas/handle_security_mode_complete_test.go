@@ -395,11 +395,8 @@ func TestHandleSecurityMode_ProtectedRegistrationNeedsNoReplay(t *testing.T) {
 	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
-// TS 24.501 §4.4.6 case b) 3): a UE that holds a 5G NAS security context protects
-// the REGISTRATION REQUEST and omits the NAS message container when it has no
-// non-cleartext IEs to send. Its MAC failing against the AMF's state — a key or
-// NAS COUNT desync — does not turn it into case a), so the guard must not abort
-// a registration the UE never had to replay.
+// TS 24.501 §4.4.6 case b) 3): a failed MAC does not turn a protected request
+// into case a), so the guard must not demand a replay the UE never owed.
 func TestHandleSecurityMode_ProtectedRegistrationWithFailedMACNeedsNoReplay(t *testing.T) {
 	amfInstance := amf.New(
 		&fakeDBInstance{
@@ -440,7 +437,6 @@ func TestHandleSecurityMode_ProtectedRegistrationWithFailedMACNeedsNoReplay(t *t
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	// The request arrived security protected; its MAC did not verify.
 	if err := handleRegistrationRequestMessage(t.Context(), amfInstance, ue,
 		mustParseRegistrationRequest(t, m), m, false, false); err != nil {
 		t.Fatalf("handle registration request message: %v", err)

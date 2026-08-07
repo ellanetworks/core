@@ -172,8 +172,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Fatalf("Attach Reject cause = %d, want %d (ESM failure)", rej.Cause, eps.EMMCauseESMFailure)
 	}
 
-	// EMM cause #19 is combined with the ESM reject that explains it
-	// (TS 24.301 §5.5.1.2.5).
+	// TS 24.301 §5.5.1.2.5.
 	if len(rej.ESMMessageContainer) == 0 {
 		t.Fatal("Attach Reject with EMM cause #19 carries no ESM message container")
 	}

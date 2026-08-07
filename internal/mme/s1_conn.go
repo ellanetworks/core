@@ -105,9 +105,8 @@ type UeConn struct {
 	// nasGuardName is the EMM procedure the guard currently supervises, for the status
 	// export. Set at arm and cleared at stop under m.mu, so a plain string suffices.
 	nasGuardName string
-	// esmInfoGuard supervises the ESM information request procedure (T3489,
-	// TS 24.301 §6.6.1.2.6 a). It is separate from nasGuard because the procedure
-	// runs inside the attach, whose own guard is already armed.
+	// T3489. Separate from nasGuard because the procedure runs inside the attach,
+	// whose own guard is already armed.
 	esmInfoGuard guard.Guard
 	// releaseGuard supervises a sent UE Context Release Command: armed when the command
 	// is sent, stopped on the Release Complete; a lost Complete fires it once and runs

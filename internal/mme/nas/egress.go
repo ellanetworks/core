@@ -33,8 +33,6 @@ func (e egress) SendSMStatus(ctx context.Context, cause uint8) {
 	e.emit(ctx, &eps.ESMStatus{Cause: eps.ESMCause(cause)})
 }
 
-// SendSMStatusFor reports an ESM protocol error naming the transaction it
-// refuses, so the UE can correlate it (TS 24.301 §8.3.15).
 func (e egress) SendSMStatusFor(ctx context.Context, cause, pti, ebi uint8) {
 	e.emit(ctx, &eps.ESMStatus{
 		EPSBearerIdentity: eps.EPSBearerIdentity(ebi),

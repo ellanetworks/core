@@ -422,8 +422,7 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.4: the MME stores the UE network capability and the MS
-// network capability the UE replays in an accepted TRACKING AREA UPDATE REQUEST.
+// TS 24.301 §5.5.3.2.4.
 func TestTrackingAreaUpdateStoresReplayedCapabilities(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -452,8 +451,6 @@ func TestTrackingAreaUpdateStoresReplayedCapabilities(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.4: the UE may replay either capability or both, so a TAU
-// carrying only the UE network capability keeps the held MS network capability.
 func TestTrackingAreaUpdateKeepsHeldMSCapability(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -476,7 +473,6 @@ func TestTrackingAreaUpdateKeepsHeldMSCapability(t *testing.T) {
 	}
 }
 
-// A TAU that omits the UE network capability leaves the held capability alone.
 func TestTrackingAreaUpdateWithoutCapabilityKeepsStored(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -492,9 +488,6 @@ func TestTrackingAreaUpdateWithoutCapabilityKeepsStored(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.4 stores what the UE replays whether that is the UE network
-// capability, the MS network capability, or both, so a TAU carrying only the MS
-// capability is stored and the held UE capability kept.
 func TestTrackingAreaUpdateStoresAnMSCapabilityOnlyReplay(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

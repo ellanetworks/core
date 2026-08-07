@@ -113,17 +113,12 @@ type PdnConnection struct {
 	guard guard.Guard
 }
 
-// ESMInfoWait is an outstanding ESM information request procedure
-// (TS 24.301 §6.6.1.2). PTI is the transaction it belongs to, so a response
-// naming another one is refused without ending it (§7.3.1 e). Standalone is nil
-// when the procedure runs inside an attach.
+// Standalone is nil when the procedure runs inside an attach.
 type ESMInfoWait struct {
 	PTI        uint8
 	Standalone *PendingPDNConnectivity
 }
 
-// PendingPDNConnectivity is the standalone PDN CONNECTIVITY REQUEST waiting on
-// the ESM information the UE deferred (TS 24.301 §6.5.1.2).
 type PendingPDNConnectivity struct {
 	PTI     uint8
 	PDNType uint8
@@ -159,9 +154,8 @@ type UeContext struct {
 	// Request the ATTACH REQUEST carried, replayed in the default bearer's
 	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
 	RequestedPTI nas.ProcedureTransactionIdentity
-	// esmInfoWait is the outstanding ESM information request, nil when none. It is
-	// swapped whole from the NAS goroutine and from the T3489 timer goroutine, so
-	// it is an atomic pointer and needs no ordering against ue.mu.
+	// Swapped whole from the NAS goroutine and the T3489 timer goroutine, so it
+	// needs no ordering against ue.mu.
 	esmInfoWait atomic.Pointer[ESMInfoWait]
 
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
@@ -536,27 +530,21 @@ func (m *MME) FindPDNByAPN(ue *UeContext, apn string) *PdnConnection {
 	return ue.PdnForAPN(apn)
 }
 
-// AwaitESMInformation records that an ESM information request is outstanding for
-// transaction pti. standalone is nil when the procedure runs inside an attach.
 func (ue *UeContext) AwaitESMInformation(pti uint8, standalone *PendingPDNConnectivity) {
 	ue.esmInfoWait.Store(&ESMInfoWait{PTI: pti, Standalone: standalone})
 }
 
-// PendingESMInfo returns the outstanding ESM information request without ending
-// it, or nil when none is running.
 func (ue *UeContext) PendingESMInfo() *ESMInfoWait {
 	return ue.esmInfoWait.Load()
 }
 
-// TakeESMInfoWait ends the ESM information procedure and returns what it was
-// running for, so exactly one caller concludes it.
+// Swap so exactly one of the response and the T3489 abort concludes the procedure.
 func (ue *UeContext) TakeESMInfoWait() *ESMInfoWait {
 	return ue.esmInfoWait.Swap(nil)
 }
 
-// TakeESMInfoWaitFor ends the ESM information procedure only if pti names it,
-// returning nil otherwise so a response for another transaction leaves the
-// procedure running (TS 24.301 §7.3.1 e).
+// Nil unless pti names the running procedure, so a response for another
+// transaction leaves it running (TS 24.301 §7.3.1 e).
 func (ue *UeContext) TakeESMInfoWaitFor(pti uint8) *ESMInfoWait {
 	w := ue.esmInfoWait.Load()
 	if w == nil || w.PTI != pti {
@@ -738,10 +726,8 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	// fire on a detached connection.
 	m.clearHandoverLocked(ue)
 	m.stopNASGuardLocked(ue)
-	// The ESM information request procedure is bounded by the connection it runs
-	// on: its response can only arrive over that connection, and the reject its
-	// abort would emit could not be delivered. Dropping the wait keeps a later
-	// response on a fresh connection from resuming a procedure that is over.
+	// The response can only arrive over this connection, so a surviving wait could
+	// only be concluded by an unrelated one.
 	old.esmInfoGuard.Stop()
 	ue.esmInfoWait.Store(nil)
 	// Detaching the connection ends any in-flight key-changing procedure on it

@@ -11,8 +11,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// waitFor polls until cond holds or the deadline passes, so a timer-driven
-// assertion does not depend on a fixed sleep.
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 
@@ -28,8 +26,7 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for %s", what)
 }
 
-// TS 24.301 §6.6.1.2.6 a): the first two expiries of T3489 resend the ESM
-// INFORMATION REQUEST; the third aborts the procedure and rejects the attach.
+// TS 24.301 §6.6.1.2.6 a).
 func TestT3489RetransmitsTwiceThenRejects(t *testing.T) {
 	m := esmInfoTestMME()
 	m.SetT3489ConfigForTest(5*time.Millisecond, 2)
@@ -38,7 +35,6 @@ func TestT3489RetransmitsTwiceThenRejects(t *testing.T) {
 
 	activateDefaultBearer(context.Background(), m, ue)
 
-	// Initial request, two retransmissions, the Attach Reject and the release.
 	waitFor(t, "T3489 to exhaust its retransmissions", func() bool { return cc.count() >= 5 })
 
 	if got := cc.count(); got != 5 {
@@ -75,7 +71,6 @@ func TestT3489RetransmitsTwiceThenRejects(t *testing.T) {
 	}
 }
 
-// The response stops T3489, so no retransmission follows a resumed attach.
 func TestESMInformationResponseStopsT3489(t *testing.T) {
 	m := esmInfoTestMME()
 	m.SetT3489ConfigForTest(5*time.Millisecond, 2)
@@ -103,9 +98,8 @@ func TestESMInformationResponseStopsT3489(t *testing.T) {
 	}
 }
 
-// The ESM INFORMATION RESPONSE and T3489's final expiry race for the same
-// transaction. Exactly one concludes it, so the attach is never both resumed and
-// rejected.
+// Exactly one of the response and the final expiry may conclude the transaction,
+// or the attach would be both resumed and rejected.
 func TestESMInformationResponseRacesTheTimeout(t *testing.T) {
 	for range 200 {
 		m := esmInfoTestMME()
@@ -138,8 +132,6 @@ func TestESMInformationResponseRacesTheTimeout(t *testing.T) {
 	}
 }
 
-// The procedure is bounded by the connection it runs on: releasing that
-// connection drops the wait, so a later response cannot resume it.
 func TestS1ReleaseDropsTheESMInformationWait(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := esmInfoAttachUe(t, m, 3)

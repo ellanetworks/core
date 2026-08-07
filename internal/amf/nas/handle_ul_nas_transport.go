@@ -131,10 +131,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
-	// TS 24.501 §5.4.5.2.5 case 13: on an initial or a modification request, a
-	// requested S-NSSAI the network does not allow is not routed to an SMF. The
-	// element the case names is the one this message carries, not the one the
-	// stored context holds.
+	// TS 24.501 §5.4.5.2.5 case 13.
 	if ulNasTransport.SNSSAI != nil && requestType != nil {
 		switch *requestType {
 		case fgs.RequestTypeInitialRequest, fgs.RequestTypeModificationRequest:
@@ -218,8 +215,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn    string
 	)
 
-	// A requested S-NSSAI has already been checked against the allowed NSSAI
-	// (TS 24.501 §5.4.5.2.5 case 13).
+	// Already checked against the allowed NSSAI by the caller.
 	if ulNasTransport.SNSSAI != nil {
 		snssai = util.SnssaiToModels(*ulNasTransport.SNSSAI)
 	} else {
