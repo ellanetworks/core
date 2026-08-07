@@ -9,11 +9,6 @@
 // behavior when maxValue is reached. It tracks used IDs to prevent duplicates and
 // supports ID reclamation via FreeID().
 //
-// A freed ID does not come back on the next allocation: FreeID() does not rewind
-// the rolling offset, so reuse waits for a wrap. Callers depend on this —
-// TS 36.413 and TS 38.413 both forbid immediately reusing a released
-// UE-associated identity, which would route a late message to the wrong UE.
-//
 // Thread-Safety: All operations are protected by a mutex, making IDGenerator safe
 // for concurrent use.
 //

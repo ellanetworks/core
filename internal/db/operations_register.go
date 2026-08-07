@@ -31,21 +31,12 @@ var (
 	opDeleteDynamicLease        = registerChangesetOp("DeleteDynamicLease", (*Database).applyDeleteDynamicLease, RequireSchema(9), AffectsTopic(TopicIPLeases))
 	opDeleteDynamicLeasesByNode = registerChangesetOp("DeleteDynamicLeasesByNode", (*Database).applyDeleteDynamicLeasesByNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
 	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
-	// AllocateIPLease forwards intent only; leader resolves the IP
-	// atomically under proposeMu (see applyAllocateIPLease).
-	opAllocateIPLease = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
-	// AllocateIPv6Lease is the same for IPv6 /64 prefix delegation.
-	opAllocateIPv6Lease = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
-
-	// ReleaseIPLease resolves the lease on the leader too, so the release is
-	// ordered against a concurrent allocate for the same key on another node
-	// (see applyReleaseIPLease). opUpdateLeaseSession and opDeleteDynamicLease
-	// stay registered: an old follower may still forward those names.
-	opReleaseIPLease = registerChangesetOpReturning[releaseIPLeasePayload, string]("ReleaseIPLease", (*Database).applyReleaseIPLease, RequireSchema(13), AffectsTopic(TopicIPLeases))
-	// Static ops read/write ip_leases.poolType, added in v13.
-	opCreateStaticLease        = registerChangesetOp("CreateStaticLease", (*Database).applyCreateStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
-	opUpdateStaticLeaseAddress = registerChangesetOp("UpdateStaticLeaseAddress", (*Database).applyUpdateStaticLeaseAddress, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
-	opDeleteStaticLease        = registerChangesetOp("DeleteStaticLease", (*Database).applyDeleteStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opAllocateIPLease           = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
+	opAllocateIPv6Lease         = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
+	opReleaseIPLease            = registerChangesetOpReturning[releaseIPLeasePayload, string]("ReleaseIPLease", (*Database).applyReleaseIPLease, RequireSchema(13), AffectsTopic(TopicIPLeases))
+	opCreateStaticLease         = registerChangesetOp("CreateStaticLease", (*Database).applyCreateStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opUpdateStaticLeaseAddress  = registerChangesetOp("UpdateStaticLeaseAddress", (*Database).applyUpdateStaticLeaseAddress, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opDeleteStaticLease         = registerChangesetOp("DeleteStaticLease", (*Database).applyDeleteStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
 )
 
 // Audit logs

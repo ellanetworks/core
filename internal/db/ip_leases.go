@@ -293,10 +293,6 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 	return nil
 }
 
-// DeleteDynamicLease deletes a dynamic lease by ID.
-// ReleaseIPLease frees the lease this node holds for (pool, IMSI, sessionID).
-// A lease rebound to another node, or already gone, is left alone and reported
-// as the zero Addr — see applyReleaseIPLease.
 func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
 	_, span := tracer.Start(
 		ctx,

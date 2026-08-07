@@ -506,9 +506,6 @@ func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload
 	return nil, nil
 }
 
-// releaseIPLeasePayload is the wire payload for ReleaseIPLease. It names the
-// lease by its natural key plus the releasing node, never by row id: the id has
-// to be read first, and a read outside Raft is not linearizable.
 type releaseIPLeasePayload struct {
 	PoolID    string `json:"poolId"`
 	PoolType  string `json:"poolType"`
@@ -517,21 +514,6 @@ type releaseIPLeasePayload struct {
 	NodeID    int    `json:"nodeId"`
 }
 
-// applyReleaseIPLease frees the lease held by (pool, IMSI, sessionID) on the
-// releasing node. The lookup is here, not at the call site, so it is serialised
-// with every other replicated write under leaderCaptureAndPropose's proposeMu —
-// the same guarantee applyAllocateIPLease relies on.
-//
-// The node check is what makes it safe across nodes. sessionID is derived from
-// the PDU session id, so a UE re-attaching on another node produces the very
-// same natural key, and applyAllocateIPLease step 1 rebinds this row to that
-// node rather than inserting a new one. Releasing by key alone would then delete
-// a lease another node is actively serving, withdrawing its route and freeing
-// the address for a different subscriber. Expected owner is the caller's own
-// node id, never the row's: a releaser reading after the rebind would see the
-// new owner and match itself.
-//
-// Runs on the pinned connection via db.runner(ctx); see applyAllocateIPLease.
 func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePayload) (any, error) {
 	if p.IMSI == "" {
 		return nil, fmt.Errorf("IMSI required")
