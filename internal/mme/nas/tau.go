@@ -103,6 +103,10 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	if req.ActiveFlag {
+		// The TAU REQUEST triggers the context setup, so it names the K_eNB
+		// freshness (TS 33.401 §7.2.6.2).
+		ue.PinKeNBFreshness()
+
 		qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))

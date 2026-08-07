@@ -59,12 +59,20 @@ func TestDecodeNASMessageAcceptsTheSameESMMessageCiphered(t *testing.T) {
 	}
 }
 
-// The two TS 24.301 §4.4.5 exempts.
+// TS 24.301 §3.1, §4.4.5: a message that can be the initial NAS message of a new
+// connection is legitimately unciphered, and the receiver cannot tell whether the
+// UE sent it as one. srsUE relies on this for the switch-off DETACH REQUEST.
 func TestDecodeNASMessageAcceptsTheUncipheredExemptMessages(t *testing.T) {
 	tests := []struct {
 		name string
 		msg  interface{ MarshalBinary() ([]byte, error) }
 	}{
+		{"DETACH REQUEST", &eps.DetachRequestUE{
+			SwitchOff:           true,
+			TypeOfDetach:        eps.DetachTypeEPS,
+			NASKeySetIdentifier: nas.KeySetIdentifier{Value: 0},
+			EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		}},
 		{"ATTACH REQUEST", &eps.AttachRequest{
 			EPSAttachType:       eps.AttachTypeEPS,
 			NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},

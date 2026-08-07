@@ -154,6 +154,9 @@ type UeContext struct {
 	// Request the ATTACH REQUEST carried, replayed in the default bearer's
 	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
 	RequestedPTI nas.ProcedureTransactionIdentity
+	// kenbCount is the uplink NAS COUNT the K_eNB derivation uses, pinned when the
+	// message that names it is accepted (TS 33.401 §7.2.5.2.2, §7.2.6.2).
+	kenbCount uint32
 	// Swapped whole from the NAS goroutine and the T3489 timer goroutine, so it
 	// needs no ordering against ue.mu.
 	esmInfoWait atomic.Pointer[ESMInfoWait]

@@ -87,6 +87,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 	// §5.4.3.3). Its old EPS bearers are deleted (§5.5.1.2.4 case f) before the new
 	// default bearer is activated.
 	if ue.Secured() && integrityVerified {
+		ue.PinKeNBFreshness()
 		m.ReleaseAllSessions(ctx, ue)
 		activateDefaultBearer(ctx, m, ue)
 

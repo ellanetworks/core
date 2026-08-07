@@ -42,6 +42,7 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	}
 
 	ue.MarkSecured(pei)
+	ue.PinKeNBFreshness()
 
 	// Anti-tamper recovery: on a HASHMME mismatch the UE returns the complete plain
 	// ATTACH REQUEST in the Replayed NAS message container. Re-ingest it so a tampered

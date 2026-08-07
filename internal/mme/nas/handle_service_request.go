@@ -77,6 +77,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	}
 
 	ue.AdvanceULCount()
+	ue.PinKeNBFreshness()
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted",
 		zap.Uint32("enb-ue-id", uint32(ue.Conn().ENBUES1APID)),
