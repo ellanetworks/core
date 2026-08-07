@@ -37,6 +37,12 @@ type TrackingAreaUpdateRequest struct {
 	OldGUTI EPSMobileIdentity
 	// EPSBearerContextStatus reports which EPS bearer contexts are active.
 	EPSBearerContextStatus *nas.EPSBearerContextStatus
+	// UENetworkCapability is the UE's supported algorithms and per-release
+	// feature bits (§9.9.3.34); nil when the element was absent.
+	UENetworkCapability *UENetworkCapability
+	// MSNetworkCapability carries the GERAN/UTRAN algorithms (§9.9.3.20). The UE
+	// may replay either capability or both (§5.5.3.2.4); nil when absent.
+	MSNetworkCapability *MSNetworkCapability
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -100,6 +106,15 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 
 	w.LV(oldGUTI)
 
+	if m.UENetworkCapability != nil {
+		raw, err := m.UENetworkCapability.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiUENetworkCapability, raw)
+	}
+
 	if m.EPSBearerContextStatus != nil {
 		raw, err := m.EPSBearerContextStatus.MarshalBinary()
 		if err != nil {
@@ -107,6 +122,15 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiEPSBearerContextStatus, raw)
+	}
+
+	if m.MSNetworkCapability != nil {
+		raw, err := m.MSNetworkCapability.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiMSNetworkCapability, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -151,18 +175,40 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 	}
 
 	_unrec, err := walkOptionalIEs(r, tauRequestOptionalIEs, func(iei uint8, value []byte) (bool, error) {
-		if iei != ieiEPSBearerContextStatus {
-			return false, nil
+		switch iei {
+		case ieiEPSBearerContextStatus:
+			status, err := nas.ParseEPSBearerContextStatus(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.EPSBearerContextStatus = &status
+
+			return true, nil
+		case ieiUENetworkCapability:
+			// A syntactically incorrect optional element leaves the rest of the
+			// message usable (TS 24.301 §7.7.1). Declining it keeps it among the
+			// preserved elements, so the re-encoded message still carries it.
+			parsed, err := ParseUENetworkCapability(value)
+			if err != nil {
+				return false, nil
+			}
+
+			m.UENetworkCapability = &parsed
+
+			return true, nil
+		case ieiMSNetworkCapability:
+			parsed, err := ParseMSNetworkCapability(value)
+			if err != nil {
+				return false, nil
+			}
+
+			m.MSNetworkCapability = &parsed
+
+			return true, nil
 		}
 
-		status, err := nas.ParseEPSBearerContextStatus(value)
-		if err != nil {
-			return false, err
-		}
-
-		m.EPSBearerContextStatus = &status
-
-		return true, nil
+		return false, nil
 	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err

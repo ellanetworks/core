@@ -63,6 +63,21 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
+	// The TAU is integrity protected against the stored context, so the capability
+	// it carries is as authenticated as the attach-time one (TS 24.301 §5.5.3.2.4).
+	// It is stored only once the accept is built, so a TAU that is never accepted
+	// leaves the held capability alone.
+	if req.UENetworkCapability != nil {
+		// TS 24.301 §5.5.3.2.4: the UE may replay the UE network capability, the MS
+		// network capability, or both. An absent MS capability keeps the held one.
+		msNetCap := req.MSNetworkCapability
+		if msNetCap == nil {
+			msNetCap = ue.MsNetCap()
+		}
+
+		ue.SetUESecurityCapability(*req.UENetworkCapability, msNetCap, mme.MintAuthProofForTrackingAreaUpdate())
+	}
+
 	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
 	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
 	naspdu, err := ue.ProtectDownlinkMessage(accept)

@@ -175,6 +175,60 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 			t.Fatalf("ATTACH REJECT T3402 encoding = % x, want % x", b, want)
 		}
 	})
+
+	// EMM cause #19 "ESM failure" comes with the ESM reject in the ESM message
+	// container, a type-6 (TLV-E) IE (TS 24.301 §5.5.1.2.5, table 8.2.3.1).
+	t.Run("RejectWithESMMessageContainer", func(t *testing.T) {
+		esm, err := (&PDNConnectivityReject{PTI: 1, Cause: ESMCauseMissingOrUnknownAPN}).MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		in := &AttachReject{Cause: EMMCauseESMFailure, ESMMessageContainer: esm}
+
+		b, err := in.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		wantIE := append([]byte{0x78, byte(len(esm) >> 8), byte(len(esm))}, esm...)
+		if !bytes.Contains(b, wantIE) {
+			t.Fatalf("encoded %x does not contain the ESM message container IE %x", b, wantIE)
+		}
+
+		out, err := ParseAttachReject(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if out.Cause != EMMCauseESMFailure {
+			t.Errorf("EMM cause = %d, want %d", out.Cause, EMMCauseESMFailure)
+		}
+
+		if !bytes.Equal(out.ESMMessageContainer, esm) {
+			t.Fatalf("ESM message container = % x, want % x", out.ESMMessageContainer, esm)
+		}
+
+		inner, err := ParsePDNConnectivityReject(out.ESMMessageContainer)
+		if err != nil {
+			t.Fatalf("parse the carried PDN Connectivity Reject: %v", err)
+		}
+
+		if inner.Cause != ESMCauseMissingOrUnknownAPN {
+			t.Errorf("carried ESM cause = %d, want %d", inner.Cause, ESMCauseMissingOrUnknownAPN)
+		}
+	})
+}
+
+// The element caps its value at maxNetworkFeatureSupportLen (TS 24.301
+// §9.9.3.12A), so the encoder does not emit what ParseNetworkFeatureSupport
+// rejects.
+func TestNetworkFeatureSupportRejectsAnOverlongValue(t *testing.T) {
+	in := NetworkFeatureSupport{IMSVoPS: true, HasOctet4: true, Rest: []byte{0x00, 0x00}}
+
+	if b, err := in.MarshalBinary(); err == nil {
+		t.Fatalf("MarshalBinary = % x, nil, want an error for a %d-octet value", b, len(b))
+	}
 }
 
 // TestNetworkFeatureSupportRoundTrips checks the EPS network feature support

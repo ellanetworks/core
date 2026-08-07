@@ -48,7 +48,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
-		rejectAttach(ctx, m, ue, eps.EMMCauseESMFailure)
+		rejectAttachESMFailure(ctx, m, ue, eps.ESMCauseMissingOrUnknownAPN)
 
 		return
 	}
@@ -86,7 +86,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, eps.EMMCauseESMFailure)
+		rejectAttachESMFailure(ctx, m, ue, eps.ESMCauseRequestRejectedUnspecified)
 
 		return
 	}

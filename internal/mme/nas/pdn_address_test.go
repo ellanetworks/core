@@ -172,6 +172,25 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 		t.Fatalf("Attach Reject cause = %d, want %d (ESM failure)", rej.Cause, eps.EMMCauseESMFailure)
 	}
 
+	// EMM cause #19 is combined with the ESM reject that explains it
+	// (TS 24.301 §5.5.1.2.5).
+	if len(rej.ESMMessageContainer) == 0 {
+		t.Fatal("Attach Reject with EMM cause #19 carries no ESM message container")
+	}
+
+	esm, err := eps.ParsePDNConnectivityReject(rej.ESMMessageContainer)
+	if err != nil {
+		t.Fatalf("ESM message container is not a PDN Connectivity Reject: %v", err)
+	}
+
+	if esm.Cause != eps.ESMCauseRequestRejectedUnspecified {
+		t.Errorf("carried ESM cause = %d, want %d", esm.Cause, eps.ESMCauseRequestRejectedUnspecified)
+	}
+
+	if esm.PTI != ue.RequestedPTI {
+		t.Errorf("carried PTI = %d, want the requested %d", esm.PTI, ue.RequestedPTI)
+	}
+
 	parseUEContextReleaseCommand(t, cc.sent[1])
 }
 

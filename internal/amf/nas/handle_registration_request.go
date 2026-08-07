@@ -103,6 +103,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	conn.RegistrationRequest = req
 	conn.RegistrationRequestPlain = slices.Clone(plain)
+	conn.RegistrationRequestProtected = integrityVerified
 	conn.SetRegistrationType5GS(uint8(req.RegistrationType))
 
 	regName := registrationTypeName(conn.RegistrationType5GS)

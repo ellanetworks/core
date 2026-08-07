@@ -217,10 +217,28 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, na
 // rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
 // cause, then releases the UE's S1 context.
 func rejectAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
+	sendAttachReject(ctx, m, ue, cause, nil)
+}
+
+// rejectAttachESMFailure refuses an attach whose PDN CONNECTIVITY REQUEST the ESM
+// sublayer rejected. EMM cause #19 "ESM failure" is combined with the PDN
+// CONNECTIVITY REJECT carrying esmCause, which the UE needs to learn why the PDN
+// connection was refused (TS 24.301 §5.5.1.2.5).
+func rejectAttachESMFailure(ctx context.Context, m *mme.MME, ue *mme.UeContext, esmCause eps.ESMCause) {
+	esm, err := (&eps.PDNConnectivityReject{PTI: ue.RequestedPTI, Cause: esmCause}).MarshalBinary()
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to build the PDN Connectivity Reject carried by an Attach Reject",
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
+	}
+
+	sendAttachReject(ctx, m, ue, eps.EMMCauseESMFailure, esm)
+}
+
+func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause, esm []byte) {
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 	ue.Conn().StopNASGuard()
 
-	reject := &eps.AttachReject{Cause: cause}
+	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}
 
 	if timer, err := nas.GPRSTimer2FromDuration(mme.T3402Backoff); err == nil {
 		reject.T3402 = &timer

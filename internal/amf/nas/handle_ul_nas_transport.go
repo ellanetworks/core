@@ -203,6 +203,16 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 
 	if ulNasTransport.SNSSAI != nil {
 		snssai = util.SnssaiToModels(*ulNasTransport.SNSSAI)
+
+		// A requested S-NSSAI the network does not allow is not routed to an SMF
+		// (TS 24.501 §5.4.5.2.5 case 13).
+		if !ue.IsAllowedNssai(snssai) {
+			logger.From(ctx, logger.AmfLog).Warn("requested S-NSSAI is not in the allowed NSSAI",
+				zap.Any("snssai", snssai), logger.PDUSessionID(pduSessionID))
+			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
+
+			return
+		}
 	} else {
 		if len(ue.AllowedNssai) == 0 {
 			logger.From(ctx, logger.AmfLog).Warn("allowed nssai is empty in UE context")

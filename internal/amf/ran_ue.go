@@ -100,7 +100,11 @@ type UeConn struct {
 	RegistrationRequest *fgs.RegistrationRequest
 	// RegistrationRequestPlain is compared byte-for-byte for duplicate detection
 	// (TS 24.501 §5.5.1.2.8), immune to the decoder dropping IEs it does not model.
-	RegistrationRequestPlain        []byte
+	RegistrationRequestPlain []byte
+	// RegistrationRequestProtected records whether the stored request arrived
+	// integrity protected, which decides whether its non-cleartext IEs are
+	// authenticated (TS 24.501 §4.4.6).
+	RegistrationRequestProtected    bool
 	RegistrationType5GS             fgs.RegistrationType
 	IdentityTypeUsedForRegistration uint8
 	RetransmissionOfInitialNASMsg   bool
