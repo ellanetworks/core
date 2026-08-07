@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
@@ -45,26 +46,41 @@ const (
 	bytesPerUDPPacketIPv4  = 59  // 14 + 20 + 8 + 17
 	bytesPerUDPPacketIPv6  = 79  // 14 + 40 + 8 + 17
 
+	// A TCP handshake packet carries no payload: Ethernet + IP + a 40-byte TCP
+	// header (MSS, SACK-permitted, timestamps, window scale). Both the UE's SYN
+	// and the responder's SYN-ACK have this shape, so it covers a denied
+	// connection in either direction.
+	bytesPerHandshakePacketIPv4 = 74 // 14 + 20 + 40
+	bytesPerHandshakePacketIPv6 = 94 // 14 + 40 + 40
+
+	// probeSourcePortBase is the first port a rule shape's TCP probe sources
+	// from. It sits below net.ipv4.ip_local_port_range so a fixed probe port
+	// never collides with an ephemeral one picked elsewhere in the container.
+	probeSourcePortBase = 20000
+
+	// probeSourcePortStride separates one shape's port block from the next, so
+	// a connection an earlier shape left retransmitting can never be mistaken
+	// for one of this shape's.
+	probeSourcePortStride = 100
+
+	// smokeProbeSourcePortBase sits clear of every rule shape's block so the
+	// smoke test and the rule matrix cannot claim each other's flows.
+	smokeProbeSourcePortBase = 21000
+
 	// TCP per-IMSI bounds. Bounded because TCP delayed-ACK
 	// piggybacking is a kernel timing decision: same probe, same
 	// kernel, same run can produce 4–6 packets per connection
 	// depending on whether the kernel emits a bare ACK before a
 	// response packet or piggybacks the ACK onto the response.
-	// Allow scenarios complete the handshake and exchange data;
-	// drop scenarios record SYN-ACK and any retransmits.
+	// Only the allow path is bounded this way: a denied connection's packet
+	// count is set by the peer's retransmission timer, so it is asserted per
+	// packet instead (EachBytesPerPacketIs).
 	tcpAllowPacketsPerIMSILo = 12
 	tcpAllowPacketsPerIMSIHi = 40
 	tcpAllowBytesPerIMSILoV4 = 600
 	tcpAllowBytesPerIMSIHiV4 = 3500
 	tcpAllowBytesPerIMSILoV6 = 900
 	tcpAllowBytesPerIMSIHiV6 = 4500
-
-	tcpDropPacketsPerIMSILo = 3
-	tcpDropPacketsPerIMSIHi = 20
-	tcpDropBytesPerIMSILoV4 = 200
-	tcpDropBytesPerIMSIHiV4 = 1500
-	tcpDropBytesPerIMSILoV6 = 240
-	tcpDropBytesPerIMSIHiV6 = 1800
 )
 
 // ipFamilyParams holds the values needed to drive a flow-report test
@@ -246,24 +262,27 @@ func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []str
 	}
 
 	if pp.name == "tcp" {
-		pktLo, pktHi, bytesLo, bytesHi := tcpPerIMSIBounds(fp, action)
-
-		// Drop scenarios may re-connect on a fresh ephemeral port after the
-		// SYN-ACK is dropped, so the nominal probeRoundtrips tuples is a lower
-		// bound, not an exact count. Allow scenarios complete every handshake
-		// once, so the count is exact.
-		tuplePred := fixture.EachIMSIDistinctTuplesIs(probeRoundtrips)
-		if action == "drop" {
-			tuplePred = fixture.EachIMSIDistinctTuplesAtLeast(probeRoundtrips)
-		}
-
 		preds = append(preds,
 			fixture.DistinctImsis(len(expectedIMSIs)),
-			tuplePred,
+			fixture.EachIMSIDistinctTuplesIs(probeRoundtrips),
 			fixture.EachTupleHasAtMost(2),
-			fixture.EachIMSITotalPacketsInRange(pktLo, pktHi),
-			fixture.EachIMSITotalBytesInRange(bytesLo, bytesHi),
 		)
+
+		if action == "drop" {
+			// A denied connection never gets past the handshake, so every
+			// dropped packet is a header-only SYN or SYN-ACK. How many of them
+			// the peer puts on the wire is its retransmission timer's business
+			// (RFC 6298), so assert the per-packet accounting rather than a
+			// total the peer decides.
+			preds = append(preds, fixture.EachBytesPerPacketIs(handshakeBytes(fp)))
+		} else {
+			pktLo, pktHi, bytesLo, bytesHi := tcpAllowPerIMSIBounds(fp)
+
+			preds = append(preds,
+				fixture.EachIMSITotalPacketsInRange(pktLo, pktHi),
+				fixture.EachIMSITotalBytesInRange(bytesLo, bytesHi),
+			)
+		}
 	} else {
 		expandedIMSIs := repeatIMSIs(expectedIMSIs, pp.flowsPerUE)
 
@@ -279,24 +298,47 @@ func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []str
 	return fixture.And(preds...)
 }
 
-func tcpPerIMSIBounds(fp ipFamilyParams, action string) (pktLo, pktHi, byteLo, byteHi uint64) {
-	switch action {
-	case "drop":
-		pktLo, pktHi = tcpDropPacketsPerIMSILo, tcpDropPacketsPerIMSIHi
+// handshakeBytes is the on-the-wire size of one header-only TCP segment for the
+// active address family.
+func handshakeBytes(fp ipFamilyParams) uint64 {
+	if fp.family == IPv6Only {
+		return bytesPerHandshakePacketIPv6
+	}
 
-		if fp.family == IPv6Only {
-			byteLo, byteHi = tcpDropBytesPerIMSILoV6, tcpDropBytesPerIMSIHiV6
-		} else {
-			byteLo, byteHi = tcpDropBytesPerIMSILoV4, tcpDropBytesPerIMSIHiV4
-		}
-	default:
-		pktLo, pktHi = tcpAllowPacketsPerIMSILo, tcpAllowPacketsPerIMSIHi
+	return bytesPerHandshakePacketIPv4
+}
 
-		if fp.family == IPv6Only {
-			byteLo, byteHi = tcpAllowBytesPerIMSILoV6, tcpAllowBytesPerIMSIHiV6
-		} else {
-			byteLo, byteHi = tcpAllowBytesPerIMSILoV4, tcpAllowBytesPerIMSIHiV4
+// probeTupleScope keeps only the records this probe run produced, identified by
+// the UE-side port block it was told to source from. Without it a connection an
+// earlier shape left retransmitting — a server FIN retransmits for ~50s, well
+// past the gap between shapes — lands in this shape's snapshot as an extra flow.
+func probeTupleScope(direction string, pp probeProtocolParams, srcPortBase, ueCount int) fixture.FlowReportScope {
+	if pp.name != "tcp" || srcPortBase == 0 {
+		return nil
+	}
+
+	lo := uint16(srcPortBase)
+	hi := uint16(srcPortBase + ueCount*probeRoundtrips - 1)
+
+	return func(f client.FlowReport) bool {
+		uePort := f.DestinationPort
+		if direction == "uplink" {
+			uePort = f.SourcePort
 		}
+
+		return uePort >= lo && uePort <= hi
+	}
+}
+
+// tcpAllowPerIMSIBounds bounds a completed connection's per-IMSI totals, whose
+// spread comes from delayed-ACK piggybacking rather than from retransmission.
+func tcpAllowPerIMSIBounds(fp ipFamilyParams) (pktLo, pktHi, byteLo, byteHi uint64) {
+	pktLo, pktHi = tcpAllowPacketsPerIMSILo, tcpAllowPacketsPerIMSIHi
+
+	if fp.family == IPv6Only {
+		byteLo, byteHi = tcpAllowBytesPerIMSILoV6, tcpAllowBytesPerIMSIHiV6
+	} else {
+		byteLo, byteHi = tcpAllowBytesPerIMSILoV4, tcpAllowBytesPerIMSIHiV4
 	}
 
 	return
@@ -312,7 +354,7 @@ func apiProtocolFilter(pp probeProtocolParams) string {
 // core-tester CLI args: --ip-version is injected only for scenarios
 // that are explicitly family-restricted, then --protocol, then any
 // fixture-supplied extras.
-func scenarioRunArgs(name string, spec scenarios.FixtureSpec, pp probeProtocolParams) []string {
+func scenarioRunArgs(name string, spec scenarios.FixtureSpec, pp probeProtocolParams, srcPortBase int) []string {
 	var args []string
 
 	if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
@@ -320,6 +362,11 @@ func scenarioRunArgs(name string, spec scenarios.FixtureSpec, pp probeProtocolPa
 	}
 
 	args = append(args, "--protocol", pp.name)
+
+	if srcPortBase != 0 {
+		args = append(args, "--probe-source-port-base", strconv.Itoa(srcPortBase))
+	}
+
 	args = append(args, spec.ExtraArgs...)
 
 	return args

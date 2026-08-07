@@ -14,20 +14,32 @@ import (
 type connectivityProbeProtocol = probe.Protocol
 
 type connectivityProbeParams struct {
-	Protocol string
+	Protocol       string
+	SourcePortBase int
 }
 
 func bindConnectivityProbeFlags(fs *pflag.FlagSet) *connectivityProbeParams {
 	p := &connectivityProbeParams{Protocol: string(probe.ICMP)}
 	fs.StringVar(&p.Protocol, "protocol", p.Protocol, "probe protocol: icmp|tcp|udp")
+	fs.IntVar(&p.SourcePortBase, "probe-source-port-base", 0, "first TCP source port to probe from; 0 uses ephemeral ports")
 
 	return p
+}
+
+// probeSourcePorts is the port block UE index ue probes from, so every UE in a
+// parallel run holds a distinct block.
+func probeSourcePorts(base, ue int) int {
+	if base == 0 {
+		return 0
+	}
+
+	return base + ue*probe.AttemptCount
 }
 
 func parseConnectivityProbeProtocol(s string) (connectivityProbeProtocol, error) {
 	return probe.ParseProtocol(s)
 }
 
-func runConnectivityProbe(ctx context.Context, protocol connectivityProbeProtocol, tun, dst string, ipv6 bool) error {
-	return probe.Run(ctx, protocol, tun, dst, scenarios.DefaultProbePort, ipv6)
+func runConnectivityProbe(ctx context.Context, protocol connectivityProbeProtocol, tun, dst string, ipv6 bool, srcPortBase int) error {
+	return probe.RunFromSourcePorts(ctx, protocol, tun, dst, scenarios.DefaultProbePort, ipv6, srcPortBase)
 }

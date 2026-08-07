@@ -24,12 +24,14 @@ const (
 )
 
 type probeParams struct {
-	Protocol string
+	Protocol       string
+	SourcePortBase int
 }
 
 func bindProbeFlags(fs *pflag.FlagSet) any {
 	p := &probeParams{Protocol: string(probe.ICMP)}
 	fs.StringVar(&p.Protocol, "protocol", p.Protocol, "probe protocol: icmp|tcp|udp")
+	fs.IntVar(&p.SourcePortBase, "probe-source-port-base", 0, "first TCP source port to probe from; 0 uses ephemeral ports")
 
 	return p
 }
@@ -171,7 +173,7 @@ func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probePa
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	probeErr := probe.Run(ctx, proto, tunIface, dst, scenarios.DefaultProbePort, ipv6)
+	probeErr := probe.RunFromSourcePorts(ctx, proto, tunIface, dst, scenarios.DefaultProbePort, ipv6, params.SourcePortBase)
 
 	if expectAllowed && probeErr != nil {
 		return fmt.Errorf("%s probe to %s was blocked but expected to be allowed: %w", proto, dst, probeErr)
