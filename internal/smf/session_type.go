@@ -13,17 +13,6 @@ import (
 // The EPS PDN type (TS 24.301 §9.9.4.10) and the 5GS PDU session type
 // (TS 24.501 §9.11.4.11) agree on IPv4, IPv6 and IPv4v6, and diverge above them.
 
-// servedPDUSessionType vets a stored 5GS PDU session type against the range this
-// core serves.
-func servedPDUSessionType(pduSessionType uint8) (fgs.PDUSessionType, error) {
-	switch t := fgs.PDUSessionType(pduSessionType); t {
-	case fgs.PDUSessionTypeIPv4, fgs.PDUSessionTypeIPv6, fgs.PDUSessionTypeIPv4v6:
-		return t, nil
-	}
-
-	return 0, fmt.Errorf("PDU session type %d is not served", pduSessionType)
-}
-
 // TS 24.501 §6.1.4.2 b.
 func pdnTypeFor(pduSessionType uint8) (eps.PDNType, error) {
 	switch fgs.PDUSessionType(pduSessionType) {
@@ -38,18 +27,31 @@ func pdnTypeFor(pduSessionType uint8) (eps.PDNType, error) {
 	return 0, fmt.Errorf("PDU session type %d has no PDN type this core serves", pduSessionType)
 }
 
-// TS 24.501 §6.1.4.2 b.
-func pduSessionTypeFor(pdnType uint8) (fgs.PDUSessionType, error) {
-	switch eps.PDNType(pdnType) {
-	case eps.PDNTypeIPv4:
-		return fgs.PDUSessionTypeIPv4, nil
-	case eps.PDNTypeIPv6:
-		return fgs.PDUSessionTypeIPv6, nil
-	case eps.PDNTypeIPv4v6:
-		return fgs.PDUSessionTypeIPv4v6, nil
+// narrow5GSMCause is the cause an accept carries when the UE asked for IPv4v6
+// and the data network offers one family: 5GSM #50/#51 (TS 24.501 §6.4.1.3).
+// nil when the type was not narrowed.
+func narrow5GSMCause(requested, negotiated uint8) *fgs.GSMCause {
+	switch narrowPDUType(requested, negotiated) {
+	case narrowIPv4Only:
+		return new(fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)
+	case narrowIPv6Only:
+		return new(fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed)
 	}
 
-	return 0, fmt.Errorf("PDN type %d has no PDU session type this core serves", pdnType)
+	return nil
+}
+
+// narrowESMCause is the same narrowing on the EPS side: ESM #50/#51
+// (TS 24.301 §6.5.1.3). 0 when the type was not narrowed.
+func narrowESMCause(requested, negotiated uint8) eps.ESMCause {
+	switch narrowPDUType(requested, negotiated) {
+	case narrowIPv4Only:
+		return eps.ESMCausePDNTypeIPv4OnlyAllowed
+	case narrowIPv6Only:
+		return eps.ESMCausePDNTypeIPv6OnlyAllowed
+	}
+
+	return 0
 }
 
 // TS 24.301 §6.5.1.4.1.

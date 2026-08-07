@@ -16,7 +16,7 @@ func (s *SMF) ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSes
 		return nil
 	}
 
-	s.clearDownlinkDataNotification(ctx, smContext, Access5G)
+	s.clearDownlinkDataNotification(ctx, smContext.Ref, Access5G)
 
 	return nil
 }
@@ -32,23 +32,23 @@ func (s *SMF) ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi ui
 		return nil
 	}
 
-	s.clearDownlinkDataNotification(ctx, smContext, Access4G)
+	s.clearDownlinkDataNotification(ctx, smContext.Ref, Access4G)
 
 	return nil
 }
 
 // A session that has moved holds no suppression on the access it left.
-func (s *SMF) clearDownlinkDataNotification(ctx context.Context, smContext *SMContext, access AccessType) {
-	if err := smContext.lockServedBy(access); err != nil {
+func (s *SMF) clearDownlinkDataNotification(ctx context.Context, ref string, access AccessType) {
+	smContext, unlock, err := s.sessionFor(ref, access)
+	if err != nil {
 		return
 	}
 
-	pfcp := smContext.PFCPContext
-	smContext.Mutex.Unlock()
+	defer unlock()
 
-	if pfcp == nil {
+	if smContext.PFCPContext == nil {
 		return
 	}
 
-	s.upf.ClearDownlinkDataNotification(ctx, pfcp.RemoteSEID)
+	s.upf.ClearDownlinkDataNotification(ctx, smContext.PFCPContext.RemoteSEID)
 }

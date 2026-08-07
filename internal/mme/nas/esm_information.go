@@ -16,16 +16,30 @@ import (
 )
 
 // requestESMInformation asks the UE for the ESM information it deferred and
-// reports whether the attach waits for it (TS 24.301 §6.6.1.2.2).
-func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func()) bool {
-	if !ue.AwaitingESMInformation() {
+// reports whether the procedure waits for it (TS 24.301 §6.6.1.2.2). Every abort
+// path ends the wait and the T3489 supervision before running onAbort, which
+// receives the transaction identity the wait recorded, so nothing the abort needs
+// is read from the UE off the NAS goroutine.
+func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(pti uint8)) bool {
+	wait := ue.PendingESMInfo()
+	if wait == nil {
 		return false
 	}
 
-	esm, err := (&eps.ESMInformationRequest{PTI: ue.RequestedPTI}).MarshalBinary()
+	abort := func() {
+		w := ue.TakeESMInfoWait()
+		if w == nil {
+			return
+		}
+
+		ue.Conn().StopESMInfoGuard()
+		onAbort(w.PTI)
+	}
+
+	esm, err := (&eps.ESMInformationRequest{PTI: nas.ProcedureTransactionIdentity(wait.PTI)}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build ESM Information Request", zap.Error(err))
-		onAbort()
+		abort()
 
 		return true
 	}
@@ -45,18 +59,18 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 
 		// Returning with no request sent and no T3489 armed would leave the attach
 		// waiting on ESM information the UE was never asked for.
-		onAbort()
+		abort()
 
 		return true
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("requesting deferred ESM information",
-		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", uint8(ue.RequestedPTI)))
+		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", wait.PTI))
 
 	ue.Conn().ArmT3489("ESM Information Request", naspdu, func() {
 		logger.MmeLog.Info("ESM information not received, rejecting",
 			zap.String("imsi", ue.IMSI()))
-		onAbort()
+		abort()
 	})
 
 	ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
@@ -64,9 +78,9 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 	return true
 }
 
-// handleESMInformationResponse takes the APN and PCO the UE deferred and
-// resumes the attach. Its PCO replaces any the PDN CONNECTIVITY REQUEST carried
-// (TS 24.301 §6.6.1.2.4).
+// handleESMInformationResponse takes the APN and PCO the UE deferred and resumes
+// the procedure that deferred them — the attach or a standalone PDN CONNECTIVITY
+// REQUEST. Its PCO replaces any that request carried (TS 24.301 §6.6.1.2.4).
 func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.ESMInformationResponse) nasreply.Disposition {
 	// TS 24.301 §7.3.2 e): a response naming an assigned or reserved EPS bearer
 	// identity is ignored. §6.6.1.2.3 has the UE set "no EPS bearer identity
@@ -88,10 +102,12 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	wait := ue.TakeESMInfoWait()
-	if wait == nil || pti != uint8(ue.RequestedPTI) {
+	// The transaction is ended only by a response that names it, so one naming
+	// another assigned PTI draws #81 and leaves the ongoing procedure running.
+	wait := ue.TakeESMInfoWaitFor(pti)
+	if wait == nil {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response for no ongoing transaction",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti), zap.Uint8("pti-in-use", uint8(ue.RequestedPTI)))
+			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti))
 		egress{conn: ue.Conn()}.SendSMStatusFor(ctx, uint8(eps.ESMCauseInvalidPTIValue), pti, uint8(req.EPSBearerIdentity))
 
 		return nasreply.Handled()

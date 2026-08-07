@@ -16,7 +16,7 @@ func (s *SMF) HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessio
 		return fmt.Errorf("no session for %s pdu %d", supi.String(), pduSessionID)
 	}
 
-	return s.suppressDownlinkDataNotification(ctx, smContext, Access5G)
+	return s.suppressDownlinkDataNotification(ctx, smContext.Ref, Access5G)
 }
 
 func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error {
@@ -30,22 +30,22 @@ func (s *SMF) HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8
 		return fmt.Errorf("no EPS session for %s", imsi)
 	}
 
-	return s.suppressDownlinkDataNotification(ctx, smContext, Access4G)
+	return s.suppressDownlinkDataNotification(ctx, smContext.Ref, Access4G)
 }
 
-func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, smContext *SMContext, access AccessType) error {
-	if err := smContext.lockServedBy(access); err != nil {
+func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, ref string, access AccessType) error {
+	smContext, unlock, err := s.sessionFor(ref, access)
+	if err != nil {
 		return err
 	}
 
-	pfcp := smContext.PFCPContext
-	smContext.Mutex.Unlock()
+	defer unlock()
 
-	if pfcp == nil {
+	if smContext.PFCPContext == nil {
 		return nil
 	}
 
-	s.upf.SuppressDownlinkDataNotification(ctx, pfcp.RemoteSEID)
+	s.upf.SuppressDownlinkDataNotification(ctx, smContext.PFCPContext.RemoteSEID)
 
 	return nil
 }

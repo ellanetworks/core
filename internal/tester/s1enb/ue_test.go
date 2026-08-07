@@ -35,6 +35,14 @@ func TestBuildAttachRequest(t *testing.T) {
 	if !req.UENetworkCapability.SupportsEEA(0) || len(req.ESMMessageContainer) == 0 {
 		t.Fatalf("missing UE network capability or ESM container")
 	}
+
+	if !req.UENetworkCapability.EPCO() {
+		t.Fatalf("ePCO = false, want true")
+	}
+
+	if !req.UENetworkCapability.N1Mode() {
+		t.Fatalf("N1mode = false, want true")
+	}
 }
 
 // TestUEKeyDerivationRoundTrip checks the UE's NAS-key derivation and algorithm

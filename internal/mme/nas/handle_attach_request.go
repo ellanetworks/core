@@ -150,7 +150,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, req *eps.Attach
 		}
 
 		if pc.ESMInformationTransferFlag != nil && *pc.ESMInformationTransferFlag {
-			ue.AwaitESMInformation(nil)
+			ue.AwaitESMInformation(uint8(pc.PTI), nil)
 		}
 	}
 }
@@ -256,8 +256,8 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, na
 // rejectAttachESM rejects an attach whose ESM procedure failed, pairing the
 // ATTACH REJECT with the PDN CONNECTIVITY REJECT that carries the ESM cause
 // (TS 24.301 §5.5.1.2.5).
-func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.ESMCause) {
-	esm, err := (&eps.PDNConnectivityReject{PTI: ue.RequestedPTI, Cause: cause}).MarshalBinary()
+func rejectAttachESM(ctx context.Context, m *mme.MME, ue *mme.UeContext, pti uint8, cause eps.ESMCause) {
+	esm, err := (&eps.PDNConnectivityReject{PTI: nas.ProcedureTransactionIdentity(pti), Cause: cause}).MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build PDN Connectivity Reject for Attach Reject", zap.Error(err))
 

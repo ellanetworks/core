@@ -19,12 +19,11 @@ type (
 )
 
 // The procedures tracked for one session. Each rewrites the session while
-// holding its lock across blocking UPF calls, so the registry refuses a second
-// one instead of leaving it queued behind the first to commit against state the
-// first has since changed.
+// holding its lock across blocking UPF calls, so a second one left queued behind
+// the first commits against state the first has since changed. The registry
+// refuses it. No clause requires refusing over serialising the two, so the
+// refusal is a local choice.
 const (
-	// Transfer moves a session to the other access (TS 23.502 §4.11.2).
-	Transfer Type = "Transfer"
 	// Release tears the session down (TS 23.502 §4.3.4).
 	Release Type = "Release"
 )

@@ -23,28 +23,15 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no session on 5GS for the reference")
 
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
 		return nil, err
 	}
 
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	if err := handleHandoverRequiredTransfer(n2Data); err != nil {
 		span.RecordError(err)
@@ -80,28 +67,15 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no session on 5GS for the reference")
 
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
 		return nil, err
 	}
 
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	if err := handleHandoverRequestAcknowledgeTransfer(n2Data, smContext); err != nil {
 		span.RecordError(err)
@@ -130,28 +104,15 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM context reference is missing"))
-		span.SetStatus(codes.Error, "SM context reference is missing")
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no session on 5GS for the reference")
 
-		return fmt.Errorf("SM context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
 		return err
 	}
 
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	if smContext.Tunnel.DataPath.Activated {
 		if smContext.PFCPContext == nil {
@@ -215,22 +176,12 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
 		return nil, err
 	}
 
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
 	if err != nil {

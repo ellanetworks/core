@@ -186,7 +186,7 @@ func TestESMInformationIdentityFromExtendedPCO(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 
-	ue.AwaitESMInformation(nil)
+	ue.AwaitESMInformation(3, nil)
 	ue.RequestedPTI = 3
 
 	epco := nas.ProtocolConfigurationOptions{
@@ -214,7 +214,7 @@ func TestESMInformationResponsePTIAndEBIHandling(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	ue.AwaitESMInformation(nil)
+	ue.AwaitESMInformation(3, nil)
 	ue.RequestedPTI = 3
 
 	// An assigned EBI is ignored: no status, and the wait survives.
@@ -316,7 +316,7 @@ func TestStandaloneDeferralResumesWithTheDeferredAPN(t *testing.T) {
 	})
 
 	if ue.AwaitingESMInformation() {
-		t.Error("the deferral survived the response")
+		t.Error("AwaitingESMInformation = true after the response, want false")
 	}
 
 	if ue.RequestedAPN != "internet" {

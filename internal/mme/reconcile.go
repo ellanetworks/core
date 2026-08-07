@@ -69,7 +69,9 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	// A transfer to 5GS drops the connection from the UE while this snapshot is
 	// held, and its SessionRef stays valid for the session on the other access.
 	current := ue.Pdns[p.Ebi] == p
-	busy := p.Deactivating || p.Modifying
+	// An empty SessionRef is a connection reserved but not yet anchored, whose
+	// policy the establishment is still installing.
+	busy := p.Deactivating || p.Modifying || p.SessionRef == ""
 	curDNConfig := p.DnConfig
 	curSessAmbrDLBps, curSessAmbrULBps := p.SessAmbrDLBps, p.SessAmbrULBps
 	curQCI, curARP := p.Qci, p.Arp
@@ -173,6 +175,45 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *PdnConnecti
 	m.modifyBearer(ctx, ue, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
+// setModifyConfigurationOptions puts the data network's DNS and link MTU on a
+// bearer modification. TS 24.301 §6.6.1.1 carries them in the extended element
+// where it is supported end to end for the PDN connection, and §8.3.18.9 scopes
+// the classic one to the case where it is not. It reports the DNS it set.
+func setModifyConfigurationOptions(req *eps.ModifyEPSBearerContextRequest, p *PdnConnection, qos *EpsQoS, extended bool) (netip.Addr, bool) {
+	var (
+		dnsServers [][]byte
+		dns        netip.Addr
+		dnsValid   bool
+	)
+
+	if parsed, err := netip.ParseAddr(qos.DNS); err == nil {
+		dns, dnsValid = parsed, true
+
+		if dns.Is4() {
+			b := dns.As4()
+			dnsServers = [][]byte{b[:]}
+		} else {
+			b := dns.As16()
+			dnsServers = [][]byte{b[:]}
+		}
+	}
+
+	var ipv4LinkMTU uint16
+	if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {
+		ipv4LinkMTU = qos.MTU
+	}
+
+	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+
+	if extended {
+		req.ExtendedProtocolConfigurationOptions = &pco
+	} else {
+		req.ProtocolConfigurationOptions = &pco
+	}
+
+	return dns, dnsValid
+}
+
 // dnsOnlyChange reports whether the fingerprint changed in the DNS field alone
 // (IP pools, MTU and slice unchanged), so the bearer can be modified in place
 // without reactivation. A malformed stored fingerprint returns false, so the
@@ -223,27 +264,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *PdnConnection,
 	)
 
 	if includeDNS {
-		var dnsServers [][]byte
-
-		if parsed, err := netip.ParseAddr(qos.DNS); err == nil {
-			dns, dnsValid = parsed, true
-
-			if dns.Is4() {
-				b := dns.As4()
-				dnsServers = [][]byte{b[:]}
-			} else {
-				b := dns.As16()
-				dnsServers = [][]byte{b[:]}
-			}
-		}
-
-		var ipv4LinkMTU uint16
-		if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {
-			ipv4LinkMTU = qos.MTU
-		}
-
-		pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
-		req.ProtocolConfigurationOptions = &pco
+		dns, dnsValid = setModifyConfigurationOptions(req, p, qos, ue.UsesExtendedPCO(m.PDNRequestType(ue, p)))
 	}
 
 	if includeAMBR {

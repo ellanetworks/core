@@ -441,8 +441,8 @@ func testSUPI() etsi.SUPI {
 	return supi
 }
 
-func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb smf.AMFCallback, opts ...smf.Option) *smf.SMF {
-	return smf.New(pcf, store, upf, amfCb, opts...)
+func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb smf.AMFCallback) *smf.SMF {
+	return smf.New(pcf, store, upf, amfCb)
 }
 
 func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {

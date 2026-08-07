@@ -483,39 +483,28 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 	return id
 }
 
-// SessionTransferred drops the AMF's routing context for a PDU session the UE
-// moved to EPS, leaving the session anchored (TS 23.502 §4.11.2.2 step 14).
 // SessionReleased drops the AMF's routing context for a PDU session whose anchor
 // session the SMF released on its own initiative.
 func (amf *AMF) SessionReleased(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string) {
-	ue, ok := amf.LookupUeBySupi(supi)
-	if !ok {
-		return
-	}
-
-	scRef, _, held := ue.SmContextRefAndActive(pduSessionID)
-	if !held || scRef != ref {
-		return
-	}
-
-	ue.DeleteSmContext(pduSessionID)
-
-	logger.From(ctx, logger.AmfLog).Info("dropped routing context for a released PDU session",
-		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+	amf.dropRoutingContext(ctx, supi, pduSessionID, ref, "released by the anchor", nil)
 }
 
+// SessionTransferred drops the AMF's routing context for a PDU session the UE
+// moved to EPS, leaving the session anchored (TS 23.502 §4.11.2.2 step 14).
 func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Release []byte) {
+	amf.dropRoutingContext(ctx, supi, pduSessionID, ref, "moved to EPS", n2Release)
+}
+
+func (amf *AMF) dropRoutingContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref, reason string, n2Release []byte) {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
 		return
 	}
 
-	// TS 23.502 §4.11.2.2 step 14: the N2 release is skipped when the PDU
-	// session's user plane is not active.
 	scRef, upActive, held := ue.SmContextRefAndActive(pduSessionID)
 
-	// A UE that moved the session back to 5GS already has a fresh context under
-	// this identity; only the one the move left behind is dropped.
+	// A UE that re-established the session on 5GS already has a fresh context under
+	// this identity; only the one ref names is dropped.
 	if !held || scRef != ref {
 		return
 	}
@@ -525,10 +514,13 @@ func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessi
 	// move just handed to EPS.
 	ue.DeleteSmContext(pduSessionID)
 
-	logger.From(ctx, logger.AmfLog).Info("dropped routing context for a PDU session moved to EPS",
-		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+	logger.From(ctx, logger.AmfLog).Info("dropped routing context",
+		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("reason", reason))
 
 	ueConn := ue.Conn()
+
+	// TS 23.502 §4.11.2.2 step 14: NG-RAN resources are released only while the PDU
+	// session's user plane is active.
 	if ueConn == nil || n2Release == nil || !upActive {
 		return
 	}

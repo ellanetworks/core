@@ -30,6 +30,7 @@ func modifyingAdditionalPDN(t *testing.T, m *MME) (*UeContext, *PdnConnection) {
 
 	p := ue.EnsurePDN(6)
 	p.Apn = "ims"
+	p.SessionRef = "ims-anchor-session"
 	p.DnConfig = imsQoS.DnFingerprint()
 	p.SessAmbrDLBps = imsQoS.SessAmbrDL.Bps()
 	p.SessAmbrULBps = imsQoS.SessAmbrUL.Bps()

@@ -22,17 +22,12 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		return nil, fmt.Errorf("SM Context reference is missing")
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
+		return nil, err
 	}
 
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	qfis, err := handleModifyIndicationTransfer(n2Data, smContext)
 	if err != nil {

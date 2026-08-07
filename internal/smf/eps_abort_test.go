@@ -30,7 +30,7 @@ func TestNewSessionRefusesAClaimedKey(t *testing.T) {
 	}
 
 	if s.currentEPSSession(supi, ebi) != live {
-		t.Error("the refused create disturbed the live session")
+		t.Errorf("current session for EBI %d = another instance, want the live %q", ebi, live.Ref)
 	}
 
 	if got := len(s.pool); got != 1 {
@@ -53,7 +53,7 @@ func TestNewSessionRefusesAClaimedKey(t *testing.T) {
 	}
 
 	if s.currentPDUSession(supi, 3) != fiveG {
-		t.Error("PDU session identity 3 does not resolve the 5G session")
+		t.Errorf("current session for PDU session identity 3 = another instance, want the 5G %q", fiveG.Ref)
 	}
 
 	// A 5G session has no other identity to fall back on.
@@ -62,9 +62,8 @@ func TestNewSessionRefusesAClaimedKey(t *testing.T) {
 	}
 }
 
-// TestAbortSessionOwnsByHandle checks that rolling back a partially-created
-// session removes only that exact context from the pool, leaving intact a
-// later create that has taken over the slot (F4).
+// Rolling back a partially-created session removes that exact context and no
+// other, so a later create that has taken over the slot survives it.
 func TestAbortSessionOwnsByHandle(t *testing.T) {
 	s := &SMF{pool: make(map[string]*SMContext), byKey: make(map[string]*SMContext)}
 
@@ -89,25 +88,23 @@ func TestAbortSessionOwnsByHandle(t *testing.T) {
 	}
 
 	if scA.Ref == scB.Ref {
-		t.Fatalf("two sessions for the same (SUPI,EBI) must get distinct refs, got %q twice", scA.Ref)
+		t.Fatalf("refs of two sessions for the same (SUPI, EBI) = %q twice, want distinct", scA.Ref)
 	}
 
 	if s.currentEPSSession(supi, ebi) != scB {
-		t.Fatalf("expected scB to be the current session for the (SUPI,EBI)")
+		t.Fatalf("current session for EBI %d = another instance, want the replacement %q", ebi, scB.Ref)
 	}
 
-	// Roll back the first (failed) create. scA has no tunnel or leases, so only the
-	// pool removal runs — and it must leave scB, which owns the slot, intact.
+	// scA has no tunnel or leases, so only the pool removal runs.
 	s.abortSession(context.Background(), scA)
 
 	if s.GetSession(scB.Ref) != scB || s.currentEPSSession(supi, ebi) != scB {
-		t.Fatalf("abort of a stale context disturbed the live session scB")
+		t.Fatalf("aborting the stale context left %q out of the pool or the index, want it in both", scB.Ref)
 	}
 
-	// Aborting the current owner does remove it, from both the pool and the index.
 	s.abortSession(context.Background(), scB)
 
 	if s.GetSession(scB.Ref) != nil || s.currentEPSSession(supi, ebi) != nil {
-		t.Fatalf("abort of the current context did not remove it")
+		t.Fatalf("aborting %q left it in the pool or the index, want it removed from both", scB.Ref)
 	}
 }

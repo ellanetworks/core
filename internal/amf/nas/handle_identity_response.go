@@ -117,14 +117,7 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 			return nasreply.Handled()
 		}
 
-		switch conn.RegistrationType5GS {
-		case fgs.RegistrationTypeInitial:
-			HandleInitialRegistration(ctx, amfInstance, ue)
-		case fgs.RegistrationTypeMobilityUpdating:
-			fallthrough
-		case fgs.RegistrationTypePeriodicUpdating:
-			HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
-		}
+		dispatchRegistration(ctx, amfInstance, ue, conn)
 	default:
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Identity Response message", zap.String("state", string(ue.State())))
 		return nasreply.Silent(nasreply.ReasonOutOfState)

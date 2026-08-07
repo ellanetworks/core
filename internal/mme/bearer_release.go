@@ -17,6 +17,16 @@ import (
 // cause and PTI. A disconnect or a non-default bearer releases only this PDN
 // connection on timeout; the default bearer instead detaches the UE (TS 24.301 §6.4.4).
 func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnection, esmCause eps.ESMCause, pti uint8, disconnecting bool) {
+	// Checked before the message is protected: a downlink NAS COUNT spent on a
+	// connection the UE does not hold cannot be given back, and the deactivating
+	// state would latch on a detached connection.
+	if !m.PDNIsCurrent(ue, p) {
+		logger.From(ctx, logger.MmeLog).Debug("skipping deactivation of a PDN connection the UE does not hold",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
+
+		return
+	}
+
 	naspdu, err := ue.ProtectDownlinkMessage(&eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
 		PTI:               nas.ProcedureTransactionIdentity(pti),
@@ -37,13 +47,6 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	// and frees the tunnel before the UE's DEACTIVATE EPS BEARER CONTEXT ACCEPT. The PDN
 	// connection is retained for the ESM handshake (T3495); its later session release is
 	// then an idempotent no-op.
-	if !m.PDNIsCurrent(ue, p) {
-		logger.From(ctx, logger.MmeLog).Debug("skipping deactivation of a PDN connection the UE does not hold",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi))
-
-		return
-	}
-
 	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to release EPS session on deactivation",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))

@@ -20,22 +20,12 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
 		return nil, err
 	}
 
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || smContext.Tunnel.DataPath.UpLinkTunnel == nil {
 		return nil, fmt.Errorf("session %s has no active tunnel (supi=%s, pduSessionID=%d)", smContextRef, smContext.Supi, smContext.PDUSessionID)

@@ -118,7 +118,7 @@ func narrowPDUType(requested, negotiated uint8) pduTypeNarrowing {
 // allocateUEAddresses allocates the UE address(es) for sc.PDUSessionType, stores
 // them on sc, and returns the downlink-PDR key (the IPv4 address, or the /64
 // prefix base for IPv6-only). On failure it releases whatever it had allocated.
-// The caller holds sc.Mutex.
+// The caller holds sc.mu.
 func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContext) (netip.Addr, ueAddresses, error) {
 	imsi := sc.Supi.IMSI()
 

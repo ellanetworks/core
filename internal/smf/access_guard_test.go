@@ -14,7 +14,7 @@ import (
 )
 
 // A session's Ref and its PDU session identity both survive a move, so a
-// per-access entry point keyed on either reaches a session the other access now
+// per-access entry point keyed on either reaches a session the other access
 // serves. The EPS bearer identity does not survive, so the entry points keyed on
 // it are unreachable once the move has committed and are not covered here.
 
@@ -22,7 +22,7 @@ func TestDeactivateEPSSessionRefusesASessionOnFiveGS(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	_, ref := movedFromEPSTo5GS(t, s)
+	ref := movedFromEPSTo5GS(t, s)
 
 	upf.mu.Lock()
 	modifiesBefore := len(upf.modifyCalls)
@@ -68,8 +68,8 @@ func TestDeactivateSmContextRefusesASessionOnEPS(t *testing.T) {
 }
 
 // The subscription checks answer the MME, which acts on a change by rebuilding
-// the PDN connection. Reporting one for a session the MME no longer serves would
-// have it tear down a live 5GS session.
+// the PDN connection. A change reported for a session that has moved to 5GS has
+// the MME tear down a live 5GS session.
 func TestSubscriptionChangesAreReportedOnlyWhileTheSessionIsOnEPS(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -122,6 +122,8 @@ func TestSubscriptionChangesAreReportedOnlyWhileTheSessionIsOnEPS(t *testing.T) 
 				t.Fatalf("CreateSmContext(existing PDU session): %v", err)
 			}
 
+			bindGNB(t, s, bearer.Ref)
+
 			changed, err = tc.check(s, ctx, bearer.Ref)
 			if err != nil {
 				t.Fatalf("subscription check on 5GS: %v", err)
@@ -157,8 +159,8 @@ func TestPagingFailureRefusesASessionOnEPS(t *testing.T) {
 	}
 }
 
-// Clearing is best-effort, so a session on the other access is skipped rather
-// than reported as an error.
+// Clearing is best-effort, so a session on the other access is skipped and not
+// reported as an error.
 func TestClearPagingSuppressionSkipsASessionOnEPS(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -177,5 +179,25 @@ func TestClearPagingSuppressionSkipsASessionOnEPS(t *testing.T) {
 
 	if cleared != 0 {
 		t.Errorf("UPF downlink-notification clears = %d, want 0", cleared)
+	}
+}
+
+// The 5GS release entry point carries the correctness for a stale N2 setup
+// failure arriving after the session moved to EPS.
+func TestReleaseSmContextRefusesASessionOnEPS(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	if err := s.ReleaseSmContext(context.Background(), bearer.Ref); err == nil {
+		t.Error("ReleaseSmContext(session on EPS) = nil, want an error")
+	}
+
+	if s.GetSession(bearer.Ref) == nil {
+		t.Error("the EPS session was released by the 5GS entry point")
 	}
 }

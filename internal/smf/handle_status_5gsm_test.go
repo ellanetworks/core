@@ -122,9 +122,10 @@ func TestStatus5GSM_UnrelatedCauseKeepsSessionAndDiscardsPendingPolicy(t *testin
 		t.Fatal("PDU session released by a 5GSM STATUS with no release in flight, want it retained")
 	}
 
-	smCtx.Mutex.Lock()
+	unlock := smCtx.LockForTest()
 	dl := smCtx.PolicyData.Ambr.Downlink
-	smCtx.Mutex.Unlock()
+
+	unlock()
 
 	if dl != models.MustParseBitRate("200 Mbps") {
 		t.Fatalf("AMBR downlink = %q after a 5GSM STATUS aborted the modification, want \"200 Mbps\"", dl)

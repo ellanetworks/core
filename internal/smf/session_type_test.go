@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func TestSessionTypeConversionsCoverOnlyTheSharedRange(t *testing.T) {
+func TestPDNTypeCoversOnlyTheSharedRange(t *testing.T) {
 	shared := []struct {
 		pduSessionType fgs.PDUSessionType
 		pdnType        eps.PDNType
@@ -25,23 +25,12 @@ func TestSessionTypeConversionsCoverOnlyTheSharedRange(t *testing.T) {
 		if err != nil || got != tc.pdnType {
 			t.Errorf("pdnTypeFor(%d) = %d, %v; want %d", tc.pduSessionType, got, err, tc.pdnType)
 		}
-
-		back, err := pduSessionTypeFor(uint8(tc.pdnType))
-		if err != nil || back != tc.pduSessionType {
-			t.Errorf("pduSessionTypeFor(%d) = %d, %v; want %d", tc.pdnType, back, err, tc.pduSessionType)
-		}
 	}
 
 	// The enumerations diverge at 4 and above.
 	for _, v := range []uint8{0, 4, 5, 6, 7} {
 		if got, err := pdnTypeFor(v); err == nil {
 			t.Errorf("pdnTypeFor(%d) = %d, want a refusal", v, got)
-		}
-	}
-
-	for _, v := range []uint8{0, 4, 5, 6, 7} {
-		if got, err := pduSessionTypeFor(v); err == nil {
-			t.Errorf("pduSessionTypeFor(%d) = %d, want a refusal", v, got)
 		}
 	}
 }
@@ -66,7 +55,8 @@ func TestPDNTypeRejectCause(t *testing.T) {
 	}
 }
 
-// TS 24.301 §6.1: 1..4 are reserved.
+// TS 24.301 §6.5.0 NOTE 2 has EPS bearer identities 1..4 treated as reserved by a
+// UE or network not supporting 15 bearer contexts, and this core does not (§9.3.2).
 func TestSessionIdentityRejectsReservedBearerIdentities(t *testing.T) {
 	for ebi := uint8(1); ebi <= 4; ebi++ {
 		if (SessionIdentity{EBI: ebi}).valid() {

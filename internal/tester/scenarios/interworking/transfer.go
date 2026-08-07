@@ -91,9 +91,14 @@ func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("address after the move to EPS = %s, want the one held on 5GS, %s", res.UEIPv4, before.UEIP)
 	}
 
+	if err := checkNetworkFeatureSupport(res); err != nil {
+		return err
+	}
+
 	// The transferred connection carries the slice it maps to, which the UE needs
-	// to move it back (TS 24.501 §6.1.4.2).
-	if err := checkSNSSAIContainer(res.SNSSAIContainer); err != nil {
+	// to move it back (TS 24.501 §6.1.4.2), in the extended element because the
+	// connection came from a PDU session (TS 24.301 §6.6.1.1).
+	if err := checkSNSSAIContainer(res, s1enb.IEIExtendedProtocolConfigurationOptions); err != nil {
 		return err
 	}
 
@@ -106,12 +111,38 @@ func run5GSToEPS(ctx context.Context, env scenarios.Env) error {
 	return nil
 }
 
+// checkNetworkFeatureSupport verifies the Attach Accept advertises what the MME
+// owes a UE that supports N1 mode and the extended protocol configuration
+// options: interworking without N26, which tells the UE it may move the
+// connection by registering in 5GS, and ePCO (TS 24.301 §5.5.1.2.4).
+func checkNetworkFeatureSupport(res *s1enb.AttachResult) error {
+	if res.NetworkFeatureSupport == nil {
+		return fmt.Errorf("the Attach Accept carried no EPS network feature support, want one advertising IWK N26 and ePCO")
+	}
+
+	if !res.NetworkFeatureSupport.IWKN26 {
+		return fmt.Errorf("IWK N26 = false, want true")
+	}
+
+	if !res.NetworkFeatureSupport.EPCO {
+		return fmt.Errorf("ePCO = false, want true")
+	}
+
+	return nil
+}
+
 // checkSNSSAIContainer verifies the S-NSSAI the network returned for the PDN
 // connection: the value part of an S-NSSAI IE followed by the PLMN it relates to
-// (TS 24.008 §10.5.6.3 container 001BH, TS 24.501 §9.11.2.8).
-func checkSNSSAIContainer(content []byte) error {
+// (TS 24.008 §10.5.6.3 container 001BH, TS 24.501 §9.11.2.8). wantIEI is the
+// element the container must arrive in.
+func checkSNSSAIContainer(res *s1enb.AttachResult, wantIEI byte) error {
+	content := res.SNSSAIContainer
 	if len(content) == 0 {
 		return fmt.Errorf("the network returned no S-NSSAI container, so the connection cannot be mapped to a slice in 5GS")
+	}
+
+	if res.SNSSAIContainerIEI != wantIEI {
+		return fmt.Errorf("S-NSSAI container arrived in IEI %#x, want %#x", res.SNSSAIContainerIEI, wantIEI)
 	}
 
 	ie, err := (models.Snssai{Sst: scenarios.DefaultSST, Sd: scenarios.DefaultSD}).NAS()
@@ -168,7 +199,13 @@ func runEPSTo5GS(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("EPS attach assigned no address")
 	}
 
-	if err := checkSNSSAIContainer(res.SNSSAIContainer); err != nil {
+	if err := checkNetworkFeatureSupport(res); err != nil {
+		return err
+	}
+
+	// The connection is set up in EPS, so its options travel in the classic
+	// element (TS 24.301 §6.6.1.1).
+	if err := checkSNSSAIContainer(res, s1enb.IEIProtocolConfigurationOptions); err != nil {
 		return err
 	}
 

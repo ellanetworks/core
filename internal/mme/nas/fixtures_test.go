@@ -86,6 +86,9 @@ type fakeSessionManager struct {
 	modifiedENB models.FTEID
 	released    bool
 	deactivated bool
+	// movedOffEPS makes ServesEPS report the session as not held on EPS, as
+	// a concurrent 5GS establishment superseding it leaves the anchor.
+	movedOffEPS bool
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -134,7 +137,7 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 	return nil
 }
 
-func (f *fakeSessionManager) ServesEPS(_ context.Context, _ string) bool { return true }
+func (f *fakeSessionManager) ServesEPS(_ context.Context, _ string) bool { return !f.movedOffEPS }
 
 func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
 	return false, nil

@@ -296,41 +296,54 @@ func (conn *SessionEngine) reapplyReferencingPDRs(session *Session, txn *session
 	return nil
 }
 
-// farInfoFromMerge merges a models.FAR into an existing ebpf.FarInfo.
+// farInfoFromMerge merges a models.FAR into an existing ebpf.FarInfo. Present
+// forwarding parameters state the outer header creation in full, so an absent
+// OuterHeaderCreation withdraws the encapsulation along with its tunnel endpoint.
 func farInfoFromMerge(far models.FAR, localIPv4 netip.Addr, localIPv6 netip.Addr, existing ebpf.FarInfo) ebpf.FarInfo {
 	existing.Action = encodeApplyAction(far.ApplyAction)
 
-	if fp := far.ForwardingParameters; fp != nil {
-		if ohc := fp.OuterHeaderCreation; ohc != nil {
-			existing.OuterHeaderCreation = uint8(ohc.Description >> 8)
-			if ohc.S1U {
-				existing.OuterHeaderCreation |= ohcNoPSC
-			}
+	fp := far.ForwardingParameters
+	if fp == nil {
+		return existing
+	}
 
-			existing.TeID = ohc.TEID
+	ohc := fp.OuterHeaderCreation
+	if ohc == nil {
+		existing.OuterHeaderCreation = 0
+		existing.TeID = 0
+		existing.RemoteIP = [16]byte{}
+		existing.LocalIP = [16]byte{}
 
-			if ohc.Description == models.OuterHeaderCreationGtpUUdpIpv6 && ohc.IPv6Address != nil {
-				existing.LocalIP = ebpf.IPToIn6Addr(localIPv6)
+		return existing
+	}
 
-				v6 := ohc.IPv6Address.To16()
-				if v6 != nil {
-					var v6arr [16]byte
-					copy(v6arr[:], v6)
-					existing.RemoteIP = v6arr
-				}
-			} else if ohc.IPv4Address != nil {
-				existing.LocalIP = ebpf.IPToIn6Addr(localIPv4)
+	existing.OuterHeaderCreation = uint8(ohc.Description >> 8)
+	if ohc.S1U {
+		existing.OuterHeaderCreation |= ohcNoPSC
+	}
 
-				ip4 := ohc.IPv4Address.To4()
-				if ip4 != nil {
-					var ip4arr [4]byte
-					copy(ip4arr[:], ip4)
-					existing.RemoteIP = ebpf.IPToIn6Addr(netip.AddrFrom4(ip4arr))
-				}
-			} else {
-				existing.LocalIP = ebpf.IPToIn6Addr(localIPv4)
-			}
+	existing.TeID = ohc.TEID
+
+	if ohc.Description == models.OuterHeaderCreationGtpUUdpIpv6 && ohc.IPv6Address != nil {
+		existing.LocalIP = ebpf.IPToIn6Addr(localIPv6)
+
+		v6 := ohc.IPv6Address.To16()
+		if v6 != nil {
+			var v6arr [16]byte
+			copy(v6arr[:], v6)
+			existing.RemoteIP = v6arr
 		}
+	} else if ohc.IPv4Address != nil {
+		existing.LocalIP = ebpf.IPToIn6Addr(localIPv4)
+
+		ip4 := ohc.IPv4Address.To4()
+		if ip4 != nil {
+			var ip4arr [4]byte
+			copy(ip4arr[:], ip4)
+			existing.RemoteIP = ebpf.IPToIn6Addr(netip.AddrFrom4(ip4arr))
+		}
+	} else {
+		existing.LocalIP = ebpf.IPToIn6Addr(localIPv4)
 	}
 
 	return existing

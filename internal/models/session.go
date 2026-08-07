@@ -114,6 +114,10 @@ type EPSBearer struct {
 	// kept none. A connection without one cannot be correlated with a PDU session,
 	// so it is not transferable to 5GS.
 	PDUSessionID uint8
+	// Snssai is the slice the anchor holds the session on, which the UE learns from
+	// the PCO and sends back when it transfers the session to 5GS
+	// (TS 23.501 §5.15.7.1, TS 24.501 §6.4.1.2 c)2). Nil when the anchor has none.
+	Snssai *Snssai
 }
 
 // FAR describes a Forwarding Action Rule for the UPF session API.

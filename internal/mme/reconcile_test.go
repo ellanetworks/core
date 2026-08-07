@@ -22,6 +22,7 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	ue, cc := securedUE(t, m)
 	p := testPDN(ue)
 	p.Apn = "internet"
+	p.SessionRef = "anchor-session"
 
 	// Record the QoS a real activation would, so a reconcile against an unchanged
 	// policy is a no-op.

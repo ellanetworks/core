@@ -44,29 +44,20 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	)
 	defer span.End()
 
-	if req.SmContextRef == "" {
-		span.SetStatus(codes.Error, "sm context reference is missing")
-
-		return fmt.Errorf("sm context reference is missing")
-	}
-
-	smContext := s.GetSession(req.SmContextRef)
-	if smContext == nil {
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return fmt.Errorf("sm context not found: %s", req.SmContextRef)
-	}
-
 	// Reconciliation signals 5GSM, so a session served by the other access is
 	// left to the MME's own reconciler.
-	if err := smContext.lockServedBy(Access5G); err != nil {
+	smContext, unlock, err := s.sessionFor(req.SmContextRef, Access5G)
+	if err != nil {
+		span.SetStatus(codes.Error, "no session on 5GS for the reference")
+
+		if errors.Is(err, ErrSessionNotFound) {
+			return err
+		}
+
 		return nil
 	}
 
-	// drainOnTeardown retakes the session lock and enters the AMF and MME
-	// callbacks, which re-enter the SMF, so it runs unlocked.
-	defer func() { s.drainOnTeardown(ctx, smContext) }()
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	if smContext.Tunnel == nil || !smContext.Tunnel.DataPath.Activated {
 		logger.SmfLog.Debug("session not activated, skipping reconciliation",
@@ -433,7 +424,7 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 // aggregate non-GBR limit, which with one flow equals the per-flow MBR. If
 // multiple or GBR flows are ever supported, this must use per-flow MBR values.
 //
-// The caller holds smContext.Mutex.
+// The caller holds smContext.mu.
 func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
 	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
 		return fmt.Errorf("PFCP session not established")
@@ -459,7 +450,7 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 
 // stageSessionQERs sets every distinct session QER (deduped across UL/DL) to the
 // policy's QFI and AMBR in memory, returning the rules to send and a closure
-// that puts the previous values back. Caller holds smContext.Mutex.
+// that puts the previous values back. Caller holds smContext.mu.
 func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink models.BitRate) ([]*QER, func(), error) {
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
 		return nil, nil, fmt.Errorf("data path not available")
@@ -526,7 +517,7 @@ func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink 
 
 // framedRoutesChanged reports whether the subscriber's currently provisioned
 // framed routes differ from those installed on the session at establishment.
-// Caller holds smContext.Mutex.
+// Caller holds smContext.mu.
 func (s *SMF) framedRoutesChanged(ctx context.Context, smContext *SMContext) (bool, error) {
 	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
 	if err != nil {
@@ -564,7 +555,7 @@ func framedRoutesEqual(a, b []netip.Prefix) bool {
 }
 
 // staticIPChanged reports whether the subscriber's reserved static IP changed
-// since it was cached at establishment. Caller holds smContext.Mutex.
+// since it was cached at establishment. Caller holds smContext.mu.
 func (s *SMF) staticIPChanged(ctx context.Context, smContext *SMContext) (bool, error) {
 	imsi := smContext.Supi.IMSI()
 
@@ -605,7 +596,7 @@ func staticReservationChanged(ctx context.Context, dn DNNStore, imsi string, ipv
 
 // sendSessionRelease performs the network-requested PDU session release
 // (TS 23.502, TS 24.501) with cause #39 "reactivation requested" so the UE
-// re-establishes on the correct slice. Caller must hold smContext.Mutex.
+// re-establishes on the correct slice. Caller must hold smContext.mu.
 func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
 	return s.startRelease(ctx, smContext, 0, fgs.GSMCauseReactivationRequested)
 }

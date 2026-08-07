@@ -62,7 +62,6 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	// Assigned unconditionally: the identity may arrive in either container, and
 	// the field otherwise carries the previous request's value into this one.
-	// resumePDNConnectivity re-enters with the deferred value already stored.
 	ue.RequestedPDUSessionID = requestedPDUSessionID(req)
 
 	// The UE may hold the APN and PCO back until the ESM information exchange
@@ -70,7 +69,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
 		ue.RequestedAPN = apn
 		ue.RequestedPTI = pti
-		ue.AwaitESMInformation(&mme.PendingPDNConnectivity{
+		ue.AwaitESMInformation(uint8(pti), &mme.PendingPDNConnectivity{
 			PTI:         uint8(pti),
 			PDNType:     uint8(req.PDNType),
 			RequestType: req.RequestType,
@@ -78,9 +77,8 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 		// The abort runs on a build or protect failure and on T3489 expiry, the last
 		// of which outlives the request's context.
-		requestESMInformation(ctx, ue, func() {
-			ue.TakeESMInfoWait()
-			rejectPDNConnectivity(context.Background(), ue, uint8(pti), eps.ESMCauseESMInformationNotReceived)
+		requestESMInformation(ctx, ue, func(abortedPTI uint8) {
+			rejectPDNConnectivity(context.Background(), ue, abortedPTI, eps.ESMCauseESMInformationNotReceived)
 		})
 
 		return nasreply.Handled()
@@ -101,9 +99,21 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn s
 	pti := nas.ProcedureTransactionIdentity(ptiValue)
 	req := &eps.PDNConnectivityRequest{PTI: pti, PDNType: pdnType, RequestType: requestType}
 
-	// TS 24.301 §6.5.1.6 a): a request repeating the PTI, APN and PDN type of a
-	// connection whose ACTIVATE ACCEPT has not arrived is a retransmission, and is
-	// answered by resending that message and continuing the previous procedure.
+	// A deferred request re-enters here from the ESM information response, which
+	// can arrive after a detach or an S1 release has ended the procedure
+	// (TS 24.301 §6.5.1.1: the UE must be EMM-REGISTERED to request one).
+	if ue.EMMState() != mme.EMMRegistered || !ue.Connected() {
+		logger.From(ctx, logger.MmeLog).Info("PDN connectivity abandoned: UE is not registered and connected",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", ptiValue), zap.Stringer("emm-state", ue.EMMState()))
+		rejectPDNConnectivity(ctx, ue, ptiValue, eps.ESMCauseRequestRejectedUnspecified)
+
+		return nasreply.Handled()
+	}
+
+	// TS 24.301 §6.5.1.6 a): a request repeating the APN and PDN type of a
+	// connection whose ACTIVATE ACCEPT has not arrived, with no other information
+	// element differing, is a retransmission, and is answered by resending that
+	// message and continuing the previous procedure.
 	if prev, pdu := m.FindRetransmittedPDN(ue, ptiValue, apn, pdnType); prev != nil {
 		logger.From(ctx, logger.MmeLog).Info("retransmitted PDN connectivity request; resending the activate",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", ptiValue), zap.Uint8("ebi", prev.Ebi))
@@ -140,7 +150,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn s
 		return nasreply.Handled()
 	}
 
-	p := m.AddPDN(ue)
+	p := m.AddPDN(ue, qos)
 	if p == nil {
 		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: no free EPS bearer identity",
 			zap.String("imsi", ue.IMSI()))
@@ -174,6 +184,20 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn s
 		return nasreply.Handled()
 	}
 
+	// A concurrent 5GS establishment for the same PDU session identity supersedes
+	// the anchor session between it answering and the connection being committed
+	// (TS 23.502 §4.11.2.3). Activating the bearer then advertises an address whose
+	// lease is back in the pool, over a user plane that is gone. The session is not
+	// released here: it is either gone or held on the other access.
+	if !m.Session.ServesEPS(ctx, bearer.Ref) {
+		logger.From(ctx, logger.MmeLog).Info("PDN connectivity rejected: the anchor does not hold the session on EPS",
+			zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.String("ref", bearer.Ref))
+		m.DropPDN(ue, p.Ebi)
+		rejectPDNConnectivity(ctx, ue, uint8(pti), eps.ESMCauseRequestRejectedUnspecified)
+
+		return nasreply.Handled()
+	}
+
 	m.FillBearer(ue, p, qos, bearer)
 
 	m.SetPDNRequestType(ue, p, req.RequestType)
@@ -186,7 +210,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, apn s
 		return nasreply.Handled()
 	}
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), operator.PLMN(), ue.UsesExtendedPCO(p))
+	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), operator.PLMN(), ue.UsesExtendedPCO(req.RequestType))
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)

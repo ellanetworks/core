@@ -202,7 +202,8 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn    string
 	)
 
-	if ulNasTransport.SNSSAI != nil {
+	switch {
+	case ulNasTransport.SNSSAI != nil:
 		snssai = models.SnssaiFromNAS(*ulNasTransport.SNSSAI)
 
 		// TS 24.501 §5.4.5.2.3: a slice outside the UE's allowed NSSAI is not
@@ -214,7 +215,10 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 
 			return
 		}
-	} else {
+
+	case requestType == fgs.RequestTypeInitialRequest:
+		// TS 24.501 §5.4.5.2.3 a)1)iii)A): an initial request with no S-NSSAI IE is
+		// routed on an S-NSSAI of the allowed NSSAI.
 		if len(ue.AllowedNssai) == 0 {
 			logger.From(ctx, logger.AmfLog).Warn("allowed nssai is empty in UE context")
 			sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
@@ -223,6 +227,17 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		}
 
 		snssai = &ue.AllowedNssai[0]
+
+	default:
+		// TS 24.501 §5.4.5.2.3 a)1)iv) provides no derivation of an S-NSSAI, so a
+		// transfer the AMF holds no routing context for carries none to send to the
+		// SMF; the payload goes back with 5GMM cause #90 (§5.4.5.2.5 a)3),
+		// §5.4.5.3.2).
+		logger.From(ctx, logger.AmfLog).Warn("transfer of an existing PDU session carries no S-NSSAI",
+			logger.PDUSessionID(pduSessionID))
+		sendPayloadNotForwarded(ctx, ueConn, pduSessionID, smMessage)
+
+		return
 	}
 
 	if ulNasTransport.DNN != nil {

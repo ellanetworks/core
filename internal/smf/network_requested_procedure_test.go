@@ -73,8 +73,7 @@ func modifyCallCount(amfCb *fakeAMF) int {
 func ptiInUse(t *testing.T, smCtx *smf.SMContext, pti uint8) bool {
 	t.Helper()
 
-	smCtx.Mutex.Lock()
-	defer smCtx.Mutex.Unlock()
+	defer smCtx.LockForTest()()
 
 	return smCtx.IsPTIInUse(pti)
 }
@@ -114,19 +113,19 @@ func TestReconcileSkipsIdleSession(t *testing.T) {
 		t.Fatalf("an idle session must not be signalled, got %d N1N2 modify calls", got)
 	}
 
-	smCtx.Mutex.Lock()
+	unlock := smCtx.LockForTest()
 	dl := smCtx.PolicyData.Ambr.Downlink
-	smCtx.Mutex.Unlock()
+
+	unlock()
 
 	if dl != models.MustParseBitRate("200 Mbps") {
 		t.Fatalf("an idle session's policy must not be committed, got %q", dl)
 	}
 }
 
-// TestReconcileSkippedWhileProcedureInFlight verifies that a reconcile arriving
-// while a network-requested modification is outstanding (T3591 running) is skipped
-// rather than re-sending the command and resetting the counter (item 8; mirrors the
-// MME guarding on Modifying/Deactivating).
+// A reconcile arriving while a network-requested modification is outstanding
+// (T3591 running) is skipped: re-firing resends the command and resets the
+// retransmission counter.
 func TestReconcileSkippedWhileProcedureInFlight(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb) // default (long) T3591: it will not fire during the test
@@ -161,9 +160,10 @@ func TestModificationRejectKeepsPreviousPolicy(t *testing.T) {
 		t.Fatalf("modification command reject: %v", err)
 	}
 
-	smCtx.Mutex.Lock()
+	unlock := smCtx.LockForTest()
 	dl := smCtx.PolicyData.Ambr.Downlink
-	smCtx.Mutex.Unlock()
+
+	unlock()
 
 	if dl != models.MustParseBitRate("200 Mbps") {
 		t.Fatalf("a rejected modification must keep the previous AMBR (200 Mbps), got %q", dl)

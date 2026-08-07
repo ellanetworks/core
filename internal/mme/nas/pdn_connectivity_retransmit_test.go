@@ -31,11 +31,11 @@ func TestRetransmissionMatchesAPNAndPDNTypeNotPTIAlone(t *testing.T) {
 
 	// The same PTI under a different APN or PDN type is a new request.
 	if prev, _ := m.FindRetransmittedPDN(ue, 4, "enterprise", eps.PDNTypeIPv4); prev != nil {
-		t.Error("a different APN under the same PTI matched as a retransmission")
+		t.Errorf("APN \"enterprise\" under PTI 4 matched EBI %d as a retransmission, want no match", prev.Ebi)
 	}
 
 	if prev, _ := m.FindRetransmittedPDN(ue, 4, "internet", eps.PDNTypeIPv6); prev != nil {
-		t.Error("a different PDN type under the same PTI matched as a retransmission")
+		t.Errorf("PDN type IPv6 under PTI 4 matched EBI %d as a retransmission, want no match", prev.Ebi)
 	}
 
 	// The genuine repeat still matches.
@@ -44,8 +44,8 @@ func TestRetransmissionMatchesAPNAndPDNTypeNotPTIAlone(t *testing.T) {
 	}
 }
 
-// Once the UE accepts, the retained request no longer answers a repeat of its
-// PTI, which the UE may legally reuse (TS 24.007 §11.2.3.1a).
+// Once the UE accepts, the retained request stops answering a repeat of its PTI,
+// which the UE may legally reuse (TS 24.007 §11.2.3.1a).
 func TestRetransmissionRecordClearedOnAccept(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

@@ -41,19 +41,36 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 	return eps.NewTAIList(tais...)
 }
 
+// attachLive reports whether an attach can still be carried to completion in
+// this EMM state. A detach moves the UE out of both (TS 24.301 §5.5.2.2.2).
+func attachLive(state mme.EMMState) bool {
+	return state == mme.EMMRegistrationInitiated || state == mme.EMMRegistered
+}
+
 func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	// A reserved request type value names no procedure this core can run
-	// (TS 24.008 table 10.5.173, TS 24.301 §7.5.3 a).
-	if ue.RequestedType != 0 && !ue.RequestedType.Served() {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: reserved request type",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("request-type", uint8(ue.RequestedType)))
-		rejectAttachESM(ctx, m, ue, eps.ESMCauseInvalidMandatoryInfo)
+	// A deferred attach re-enters here from the ESM information response, which can
+	// arrive after a detach or an S1 release has ended the procedure. A bearer
+	// established then outlives the EMM context it belongs to.
+	if !ue.Connected() || !attachLive(ue.EMMState()) {
+		logger.From(ctx, logger.MmeLog).Info("default bearer activation abandoned: the attach is over",
+			zap.String("imsi", ue.IMSI()), zap.Stringer("emm-state", ue.EMMState()))
 
 		return
 	}
 
-	if requestESMInformation(ctx, ue, func() {
-		rejectAttachESM(context.Background(), m, ue, eps.ESMCauseESMInformationNotReceived)
+	// Served() separates the request type values TS 24.008 table 10.5.173 assigns
+	// from the reserved ones; a reserved one is an unknown mandatory value
+	// (TS 24.301 §7.5.3 a).
+	if ue.RequestedType != 0 && !ue.RequestedType.Served() {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: reserved request type",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("request-type", uint8(ue.RequestedType)))
+		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), eps.ESMCauseInvalidMandatoryInfo)
+
+		return
+	}
+
+	if requestESMInformation(ctx, ue, func(pti uint8) {
+		rejectAttachESM(context.Background(), m, ue, pti, eps.ESMCauseESMInformationNotReceived)
 	}) {
 		return
 	}
@@ -64,7 +81,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
-		rejectAttachESM(ctx, m, ue, eps.ESMCauseMissingOrUnknownAPN)
+		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), eps.ESMCauseMissingOrUnknownAPN)
 
 		return
 	}
@@ -103,7 +120,20 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttachESM(ctx, m, ue, sessionSetupESMCause(bearer))
+		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), sessionSetupESMCause(bearer))
+
+		return
+	}
+
+	// A concurrent 5GS establishment for the same PDU session identity supersedes
+	// the anchor session between it answering and the default bearer being
+	// installed (TS 23.502 §4.11.2.3). Activating the bearer then advertises an
+	// address whose lease is back in the pool, over a user plane that is gone. The
+	// session is not released here: it is either gone or held on the other access.
+	if !m.Session.ServesEPS(ctx, bearer.Ref) {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: the anchor does not hold the session on EPS",
+			zap.String("imsi", ue.IMSI()), zap.String("ref", bearer.Ref))
+		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)
 
 		return
 	}
@@ -262,7 +292,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, ue.UsesExtendedPCO(p))
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, ue.UsesExtendedPCO(ue.RequestedType))
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +321,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, fmt.Errorf("encode T3412: %w", err)
 	}
 
-	nfs := m.NetworkFeatureSupport(ue)
+	nfs := m.NetworkFeatureSupport(ue.UeNetCap())
 
 	accept := &eps.AttachAccept{
 		EPSAttachResult:     eps.AttachResultEPS,
@@ -448,8 +478,14 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 
 	// The UE stores the S-NSSAI and PLMN against the PDU session identity it
 	// allocated and uses them to move the connection to 5GS
-	// (TS 24.501 §6.1.4.2, TS 23.501 §5.15.7.1).
-	snssai, err := snssaiContainer(qos.Snssai, plmn)
+	// (TS 23.501 §5.15.7.1). The anchor's own slice is authoritative; the policy's
+	// is the one matched for the APN.
+	advertisedSnssai := qos.Snssai
+	if p.Snssai != nil {
+		advertisedSnssai = *p.Snssai
+	}
+
+	snssai, err := snssaiContainer(advertisedSnssai, plmn)
 	if err != nil {
 		return nil, err
 	}

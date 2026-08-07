@@ -67,6 +67,7 @@ type fakeSessionManager struct {
 	framedErr       error // when set, FramedRoutesChanged fails with it
 	staticIPChanged bool  // StaticIPChanged returns this
 	staticIPErr     error // when set, StaticIPChanged fails with it
+	movedOffEPS     bool  // when set, ServesEPS reports the session has moved to 5GS
 
 	suppressCalls         int // counts HandleEPSPagingFailure calls
 	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
@@ -138,7 +139,7 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string) er
 	return nil
 }
 
-func (f *fakeSessionManager) ServesEPS(_ context.Context, _ string) bool { return true }
+func (f *fakeSessionManager) ServesEPS(_ context.Context, _ string) bool { return !f.movedOffEPS }
 
 func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
 	return f.framedChanged, f.framedErr

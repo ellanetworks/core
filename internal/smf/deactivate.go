@@ -19,8 +19,6 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	return s.deactivateSmContext(ctx, smContextRef, Access5G)
 }
 
-// deactivateSmContext applies servedBy under the same lock hold as the
-// modification, so no transfer can land between them.
 func (s *SMF) deactivateSmContext(ctx context.Context, smContextRef string, access AccessType) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -30,29 +28,15 @@ func (s *SMF) deactivateSmContext(ctx context.Context, smContextRef string, acce
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		return fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		return fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	if err := smContext.lockServedBy(access); err != nil {
+	smContext, unlock, err := s.sessionFor(smContextRef, access)
+	if err != nil {
 		return err
 	}
 
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
-	// Leave any network-requested procedure timer running: CM/ECM-IDLE is resolved
-	// by paging, not by abandoning the procedure (TS 24.501 §6.3.2.5/§6.3.3.5).
-
-	// Session already torn down; nothing to deactivate.
 	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
-		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",
-			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
+		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		return nil
 	}
 
@@ -68,17 +52,9 @@ func (s *SMF) deactivateSmContext(ctx context.Context, smContextRef string, acce
 	localSEID := smContext.PFCPContext.LocalSEID
 	remoteSEID := smContext.PFCPContext.RemoteSEID
 
-	err = s.upf.ModifySession(ctx, BuildModifyRequest(
-		remoteSEID,
-		"",
-		nil, farList, nil,
-	))
+	err = s.upf.ModifySession(ctx, BuildModifyRequest(remoteSEID, "", nil, farList, nil))
 	if err != nil {
-		// A rejection means the PFCP session is gone (e.g. after a UPF restart);
-		// clear it so later Activate/Release calls don't reuse a stale session.
-		logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session modification failed, clearing stale tunnel",
-			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
-			logger.SEID(localSEID))
+		logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session modification failed, clearing stale tunnel", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.SEID(localSEID))
 		smContext.Tunnel = nil
 		smContext.PFCPContext = nil
 

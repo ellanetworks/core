@@ -318,10 +318,9 @@ func TestAttachAcceptIWKN26FollowsN1ModeSupport(t *testing.T) {
 // inter-system change is such a case. §8.3.6.9/§8.3.6.15 make the two exclusive.
 func TestTransferredBearerCarriesOptionsInExtendedPCO(t *testing.T) {
 	p := &mme.PdnConnection{
-		Ebi:              5,
-		PdnType:          eps.PDNTypeIPv4,
-		UeIP:             netip.MustParseAddr("10.45.0.2"),
-		SetupRequestType: eps.RequestTypeHandover,
+		Ebi:     5,
+		PdnType: eps.PDNTypeIPv4,
+		UeIP:    netip.MustParseAddr("10.45.0.2"),
 	}
 	qos := &mme.EpsQoS{APN: "internet", QCI: 9, MTU: 1400, Snssai: testSnssai}
 
@@ -357,5 +356,50 @@ func TestTransferredBearerCarriesOptionsInExtendedPCO(t *testing.T) {
 
 	if act.ProtocolConfigurationOptions == nil || act.ExtendedProtocolConfigurationOptions != nil {
 		t.Error("an initial request did not carry the classic protocol configuration options alone")
+	}
+}
+
+// The element is chosen from the request type the attach is serving and the UE's
+// own ePCO support (TS 24.301 §6.6.1.1, §5.5.1.2.4).
+func TestAttachAcceptActivateElementFollowsTheAttachRequestType(t *testing.T) {
+	// ePCO is octet 8 bit 8 of the UE network capability (TS 24.301 §9.9.3.34);
+	// Rest starts at octet 7.
+	const (
+		advertised    = 0x80
+		notAdvertised = 0x00
+	)
+
+	for _, tc := range []struct {
+		name        string
+		requestType eps.RequestType
+		octet8      byte
+		wantExt     bool
+	}{
+		{"transferred PDU session, UE advertised ePCO", eps.RequestTypeHandover, advertised, true},
+		{"transferred PDU session, UE did not advertise ePCO", eps.RequestTypeHandover, notAdvertised, false},
+		{"initial request, UE advertised ePCO", eps.RequestTypeInitialRequest, advertised, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, _ := securedUE(t, m)
+			ue.SetUESecurityCapability(eps.UENetworkCapability{
+				EEA:  0xF0,
+				EIA:  0x70,
+				Rest: []byte{0x00, tc.octet8},
+			}, nil, mme.MintAuthProofForAttachRequest())
+			ue.RequestedType = tc.requestType
+			testPDN(ue).PdnType = eps.PDNTypeIPv4
+			testPDN(ue).UeIP = testUEIP
+
+			act := activateFromAccept(t, m, ue)
+
+			gotExt := act.ExtendedProtocolConfigurationOptions != nil
+			gotClassic := act.ProtocolConfigurationOptions != nil
+
+			if gotExt != tc.wantExt || gotClassic == tc.wantExt {
+				t.Errorf("extended element = %v, classic element = %v, want %v and %v",
+					gotExt, gotClassic, tc.wantExt, !tc.wantExt)
+			}
+		})
 	}
 }

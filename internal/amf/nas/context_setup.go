@@ -37,11 +37,24 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 		ue.SetGMMCapability(msg.GMMCapability)
 	}
 
+	dispatchRegistration(ctx, amfInstance, ue, conn)
+}
+
+// dispatchRegistration runs the procedure the 5GS registration type selects. A
+// UE performing an inter-system change from S1 mode without N26 registers with
+// type "mobility registration update", and the AMF treats the request as an
+// initial registration (TS 23.502 §4.11.2.3 step 3, TS 24.501 §5.5.1.3.4).
+func dispatchRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) {
 	switch conn.RegistrationType5GS {
 	case fgs.RegistrationTypeInitial:
 		HandleInitialRegistration(ctx, amfInstance, ue)
 	case fgs.RegistrationTypeMobilityUpdating:
-		fallthrough
+		if movingFromEPC(conn.RegistrationRequest) {
+			HandleInitialRegistration(ctx, amfInstance, ue)
+			return
+		}
+
+		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	case fgs.RegistrationTypePeriodicUpdating:
 		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	}

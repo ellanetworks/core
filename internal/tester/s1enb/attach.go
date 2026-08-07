@@ -34,6 +34,15 @@ type AttachResult struct {
 	// S-NSSAI followed by the PLMN identity it relates to. Nil when absent.
 	SNSSAIContainer []byte
 
+	// SNSSAIContainerIEI identifies the element that carried SNSSAIContainer,
+	// IEIProtocolConfigurationOptions or IEIExtendedProtocolConfigurationOptions.
+	// Zero when the network returned no container.
+	SNSSAIContainerIEI byte
+
+	// NetworkFeatureSupport is the EPS network feature support the Attach Accept
+	// advertised (TS 24.301 §9.9.3.12A). Nil when the network omitted the IE.
+	NetworkFeatureSupport *eps.NetworkFeatureSupport
+
 	// QCI is the default bearer's QoS Class Identifier from the Activate Default
 	// EPS Bearer Context Request (TS 24.301 §9.9.4.3, octet 1 of the EPS QoS IE).
 	// Ella Core aligns it with the policy's 5QI for the standardized values.
@@ -67,6 +76,14 @@ type AttachResult struct {
 	ULTEID     uint32 // S-GW/UPF uplink TEID
 	DLTEID     uint32 // eNB downlink TEID reported to the MME
 }
+
+// Identifiers of the two elements that can carry the protocol configuration
+// options of an ESM message (TS 24.301 table 8.3.6.1: the elements are §9.9.4.11
+// and §9.9.4.26).
+const (
+	IEIProtocolConfigurationOptions         byte = 0x27
+	IEIExtendedProtocolConfigurationOptions byte = 0x7B
+)
 
 // attachSession is an attach in progress, from the Initial UE Message through
 // the security mode procedure.
@@ -225,6 +242,8 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		UpfAddress:        upf.Unmap().String(),
 		ULTEID:            uint32(erab.GTPTEID),
 		DLTEID:            dlTEID,
+
+		NetworkFeatureSupport: accept.NetworkFeatureSupport,
 	}
 
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
@@ -237,17 +256,21 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		// (TS 24.008 §10.5.6.3 container 001BH, TS 24.501 §6.1.4.2).
 		// A transferred connection carries them in the extended element
 		// (TS 24.301 §6.6.1.1), so both are read.
-		for _, pco := range []*nas.ProtocolConfigurationOptions{
-			act.ProtocolConfigurationOptions,
-			act.ExtendedProtocolConfigurationOptions,
+		for _, elem := range []struct {
+			iei byte
+			pco *nas.ProtocolConfigurationOptions
+		}{
+			{IEIProtocolConfigurationOptions, act.ProtocolConfigurationOptions},
+			{IEIExtendedProtocolConfigurationOptions, act.ExtendedProtocolConfigurationOptions},
 		} {
-			if pco == nil {
+			if elem.pco == nil {
 				continue
 			}
 
-			for _, c := range pco.Containers {
+			for _, c := range elem.pco.Containers {
 				if c.ID == nas.PCOContainerSNSSAI {
 					res.SNSSAIContainer = append([]byte(nil), c.Content...)
+					res.SNSSAIContainerIEI = elem.iei
 				}
 			}
 		}

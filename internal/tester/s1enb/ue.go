@@ -29,6 +29,15 @@ const (
 // MME requests it.
 const defaultIMEISV eps.IMEISV = "3536083123456780"
 
+// Feature bits the UE sets in the UE network capability (TS 24.301 §9.9.3.34):
+// "Extended protocol configuration options (ePCO) (octet 8, bit 8)" and "N1 mode
+// supported (N1mode) (octet 9, bit 6)". §5.5.1.2.2 obliges a UE that supports the
+// extended element and N1 mode to set them in ATTACH REQUEST.
+const (
+	ueNetCapOctet8EPCO   byte = 1 << 7
+	ueNetCapOctet9N1Mode byte = 1 << 5
+)
+
 // UE is a simulated 4G UE: its identity, USIM credentials, and the EPS NAS
 // security state it derives during attach. It is single-threaded — used by one
 // attach/procedure goroutine at a time.
@@ -131,6 +140,19 @@ func (ue *UE) S1APSecurityCapabilities() s1ap.UESecurityCapabilities {
 	}
 }
 
+// networkCapability returns the UE network capability the UE advertises
+// (TS 24.301 §9.9.3.34). The feature octets follow the UMTS algorithm octets, so
+// those are present and empty: the UE supports no Iu-mode algorithm. Octet 7
+// carries no capability this UE claims.
+func (ue *UE) networkCapability() eps.UENetworkCapability {
+	return eps.UENetworkCapability{
+		EEA:     ue.netCapEEA,
+		EIA:     ue.netCapEIA,
+		HasUMTS: true,
+		Rest:    []byte{0, ueNetCapOctet8EPCO, ueNetCapOctet9N1Mode},
+	}
+}
+
 func (ue *UE) buildAttachRequest() ([]byte, error) {
 	pc := &eps.PDNConnectivityRequest{PTI: 1, RequestType: ue.requestType, PDNType: ue.pdnType}
 
@@ -161,7 +183,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		EPSAttachType:       eps.AttachTypeEPS,
 		NASKeySetIdentifier: nas.NoKeySet,
 		EPSMobileIdentity:   identity,
-		UENetworkCapability: eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA},
+		UENetworkCapability: ue.networkCapability(),
 		ESMMessageContainer: esm,
 	}
 

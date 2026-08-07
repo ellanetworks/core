@@ -442,3 +442,62 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 		t.Fatalf("ESM cause = %d, want %d (last PDN disconnect not allowed)", reject.Cause, eps.ESMCauseLastPDNDisconnectionNotAllow)
 	}
 }
+
+// The element the ACTIVATE uses is chosen from the request type of the PDN
+// CONNECTIVITY REQUEST being served and the UE's own ePCO support (TS 24.301
+// §6.6.1.1, §5.5.1.2.4).
+func TestStandaloneActivateElementFollowsTheRequestType(t *testing.T) {
+	// ePCO is octet 8 bit 8 of the UE network capability (TS 24.301 §9.9.3.34);
+	// Rest starts at octet 7.
+	const (
+		advertised    = 0x80
+		notAdvertised = 0x00
+	)
+
+	for _, tc := range []struct {
+		name        string
+		requestType eps.RequestType
+		octet8      byte
+		wantExt     bool
+	}{
+		{"transferred PDU session, UE advertised ePCO", eps.RequestTypeHandover, advertised, true},
+		{"transferred PDU session, UE did not advertise ePCO", eps.RequestTypeHandover, notAdvertised, false},
+		{"initial request, UE advertised ePCO", eps.RequestTypeInitialRequest, advertised, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, cc := securedUE(t, m)
+			ue.ForceStateForTest(mme.EMMRegistered)
+			ue.SetUESecurityCapability(eps.UENetworkCapability{
+				EEA:  0xF0,
+				EIA:  0x70,
+				Rest: []byte{0x00, tc.octet8},
+			}, nil, mme.MintAuthProofForAttachRequest())
+
+			openTestPDN(t, m, ue, 4, tc.requestType)
+
+			for _, p := range m.SnapshotPDNs(ue) {
+				defer m.StopESMGuard(p)
+			}
+
+			setup := findERABSetupRequest(t, cc)
+			if len(setup.ERABToBeSetup) != 1 {
+				t.Fatalf("E-RABs to be set up = %d, want 1", len(setup.ERABToBeSetup))
+			}
+
+			act, err := eps.ParseActivateDefaultEPSBearerContextRequest(
+				unprotectDownlink(t, ue, []byte(setup.ERABToBeSetup[0].NASPDU)))
+			if err != nil {
+				t.Fatalf("the E-RAB Setup Request carries no ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST: %v", err)
+			}
+
+			gotExt := act.ExtendedProtocolConfigurationOptions != nil
+			gotClassic := act.ProtocolConfigurationOptions != nil
+
+			if gotExt != tc.wantExt || gotClassic == tc.wantExt {
+				t.Errorf("extended element = %v, classic element = %v, want %v and %v",
+					gotExt, gotClassic, tc.wantExt, !tc.wantExt)
+			}
+		})
+	}
+}

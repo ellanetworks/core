@@ -113,9 +113,7 @@ func (m *MME) RecordPDNSetup(ue *UeContext, p *PdnConnection, pti uint8, pdu []b
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	p.SetupPTI = pti
-
-	p.SetupPdu = append([]byte(nil), pdu...)
+	p.setup = &pdnSetupRecord{PTI: pti, PDU: append([]byte(nil), pdu...)}
 }
 
 // SetPDNRequestType records the request type that opened a connection, for the
@@ -124,7 +122,15 @@ func (m *MME) SetPDNRequestType(ue *UeContext, p *PdnConnection, requestType eps
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	p.SetupRequestType = requestType
+	p.setupRequestType = requestType
+}
+
+// PDNRequestType returns the request type that opened a connection.
+func (m *MME) PDNRequestType(ue *UeContext, p *PdnConnection) eps.RequestType {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return p.setupRequestType
 }
 
 // SessionTransferred drops the PDN connection the UE moved to 5GS, freeing its
@@ -134,17 +140,31 @@ func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, re
 	// TS 23.502 §4.11.2.3 step 10 excludes steps 4-7 of TS 23.401 §5.4.4.1, and
 	// step 4c is the S1-AP Deactivate Bearer Request. The EPS bearer state
 	// resynchronises at the next ECM-IDLE to ECM-CONNECTED transition.
-	m.dropPDNConnection(ctx, imsi, ebi, ref, "moved to 5GS")
+	m.dropPDNConnection(ctx, imsi, ebi, ref, "moved to 5GS", keepRegistered)
 }
 
 // SessionReleased drops the PDN connection whose anchor session the SMF released
 // on its own initiative, so the MME does not keep a connection naming a session
 // that is gone.
 func (m *MME) SessionReleased(ctx context.Context, imsi string, ebi uint8, ref string) {
-	m.dropPDNConnection(ctx, imsi, ebi, ref, "released by the anchor")
+	m.dropPDNConnection(ctx, imsi, ebi, ref, "released by the anchor", detachOnLastPDN)
 }
 
-func (m *MME) dropPDNConnection(ctx context.Context, imsi string, ebi uint8, ref, reason string) {
+// lastPDNPolicy is what becomes of a UE whose last PDN connection is dropped.
+type lastPDNPolicy uint8
+
+const (
+	// detachOnLastPDN: TS 23.401 §5.4.4.1 step 4a detaches a UE that does not
+	// support attach without PDN connectivity, which no UE this core serves does.
+	detachOnLastPDN lastPDNPolicy = iota
+	// keepRegistered: TS 23.502 §4.11.2.3 step 10 releases the EPC resources of a
+	// transferred PDN connection "except the steps 4-7" of TS 23.401 §5.4.4.1, and
+	// step 4a is that detach. A dual-registration UE stays EMM-REGISTERED, and
+	// §4.11.2.3 NOTE 2 leaves an implicit detach to a reachability time-out.
+	keepRegistered
+)
+
+func (m *MME) dropPDNConnection(ctx context.Context, imsi string, ebi uint8, ref, reason string, onLastPDN lastPDNPolicy) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return
@@ -157,9 +177,9 @@ func (m *MME) dropPDNConnection(ctx context.Context, imsi string, ebi uint8, ref
 	logger.From(ctx, logger.MmeLog).Info("dropped PDN connection",
 		zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.String("reason", reason))
 
-	// An attached EPS UE always holds at least one PDN connection
-	// (TS 23.401 §5.10.3), so losing its last one detaches it.
-	if ue.PDNCount() == 0 {
+	// TS 23.401 §5.10.3 keeps a UE that does not support attach without PDN
+	// connectivity from holding none, so losing its last one detaches it.
+	if onLastPDN == detachOnLastPDN && ue.PDNCount() == 0 {
 		logger.From(ctx, logger.MmeLog).Info("last PDN connection dropped, detaching",
 			zap.String("imsi", imsi), zap.String("reason", reason))
 		ue.TransitionTo(EMMDeregistered)

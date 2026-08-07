@@ -79,13 +79,13 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 
 	// Build under the session lock so a concurrent reader for the same key never
 	// sees a half-built context.
-	sc.Mutex.Lock()
+	sc.mu.Lock()
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy
 
 	dlPdrIP, addrs, err := s.allocateUEAddresses(ctx, dn, sc)
 	if err != nil {
-		sc.Mutex.Unlock()
+		sc.mu.Unlock()
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
 
@@ -94,7 +94,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	// failure rejects establishment, fail-closed.
 	framed, err := dn.ListFramedRoutes(ctx, req.Supi.IMSI())
 	if err != nil {
-		sc.Mutex.Unlock()
+		sc.mu.Unlock()
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errFramedRouteResolve, err)
 	}
 
@@ -105,7 +105,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	if sc.PDUIPV4Address != nil {
 		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), false)
 		if err != nil {
-			sc.Mutex.Unlock()
+			sc.mu.Unlock()
 			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
 		}
 
@@ -117,7 +117,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	if sc.PDUIPV6Prefix != nil {
 		addr, ok, err := dn.GetStaticIP(ctx, req.Supi.IMSI(), true)
 		if err != nil {
-			sc.Mutex.Unlock()
+			sc.mu.Unlock()
 			return nil, ueAddresses{}, fmt.Errorf("%w: %v", errStaticIPResolve, err)
 		}
 
@@ -129,11 +129,11 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	sc.Tunnel = &UPTunnel{DataPath: &DataPath{UpLinkTunnel: &GTPTunnel{}, DownLinkTunnel: &GTPTunnel{}}}
 
 	if err := sc.Tunnel.DataPath.ActivateTunnelAndPDR(s, sc, req.Policy, dlPdrIP); err != nil {
-		sc.Mutex.Unlock()
+		sc.mu.Unlock()
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errDataPathActivation, err)
 	}
 
-	sc.Mutex.Unlock() // sendPFCPRules re-acquires it
+	sc.mu.Unlock() // sendPFCPRules re-acquires it
 
 	if err := s.sendPFCPRules(ctx, sc); err != nil {
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUPFSession, err)
@@ -148,7 +148,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 // session if one was established, frees whichever address leases were taken, and
 // removes the context from the pool only if it still maps to sc (so a concurrent
 // create that replaced the entry keeps its live session). The caller must not
-// hold sc.Mutex.
+// hold sc.mu.
 func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 	if sc == nil {
 		return
@@ -202,7 +202,7 @@ type AnchorBinding struct {
 // the uplink OuterHeaderRemoval to its IP family, marking the downlink S1U flag by
 // access (4G S1-U vs 5G N3 PSC; TS 29.281). The endpoint is always recorded in
 // ANInformation; the FAR is updated only once the data path is activated. Caller
-// holds sc.Mutex and marks rule State.
+// holds sc.mu and marks rule State.
 func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
 	sc.Tunnel.ANInformation.TEID = an.TEID
 	sc.Tunnel.ANInformation.IPv4Address = an.IPv4
@@ -248,8 +248,8 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 	)
 	defer span.End()
 
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
+	smContext.mu.Lock()
+	defer smContext.mu.Unlock()
 
 	dataPath := smContext.Tunnel.DataPath
 	if !dataPath.Activated {

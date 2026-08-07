@@ -1607,9 +1607,10 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 
 	// The new policy is not committed on send: it is held pending until the UE
 	// accepts (TS 24.501 §6.3.2.2).
-	smCtx.Mutex.Lock()
+	unlock := smCtx.LockForTest()
 	committedEarly := smCtx.PolicyData.DNS != nil && smCtx.PolicyData.DNS.Equal(net.ParseIP("8.8.4.4"))
-	smCtx.Mutex.Unlock()
+
+	unlock()
 
 	if committedEarly {
 		t.Fatal("DNS policy must not be committed before the UE accepts the modification")
@@ -1621,12 +1622,13 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 		t.Fatalf("modification complete: %v", err)
 	}
 
-	smCtx.Mutex.Lock()
+	unlockCommitted := smCtx.LockForTest()
 	if smCtx.PolicyData.DNS == nil || !smCtx.PolicyData.DNS.Equal(net.ParseIP("8.8.4.4")) {
-		smCtx.Mutex.Unlock()
+		unlockCommitted()
 		t.Fatalf("expected DNS 8.8.4.4 after modification complete, got %v", smCtx.PolicyData.DNS)
 	}
-	smCtx.Mutex.Unlock()
+
+	unlockCommitted()
 }
 
 // TestReconcileSmContext_InvalidDNS verifies that an invalid DNS address in the
@@ -1861,12 +1863,13 @@ func TestReconcileSmContext_DNSIdleUE(t *testing.T) {
 	}
 
 	// Policy should have been committed despite N1N2 skip.
-	smCtx.Mutex.Lock()
+	unlock := smCtx.LockForTest()
 	if smCtx.PolicyData.DNS == nil || !smCtx.PolicyData.DNS.Equal(net.ParseIP("1.1.1.1")) {
-		smCtx.Mutex.Unlock()
+		unlock()
 		t.Fatalf("policy not committed: DNS = %v", smCtx.PolicyData.DNS)
 	}
-	smCtx.Mutex.Unlock()
+
+	unlock()
 }
 
 // ===========================
@@ -2384,12 +2387,10 @@ func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 	}
 }
 
-// TestUpdateSmContextN1Msg_AuthenticationCompletePTIPoliced checks that a PDU
-// SESSION AUTHENTICATION COMPLETE reaches the PTI policy. TS 24.501 §7.3.1 b)
-// requires the unassigned PTI on it, and a message the codec does not model
-// arrives as an unknown message that never reaches PolicePTI, so a UE could send
-// one carrying an assigned PTI and be silently ignored instead of answered with a
-// 5GSM STATUS #81.
+// A PDU SESSION AUTHENTICATION COMPLETE reaches the PTI policy. TS 24.501
+// §7.3.1 b) requires the unassigned PTI on it, and a message the codec does not
+// model arrives as an unknown message that never reaches PolicePTI, so one
+// carrying an assigned PTI draws no 5GSM STATUS #81.
 func TestUpdateSmContextN1Msg_AuthenticationCompletePTIPoliced(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2541,8 +2542,7 @@ func TestCreateSmContext_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
 	}
 }
 
-// TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus is the same rule
-// on an established session, where the message was silently dropped.
+// The same rule on an established session.
 func TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

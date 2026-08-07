@@ -213,9 +213,8 @@ type SMF struct {
 
 	seidCounter uint64 // atomic; local SEID allocation
 
-	t3591        time.Duration // network-requested modification command retransmission
-	t3592        time.Duration // network-requested release command retransmission
-	transferBind time.Duration // supervision of a transfer's target-access bind
+	t3591 time.Duration // network-requested modification command retransmission
+	t3592 time.Duration // network-requested release command retransmission
 }
 
 // maxSMProcedureRetransmissions is the number of command retransmissions before
@@ -236,10 +235,6 @@ func WithT3591(d time.Duration) Option { return func(s *SMF) { s.t3591 = d } }
 // WithT3592 overrides the network-requested release retransmission interval.
 func WithT3592(d time.Duration) Option { return func(s *SMF) { s.t3592 = d } }
 
-// WithTransferBindTimeout overrides how long a transfer waits for its target
-// access to bind before the session is released.
-func WithTransferBindTimeout(d time.Duration) Option { return func(s *SMF) { s.transferBind = d } }
-
 // New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
@@ -253,9 +248,6 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		clock:  time.Now,
 		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
 		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
-		// A backstop, not a spec timer: it has to outlast the retransmission budget
-		// of the target access it waits on. The MME's is 8 s x (4 + 1) = 40 s.
-		transferBind: 60 * time.Second,
 	}
 	for _, o := range opts {
 		o(s)
@@ -358,9 +350,27 @@ func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
 	return s.currentSession(supi, SessionIdentity{EBI: ebi}.sessionKey())
 }
 
+// epsBearerIdentityAvailable reports whether ebi names a default bearer this
+// session may take, without claiming it: a claim held for a move the target
+// access abandons strands the identity. Caller holds sc.mu.
+func (s *SMF) epsBearerIdentityAvailable(sc *SMContext, ebi uint8) error {
+	if !(SessionIdentity{EBI: ebi}).valid() {
+		return fmt.Errorf("EPS bearer identity %d is not a default bearer's", ebi)
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if held := s.byKey[canonicalName(sc.Supi, epsBearerKey(ebi))]; held != nil && held != sc {
+		return fmt.Errorf("EPS bearer identity %d is already in use", ebi)
+	}
+
+	return nil
+}
+
 // Only the EPS half of the identity moves (TS 23.501 §5.17.2): the PDU session
 // identity stays the primary key, leaving the Ref and the UE IP lease alone.
-// Caller holds sc.Mutex.
+// Caller holds sc.mu.
 func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -434,7 +444,7 @@ func (s *SMF) GetSessionBySEID(seid uint64) *SMContext {
 }
 
 // RemoveSession tears down a session's user plane, releases its addresses, and
-// removes it from the pool. Caller holds the session's Mutex.
+// removes it from the pool. Caller holds the session's mu.
 func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	smCtx := s.GetSession(ref)
 	if smCtx == nil {
@@ -485,9 +495,9 @@ func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
 	s.mu.RUnlock()
 
 	for _, ctx := range sessions {
-		ctx.Mutex.Lock()
+		ctx.mu.Lock()
 		isEPS := ctx.IsEPS()
-		ctx.Mutex.Unlock()
+		ctx.mu.Unlock()
 
 		if isEPS {
 			fourG++

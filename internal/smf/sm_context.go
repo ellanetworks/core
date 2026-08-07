@@ -33,11 +33,11 @@ type UPTunnel struct {
 }
 
 type SMContext struct {
-	Mutex sync.Mutex
+	mu sync.Mutex
 
 	// Ref is the session's unique pool key, assigned once at creation and never
 	// reused: two sessions for the same slot get distinct Refs, so a release
-	// targets an exact instance. CanonicalName is the secondary index key.
+	// targets an exact instance.
 	Ref string
 
 	Supi        etsi.SUPI
@@ -48,7 +48,7 @@ type SMContext struct {
 	PFCPContext *PFCPSessionContext
 
 	// The PDU session half is fixed at creation; the EPS half is reassigned under
-	// Mutex and the registry lock.
+	// mu and the registry lock.
 	SessionIdentity
 
 	FramedRoutes   []netip.Prefix
@@ -68,39 +68,51 @@ type SMContext struct {
 	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
 	// completion or reject on this PDU session (TS 24.501 §7.3.1). A completion
 	// or command-reject whose PTI is absent is a PTI mismatch (§7.3.1 a).
-	// Guarded by Mutex.
+	// Guarded by mu.
 	outstandingPTIs map[uint8]struct{}
 
-	// Not guarded by Mutex: the registry has its own.
+	// Not guarded by mu: the registry has its own.
 	procedures *procedure.Registry
 
 	// procedureTimer is the T3591/T3592 retransmission guard for the outstanding
 	// network-requested modification or release command (TS 24.501 §6.3.2.5,
 	// §6.3.3). Its generation counter invalidates a firing that races a stop, so a
-	// completed procedure cannot retransmit a stale command. Guarded by Mutex.
+	// completed procedure cannot retransmit a stale command. Guarded by mu.
 	procedureTimer guard.Guard
 
 	// pendingPolicy holds the policy of an outstanding network-requested modification,
 	// committed to PolicyData only when the UE answers PDU SESSION MODIFICATION
 	// COMPLETE (TS 24.501 §6.3.2.2); a reject or T3591 abort discards it, keeping the
-	// previous configuration (§6.3.2.5). Guarded by Mutex.
+	// previous configuration (§6.3.2.5). Guarded by mu.
 	pendingPolicy *Policy
 
-	// Guarded by Mutex.
-	transfer transferState
+	// pending is the move the UE asked for whose target access has not bound its
+	// downlink. Guarded by mu.
+	pending *pendingTransfer
 
-	releasing        bool  // guarded by Mutex
-	establishmentPTI uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
+	releasing        bool  // guarded by mu
+	establishmentPTI uint8 // PTI of the Establishment Accept, 0 until sent; guarded by mu
 }
 
-// stopProcedureTimer stops the retransmission guard; safe to call when none is
-// armed. Caller must hold Mutex.
+// Caller must hold mu.
 func (smContext *SMContext) stopProcedureTimer() {
 	smContext.procedureTimer.Stop()
 }
 
-// upConnectionActive reports whether the downlink FAR is forwarding, as opposed
-// to idle/buffering after DeactivateSmContext (CM-IDLE). Caller must hold Mutex.
+// hasUserPlane reports whether the session holds the UPF session and downlink
+// rule a move rebinds. Caller must hold mu.
+func (smContext *SMContext) hasUserPlane() bool {
+	if smContext.PFCPContext == nil || smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
+		return false
+	}
+
+	dl := smContext.Tunnel.DataPath.DownLinkTunnel
+
+	return dl != nil && dl.PDR != nil
+}
+
+// upConnectionActive reports whether the downlink FAR is forwarding; a UE in
+// CM-IDLE leaves it buffering. Caller must hold mu.
 func (smContext *SMContext) upConnectionActive() bool {
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
 		return false
@@ -115,7 +127,7 @@ func (smContext *SMContext) upConnectionActive() bool {
 }
 
 // MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding
-// on this PDU session (TS 24.501 §7.3.1). Caller must hold Mutex.
+// on this PDU session (TS 24.501 §7.3.1). Caller must hold mu.
 func (smContext *SMContext) MarkPTIInUse(pti uint8) {
 	if smContext.outstandingPTIs == nil {
 		smContext.outstandingPTIs = make(map[uint8]struct{})
@@ -125,7 +137,7 @@ func (smContext *SMContext) MarkPTIInUse(pti uint8) {
 }
 
 // ClearPTIInUse records that the procedure with the given PTI has completed.
-// Caller must hold Mutex.
+// Caller must hold mu.
 func (smContext *SMContext) ClearPTIInUse(pti uint8) {
 	delete(smContext.outstandingPTIs, pti)
 }
@@ -136,9 +148,16 @@ func (smContext *SMContext) IsPTIInUse(pti uint8) bool {
 	return ok
 }
 
+// SetPolicyData installs the policy of the access serving the session. A move
+// the target has not bound leaves the source access's policy in force, and the
+// commit adopts the target's.
 func (smContext *SMContext) SetPolicyData(policy *Policy) {
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
+	smContext.mu.Lock()
+	defer smContext.mu.Unlock()
+
+	if smContext.pending != nil {
+		return
+	}
 
 	smContext.PolicyData = policy
 }
@@ -151,4 +170,65 @@ func (smContext *SMContext) SetPFCPSession(seid uint64) {
 	smContext.PFCPContext = &PFCPSessionContext{
 		LocalSEID: seid,
 	}
+}
+
+// SMContextView is a session's state taken in one critical section, for a reader
+// outside the package. It names no access because it changes nothing: every
+// entry point that writes reaches the session through sessionFor or
+// sessionBinding, which name the access they speak for.
+type SMContextView struct {
+	PDUSessionID                   uint8
+	PDUSessionType                 uint8
+	Dnn                            string
+	PDUSessionReleaseDueToDupPduID bool
+	PDUIPV4Address                 string
+	PDUIPV6Prefix                  string
+	PolicyData                     *Policy
+	// AN endpoint of the access serving the session; absent when the user plane
+	// has been torn down.
+	AN            *ANEndpointView
+	PFCPLocalSEID *uint64
+}
+
+// ANEndpointView is the RAN tunnel endpoint the downlink is bound to.
+type ANEndpointView struct {
+	IPAddress string
+	TEID      uint32
+}
+
+func (smContext *SMContext) View() SMContextView {
+	smContext.mu.Lock()
+	defer smContext.mu.Unlock()
+
+	view := SMContextView{
+		PDUSessionID:                   smContext.PDUSessionID,
+		PDUSessionType:                 smContext.PDUSessionType,
+		Dnn:                            smContext.Dnn,
+		PDUSessionReleaseDueToDupPduID: smContext.PDUSessionReleaseDueToDupPduID,
+		PolicyData:                     smContext.PolicyData,
+	}
+
+	if smContext.PDUIPV4Address != nil {
+		view.PDUIPV4Address = smContext.PDUIPV4Address.String()
+	}
+
+	if smContext.PDUIPV6Prefix != nil {
+		view.PDUIPV6Prefix = smContext.PDUIPV6Prefix.String()
+	}
+
+	if smContext.Tunnel != nil {
+		an := &ANEndpointView{TEID: smContext.Tunnel.ANInformation.TEID}
+		if smContext.Tunnel.ANInformation.IPv4Address != nil {
+			an.IPAddress = smContext.Tunnel.ANInformation.IPv4Address.String()
+		}
+
+		view.AN = an
+	}
+
+	if smContext.PFCPContext != nil {
+		seid := smContext.PFCPContext.LocalSEID
+		view.PFCPLocalSEID = &seid
+	}
+
+	return view
 }

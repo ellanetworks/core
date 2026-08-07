@@ -18,14 +18,13 @@ import (
 // ReleaseSmContext tears down a PDU session entirely: releases the IP address,
 // deletes the PFCP session on the UPF, and removes the context from the pool.
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
-	// The 5GS entry point: a session moved to EPS keeps this Ref live on the AMF
-	// until the drain runs, so a release arriving there must not act on it.
-	return s.releaseSmContext(ctx, smContextRef, onlyOn(Access5G))
+	return s.releaseSmContext(ctx, smContextRef, Access5G)
 }
 
-// releaseSmContext applies servedBy under the same lock hold as the teardown, so
-// no transfer can land between them.
-func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string, servedBy accessCheck) error {
+// releaseSmContext tears the session down for the access serving it. A release
+// arriving on the target of a move that access never bound names an abandoned
+// leg, not the session: the leg is dropped and the session stays where it is.
+func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string, access AccessType) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -44,23 +43,38 @@ func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string, servedB
 		return nil
 	}
 
-	// A transfer holds sc.Mutex across blocking UPF calls, so the registry refuses
-	// the release instead of queueing it behind one and committing against state
-	// the move has since changed.
 	if err := smContext.procedures.Begin(procedure.Release); err != nil {
 		return fmt.Errorf("release session %q: %w", smContextRef, err)
 	}
 
 	defer smContext.procedures.End(procedure.Release)
 
-	if err := smContext.lockChecked(servedBy); err != nil {
-		return err
+	smContext.mu.Lock()
+
+	if smContext.Access != access {
+		defer smContext.mu.Unlock()
+
+		if smContext.pending != nil && smContext.pending.to == access {
+			smContext.pending = nil
+
+			return nil
+		}
+
+		return fmt.Errorf("session %q is on %s", smContext.Ref, smContext.Access)
 	}
 
-	// drainOnTeardown retakes the session lock and enters the AMF and MME
-	// callbacks, which re-enter the SMF, so it runs unlocked.
-	defer func() { s.drainOnTeardown(ctx, smContext) }()
-	defer smContext.Mutex.Unlock()
+	// The access a transfer was moving onto installed its own state from the
+	// accept it already sent, and holds no routing this release would reach.
+	if abandoned := smContext.pending; abandoned != nil {
+		id := smContext.SessionIdentity
+		id.EBI = abandoned.ebi
+
+		defer func() { s.reportRelease(ctx, smContext, abandoned.to, id) }()
+	}
+
+	defer smContext.mu.Unlock()
+
+	smContext.pending = nil
 
 	// Stop any outstanding network-requested procedure retransmission so it does
 	// not keep firing against a released session.
@@ -82,7 +96,7 @@ func (s *SMF) releaseSmContext(ctx context.Context, smContextRef string, servedB
 // before releasing the IP leases: an address freed while its conntrack survives
 // can be re-leased to another subscriber that then receives the previous
 // subscriber's flows. On teardown failure the leases are kept, so the address
-// stays bound to this IMSI. Caller holds sc.Mutex.
+// stays bound to this IMSI. Caller holds sc.mu.
 func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
 	if err := s.releaseTunnel(ctx, sc); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",

@@ -230,14 +230,9 @@ func TestBuildPathSwitchRequestAcknowledgeTransfer_IPv6Only(t *testing.T) {
 	}
 }
 
-// A malformed AMBR can no longer reach a builder: models.BitRate is only
-// obtainable from ParseBitRate, so the text is rejected at the boundary that
-// reads it. models.TestParseBitRateRejectsMalformed covers that; this records
-// why there is no builder-level test for it.
-
-// TS 38.413 bounds priorityLevelARP at 1..15. The library encoder would refuse
-// a 0 on its own, but only as "value out of range"; the builder checks first so
-// an operator with a bad policy is told which field is wrong.
+// TS 38.413 bounds priorityLevelARP at 1..15. The library encoder refuses a 0 on
+// its own, but only as "value out of range"; the builder checks first so an
+// operator with a bad policy is told which field is wrong.
 func TestBuildPDUSessionResourceSetupRequestTransferRejectsARPZero(t *testing.T) {
 	ambr := &models.Ambr{Downlink: models.MustParseBitRate("1 Gbps"), Uplink: models.MustParseBitRate("1 Gbps")}
 	qos := &models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 0}}

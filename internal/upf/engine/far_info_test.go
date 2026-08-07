@@ -186,6 +186,49 @@ func TestFarInfoFromMerge_NoUpdate(t *testing.T) {
 	}
 }
 
+// TestFarInfoFromMerge_ClearedOuterHeaderCreation covers the downlink suspend
+// (ApplyAction Buff|Nocp with the outer header creation withdrawn): the merged
+// FAR must name no tunnel endpoint.
+func TestFarInfoFromMerge_ClearedOuterHeaderCreation(t *testing.T) {
+	boundFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 0x9001, "10.0.0.9", "")
+	boundFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
+
+	existing := farInfoFromModel(boundFAR, localIPv4, localIPv6)
+	if existing.TeID != 0x9001 {
+		t.Fatalf("TeID after bind: got %#x, want 0x9001", existing.TeID)
+	}
+
+	suspend := models.FAR{
+		FARID:                1,
+		ApplyAction:          models.ApplyAction{Buff: true, Nocp: true},
+		ForwardingParameters: &models.ForwardingParameters{},
+	}
+
+	merged := farInfoFromMerge(suspend, localIPv4, localIPv6, existing)
+
+	if merged.Action != 0x0c {
+		t.Errorf("Action: got %#x, want 0x0c", merged.Action)
+	}
+
+	if merged.OuterHeaderCreation != 0 {
+		t.Errorf("OuterHeaderCreation: got %#x, want 0", merged.OuterHeaderCreation)
+	}
+
+	if merged.TeID != 0 {
+		t.Errorf("TeID: got %#x, want 0", merged.TeID)
+	}
+
+	var zeroIP [16]byte
+
+	if merged.RemoteIP != zeroIP {
+		t.Errorf("RemoteIP: got %v, want zero", merged.RemoteIP)
+	}
+
+	if merged.LocalIP != zeroIP {
+		t.Errorf("LocalIP: got %v, want zero", merged.LocalIP)
+	}
+}
+
 func TestFarInfoFromMerge_S1UKeepsNoPSC(t *testing.T) {
 	establishFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
 	establishFAR.ForwardingParameters.OuterHeaderCreation.S1U = true

@@ -254,15 +254,9 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 }
 
 // NetworkFeatureSupport returns the EPS network feature support advertised to a
-// UE (TS 24.301 §9.9.3.12A). The IWK N26 indicator is per-UE: it goes only to a
-// UE that supports N1 mode (§5.5.1.2.4, §5.5.3.2.4).
-func (m *MME) NetworkFeatureSupport(ue *UeContext) *eps.NetworkFeatureSupport {
-	return m.NetworkFeatureSupportFor(ue.UeNetCap())
-}
-
-// NetworkFeatureSupportFor computes the advertised feature support from a
-// specific UE network capability, for a procedure that has not stored it yet.
-func (m *MME) NetworkFeatureSupportFor(netCap eps.UENetworkCapability) *eps.NetworkFeatureSupport {
+// UE with this network capability (TS 24.301 §9.9.3.12A). The IWK N26 indicator
+// is per-UE: it goes only to a UE that supports N1 mode (§5.5.1.2.4, §5.5.3.2.4).
+func (m *MME) NetworkFeatureSupport(netCap eps.UENetworkCapability) *eps.NetworkFeatureSupport {
 	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
 	if m.EPSNetworkFeatureSupport != nil {
 		nfs = *m.EPSNetworkFeatureSupport

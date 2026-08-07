@@ -883,3 +883,43 @@ func TestMobilityReg_MovingFromEPC_SkipsPDUSessionStatusSync(t *testing.T) {
 		t.Errorf("PDU session status = %v, want none", accept.PDUSessionStatus)
 	}
 }
+
+// TS 23.502 §4.11.2.3 step 3: for a UE performing an inter-system change from S1
+// mode without N26 the AMF "treats this registration request as "initial
+// Registration""; TS 24.501 §5.5.1.3.4 has the AMF "operate as described in
+// subclause 5.5.1.2.4". Committing the UE identity is what an initial registration
+// does and what indexes the context by SUPI.
+func TestMobilityReg_MovingFromEPC_RunsAsInitialRegistration(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		ueStatus      *fgs.UEStatus
+		wantCommitted bool
+	}{
+		{"moving from EPC", &fgs.UEStatus{S1ModeReg: true}, true},
+		{"no UE status IE", nil, false},
+		{"not registered in EMM", &fgs.UEStatus{S1ModeReg: false}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+			ue.SetKamfForTest("0000000000000000000000000000000000000000000000000000000000000000")
+			ue.Conn().RegistrationRequest.UEStatus = tc.ueStatus
+
+			contextSetup(context.TODO(), amfInstance, ue, ue.Conn().RegistrationRequest, nil)
+
+			committed, ok := amfInstance.LookupUeBySupi(ue.Supi())
+			if got := ok && committed == ue; got != tc.wantCommitted {
+				t.Errorf("UE identity committed = %t, want %t", got, tc.wantCommitted)
+			}
+
+			if len(ngapSender.SentDownlinkNASTransport) != 1 {
+				t.Fatalf("DownlinkNASTransports = %d, want 1", len(ngapSender.SentDownlinkNASTransport))
+			}
+
+			plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+			if plain[2] != uint8(fgs.MsgRegistrationAccept) {
+				t.Fatalf("message type = %v, want RegistrationAccept", plain[2])
+			}
+		})
+	}
+}

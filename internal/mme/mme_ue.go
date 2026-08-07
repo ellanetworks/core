@@ -75,7 +75,12 @@ type PdnConnection struct {
 	UeIPv6Prefix netip.Addr // /64 prefix base (for IPv6 / IPv4v6)
 	UeIPv6IID    [8]byte    // SLAAC interface identifier sent to the UE
 	Dns          netip.Addr // data-network DNS server, advertised to the UE via PCO
-	DnConfig     string     // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
+	// Snssai is the slice the anchor holds the session on, nil when it has none.
+	// The UE learns it from the PCO and names it back when it moves the connection
+	// to 5GS, so it has to be the anchor's own and not the policy matched for the
+	// APN (TS 23.501 §5.15.7.1).
+	Snssai   *models.Snssai
+	DnConfig string // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
 	// SessAmbrDLBps/ULBps are the per-APN Session-AMBR (bits/s), and qci/arp the
 	// E-RAB QoS (QCI, ARP priority), the bearer was set up with; a policy change
 	// triggers an in-place Modify EPS Bearer Context (QoS also an E-RAB Modify).
@@ -106,18 +111,14 @@ type PdnConnection struct {
 	PendingQCI           uint8
 	PendingARP           uint8
 
-	// SetupPTI is the procedure transaction identity of the PDN CONNECTIVITY
-	// REQUEST that opened this connection, and SetupPdu the ACTIVATE DEFAULT EPS
-	// BEARER CONTEXT REQUEST sent for it, retained only until the UE accepts.
-	// TS 24.301 §6.5.1.6 a) resends it for a request repeating the same PTI, APN
-	// and PDN type before the ACTIVATE ACCEPT arrives.
-	SetupPTI uint8
-	SetupPdu []byte
-	// SetupRequestType is the request type that opened the connection. A
+	// setup is the retained record of the request that opened this connection, nil
+	// once the UE has accepted.
+	setup *pdnSetupRecord
+	// setupRequestType is the request type that opened the connection. A
 	// "handover" one names a PDU session transferred from 5GS, which decides
 	// which configuration-options element carries the downlink options
 	// (TS 24.301 §6.6.1.1).
-	SetupRequestType eps.RequestType
+	setupRequestType eps.RequestType
 
 	// guard supervises this bearer's outstanding ESM procedure (Modify/Deactivate,
 	// T3486/T3495). It is per-bearer because a UE with several PDN connections can
@@ -126,10 +127,22 @@ type PdnConnection struct {
 	guard guard.Guard
 }
 
+// pdnSetupRecord is the procedure transaction identity of the PDN CONNECTIVITY
+// REQUEST that opened a PDN connection and the ACTIVATE DEFAULT EPS BEARER
+// CONTEXT REQUEST sent for it. TS 24.301 §6.5.1.6 a) resends that message for a
+// request repeating the APN and PDN type of the connection, with no other
+// information element differing, while no ACTIVATE ACCEPT has arrived.
+type pdnSetupRecord struct {
+	PTI uint8
+	PDU []byte
+}
+
 // ESMInfoWait is an outstanding ESM information request procedure
-// (TS 24.301 §6.6.1.2). Standalone is nil when the procedure runs inside an
-// attach.
+// (TS 24.301 §6.6.1.2). PTI is the transaction it belongs to, so a response
+// naming another one is refused without ending it (§7.3.1 e). Standalone is nil
+// when the procedure runs inside an attach.
 type ESMInfoWait struct {
+	PTI        uint8
 	Standalone *PendingPDNConnectivity
 }
 
@@ -174,9 +187,20 @@ type UeContext struct {
 	RequestedPTI nas.ProcedureTransactionIdentity
 	// esmInfoWait is the outstanding ESM information request, nil when none. Its
 	// Standalone field distinguishes a standalone PDN CONNECTIVITY REQUEST from
-	// the attach, so the two states cannot disagree. Written from the guard's
-	// timer goroutine as well as the NAS one, so it is behind ue.mu.
-	esmInfoWait    *ESMInfoWait
+	// the attach, so the two states cannot disagree. The record is immutable and
+	// swapped whole from the NAS goroutine, the T3489 timer goroutine and the
+	// connection release under MME.mu, so it is an atomic pointer and needs no
+	// ordering against ue.mu.
+	esmInfoWait atomic.Pointer[ESMInfoWait]
+
+	// quarantinedEBIs is the bitmask of EPS bearer identities dropped while the
+	// eNB still holds the corresponding E-RAB. TS 36.413 §8.2.1.4: an E-RAB SETUP
+	// REQUEST naming "the value that identifies an active E-RAB" is reported as
+	// failed with "Multiple E-RAB ID instances", so such an identity is withheld
+	// from allocation until the S1 context is released and the eNB rebuilds its
+	// E-RAB state.
+	quarantinedEBIs atomic.Uint32
+
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
 	// HashmmeInput is the plain Attach Request to hash into the SECURITY MODE
 	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
@@ -201,8 +225,6 @@ type UeContext struct {
 	RequestedPDUSessionID uint8
 	// Request type of the attach's PDN CONNECTIVITY REQUEST (TS 24.301 §9.9.4.14).
 	RequestedType eps.RequestType
-	// The attach's PDN CONNECTIVITY REQUEST set the ESM information transfer flag,
-	// so its APN and PCO arrive in an ESM INFORMATION RESPONSE (TS 24.301 §6.5.1.2).
 
 	// tmsi is the M-TMSI of the GUTI assigned at attach (InvalidTMSI = none); it
 	// indexes the UE for S-TMSI-addressed procedures (Service Request, paging).
@@ -426,16 +448,30 @@ func (m *MME) DefaultPDN(ue *UeContext) *PdnConnection {
 }
 
 // allocateEBI returns the lowest free EPS bearer identity in [5,15] for a new
-// PDN connection's default bearer, or 0 if all are in use (TS 24.301: EBI 0-4
-// are reserved, 5-15 are assignable).
+// PDN connection's default bearer, or 0 if all are in use or quarantined
+// (TS 24.301: EBI 0-4 are reserved, 5-15 are assignable).
 func (ue *UeContext) allocateEBI() uint8 {
+	quarantined := ue.quarantinedEBIs.Load()
+
 	for ebi := DefaultERABID; ebi <= 15; ebi++ {
-		if _, ok := ue.Pdns[ebi]; !ok {
-			return ebi
+		if _, taken := ue.Pdns[ebi]; taken {
+			continue
 		}
+
+		if quarantined&(1<<ebi) != 0 {
+			continue
+		}
+
+		return ebi
 	}
 
 	return 0
+}
+
+// quarantineEBI withholds an EPS bearer identity from allocation while the eNB
+// still holds its E-RAB (TS 36.413 §8.2.1.4).
+func (ue *UeContext) quarantineEBI(ebi uint8) {
+	ue.quarantinedEBIs.Or(1 << ebi)
 }
 
 func (ue *UeContext) PdnForAPN(apn string) *PdnConnection {
@@ -481,12 +517,9 @@ func (m *MME) AddDefaultPDN(ue *UeContext) *PdnConnection {
 // observes a half-written bearer (TS 24.301 §6.4; the PDN state is ue.mu-guarded).
 func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 	p.SessionRef = bearer.Ref
-	p.Apn = qos.APN
-	p.DnConfig = qos.DnFingerprint()
-	p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
-	p.SessAmbrULBps = qos.SessAmbrUL.Bps()
-	p.Qci = qos.QCI
-	p.Arp = qos.ARP
+
+	fillPolicyLocked(p, qos)
+
 	p.PdnType = bearer.PDNType
 	p.UeIP = bearer.IPv4
 	p.UeIPv6Prefix = bearer.IPv6Prefix
@@ -495,6 +528,19 @@ func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 	p.EsmCause = bearer.ESMCause
 	p.SgwFTEID = bearer.SGW
 	p.SgwN3IPv6 = bearer.SGWN3IPv6
+	p.Snssai = bearer.Snssai
+}
+
+// fillPolicyLocked records the policy and data-network configuration a PDN
+// connection is set up with — the state the reconciler diffs against. The caller
+// holds ue.mu.
+func fillPolicyLocked(p *PdnConnection, qos *EpsQoS) {
+	p.Apn = qos.APN
+	p.DnConfig = qos.DnFingerprint()
+	p.SessAmbrDLBps = qos.SessAmbrDL.Bps()
+	p.SessAmbrULBps = qos.SessAmbrUL.Bps()
+	p.Qci = qos.QCI
+	p.Arp = qos.ARP
 }
 
 // InstallDefaultBearer publishes the UE-AMBR and the default PDN connection's
@@ -524,9 +570,11 @@ func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, qos *EpsQoS, bearer mo
 }
 
 // AddPDN allocates the lowest free EPS bearer identity and reserves a PDN
-// connection for it, returning nil when none is free (TS 24.301). Locked so the
-// allocate-and-insert is atomic against the reconciler.
-func (m *MME) AddPDN(ue *UeContext) *PdnConnection {
+// connection for it under the policy it is being established with, returning nil
+// when none is free (TS 24.301). Locked so the allocate-and-insert is atomic
+// against the reconciler, which reaches the connection from the moment it is in
+// the map and diffs it against this same policy.
+func (m *MME) AddPDN(ue *UeContext, qos *EpsQoS) *PdnConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -535,7 +583,11 @@ func (m *MME) AddPDN(ue *UeContext) *PdnConnection {
 		return nil
 	}
 
-	return ue.EnsurePDN(ebi)
+	p := ue.EnsurePDN(ebi)
+
+	fillPolicyLocked(p, qos)
+
+	return p
 }
 
 // LookupPDN returns the UE's PDN connection for an EPS bearer identity under the
@@ -556,33 +608,42 @@ func (m *MME) FindPDNByAPN(ue *UeContext, apn string) *PdnConnection {
 	return ue.PdnForAPN(apn)
 }
 
-// AwaitESMInformation records that an ESM information request is outstanding.
-// standalone is nil when the procedure runs inside an attach.
-func (ue *UeContext) AwaitESMInformation(standalone *PendingPDNConnectivity) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
+// AwaitESMInformation records that an ESM information request is outstanding for
+// transaction pti. standalone is nil when the procedure runs inside an attach.
+func (ue *UeContext) AwaitESMInformation(pti uint8, standalone *PendingPDNConnectivity) {
+	ue.esmInfoWait.Store(&ESMInfoWait{PTI: pti, Standalone: standalone})
+}
 
-	ue.esmInfoWait = &ESMInfoWait{Standalone: standalone}
+// PendingESMInfo returns the outstanding ESM information request without ending
+// it, or nil when none is running.
+func (ue *UeContext) PendingESMInfo() *ESMInfoWait {
+	return ue.esmInfoWait.Load()
 }
 
 // TakeESMInfoWait ends the ESM information procedure and returns what it was
-// running for, so exactly one caller concludes it. The two halves of the state
-// are read and cleared together, so no caller sees them disagree.
+// running for, so exactly one caller concludes it.
 func (ue *UeContext) TakeESMInfoWait() *ESMInfoWait {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
+	return ue.esmInfoWait.Swap(nil)
+}
 
-	w := ue.esmInfoWait
-	ue.esmInfoWait = nil
+// TakeESMInfoWaitFor ends the ESM information procedure only if pti names it,
+// returning nil otherwise so a response for another transaction leaves the
+// procedure running (TS 24.301 §7.3.1 e).
+func (ue *UeContext) TakeESMInfoWaitFor(pti uint8) *ESMInfoWait {
+	w := ue.esmInfoWait.Load()
+	if w == nil || w.PTI != pti {
+		return nil
+	}
+
+	if !ue.esmInfoWait.CompareAndSwap(w, nil) {
+		return nil
+	}
 
 	return w
 }
 
 func (ue *UeContext) AwaitingESMInformation() bool {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	return ue.esmInfoWait != nil
+	return ue.esmInfoWait.Load() != nil
 }
 
 // FindRetransmittedPDN returns the PDN connection whose PDN CONNECTIVITY REQUEST
@@ -593,8 +654,8 @@ func (m *MME) FindRetransmittedPDN(ue *UeContext, pti uint8, apn string, pdnType
 	defer ue.mu.Unlock()
 
 	for _, p := range ue.Pdns {
-		if p.SetupPTI == pti && len(p.SetupPdu) > 0 && p.Apn == apn && p.PdnType == pdnType {
-			return p, append([]byte(nil), p.SetupPdu...)
+		if p.setup != nil && p.setup.PTI == pti && p.Apn == apn && p.PdnType == pdnType {
+			return p, append([]byte(nil), p.setup.PDU...)
 		}
 	}
 
@@ -607,19 +668,19 @@ func (m *MME) ClearPDNSetupRecord(ue *UeContext, p *PdnConnection) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	p.SetupPdu = nil
+	p.setup = nil
 }
 
-// UsesExtendedPCO reports whether this connection's configuration options travel
-// in the extended element. TS 24.301 §6.6.1.1 makes that so for a PDN connection
-// transferred from a PDU session at inter-system change, and the UE reads it only
-// where the network advertised support — which it does only for a UE that
-// advertised it first (§5.5.1.2.4).
-func (ue *UeContext) UsesExtendedPCO(p *PdnConnection) bool {
+// UsesExtendedPCO reports whether the configuration options of a request of this
+// type travel in the extended element. TS 24.301 §6.6.1.1 makes that so for a PDN
+// connection transferred from a PDU session at inter-system change, and the UE
+// reads it only where the network advertised support — which it does only for a
+// UE that advertised it first (§5.5.1.2.4).
+func (ue *UeContext) UsesExtendedPCO(requestType eps.RequestType) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return p.SetupRequestType == eps.RequestTypeHandover && ue.ueNetCap.EPCO()
+	return requestType == eps.RequestTypeHandover && ue.ueNetCap.EPCO()
 }
 
 // PDNIsCurrent reports whether p is still the UE's connection for its EPS bearer
@@ -634,17 +695,18 @@ func (m *MME) PDNIsCurrent(ue *UeContext, p *PdnConnection) bool {
 // DropPDN removes a PDN connection from the UE without releasing a session, for
 // rolling back a connection reserved but never established.
 func (m *MME) DropPDN(ue *UeContext, ebi uint8) {
-	m.dropPDN(ue, ebi, "")
+	m.dropPDN(ue, ebi, "", false)
 }
 
 // DropPDNRef drops the connection only when it is still the one named by ref, so
 // a UE that moved the session back to EPS keeps its fresh connection. It reports
-// whether anything was dropped.
+// whether anything was dropped. The drop carries no S1-AP bearer signalling, so
+// the eNB keeps the E-RAB and its identity is quarantined.
 func (m *MME) DropPDNRef(ue *UeContext, ebi uint8, ref string) bool {
-	return m.dropPDN(ue, ebi, ref)
+	return m.dropPDN(ue, ebi, ref, true)
 }
 
-func (m *MME) dropPDN(ue *UeContext, ebi uint8, ref string) bool {
+func (m *MME) dropPDN(ue *UeContext, ebi uint8, ref string, quarantine bool) bool {
 	ue.mu.Lock()
 
 	p := ue.Pdns[ebi]
@@ -662,6 +724,10 @@ func (m *MME) dropPDN(ue *UeContext, ebi uint8, ref string) bool {
 	}
 
 	ue.mu.Unlock()
+
+	if quarantine {
+		ue.quarantineEBI(ebi)
+	}
 
 	// The guard holds the detached connection, and its abort releases the session
 	// by a reference the move to the other access leaves valid.
@@ -827,7 +893,12 @@ func (m *MME) detachConnLocked(ue *UeContext) *UeConn {
 	m.stopNASGuardLocked(ue)
 	old.esmInfoGuard.Stop()
 
-	ue.esmInfoWait = nil
+	ue.esmInfoWait.Store(nil)
+
+	// The eNB drops the UE's E-RABs with its S1 context (TS 36.413 §8.3.3), so
+	// the identities withheld while it held them are allocatable again.
+	ue.quarantinedEBIs.Store(0)
+
 	// Detaching the connection ends any in-flight key-changing procedure on it
 	// (e.g. a security mode whose Complete never arrived), so the {NH, NCC} chain
 	// claim must not outlive it and block a later procedure (TS 33.401 §7.2.8).

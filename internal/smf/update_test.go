@@ -87,7 +87,7 @@ func TestHandleHandoverRequestAcknowledgeTransfer_NotActivated(t *testing.T) {
 	}
 }
 
-// Undecodable input is rejected with an error rather than a panic.
+// Undecodable input draws an error, not a panic.
 func TestHandleHandoverRequestAcknowledgeTransfer_BadInput(t *testing.T) {
 	smContext := &SMContext{Tunnel: &UPTunnel{DataPath: &DataPath{Activated: true}}}
 

@@ -16,7 +16,7 @@ import (
 // releases, because the user plane is freed when the release starts (TS 23.502
 // §4.3.4.2 step 2) and no sweep re-derives a UE-requested release.
 //
-// Caller must hold smContext.Mutex.
+// Caller must hold smContext.mu.
 func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause) {
 	logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg 5GSM STATUS received",
 		zap.Uint8("pti", pti), zap.Stringer("cause", cause),

@@ -26,6 +26,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// establishmentReject answers the UE's establishment request with a 5GSM reject
+// carrying cause, and records the attempt as refused.
+type establishmentReject func(cause fgs.GSMCause, err error) ([]byte, error)
+
+func requestedPDUSessionType(req *fgs.PDUSessionEstablishmentRequest) fgs.PDUSessionType {
+	if req.PDUSessionType != nil {
+		return *req.PDUSessionType
+	}
+
+	return fgs.PDUSessionTypeIPv4
+}
+
 func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 	switch nasType {
 	case uint8(fgs.PDUSessionTypeIPv6):
@@ -34,18 +46,6 @@ func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 		return libngap.PDUSessionTypeIPv4v6
 	default:
 		return libngap.PDUSessionTypeIPv4
-	}
-}
-
-// transfer5GSMCause maps a refused transfer to the 5GSM cause the AMF rejects with.
-func transfer5GSMCause(err error) fgs.GSMCause {
-	switch {
-	case errors.Is(err, ErrSessionOnOtherDNN):
-		return fgs.GSMCauseMissingOrUnknownDNN
-	case errors.Is(err, ErrSessionNotMovable):
-		return fgs.GSMCauseRequestRejectedUnspecified
-	default:
-		return fgs.GSMCausePDUSessionDoesNotExist
 	}
 }
 
@@ -144,8 +144,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	// reject answers the UE with a 5GSM cause and records the refusal.
-	reject := func(cause fgs.GSMCause, err error) ([]byte, error) {
+	reject := establishmentReject(func(cause fgs.GSMCause, err error) ([]byte, error) {
 		establishmentResult = metrics.ResultReject
 
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
@@ -154,7 +153,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		}
 
 		return rsp, err
-	}
+	})
 
 	// Ella Core serves no emergency bearer services, so neither emergency request
 	// type is served. No emergency PDU session exists for an "existing emergency
@@ -189,7 +188,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	}
 
 	if isTransfer {
-		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, policy, req, reqPTI)
+		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, policy, req, reqPTI, reject)
 		if err != nil {
 			establishmentResult = metrics.ResultReject
 		} else {
@@ -199,10 +198,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return ref, rsp, err
 	}
 
-	requestedType := fgs.PDUSessionTypeIPv4
-	if req.PDUSessionType != nil {
-		requestedType = *req.PDUSessionType
-	}
+	requestedType := requestedPDUSessionType(req)
 
 	negotiatedType, err := s.negotiatePDUSessionType(ctx, uint8(requestedType), policy)
 	if err != nil {
@@ -241,16 +237,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, err
 	}
 
-	// IPv4v6 narrowed to a single family is signalled in the accept with 5GSM
-	// cause #50/#51 (TS 24.501 §6.4.1.3).
-	var cause *fgs.GSMCause
-
-	switch narrowPDUType(uint8(requestedType), sc.PDUSessionType) {
-	case narrowIPv4Only:
-		cause = new(fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)
-	case narrowIPv6Only:
-		cause = new(fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed)
-	}
+	cause := narrow5GSMCause(uint8(requestedType), sc.PDUSessionType)
 
 	addrs := &smfNas.PDUSessionAddresses{
 		PDUSessionType: fgs.PDUSessionType(sc.PDUSessionType),
@@ -274,17 +261,21 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	return sc.Ref, nil, nil
 }
 
-// The UE address and the UPF session survive the move (TS 23.502 §4.11.2.3
-// step 9).
-func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, policy *Policy, req *fgs.PDUSessionEstablishmentRequest, pti nas.ProcedureTransactionIdentity) (string, []byte, error) {
+// The UE address, the UPF session and its uplink F-TEID survive the move
+// (TS 23.502 §4.11.2.3 step 9), so the accept is built from the session as it
+// stands on the access serving it. The downlink switches when the gNB binds
+// (§4.3.2.2.1 step 16a NOTE 11).
+func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, policy *Policy, req *fgs.PDUSessionEstablishmentRequest, pti nas.ProcedureTransactionIdentity, reject establishmentReject) (string, []byte, error) {
 	transfer := transferRequest{Access: Access5G, Dnn: dnn, Snssai: snssai, Policy: policy}
 
 	sc, err := s.findTransferable(supi, pduSessionID, transfer)
 	if err != nil {
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, transfer5GSMCause(err))
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("%v (build reject failed: %v)", err, buildErr)
-		}
+		// TS 24.501 §6.4.1.7 d): a request type "existing PDU session" naming a PDU
+		// session the SMF has no information about draws #54, whatever the reason it
+		// cannot be transferred as described. The UE ignores the back-off timer for
+		// #54 and retries with request type "initial request" (§6.4.1.4.3); every
+		// other cause holds the DNN down for 12 minutes.
+		rsp, err := reject(fgs.GSMCausePDUSessionDoesNotExist, err)
 
 		return "", rsp, err
 	}
@@ -292,69 +283,32 @@ func (s *SMF) transferTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID ui
 	pco, err := parsePDUSessionRequest(req)
 	if err != nil {
 		// The only failure is a PDU session type outside the modelled range.
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseUnknownPDUSessionType)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("parse PDU session request failed: %v (build reject failed: %v)", err, buildErr)
-		}
-
-		return "", rsp, fmt.Errorf("parse PDU session request failed: %v", err)
-	}
-
-	if err := s.transferSession(ctx, sc, transfer); err != nil {
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseInsufficientResources)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("%v (build reject failed: %v)", err, buildErr)
-		}
+		rsp, err := reject(fgs.GSMCauseUnknownPDUSessionType, fmt.Errorf("parse PDU session request failed: %w", err))
 
 		return "", rsp, err
 	}
 
-	sc.Mutex.Lock()
+	if err := s.prepareTransfer(sc, transfer); err != nil {
+		rsp, err := reject(fgs.GSMCauseInsufficientResources, err)
+
+		return "", rsp, err
+	}
+
+	sc.mu.Lock()
 	sessionType := sc.PDUSessionType
-	sc.Mutex.Unlock()
-
-	pduSessionType, err := servedPDUSessionType(sessionType)
-	if err != nil {
-		// The move has committed and neither access holds a reference, so nothing
-		// else will release this session.
-		if relErr := s.releaseSmContext(ctx, sc.Ref, anyAccess); relErr != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a session whose PDU session type could not be reported",
-				zap.Error(relErr), zap.String("smContextRef", sc.Ref))
-		}
-
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), pti, fgs.GSMCauseUnknownPDUSessionType)
-		if buildErr != nil {
-			return "", nil, fmt.Errorf("%v (build reject failed: %v)", err, buildErr)
-		}
-
-		return "", rsp, err
-	}
-
-	sc.Mutex.Lock()
 	addrs := &smfNas.PDUSessionAddresses{
-		PDUSessionType: pduSessionType,
+		PDUSessionType: fgs.PDUSessionType(sessionType),
 		IPv4Address:    sc.PDUIPV4Address,
 		IPv6IID:        sc.IPv6IID,
 	}
-	sc.Mutex.Unlock()
+	sc.mu.Unlock()
 
 	// The UE learns which family the transferred session has.
-	var cause *fgs.GSMCause
-
-	requestedType := fgs.PDUSessionTypeIPv4
-	if req.PDUSessionType != nil {
-		requestedType = *req.PDUSessionType
-	}
-
-	switch narrowPDUType(uint8(requestedType), sessionType) {
-	case narrowIPv4Only:
-		cause = new(fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed)
-	case narrowIPv6Only:
-		cause = new(fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed)
-	}
+	cause := narrow5GSMCause(uint8(requestedPDUSessionType(req)), sessionType)
 
 	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, uint8(pti), cause, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
-		_ = s.ReleaseSmContext(ctx, sc.Ref)
+		// The UE never learns of the 5GS leg, so it stays on the access serving it.
+		sc.abandonTransfer()
 
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept for a transferred session: %v", err)
 	}
@@ -368,13 +322,7 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 		releasedPSI uint8
 	)
 
-	// drainOnTeardown retakes the session lock, and the MME callback re-enters the
-	// SMF, so both run unlocked.
 	defer func() {
-		// A superseded session that never bound its target still holds the source
-		// access's routing.
-		s.drainOnTeardown(ctx, smCtxt)
-
 		if releasedEBI != 0 && s.mme != nil {
 			s.mme.SessionReleased(ctx, smCtxt.Supi.IMSI(), releasedEBI, smCtxt.Ref)
 		}
@@ -384,9 +332,6 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 		}
 	}()
 
-	// A transfer holds sc.Mutex across blocking UPF calls, so the registry refuses
-	// this teardown instead of queueing it behind one and landing between the
-	// calls the move commits across.
 	if err := smCtxt.procedures.Begin(procedure.Release); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("skipping supersede of a session with a procedure in flight",
 			zap.Error(err), zap.String("smContextRef", smCtxt.Ref))
@@ -396,8 +341,8 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 
 	defer smCtxt.procedures.End(procedure.Release)
 
-	smCtxt.Mutex.Lock()
-	defer smCtxt.Mutex.Unlock()
+	smCtxt.mu.Lock()
+	defer smCtxt.mu.Unlock()
 
 	if smCtxt.IsEPS() {
 		releasedEBI = smCtxt.EBI
@@ -405,7 +350,16 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 		releasedPSI = smCtxt.PDUSessionID
 	}
 
-	// Stop the superseded context's outstanding procedure retransmission.
+	// A move the target has not bound leaves it holding the state it installed from
+	// the accept it already sent, under the identity it would serve the session by.
+	if p := smCtxt.pending; p != nil {
+		if p.to == Access4G {
+			releasedEBI = p.ebi
+		} else {
+			releasedPSI = smCtxt.PDUSessionID
+		}
+	}
+
 	smCtxt.stopProcedureTimer()
 	s.RemoveSession(ctx, smCtxt.Ref)
 }
@@ -451,11 +405,6 @@ func parsePDUSessionRequest(req *fgs.PDUSessionEstablishmentRequest) (*smfNas.Pr
 	return pco, nil
 }
 
-// alwaysOnIndication resolves the Always-on PDU session indication for an
-// Establishment Accept (TS 24.501 §6.4.1): "not allowed" (APSI 0) when the UE
-// requested an always-on session, or omitted (nil) otherwise. The "required"
-// value (§6.4.1 a) is not produced because no PDU session is established as
-// always-on.
 // alwaysOnIndication answers a UE that asked for an always-on PDU session. The
 // element is absent unless the UE asked, and TS 24.501 table 9.11.4.3.1 codes the
 // answer as "not allowed" — this core grants none (§6.4.1.3).
@@ -486,11 +435,11 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	// A transfer rewrites the access, the slice and the tunnel, so the message
 	// content is taken in one critical section. The AMF call below is made
 	// outside it.
-	smContext.Mutex.Lock()
+	smContext.mu.Lock()
 	smContext.establishmentPTI = pti
 
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || smContext.Tunnel.DataPath.UpLinkTunnel == nil {
-		smContext.Mutex.Unlock()
+		smContext.mu.Unlock()
 
 		return fmt.Errorf("session %q has no uplink tunnel", smContext.Ref)
 	}
@@ -507,7 +456,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		ulN3IPv6     = ul.N3IPv6
 	)
 
-	smContext.Mutex.Unlock()
+	smContext.mu.Unlock()
 
 	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, pduSessionID, pti, snssai, dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
 	if err != nil {

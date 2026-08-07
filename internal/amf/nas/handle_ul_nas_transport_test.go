@@ -1109,3 +1109,86 @@ func TestTransport5GSMMessage_NoSmContext_ExistingPDUSession_CreateSmContext(t *
 		t.Error("no SM context after the transfer was routed")
 	}
 }
+
+// TS 24.501 §5.4.5.2.3 a)1)iii)A) provides the allowed-NSSAI derivation for request
+// type "initial request" only. A transfer the AMF holds no routing context for and
+// that carries no S-NSSAI IE has none to route on, so the payload goes back with
+// 5GMM cause #90 (§5.4.5.2.5 a)3), §5.4.5.3.2).
+func TestTransport5GSMMessage_NoSmContext_ExistingPDUSession_NoSNSSAI_ReturnsPayloadNotForwarded(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+
+	var pduSessionID uint8 = 1
+
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeExistingPDUSession)
+
+	msg.DNN = new(fgs.DNN("internet"))
+
+	fakeSmf := &fakeSmf{CreateSmContextRef: "transferred-ctx-ref"}
+
+	transport5GSMMessage(t.Context(), amf.New(&fakeDBInstance{}, nil, fakeSmf), ue, fgsULNAS(t, msg))
+
+	if len(fakeSmf.CreateSmContextCalls) != 0 {
+		t.Errorf("CreateSmContext calls = %d, want 0", len(fakeSmf.CreateSmContextCalls))
+	}
+
+	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
+		t.Error("SM context created for a transfer with no S-NSSAI")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("downlink NAS transports = %d, want 1", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	dl := assertPlainDLTransport(t, ngapSender.SentDownlinkNASTransport[0].NASPDU)
+	if dl.Cause == nil || *dl.Cause != fgs.GMMCausePayloadNotForwarded {
+		t.Errorf("5GMM cause = %v, want #%d", dl.Cause, fgs.GMMCausePayloadNotForwarded)
+	}
+}
+
+// TS 24.501 §5.4.5.2.3: an establishment request naming a slice outside the UE's
+// allowed NSSAI is not routed to an SMF.
+func TestTransport5GSMMessage_NoSmContext_InitialRequest_SNSSAINotAllowed_ReturnsPayloadNotForwarded(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001010000000001"))
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+
+	var pduSessionID uint8 = 1
+
+	msg := buildTestULNASTransport(fgs.PayloadContainerTypeN1SMInfo, []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}, pduSessionIDPtr(fgs.PDUSessionID(pduSessionID)))
+	setRequestType(msg, fgs.RequestTypeInitialRequest)
+
+	msg.SNSSAI = &fgs.SNSSAI{SST: 2, SD: &[3]byte{0xaa, 0xbb, 0xcc}}
+	msg.DNN = new(fgs.DNN("internet"))
+
+	fakeSmf := &fakeSmf{CreateSmContextRef: "unwanted-ctx-ref"}
+
+	transport5GSMMessage(t.Context(), amf.New(&fakeDBInstance{}, nil, fakeSmf), ue, fgsULNAS(t, msg))
+
+	if len(fakeSmf.CreateSmContextCalls) != 0 {
+		t.Errorf("CreateSmContext calls = %d, want 0", len(fakeSmf.CreateSmContextCalls))
+	}
+
+	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
+		t.Error("SM context created for a slice outside the allowed NSSAI")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("downlink NAS transports = %d, want 1", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	dl := assertPlainDLTransport(t, ngapSender.SentDownlinkNASTransport[0].NASPDU)
+	if dl.Cause == nil || *dl.Cause != fgs.GMMCausePayloadNotForwarded {
+		t.Errorf("5GMM cause = %v, want #%d", dl.Cause, fgs.GMMCausePayloadNotForwarded)
+	}
+}

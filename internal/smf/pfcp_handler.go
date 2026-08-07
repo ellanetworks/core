@@ -27,7 +27,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 
 	// A transfer rewrites the access, the policy and the tunnel together, so the
 	// paging decision and the N2 content come from one critical section.
-	smContext.Mutex.Lock()
+	smContext.mu.Lock()
 
 	isEPS := smContext.IsEPS()
 	hasUplink := smContext.Tunnel != nil && smContext.Tunnel.DataPath != nil && smContext.Tunnel.DataPath.UpLinkTunnel != nil
@@ -45,7 +45,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		ulTEID, ulN3IPv4, ulN3IPv6 = ul.TEID, ul.N3IPv4, ul.N3IPv6
 	}
 
-	smContext.Mutex.Unlock()
+	smContext.mu.Unlock()
 
 	// A 4G EPS session is paged via the MME (TS 23.401).
 	if isEPS {

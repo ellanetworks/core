@@ -21,7 +21,7 @@ import (
 // (TS 24.501 §6.3.3). User-plane resources are released up front so the UPF stops
 // forwarding immediately (TS 23.502 §4.3.4.2 step 2); T3592 then retransmits the
 // Release Command until the UE replies or the retransmission limit aborts, at which
-// point the SM context is removed from the pool. Caller must hold smContext.Mutex.
+// point the SM context is removed from the pool. Caller must hold smContext.mu.
 func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause) error {
 	s.releaseUserPlane(ctx, smContext)
 
@@ -63,14 +63,14 @@ func (s *SMF) startRelease(ctx context.Context, smContext *SMContext, pti uint8,
 // releaseUserPlane frees the session's user-plane resources — the UE IP address(es)
 // and the UPF N4 tunnel — per TS 23.502 §4.3.4.2 step 2. Idempotent: safe to call up
 // front on the release trigger and again on completion. Caller must hold
-// smContext.Mutex.
+// smContext.mu.
 func (s *SMF) releaseUserPlane(ctx context.Context, smContext *SMContext) {
 	_ = s.releaseUserPlaneThenAddresses(ctx, smContext)
 }
 
 // teardownAndRemove releases the session's user-plane resources (idempotently) and
 // removes it from the pool, for paths that reach the SM context without the
-// network-requested procedure. Caller must hold smContext.Mutex.
+// network-requested procedure. Caller must hold smContext.mu.
 func (s *SMF) teardownAndRemove(ctx context.Context, smContext *SMContext) {
 	s.releaseUserPlane(ctx, smContext)
 	s.removeSessionUnlocked(ctx, smContext.Ref)
@@ -80,7 +80,7 @@ func (s *SMF) teardownAndRemove(ctx context.Context, smContext *SMContext) {
 // (TS 24.501 §6.3.2.5, §6.3.3): resend runs on each of the first
 // maxSMProcedureRetransmissions expiries, and abort runs once that limit is
 // exceeded. Both fire on the timer goroutine and re-fetch the session, no-op if it
-// is gone. Caller must hold smContext.Mutex.
+// is gone. Caller must hold smContext.mu.
 func (s *SMF) armRetransmit(smContext *SMContext, d time.Duration, resend func() error, abort func(*SMContext)) {
 	ref := smContext.Ref
 	supi := smContext.Supi
@@ -104,12 +104,8 @@ func (s *SMF) armRetransmit(smContext *SMContext, d time.Duration, resend func()
 				return
 			}
 
-			// drainOnTeardown retakes the session lock and enters the AMF and MME
-			// callbacks, which re-enter the SMF, so it runs unlocked.
-			defer func() { s.drainOnTeardown(context.Background(), sc) }()
-
-			sc.Mutex.Lock()
-			defer sc.Mutex.Unlock()
+			sc.mu.Lock()
+			defer sc.mu.Unlock()
 
 			abort(sc)
 		})

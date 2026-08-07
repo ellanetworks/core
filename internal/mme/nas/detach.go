@@ -23,9 +23,17 @@ func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	}
 }
 
+// endESMInformation ends any outstanding ESM information request procedure, so a
+// response arriving after the detach establishes nothing (TS 24.301 §6.6.1.2).
+func endESMInformation(ue *mme.UeContext) {
+	ue.Conn().StopESMInfoGuard()
+	ue.TakeESMInfoWait()
+}
+
 func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasreply.Disposition {
 	ue.Conn().StopNASGuard()
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
+	endESMInformation(ue)
 	releaseDetachSessions(ctx, m, ue)
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 
@@ -49,6 +57,8 @@ func handleDetachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, req
 	)
 
 	ue.TransitionTo(mme.EMMDeregistered)
+
+	endESMInformation(ue)
 
 	// Release the user plane before acknowledging the detach, so the UPF has stopped
 	// forwarding by the time the UE acts on the DETACH ACCEPT (TS 23.401 §5.3.8.2.1);

@@ -3,7 +3,10 @@
 
 package smf
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // AccessType is the radio access a session is established over. As the combined
 // SMF+PGW-C (TS 23.501), the SMF keys its 4G/5G differences off it.
@@ -14,52 +17,76 @@ const (
 	Access4G                   // S1-U user plane; ESM owned by the MME (PGW-C role)
 )
 
+// ErrSessionNotFound reports a reference no session in the pool answers, for the
+// entry points that treat a reference to a released session as a no-op.
+var ErrSessionNotFound = errors.New("sm context not found")
+
 // IsEPS reports whether the session is a 4G EPS bearer (PGW-C role).
 func (sc *SMContext) IsEPS() bool { return sc.Access == Access4G }
 
-// servedBy reports whether the session is still on the access an entry point
-// speaks for. A transfer leaves the source access holding a live Ref until its
-// target binds, so a request arriving on the access the session left must not
-// act on it. Caller holds Mutex.
-func (sc *SMContext) servedBy(access AccessType) error {
+// binds reports whether the access may bind the session's downlink: the one
+// serving it, or the target of a move it has not bound, whose bind is what
+// commits that move (TS 23.401 §5.10.2 step 13a, TS 23.502 §4.3.2.2.1 step 16a
+// NOTE 11). Every other entry point of the target access speaks for a session it
+// does not yet serve. Caller holds mu.
+func (sc *SMContext) binds(access AccessType) bool {
+	return sc.Access == access || (sc.pending != nil && sc.pending.to == access)
+}
+
+// sessionFor resolves ref, takes the session's lock and refuses an access other
+// than the one serving it. A reference outlives a move, so a request can arrive
+// on the access the session left; refusing it is a local choice, as no clause
+// covers a request from an access that has given the session up. The returned
+// function unlocks, and is nil when the error is not.
+func (s *SMF) sessionFor(ref string, access AccessType) (*SMContext, func(), error) {
+	sc, unlock, err := s.lockSession(ref)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if sc.Access != access {
-		return fmt.Errorf("session %q is on %s", sc.Ref, sc.Access)
+		unlock()
+
+		return nil, nil, fmt.Errorf("session %q is on %s", ref, sc.Access)
 	}
 
-	return nil
+	return sc, unlock, nil
 }
 
-// accessCheck refuses a session that is not on the access an operation is scoped
-// to, for operations whose implementation takes Mutex itself. Caller holds Mutex.
-type accessCheck func(*SMContext) error
-
-// onlyOn scopes an operation to the access its entry point speaks for.
-func onlyOn(access AccessType) accessCheck {
-	return func(sc *SMContext) error { return sc.servedBy(access) }
-}
-
-// anyAccess scopes an operation to neither access, for internal teardown that
-// has already established which one it acts for.
-func anyAccess(*SMContext) error { return nil }
-
-// lockChecked takes Mutex and applies check under it, so a transfer cannot land
-// between the check and the work it guards. Mutex is held on return only when
-// the error is nil, and the caller unlocks it.
-func (sc *SMContext) lockChecked(check accessCheck) error {
-	sc.Mutex.Lock()
-
-	if err := check(sc); err != nil {
-		sc.Mutex.Unlock()
-
-		return err
+// sessionBinding is sessionFor for the two entry points that bind a downlink,
+// which is where a move commits.
+func (s *SMF) sessionBinding(ref string, access AccessType) (*SMContext, func(), error) {
+	sc, unlock, err := s.lockSession(ref)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return nil
+	if !sc.binds(access) {
+		unlock()
+
+		return nil, nil, fmt.Errorf("session %q is on %s", ref, sc.Access)
+	}
+
+	return sc, unlock, nil
 }
 
-// lockServedBy is lockChecked for an entry point that speaks for one access.
-func (sc *SMContext) lockServedBy(access AccessType) error {
-	return sc.lockChecked(onlyOn(access))
+// The access is checked under the same lock hold as the work it guards, so no
+// move can land between them.
+func (s *SMF) lockSession(ref string) (*SMContext, func(), error) {
+	// An empty reference names no session and is not one that has been released,
+	// so it is an error to the entry points that treat the latter as a no-op.
+	if ref == "" {
+		return nil, nil, fmt.Errorf("SM context reference is missing")
+	}
+
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return nil, nil, fmt.Errorf("%w: %s", ErrSessionNotFound, ref)
+	}
+
+	sc.mu.Lock()
+
+	return sc, sc.mu.Unlock, nil
 }
 
 func (a AccessType) String() string {

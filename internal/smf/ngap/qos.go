@@ -11,8 +11,8 @@ import (
 )
 
 // qosFlowLevelQosParameters maps a policy QoS rule onto the NGAP IE. TS 38.413
-// bounds priorityLevelARP at 1..15, so a policy carrying 0 is rejected here
-// rather than encoded: the value has no meaning on the wire.
+// bounds priorityLevelARP at 1..15, so a policy carrying 0 is rejected here: the
+// value has no meaning on the wire.
 func qosFlowLevelQosParameters(qosData *models.QosData) (libngap.QosFlowLevelQosParameters, error) {
 	preemptCap := libngap.PreemptionMayTrigger
 	preemptVuln := libngap.PreemptionNotPreemptable

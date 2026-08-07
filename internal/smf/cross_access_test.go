@@ -48,9 +48,10 @@ func TestModifyEPSSessionRejectsSupersededRef(t *testing.T) {
 		t.Fatal("live EPS session is not in the pool")
 	}
 
-	sc.Mutex.Lock()
+	unlock := sc.LockForTest()
 	an := sc.Tunnel.ANInformation
-	sc.Mutex.Unlock()
+
+	unlock()
 
 	if an.TEID == enb.TEID && net.IP(enb.Addr.AsSlice()).Equal(an.IPv4Address) {
 		t.Errorf("live session's AN endpoint = eNB S1-U %v/0x%x, want it unchanged", an.IPv4Address, an.TEID)
@@ -208,6 +209,8 @@ func TestEPSEntryPointsRefuseASessionMovedTo5GS(t *testing.T) {
 		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
 	}
 
+	bindGNB(t, s, bearer.Ref)
+
 	if err := s.ModifyEPSSession(ctx, bearer.Ref, enbFTEID()); err == nil {
 		t.Error("ModifyEPSSession on a session moved to 5GS = nil error, want a refusal")
 	}
@@ -246,11 +249,11 @@ func TestRoundTripKeepsTheAddressAndLease(t *testing.T) {
 
 	sc := s.GetSession(ref)
 
-	sc.Mutex.Lock()
+	unlock := sc.LockForTest()
 	ip := sc.PDUIPV4Address.String()
-	sc.Mutex.Unlock()
 
-	// 5GS -> EPS, then bind the eNB so the source release drains.
+	unlock()
+
 	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err != nil {
 		t.Fatalf("CreateEPSSession(handover): %v", err)
 	}
@@ -259,22 +262,24 @@ func TestRoundTripKeepsTheAddressAndLease(t *testing.T) {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
-	// EPS -> 5GS.
 	if _, _, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err != nil {
 		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
 	}
 
-	sc.Mutex.Lock()
+	bindGNB(t, s, ref)
+
+	unlock = sc.LockForTest()
 	back := sc.PDUIPV4Address.String()
-	onEPS := sc.IsEPS()
-	sc.Mutex.Unlock()
+	stillOnEPS := sc.IsEPS()
+
+	unlock()
 
 	if back != ip {
 		t.Errorf("UE address after the round trip = %s, want the original %s", back, ip)
 	}
 
-	if onEPS {
-		t.Error("session is on EPS after moving back to 5GS")
+	if stillOnEPS {
+		t.Error("access after the round trip = EPS, want 5GS")
 	}
 
 	if ids := store.allocSessionIDs(); len(ids) != 1 {

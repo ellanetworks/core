@@ -436,39 +436,22 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 
 		smCtx := smfSessions.GetSession(sc.ref)
 		if smCtx != nil {
-			smCtx.Mutex.Lock()
-			pdu.PDUSessionID = smCtx.PDUSessionID
-			pdu.PDUSessionType = smCtx.PDUSessionType
-			pdu.DNN = smCtx.Dnn
-			pdu.PDUSessionReleaseDueToDupPduID = smCtx.PDUSessionReleaseDueToDupPduID
+			view := smCtx.View()
+			pdu.PDUSessionID = view.PDUSessionID
+			pdu.PDUSessionType = view.PDUSessionType
+			pdu.DNN = view.Dnn
+			pdu.PDUSessionReleaseDueToDupPduID = view.PDUSessionReleaseDueToDupPduID
+			pdu.PDUIPV4Address = view.PDUIPV4Address
+			pdu.PDUIPV6Prefix = view.PDUIPV6Prefix
+			pdu.PolicyData = policyDataFromSMF(view.PolicyData)
+			pdu.PFCPLocalSEID = view.PFCPLocalSEID
 
-			if smCtx.PDUIPV4Address != nil {
-				pdu.PDUIPV4Address = smCtx.PDUIPV4Address.String()
-			}
-
-			if smCtx.PDUIPV6Prefix != nil {
-				pdu.PDUIPV6Prefix = smCtx.PDUIPV6Prefix.String()
-			}
-
-			pdu.PolicyData = policyDataFromSMF(smCtx.PolicyData)
-			if smCtx.Tunnel != nil {
-				ipStr := ""
-				if smCtx.Tunnel.ANInformation.IPv4Address != nil {
-					ipStr = smCtx.Tunnel.ANInformation.IPv4Address.String()
-				}
-
+			if view.AN != nil {
 				pdu.Tunnel = &TunnelExport{
-					ANIPAddress: ipStr,
-					ANTEID:      smCtx.Tunnel.ANInformation.TEID,
+					ANIPAddress: view.AN.IPAddress,
+					ANTEID:      view.AN.TEID,
 				}
 			}
-
-			if smCtx.PFCPContext != nil {
-				seid := smCtx.PFCPContext.LocalSEID
-				pdu.PFCPLocalSEID = &seid
-			}
-
-			smCtx.Mutex.Unlock()
 		}
 
 		result[sc.ref] = pdu

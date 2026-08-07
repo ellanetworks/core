@@ -5,6 +5,7 @@ package smf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 
@@ -35,25 +36,12 @@ func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1M
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
 		return nil, err
 	}
 
-	// drainOnTeardown retakes the session lock and enters the AMF and MME
-	// callbacks, which re-enter the SMF, so it runs unlocked.
-	defer func() { s.drainOnTeardown(ctx, smContext) }()
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	rsp, err := s.handleUpdateN1Msg(ctx, n1Msg, smContext)
 	if err != nil {
@@ -197,44 +185,26 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
-
-		return fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	bound := false
-
-	smContext.Mutex.Lock()
-
-	// releaseTransferSource retakes the session lock and enters the AMF and MME
-	// callbacks, which re-enter the SMF, so it runs unlocked.
-	defer func() {
-		if bound {
-			// The gNB downlink is bound, so the access the session came from can
-			// stop routing it (TS 23.502 §4.11.2.3 step 10).
-			s.releaseTransferSource(ctx, smContext)
-		}
-	}()
-	defer smContext.Mutex.Unlock()
-
 	// A late setup response for an abandoned 5G leg would point the downlink back
 	// at the gNB and undo the eNB binding of a session on EPS.
-	if smContext.IsEPS() {
-		span.RecordError(fmt.Errorf("session is on EPS"))
-		span.SetStatus(codes.Error, "session is on EPS")
+	smContext, unlock, err := s.sessionBinding(smContextRef, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no session 5GS may bind for the reference")
 
-		return fmt.Errorf("session %q is on %s", smContext.Ref, smContext.Access)
+		return err
 	}
+
+	var dropped *droppedSource
+
+	defer func() {
+		// The gNB downlink is bound, so the access the session came from can stop
+		// routing it (TS 23.502 §4.11.2.3 step 10).
+		if dropped != nil {
+			s.dropSourceRouting(ctx, dropped.supi, smContextRef, dropped.access, dropped.id)
+		}
+	}()
+	defer unlock()
 
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
 		span.RecordError(fmt.Errorf("session already released"))
@@ -243,8 +213,22 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("session already released")
 	}
 
+	// TS 23.502 §4.3.2.2.1 step 16a NOTE 11 switches the downlink at the N2
+	// response, so a move toward 5GS commits here.
+	commit, err := s.beginTransferCommit(ctx, smContext, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to commit the transfer")
+
+		return err
+	}
+
 	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
 	if err != nil {
+		if commit != nil {
+			commit.restore()
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle N2 message")
 
@@ -252,28 +236,49 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	}
 
 	if smContext.PFCPContext == nil {
+		if commit != nil {
+			commit.restore()
+		}
+
 		span.RecordError(fmt.Errorf("pfcp session context not found"))
 		span.SetStatus(codes.Error, "pfcp session context not found")
 
 		return fmt.Errorf("pfcp session context not found")
 	}
 
+	// The move's QoS travels in the bind's own modification, so it costs no PFCP
+	// round trip of its own.
+	var (
+		policyID string
+		qerList  []*QER
+	)
+
+	if commit != nil {
+		policyID, qerList = commit.policy.PolicyID, commit.qers
+	}
+
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
 		smContext.PFCPContext.RemoteSEID,
-		"",
-		pdrList, farList, nil,
+		policyID,
+		pdrList, farList, qerList,
 	)); err != nil {
+		if commit != nil {
+			commit.restore()
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to modify PFCP session")
 
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
+	if commit != nil {
+		dropped = smContext.finishTransferCommit(commit)
+	}
+
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	bound = true
 
 	return nil
 }
@@ -285,9 +290,15 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 
 	var farList []*FAR
 
+	// The transfer is parsed before the downlink is opened, so a malformed one
+	// cannot leave the FAR forwarding with no endpoint for a later modification to
+	// ship.
+	if err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext); err != nil {
+		return nil, nil, fmt.Errorf("handle PDUSessionResourceSetupResponseTransfer failed: %v", err)
+	}
+
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
 
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.State = RuleUpdate
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
@@ -299,10 +310,6 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 		// known; mark it for update so the corrected value reaches the UPF.
 		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
 		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
-	}
-
-	if err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext); err != nil {
-		return nil, nil, fmt.Errorf("handle PDUSessionResourceSetupResponseTransfer failed: %v", err)
 	}
 
 	return pdrList, farList, nil
@@ -333,46 +340,28 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.
 func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error {
-	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
+	_, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
+	// The gNB will not bind, so a move toward 5GS is abandoned and the session
+	// stays on the access serving it.
+	smContext, unlock, err := s.sessionBinding(smContextRef, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no session 5GS may bind for the reference")
 
-		return fmt.Errorf("SM Context reference is missing")
+		return err
 	}
 
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return fmt.Errorf("sm context not found: %s", smContextRef)
+	if smContext.pending != nil {
+		smContext.pending = nil
 	}
 
-	err := handlePDUSessionResourceSetupUnsuccessfulTransfer(n2Data)
+	unlock()
 
-	// A transfer whose target access never bound its downlink leaves the session
-	// reachable from neither access, so it is released and the UE re-establishes.
-	// The release also drops the routing the source access still holds.
-	//
-	// Only a session whose target is 5GS is concerned: a stale failure for the
-	// 5G leg of a session already moved to EPS says nothing about its EPS target.
-	smContext.Mutex.Lock()
-	moved := len(smContext.transfer.pendingReleases) > 0 && !smContext.IsEPS()
-	smContext.Mutex.Unlock()
-
-	if moved {
-		if relErr := s.ReleaseSmContext(ctx, smContextRef); relErr != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release a transferred session whose target access setup failed",
-				zap.Error(relErr), zap.String("smContextRef", smContextRef))
-		}
-	}
-
-	return err
+	return handlePDUSessionResourceSetupUnsuccessfulTransfer(n2Data)
 }
 
 func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
@@ -393,33 +382,21 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
-
-		return fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
 		// Session already removed (e.g. by slice-mismatch release); return nil to
 		// keep the response idempotent.
-		logger.SmfLog.Info("SM context already removed, skipping",
-			zap.String("smContextRef", smContextRef))
+		if errors.Is(err, ErrSessionNotFound) {
+			logger.SmfLog.Info("SM context already removed, skipping",
+				zap.String("smContextRef", smContextRef))
 
-		return nil
-	}
+			return nil
+		}
 
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
 		return err
 	}
 
-	// drainOnTeardown retakes the session lock and enters the AMF and MME
-	// callbacks, which re-enter the SMF, so it runs unlocked.
-	defer func() { s.drainOnTeardown(ctx, smContext) }()
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	// N2 release complete; stop T3592 (TS 24.501 §6.3.3).
 	smContext.stopProcedureTimer()
@@ -446,28 +423,15 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 	)
 	defer span.End()
 
-	if smContextRef == "" {
-		span.RecordError(fmt.Errorf("SM Context reference is missing"))
-		span.SetStatus(codes.Error, "SM Context reference is missing")
+	smContext, unlock, err := s.sessionFor(smContextRef, Access5G)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no session on 5GS for the reference")
 
-		return nil, fmt.Errorf("SM Context reference is missing")
-	}
-
-	smContext := s.GetSession(smContextRef)
-	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
-
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
-	}
-
-	// The reference outlives a move, so a 5GS entry point must not act on a
-	// session served by the other access.
-	if err := smContext.lockServedBy(Access5G); err != nil {
 		return nil, err
 	}
 
-	defer smContext.Mutex.Unlock()
+	defer unlock()
 
 	smContext.PDUSessionReleaseDueToDupPduID = true
 
@@ -491,7 +455,7 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 
 // registerIPv6SessionIfNeeded registers the IPv6 session with the UPF's RA
 // responder if the session has a delegated IPv6 prefix and the gNB's tunnel
-// endpoint is known. Must be called with smContext.Mutex held.
+// endpoint is known. Must be called with smContext.mu held.
 func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMContext) {
 	if smContext.PDUIPV6Prefix == nil || smContext.Tunnel == nil {
 		return
