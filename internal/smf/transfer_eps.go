@@ -100,6 +100,8 @@ func (s *SMF) AbandonEPSTransfer(_ context.Context, ref string) {
 	sc.abandonTransfer()
 }
 
+// The enumerations diverge above IPv4v6 (TS 24.301 §9.9.4.10 vs TS 24.501
+// §9.11.4.11), so anything else is refused rather than cast.
 func pdnTypeFor(pduSessionType uint8) (eps.PDNType, error) {
 	switch pduSessionType {
 	case 1:

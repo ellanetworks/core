@@ -62,9 +62,12 @@ type NetworkFeatureSupport struct {
 	ERwoPDN bool  // attach without PDN connectivity (octet 3, bit 7)
 	CPCIoT  bool  // control plane CIoT EPS optimisation (octet 3, bit 8)
 
+	// Reads inverted: 1 means the network has no N26 interface and the UE must
+	// move its own sessions (octet 4 bit 7).
 	IWKN26 bool
 
 	// HasOctet4 records whether the sender included octet 4, so the element
+	// re-encodes at the length it arrived with; Rest carries octet 5 onwards.
 	HasOctet4   bool
 	Octet4Spare uint8
 	Rest        []byte

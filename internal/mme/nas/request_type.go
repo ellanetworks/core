@@ -21,6 +21,9 @@ func requestTypeRefusal(t eps.RequestType) (eps.ESMCause, bool) {
 	}
 }
 
+// #54 claims the network has no information about the connection, which is
+// untrue for one the anchor holds but cannot move, so those draw the retryable
+// #26.
 func transferRejectCause(err error) eps.ESMCause {
 	switch {
 	case errors.Is(err, models.ErrSessionNotTransferable):

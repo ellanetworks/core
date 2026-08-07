@@ -44,6 +44,7 @@ func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// A re-inserted key would outlive a dropped session and hold the slot forever.
 	if s.pool[sc.Ref] != sc {
 		return fmt.Errorf("%w: session %q is no longer in the pool", ErrSessionNotMovable, sc.Ref)
 	}

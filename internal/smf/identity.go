@@ -14,6 +14,8 @@ type SessionIdentity struct {
 	EBI          uint8
 }
 
+// 64..95 is core-allocated and never visible to the UE (TS 29.571 §5.2.2), so it
+// cannot collide with a UE-allocated PDU session identity.
 func epsBearerKey(ebi uint8) uint8 { return 64 + ebi }
 
 func (id SessionIdentity) sessionKey() uint8 {

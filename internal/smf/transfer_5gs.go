@@ -97,6 +97,8 @@ func rejectTransfer5GS(pduSessionID, pti uint8, cause fgs.GSMCause) []byte {
 	return rsp
 }
 
+// #54 claims the network has no information about the session, which is untrue
+// for one the anchor holds but cannot move, so those draw the retryable #26.
 func transferRejectCause(err error) fgs.GSMCause {
 	switch {
 	case errors.Is(err, models.ErrSessionNotTransferable):

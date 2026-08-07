@@ -78,6 +78,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		MTU:      req.MTU,
 	}
 
+	// Precedes the supersede below, which would tear down the session being moved.
 	if req.RequestType == eps.RequestTypeHandover {
 		return s.transferToEPS(ctx, supi, req, policy)
 	}
