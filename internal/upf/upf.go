@@ -63,6 +63,7 @@ type UPF struct {
 	// gcMu serialises startGC / stopGC (e.g. from ReloadNAT and Close).
 	gcMu     sync.Mutex
 	gcCancel context.CancelFunc
+	gcDone   chan struct{} // closed when collectCollectionTrackingGarbage exits
 
 	// fcMu serialises concurrent calls to startFlowCollection / stopFlowCollection
 	// (e.g. from ReloadFlowAccounting and Close running in different goroutines).
@@ -385,18 +386,41 @@ func (u *UPF) startGC(ctx context.Context) {
 	cctx, cancel := context.WithCancel(ctx)
 
 	u.gcCancel = cancel
+	u.gcDone = make(chan struct{})
 
-	go u.collectCollectionTrackingGarbage(cctx)
+	// Captured locally so the deferred close targets this channel, not whatever
+	// u.gcDone points at by the time the goroutine exits.
+	done := u.gcDone
+
+	go func() {
+		defer close(done)
+
+		u.collectCollectionTrackingGarbage(cctx)
+	}()
 }
 
+// Waits, so a caller that goes on to close the BPF collection cannot pull the
+// maps out from under an in-flight NatCt.BatchLookup / BatchDelete. The wait is
+// under gcMu so that every caller gets that guarantee, not just the first: a
+// second caller must not observe the cleared gcCancel and race ahead to
+// BpfObjects.Close() while the loop is still draining. Safe to hold across the
+// wait because the GC goroutine never takes gcMu.
 func (u *UPF) stopGC() {
 	u.gcMu.Lock()
 	defer u.gcMu.Unlock()
 
-	if u.gcCancel != nil {
-		u.gcCancel()
-		u.gcCancel = nil
+	if u.gcCancel == nil {
+		return
 	}
+
+	cancel := u.gcCancel
+	done := u.gcDone
+	u.gcCancel = nil
+	u.gcDone = nil
+
+	cancel()
+
+	<-done
 }
 
 func (u *UPF) startFlowCollection(ctx context.Context) {
@@ -445,23 +469,22 @@ func (u *UPF) startFlowCollection(ctx context.Context) {
 //     and exit, closing fcDone.
 //  4. We wait on fcDone — all flows have been forwarded to the SMF.
 //
-// fcCancel is cleared while holding fcMu, before the wait. This eliminates the
-// ABA window where a concurrent startFlowCollection would see a non-nil fcCancel
-// (believing the pipeline is already running) while stopFlowCollection is
-// actively tearing it down.
+// The whole sequence runs under fcMu so that every caller gets the guarantee,
+// not just the first: a second caller must not observe the cleared fcCancel and
+// race ahead to BpfObjects.Close() while collectExpiredFlows is still reading the
+// map. Safe to hold across the waits because neither goroutine takes fcMu.
 func (u *UPF) stopFlowCollection() {
 	u.fcMu.Lock()
+	defer u.fcMu.Unlock()
 
 	if u.fcCancel == nil {
-		u.fcMu.Unlock()
 		return
 	}
 
 	cancel := u.fcCancel
 	scanDone := u.fcScanDone
 	done := u.fcDone
-	u.fcCancel = nil // clear under the lock; startFlowCollection may now proceed
-	u.fcMu.Unlock()
+	u.fcCancel = nil
 
 	cancel()
 	<-scanDone // wait for producer: BPF map is no longer accessed after this
@@ -551,6 +574,13 @@ func (u *UPF) listenForTrafficNotifications() {
 		err := u.notificationReader.ReadInto(&record)
 		if errors.Is(err, os.ErrClosed) {
 			return
+		}
+
+		// record still holds the previous iteration's sample; falling through
+		// re-notifies the SMF of downlink data it already has, in a tight loop.
+		if err != nil {
+			logger.UpfLog.Warn("downlink notification ring buffer read error", zap.Error(err))
+			continue
 		}
 
 		if err = binary.Read(bytes.NewBuffer(record.RawSample), binary.NativeEndian, &event); err != nil {
@@ -727,6 +757,12 @@ func (u *UPF) listenForMissingNeighbours() {
 		err := u.noNeighReader.ReadInto(&record)
 		if errors.Is(err, os.ErrClosed) {
 			return
+		}
+
+		// record still holds the previous sample; see listenForTrafficNotifications.
+		if err != nil {
+			logger.UpfLog.Warn("missing-neighbour ring buffer read error", zap.Error(err))
+			continue
 		}
 
 		ifindex, ip, ok := parseNoNeighEvent(record.RawSample)

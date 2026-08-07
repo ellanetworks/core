@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 // EpsQoS is the default-bearer QoS resolved from a subscriber's profile/policy.
@@ -164,4 +165,16 @@ func ResolveAttachQoS(ctx context.Context, m *MME, ue *UeContext) (*EpsQoS, erro
 	}
 
 	return ResolveQoS(ctx, m, ue.IMSI())
+}
+
+// Pre-emption is fixed at shall-not-trigger / not-pre-emptable, the same pair
+// the 5G path encodes: a policy carries an ARP priority column and nothing else,
+// so a bearer claiming it may displace another's radio resources would be
+// claiming an authorization the profile never granted.
+func BearerARP(priority byte) s1ap.AllocationAndRetentionPriority {
+	return s1ap.AllocationAndRetentionPriority{
+		PriorityLevel:           priority,
+		PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
+		PreemptionVulnerability: s1ap.PreemptionNotPreemptable,
+	}
 }

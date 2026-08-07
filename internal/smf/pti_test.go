@@ -5,9 +5,11 @@ package smf_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/smf"
 	naslib "github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -257,3 +259,45 @@ func TestCreateSmContext_ReservedPTI_Ignored(t *testing.T) {
 }
 
 func ptrTo[T any](v T) *T { return &v }
+
+// The message that ends a PDU session produces no N1 or N2 answer, so the result
+// is the only channel the SMF has to tell the AMF the session is gone.
+func TestUpdateSmContextN1Msg_ReleaseCompleteReportsRemoval(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const pti = 7
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, pti)); err != nil {
+		t.Fatalf("release request failed: %v", err)
+	}
+
+	rsp, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, pti))
+	if err != nil {
+		t.Fatalf("release complete failed: %v", err)
+	}
+
+	if rsp == nil || !rsp.SessionRemoved {
+		t.Fatalf("release complete must report SessionRemoved; got %+v", rsp)
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Error("session still in the pool after a release complete")
+	}
+}
+
+// A sentinel rather than an opaque error, so the AMF can tell "gone for good,
+// drop the routing context" from a transient failure worth retrying.
+func TestUpdateSmContextN1Msg_UnknownRefIsSentinel(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, err := s.UpdateSmContextN1Msg(ctx, "no-such-ref", buildPDUSessionReleaseComplete(1, 7))
+	if !errors.Is(err, smf.ErrSMContextNotFound) {
+		t.Fatalf("err = %v, want ErrSMContextNotFound", err)
+	}
+}

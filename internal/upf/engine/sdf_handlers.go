@@ -41,16 +41,8 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 	return sdfRule
 }
 
-// resolveFilterIndex returns the BPF filter map index for a (policyID, direction) pair.
-// Returns ebpf.NoFilterIndex if no filter is allocated.
-func (conn *SessionEngine) resolveFilterIndex(policyID string, direction models.Direction) uint32 {
-	conn.filterMu.RLock()
-	defer conn.filterMu.RUnlock()
-
-	return conn.resolveFilterIndexLocked(policyID, direction)
-}
-
-// resolveFilterIndexLocked is resolveFilterIndex for callers already holding filterMu.
+// The caller holds filterMu until it has applied the index: a slot released in
+// between is reissued to the next policy.
 func (conn *SessionEngine) resolveFilterIndexLocked(policyID string, direction models.Direction) uint32 {
 	if policyID == "" {
 		return ebpf.NoFilterIndex
@@ -72,9 +64,14 @@ func (conn *SessionEngine) resolveFilterIndexLocked(policyID string, direction m
 //
 // Every path is safe to repeat: the reconciler retries unless this returns nil,
 // so an error leaves the mapping in place for the retry to resume.
+//
+// filterMu is held for writing across the whole operation, propagation included:
+// the allocator is LIFO, so a slot freed here is the next one handed out, and a
+// session resolving it mid-propagation would be missed and left pointing at
+// another policy's rules.
 func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
-	conn.filterOpMu.Lock()
-	defer conn.filterOpMu.Unlock()
+	conn.filterMu.Lock()
+	defer conn.filterMu.Unlock()
 
 	key := fmt.Sprintf("%s:%s", policyID, direction.String())
 
@@ -86,7 +83,8 @@ func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID string, dir
 }
 
 // installFilter writes the rules to the (PolicyID, Direction) slot, allocating
-// one if the pair has none, and points the matching PDRs at it.
+// one if the pair has none, and points the matching PDRs at it. Caller holds
+// filterMu for writing.
 func (conn *SessionEngine) installFilter(policyID string, direction models.Direction, key string, rules []models.FilterRule) error {
 	sdfRules := make([]ebpf.SdfRule, 0, len(rules))
 	for _, r := range rules {
@@ -96,14 +94,11 @@ func (conn *SessionEngine) installFilter(policyID string, direction models.Direc
 	list := ebpf.SdfFilterList{NumRules: uint8(len(sdfRules))}
 	copy(list.Rules[:len(sdfRules)], sdfRules)
 
-	conn.filterMu.Lock()
-
 	idx, existing := conn.filtersByKey[key]
 
 	if !existing {
 		allocated, err := conn.SdfIndexAllocator.Allocate()
 		if err != nil {
-			conn.filterMu.Unlock()
 			return fmt.Errorf("allocate sdf filter index: %w", err)
 		}
 
@@ -116,14 +111,11 @@ func (conn *SessionEngine) installFilter(policyID string, direction models.Direc
 				conn.SdfIndexAllocator.Release(idx)
 			}
 
-			conn.filterMu.Unlock()
-
 			return fmt.Errorf("write sdf filter list: %w", err)
 		}
 	}
 
 	conn.filtersByKey[key] = idx
-	conn.filterMu.Unlock()
 
 	// Even when the slot existed: an earlier call may have written it and then
 	// failed partway through propagation, and nothing else repairs that.
@@ -131,11 +123,9 @@ func (conn *SessionEngine) installFilter(policyID string, direction models.Direc
 }
 
 // releaseFilter clears the (PolicyID, Direction) slot off its PDRs and frees it.
+// Caller holds filterMu for writing.
 func (conn *SessionEngine) releaseFilter(policyID string, direction models.Direction, key string) error {
-	conn.filterMu.RLock()
 	idx, ok := conn.filtersByKey[key]
-	conn.filterMu.RUnlock()
-
 	if !ok {
 		return nil
 	}
@@ -154,9 +144,7 @@ func (conn *SessionEngine) releaseFilter(policyID string, direction models.Direc
 		}
 	}
 
-	conn.filterMu.Lock()
 	delete(conn.filtersByKey, key)
-	conn.filterMu.Unlock()
 
 	conn.SdfIndexAllocator.Release(idx)
 

@@ -32,9 +32,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
-	err := ue.DeriveAnKey()
+	// A fresh K_gNB and the {NH, NCC} anchored on it are one derivation
+	// (TS 33.501 §6.9.2.1.1). The NAS SMC that would otherwise re-derive both is
+	// skipped whenever the UE holds a valid security context — the normal case
+	// here — so deriving the key alone leaves every later handover handing the
+	// target an {NH, NCC} the UE cannot reproduce (§6.9.2.3.4).
+	err := ue.UpdateSecurityContext()
 	if err != nil {
-		abortRegistration(ctx, amfInstance, ue, "derive AnKey", err)
+		abortRegistration(ctx, amfInstance, ue, "update security context", err)
 		return
 	}
 
@@ -110,6 +115,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						cause := fgs.GMMCauseProtocolErrorUnspecified
 						errCause = append(errCause, uint8(cause))
 					} else {
+						ue.SetSmContextActive(pduSessionID)
+
 						if ueConn.UeContextRequest {
 							item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 							if err != nil {

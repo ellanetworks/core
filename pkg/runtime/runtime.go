@@ -55,6 +55,18 @@ import (
 
 var getInterfaceIPs = config.GetInterfaceIPs
 
+var staleLeaseCleanup sync.Once
+
+func clearStaleDynamicLeases(ctx context.Context, dbInstance *db.Database) error {
+	var err error
+
+	staleLeaseCleanup.Do(func() {
+		err = dbInstance.DeleteDynamicLeasesByNode(ctx, dbInstance.NodeID())
+	})
+
+	return err
+}
+
 type RuntimeConfig struct {
 	ConfigPath          string
 	RegisterExtraRoutes func(mux *http.ServeMux)
@@ -245,19 +257,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 			logger.EllaLog.Info("Leader initialization replicated successfully")
 
-			// Follower: build a local issuer handle (can't mutate; the
-			// follower's IsLeader returns false) and install it for
-			// HTTP handlers. Pin-cache priming happens via the
-			// changefeed subscription started below; the FSM applies
-			// every cluster_node_certs entry on this node before
-			// WaitForInitialization unblocks.
+			if err := clearStaleDynamicLeases(ctx, dbInstance); err != nil {
+				logger.EllaLog.Warn("could not release this node's stale dynamic leases; they will hold addresses until the next successful start",
+					zap.Error(err))
+			}
+
 			if pki != nil {
 				pki.issuer = pkiissuer.New(dbInstance)
 				server.SetPKIIssuer(pki.issuer)
 			}
 		}
 	} else {
-		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+		if err := clearStaleDynamicLeases(ctx, dbInstance); err != nil {
 			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
 		}
 	}

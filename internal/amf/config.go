@@ -261,7 +261,9 @@ func (amf *AMF) SubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *model
 			sliceSd = *slice.Sd
 		}
 
-		if slice.Sst == snssai.Sst && sliceSd == snssai.Sd {
+		// A slice provisioned before SDs were stored canonical still holds the
+		// operator's spelling.
+		if slice.Sst == snssai.Sst && models.NormalizeSD(sliceSd) == models.NormalizeSD(snssai.Sd) {
 			dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, p.DataNetworkID)
 			if err != nil {
 				return "", fmt.Errorf("couldn't get data network %s: %v", p.DataNetworkID, err)

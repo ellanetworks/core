@@ -365,7 +365,7 @@ func (m *MME) ReclaimConns(conns []*UeConn, trigger string) {
 			// TS1RELOCoverall. A preparing target is addressed by its MME-UE-S1AP-ID alone
 			// (its eNB-UE-S1AP-ID never arrived).
 			if ho := ue.handover; ho != nil && ho.state != hoCommitting && ho.target != nil {
-				releaseTargets = append(releaseTargets, s1Release{ho.target.conn, ho.target.MMEUES1APID, ho.target.ENBUES1APID, ho.state == hoPrepared})
+				releaseTargets = append(releaseTargets, s1Release{ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID, ho.state == hoPrepared})
 			}
 
 			orphaned = append(orphaned, ue)

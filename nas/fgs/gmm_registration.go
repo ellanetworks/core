@@ -39,16 +39,24 @@ type RegistrationRequest struct {
 	NgKSI            nas.KeySetIdentifier // bits 5-8
 	MobileIdentity   MobileIdentity       // mandatory 5GS mobile identity (type 6, LVE)
 
-	GMMCapability           *GMMCapability        // IEI 0x10
-	UESecurityCapability    *UESecurityCapability // IEI 0x2E
-	RequestedNSSAI          NSSAI                 // IEI 0x2F
-	UplinkDataStatus        *PSIBitmap            // IEI 0x40
-	PDUSessionStatus        *PSIBitmap            // IEI 0x50
-	AllowedPDUSessionStatus *PSIBitmap            // IEI 0x25
-	RequestedDRXParameters  *DRXParameter         // IEI 0x51
-	NASMessageContainer     []byte                // IEI 0x71
-	MICOIndication          *MICOIndication       // IEI 0xB0 (type 1)
-	UpdateType5GS           *UpdateType5GS        // IEI 0x53
+	GMMCapability        *GMMCapability        // IEI 0x10
+	UESecurityCapability *UESecurityCapability // IEI 0x2E
+
+	// Opaque for the same reason SECURITY MODE COMMAND's replayed copy is: the UE
+	// compares the replay byte-for-byte (TS 33.501 §6.7.2), so decoding and
+	// re-encoding could only lose that. Modelled rather than left to Unrecognized
+	// because Critical is only consulted when the parse callback rejects a value,
+	// so an element with no case there can never fire it.
+	S1UENetworkCapability []byte // IEI 0x17
+
+	RequestedNSSAI          NSSAI           // IEI 0x2F
+	UplinkDataStatus        *PSIBitmap      // IEI 0x40
+	PDUSessionStatus        *PSIBitmap      // IEI 0x50
+	AllowedPDUSessionStatus *PSIBitmap      // IEI 0x25
+	RequestedDRXParameters  *DRXParameter   // IEI 0x51
+	NASMessageContainer     []byte          // IEI 0x71
+	MICOIndication          *MICOIndication // IEI 0xB0 (type 1)
+	UpdateType5GS           *UpdateType5GS  // IEI 0x53
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -106,6 +114,12 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiGMMCapability, raw)
+	}
+
+	// Table order (0x17 precedes 0x2E), so a decoded message re-encodes with its
+	// elements in the order TS 24.501 table 8.2.6.1.1 lists.
+	if m.S1UENetworkCapability != nil {
+		o.TLV(ieiS1UENetworkCapability, m.S1UENetworkCapability)
 	}
 
 	if m.UESecurityCapability != nil {
@@ -261,6 +275,15 @@ func ParseRegistrationRequest(b []byte) (*RegistrationRequest, error) {
 			}
 
 			out.UESecurityCapability = &parsed
+		case ieiS1UENetworkCapability:
+			// TS 24.301 §9.9.3.34 bounds the value at 2..13 octets. Length is all
+			// that can be checked without decoding, and decoding is what must not
+			// happen here — but it is enough to make Critical fire.
+			if len(value) < 2 || len(value) > 13 {
+				return false, fmt.Errorf("nas/fgs: S1 UE network capability is %d octets, want 2..13", len(value))
+			}
+
+			out.S1UENetworkCapability = value
 		case ieiRequestedNSSAI:
 			parsed, err := ParseNSSAI(value)
 			if err != nil {

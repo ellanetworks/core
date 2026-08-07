@@ -187,11 +187,12 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 
 	export := UeContextExport{
 		Identity: UEIdentityExport{
-			Supi:    ue.supi.String(),
-			Pei:     ue.Imei.IMEI(),
-			PlmnID:  plmn,
-			Tmsi:    tmsiExport(ue.Tmsi()),
-			OldTmsi: tmsiExport(ue.OldTmsi()),
+			Supi:   ue.supi.String(),
+			Pei:    ue.Imei.IMEI(),
+			PlmnID: plmn,
+			// Direct reads: already under ue.mu, which Tmsi()/OldTmsi() take again.
+			Tmsi:    tmsiExport(ue.tmsi),
+			OldTmsi: tmsiExport(ue.oldTmsi),
 		},
 		State: UEStateExport{
 			EMMState:                 ue.emmState.String(),
@@ -234,7 +235,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 			ENBUES1APID: uint32(conn.ENBUES1APID),
 		}
 
-		if s := m.radios[conn.conn]; s != nil {
+		if s := m.radios[conn.Conn()]; s != nil {
 			rc.RadioName = s.name
 			export.LastActivity.RadioNode = s.name
 		}

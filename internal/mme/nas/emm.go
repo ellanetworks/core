@@ -44,7 +44,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 	// that verifies against a held EPS security context adopts it before decode, so
 	// everything below runs on the right context.
 	if !ue.Secured() {
-		resolved, drop := resolveAttachContext(ctx, m, ue, pdu)
+		resolved, drop := resolveAttachContext(ctx, m, ue, conn, pdu)
 		if drop {
 			return nasreply.Silent(nasreply.ReasonUnspecified)
 		}
@@ -52,8 +52,16 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		ue = resolved
 	}
 
-	if conn := ue.Conn(); conn != nil && conn.Log != nil {
-		ctx = logger.Into(ctx, conn.Log)
+	// Snapshotted once: the handlers below make unlocked calls, and a concurrent
+	// detach nils ue.Conn() at any point. A nil dereference here panics the
+	// dispatch goroutine, which aborts the whole S1 association.
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		return nasreply.Silent(nasreply.ReasonNoContext)
+	}
+
+	if ueConn.Log != nil {
+		ctx = logger.Into(ctx, ueConn.Log)
 	}
 
 	pd, err := eps.PeekProtocolDiscriminator(pdu)
@@ -72,19 +80,19 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		return mme.DispositionForDecodeError(err)
 	}
 
-	return HandleEmmMessage(ctx, m, ue, result.Plain, result.IntegrityVerified)
+	return HandleEmmMessage(ctx, m, ue, ueConn, result.Plain, result.IntegrityVerified)
 }
 
 // HandleEmmMessage routes a plain NAS message to its procedure handler and reports the single
 // outcome the ingress finalizer applies.
-func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
+func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, plain []byte, integrityVerified bool) nasreply.Disposition {
 	msg, err := eps.ParseMessage(plain, nas.DirectionUplink)
 	if err != nil && !nas.SoftOnly(err) {
-		return rejectUndecodable(ctx, m, ue, plain, err)
+		return rejectUndecodable(ctx, m, ue, ueConn, plain, err)
 	}
 
 	if !decoded(ctx, messageName(msg), err) {
-		return rejectUndecodable(ctx, m, ue, plain, err)
+		return rejectUndecodable(ctx, m, ue, ueConn, plain, err)
 	}
 
 	ctx, span := mme.Tracer.Start(ctx, "pdu/receive",
@@ -93,29 +101,29 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain 
 
 	switch msg := msg.(type) {
 	case *eps.AttachRequest:
-		return handleAttachRequest(ctx, m, ue, msg, plain, integrityVerified)
+		return handleAttachRequest(ctx, m, ue, ueConn, msg, plain, integrityVerified)
 	case *eps.IdentityResponse:
-		return handleIdentityResponse(ctx, m, ue, msg)
+		return handleIdentityResponse(ctx, m, ue, ueConn, msg)
 	case *eps.AuthenticationResponse:
-		return handleAuthenticationResponse(ctx, m, ue, msg)
+		return handleAuthenticationResponse(ctx, m, ue, ueConn, msg)
 	case *eps.AuthenticationFailure:
-		return handleAuthenticationFailure(ctx, m, ue, msg)
+		return handleAuthenticationFailure(ctx, m, ue, ueConn, msg)
 	case *eps.SecurityModeComplete:
-		return handleSecurityModeComplete(ctx, m, ue, msg)
+		return handleSecurityModeComplete(ctx, m, ue, ueConn, msg)
 	case *eps.SecurityModeReject:
-		return handleSecurityModeReject(ctx, m, ue, msg)
+		return handleSecurityModeReject(ctx, m, ue, ueConn, msg)
 	case *eps.AttachComplete:
-		return handleAttachComplete(ctx, m, ue)
+		return handleAttachComplete(ctx, m, ue, ueConn)
 	case *eps.GUTIReallocationComplete:
-		return handleGUTIReallocationComplete(ctx, m, ue)
+		return handleGUTIReallocationComplete(ctx, m, ue, ueConn)
 	case *eps.DetachRequestUE:
-		return handleDetachRequest(ctx, m, ue, msg, integrityVerified)
+		return handleDetachRequest(ctx, m, ue, ueConn, msg, integrityVerified)
 	case *eps.DetachAccept:
-		return handleDetachAccept(ctx, m, ue)
+		return handleDetachAccept(ctx, m, ue, ueConn)
 	case *eps.TrackingAreaUpdateRequest:
-		return handleTrackingAreaUpdate(ctx, m, ue, msg, plain)
+		return handleTrackingAreaUpdate(ctx, m, ue, ueConn, msg, plain)
 	case *eps.TrackingAreaUpdateComplete:
-		return handleTrackingAreaUpdateComplete(ctx, m, ue)
+		return handleTrackingAreaUpdateComplete(ctx, m, ue, ueConn)
 	case *eps.EMMStatus:
 		return handleEMMStatus(msg)
 	case *eps.UnknownEMMMessage:
@@ -126,7 +134,7 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain 
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
 	default:
-		return handleESMMessage(ctx, m, ue, msg)
+		return handleESMMessage(ctx, m, ue, ueConn, msg)
 	}
 }
 
@@ -149,11 +157,11 @@ func messageName(msg eps.Message) string {
 // answer depends on the message: TS 24.301 §5.5.1.2.7 b) rejects a malformed
 // ATTACH REQUEST with EMM cause #96, and §7.5.1 answers anything else with an
 // EMM STATUS carrying the same cause.
-func rejectUndecodable(ctx context.Context, m *mme.MME, ue *mme.UeContext, plain []byte, err error) nasreply.Disposition {
+func rejectUndecodable(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, plain []byte, err error) nasreply.Disposition {
 	logger.From(ctx, logger.MmeLog).Warn("failed to decode NAS message", zap.Error(err))
 
 	if mt, perr := eps.PeekMessageType(plain); perr == nil && mt == eps.MsgAttachRequest {
-		rejectAttach(ctx, m, ue, eps.EMMCauseInvalidMandatoryInformation)
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseInvalidMandatoryInformation)
 
 		return nasreply.Handled()
 	}

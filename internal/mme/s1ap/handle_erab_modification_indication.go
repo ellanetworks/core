@@ -33,7 +33,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 	// resolveUE checks both identities and the sending eNB. The procedure has no
 	// failure message, so an unresolvable UE is reported with an Error
 	// Indication (TS 36.413 §10.3.5).
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
@@ -41,7 +41,7 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModificationIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(msg.MMEUES1APID, msg.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
-	captureUserLocation(ue, msg.UserLocationInformation)
+	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	if id, dup := duplicateModifiedERABID(msg); dup {
 		logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication repeats an E-RAB ID; releasing UE context",

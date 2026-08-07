@@ -12,7 +12,7 @@ import (
 
 // handleModifyBearerAccept commits the new bearer configuration once the UE accepts
 // the in-place modification (TS 24.301 §6.4.2.3).
-func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, accept *eps.ModifyEPSBearerContextAccept) nasreply.Disposition {
+func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, accept *eps.ModifyEPSBearerContextAccept) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if named := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity)); named != nil {
 		p = named
@@ -28,7 +28,7 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, accept *eps.ModifyE
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ue.Conn().Log.Info("EPS bearer modified in place", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+	ueConn.Log.Info("EPS bearer modified in place", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 
 	return nasreply.Handled()
 }

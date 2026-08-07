@@ -50,8 +50,9 @@ func HandoverBearers(ue *UeContext) ([]s1ap.ERABToBeSetupItemHOReq, bool) {
 	for _, p := range ue.Pdns {
 		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 		if err != nil {
+			// imsiOrEmpty, not IMSI(): ue.mu is held and is not reentrant.
 			logger.MmeLog.Error("failed to encode S-GW transport layer address for handover",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
+				zap.String("imsi", ue.imsiOrEmpty()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
 
 			continue
 		}
@@ -62,11 +63,7 @@ func HandoverBearers(ue *UeContext) ([]s1ap.ERABToBeSetupItemHOReq, bool) {
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
 			QoS: s1ap.ERABLevelQoSParameters{
 				QCI: s1ap.QCI(p.Qci),
-				ARP: s1ap.AllocationAndRetentionPriority{
-					PriorityLevel:           p.Arp,
-					PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
-					PreemptionVulnerability: s1ap.PreemptionNotPreemptable,
-				},
+				ARP: BearerARP(p.Arp),
 			},
 		})
 	}

@@ -58,8 +58,8 @@ func TestEstablishSessionStampsUplinkUEAddresses(t *testing.T) {
 	// PDRs arrive uplink-first, IPv6 downlink last — the order that makes a
 	// per-PDR (rather than pre-scan) population miss the IPv6 /64.
 	req := &models.EstablishRequest{
-		LocalSEID: 1,
-		IMSI:      "001010000000001",
+		SEID: 1,
+		IMSI: "001010000000001",
 		PDRs: []models.PDR{
 			{PDRID: 1, FARID: 1, QERID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
 			{PDRID: 2, FARID: 1, QERID: 1, PDI: models.PDI{UEIPAddress: ueV4}},

@@ -59,6 +59,7 @@ type fakeSmfSbi struct {
 	PduResRelRspCalls        []string
 	DeactivateSmContextCalls []string
 	N2HandoverCompleteCalls  []string
+	N2HandoverCanceledCalls  []string
 	N2HandoverCompleteErr    error
 	ReleaseSmContextCalls    []string
 }
@@ -146,6 +147,11 @@ func (f *fakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, _ stri
 func (f *fakeSmfSbi) UpdateSmContextN2HandoverComplete(_ context.Context, smContextRef string) error {
 	f.N2HandoverCompleteCalls = append(f.N2HandoverCompleteCalls, smContextRef)
 	return f.N2HandoverCompleteErr
+}
+
+func (f *fakeSmfSbi) UpdateSmContextN2HandoverCanceled(_ context.Context, smContextRef string) error {
+	f.N2HandoverCanceledCalls = append(f.N2HandoverCanceledCalls, smContextRef)
+	return nil
 }
 
 func (fdb *fakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {

@@ -5,6 +5,7 @@ package smf_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -74,9 +75,10 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	supi := testSUPI()
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
 
-	seid := s.AllocateLocalSEID()
+	seid := s.AllocateSEID()
 	smCtx.SetPFCPSession(seid)
-	smCtx.PFCPContext.RemoteSEID = 100
+	smCtx.PFCPContext.SEID = 100
+	smCtx.PFCPContext.Established = true
 
 	ulPdr := smf.NewPDR(1, 1)
 	dlPdr := smf.NewPDR(2, 2)
@@ -101,20 +103,15 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	dlPdr.QER = qer
 
 	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel: &smf.GTPTunnel{
-				PDR:    ulPdr,
-				TEID:   5000,
-				N3IPv4: netip.MustParseAddr("192.168.1.1"),
-			},
-			DownLinkTunnel: &smf.GTPTunnel{
-				PDR: dlPdr,
-			},
-			Activated: true,
-		},
+		UplinkPDR:   ulPdr,
+		DownlinkPDR: dlPdr,
+		QER:         qer,
+		N3TEID:      5000,
+		N3IPv4:      netip.MustParseAddr("192.168.1.1"),
+		Activated:   true,
 	}
-	smCtx.Tunnel.ANInformation.IPv4Address = net.ParseIP("10.0.0.100").To4()
-	smCtx.Tunnel.ANInformation.TEID = 6000
+	smCtx.Tunnel.AN.IPv4 = net.ParseIP("10.0.0.100").To4()
+	smCtx.Tunnel.AN.TEID = 6000
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 
 	smCtx.PolicyData = policy
@@ -143,7 +140,6 @@ func modificationSMPayload(t *testing.T, n1Msg []byte) []byte {
 }
 
 // ===========================
-// DataPath tests
 // ===========================
 
 func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
@@ -152,65 +148,29 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 	supi := testSUPI()
 
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
-	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel:   &smf.GTPTunnel{},
-			DownLinkTunnel: &smf.GTPTunnel{},
-		},
-	}
+	smCtx.Tunnel = &smf.UPTunnel{}
 
 	policy := &smf.Policy{
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
-	pduAddr := netip.MustParseAddr("10.0.0.1")
 
-	err := smCtx.Tunnel.DataPath.ActivateTunnelAndPDR(s, smCtx, policy, pduAddr)
-	if err != nil {
-		t.Fatalf("ActivateTunnelAndPDR failed: %v", err)
+	smCtx.Tunnel.Activate(policy, netip.MustParseAddr("10.0.0.1"), nil)
+
+	if !smCtx.Tunnel.Activated {
+		t.Fatal("expected the tunnel to be Activated")
 	}
 
-	if !smCtx.Tunnel.DataPath.Activated {
-		t.Fatal("expected DataPath to be Activated")
-	}
-
-	if smCtx.PFCPContext == nil {
-		t.Fatal("expected PFCPContext to be set")
-	}
-
-	if smCtx.Tunnel.DataPath.UpLinkTunnel.PDR == nil {
+	if smCtx.Tunnel.UplinkPDR == nil {
 		t.Fatal("expected UL PDR to be set")
 	}
 
-	if smCtx.Tunnel.DataPath.DownLinkTunnel.PDR == nil {
+	if smCtx.Tunnel.DownlinkPDR == nil {
 		t.Fatal("expected DL PDR to be set")
 	}
 
-	if !smCtx.Tunnel.DataPath.UpLinkTunnel.PDR.FAR.ApplyAction.Forw {
+	if !smCtx.Tunnel.UplinkPDR.FAR.ApplyAction.Forw {
 		t.Fatal("UL FAR should forward")
-	}
-}
-
-func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-
-	_, ref := setupSessionWithTunnel(t, s)
-	smCtx := s.GetSession(ref)
-
-	smCtx.Tunnel.DataPath.DeactivateTunnelAndPDR()
-
-	dp := smCtx.Tunnel.DataPath
-	if dp.Activated {
-		t.Fatal("expected DataPath to be deactivated")
-	}
-
-	if dp.UpLinkTunnel.PDR != nil || dp.DownLinkTunnel.PDR != nil {
-		t.Fatal("expected tunnel PDRs to be cleared")
-	}
-
-	if dp.SecondPDR != nil {
-		t.Fatal("expected SecondPDR to be cleared")
 	}
 }
 
@@ -236,62 +196,58 @@ func TestActivateTunnelAndPDR_FixedRuleIDs(t *testing.T) {
 			s := newTestSMF(pcf, store, upf, amfCb)
 
 			smCtx := s.NewSession(testSUPI(), smf.Access5G, 1, testDNN, testSnssai)
-			smCtx.Tunnel = &smf.UPTunnel{
-				DataPath: &smf.DataPath{
-					UpLinkTunnel:   &smf.GTPTunnel{},
-					DownLinkTunnel: &smf.GTPTunnel{},
-				},
-			}
+			smCtx.Tunnel = &smf.UPTunnel{}
+
+			var v6Prefix net.IP
 
 			if tc.dualStack {
 				smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1")
 				smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:1::")
+				v6Prefix = smCtx.PDUIPV6Prefix
 			}
 
-			if err := smCtx.Tunnel.DataPath.ActivateTunnelAndPDR(s, smCtx, policy, netip.MustParseAddr("10.0.0.1")); err != nil {
-				t.Fatalf("activate: %v", err)
-			}
+			smCtx.Tunnel.Activate(policy, netip.MustParseAddr("10.0.0.1"), v6Prefix)
 
-			dp := smCtx.Tunnel.DataPath
+			dp := smCtx.Tunnel
 
-			if got := dp.UpLinkTunnel.PDR.PDRID; got != 1 {
+			if got := dp.UplinkPDR.PDRID; got != 1 {
 				t.Errorf("uplink PDR ID = %d, want 1", got)
 			}
 
-			if got := dp.UpLinkTunnel.PDR.FAR.FARID; got != 1 {
+			if got := dp.UplinkPDR.FAR.FARID; got != 1 {
 				t.Errorf("uplink FAR ID = %d, want 1", got)
 			}
 
-			if got := dp.DownLinkTunnel.PDR.PDRID; got != 2 {
+			if got := dp.DownlinkPDR.PDRID; got != 2 {
 				t.Errorf("downlink PDR ID = %d, want 2", got)
 			}
 
-			if got := dp.DownLinkTunnel.PDR.FAR.FARID; got != 2 {
+			if got := dp.DownlinkPDR.FAR.FARID; got != 2 {
 				t.Errorf("downlink FAR ID = %d, want 2", got)
 			}
 
-			if got := dp.UpLinkTunnel.PDR.QER.QERID; got != 1 {
+			if got := dp.QER.QERID; got != 1 {
 				t.Errorf("QER ID = %d, want 1", got)
 			}
 
-			if got := dp.UpLinkTunnel.PDR.URR.URRID; got != 1 {
+			if got := dp.UplinkURR.URRID; got != 1 {
 				t.Errorf("uplink URR ID = %d, want 1", got)
 			}
 
-			if got := dp.DownLinkTunnel.PDR.URR.URRID; got != 2 {
+			if got := dp.DownlinkURR.URRID; got != 2 {
 				t.Errorf("downlink URR ID = %d, want 2", got)
 			}
 
 			if tc.dualStack {
-				if dp.SecondPDR == nil {
+				if dp.DownlinkPDRv6 == nil {
 					t.Fatal("expected second PDR for dual-stack session")
 				}
 
-				if got := dp.SecondPDR.PDRID; got != 3 {
+				if got := dp.DownlinkPDRv6.PDRID; got != 3 {
 					t.Errorf("second PDR ID = %d, want 3", got)
 				}
 
-				if dp.SecondPDR.FAR != dp.DownLinkTunnel.PDR.FAR {
+				if dp.DownlinkPDRv6.FAR != dp.DownlinkPDR.FAR {
 					t.Error("second PDR should share the downlink FAR")
 				}
 			}
@@ -363,7 +319,7 @@ func TestDeactivateSmContext_HappyPath(t *testing.T) {
 	}
 
 	smCtx := s.GetSession(ref)
-	dlFar := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	dlFar := smCtx.Tunnel.DownlinkPDR.FAR
 
 	if dlFar.ApplyAction.Forw {
 		t.Fatal("expected Forw to be false after deactivation")
@@ -809,9 +765,8 @@ func TestRemoveSession_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	bgCtx := context.Background()
 
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai) // PDUAddress is nil by default
-	ref := smCtx.Ref
 
-	s.RemoveSession(bgCtx, ref)
+	removeSession(s, bgCtx, smCtx)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -1223,8 +1178,8 @@ func TestHandleDownlinkDataReport(t *testing.T) {
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
 	err := s.HandleDownlinkDataReport(ctx, &models.DownlinkDataReport{
-		SEID:  smCtx.PFCPContext.LocalSEID,
-		PDRID: smCtx.Tunnel.DataPath.UpLinkTunnel.PDR.PDRID,
+		SEID:  smCtx.PFCPContext.SEID,
+		PDRID: smCtx.Tunnel.UplinkPDR.PDRID,
 		QFI:   smCtx.PolicyData.QosData.QFI,
 	})
 	if err != nil {
@@ -1881,7 +1836,7 @@ func TestHandleUsageReport(t *testing.T) {
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
 	err := s.HandleUsageReport(ctx, &models.UsageReport{
-		SEID:           smCtx.PFCPContext.LocalSEID,
+		SEID:           smCtx.PFCPContext.SEID,
 		UplinkVolume:   500,
 		DownlinkVolume: 300,
 	})
@@ -1922,7 +1877,7 @@ func TestHandleDownlinkDataReportEPS(t *testing.T) {
 
 	supi := testSUPI()
 	smCtx := s.NewSession(supi, smf.Access4G, 5, testDNN, testSnssai) // EPS session keyed by the default bearer EBI
-	seid := s.AllocateLocalSEID()
+	seid := s.AllocateSEID()
 	smCtx.SetPFCPSession(seid)
 
 	if err := s.HandleDownlinkDataReport(context.Background(), &models.DownlinkDataReport{SEID: seid}); err != nil {
@@ -2150,15 +2105,15 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
 	}
 
-	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(gnbIP) {
-		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
+	if !smCtx.Tunnel.AN.IPv4.Equal(gnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.AN.IPv4)
 	}
 
-	if smCtx.Tunnel.ANInformation.TEID != gnbTEID {
-		t.Fatalf("expected AN TEID %d, got %d", gnbTEID, smCtx.Tunnel.ANInformation.TEID)
+	if smCtx.Tunnel.AN.TEID != gnbTEID {
+		t.Fatalf("expected AN TEID %d, got %d", gnbTEID, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
@@ -2207,15 +2162,15 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatal("expected non-nil N2 response")
 	}
 
-	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(targetGnbIP) {
-		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
+	if !smCtx.Tunnel.AN.IPv4.Equal(targetGnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.AN.IPv4)
 	}
 
-	if smCtx.Tunnel.ANInformation.TEID != targetTEID {
-		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.ANInformation.TEID)
+	if smCtx.Tunnel.AN.TEID != targetTEID {
+		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
@@ -2285,15 +2240,15 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 	}
 
 	// Verify the session's ANInformation was updated to the target gNB.
-	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(targetGnbIP) {
-		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
+	if !smCtx.Tunnel.AN.IPv4.Equal(targetGnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.AN.IPv4)
 	}
 
-	if smCtx.Tunnel.ANInformation.TEID != targetTEID {
-		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.ANInformation.TEID)
+	if smCtx.Tunnel.AN.TEID != targetTEID {
+		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
@@ -2591,4 +2546,185 @@ func testTunnel(teid uint32, ip net.IP) libngap.UPTransportLayerInformation {
 		TransportLayerAddress: libngap.TransportLayerAddress(addr),
 		GTPTEID:               libngap.GTPTEID(teid),
 	}}
+}
+
+// The UPF still holds the session, its PDRs, its TEID and its UE-IP map entries;
+// dropping the SEID strands all of them, because nothing sweeps orphans.
+func TestDeactivateSmContext_TransientModifyFailureKeepsSEID(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	before := s.GetSession(ref).PFCPContext.SEID
+
+	upf.mu.Lock()
+	upf.err = errors.New("datapath write failed")
+	upf.mu.Unlock()
+
+	if err := s.DeactivateSmContext(context.Background(), ref); err == nil {
+		t.Fatal("expected DeactivateSmContext to report the modification failure")
+	}
+
+	smCtx := s.GetSession(ref)
+	if smCtx.PFCPContext == nil {
+		t.Fatal("the SEID was discarded, so the UPF session can no longer be deleted")
+	}
+
+	if smCtx.PFCPContext.SEID != before {
+		t.Fatalf("SEID = %d, want the unchanged %d", smCtx.PFCPContext.SEID, before)
+	}
+
+	if smCtx.Tunnel == nil {
+		t.Fatal("the tunnel was discarded along with the SEID")
+	}
+}
+
+// The converse: once the UPF reports it no longer holds the session, the stale
+// SEID must be cleared so a later Activate/Release does not reuse it.
+func TestDeactivateSmContext_SessionGoneClearsSEID(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	upf.mu.Lock()
+	upf.err = fmt.Errorf("%w: SEID 1", models.ErrSessionNotFound)
+	upf.mu.Unlock()
+
+	if err := s.DeactivateSmContext(context.Background(), ref); err == nil {
+		t.Fatal("expected DeactivateSmContext to report the failure")
+	}
+
+	smCtx := s.GetSession(ref)
+	if smCtx.PFCPContext != nil || smCtx.Tunnel != nil {
+		t.Fatal("expected the stale tunnel and SEID to be cleared")
+	}
+}
+
+// The target acknowledged, so the SMF bound its endpoint, but the UE never
+// moved. Without the source binding back, every later PFCP modification pushes a
+// downlink FAR aimed at a gNB the UE is not on.
+func TestUpdateSmContextN2HandoverCanceled_RestoresSourceTunnel(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	sourceIP := smCtx.Tunnel.AN.IPv4
+	sourceTEID := smCtx.Tunnel.AN.TEID
+
+	hoAckData, err := buildHandoverRequestAcknowledgeTransfer(8000, net.ParseIP("10.0.0.201").To4())
+	if err != nil {
+		t.Fatalf("build HandoverRequestAcknowledgeTransfer: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN2HandoverPrepared(ctx, ref, hoAckData); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverPrepared: %v", err)
+	}
+
+	if smCtx.Tunnel.AN.TEID != 8000 {
+		t.Fatalf("prepare did not bind the target: TEID = %d", smCtx.Tunnel.AN.TEID)
+	}
+
+	if err := s.UpdateSmContextN2HandoverCanceled(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverCanceled: %v", err)
+	}
+
+	if smCtx.Tunnel.AN.TEID != sourceTEID {
+		t.Fatalf("AN TEID = %d after cancel, want the source's %d", smCtx.Tunnel.AN.TEID, sourceTEID)
+	}
+
+	if !smCtx.Tunnel.AN.IPv4.Equal(sourceIP) {
+		t.Fatalf("AN IP = %s after cancel, want the source's %s", smCtx.Tunnel.AN.IPv4, sourceIP)
+	}
+
+	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
+	if ohc := dlFAR.ForwardingParameters.OuterHeaderCreation; ohc.TEID != sourceTEID || !ohc.IPv4Address.Equal(sourceIP) {
+		t.Fatalf("downlink FAR still aims at the target: TEID %d, IP %s", ohc.TEID, ohc.IPv4Address)
+	}
+
+	// Pushed, so a modification that landed while the target binding was in place
+	// does not leave the UPF forwarding there.
+	upf.mu.Lock()
+	modifyCalls := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
+	if modifyCalls != 1 {
+		t.Fatalf("expected the restored FAR to be pushed once, got %d PFCP modify calls", modifyCalls)
+	}
+
+	// Idempotent.
+	if err := s.UpdateSmContextN2HandoverCanceled(ctx, ref); err != nil {
+		t.Fatalf("second UpdateSmContextN2HandoverCanceled: %v", err)
+	}
+
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	if len(upf.modifyCalls) != 1 {
+		t.Fatalf("a repeat cancel pushed again: %d PFCP modify calls", len(upf.modifyCalls))
+	}
+}
+
+// A completed handover must leave nothing for a later cancel to restore: the UE
+// really is on the target, so putting the source back would black-hole it.
+func TestUpdateSmContextN2HandoverComplete_ClearsCancelSnapshot(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	targetIP := net.ParseIP("10.0.0.201").To4()
+
+	hoAckData, err := buildHandoverRequestAcknowledgeTransfer(8000, targetIP)
+	if err != nil {
+		t.Fatalf("build HandoverRequestAcknowledgeTransfer: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN2HandoverPrepared(ctx, ref, hoAckData); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverPrepared: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2HandoverComplete(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverComplete: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2HandoverCanceled(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverCanceled after complete: %v", err)
+	}
+
+	if smCtx.Tunnel.AN.TEID != 8000 || !smCtx.Tunnel.AN.IPv4.Equal(targetIP) {
+		t.Fatalf("a cancel after completion moved the UE off the target: TEID %d, IP %s",
+			smCtx.Tunnel.AN.TEID, smCtx.Tunnel.AN.IPv4)
+	}
+}
+
+// The SEID is allocated when the data path is built, before the UPF is told
+// anything, so it cannot itself mark establishment. A failed establish must
+// leave the next attempt on the Establish path rather than sending a
+// modification for a SEID the UPF has never seen.
+func TestSendPFCPRules_EstablishesOnceThenModifies(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	upf.err = errors.New("upf establish failed")
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	if _, err := s.CreateEPSSession(ctx, epsRequest(1)); err == nil {
+		t.Fatal("expected create to fail when the UPF establish fails")
+	}
+
+	upf.mu.Lock()
+	establishes, modifies := upf.lastEstablish != nil, len(upf.modifyCalls)
+	upf.mu.Unlock()
+
+	if !establishes {
+		t.Fatal("the first attempt did not take the Establish path")
+	}
+
+	if modifies != 0 {
+		t.Fatalf("a modification was sent for a session the UPF never accepted: %d calls", modifies)
+	}
 }

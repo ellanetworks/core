@@ -114,19 +114,26 @@ func TestWriterWriteOctetsRequiresAlignment(t *testing.T) {
 	}
 }
 
-func TestWriterBytesPanicsWhenUnaligned(t *testing.T) {
+// A complete PER encoding is octet-aligned, so Bytes() pads rather than refusing
+// a partial octet; Aligned() still reports the pre-Bytes state.
+func TestWriterBytesPadsWhenUnaligned(t *testing.T) {
 	t.Parallel()
 
 	w := NewWriter()
 	w.WriteBit(true)
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic")
-		}
-	}()
+	if w.Aligned() {
+		t.Fatal("writer reports aligned after a single bit")
+	}
 
-	_ = w.Bytes()
+	got := w.Bytes()
+	if want := []byte{0x80}; !bytes.Equal(got, want) {
+		t.Fatalf("got % x, want % x", got, want)
+	}
+
+	if !w.Aligned() {
+		t.Fatal("writer not aligned after Bytes()")
+	}
 }
 
 func TestWriterBitsAccurateAcrossMany(t *testing.T) {

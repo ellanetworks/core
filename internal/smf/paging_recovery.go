@@ -46,5 +46,5 @@ func (s *SMF) clearDownlinkDataNotification(ctx context.Context, smContext *SMCo
 		return
 	}
 
-	s.upf.ClearDownlinkDataNotification(ctx, pfcp.RemoteSEID)
+	s.upf.ClearDownlinkDataNotification(ctx, pfcp.SEID)
 }

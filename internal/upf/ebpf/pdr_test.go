@@ -66,3 +66,45 @@ func TestIPToIn6Addr_RoundTrip_IPv6(t *testing.T) {
 		t.Errorf("round-trip IPv6: got %v, want %v", got, original)
 	}
 }
+
+// The conversion fills the identifiers first and the FAR and QER after, so
+// returning early on the IMSI leaves a rule with FAR action 0 — one that forwards
+// nowhere, on a session that looks established.
+func TestToN3N6EntrypointPdrInfoRejectsBadIMSI(t *testing.T) {
+	for _, imsi := range []string{"", "not-a-number", "00110070001234x"} {
+		if _, err := ToN3N6EntrypointPdrInfo(PdrInfo{
+			SEID:  1,
+			PdrID: 2,
+			IMSI:  imsi,
+			Far:   FarInfo{Action: 2},
+			Qer:   QerInfo{Qfi: 9},
+		}); err == nil {
+			t.Errorf("IMSI %q: converted without error, want a rejection", imsi)
+		}
+	}
+}
+
+func TestToN3N6EntrypointPdrInfoCarriesFARAndQER(t *testing.T) {
+	got, err := ToN3N6EntrypointPdrInfo(PdrInfo{
+		SEID:  1,
+		PdrID: 2,
+		IMSI:  "001010000000001",
+		Far:   FarInfo{Action: 2, TeID: 0x1234},
+		Qer:   QerInfo{Qfi: 9, MaxBitrateUL: 1000},
+	})
+	if err != nil {
+		t.Fatalf("ToN3N6EntrypointPdrInfo: %v", err)
+	}
+
+	if got.Imsi != 1010000000001 {
+		t.Errorf("Imsi = %d, want 1010000000001", got.Imsi)
+	}
+
+	if got.Far.Action != 2 || got.Far.Teid != 0x1234 {
+		t.Errorf("FAR = %+v, want action 2 teid 0x1234", got.Far)
+	}
+
+	if got.Qer.Qfi != 9 || got.Qer.UlMaximumBitrate != 1000 {
+		t.Errorf("QER = %+v, want qfi 9 ul 1000", got.Qer)
+	}
+}

@@ -62,7 +62,8 @@ func PLMNToNGAP(plmn models.PlmnID) (ngap.PLMNIdentity, error) {
 	return out, nil
 }
 
-// SNSSAIToModels renders an S-NSSAI as the model form.
+// The SD is canonical (lowercase hex), as SnssaiToModels renders it for NAS, so
+// a slice resolves identically whichever protocol carried it.
 func SNSSAIToModels(s ngap.SNSSAI) models.Snssai {
 	out := models.Snssai{Sst: int32(s.SST)}
 	if s.SD != nil {

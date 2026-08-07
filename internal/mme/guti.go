@@ -34,20 +34,28 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	// Snapshotted, not re-read: this runs off the dispatch goroutine and the
+	// unlocked calls below let a concurrent release nil ue.Conn().
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.MmeLog).Warn("GUTI reallocation: UE released before the command could be sent")
+		return
+	}
+
 	wire, err := ue.ProtectDownlinkMessage(&eps.GUTIReallocationCommand{GUTI: guti})
 	if err != nil {
-		ReportProtectFailure(ctx, ue.Conn(), "GUTI Reallocation Command", err)
+		ReportProtectFailure(ctx, ueConn, "GUTI Reallocation Command", err)
 		return
 	}
 
 	// On T3450 exhaustion the reallocation is abort-only, not a UE release: the UE stays
 	// connected with both old and new GUTI valid, and a later Service Request re-initiates
 	// with the staged M-TMSI (TS 24.301 §5.4.1.6 a).
-	ue.Conn().ArmNASGuardAbortOnly("GUTI Reallocation Command", wire, func() {
+	ueConn.ArmNASGuardAbortOnly("GUTI Reallocation Command", wire, func() {
 		logger.From(ctx, logger.MmeLog).Warn("GUTI reallocation aborted: no GUTI Reallocation Complete after T3450 retransmissions",
 			zap.String("imsi", ue.IMSI()))
 	})
-	ue.Conn().SendDownlinkNASTransport(ctx, wire)
+	ueConn.SendDownlinkNASTransport(ctx, wire)
 }
 
 // releaseMTMSIsLocked unindexes and frees both the UE's current M-TMSI and any
@@ -86,8 +94,13 @@ func (m *MME) ReallocateGUTI(ctx context.Context, ue *UeContext, plmn models.Plm
 			return eps.EPSMobileIdentity{}, fmt.Errorf("allocate M-TMSI: %w", err)
 		}
 
+		// Also read through Tmsi()/OldTmsi() by callers holding no registry lock,
+		// so writes take ue.mu too. Order m.mu → ue.mu.
+		ue.mu.Lock()
 		ue.oldTmsi = ue.tmsi
 		ue.tmsi = tmsi
+		ue.mu.Unlock()
+
 		m.uesByTmsi[ue.tmsi] = ue
 	}
 
@@ -110,7 +123,9 @@ func (m *MME) CommitGUTIRealloc(ue *UeContext) {
 		m.freeMTMSILocked(ue.oldTmsi)
 	}
 
+	ue.mu.Lock()
 	ue.oldTmsi = etsi.InvalidTMSI
+	ue.mu.Unlock()
 }
 
 // tmsiOctets is the allocator's TMSI in the four octets a GUTI carries.

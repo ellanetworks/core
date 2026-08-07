@@ -225,7 +225,13 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := fgs.GMMCauseProtocolErrorUnspecified
 						errCause = append(errCause, uint8(cause))
-					} else if ueConn.UeContextRequest {
+
+						continue
+					}
+
+					ue.SetSmContextActive(pduSessionID)
+
+					if ueConn.UeContextRequest {
 						item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 						if err != nil {
 							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
@@ -303,6 +309,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 						return
 					}
 				}
+
+				ue.SetSmContextActive(requestData.PduSessionID)
 
 				if ueConn.UeContextRequest {
 					item, err := amf.PDUSessionSetupItem(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)

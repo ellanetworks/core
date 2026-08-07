@@ -23,20 +23,20 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	ue, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
-	captureUserLocation(ue, msg.UserLocationInformation)
+	captureUserLocation(ueConn, msg.UserLocationInformation)
 
 	for _, erab := range msg.ERABSetup {
 		p := m.LookupPDN(ue, uint8(erab.ERABID))
 		if p == nil {
-			ue.Conn().Log.Warn("E-RAB Setup Response for an unknown E-RAB",
+			ueConn.Log.Warn("E-RAB Setup Response for an unknown E-RAB",
 				zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 
 			continue
@@ -44,7 +44,7 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 		enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
-			ue.Conn().Log.Warn("E-RAB Setup Response with an invalid eNB transport address",
+			ueConn.Log.Warn("E-RAB Setup Response with an invalid eNB transport address",
 				zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 
 			continue

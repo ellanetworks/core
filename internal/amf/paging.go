@@ -52,9 +52,6 @@ func (amf *AMF) pageRadios(ctx context.Context, ue *UeContext, ngapBuf []byte) {
 	}
 }
 
-// StopAllTimers stops every timer on every UE, so no timer-driven activity fires while
-// the system is tearing down.
-
 // armPaging starts the paging-supervision guard for a UE just paged: retransmit Paging on
 // each interval up to a bound, then abandon (T3513, TS 24.501 §5.6.2). Check-and-arm under
 // the UE lock so a second downlink trigger cannot reset an in-flight supervision. No-op when

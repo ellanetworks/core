@@ -40,12 +40,12 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUEContextReleaseRequest, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -64,10 +64,10 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 			icsReceived = p.EnbFTEID.TEID != 0
 		}
 
-		logger.From(ctx, ue.Conn().Log).Warn("UE Context Release Request aborted an in-progress attach",
+		logger.From(ctx, ueConn.Log).Warn("UE Context Release Request aborted an in-progress attach",
 			append(fields, zap.Bool("ics-response-received", icsReceived))...)
 	} else {
-		logger.From(ctx, ue.Conn().Log).Info("UE Context Release Request", fields...)
+		logger.From(ctx, ueConn.Log).Info("UE Context Release Request", fields...)
 	}
 
 	m.ReleaseUEContext(ctx, ue, cause)

@@ -80,7 +80,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	ue.PinKeNBFreshness()
 
 	logger.From(ctx, logger.MmeLog).Info("Service Request accepted",
-		zap.Uint32("enb-ue-id", uint32(ue.Conn().ENBUES1APID)),
+		zap.Uint32("enb-ue-id", uint32(c.ENBUES1APID)),
 		zap.String("imsi", ue.IMSI()))
 
 	qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
@@ -89,7 +89,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	sendInitialContextSetup(ctx, m, ue, qos, nil)
+	sendInitialContextSetup(ctx, m, ue, c, qos, nil)
 
 	// The SERVICE REQUEST carries no accept message to convey a fresh GUTI, so reassign
 	// one with the standalone reallocation procedure — identity confidentiality on return

@@ -33,6 +33,9 @@ type Tunnel struct {
 	qfi     uint8
 }
 
+// defaultTunMTU leaves room for GTP-U overhead, matching the 4G harness.
+const defaultTunMTU = 1400
+
 type NewTunnelOpts struct {
 	UEIP             string
 	UEIPV6           string
@@ -40,7 +43,7 @@ type NewTunnelOpts struct {
 	TunInterfaceName string
 	ULteid           uint32
 	DLteid           uint32
-	MTU              uint16
+	MTU              uint16 // 0 selects defaultTunMTU
 	QFI              uint8
 	// ExtraAddrs are extra CIDRs on the TUN, e.g. a framed-route host behind the UE.
 	ExtraAddrs []string
@@ -73,7 +76,15 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 	// Wait for the kernel to auto-generate the link-local address before removing it.
 	time.Sleep(20 * time.Millisecond)
 
-	err = netlink.LinkSetMTU(eth, int(opts.MTU))
+	// An IPv6-only session carries no MTU here: the PCO container is "IPv4 Link
+	// MTU" and TS 24.008 §10.5.6.3 defines no IPv6 counterpart, so the link MTU
+	// arrives in the Router Advertisement instead. Same default as the 4G harness.
+	mtu := int(opts.MTU)
+	if mtu == 0 {
+		mtu = defaultTunMTU
+	}
+
+	err = netlink.LinkSetMTU(eth, mtu)
 	if err != nil {
 		return nil, fmt.Errorf("could not set MTU on TUN interface: %v", err)
 	}

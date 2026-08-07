@@ -12,7 +12,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, rej *eps.SecurityModeReject) nasreply.Disposition {
+func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, rej *eps.SecurityModeReject) nasreply.Disposition {
 	// A SECURITY MODE REJECT is valid only during the security mode sub-phase; an
 	// out-of-order one (admissible without integrity, TS 24.301 §4.4.4.3) must not
 	// release the UE.
@@ -22,7 +22,7 @@ func handleSecurityModeReject(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ue.Conn().StopNASGuard()
+	ueConn.StopNASGuard()
 
 	cause := rej.Cause
 

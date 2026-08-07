@@ -252,3 +252,67 @@ func TestBuildPDUSessionResourceSetupRequestTransferRejectsARPZero(t *testing.T)
 		t.Errorf("err = %v, want it to name the offending field", err)
 	}
 }
+
+// A policy has an ARP priority column and no pre-emption columns, so the
+// unprovisioned pair is the only one an operator's configuration can produce,
+// and it must match what the 4G paths encode (mme.BearerARP).
+func TestQosFlowARPPreemptionDefaults(t *testing.T) {
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
+
+	for _, tc := range []struct {
+		name     string
+		arp      *models.Arp
+		wantCap  libngap.PreemptionCapability
+		wantVuln libngap.PreemptionVulnerability
+	}{
+		{
+			"unprovisioned",
+			&models.Arp{PriorityLevel: 5},
+			libngap.PreemptionShallNotTrigger, libngap.PreemptionNotPreemptable,
+		},
+		{
+			"explicitly may-preempt",
+			&models.Arp{PriorityLevel: 5, PreemptCap: models.PreemptionCapabilityMayPreempt},
+			libngap.PreemptionMayTrigger, libngap.PreemptionNotPreemptable,
+		},
+		{
+			"explicitly preemptable",
+			&models.Arp{PriorityLevel: 5, PreemptVuln: models.PreemptionVulnerabilityPreemptable},
+			libngap.PreemptionShallNotTrigger, libngap.PreemptionPreemptable,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: tc.arp}
+
+			buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(
+				ambr, qos, 42, netip.MustParseAddr("10.3.0.2"), netip.Addr{}, libngap.PDUSessionTypeIPv4)
+			if err != nil {
+				t.Fatalf("build: %v", err)
+			}
+
+			transfer, err := libngap.ParsePDUSessionResourceSetupRequestTransfer(buf)
+			if err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+
+			flows := transfer.QosFlowSetupRequest
+			if len(flows) != 1 {
+				t.Fatalf("got %d QoS flows, want 1", len(flows))
+			}
+
+			arp := flows[0].QosFlowLevelQosParameters.AllocationAndRetentionPriority
+
+			if arp.PriorityLevelARP != 5 {
+				t.Errorf("priority = %d, want 5", arp.PriorityLevelARP)
+			}
+
+			if arp.PreemptionCapability != tc.wantCap {
+				t.Errorf("pre-emption capability = %v, want %v", arp.PreemptionCapability, tc.wantCap)
+			}
+
+			if arp.PreemptionVulnerability != tc.wantVuln {
+				t.Errorf("pre-emption vulnerability = %v, want %v", arp.PreemptionVulnerability, tc.wantVuln)
+			}
+		})
+	}
+}

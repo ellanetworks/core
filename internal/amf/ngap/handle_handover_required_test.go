@@ -140,14 +140,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 			},
 		},
 	}
-	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel: &smf.GTPTunnel{
-				TEID:   1234,
-				N3IPv4: netip.MustParseAddr("10.0.0.1"),
-			},
-		},
-	}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
@@ -364,11 +357,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
 	}
-	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel: &smf.GTPTunnel{TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")},
-		},
-	}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
@@ -389,7 +378,8 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		Conn: &fakeNGAPSender{},
 	}
 
-	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
+	smfSbi := &fakeSmfSbi{SMF: smfInstance}
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, smfSbi)
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
@@ -428,6 +418,13 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 	if amfUe.Procedures().Active(procedure.N2Handover) {
 		t.Fatal("N2Handover procedure still active after guard expiry")
 	}
+
+	// The guard abandons the handover without answering any gNB, so nothing else
+	// would restore the downlink FAR that HANDOVER REQUEST ACKNOWLEDGE re-pointed.
+	wantRef := smf.CanonicalName(supi, smf.Access5G, pduSessionID)
+	if got := smfSbi.N2HandoverCanceledCalls; len(got) != 1 || got[0] != wantRef {
+		t.Fatalf("source access tunnel not restored on guard expiry: N2HandoverCanceled calls = %v, want [%s]", got, wantRef)
+	}
 }
 
 // TestHandoverRequired_SourceDropReleasesTarget verifies that dropping the source
@@ -452,7 +449,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
 	}
-	smCtx.Tunnel = &smf.UPTunnel{DataPath: &smf.DataPath{UpLinkTunnel: &smf.GTPTunnel{TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}}}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
@@ -466,7 +463,8 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smf.CanonicalName(supi, smf.Access5G, pduSessionID), Snssai: &models.Snssai{Sst: 1}}
 
 	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
-	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
+	smfSbi := &fakeSmfSbi{SMF: smfInstance}
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, smfSbi)
 	sourceRan.BindAMFForTest(amfInstance)
 
 	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
@@ -506,6 +504,11 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 
 	if amfInstance.HandoverInProgress(amfUe) {
 		t.Fatal("handover FSM not cleared after source association removal")
+	}
+
+	wantRef := smf.CanonicalName(supi, smf.Access5G, pduSessionID)
+	if got := smfSbi.N2HandoverCanceledCalls; len(got) != 1 || got[0] != wantRef {
+		t.Fatalf("source access tunnel not restored on source association removal: N2HandoverCanceled calls = %v, want [%s]", got, wantRef)
 	}
 }
 
@@ -569,5 +572,85 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 				t.Errorf("sent %d HandoverCommands, want 0", len(sourceNGAPSender.SentHandoverCommands))
 			}
 		})
+	}
+}
+
+// A target UeConn is staged for one handover and carries a back-pointer to the
+// UE. If an abandoned handover leaves it bound, releasing that target takes the
+// "connection still carries a UE" arm of ReleaseUeConn and deactivates every PDU
+// session of a UE that never left the source — undoing the tunnel restore the
+// abandonment just performed.
+func TestHandoverRequired_AbandonedTargetReleaseKeepsSessionsActive(t *testing.T) {
+	const (
+		pduSessionID = uint8(1)
+		supiStr      = "imsi-001010000000001"
+		dnn          = "internet"
+		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
+
+	msg := handoverRequired(t, 1, pduSessionID)
+
+	smfInstance := smf.New(nil, nil, nil, nil)
+
+	smCtx := smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
+	smCtx.PolicyData = &smf.Policy{
+		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
+		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
+	}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
+
+	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
+	amfUe.SetSecuredForTest(true)
+	amfUe.SetNgKsiForTest(models.NgKsi{Ksi: 1})
+	amfUe.SetKamfForTest(kamfHex)
+	amfUe.SetNHForTest(make([]byte, 32))
+	amfUe.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+	amfUe.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{Ref: smf.CanonicalName(supi, smf.Access5G, pduSessionID), Snssai: &models.Snssai{Sst: 1}}
+
+	// The bulk deactivation in ReleaseUeConn is gated on the UE being Registered.
+	amfUe.TransitionTo(amf.RegistrationInitiated)
+	amfUe.TransitionTo(amf.Registered)
+
+	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: &fakeNGAPSender{}}
+	smfSbi := &fakeSmfSbi{SMF: smfInstance}
+	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, smfSbi)
+	sourceRan.BindAMFForTest(amfInstance)
+
+	sourceUe := amf.NewUeConnForTest(sourceRan, 1, 1, logger.AmfLog)
+	sourceUe.AMFForTest().AttachUeConn(amfUe, sourceUe)
+
+	targetRan := &amf.Radio{
+		Log:        logger.AmfLog,
+		Conn:       &fakeNGAPSender{},
+		RanPresent: amf.RanPresentGNbID,
+		RanID:      &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: handoverTargetGnbID, BitLength: 24}},
+	}
+	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg)
+
+	targetUe := amfInstance.HandoverTarget(amfUe)
+	if targetUe == nil {
+		t.Fatal("no target UeConn staged by handover preparation")
+	}
+
+	// Abandon the handover by dropping the source association.
+	if err := amfInstance.RemoveUeConn(context.Background(), sourceUe); err != nil {
+		t.Fatalf("RemoveUeConn(source) error: %v", err)
+	}
+
+	if got := targetUe.UeContext(); got != nil {
+		t.Error("abandoned target still bound to the UE context")
+	}
+
+	// The target answers the release command; this is what would deactivate.
+	amfInstance.ReleaseUeConn(context.Background(), targetUe)
+
+	if got := smfSbi.DeactivateSmContextCalls; len(got) != 0 {
+		t.Fatalf("releasing an abandoned handover target deactivated the UE's sessions: DeactivateSmContext calls = %v, want none", got)
 	}
 }

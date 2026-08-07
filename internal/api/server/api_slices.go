@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type CreateSliceParams struct {
@@ -158,16 +159,18 @@ func CreateSlice(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// A UE always signals the full three octets, so the operator's spelling
+		// stored verbatim would never match at policy lookup.
+		var sdPtr *string
+
 		if params.Sd != "" {
 			if _, err := ParseSDString(params.Sd); err != nil {
 				writeError(r.Context(), w, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit hex string", nil, logger.APILog)
 				return
 			}
-		}
 
-		var sdPtr *string
-		if params.Sd != "" {
-			sdPtr = &params.Sd
+			sd := models.NormalizeSD(params.Sd)
+			sdPtr = &sd
 		}
 
 		slice := &db.NetworkSlice{
@@ -219,11 +222,16 @@ func UpdateSlice(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		var sdPtr *string
+
 		if params.Sd != "" {
 			if _, err := ParseSDString(params.Sd); err != nil {
 				writeError(r.Context(), w, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit hex string", nil, logger.APILog)
 				return
 			}
+
+			sd := models.NormalizeSD(params.Sd)
+			sdPtr = &sd
 		}
 
 		if _, err := dbInstance.GetNetworkSlice(r.Context(), name); err != nil {
@@ -235,11 +243,6 @@ func UpdateSlice(dbInstance *db.Database) http.Handler {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve slice", err, logger.APILog)
 
 			return
-		}
-
-		var sdPtr *string
-		if params.Sd != "" {
-			sdPtr = &params.Sd
 		}
 
 		slice := &db.NetworkSlice{

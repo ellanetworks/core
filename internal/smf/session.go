@@ -24,7 +24,6 @@ var (
 	errUEAddressAllocation = errors.New("UE address allocation failed")
 	errFramedRouteResolve  = errors.New("framed route resolution failed")
 	errStaticIPResolve     = errors.New("static IP resolution failed")
-	errDataPathActivation  = errors.New("data path activation failed")
 	errUPFSession          = errors.New("UPF session establishment failed")
 )
 
@@ -118,16 +117,18 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		}
 	}
 
-	sc.Tunnel = &UPTunnel{DataPath: &DataPath{UpLinkTunnel: &GTPTunnel{}, DownLinkTunnel: &GTPTunnel{}}}
-
-	if err := sc.Tunnel.DataPath.ActivateTunnelAndPDR(s, sc, req.Policy, dlPdrIP); err != nil {
-		sc.Mutex.Unlock()
-		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errDataPathActivation, err)
+	var v6Prefix net.IP
+	if sc.PDUIPV4Address != nil && sc.PDUIPV6Prefix != nil {
+		v6Prefix = sc.PDUIPV6Prefix
 	}
 
-	sc.Mutex.Unlock() // sendPFCPRules re-acquires it
+	sc.Tunnel = &UPTunnel{}
+	sc.SetPFCPSession(s.AllocateSEID())
+	sc.Tunnel.Activate(req.Policy, dlPdrIP, v6Prefix)
 
-	if err := s.sendPFCPRules(ctx, sc); err != nil {
+	sc.Mutex.Unlock() // establishPFCPSession re-acquires it
+
+	if err := s.establishPFCPSession(ctx, sc); err != nil {
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUPFSession, err)
 	}
 
@@ -192,20 +193,21 @@ type AnchorBinding struct {
 
 // bindAccessTunnel points the downlink FAR at the AN tunnel endpoint and aligns
 // the uplink OuterHeaderRemoval to its IP family, marking the downlink S1U flag by
-// access (4G S1-U vs 5G N3 PSC; TS 29.281). The endpoint is always recorded in
-// ANInformation; the FAR is updated only once the data path is activated. Caller
-// holds sc.Mutex and marks rule State.
+// access (4G S1-U vs 5G N3 PSC; TS 29.281). The endpoint is always recorded on
+// the tunnel; the FAR is updated only once the rules exist. Caller holds sc.Mutex.
 func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
-	sc.Tunnel.ANInformation.TEID = an.TEID
-	sc.Tunnel.ANInformation.IPv4Address = an.IPv4
-	sc.Tunnel.ANInformation.IPv6Address = an.IPv6
-
-	if !sc.Tunnel.DataPath.Activated {
+	if sc.Tunnel == nil {
 		return
 	}
 
-	dl := sc.Tunnel.DataPath.DownLinkTunnel.PDR
-	ul := sc.Tunnel.DataPath.UpLinkTunnel.PDR
+	sc.Tunnel.AN = an
+
+	if !sc.Tunnel.Activated {
+		return
+	}
+
+	dl := sc.Tunnel.DownlinkPDR
+	ul := sc.Tunnel.UplinkPDR
 
 	if dl.FAR.ForwardingParameters == nil {
 		dl.FAR.ForwardingParameters = &models.ForwardingParameters{}
@@ -234,7 +236,7 @@ func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
 	}
 }
 
-func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
+func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) error {
 	ctx, span := tracer.Start(ctx, "smf/send_pfcp_rules",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -243,53 +245,10 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	dataPath := smContext.Tunnel.DataPath
-	if !dataPath.Activated {
-		logger.WithTrace(ctx, logger.SmfLog).Debug("DataPath is not activated, skip sending PFCP rules")
+	tunnel := smContext.Tunnel
+	if !tunnel.Activated {
+		logger.WithTrace(ctx, logger.SmfLog).Debug("data path is not activated, skip sending PFCP rules")
 		return nil
-	}
-
-	pdrList := make([]*PDR, 0, 3)
-	farList := make([]*FAR, 0, 2)
-	qerList := make([]*QER, 0, 2)
-	urrList := make([]*URR, 0, 2)
-
-	if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, dataPath.UpLinkTunnel.PDR)
-		farList = append(farList, dataPath.UpLinkTunnel.PDR.FAR)
-
-		if dataPath.UpLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, dataPath.UpLinkTunnel.PDR.QER)
-		}
-
-		if dataPath.UpLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, dataPath.UpLinkTunnel.PDR.URR)
-		}
-	}
-
-	if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, dataPath.DownLinkTunnel.PDR)
-		farList = append(farList, dataPath.DownLinkTunnel.PDR.FAR)
-
-		if dataPath.DownLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, dataPath.DownLinkTunnel.PDR.QER)
-		}
-
-		if dataPath.DownLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, dataPath.DownLinkTunnel.PDR.URR)
-		}
-	}
-
-	if dataPath.SecondPDR != nil {
-		pdrList = append(pdrList, dataPath.SecondPDR)
-
-		if dataPath.SecondPDR.QER != nil {
-			qerList = append(qerList, dataPath.SecondPDR.QER)
-		}
-
-		if dataPath.SecondPDR.URR != nil {
-			urrList = append(urrList, dataPath.SecondPDR.URR)
-		}
 	}
 
 	if smContext.PFCPContext == nil {
@@ -304,59 +263,30 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		policyID = smContext.PolicyData.PolicyID
 	}
 
-	if smContext.PFCPContext.RemoteSEID == 0 {
-		req := BuildEstablishRequest(
-			smContext.PFCPContext.LocalSEID,
-			smContext.Supi.IMSI(),
-			policyID,
-			pdrList, farList, qerList, urrList,
-		)
-		req.FramedRoutes = smContext.FramedRoutes
-
-		resp, err := s.upf.EstablishSession(ctx, req)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to establish PFCP session")
-
-			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
-		}
-
-		smContext.PFCPContext.RemoteSEID = resp.RemoteSEID
-
-		for _, cp := range resp.CreatedPDRs {
-			if cp.TEID != 0 {
-				smContext.Tunnel.DataPath.UpLinkTunnel.TEID = cp.TEID
-				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4 = cp.N3IPv4
-				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6 = cp.N3IPv6
-
-				break
-			}
-		}
-
-		if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-			dataPath.DownLinkTunnel.PDR.State = RuleCreate
-		}
-
-		if dataPath.SecondPDR != nil {
-			dataPath.SecondPDR.State = RuleCreate
-		}
-
-		return nil
+	if smContext.PFCPContext.Established {
+		return fmt.Errorf("PFCP session already established")
 	}
 
-	err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
+	req := BuildEstablishRequest(
+		smContext.PFCPContext.SEID,
+		smContext.Supi.IMSI(),
 		policyID,
-		pdrList, farList, qerList,
-	))
+		tunnel.PDRs(), tunnel.FARs(), tunnel.QERs(), tunnel.URRs(),
+	)
+	req.FramedRoutes = smContext.FramedRoutes
+
+	resp, err := s.upf.EstablishSession(ctx, req)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to modify PFCP session")
+		span.SetStatus(codes.Error, "failed to establish PFCP session")
 
-		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request to upf")
+	// Before this the UPF has never heard of the SEID.
+	smContext.PFCPContext.Established = true
+
+	tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6 = resp.N3TEID, resp.N3IPv4, resp.N3IPv6
 
 	return nil
 }

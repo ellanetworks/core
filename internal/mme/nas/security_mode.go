@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
+func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
 	// TS 33.501 §6.9.5.1 / TS 33.401 §7.2.8: the security mode procedure re-keys the
 	// AS context, so it must not run concurrently with an S1 handover or Path Switch
 	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer.
@@ -46,7 +46,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
 			zap.Stringer("ue-network-capability", ue.UeNetCap()))
-		rejectAttach(ctx, m, ue, eps.EMMCauseUESecurityCapabilitiesMismatch)
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseUESecurityCapabilitiesMismatch)
 
 		return
 	}
@@ -75,7 +75,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 
 	wire, err := ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedNewContext)
 	if err != nil {
-		mme.ReportProtectFailure(ctx, ue.Conn(), "Security Mode Command", err)
+		mme.ReportProtectFailure(ctx, ueConn, "Security Mode Command", err)
 		return
 	}
 
@@ -85,7 +85,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		zap.Any("ms-network-capability", ue.MsNetCap()),
 		zap.Stringer("replayed-ue-security-capability", smc.ReplayedUESecurityCapability))
 	ue.AdvanceRegStep(mme.RegStepSecurityMode)
-	ue.Conn().SendGuardedDownlink(ctx, "Security Mode Command", wire)
+	ueConn.SendGuardedDownlink(ctx, "Security Mode Command", wire)
 
 	committed = true
 }

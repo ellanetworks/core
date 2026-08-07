@@ -849,3 +849,35 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 		t.Fatalf("AllowedNSSAI = %+v, want %+v", regAccept.AllowedNSSAI, want)
 	}
 }
+
+// The fresh K_gNB and the {NH, NCC} anchored on it are one derivation
+// (TS 33.501 §6.9.2.1.1). Anchoring the chain on the replaced key hands every
+// later handover an {NH, NCC} the UE cannot reproduce (§6.9.2.3.4).
+func TestMobilityReg_ReanchorsASKeyChain(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	ue.SetKamfForTest("0f0e0d0c0b0a09080706050403020100f0e0d0c0b0a090807060504030201000")
+
+	stale := make([]uint8, 32)
+	for i := range stale {
+		stale[i] = 0xAA
+	}
+
+	ue.SetNHForTest(stale)
+	ue.SetNCCForTest(5)
+	ue.SetKgnbForTest(nil)
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ue.KgnbForTest()) == 0 {
+		t.Fatal("no K_gNB derived; the update did not re-key at all")
+	}
+
+	if nh := ue.NHForTest(); nh == [32]uint8(stale) {
+		t.Error("NH still anchored on the previous K_gNB: it must be re-derived from the fresh one")
+	}
+
+	if ncc := ue.NCCForTest(); ncc != 1 {
+		t.Errorf("NCC = %d, want 1: a fresh K_gNB starts a fresh chain", ncc)
+	}
+}

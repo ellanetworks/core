@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
@@ -94,16 +95,16 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
 		var dnsServers [][]byte
 
-		if pco.DNSIPv4Request {
-			dnsServers = append(dnsServers, dns.To4())
+		if pco.DNSIPv4Request || pco.DNSIPv6Request {
+			addr, _ := netip.AddrFromSlice(dns)
+			dnsServers = nas.DNSServers(addr)
 		}
 
-		if pco.DNSIPv6Request {
-			dnsServers = append(dnsServers, dns.To16())
-		}
-
+		// No meaning on a session with no IPv4, matching the PDN-type guard both
+		// EPS builders apply. The IPv6 link MTU rides the RA instead (TS 24.501).
 		var linkMTU uint16
-		if pco.IPv4LinkMTURequest {
+		if pco.IPv4LinkMTURequest &&
+			(pduSessionType == fgs.PDUSessionTypeIPv4 || pduSessionType == fgs.PDUSessionTypeIPv4v6) {
 			linkMTU = mtu
 		}
 

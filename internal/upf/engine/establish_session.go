@@ -32,13 +32,13 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("models.operation", "establish"),
-			attribute.Int64("models.seid", int64(req.LocalSEID)),
+			attribute.Int64("models.seid", int64(req.SEID)),
 			attribute.String("ue.imsi", req.IMSI),
 		),
 	)
 	defer span.End()
 
-	seid := req.LocalSEID
+	seid := req.SEID
 
 	// Defensive: a re-establish over a live SEID would orphan the old session's
 	// datapath state. Not normally reached (SMF allocates a fresh SEID per session).
@@ -50,6 +50,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}
 
 	sess := NewSession(seid)
+	sess.SetIMSI(req.IMSI)
 	span.AddEvent("session_created", trace.WithAttributes(attribute.Int64("models.seid", int64(seid))))
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
@@ -104,7 +105,9 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	// Hold filterMu across resolve → apply → register (below) so the filter slot
 	// can't be released and reassigned to another policy before this session is
-	// visible to propagateFilterIndex.
+	// visible to propagateFilterIndex. UpdateFilters holds filterMu for writing
+	// across its own propagation, so it either waits for this session to be
+	// registered or completes before this resolves the index.
 	if req.PolicyID != "" {
 		conn.filterMu.RLock()
 		defer conn.filterMu.RUnlock()
@@ -176,7 +179,8 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			logger.PDRID(spdrInfo.PdrID))
 
 		createdPDRs = append(createdPDRs, spdrInfo)
-		bpfObjects.ClearNotified(seid, pdr.PDRID, spdrInfo.PdrInfo.Qer.Qfi)
+
+		bpfObjects.ClearNotified(seid, pdr.PDRID)
 	}
 
 	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("count", len(createdPDRs))))
@@ -233,8 +237,9 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Accepted Session Establishment Request")
 
 	return &models.EstablishResponse{
-		RemoteSEID:  seid,
-		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.GetAdvertisedN3Address(), conn.GetAdvertisedN3AddressIPv6()),
+		N3TEID: uplinkTEID(createdPDRs),
+		N3IPv4: conn.GetAdvertisedN3Address(),
+		N3IPv6: conn.GetAdvertisedN3AddressIPv6(),
 	}, nil
 }
 
@@ -332,30 +337,16 @@ func qerInfoFromModel(qer models.QER) ebpf.QerInfo {
 	return info
 }
 
-// createdPDRsToResponse converts internal SPDRInfo to models.CreatedPDR.
-func createdPDRsToResponse(createdPDRs []SPDRInfo, n3IPv4 netip.Addr, n3IPv6 netip.Addr) []models.CreatedPDR {
-	var result []models.CreatedPDR
-
+// A session has exactly one uplink PDR that asks for an F-TEID; 0 means none
+// was requested.
+func uplinkTEID(createdPDRs []SPDRInfo) uint32 {
 	for _, pdr := range createdPDRs {
-		if !pdr.Allocated {
-			continue
+		if pdr.Allocated && !pdr.UEIP.IsValid() {
+			return pdr.TeID
 		}
-
-		// Only uplink PDRs (with allocated TEIDs) are meaningful
-		// in the response — the SMF already knows the UE IP.
-		if pdr.UEIP.IsValid() {
-			continue
-		}
-
-		result = append(result, models.CreatedPDR{
-			PDRID:  uint16(pdr.PdrID),
-			TEID:   pdr.TeID,
-			N3IPv4: n3IPv4,
-			N3IPv6: n3IPv6,
-		})
 	}
 
-	return result
+	return 0
 }
 
 // addRemoteIPToNeigh adds the given remote IP (as an in6_addr [16]byte) to the kernel

@@ -21,12 +21,12 @@ func handleUECapabilityInfoIndication(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUECapabilityInfoIndication, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -39,7 +39,7 @@ func handleUECapabilityInfoIndication(m *mme.MME, ctx context.Context, radio *mm
 		ue.RadioCapabilityForPaging = msg.UERadioCapabilityForPaging
 	}
 
-	ue.Conn().Log.Info("stored UE Radio Capability",
+	ueConn.Log.Info("stored UE Radio Capability",
 		zap.Int("bytes", len(ue.RadioCapability)),
 		zap.Int("paging-bytes", len(ue.RadioCapabilityForPaging)))
 }

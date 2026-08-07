@@ -24,8 +24,11 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 
 	// An idle UE (ECM-IDLE) holds no S1 connection to carry the DETACH REQUEST, so
 	// release its sessions and context locally. The deleted subscriber fails
-	// authentication at its next contact.
-	if !m.UeConnected(ue) {
+	// authentication at its next contact. The connection is snapshotted, not
+	// re-read: this runs on the API goroutine, so a concurrent release could nil
+	// ue.Conn() between the unlocked calls below.
+	ueConn := ue.Conn()
+	if ueConn == nil || !m.UeConnected(ue) {
 		ue.TransitionTo(EMMDeregistered)
 		logger.From(ctx, logger.MmeLog).Info("releasing idle UE on subscriber deletion", zap.String("imsi", imsi))
 		m.ReleaseAllSessions(ctx, ue)
@@ -50,15 +53,15 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	// UE stays EMM-DEREGISTERED-INITIATED until it accepts or the guard exhausts.
 	ue.TransitionTo(EMMDeregistrationInitiated)
 
-	logger.From(ctx, ue.Conn().Log).Info("network-initiated detach (subscriber deleted)",
+	logger.From(ctx, ueConn.Log).Info("network-initiated detach (subscriber deleted)",
 		zap.String("imsi", imsi))
 
 	naspdu, err := ue.ProtectDownlinkMessage(&eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachNotRequired})
 	if err != nil {
-		ReportProtectFailure(ctx, ue.Conn(), "Detach Request", err)
+		ReportProtectFailure(ctx, ueConn, "Detach Request", err)
 		return
 	}
 
-	ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
-	ue.Conn().ArmNASGuard("Detach Request", naspdu)
+	ueConn.SendDownlinkNASTransport(ctx, naspdu)
+	ueConn.ArmNASGuard("Detach Request", naspdu)
 }

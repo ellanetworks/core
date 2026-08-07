@@ -109,7 +109,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
 	}
 
-	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), connReq)
 
 	p := ue.PdnForAPN("ims")
 	if p == nil {
@@ -163,7 +163,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	dis := &eps.PDNDisconnectRequest{PTI: 3, LinkedEPSBearerIdentity: 6}
 
-	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
+	handlePDNDisconnectRequest(context.Background(), m, ue, ue.Conn(), dis)
 
 	if !ue.Pdns[6].Deactivating || !ue.Pdns[6].Disconnecting {
 		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.Pdns[6])
@@ -234,7 +234,7 @@ func TestAdditionalPDNActivationIsGuarded(t *testing.T) {
 		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
 	}
 
-	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), connReq)
 
 	p := ue.PdnForAPN("ims")
 	if p == nil {
@@ -269,7 +269,7 @@ func TestAdditionalPDNActivationTimeoutReleasesPDN(t *testing.T) {
 		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("ims")),
 	}
 
-	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), connReq)
 
 	if ue.PdnForAPN("ims") == nil {
 		t.Fatal("second PDN connection not created")
@@ -330,7 +330,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 		PTI: 4, RequestType: 1, PDNType: eps.PDNTypeIPv4, AccessPointName: new(eps.APN("enterprise")),
 	}
 
-	handlePDNConnectivityRequest(context.Background(), m, ue, connReq)
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), connReq)
 
 	if ue.PdnForAPN("enterprise") != nil {
 		t.Fatal("PDN created for an APN not in the profile")
@@ -366,7 +366,7 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 			ue, cc := securedUE(t, m)
 			testPDN(ue).Apn = "internet"
 
-			handlePDNConnectivityRequest(context.Background(), m, ue, tc.req)
+			handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), tc.req)
 
 			if ue.PdnForAPN("ims") != nil {
 				t.Fatal("PDN created despite an invalid ESM header")
@@ -402,7 +402,7 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 			ue, cc := securedUE(t, m)
 			testPDN(ue).Apn = "internet"
 
-			handlePDNDisconnectRequest(context.Background(), m, ue, tc.req)
+			handlePDNDisconnectRequest(context.Background(), m, ue, ue.Conn(), tc.req)
 
 			reject, err := eps.ParsePDNDisconnectReject(lastDownlinkESM(t, ue, cc))
 			if err != nil {
@@ -427,7 +427,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 
 	dis := &eps.PDNDisconnectRequest{PTI: 5, LinkedEPSBearerIdentity: eps.EPSBearerIdentity(mme.DefaultERABID)}
 
-	handlePDNDisconnectRequest(context.Background(), m, ue, dis)
+	handlePDNDisconnectRequest(context.Background(), m, ue, ue.Conn(), dis)
 
 	if m.DefaultPDN(ue) == nil {
 		t.Fatal("the only PDN was disconnected; expected it to be retained")
@@ -450,7 +450,7 @@ func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 	testPDN(ue).Apn = "internet"
 
 	eit := true
-	handlePDNConnectivityRequest(context.Background(), m, ue, &eps.PDNConnectivityRequest{
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), &eps.PDNConnectivityRequest{
 		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, ESMInformationTransferFlag: &eit,
 	})
 
@@ -472,7 +472,7 @@ func TestStandalonePDNConnectivityDefersToESMInformation(t *testing.T) {
 	}
 
 	apn := eps.APN("ims")
-	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{
 		PTI: 2, AccessPointName: &apn,
 	})
 
@@ -490,7 +490,7 @@ func TestStandalonePDNConnectivityRejectsWhenESMInformationNeverArrives(t *testi
 	testPDN(ue).Apn = "internet"
 
 	eit := true
-	handlePDNConnectivityRequest(context.Background(), m, ue, &eps.PDNConnectivityRequest{
+	handlePDNConnectivityRequest(context.Background(), m, ue, ue.Conn(), &eps.PDNConnectivityRequest{
 		PTI: 2, RequestType: 1, PDNType: eps.PDNTypeIPv4, ESMInformationTransferFlag: &eit,
 	})
 

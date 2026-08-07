@@ -60,7 +60,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.DataPath.Activated {
+	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
 		logger.SmfLog.Debug("session not activated, skipping reconciliation",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
@@ -427,74 +427,33 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 //
 // The caller holds smContext.Mutex.
 func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
-	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
+	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
 		return fmt.Errorf("PFCP session not established")
 	}
 
-	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
+	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
 		return fmt.Errorf("data path not available")
 	}
 
-	dataPath := smContext.Tunnel.DataPath
-
-	type qerSnapshot struct {
-		qer   *QER
-		mbr   *models.MBR
-		qfi   uint8
-		state RuleState
+	qer := smContext.Tunnel.QER
+	if qer == nil {
+		return fmt.Errorf("no QER to update")
 	}
 
-	var (
-		qerList   []*QER
-		snapshots []qerSnapshot
-	)
+	prevMBR, prevQFI := qer.MBR, qer.QFI
 
-	for _, t := range []*GTPTunnel{dataPath.UpLinkTunnel, dataPath.DownLinkTunnel} {
-		if t == nil || t.PDR == nil || t.PDR.QER == nil {
-			continue
-		}
-
-		qer := t.PDR.QER
-
-		listed := false
-
-		for _, q := range qerList {
-			if q.QERID == qer.QERID {
-				listed = true
-
-				break
-			}
-		}
-
-		if listed {
-			continue
-		}
-
-		snapshots = append(snapshots, qerSnapshot{qer: qer, mbr: qer.MBR, qfi: qer.QFI, state: qer.State})
-
-		qer.QFI = qfi
-		qer.MBR = &models.MBR{
-			ULMBR: ambrUplink.Kbps(),
-			DLMBR: ambrDownlink.Kbps(),
-		}
-		qer.State = RuleUpdate
-		qerList = append(qerList, qer)
-	}
-
-	if len(qerList) == 0 {
-		return fmt.Errorf("no QERs to update")
+	qer.QFI = qfi
+	qer.MBR = &models.MBR{
+		ULMBR: ambrUplink.Kbps(),
+		DLMBR: ambrDownlink.Kbps(),
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
+		smContext.PFCPContext.SEID,
 		policyID,
-		nil, nil, qerList,
+		nil, nil, []*QER{qer},
 	)); err != nil {
-		for _, snap := range snapshots {
-			snap.qer.MBR = snap.mbr
-			snap.qer.QFI = snap.qfi
-			snap.qer.State = snap.state
-		}
+		qer.MBR, qer.QFI = prevMBR, prevQFI
 
 		return fmt.Errorf("failed to modify PFCP session: %w", err)
 	}

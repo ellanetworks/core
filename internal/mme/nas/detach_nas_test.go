@@ -48,7 +48,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 		t.Fatalf("not a network-originating Detach Request: %v", err)
 	}
 
-	handleDetachAccept(context.Background(), m, ue)
+	handleDetachAccept(context.Background(), m, ue, ue.Conn())
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7))}

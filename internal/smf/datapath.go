@@ -14,100 +14,115 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-type GTPTunnel struct {
-	PDR    *PDR
-	TEID   uint32
-	N3IPv4 netip.Addr
-	N3IPv6 netip.Addr
+func (t *UPTunnel) Activate(policy *Policy, ueIP netip.Addr, ueIPv6Prefix net.IP) {
+	t.UplinkPDR = NewPDR(pdrIDUplink, farIDUplink)
+	t.DownlinkPDR = NewPDR(pdrIDDownlink, farIDDownlink)
+	t.QER = NewQER(policy, qerIDDefault)
+	t.UplinkURR = newURR(urrIDUplink)
+	t.DownlinkURR = newURR(urrIDDownlink)
+
+	t.UplinkPDR.QER, t.UplinkPDR.URR = t.QER, t.UplinkURR
+	t.DownlinkPDR.QER, t.DownlinkPDR.URR = t.QER, t.DownlinkURR
+
+	t.activateUplinkPDR(ueIP)
+	t.activateDownlinkPDR(ueIP)
+
+	// A PDR matches one UE address, so a dual-stack session needs a second
+	// downlink PDR. It shares the downlink FAR: same forwarding, and the UPF must
+	// not be sent the rule twice.
+	if ueIPv6Prefix != nil {
+		prefix, _ := netip.AddrFromSlice(ueIPv6Prefix.To16())
+
+		t.DownlinkPDRv6 = &PDR{
+			PDRID: pdrIDSecond,
+			FAR:   t.DownlinkPDR.FAR,
+			QER:   t.QER,
+			URR:   t.DownlinkURR,
+		}
+		t.DownlinkPDRv6.PDI.UEIPAddress = prefix
+	}
+
+	t.Activated = true
 }
 
-type DataPath struct {
-	UpLinkTunnel   *GTPTunnel
-	DownLinkTunnel *GTPTunnel
-	SecondPDR      *PDR
-	Activated      bool
-}
+func (t *UPTunnel) activateUplinkPDR(ueIP netip.Addr) {
+	pdr := t.UplinkPDR
 
-func (dp *DataPath) ActivateUpLinkPdr(ueIP netip.Addr, anIP net.IP, defQER *QER, defURR *URR) {
-	dp.UpLinkTunnel.PDR.QER = defQER
-	dp.UpLinkTunnel.PDR.URR = defURR
-
-	dp.UpLinkTunnel.PDR.PDI.LocalFTEID = &models.FTEID{}
-	dp.UpLinkTunnel.PDR.PDI.UEIPAddress = ueIP
+	// A zero F-TEID asks the UPF to allocate; the value comes back on the
+	// establish response.
+	pdr.PDI.LocalFTEID = &models.FTEID{}
+	pdr.PDI.UEIPAddress = ueIP
 
 	ohr := models.OuterHeaderRemovalGtpUUdpIpv4
-	if anIP != nil && anIP.To4() == nil {
+	if t.AN.IPv4 != nil && t.AN.IPv4.To4() == nil {
 		ohr = models.OuterHeaderRemovalGtpUUdpIpv6
 	}
 
-	dp.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
+	pdr.OuterHeaderRemoval = &ohr
 
-	dp.UpLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{
-		Forw: true,
-	}
-	dp.UpLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
+	pdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
+	pdr.FAR.ForwardingParameters = &models.ForwardingParameters{}
 }
 
-func (dp *DataPath) ActivateDlLinkPdr(anIPv4 net.IP, anIPv6 net.IP, teid uint32, ueIP netip.Addr, defQER *QER, defURR *URR) {
-	dp.DownLinkTunnel.PDR.QER = defQER
-	dp.DownLinkTunnel.PDR.URR = defURR
+func (t *UPTunnel) activateDownlinkPDR(ueIP netip.Addr) {
+	pdr := t.DownlinkPDR
 
-	dp.DownLinkTunnel.PDR.PDI.UEIPAddress = ueIP
+	pdr.PDI.UEIPAddress = ueIP
 
-	if anIPv6 != nil {
-		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{
+	switch {
+	case t.AN.IPv6 != nil:
+		pdr.FAR.ForwardingParameters = &models.ForwardingParameters{
 			OuterHeaderCreation: &models.OuterHeaderCreation{
 				Description: models.OuterHeaderCreationGtpUUdpIpv6,
-				TEID:        teid,
-				IPv6Address: anIPv6,
+				TEID:        t.AN.TEID,
+				IPv6Address: t.AN.IPv6,
 			},
 		}
-	} else if anIPv4 != nil {
-		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{
+	case t.AN.IPv4 != nil:
+		pdr.FAR.ForwardingParameters = &models.ForwardingParameters{
 			OuterHeaderCreation: &models.OuterHeaderCreation{
 				Description: models.OuterHeaderCreationGtpUUdpIpv4,
-				TEID:        teid,
-				IPv4Address: anIPv4.To4(),
+				TEID:        t.AN.TEID,
+				IPv4Address: t.AN.IPv4.To4(),
 			},
 		}
 	}
 }
 
-func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy *Policy, ueIP netip.Addr) error {
-	seid := smf.AllocateLocalSEID()
-
-	smContext.SetPFCPSession(seid)
-
-	dp.UpLinkTunnel.PDR = NewPDR(pdrIDUplink, farIDUplink)
-	dp.DownLinkTunnel.PDR = NewPDR(pdrIDDownlink, farIDDownlink)
-
-	defQER := NewQER(policy, qerIDDefault)
-	defULURR := newURR(urrIDUplink)
-	defDLURR := newURR(urrIDDownlink)
-
-	dp.ActivateUpLinkPdr(ueIP, smContext.Tunnel.ANInformation.IPv4Address, defQER, defULURR)
-
-	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPv4Address, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, ueIP, defQER, defDLURR)
-
-	if smContext.PDUIPV4Address != nil && smContext.PDUIPV6Prefix != nil {
-		secondPdr := &PDR{PDRID: pdrIDSecond}
-		secondPdr.FAR = dp.DownLinkTunnel.PDR.FAR
-		secondPdr.QER = defQER
-		secondPdr.URR = defDLURR
-		secondPdr.PDI.UEIPAddress, _ = netip.AddrFromSlice(smContext.PDUIPV6Prefix.To16())
-
-		dp.SecondPDR = secondPdr
+func (t *UPTunnel) PDRs() []*PDR {
+	if !t.Activated {
+		return nil
 	}
 
-	dp.Activated = true
+	pdrs := []*PDR{t.UplinkPDR, t.DownlinkPDR}
+	if t.DownlinkPDRv6 != nil {
+		pdrs = append(pdrs, t.DownlinkPDRv6)
+	}
 
-	return nil
+	return pdrs
 }
 
-// DeactivateTunnelAndPDR resets the data path. Safe to call more than once.
-func (dp *DataPath) DeactivateTunnelAndPDR() {
-	dp.UpLinkTunnel = &GTPTunnel{}
-	dp.DownLinkTunnel = &GTPTunnel{}
-	dp.SecondPDR = nil
-	dp.Activated = false
+// The two downlink PDRs share one FAR, which the UPF must be sent once.
+func (t *UPTunnel) FARs() []*FAR {
+	if !t.Activated {
+		return nil
+	}
+
+	return []*FAR{t.UplinkPDR.FAR, t.DownlinkPDR.FAR}
+}
+
+func (t *UPTunnel) QERs() []*QER {
+	if !t.Activated {
+		return nil
+	}
+
+	return []*QER{t.QER}
+}
+
+func (t *UPTunnel) URRs() []*URR {
+	if !t.Activated {
+		return nil
+	}
+
+	return []*URR{t.UplinkURR, t.DownlinkURR}
 }

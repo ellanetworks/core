@@ -77,7 +77,7 @@ type PDUSessionExport struct {
 	PDUSessionReleaseDueToDupPduID bool              `json:"release_due_to_dup_id,omitempty"`
 	PolicyData                     *PolicyDataExport `json:"policy_data,omitempty"`
 	Tunnel                         *TunnelExport     `json:"tunnel,omitempty"`
-	PFCPLocalSEID                  *uint64           `json:"pfcp_local_seid,omitempty"`
+	PFCPSEID                       *uint64           `json:"pfcp_seid,omitempty"`
 }
 
 type PolicyDataExport struct {
@@ -453,19 +453,19 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 			pdu.PolicyData = policyDataFromSMF(smCtx.PolicyData)
 			if smCtx.Tunnel != nil {
 				ipStr := ""
-				if smCtx.Tunnel.ANInformation.IPv4Address != nil {
-					ipStr = smCtx.Tunnel.ANInformation.IPv4Address.String()
+				if smCtx.Tunnel.AN.IPv4 != nil {
+					ipStr = smCtx.Tunnel.AN.IPv4.String()
 				}
 
 				pdu.Tunnel = &TunnelExport{
 					ANIPAddress: ipStr,
-					ANTEID:      smCtx.Tunnel.ANInformation.TEID,
+					ANTEID:      smCtx.Tunnel.AN.TEID,
 				}
 			}
 
 			if smCtx.PFCPContext != nil {
-				seid := smCtx.PFCPContext.LocalSEID
-				pdu.PFCPLocalSEID = &seid
+				seid := smCtx.PFCPContext.SEID
+				pdu.PFCPSEID = &seid
 			}
 
 			smCtx.Mutex.Unlock()

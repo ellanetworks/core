@@ -191,6 +191,10 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		acceptRegistrationUESecurityCapability(ctx, ue, req.UESecurityCapability, integrityVerified)
 	}
 
+	// The UE security capability above is downgrade-protected because SECURITY
+	// MODE COMMAND replays it; these two are stored as sent.
+	ue.SetUECapabilities(req.GMMCapability, req.S1UENetworkCapability)
+
 	return nil
 }
 

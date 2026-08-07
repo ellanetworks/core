@@ -32,7 +32,7 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || smContext.Tunnel.DataPath.UpLinkTunnel == nil {
+	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
 		return nil, fmt.Errorf("session %s has no active tunnel (supi=%s, pduSessionID=%d)", smContextRef, smContext.Supi, smContext.PDUSessionID)
 	}
 
@@ -40,7 +40,7 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 		return nil, fmt.Errorf("session %s has no policy data", smContextRef)
 	}
 
-	n2Buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
+	n2Buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)
 	}

@@ -76,6 +76,7 @@ type SmfSbi interface {
 	UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error
+	UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRef string) error
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
@@ -266,7 +267,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 	// Only remove the UeConn if it still belongs to this context: a fresh re-registration
 	// transfers the shared radio connection to a new context before this superseded husk is
 	// torn down, and removing it then would kill the live registration.
-	if ueConn != nil && ueConn.ue == ue {
+	if ueConn != nil && ueConn.ue.Load() == ue {
 		err := amf.RemoveUeConn(ctx, ueConn)
 		if err != nil {
 			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
@@ -683,20 +684,40 @@ func (a *AMF) NewUeConn(radio *Radio, ranUeNgapID models.RanUeNgapID) (*UeConn, 
 	return ueConn, nil
 }
 
+// Leaving the mobile-reachable or implicit-deregistration timers armed lets a
+// deregistration reach the SMF, and through it the UPF, after both have closed.
+// The three families each need their own lock.
 func (amf *AMF) StopAllTimers() {
-	amf.mu.RLock()
+	amf.mu.Lock()
 
 	ues := make([]*UeContext, 0, len(amf.UEs))
 	for _, ue := range amf.UEs {
 		ues = append(ues, ue)
 	}
 
-	amf.mu.RUnlock()
+	conns := make([]*UeConn, 0, len(amf.conns))
+	for _, c := range amf.conns {
+		conns = append(conns, c)
+	}
+
+	// Bumping idleGen defuses a callback already in flight.
+	for _, ue := range ues {
+		amf.stopIdleTimersLocked(ue)
+	}
+
+	amf.mu.Unlock()
 
 	for _, ue := range ues {
 		ue.mu.Lock()
-		ue.stopAllTimersLocked()
+		ue.stopUeMuTimersLocked()
 		ue.mu.Unlock()
+	}
+
+	// A UE in CM-IDLE has no connection and a bare connection has no UE, so
+	// neither list alone covers both.
+	for _, c := range conns {
+		c.StopNASGuard()
+		c.releaseGuard.Stop()
 	}
 }
 

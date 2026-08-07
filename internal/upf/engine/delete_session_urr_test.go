@@ -57,7 +57,7 @@ func TestDeleteSessionRemovesURR(t *testing.T) {
 
 	ueAddr := netip.MustParseAddr("10.0.0.1")
 
-	if err := obj.PutPdrDownlink(ueAddr, upfebpf.PdrInfo{SEID: seid, PdrID: pdrID, UrrID: urrID}); err != nil {
+	if err := obj.PutPdrDownlink(ueAddr, upfebpf.PdrInfo{SEID: seid, PdrID: pdrID, UrrID: urrID, IMSI: "001010000000001"}); err != nil {
 		t.Fatalf("install downlink PDR: %v", err)
 	}
 
@@ -69,7 +69,7 @@ func TestDeleteSessionRemovesURR(t *testing.T) {
 	sess.PutPDR(pdrID, engine.SPDRInfo{
 		PdrID:   pdrID,
 		UEIP:    ueAddr,
-		PdrInfo: upfebpf.PdrInfo{SEID: seid, PdrID: pdrID, UrrID: urrID},
+		PdrInfo: upfebpf.PdrInfo{SEID: seid, PdrID: pdrID, UrrID: urrID, IMSI: "001010000000001"},
 	})
 	conn.AddSession(seid, sess)
 

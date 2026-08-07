@@ -32,36 +32,42 @@ const (
 	MaxUeAmbrBpsFor5G = 4_000_000_000_000
 )
 
-// bitrateToBps resolves a "<value> <unit>" bitrate to bits per second, or 0 if
-// it is not one isValidBitrate would accept.
-func bitrateToBps(bitrate string) uint64 {
+// Every caller is a ceiling check, so a bitrate silently resolving to 0 would
+// pass every ceiling rather than fail it. isValidBitrate gates the API paths
+// today; the callers reject rather than assume that stays true.
+func bitrateToBps(bitrate string) (uint64, bool) {
 	s := strings.Split(bitrate, " ")
 	if len(s) != 2 {
-		return 0
+		return 0, false
 	}
 
 	n, err := strconv.ParseUint(s[0], 10, 64)
 	if err != nil {
-		return 0
+		return 0, false
 	}
 
 	switch s[1] {
 	case "Kbps":
-		return n * 1_000
+		return n * 1_000, true
 	case "Mbps":
-		return n * 1_000_000
+		return n * 1_000_000, true
 	case "Gbps":
-		return n * 1_000_000_000
+		return n * 1_000_000_000, true
 	default:
-		return 0
+		return 0, false
 	}
 }
 
 // checkSessionAmbrEncodable reports whether every RAT the profile permits can
 // carry the Session-AMBR.
 func checkSessionAmbrEncodable(allow4G, allow5G bool, label, bitrate string) error {
+	bps, ok := bitrateToBps(bitrate)
+	if !ok {
+		return fmt.Errorf("%s of %q is not a bitrate this can check against the radio encodings", label, bitrate)
+	}
+
 	if allow4G {
-		if bps := bitrateToBps(bitrate); bps > MaxSessionAmbrBpsFor4G {
+		if bps > MaxSessionAmbrBpsFor4G {
 			return fmt.Errorf("%s of %s exceeds the 10 Gbps ceiling of a profile that allows 4G (TS 24.008 §10.5.6.5B)", label, bitrate)
 		}
 	}
@@ -81,7 +87,10 @@ func checkSessionAmbrEncodable(allow4G, allow5G bool, label, bitrate string) err
 // checkUeAmbrEncodable reports whether every RAT the profile permits can carry
 // the UE-AMBR.
 func checkUeAmbrEncodable(allow4G, allow5G bool, label, bitrate string) error {
-	bps := bitrateToBps(bitrate)
+	bps, ok := bitrateToBps(bitrate)
+	if !ok {
+		return fmt.Errorf("%s of %q is not a bitrate this can check against the radio encodings", label, bitrate)
+	}
 
 	if allow4G && bps > MaxUeAmbrBpsFor4G {
 		return fmt.Errorf("%s of %s exceeds the 10 Gbps ceiling of a profile that allows 4G (TS 36.413 BitRate)", label, bitrate)

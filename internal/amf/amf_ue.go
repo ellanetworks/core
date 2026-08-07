@@ -48,9 +48,8 @@ type UeContext struct {
 	// tmsi is the UE's current 5G-TMSI, oldTmsi the in-flight previous one during a
 	// reallocation window. The full 5G-GUTI is rebuilt on demand from the invariant
 	// serving GUAMI, so the node identifier is not duplicated per UE. Both are
-	// InvalidTMSI until a GUTI is allocated. Guarded by AMF.mu (which also guards the
-	// uesByTmsi index): written only by the guti realloc/clear methods, read via
-	// Tmsi()/OldTmsi().
+	// Written under AMF.mu (which also guards the uesByTmsi index, so field and
+	// index stay in step) and ue.mu.
 	tmsi    etsi.TMSI
 	oldTmsi etsi.TMSI
 
@@ -77,19 +76,25 @@ type UeContext struct {
 	// NAS security context per TS 33.501.
 	secured              bool
 	ueSecurityCapability *fgs.UESecurityCapability // TS 24.501 §9.11.3.54, nil until an authenticated path installs one
-	ngKsi                models.NgKsi
-	knasInt              [16]uint8
-	knasEnc              [16]uint8
-	kgnb                 []uint8
-	nh                   [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
-	ncc                  uint8
-	ulCount              nas.UplinkCounter
-	dlCount              nas.DownlinkCounter
-	sc                   *nas.SecurityContext
-	cipheringAlg         nas.CipheringAlgorithm
-	integrityAlg         nas.IntegrityAlgorithm
-	kamf                 []uint8
-	abba                 []uint8
+
+	// TS 24.501 §5.5.1.2.4 and §5.5.1.3.4 require all received octets to be kept:
+	// SECURITY MODE COMMAND replays the S1 element byte-for-byte. Guarded by ue.mu.
+	gmmCapability         *fgs.GMMCapability
+	s1UENetworkCapability []byte
+
+	ngKsi        models.NgKsi
+	knasInt      [16]uint8
+	knasEnc      [16]uint8
+	kgnb         []uint8
+	nh           [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
+	ncc          uint8
+	ulCount      nas.UplinkCounter
+	dlCount      nas.DownlinkCounter
+	sc           *nas.SecurityContext
+	cipheringAlg nas.CipheringAlgorithm
+	integrityAlg nas.IntegrityAlgorithm
+	kamf         []uint8
+	abba         []uint8
 
 	Ambr             *models.Ambr
 	AllowedNssai     []models.Snssai
@@ -147,10 +152,21 @@ func NewUeContext() *UeContext {
 }
 
 // Tmsi returns the UE's current 5G-TMSI (InvalidTMSI until a GUTI is allocated).
-func (ue *UeContext) Tmsi() etsi.TMSI { return ue.tmsi }
+// Writers hold AMF.mu and ue.mu; callers outside the registry lock read here.
+func (ue *UeContext) Tmsi() etsi.TMSI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.tmsi
+}
 
 // OldTmsi returns the in-flight previous 5G-TMSI during a reallocation window.
-func (ue *UeContext) OldTmsi() etsi.TMSI { return ue.oldTmsi }
+func (ue *UeContext) OldTmsi() etsi.TMSI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.oldTmsi
+}
 
 // Procedures returns the UE's key-chain mutual-exclusion registry.
 func (ue *UeContext) Procedures() *procedure.Registry {
@@ -230,14 +246,14 @@ func (ue *UeContext) ClearN1N2Message() {
 func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
-	ueConn.ue = ue
+	ueConn.ue.Store(ue)
 
 	var displaced *UeConn
 
 	if oldUeConn != nil && oldUeConn != ueConn {
-		if oldUeConn.ue == ue {
+		if oldUeConn.ue.Load() == ue {
 			oldUeConn.Log.Info("Detached UeContext from previous UeConn")
-			oldUeConn.ue = nil
+			oldUeConn.ue.Store(nil)
 			displaced = oldUeConn
 		}
 	}
@@ -446,14 +462,6 @@ func (ue *UeContext) installSecurityContextLocked() error {
 	return nil
 }
 
-// DeriveAnKey derives the access network key per TS 33.501.
-func (ue *UeContext) DeriveAnKey() error {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	return ue.deriveAnKeyLocked()
-}
-
 // deriveAnKeyLocked derives the access network key. Caller holds ue.mu, which
 // the uplink NAS COUNT and K_AMF read here are written under.
 func (ue *UeContext) deriveAnKeyLocked() error {
@@ -576,9 +584,9 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 }
 
 func (ue *UeContext) ClearRegistrationData(ctx context.Context) {
+	// releaseSmContexts clears SmContextList under ue.mu; clearing it again here
+	// would be an unguarded write.
 	ue.releaseSmContexts(ctx)
-
-	ue.SmContextList = make(map[uint8]*SmContext)
 }
 
 func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) error {
@@ -619,6 +627,17 @@ func (ue *UeContext) SetSmContextInactive(pduSessionID uint8) {
 
 	if sc, ok := ue.SmContextList[pduSessionID]; ok {
 		sc.PduSessionInactive = true
+	}
+}
+
+// Without this the inactive mark latches, and HasActivePduSessions releases a UE
+// that still has a live session to CM-IDLE.
+func (ue *UeContext) SetSmContextActive(pduSessionID uint8) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if sc, ok := ue.SmContextList[pduSessionID]; ok {
+		sc.PduSessionInactive = false
 	}
 }
 
@@ -737,8 +756,8 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 		return nil
 	}
 
-	if cur.ue == ue {
-		cur.ue = nil
+	if cur.ue.Load() == ue {
+		cur.ue.Store(nil)
 	}
 
 	ue.active.Store(nil)
@@ -746,10 +765,10 @@ func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 	return cur
 }
 
-// stopAllTimersLocked stops the paging timer on the 5GMM context. Caller must
-// hold ue.Mutex. Idle-mode timers live under the registry lock (see ue_timers.go);
-// procedure supervision timers are stopped when the procedure is ended on release.
-func (ue *UeContext) stopAllTimersLocked() {
+// Caller must hold ue.mu. Not "stop everything": the idle-mode timers live under
+// the registry lock and the NAS/release guards on the connection.
+// AMF.StopAllTimers covers all three.
+func (ue *UeContext) stopUeMuTimersLocked() {
 	ue.pagingTimer.Stop()
 }
 
@@ -783,7 +802,7 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 
 	ue.mu.Lock()
 
-	ue.stopAllTimersLocked()
+	ue.stopUeMuTimersLocked()
 
 	ue.transitionToLocked(Deregistered)
 
@@ -825,10 +844,8 @@ func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
 }
 
 func (ue *UeContext) releaseSmContexts(ctx context.Context) {
-	if ue.smf == nil {
-		return
-	}
-
+	// Cleared under the lock even with no SMF wired up: ClearRegistrationData
+	// relies on this, and clearing it there would be an unguarded write.
 	// External SMF calls must not hold ue.mu.
 	ue.mu.Lock()
 
@@ -839,6 +856,10 @@ func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 
 	ue.SmContextList = make(map[uint8]*SmContext)
 	ue.mu.Unlock()
+
+	if ue.smf == nil {
+		return
+	}
 
 	for _, smContextRef := range smContextRefs {
 		err := ue.smf.ReleaseSmContext(ctx, smContextRef)

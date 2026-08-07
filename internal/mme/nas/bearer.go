@@ -41,10 +41,10 @@ func registrationAreaTAIList(area []models.Tai) (eps.TAIList, error) {
 	return eps.NewTAIList(tais...)
 }
 
-func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
-	if requestESMInformation(ctx, ue, func(pti uint8) {
+func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+	if requestESMInformation(ctx, ue, ueConn, func(pti uint8) {
 		// T3489's final expiry outlives the request's context.
-		rejectAttachESM(context.Background(), m, ue, pti, eps.ESMCauseESMInformationNotReceived)
+		rejectAttachESM(context.Background(), m, ue, ueConn, pti, eps.ESMCauseESMInformationNotReceived)
 	}) {
 		return
 	}
@@ -55,7 +55,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// (TS 24.301 §6.5.1.4, ESM cause #27).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: requested APN not in subscriber profile",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
-		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), eps.ESMCauseMissingOrUnknownAPN)
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseMissingOrUnknownAPN)
 
 		return
 	}
@@ -70,7 +70,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 	if !qos.Allow4G {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.IMSI()))
-		rejectAttach(ctx, m, ue, eps.EMMCauseEPSServicesNotAllowed)
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
 
 		return
 	}
@@ -93,7 +93,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttachESM(ctx, m, ue, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)
 
 		return
 	}
@@ -126,19 +126,19 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 
 	// Keep the sent Attach Accept so a duplicate Attach Request with identical IEs
 	// can be answered by resending it (TS 24.301 §5.5.1.2.7 case d).
-	ue.Conn().AttachAcceptPdu = naspdu
+	ueConn.AttachAcceptPdu = naspdu
 
-	sendInitialContextSetup(ctx, m, ue, qos, naspdu)
+	sendInitialContextSetup(ctx, m, ue, ueConn, qos, naspdu)
 
 	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
 	// Complete arrives (TS 24.301).
-	ue.Conn().ArmNASGuard("Attach Accept", naspdu)
+	ueConn.ArmNASGuard("Attach Accept", naspdu)
 }
 
 // sendInitialContextSetup establishes the UE's S1 context and default E-RAB at the
 // eNB (TS 36.413). naspdu carries the Attach Accept on attach; it is nil on a
 // Service Request, where only the radio and S1 bearers are re-established.
-func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS, naspdu []byte) {
+func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS, naspdu []byte) {
 	// Derive K_eNB and seed the X2-handover key chain (NH for NCC=1). Re-seeded on
 	// every context setup, so a Service Request restarts the chain (TS 33.401).
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
@@ -178,11 +178,7 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 			ERABID: s1ap.ERABID(p.Ebi),
 			QoS: s1ap.ERABLevelQoSParameters{
 				QCI: s1ap.QCI(p.Qci),
-				ARP: s1ap.AllocationAndRetentionPriority{
-					PriorityLevel:           p.Arp,
-					PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
-					PreemptionVulnerability: s1ap.PreemptionNotPreemptable,
-				},
+				ARP: mme.BearerARP(p.Arp),
 			},
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
@@ -211,7 +207,7 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 	// Log the AS-key inputs so an eNB RRC-reconfiguration failure from a key or
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
 	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Request",
-		zap.Uint32("enb-ue-id", uint32(ue.Conn().ENBUES1APID)),
+		zap.Uint32("enb-ue-id", uint32(ueConn.ENBUES1APID)),
 		zap.String("ue-ip", defaultPDN.UeIP.String()),
 		zap.Int("bearers", len(erabs)),
 		zap.Uint32("kenb-ul-count", kenbCount),
@@ -219,12 +215,12 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 		zap.Stringer("eia", ue.EIA()),
 	)
 
-	if err := ue.Conn().SendInitialContextSetup(ctx, ics); err != nil {
+	if err := ueConn.SendInitialContextSetup(ctx, ics); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to send Initial Context Setup Request", zap.Error(err))
 		return
 	}
 
-	ue.Conn().ICS = mme.ICSPending
+	ueConn.ICS = mme.ICSPending
 }
 
 func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
@@ -304,14 +300,14 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	return wire, nil
 }
 
-func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext) nasreply.Disposition {
+func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
 	if ue.RegStep() != mme.RegStepContextSetup {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Attach Complete outside the context-setup sub-phase")
 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ue.Conn().StopNASGuard()
+	ueConn.StopNASGuard()
 
 	m.CommitGUTIRealloc(ue)
 
@@ -323,14 +319,14 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext) na
 		zap.String("imsi", ue.IMSI()),
 	)
 
-	sendNetworkName(ctx, m, ue)
+	sendNetworkName(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM
 // INFORMATION message (TS 24.301).
-func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
+func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))
@@ -350,7 +346,7 @@ func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 		info.ShortNameForNetwork = new(nas.NewNetworkName(op.SpnShortName))
 	}
 
-	ue.Conn().SendDownlinkProtected(ctx, info)
+	ueConn.SendDownlinkProtected(ctx, info)
 }
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
@@ -391,17 +387,7 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) (
 	// Advertise DNS and, for IPv4-capable bearers, the IPv4 Link MTU in the PCO
 	// (TS 24.008): SLAAC carries no DNS, so the PCO is the only way an IPv6 UE learns
 	// its resolver; the IPv6 link MTU rides the Router Advertisement.
-	var dnsServers [][]byte
-
-	if p.Dns.IsValid() {
-		if p.Dns.Is4() {
-			b := p.Dns.As4()
-			dnsServers = [][]byte{b[:]}
-		} else {
-			b := p.Dns.As16()
-			dnsServers = [][]byte{b[:]}
-		}
-	}
+	dnsServers := nas.DNSServers(p.Dns)
 
 	var ipv4LinkMTU uint16
 	if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {

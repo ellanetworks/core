@@ -570,8 +570,8 @@ func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 		t.Fatal("expected tunnel to be absent")
 	}
 
-	if _, ok := pduSession["pfcp_local_seid"]; ok {
-		t.Fatal("expected pfcp_local_seid to be absent")
+	if _, ok := pduSession["pfcp_seid"]; ok {
+		t.Fatal("expected pfcp_seid to be absent")
 	}
 
 	if _, ok := pduSession["release_due_to_dup_id"]; ok {
