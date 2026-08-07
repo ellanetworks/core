@@ -58,7 +58,14 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 // before releasing the IP leases: an address freed while its conntrack survives
 // can be re-leased to another subscriber that then receives the previous
 // subscriber's flows. On teardown failure the leases are kept, so the address
-// stays bound to this IMSI. Caller holds sc.Mutex.
+// stays bound to this IMSI.
+//
+// Caller holds sc.Mutex, and holds it again on return. Releasing the leases is a
+// database write — in a cluster a Raft round trip with a multi-second timeout —
+// so sc.Mutex is dropped across it: SCTP dispatch is one goroutine per
+// association, so holding it stalls every other UE on the same gNB/eNB. The
+// tunnel and addresses are already cleared by then, so a reader arriving in the
+// window sees a fully released session rather than a half-torn one.
 func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
 	if err := s.releaseTunnel(ctx, sc); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
@@ -71,17 +78,68 @@ func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) 
 		return nil
 	}
 
-	dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
+	// Cleared before unlocking, so a second releaser in the window does not queue
+	// a duplicate.
+	var (
+		supi  = sc.Supi
+		dnn   = sc.Dnn
+		keyID = sc.keyID()
+		psi   = sc.PDUSessionID
+		hasV4 = sc.PDUIPV4Address != nil
+		hasV6 = sc.PDUIPV6Prefix != nil
+	)
+
+	sc.PDUIPV4Address = nil
+	sc.PDUIPV6Prefix = nil
+
+	sc.Mutex.Unlock()
+	defer sc.Mutex.Lock()
+
+	dn, err := s.store.ResolveDNN(ctx, dnn)
 	if err != nil {
-		logger.WithTrace(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; keeping IP lease",
-			zap.Error(err), logger.SUPI(sc.Supi.String()), logger.PDUSessionID(sc.PDUSessionID), logger.DNN(sc.Dnn))
+		logger.WithTrace(ctx, logger.SmfLog).Warn("resolve data network for UE address release failed; lease will be reclaimed by the retention sweep",
+			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(psi), logger.DNN(dnn))
 
 		return fmt.Errorf("resolve data network for address release: %w", err)
 	}
 
-	s.releaseAllocatedAddresses(ctx, dn, sc)
+	imsi := supi.IMSI()
+
+	if hasV4 {
+		if _, err := dn.ReleaseIP(ctx, imsi, keyID); err != nil {
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
+		}
+	}
+
+	if hasV6 {
+		if _, err := dn.ReleaseIPv6(ctx, imsi, keyID); err != nil {
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
+		}
+	}
 
 	return nil
+}
+
+// Has to run wherever the tunnel is dropped, not only on release: the responder
+// is keyed by uplink TEID alone, so an entry that outlives its tunnel answers
+// for a TEID this session no longer owns. Caller holds sc.Mutex.
+func (s *SMF) unregisterIPv6Session(ctx context.Context, smContext *SMContext) {
+	if smContext.Tunnel == nil || smContext.PDUIPV6Prefix == nil {
+		return
+	}
+
+	ulTEID := smContext.Tunnel.N3TEID
+	if ulTEID == 0 {
+		return
+	}
+
+	if err := s.upf.UnregisterIPv6Session(ctx, ulTEID); err != nil {
+		logger.SmfLog.Warn("failed to unregister IPv6 session for RA",
+			zap.Error(err),
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+		)
+	}
 }
 
 func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
@@ -89,31 +147,17 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 		return nil
 	}
 
-	// Unregister the IPv6 session from the RA responder before tearing down
-	// the tunnel so that any in-flight RS events are dropped cleanly.
-	if smContext.PDUIPV6Prefix != nil {
-		ulTEID := smContext.Tunnel.DataPath.UpLinkTunnel.TEID
-		if ulTEID != 0 {
-			if err := s.upf.UnregisterIPv6Session(ctx, ulTEID); err != nil {
-				logger.SmfLog.Warn("failed to unregister IPv6 session for RA",
-					zap.Error(err),
-					logger.SUPI(smContext.Supi.String()),
-					logger.PDUSessionID(smContext.PDUSessionID),
-				)
-			}
-		}
-	}
-
-	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR()
+	// Before the teardown, so in-flight RS events are dropped cleanly.
+	s.unregisterIPv6Session(ctx, smContext)
 
 	if smContext.PFCPContext == nil {
 		smContext.Tunnel = nil
 		return nil
 	}
 
-	s.upf.FlushUsage(ctx, smContext.PFCPContext.RemoteSEID)
+	s.upf.FlushUsage(ctx, smContext.PFCPContext.SEID)
 
-	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.RemoteSEID); err != nil {
+	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.SEID); err != nil {
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}
 

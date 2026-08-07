@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleIdentityResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, resp *eps.IdentityResponse) nasreply.Disposition {
+func handleIdentityResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, resp *eps.IdentityResponse) nasreply.Disposition {
 	// An IDENTITY RESPONSE is valid only during the attach authentication sub-phase
 	// (admissible without integrity, TS 24.301 §4.4.4.3); out of order it must not
 	// re-set the IMSI or restart authentication.
@@ -23,7 +23,7 @@ func handleIdentityResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, 
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ue.Conn().StopNASGuard()
+	ueConn.StopNASGuard()
 
 	if resp.MobileIdentity.IMSI == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Identity Response carries no IMSI",
@@ -33,7 +33,7 @@ func handleIdentityResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, 
 	}
 
 	m.SetIMSI(ue, string(*resp.MobileIdentity.IMSI))
-	authenticateOrReject(ctx, m, ue)
+	authenticateOrReject(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
 }

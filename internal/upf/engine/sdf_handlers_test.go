@@ -6,11 +6,20 @@ package engine
 import (
 	"context"
 	"net/netip"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
+
+// Takes filterMu the way production readers do.
+func filterIndex(eng *SessionEngine, policyID string, direction models.Direction) uint32 {
+	eng.filterMu.RLock()
+	defer eng.filterMu.RUnlock()
+
+	return eng.resolveFilterIndexLocked(policyID, direction)
+}
 
 func newTestEngine() *SessionEngine {
 	return &SessionEngine{
@@ -104,7 +113,7 @@ func TestUpdateFilters_InPlaceUpdateKeepsSameSlot(t *testing.T) {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	idx := eng.resolveFilterIndex("42", models.DirectionUplink)
+	idx := filterIndex(eng, "42", models.DirectionUplink)
 	if idx == ebpf.NoFilterIndex {
 		t.Fatal("filter index not found after initial UpdateFilters")
 	}
@@ -132,7 +141,7 @@ func TestUpdateFilters_InPlaceUpdateKeepsSameSlot(t *testing.T) {
 	}
 
 	// The resolved index should still be the same.
-	if eng.resolveFilterIndex("42", models.DirectionUplink) != idx {
+	if filterIndex(eng, "42", models.DirectionUplink) != idx {
 		t.Error("resolveFilterIndex returned different index after in-place update")
 	}
 }
@@ -189,7 +198,7 @@ func TestUpdateFilters_EmptyRulesClearsFilter(t *testing.T) {
 		t.Errorf("expected FilterMapIndex to be reset to NoFilterIndex, got %d", pdr.PdrInfo.FilterMapIndex)
 	}
 
-	if eng.resolveFilterIndex("42", models.DirectionUplink) != ebpf.NoFilterIndex {
+	if filterIndex(eng, "42", models.DirectionUplink) != ebpf.NoFilterIndex {
 		t.Error("expected resolveFilterIndex to return NoFilterIndex after clearing")
 	}
 }
@@ -224,7 +233,7 @@ func TestUpdateFilters_ClearThenReaddAllocatesNewSlot(t *testing.T) {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	firstIdx := eng.resolveFilterIndex("42", models.DirectionUplink)
+	firstIdx := filterIndex(eng, "42", models.DirectionUplink)
 
 	// Clear rules.
 	err = eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, nil)
@@ -240,7 +249,7 @@ func TestUpdateFilters_ClearThenReaddAllocatesNewSlot(t *testing.T) {
 		t.Fatalf("re-add UpdateFilters: %v", err)
 	}
 
-	newIdx := eng.resolveFilterIndex("42", models.DirectionUplink)
+	newIdx := filterIndex(eng, "42", models.DirectionUplink)
 	if newIdx == ebpf.NoFilterIndex {
 		t.Fatal("expected a valid filter index after re-adding rules")
 	}
@@ -309,7 +318,7 @@ func TestUpdateFilters_NoSessionsForPolicy(t *testing.T) {
 	}
 
 	// The slot should still be allocated (ready for future sessions).
-	if eng.resolveFilterIndex("99", models.DirectionUplink) == ebpf.NoFilterIndex {
+	if filterIndex(eng, "99", models.DirectionUplink) == ebpf.NoFilterIndex {
 		t.Error("expected filter index to be allocated even with no sessions")
 	}
 }
@@ -434,7 +443,7 @@ func TestUpdateFilters_InPlaceUpdatePropagates(t *testing.T) {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	idx := eng.resolveFilterIndex("42", models.DirectionUplink)
+	idx := filterIndex(eng, "42", models.DirectionUplink)
 	if idx == ebpf.NoFilterIndex {
 		t.Fatal("no filter index allocated")
 	}
@@ -452,7 +461,7 @@ func TestUpdateFilters_InPlaceUpdatePropagates(t *testing.T) {
 		t.Fatalf("in-place UpdateFilters: %v", err)
 	}
 
-	if got := eng.resolveFilterIndex("42", models.DirectionUplink); got != idx {
+	if got := filterIndex(eng, "42", models.DirectionUplink); got != idx {
 		t.Errorf("slot changed on an in-place update: got %d, want %d", got, idx)
 	}
 
@@ -478,7 +487,7 @@ func TestUpdateFilters_ReleasedSlotIsClearedBeforeReuse(t *testing.T) {
 		t.Fatalf("install: %v", err)
 	}
 
-	idx := eng.resolveFilterIndex("42", models.DirectionUplink)
+	idx := filterIndex(eng, "42", models.DirectionUplink)
 	if idx == ebpf.NoFilterIndex {
 		t.Fatal("no filter index allocated")
 	}
@@ -500,7 +509,7 @@ func TestUpdateFilters_ReleasedSlotIsClearedBeforeReuse(t *testing.T) {
 		t.Fatalf("install for the second policy: %v", err)
 	}
 
-	if got := eng.resolveFilterIndex("43", models.DirectionUplink); got != idx {
+	if got := filterIndex(eng, "43", models.DirectionUplink); got != idx {
 		t.Logf("second policy took slot %d rather than the freed %d", got, idx)
 	}
 
@@ -538,4 +547,84 @@ func TestUpdateFilters_ReleaseIsRepeatable(t *testing.T) {
 	if want := int(ebpf.MaxSdfFilters - 1); free != want {
 		t.Errorf("free list holds %d indices after two releases, want %d", free, want)
 	}
+}
+
+// UpdateFilters holds filterMu for writing across its propagation, which walks
+// the session list taking each Session.opMu: a lock-ordering mistake shows up
+// here as a timeout.
+//
+// It does not reproduce the slot-reuse race itself — that needs an establish or
+// modify resolving an index concurrently with a release, and both write to the
+// data plane, so they cannot run against a nil BpfObjects.
+// TestFilterReleaseVsSessionApplyNoSlotReuse covers it, and needs root.
+func TestUpdateFilters_ConcurrentAcrossPolicies(t *testing.T) {
+	eng := newTestEngine()
+
+	policies := []string{"p0", "p1", "p2", "p3"}
+	for i, policyID := range policies {
+		addSessionWithPDRs(t, eng, uint64(100+i), policyID)
+	}
+
+	rules := []models.FilterRule{{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow}}
+
+	ctx := context.Background()
+
+	var writers sync.WaitGroup
+
+	for _, policyID := range policies {
+		writers.Add(1)
+
+		go func() {
+			defer writers.Done()
+
+			for range 200 {
+				if err := eng.UpdateFilters(ctx, policyID, models.DirectionUplink, rules); err != nil {
+					t.Errorf("policy %s install: %v", policyID, err)
+					return
+				}
+
+				if err := eng.UpdateFilters(ctx, policyID, models.DirectionUplink, nil); err != nil {
+					t.Errorf("policy %s release: %v", policyID, err)
+					return
+				}
+			}
+		}()
+	}
+
+	done := make(chan struct{})
+
+	var reader sync.WaitGroup
+
+	reader.Add(1)
+
+	go func() {
+		defer reader.Done()
+
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+
+			for seid, sess := range eng.ListSessions() {
+				policyID := sess.PolicyID()
+
+				eng.filterMu.RLock()
+				want := eng.resolveFilterIndexLocked(policyID, models.DirectionUplink)
+				got := sess.GetPDR(1).PdrInfo.FilterMapIndex
+
+				eng.filterMu.RUnlock()
+
+				if got != ebpf.NoFilterIndex && got != want {
+					t.Errorf("SEID %d (policy %s) points at filter slot %d, but the policy's slot is %d", seid, policyID, got, want)
+					return
+				}
+			}
+		}
+	}()
+
+	writers.Wait()
+	close(done)
+	reader.Wait()
 }

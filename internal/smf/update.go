@@ -26,6 +26,10 @@ type UpdateResult struct {
 	ReleaseN2 bool   // true when N2 info signals PDU session resource release
 	N1Msg     []byte // NAS message for the UE (may be nil)
 	N2Msg     []byte // NGAP transfer for the RAN (may be nil)
+
+	// The AMF holds a routing context per PDU session and has no other way to
+	// learn this: the message that ends the session produces no N1 or N2 answer.
+	SessionRemoved bool
 }
 
 // UpdateSmContextN1Msg handles a NAS N1 message update (e.g. PDU session release request).
@@ -41,7 +45,7 @@ func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1M
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
-		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
+		return nil, fmt.Errorf("%w: %s", ErrSMContextNotFound, smContextRef)
 	}
 
 	smContext.Mutex.Lock()
@@ -129,7 +133,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		smContext.ClearPTIInUse(pti)
 		s.teardownAndRemove(ctx, smContext)
 
-		return nil, nil
+		return &UpdateResult{SessionRemoved: true}, nil
 
 	case *fgs.PDUSessionModificationComplete:
 		// The UE accepted the modification; stop T3591 and commit the new policy
@@ -156,9 +160,9 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, nil
 
 	case *fgs.GSMStatus:
-		s.handle5GSMStatus(ctx, smContext, pti, msg.Cause)
+		removed := s.handle5GSMStatus(ctx, smContext, pti, msg.Cause)
 
-		return nil, nil
+		return &UpdateResult{SessionRemoved: removed}, nil
 
 	case *fgs.UnknownGSMMessage:
 		// TS 24.501 §7.4: a 5GSM message type the receiver does not implement is
@@ -207,7 +211,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
+	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
 		span.RecordError(fmt.Errorf("session already released"))
 		span.SetStatus(codes.Error, "session already released")
 
@@ -230,7 +234,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
+		smContext.PFCPContext.SEID,
 		"",
 		pdrList, farList, nil,
 	)); err != nil {
@@ -254,20 +258,16 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 
 	var farList []*FAR
 
-	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
+	if smContext.Tunnel.Activated {
+		smContext.Tunnel.DownlinkPDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
+		smContext.Tunnel.DownlinkPDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
 
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.State = RuleUpdate
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
+		pdrList = append(pdrList, smContext.Tunnel.DownlinkPDR)
+		farList = append(farList, smContext.Tunnel.DownlinkPDR.FAR)
 
 		// Initial PDR creation set the UL OuterHeaderRemoval before the gNB IP was
-		// known; mark it for update so the corrected value reaches the UPF.
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
+		// known, so the corrected value has to reach the UPF too.
+		pdrList = append(pdrList, smContext.Tunnel.UplinkPDR)
 	}
 
 	if err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext); err != nil {
@@ -434,21 +434,21 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		return
 	}
 
-	anInfo := smContext.Tunnel.ANInformation
+	anInfo := smContext.Tunnel.AN
 	if anInfo.TEID == 0 {
 		return
 	}
 
 	var gnbIP netip.Addr
 
-	if anInfo.IPv6Address != nil {
-		if addr, ok := netip.AddrFromSlice(anInfo.IPv6Address.To16()); ok {
+	if anInfo.IPv6 != nil {
+		if addr, ok := netip.AddrFromSlice(anInfo.IPv6.To16()); ok {
 			gnbIP = addr
 		}
 	}
 
-	if !gnbIP.IsValid() && anInfo.IPv4Address != nil {
-		if addr, ok := netip.AddrFromSlice(anInfo.IPv4Address.To4()); ok {
+	if !gnbIP.IsValid() && anInfo.IPv4 != nil {
+		if addr, ok := netip.AddrFromSlice(anInfo.IPv4.To4()); ok {
 			gnbIP = addr
 		}
 	}
@@ -473,7 +473,7 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 	}
 
 	reg := &models.IPv6SessionRegistration{
-		UplinkTEID:   smContext.Tunnel.DataPath.UpLinkTunnel.TEID,
+		UplinkTEID:   smContext.Tunnel.N3TEID,
 		DownlinkTEID: anInfo.TEID,
 		GnbN3Addr:    gnbIP,
 		Prefix:       netip.PrefixFrom(prefixAddr, 64),

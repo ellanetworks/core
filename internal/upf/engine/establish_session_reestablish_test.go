@@ -60,11 +60,11 @@ func TestReEstablishTearsDownOldSession(t *testing.T) {
 
 	req := func(ueIP netip.Addr) *models.EstablishRequest {
 		return &models.EstablishRequest{
-			LocalSEID: seid,
-			IMSI:      "001010000000001",
-			URRs:      []models.URR{{URRID: 1}},
-			FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
-			PDRs:      []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
+			SEID: seid,
+			IMSI: "001010000000001",
+			URRs: []models.URR{{URRID: 1}},
+			FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+			PDRs: []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
 		}
 	}
 

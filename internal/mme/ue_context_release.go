@@ -25,7 +25,7 @@ var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1a
 // releaseSupersededConn releases the detached old connection toward the eNB and guards
 // the Release Complete (TS 36.413 §8.3.3.1).
 func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
-	SendUEContextRelease(ctx, m, c.conn, c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
+	SendUEContextRelease(ctx, m, c.Conn(), c.MMEUES1APID, c.ENBUES1APID, true, causeSupersededConnection)
 	m.guardDetachedRelease(c)
 }
 
@@ -33,7 +33,7 @@ func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
 // lost Complete cannot leak its reserved MME-UE-S1AP-ID.
 func (m *MME) guardDetachedRelease(c *UeConn) {
 	c.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
-		if m.ReleaseDetachedConn(c.conn, c.MMEUES1APID, c.ENBUES1APID) {
+		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID) {
 			logger.MmeLog.Info("reaped detached S1 connection after release timeout",
 				zap.Uint32("mme-ue-id", uint32(c.MMEUES1APID)))
 		}
@@ -48,7 +48,7 @@ func (m *MME) guardDetachedRelease(c *UeConn) {
 func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, cause s1ap.Cause) bool {
 	m.mu.RLock()
 	c, ok := m.conns[uint32(mmeUEID)]
-	matched := ok && c.ue == nil && c.conn == conn && c.ENBUES1APID == enbUEID
+	matched := ok && c.ue == nil && c.Conn() == conn && c.ENBUES1APID == enbUEID
 
 	m.mu.RUnlock()
 

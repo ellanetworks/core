@@ -157,7 +157,7 @@ func runLeaderInit(ctx context.Context, pki *pkiState, dbInstance *db.Database, 
 		return fmt.Errorf("post-init cluster setup: %w", err)
 	}
 
-	if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+	if err := clearStaleDynamicLeases(ctx, dbInstance); err != nil {
 		return fmt.Errorf("delete dynamic leases: %w", err)
 	}
 

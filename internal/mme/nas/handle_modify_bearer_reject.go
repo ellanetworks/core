@@ -12,7 +12,7 @@ import (
 
 // handleModifyBearerReject abandons the modification when the UE rejects it
 // (TS 24.301 §6.4.2.4), leaving the stored config stale so the backstop retries.
-func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, rej *eps.ModifyEPSBearerContextReject) nasreply.Disposition {
+func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, rej *eps.ModifyEPSBearerContextReject) nasreply.Disposition {
 	p := m.DefaultPDN(ue)
 	if named := m.LookupPDN(ue, uint8(rej.EPSBearerIdentity)); named != nil {
 		p = named
@@ -23,7 +23,7 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, rej *eps.ModifyEPSB
 		ue.ClearPendingModify(p)
 	}
 
-	ue.Conn().Log.Warn("UE rejected EPS bearer modification", zap.String("imsi", ue.IMSI()))
+	ueConn.Log.Warn("UE rejected EPS bearer modification", zap.String("imsi", ue.IMSI()))
 
 	return nasreply.Handled()
 }

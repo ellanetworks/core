@@ -24,7 +24,7 @@ func TestExportUeContext_DetachedConnDoesNotPanic(t *testing.T) {
 
 	conn := &UeConn{Log: zap.NewNop()}
 	ue.active.Store(conn)
-	conn.ue = nil
+	conn.ue.Store(nil)
 
 	amf := New(nil, nil, nil)
 

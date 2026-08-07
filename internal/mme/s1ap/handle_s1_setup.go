@@ -191,6 +191,12 @@ func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGr
 // otherwise "unspecified" when a served PLMN is broadcast but no served TAC
 // (TS 36.413). ok is true (cause unset) when a served TAI exists.
 func servedTAICause(tas s1ap.SupportedTAs, plmn s1ap.PLMNIdentity, tacs []uint16) (cause s1ap.Cause, ok bool) {
+	// An empty list broadcasts no PLMN at all, which is not the same as
+	// broadcasting one this MME does not serve; the AMF reports unspecified too.
+	if len(tas) == 0 {
+		return causeNoServedTAC, false
+	}
+
 	if !enbBroadcastsPLMN(tas, plmn) {
 		return causeUnknownPLMN, false
 	}

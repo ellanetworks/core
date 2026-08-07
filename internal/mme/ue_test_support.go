@@ -138,7 +138,7 @@ func (ue *UeContext) SetIMSIForTest(imsi string) { ue.supi, _ = etsi.NewSUPIFrom
 
 func (ue *UeContext) KASMEForTest() []byte { return ue.kasme }
 
-func (c *UeConn) ConnForTest() S1APWriter { return c.conn }
+func (c *UeConn) ConnForTest() S1APWriter { return c.Conn() }
 
 func (c *UeConn) ReleasingForTest() bool { return c.releasing }
 

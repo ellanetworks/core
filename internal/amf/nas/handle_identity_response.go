@@ -77,57 +77,43 @@ func updateUEIdentity(ue *amf.UeContext, id fgs.MobileIdentity, integrityVerifie
 	return nil
 }
 
+// Only RegStepAuthenticating is handled: that is the only step at which an
+// IDENTITY REQUEST is ever sent, so a response at any other step is unsolicited,
+// and TS 24.501 §7.4 leaves ignoring it to the implementation.
+//
+// It must be ignored rather than acted on. Re-entering the registration handlers
+// would re-key K_gNB from this message's uplink NAS COUNT — the decoder commits
+// it before dispatch — where TS 33.501 §6.8.1.3 names the most recent SECURITY
+// MODE COMPLETE's, then reset the AS key chain and release every SM context.
 func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.IdentityResponse, integrityVerified bool) nasreply.Disposition {
-	// The identification procedure is complete on receipt of the response
-	// (TS 24.501 §5.4.3.4).
+	if ue.RegStep() != amf.RegStepAuthenticating {
+		// Nothing is stopped: the guard armed at another step supervises a
+		// different procedure, and an unsolicited message must not cancel it.
+		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Identity Response message",
+			zap.String("state", string(ue.State())))
+
+		return nasreply.Silent(nasreply.ReasonOutOfState)
+	}
+
 	if conn := ue.Conn(); conn != nil {
 		conn.StopNASGuard()
 	}
 
-	switch ue.RegStep() {
-	case amf.RegStepAuthenticating:
-		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
-			return nasreply.Handled()
-		}
+	if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
+		return nasreply.Handled()
+	}
 
-		pass, err := authenticationProcedure(ctx, amfInstance, ue)
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error in authentication procedure", zap.Error(err))
-			ue.Deregister(ctx)
-
-			return nasreply.Handled()
-		}
-
-		if pass {
-			securityMode(ctx, amfInstance, ue)
-		}
+	pass, err := authenticationProcedure(ctx, amfInstance, ue)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("error in authentication procedure", zap.Error(err))
+		ue.Deregister(ctx)
 
 		return nasreply.Handled()
+	}
 
-	case amf.RegStepContextSetup:
-		if err := updateUEIdentity(ue, msg.MobileIdentity, integrityVerified); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error handling identity response", zap.Error(err))
-			return nasreply.Handled()
-		}
-
-		conn := ue.Conn()
-		if conn == nil {
-			logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
-			return nasreply.Handled()
-		}
-
-		switch conn.RegistrationType5GS {
-		case fgs.RegistrationTypeInitial:
-			HandleInitialRegistration(ctx, amfInstance, ue)
-		case fgs.RegistrationTypeMobilityUpdating:
-			fallthrough
-		case fgs.RegistrationTypePeriodicUpdating:
-			HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
-		}
-	default:
-		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Identity Response message", zap.String("state", string(ue.State())))
-		return nasreply.Silent(nasreply.ReasonOutOfState)
+	if pass {
+		securityMode(ctx, amfInstance, ue)
 	}
 
 	return nasreply.Handled()

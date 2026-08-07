@@ -71,7 +71,11 @@ func loadTCProgramConfig(t *testing.T, masquerade bool, n3Ifindex, n6Ifindex int
 func putTCPdrUplink(t *testing.T, objs *N3N6EntrypointTcObjects, teid uint32, pdr PdrInfo) {
 	t.Helper()
 
-	stored := ToN3N6EntrypointPdrInfo(pdr)
+	stored, err := ToN3N6EntrypointPdrInfo(pdr)
+	if err != nil {
+		t.Fatalf("build TC uplink PDR: %v", err)
+	}
+
 	if err := objs.PdrsUplink.Put(teid, unsafe.Pointer(&stored)); err != nil {
 		t.Fatalf("install TC uplink PDR: %v", err)
 	}
@@ -80,7 +84,11 @@ func putTCPdrUplink(t *testing.T, objs *N3N6EntrypointTcObjects, teid uint32, pd
 func putTCPdrDownlink(t *testing.T, objs *N3N6EntrypointTcObjects, ueAddr [4]byte, pdr PdrInfo) {
 	t.Helper()
 
-	stored := ToN3N6EntrypointPdrInfo(pdr)
+	stored, err := ToN3N6EntrypointPdrInfo(pdr)
+	if err != nil {
+		t.Fatalf("build TC downlink PDR: %v", err)
+	}
+
 	if err := objs.PdrsDownlinkIp4.Put(ueAddr, unsafe.Pointer(&stored)); err != nil {
 		t.Fatalf("install TC downlink PDR: %v", err)
 	}

@@ -5,9 +5,11 @@ package smf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -56,24 +58,33 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 		return fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	localSEID := smContext.PFCPContext.LocalSEID
-	remoteSEID := smContext.PFCPContext.RemoteSEID
+	seid := smContext.PFCPContext.SEID
 
 	err = s.upf.ModifySession(ctx, BuildModifyRequest(
-		remoteSEID,
+		seid,
 		"",
 		nil, farList, nil,
 	))
 	if err != nil {
-		// A rejection means the PFCP session is gone (e.g. after a UPF restart);
-		// clear it so later Activate/Release calls don't reuse a stale session.
-		logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session modification failed, clearing stale tunnel",
-			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
-			logger.SEID(localSEID))
-		smContext.Tunnel = nil
-		smContext.PFCPContext = nil
+		// Any other failure leaves the UPF holding the session, its PDRs, its TEID
+		// and its UE-IP map entries; nothing sweeps orphaned SEIDs, so dropping the
+		// SEID there strands all of them.
+		if errors.Is(err, models.ErrSessionNotFound) {
+			logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session is gone on the UPF, clearing stale tunnel",
+				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
+				logger.SEID(seid))
+			// The responder is keyed by uplink TEID with no owner check, so an entry
+			// outliving its tunnel keeps answering for a TEID this session lost.
+			s.unregisterIPv6Session(ctx, smContext)
+			smContext.Tunnel = nil
+			smContext.PFCPContext = nil
+		} else {
+			logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session modification failed; keeping the SEID so the session can still be deleted",
+				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
+				logger.SEID(seid))
+		}
 
-		return fmt.Errorf("failed to send PFCP session modification request (localSEID=%d, remoteSEID=%d): %v", localSEID, remoteSEID, err)
+		return fmt.Errorf("failed to send PFCP session modification request (seid=%d): %v", seid, err)
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -86,20 +97,19 @@ func handleUpCnxStateDeactivate(smContext *SMContext) ([]*FAR, error) {
 		return nil, nil
 	}
 
-	if smContext.Tunnel.DataPath.DownLinkTunnel.PDR == nil {
+	if smContext.Tunnel.DownlinkPDR == nil {
 		return nil, fmt.Errorf("AN Release Error, PDR is nil")
 	}
 
-	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
-	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
-	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
+	smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Forw = false
+	smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Buff = true
+	smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Nocp = true
 
-	if smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters != nil {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
+	if smContext.Tunnel.DownlinkPDR.FAR.ForwardingParameters != nil {
+		smContext.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 	}
 
-	farList := []*FAR{smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR}
+	farList := []*FAR{smContext.Tunnel.DownlinkPDR.FAR}
 
 	return farList, nil
 }

@@ -24,7 +24,7 @@ func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 	// No AuthVector: no authentication is in progress.
 	plain := &eps.AuthenticationFailure{Cause: eps.EMMCauseMACFailure}
 
-	handleAuthenticationFailure(context.Background(), m, ue, plain)
+	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), plain)
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("a spurious Authentication Failure must not release the UE")
@@ -49,7 +49,7 @@ func TestAuthenticationFailureDuringSecurityModeIgnored(t *testing.T) {
 	// auth success) so the RegStep gate is the only thing that can drop the failure.
 	ue.ForceRegStepForTest(mme.RegStepSecurityMode)
 
-	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, eps.EMMCauseMACFailure, nil))
+	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), authFailure(t, eps.EMMCauseMACFailure, nil))
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("an out-of-phase Authentication Failure must not release the UE")
@@ -72,7 +72,7 @@ func TestFreshAuthenticationResetsResyncBudget(t *testing.T) {
 	// A prior authentication exchange already spent its resync.
 	ue.Conn().SetResyncTried(true)
 
-	startAuthentication(context.Background(), m, ue)
+	startAuthentication(context.Background(), m, ue, ue.Conn())
 
 	if ue.Conn().ResyncTried() {
 		t.Fatal("startAuthentication must reset resyncTried for a fresh authentication")
@@ -227,7 +227,7 @@ func TestAuthFailureOutOfEnumerationCauseIgnored(t *testing.T) {
 
 	// #111 "protocol error, unspecified" is a valid EMM cause but not an
 	// AUTHENTICATION FAILURE cause.
-	handleAuthenticationFailure(context.Background(), m, ue, authFailure(t, eps.EMMCauseProtocolErrorUnspecified, nil))
+	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), authFailure(t, eps.EMMCauseProtocolErrorUnspecified, nil))
 
 	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
 		t.Fatal("an out-of-enumeration Authentication Failure cause must not release the UE")

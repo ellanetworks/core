@@ -72,11 +72,11 @@ func TestDeleteSessionPurgesNATConntrack(t *testing.T) {
 	natIP := netip.MustParseAddr("192.0.2.1")
 
 	req := &models.EstablishRequest{
-		LocalSEID: seid,
-		IMSI:      "001010000000001",
-		URRs:      []models.URR{{URRID: 1}},
-		FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
-		PDRs:      []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
+		SEID: seid,
+		IMSI: "001010000000001",
+		URRs: []models.URR{{URRID: 1}},
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+		PDRs: []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
 	}
 
 	if _, err := conn.EstablishSession(context.Background(), req); err != nil {

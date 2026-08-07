@@ -55,6 +55,22 @@ import (
 
 var getInterfaceIPs = config.GetInterfaceIPs
 
+var staleLeaseCleanup sync.Once
+
+// Scoped two ways. Only this node's rows: other nodes are serving live sessions
+// off leases of their own. And once per process: acquiring leadership is not a
+// restart, so a node winning an election mid-life must not treat its own live
+// sessions' leases as leftovers.
+func clearStaleDynamicLeases(ctx context.Context, dbInstance *db.Database) error {
+	var err error
+
+	staleLeaseCleanup.Do(func() {
+		err = dbInstance.DeleteDynamicLeasesByNode(ctx, dbInstance.NodeID())
+	})
+
+	return err
+}
+
 type RuntimeConfig struct {
 	ConfigPath          string
 	RegisterExtraRoutes func(mux *http.ServeMux)
@@ -245,6 +261,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 			logger.EllaLog.Info("Leader initialization replicated successfully")
 
+			// Nothing else clears a follower's own stale leases: the leader-side
+			// cleanup covers only whichever node holds leadership.
+			if err := clearStaleDynamicLeases(ctx, dbInstance); err != nil {
+				return fmt.Errorf("couldn't release this node's stale dynamic leases: %w", err)
+			}
+
 			// Follower: build a local issuer handle (can't mutate; the
 			// follower's IsLeader returns false) and install it for
 			// HTTP handlers. Pin-cache priming happens via the
@@ -257,7 +279,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			}
 		}
 	} else {
-		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+		if err := clearStaleDynamicLeases(ctx, dbInstance); err != nil {
 			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
 		}
 	}

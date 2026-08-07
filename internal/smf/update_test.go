@@ -39,11 +39,9 @@ func TestHandleHandoverRequestAcknowledgeTransfer_ActivatedNilForwarding(t *test
 	dlFAR := &FAR{}
 	smContext := &SMContext{
 		Tunnel: &UPTunnel{
-			DataPath: &DataPath{
-				Activated:      true,
-				DownLinkTunnel: &GTPTunnel{PDR: &PDR{FAR: dlFAR}},
-				UpLinkTunnel:   &GTPTunnel{PDR: &PDR{}},
-			},
+			Activated:   true,
+			DownlinkPDR: &PDR{FAR: dlFAR},
+			UplinkPDR:   &PDR{},
 		},
 	}
 
@@ -51,8 +49,8 @@ func TestHandleHandoverRequestAcknowledgeTransfer_ActivatedNilForwarding(t *test
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if smContext.Tunnel.ANInformation.TEID != testHandoverTEID {
-		t.Errorf("ANInformation.TEID = %#x, want %#x", smContext.Tunnel.ANInformation.TEID, testHandoverTEID)
+	if smContext.Tunnel.AN.TEID != testHandoverTEID {
+		t.Errorf("AN.TEID = %#x, want %#x", smContext.Tunnel.AN.TEID, testHandoverTEID)
 	}
 
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
@@ -67,29 +65,25 @@ func TestHandleHandoverRequestAcknowledgeTransfer_ActivatedNilForwarding(t *test
 	if ohc.Description != models.OuterHeaderCreationGtpUUdpIpv4 {
 		t.Errorf("OuterHeaderCreation.Description = %v, want IPv4 GTP-U", ohc.Description)
 	}
-
-	if dlFAR.State != RuleUpdate {
-		t.Errorf("downlink FAR State = %v, want RuleUpdate", dlFAR.State)
-	}
 }
 
 // With no active data path the tunnel endpoint is recorded but no FAR is
 // touched, so a nil downlink tunnel must not panic.
 func TestHandleHandoverRequestAcknowledgeTransfer_NotActivated(t *testing.T) {
-	smContext := &SMContext{Tunnel: &UPTunnel{DataPath: &DataPath{Activated: false}}}
+	smContext := &SMContext{Tunnel: &UPTunnel{}}
 
 	if err := handleHandoverRequestAcknowledgeTransfer(validHandoverRequestAcknowledgeTransfer(t), smContext); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if smContext.Tunnel.ANInformation.TEID != testHandoverTEID {
-		t.Errorf("ANInformation.TEID = %#x, want %#x", smContext.Tunnel.ANInformation.TEID, testHandoverTEID)
+	if smContext.Tunnel.AN.TEID != testHandoverTEID {
+		t.Errorf("AN.TEID = %#x, want %#x", smContext.Tunnel.AN.TEID, testHandoverTEID)
 	}
 }
 
 // Undecodable input is rejected with an error rather than a panic.
 func TestHandleHandoverRequestAcknowledgeTransfer_BadInput(t *testing.T) {
-	smContext := &SMContext{Tunnel: &UPTunnel{DataPath: &DataPath{Activated: true}}}
+	smContext := &SMContext{Tunnel: &UPTunnel{}}
 
 	if err := handleHandoverRequestAcknowledgeTransfer([]byte{0xff, 0xff}, smContext); err == nil {
 		t.Fatal("expected an error for undecodable transfer, got nil")

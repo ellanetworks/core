@@ -17,20 +17,20 @@ import (
 
 // handleESMMessage routes a decoded ESM message, or answers a type this MME does
 // not implement with an ESM STATUS (TS 24.301 §7.4).
-func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, msg eps.Message) nasreply.Disposition {
+func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, msg eps.Message) nasreply.Disposition {
 	ctx, span := mme.Tracer.Start(ctx, "mme/esm",
 		trace.WithAttributes(attribute.String("esm.message_type", messageName(msg))))
 	defer span.End()
 
 	switch msg := msg.(type) {
 	case *eps.PDNConnectivityRequest:
-		return handlePDNConnectivityRequest(ctx, m, ue, msg)
+		return handlePDNConnectivityRequest(ctx, m, ue, ueConn, msg)
 	case *eps.PDNDisconnectRequest:
-		return handlePDNDisconnectRequest(ctx, m, ue, msg)
+		return handlePDNDisconnectRequest(ctx, m, ue, ueConn, msg)
 	case *eps.BearerResourceAllocationRequest:
-		return handleBearerResourceAllocationRequest(ctx, ue, msg)
+		return handleBearerResourceAllocationRequest(ctx, ue, ueConn, msg)
 	case *eps.BearerResourceModificationRequest:
-		return handleBearerResourceModificationRequest(ctx, ue, msg)
+		return handleBearerResourceModificationRequest(ctx, ue, ueConn, msg)
 	case *eps.ActivateDefaultEPSBearerContextAccept:
 		return handleActivateDefaultBearerAccept(m, ue, msg)
 	case *eps.ActivateDefaultEPSBearerContextReject:
@@ -38,11 +38,11 @@ func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, msg ep
 	case *eps.DeactivateEPSBearerContextAccept:
 		return handleDeactivateBearerAccept(ctx, m, ue, msg)
 	case *eps.ModifyEPSBearerContextAccept:
-		return handleModifyBearerAccept(m, ue, msg)
+		return handleModifyBearerAccept(m, ue, ueConn, msg)
 	case *eps.ModifyEPSBearerContextReject:
-		return handleModifyBearerReject(m, ue, msg)
+		return handleModifyBearerReject(m, ue, ueConn, msg)
 	case *eps.ESMInformationResponse:
-		return handleESMInformationResponse(ctx, m, ue, msg)
+		return handleESMInformationResponse(ctx, m, ue, ueConn, msg)
 	case *eps.ESMStatus:
 		return handleESMStatus(ctx, m, ue, msg)
 	case eps.ESMMessage:

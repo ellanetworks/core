@@ -55,10 +55,8 @@ func (u *URR) ToURR() models.URR {
 	}
 }
 
-// BuildEstablishRequest advances each rule to RuleCreate so later modifications
-// dispatch as updates.
 func BuildEstablishRequest(
-	localSEID uint64,
+	seid uint64,
 	imsi string,
 	policyID string,
 	pdrs []*PDR,
@@ -74,7 +72,6 @@ func BuildEstablishRequest(
 	mfars := make([]models.FAR, 0, len(fars))
 	for _, far := range fars {
 		mfars = append(mfars, far.ToFAR())
-		far.State = RuleCreate
 	}
 
 	mqers := make([]models.QER, 0, len(qers))
@@ -87,7 +84,6 @@ func BuildEstablishRequest(
 
 		seen[qer.QERID] = struct{}{}
 		mqers = append(mqers, qer.ToQER())
-		qer.State = RuleCreate
 	}
 
 	murrs := make([]models.URR, 0, len(urrs))
@@ -96,80 +92,44 @@ func BuildEstablishRequest(
 	}
 
 	return &models.EstablishRequest{
-		LocalSEID: localSEID,
-		IMSI:      imsi,
-		PolicyID:  policyID,
-		PDRs:      mpdrs,
-		FARs:      mfars,
-		QERs:      mqers,
-		URRs:      murrs,
+		SEID:     seid,
+		IMSI:     imsi,
+		PolicyID: policyID,
+		PDRs:     mpdrs,
+		FARs:     mfars,
+		QERs:     mqers,
+		URRs:     murrs,
 	}
 }
 
-// BuildModifyRequest buckets each rule by its RuleState and advances it to
-// RuleCreate.
+// Every rule passed is an update: rules are created once at establish and
+// removed only by deleting the session.
 func BuildModifyRequest(
-	remoteSEID uint64,
+	seid uint64,
 	policyID string,
 	pdrs []*PDR,
 	fars []*FAR,
 	qers []*QER,
 ) *models.ModifyRequest {
 	req := &models.ModifyRequest{
-		SEID:     remoteSEID,
+		SEID:     seid,
 		PolicyID: policyID,
 	}
 
 	for _, pdr := range pdrs {
-		switch pdr.State {
-		case RuleInitial:
-			req.CreatePDRs = append(req.CreatePDRs, pdr.ToPDR())
-		case RuleUpdate:
-			req.UpdatePDRs = append(req.UpdatePDRs, pdr.ToPDR())
-		case RuleRemove:
-			req.RemovePDRIDs = append(req.RemovePDRIDs, pdr.PDRID)
-		}
-
-		pdr.State = RuleCreate
+		req.UpdatePDRs = append(req.UpdatePDRs, pdr.ToPDR())
 	}
 
 	for _, far := range fars {
-		switch far.State {
-		case RuleInitial:
-			req.CreateFARs = append(req.CreateFARs, far.ToFAR())
-		case RuleUpdate:
-			req.UpdateFARs = append(req.UpdateFARs, far.ToFAR())
-		case RuleRemove:
-			req.RemoveFARIDs = append(req.RemoveFARIDs, far.FARID)
-		}
-
-		far.State = RuleCreate
+		req.UpdateFARs = append(req.UpdateFARs, far.ToFAR())
 	}
 
 	for _, qer := range qers {
-		switch qer.State {
-		case RuleInitial:
-			req.CreateQERs = append(req.CreateQERs, qer.ToQER())
-		case RuleUpdate:
-			req.UpdateQERs = append(req.UpdateQERs, qer.ToQER())
-		case RuleRemove:
-			req.RemoveQERIDs = append(req.RemoveQERIDs, qer.QERID)
-		}
-
-		qer.State = RuleCreate
+		req.UpdateQERs = append(req.UpdateQERs, qer.ToQER())
 	}
 
 	return req
 }
-
-const (
-	RuleInitial RuleState = 0
-	RuleCreate  RuleState = 1
-	RuleUpdate  RuleState = 2
-	RuleRemove  RuleState = 3
-)
-
-type RuleState uint8
 
 // Packet Detection Rule.
 type PDR struct {
@@ -180,7 +140,6 @@ type PDR struct {
 	QER *QER
 
 	PDI   models.PDI
-	State RuleState
 	PDRID uint16
 }
 
@@ -188,7 +147,6 @@ type PDR struct {
 type FAR struct {
 	ForwardingParameters *models.ForwardingParameters
 
-	State RuleState
 	FARID uint32
 
 	ApplyAction models.ApplyAction
@@ -199,7 +157,6 @@ type QER struct {
 	GateStatus *models.GateStatus
 	MBR        *models.MBR
 
-	State RuleState
 	QFI   uint8
 	QERID uint32
 }

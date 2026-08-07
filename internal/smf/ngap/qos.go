@@ -13,14 +13,19 @@ import (
 // qosFlowLevelQosParameters maps a policy QoS rule onto the NGAP IE. TS 38.413
 // bounds priorityLevelARP at 1..15, so a policy carrying 0 is rejected here
 // rather than encoded: the value has no meaning on the wire.
+//
+// The pre-emption defaults match the 4G bearer paths (mme.BearerARP): a policy
+// has an ARP priority column and no pre-emption columns, so defaulting 5G to
+// "may trigger" claimed an authorization the profile never granted.
 func qosFlowLevelQosParameters(qosData *models.QosData) (libngap.QosFlowLevelQosParameters, error) {
-	preemptCap := libngap.PreemptionMayTrigger
+	preemptCap := libngap.PreemptionShallNotTrigger
 	preemptVuln := libngap.PreemptionNotPreemptable
 	priority := uint8(1)
 
 	if qosData.Arp != nil {
-		if qosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
-			preemptCap = libngap.PreemptionShallNotTrigger
+		// The field is a string enum whose zero value names neither alternative.
+		if qosData.Arp.PreemptCap == models.PreemptionCapabilityMayPreempt {
+			preemptCap = libngap.PreemptionMayTrigger
 		}
 
 		if qosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {

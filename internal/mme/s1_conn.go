@@ -4,6 +4,8 @@
 package mme
 
 import (
+	"sync/atomic"
+
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
@@ -32,7 +34,12 @@ const (
 type UeConn struct {
 	ENBUES1APID s1ap.ENBUES1APID
 	MMEUES1APID s1ap.MMEUES1APID
-	conn        S1APWriter
+
+	// Atomic rather than a plain interface: CommitPathSwitch re-points a live
+	// connection under MME.mu while SendS1AP reads it on the eNB dispatch
+	// goroutine without it, and an interface value is two words — a torn read
+	// calls through a method table that does not belong to the value.
+	conn atomic.Pointer[S1APWriter]
 
 	// Log carries the connection's MME-UE-S1AP-ID (the temporary identity, TS
 	// 33.401 §7.1) so handlers correlate by it. Per-connection with an immutable id.

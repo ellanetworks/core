@@ -8,6 +8,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	libngap "github.com/ellanetworks/core/ngap"
 )
 
@@ -50,15 +51,15 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 		t.Fatal("expected non-nil N2 response")
 	}
 
-	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(gnbIP) {
-		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
+	if !smCtx.Tunnel.AN.IPv4.Equal(gnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.AN.IPv4)
 	}
 
-	if smCtx.Tunnel.ANInformation.TEID != teid {
-		t.Fatalf("expected AN TEID %d, got %d", teid, smCtx.Tunnel.ANInformation.TEID)
+	if smCtx.Tunnel.AN.TEID != teid {
+		t.Fatalf("expected AN TEID %d, got %d", teid, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
 	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
@@ -81,5 +82,59 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 
 	if len(upf.modifyCalls) != 1 {
 		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	}
+}
+
+// bindAccessTunnel realigns the uplink PDR's OuterHeaderRemoval as well as the
+// downlink FAR, so sending only the FAR leaves the UPF decapsulating uplink
+// GTP-U as the previous family when the RAN moves between IPv4 and IPv6.
+func TestUpdateSmContextN2ModifyIndication_SendsUplinkPDR(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	// An IPv6 transport address is what changes the OuterHeaderRemoval.
+	gnbIP := net.ParseIP("2001:db8::c0de")
+
+	n2Data, err := buildModifyIndicationTransfer(9000, gnbIP, 1)
+	if err != nil {
+		t.Fatalf("build N2 payload: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN2ModifyIndication(ctx, ref, n2Data); err != nil {
+		t.Fatalf("UpdateSmContextN2ModifyIndication: %v", err)
+	}
+
+	ulPDR := smCtx.Tunnel.UplinkPDR
+	if ulPDR.OuterHeaderRemoval == nil || *ulPDR.OuterHeaderRemoval != models.OuterHeaderRemovalGtpUUdpIpv6 {
+		t.Fatalf("uplink OuterHeaderRemoval = %v, want the IPv6 descriptor", ulPDR.OuterHeaderRemoval)
+	}
+
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	if len(upf.modifyCalls) != 1 {
+		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	}
+
+	req := upf.modifyCalls[0]
+
+	var sawUplink bool
+
+	for _, p := range req.UpdatePDRs {
+		if p.PDRID == ulPDR.PDRID {
+			sawUplink = true
+
+			if p.OuterHeaderRemoval == nil || *p.OuterHeaderRemoval != models.OuterHeaderRemovalGtpUUdpIpv6 {
+				t.Errorf("uplink PDR sent with OuterHeaderRemoval %v, want the IPv6 descriptor", p.OuterHeaderRemoval)
+			}
+		}
+	}
+
+	if !sawUplink {
+		t.Errorf("modify request omits the uplink PDR; it carries %d PDR(s) and %d FAR(s)",
+			len(req.UpdatePDRs), len(req.UpdateFARs))
 	}
 }

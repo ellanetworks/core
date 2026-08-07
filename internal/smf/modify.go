@@ -40,9 +40,9 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 	}
 
 	n2buf, err := ngap.BuildPDUSessionResourceModifyConfirmTransfer(
-		smContext.Tunnel.DataPath.UpLinkTunnel.TEID,
-		smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4,
-		smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6,
+		smContext.Tunnel.N3TEID,
+		smContext.Tunnel.N3IPv4,
+		smContext.Tunnel.N3IPv6,
 		qfis,
 	)
 	if err != nil {
@@ -53,17 +53,22 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	var pdrList []*PDR
+	// bindAccessTunnel realigned the uplink PDR's OuterHeaderRemoval as well as
+	// the downlink FAR, so both have to reach the UPF: an indication that moves
+	// the RAN between address families would otherwise leave it decapsulating
+	// uplink GTP-U as the wrong family.
+	var (
+		pdrList []*PDR
+		farList []*FAR
+	)
 
-	var farList []*FAR
-
-	if smContext.Tunnel.DataPath.Activated {
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
+	if smContext.Tunnel.Activated {
+		pdrList = []*PDR{smContext.Tunnel.UplinkPDR}
+		farList = []*FAR{smContext.Tunnel.DownlinkPDR.FAR}
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
+		smContext.PFCPContext.SEID,
 		"",
 		pdrList, farList, nil,
 	)); err != nil {
@@ -87,10 +92,6 @@ func handleModifyIndicationTransfer(b []byte, smContext *SMContext) ([]int64, er
 	}
 
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel))
-
-	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-	}
 
 	qfis := make([]int64, 0, len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList))
 	for _, item := range transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList {

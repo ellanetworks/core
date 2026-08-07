@@ -107,7 +107,7 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8
 
 	a.mu.Lock()
 	if target != nil {
-		target.ue = ue
+		target.ue.Store(ue)
 	}
 
 	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target, newNH: nh, newNCC: ncc}
@@ -141,7 +141,7 @@ func SetHandoverForTest(sourceUe, targetUe *UeConn) error {
 		return fmt.Errorf("source or target ue is nil")
 	}
 
-	amfUe := sourceUe.ue
+	amfUe := sourceUe.ue.Load()
 	if amfUe == nil {
 		return fmt.Errorf("amf ue is nil")
 	}

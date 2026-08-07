@@ -22,12 +22,12 @@ func handleENBStatusTransfer(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, st.MMEUES1APID, st.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(m, radio.Conn, st.MMEUES1APID, st.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), st.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcENBStatusTransfer, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), st.Diagnostics())
 
 	ue.TouchLastSeen()
 

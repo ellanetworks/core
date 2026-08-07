@@ -30,7 +30,7 @@ func TestSuppressDownlinkDataNotification_KeepsDownlinkDeduped(t *testing.T) {
 		t.Fatal("uplink rule marked notified, want downlink only")
 	}
 
-	eng.BpfObjects.ClearNotified(seid, 2, 0)
+	eng.BpfObjects.ClearNotified(seid, 2)
 
 	if eng.BpfObjects.IsAlreadyNotified(downlink) {
 		t.Fatal("downlink notification still suppressed after ClearNotified")

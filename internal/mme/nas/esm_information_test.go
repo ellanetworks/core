@@ -42,7 +42,7 @@ func TestAttachWithESMInformationTransferFlagRequestsIt(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("downlink count is %d, want 1 (the ESM Information Request)", len(cc.sent))
@@ -67,10 +67,10 @@ func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	apn := eps.APN("ims")
-	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{
 		PTI:             3,
 		AccessPointName: &apn,
 	})
@@ -100,9 +100,9 @@ func TestESMInformationTimeoutRejectsTheAttach(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	rejectAttachESM(context.Background(), m, ue, 3, eps.ESMCauseESMInformationNotReceived)
+	rejectAttachESM(context.Background(), m, ue, ue.Conn(), 3, eps.ESMCauseESMInformationNotReceived)
 
 	if len(cc.sent) != 3 {
 		t.Fatalf("message count is %d, want 3 (ESM Information Request, Attach Reject, UE Context Release Command)", len(cc.sent))
@@ -137,9 +137,9 @@ func TestESMInformationResponseForAnotherTransactionIsRefused(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{PTI: 9})
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{PTI: 9})
 
 	if ue.PendingESMInfo() == nil {
 		t.Error("a response for another transaction ended the ongoing procedure")
@@ -168,9 +168,9 @@ func TestESMInformationResponseWithUnassignedPTIIsIgnored(t *testing.T) {
 		m := esmInfoTestMME()
 		ue, cc := esmInfoAttachUe(t, m, 3)
 
-		activateDefaultBearer(context.Background(), m, ue)
+		activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-		handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
+		handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{
 			PTI: nas.ProcedureTransactionIdentity(pti),
 		})
 
@@ -188,9 +188,9 @@ func TestESMInformationResponseWithAnEPSBearerIdentityIsIgnored(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{
 		EPSBearerIdentity: 5,
 		PTI:               3,
 	})
@@ -208,7 +208,7 @@ func TestAttachWithoutESMInformationTransferFlagDoesNotRequestIt(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, cc := securedUE(t, m)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	if ue.PendingESMInfo() != nil {
 		t.Error("an ESM information procedure was started for a UE that did not defer")
@@ -227,9 +227,9 @@ func TestAttachClearsAnAbandonedESMInformationWait(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
-	ingestAttachRequest(context.Background(), ue, &eps.AttachRequest{
+	ingestAttachRequest(context.Background(), ue, ue.Conn(), &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
 		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
 		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
@@ -245,7 +245,7 @@ func TestAttachIngestRecordsTheDeferral(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := securedUE(t, m)
 
-	ingestAttachRequest(context.Background(), ue, &eps.AttachRequest{
+	ingestAttachRequest(context.Background(), ue, ue.Conn(), &eps.AttachRequest{
 		EPSAttachType:       eps.AttachTypeEPS,
 		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
 		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},

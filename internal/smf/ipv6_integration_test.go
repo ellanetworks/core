@@ -56,10 +56,8 @@ func ipv6Fakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	}
 	upf := &fakeUPF{
 		establishResult: &models.EstablishResponse{
-			RemoteSEID: 100,
-			CreatedPDRs: []models.CreatedPDR{
-				{PDRID: 1, TEID: 5000, N3IPv4: netip.MustParseAddr("192.168.1.1")},
-			},
+			N3TEID: 5000,
+			N3IPv4: netip.MustParseAddr("192.168.1.1"),
 		},
 	}
 	amfCb := &fakeAMF{}
@@ -107,10 +105,8 @@ func dualStackFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 	}
 	upf := &fakeUPF{
 		establishResult: &models.EstablishResponse{
-			RemoteSEID: 200,
-			CreatedPDRs: []models.CreatedPDR{
-				{PDRID: 1, TEID: 6000, N3IPv4: netip.MustParseAddr("192.168.1.1")},
-			},
+			N3TEID: 6000,
+			N3IPv4: netip.MustParseAddr("192.168.1.1"),
 		},
 	}
 	amfCb := &fakeAMF{}
@@ -475,9 +471,10 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	supi := testSUPI()
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
 
-	seid := s.AllocateLocalSEID()
+	seid := s.AllocateSEID()
 	smCtx.SetPFCPSession(seid)
-	smCtx.PFCPContext.RemoteSEID = 100
+	smCtx.PFCPContext.SEID = 100
+	smCtx.PFCPContext.Established = true
 
 	ulPdr := smf.NewPDR(1, 1)
 	dlPdr := smf.NewPDR(2, 2)
@@ -492,20 +489,15 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	}
 
 	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel: &smf.GTPTunnel{
-				PDR:    ulPdr,
-				TEID:   5000,
-				N3IPv4: netip.MustParseAddr("192.168.1.1"),
-			},
-			DownLinkTunnel: &smf.GTPTunnel{
-				PDR: dlPdr,
-			},
-			Activated: true,
-		},
+		UplinkPDR:   ulPdr,
+		DownlinkPDR: dlPdr,
+		QER:         ulPdr.QER,
+		N3TEID:      5000,
+		N3IPv4:      netip.MustParseAddr("192.168.1.1"),
+		Activated:   true,
 	}
-	smCtx.Tunnel.ANInformation.IPv4Address = net.ParseIP("10.0.0.100").To4()
-	smCtx.Tunnel.ANInformation.TEID = 6000
+	smCtx.Tunnel.AN.IPv4 = net.ParseIP("10.0.0.100").To4()
+	smCtx.Tunnel.AN.TEID = 6000
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 	smCtx.PDUSessionType = uint8(fgs.PDUSessionTypeIPv6)
 
@@ -612,9 +604,7 @@ func TestRemoveSession_IPv6Only_ReleasesIPv6(t *testing.T) {
 	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 
-	ref := smCtx.Ref
-
-	s.RemoveSession(ctx, ref)
+	removeSession(s, ctx, smCtx)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -638,9 +628,7 @@ func TestRemoveSession_DualStack_ReleasesBoth(t *testing.T) {
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:abcd::").To16()
 
-	ref := smCtx.Ref
-
-	s.RemoveSession(ctx, ref)
+	removeSession(s, ctx, smCtx)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()

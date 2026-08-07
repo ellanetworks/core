@@ -25,7 +25,10 @@ func TestConnectedSubscribers(t *testing.T) {
 	registered.integrityAlg = 2
 	registered.Imei, _ = etsi.NewIMEIFromPEI("353456789012347")
 	testPDN(registered).Apn = "internet"
-	registered.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("2 Gbps")}
+	// Deliberately different from the per-session AMBR below.
+	registered.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("5 Gbps"), Downlink: models.MustParseBitRate("6 Gbps")}
+	testPDN(registered).SessAmbrULBps = models.MustParseBitRate("1 Gbps").Bps()
+	testPDN(registered).SessAmbrDLBps = models.MustParseBitRate("2 Gbps").Bps()
 	testPDN(registered).UeIP = netip.MustParseAddr("10.45.0.2")
 	registered.TouchLastSeen()
 

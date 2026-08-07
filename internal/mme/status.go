@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -29,12 +30,14 @@ type ConnectedSubscriber struct {
 // SubscriberSession is one PDN connection of an attached UE — a default EPS
 // bearer to an APN (TS 23.401).
 type SubscriberSession struct {
-	BearerID     uint8
-	APN          string
-	PDNType      eps.PDNType // negotiated PDN type: 1 IPv4 / 2 IPv6 / 3 IPv4v6
-	IPv4Address  string
-	IPv6Prefix   string
-	AMBRUplink   string // session AMBR (profile UE-AMBR), raw "<n> <unit>" form
+	BearerID    uint8
+	APN         string
+	PDNType     eps.PDNType // negotiated PDN type: 1 IPv4 / 2 IPv6 / 3 IPv4v6
+	IPv4Address string
+	IPv6Prefix  string
+	// This PDN connection's Session-AMBR (per-APN, TS 24.301 §9.9.4.2), so two
+	// APNs on the same UE can differ. The per-UE UE-AMBR is a different cap.
+	AMBRUplink   string
 	AMBRDownlink string
 }
 
@@ -43,7 +46,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 	radioName := ""
 
 	if ue.Conn() != nil {
-		if s := m.radios[ue.Conn().conn]; s != nil {
+		if s := m.radios[ue.Conn().Conn()]; s != nil {
 			radioName = s.name
 		}
 	}
@@ -58,13 +61,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 		IntegrityAlgorithm: snap.IntegrityAlgorithm,
 	}
 
-	ambrUL, ambrDL := ue.AmbrRates()
-
-	for _, s := range m.pdnSessionViews(ue) {
-		s.AMBRUplink = ambrUL.String()
-		s.AMBRDownlink = ambrDL.String()
-		cs.Sessions = append(cs.Sessions, s)
-	}
+	cs.Sessions = append(cs.Sessions, m.pdnSessionViews(ue)...)
 
 	sort.Slice(cs.Sessions, func(i, j int) bool { return cs.Sessions[i].BearerID < cs.Sessions[j].BearerID })
 	cs.NumSessions = len(cs.Sessions)
@@ -74,7 +71,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 
 // pdnSessionViews returns a value snapshot of each PDN connection's status fields,
 // taken under ue.mu so the status API never reads a live (concurrently mutated)
-// PdnConnection. The AMBR is per-UE and filled in by the caller.
+// PdnConnection.
 func (m *MME) pdnSessionViews(ue *UeContext) []SubscriberSession {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -83,9 +80,11 @@ func (m *MME) pdnSessionViews(ue *UeContext) []SubscriberSession {
 
 	for _, p := range ue.Pdns {
 		s := SubscriberSession{
-			BearerID: p.Ebi,
-			APN:      p.Apn,
-			PDNType:  eps.PDNType(uint8(p.PdnType)),
+			BearerID:     p.Ebi,
+			APN:          p.Apn,
+			PDNType:      eps.PDNType(uint8(p.PdnType)),
+			AMBRUplink:   models.BitRateFromBps(p.SessAmbrULBps).String(),
+			AMBRDownlink: models.BitRateFromBps(p.SessAmbrDLBps).String(),
 		}
 
 		if p.UeIP.IsValid() {

@@ -32,7 +32,7 @@ func TestT3489RetransmitsTwiceThenRejects(t *testing.T) {
 
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	waitFor(t, "T3489 to exhaust its retransmissions", func() bool { return cc.count() >= 5 })
 
@@ -76,10 +76,10 @@ func TestESMInformationResponseStopsT3489(t *testing.T) {
 
 	ue, cc := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	apn := eps.APN("internet")
-	handleESMInformationResponse(context.Background(), m, ue, &eps.ESMInformationResponse{
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{
 		PTI:             3,
 		AccessPointName: &apn,
 	})
@@ -102,7 +102,7 @@ func TestESMInformationResponseRacesTheTimeout(t *testing.T) {
 		m := esmInfoTestMME()
 		ue, _ := esmInfoAttachUe(t, m, 3)
 
-		activateDefaultBearer(context.Background(), m, ue)
+		activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 		var (
 			concluded = make(chan bool, 2)
@@ -133,7 +133,7 @@ func TestS1ReleaseDropsTheESMInformationWait(t *testing.T) {
 	m := esmInfoTestMME()
 	ue, _ := esmInfoAttachUe(t, m, 3)
 
-	activateDefaultBearer(context.Background(), m, ue)
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
 
 	if ue.PendingESMInfo() == nil {
 		t.Fatal("the ESM information procedure is not outstanding before the release")

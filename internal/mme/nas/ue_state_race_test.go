@@ -61,7 +61,7 @@ func TestUEStateConcurrentAccess(t *testing.T) {
 		rej := &eps.ModifyEPSBearerContextReject{}
 
 		for i := 0; i < iters; i++ {
-			handleModifyBearerReject(m, ue, rej)
+			handleModifyBearerReject(m, ue, ue.Conn(), rej)
 		}
 	}()
 

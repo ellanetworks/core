@@ -367,6 +367,10 @@ func (s *fakeSmf) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string,
 	return nil, s.Error
 }
 
+func (s *fakeSmf) UpdateSmContextN2HandoverCanceled(_ context.Context, _ string) error {
+	return nil
+}
+
 func (s *fakeSmf) UpdateSmContextN2HandoverComplete(_ context.Context, _ string) error {
 	return s.Error
 }

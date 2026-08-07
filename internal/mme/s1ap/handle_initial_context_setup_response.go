@@ -40,12 +40,12 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		return
 	}
 
-	ue, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUEIDs(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcInitialContextSetup, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	mmeUEID := *msg.MMEUES1APID
 
@@ -110,8 +110,8 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 		return
 	}
 
-	if ue.Conn() != nil {
-		ue.Conn().ICS = mme.ICSCompleted
+	if ueConn != nil {
+		ueConn.ICS = mme.ICSCompleted
 	}
 
 	// With the radio bearers up, a pending data-network change becomes deliverable.

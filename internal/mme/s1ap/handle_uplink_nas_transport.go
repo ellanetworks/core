@@ -19,12 +19,12 @@ func handleUplinkNASTransport(m *mme.MME, ctx context.Context, radio *mme.Radio,
 		return
 	}
 
-	ue, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
+	ue, ueConn, ok := resolveUE(m, radio.Conn, msg.MMEUES1APID, msg.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUplinkNASTransport, s1ap.TriggeringInitiatingMessage, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), msg.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcUplinkNASTransport, s1ap.TriggeringInitiatingMessage, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), msg.Diagnostics())
 
 	ue.TouchLastSeen()
 
@@ -32,14 +32,14 @@ func handleUplinkNASTransport(m *mme.MME, ctx context.Context, radio *mme.Radio,
 	// now is (TS 36.413: UPLINK NAS TRANSPORT carries the current TAI). An omitted TAI
 	// leaves the last known one standing (§10.3.5).
 	if msg.TAI != nil {
-		ue.Conn().ServingTAI = *msg.TAI
+		ueConn.ServingTAI = *msg.TAI
 
 		if msg.EUTRANCGI != nil {
-			ue.Conn().UpdateLocation(*msg.EUTRANCGI, *msg.TAI)
+			ueConn.UpdateLocation(*msg.EUTRANCGI, *msg.TAI)
 		}
 	}
 
-	// resolveUE guarantees the UE is connected on this association, so ue.Conn() is
+	// resolveUE guarantees the UE is connected on this association, so ueConn is
 	// the connection the message arrived on.
-	m.NAS.HandleNAS(ctx, ue.Conn(), []byte(msg.NASPDU))
+	m.NAS.HandleNAS(ctx, ueConn, []byte(msg.NASPDU))
 }

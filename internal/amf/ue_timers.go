@@ -76,6 +76,10 @@ func (a *AMF) onMobileReachableExpiry(ue *UeContext, gen uint64) {
 // onImplicitDeregistrationExpiry deregisters an unreachable UE (TS 24.501). It
 // no-ops if a reconnect bumped idleGen after the implicit timer was armed; the
 // deregister runs after releasing AMF.mu (it takes UeContext.Mutex).
+//
+// Removed from the registry, not just deregistered: an implicitly deregistered
+// UE is gone for good, so its amf.UEs and uesByTmsi entries would otherwise leak
+// for the lifetime of the process.
 func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 	a.mu.Lock()
 
@@ -88,5 +92,5 @@ func (a *AMF) onImplicitDeregistrationExpiry(ue *UeContext, gen uint64) {
 
 	a.mu.Unlock()
 
-	ue.Deregister(context.Background())
+	a.DeregisterAndRemoveUeContext(context.Background(), ue)
 }

@@ -161,3 +161,54 @@ func TestTriggerNoSpaceToAllocateError(t *testing.T) {
 		})
 	}
 }
+
+// The AMF and MME both rest their correctness on this: TS 36.413 / TS 38.413
+// forbid immediately reusing a released UE-associated identity, or a late
+// message carrying one routes to whichever UE inherited the slot.
+func TestFreeIDDoesNotRewindOffset(t *testing.T) {
+	gen := idgenerator.NewGenerator(1, 4)
+
+	first, err := gen.Allocate()
+	if err != nil {
+		t.Fatalf("Allocate: %v", err)
+	}
+
+	second, err := gen.Allocate()
+	if err != nil {
+		t.Fatalf("Allocate: %v", err)
+	}
+
+	gen.FreeID(first)
+
+	third, err := gen.Allocate()
+	if err != nil {
+		t.Fatalf("Allocate: %v", err)
+	}
+
+	if third == first {
+		t.Fatalf("Allocate returned the just-freed id %d; reuse must wait for a wrap", first)
+	}
+
+	if third == second {
+		t.Fatalf("Allocate returned an in-use id %d", second)
+	}
+
+	gen.FreeID(second)
+	gen.FreeID(third)
+
+	seen := map[int64]bool{}
+
+	for range 4 {
+		id, err := gen.Allocate()
+		if err != nil {
+			t.Fatalf("Allocate after wrap: %v", err)
+		}
+
+		seen[id] = true
+		gen.FreeID(id)
+	}
+
+	if !seen[first] {
+		t.Errorf("freed id %d never reissued across a full wrap; got %v", first, seen)
+	}
+}

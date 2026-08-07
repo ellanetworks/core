@@ -170,6 +170,16 @@ func (amf *AMF) ReconcileSessionsForUE(ctx context.Context, ue *UeContext) {
 	}
 }
 
+// Provisioning failures are permanent until an operator acts, so the session is
+// released; a DB outage or Raft timeout is not, and the backstop retries it.
+// Missing a permanent cause is the expensive mistake: the reconciler then logs
+// "transient error … skipping" on every sweep, forever.
+func permanentPolicyFailure(err error) bool {
+	return errors.Is(err, smf.ErrNoPolicyMatch) ||
+		errors.Is(err, smf.ErrDNNNotFound) ||
+		errors.Is(err, smf.ErrDNNNotInSlice)
+}
+
 // fetchSessionPolicy reads the latest policy for a session from the DB.
 // Returns (nil, ReconcileSliceMismatch) when the policy cannot be resolved
 // because the session's stored Snssai matches no active slice
@@ -186,9 +196,7 @@ func (amf *AMF) fetchSessionPolicy(smContextRef string) (*models.SessionPolicyDe
 
 	policy, err := amf.Session.GetSessionPolicy(context.Background(), sm.Supi, sm.Snssai, sm.Dnn)
 	if err != nil {
-		// Distinguish "no matching policy" (genuine slice mismatch) from
-		// transient infrastructure errors (DB down, Raft timeout, etc.).
-		if errors.Is(err, smf.ErrNoPolicyMatch) || errors.Is(err, smf.ErrDNNNotFound) {
+		if permanentPolicyFailure(err) {
 			logger.AmfLog.Debug("session policy not found, triggering slice mismatch release",
 				zap.String("smContextRef", smContextRef),
 				zap.Error(err))

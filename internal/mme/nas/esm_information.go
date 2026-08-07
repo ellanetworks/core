@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(pti uint8)) bool {
+func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, onAbort func(pti uint8)) bool {
 	wait := ue.PendingESMInfo()
 	if wait == nil {
 		return false
@@ -27,7 +27,7 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 			return
 		}
 
-		ue.Conn().StopESMInfoGuard()
+		ueConn.StopESMInfoGuard()
 		onAbort(w.PTI)
 	}
 
@@ -41,7 +41,7 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 
 	naspdu, err := ue.ProtectDownlink(esm, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
-		mme.ReportProtectFailure(ctx, ue.Conn(), "ESM Information Request", err)
+		mme.ReportProtectFailure(ctx, ueConn, "ESM Information Request", err)
 
 		// The connection is gone, so the abort's reject could not be protected.
 		if errors.Is(err, nas.ErrCountExhausted) {
@@ -58,17 +58,17 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, onAbort func(
 	logger.From(ctx, logger.MmeLog).Info("requesting deferred ESM information",
 		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", wait.PTI))
 
-	ue.Conn().ArmT3489("ESM Information Request", naspdu, func() {
+	ueConn.ArmT3489("ESM Information Request", naspdu, func() {
 		logger.MmeLog.Info("ESM information not received", zap.String("imsi", ue.IMSI()))
 		abort()
 	})
 
-	ue.Conn().SendDownlinkNASTransport(ctx, naspdu)
+	ueConn.SendDownlinkNASTransport(ctx, naspdu)
 
 	return true
 }
 
-func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, req *eps.ESMInformationResponse) nasreply.Disposition {
+func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.ESMInformationResponse) nasreply.Disposition {
 	if req.EPSBearerIdentity != 0 {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response with an assigned EPS bearer identity, ignoring",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", uint8(req.EPSBearerIdentity)))
@@ -88,12 +88,12 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	if wait == nil {
 		logger.From(ctx, logger.MmeLog).Warn("ESM Information Response for no ongoing transaction",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("pti", pti))
-		egress{conn: ue.Conn()}.SendSMStatusFor(ctx, uint8(eps.ESMCauseInvalidPTIValue), pti, uint8(req.EPSBearerIdentity))
+		egress{conn: ueConn}.SendSMStatusFor(ctx, uint8(eps.ESMCauseInvalidPTIValue), pti, uint8(req.EPSBearerIdentity))
 
 		return nasreply.Handled()
 	}
 
-	ue.Conn().StopESMInfoGuard()
+	ueConn.StopESMInfoGuard()
 
 	if req.AccessPointName != nil {
 		ue.RequestedAPN = string(*req.AccessPointName)
@@ -103,12 +103,12 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
 
 	if wait.Standalone != nil {
-		resumePDNConnectivity(ctx, m, ue, wait.Standalone)
+		resumePDNConnectivity(ctx, m, ue, ueConn, wait.Standalone)
 
 		return nasreply.Handled()
 	}
 
-	activateDefaultBearer(ctx, m, ue)
+	activateDefaultBearer(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
 }

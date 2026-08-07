@@ -31,11 +31,12 @@ type SessionEngine struct {
 	BpfObjects              *ebpf.BpfObjects
 	FteIDResourceManager    *FteIDResourceManager
 	SdfIndexAllocator       *SdfIndexAllocator
-	// Serializes whole UpdateFilters calls. filterMu guards filtersByKey for
-	// readers and is dropped before propagation, which walks sessions and
-	// takes their locks; without this, an install and a release of the same
-	// key could interleave there and zero a slot that was just written.
-	filterOpMu   sync.Mutex
+	// Guards filtersByKey and, more importantly, the lifetime of a filter slot:
+	// held for writing across the whole allocate/write/propagate/free sequence,
+	// and by readers across the whole resolve-and-apply rather than just the map
+	// lookup, or they apply an index freed behind them. The outermost of the
+	// engine's locks: taken before Session.opMu and before mu, never while
+	// holding either.
 	filterMu     sync.RWMutex
 	filtersByKey map[string]uint32
 }

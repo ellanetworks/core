@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, resp *eps.AuthenticationResponse) nasreply.Disposition {
+func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, resp *eps.AuthenticationResponse) nasreply.Disposition {
 	// An AUTHENTICATION RESPONSE is valid only during the attach authentication
 	// sub-phase; out of order, ignore it to avoid re-verifying a stale challenge.
 	if ue.RegStep() != mme.RegStepAuthenticating {
@@ -22,12 +22,12 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	c := ue.Conn()
+	c := ueConn
 	c.StopNASGuard()
 
 	if c.AuthVector == nil || subtle.ConstantTimeCompare(resp.RES, c.AuthVector.XRES) != 1 {
 		logger.From(ctx, logger.MmeLog).Warn("authentication failed: RES mismatch")
-		rejectAuthentication(ctx, m, ue)
+		rejectAuthentication(ctx, m, ue, ueConn)
 
 		return nasreply.Handled()
 	}
@@ -41,7 +41,7 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	c.SetResyncTried(false)
 
 	logger.From(ctx, logger.MmeLog).Info("authentication succeeded")
-	startSecurityMode(ctx, m, ue)
+	startSecurityMode(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
 }

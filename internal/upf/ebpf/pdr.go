@@ -29,7 +29,6 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 const (
@@ -75,7 +74,10 @@ type PortRange struct {
 func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 	logger.UpfLog.Debug("Put PDR Uplink", logger.TEID(teid))
 
-	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
+	pdrToStore, err := ToN3N6EntrypointPdrInfo(pdrInfo)
+	if err != nil {
+		return fmt.Errorf("build uplink PDR: %w", err)
+	}
 
 	return bpfObjects.PdrsUplink.Put(teid, unsafe.Pointer(&pdrToStore))
 }
@@ -83,7 +85,10 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) error {
 	logger.UpfLog.Debug("Put PDR Downlink", logger.IPAddress(addr.String()))
 
-	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
+	pdrToStore, err := ToN3N6EntrypointPdrInfo(pdrInfo)
+	if err != nil {
+		return fmt.Errorf("build downlink PDR: %w", err)
+	}
 
 	if addr.Is4() {
 		key := addr.As4()
@@ -322,7 +327,11 @@ func (bpfObjects *BpfObjects) AddUrr(seid uint64, id uint32, bytes uint64) error
 
 // ToN3N6EntrypointPdrInfo converts a PdrInfo (with embedded FAR and QER) to
 // the auto-generated BPF map value type.
-func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
+//
+// An unparseable IMSI is an error, not a partial value: the FAR and QER are
+// filled after it, and a rule with FAR action 0 forwards nowhere — the session
+// would look established and silently drop every packet.
+func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) {
 	var pdrToStore N3N6EntrypointPdrInfo
 
 	pdrToStore.LocalSeid = defaultPdr.SEID
@@ -333,8 +342,7 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 
 	imsiUint64, err := strconv.ParseUint(defaultPdr.IMSI, 10, 64)
 	if err != nil {
-		logger.UpfLog.Error("failed to parse IMSI", logger.IMSI(defaultPdr.IMSI), zap.Error(err))
-		return pdrToStore
+		return N3N6EntrypointPdrInfo{}, fmt.Errorf("parse IMSI %q: %w", defaultPdr.IMSI, err)
 	}
 
 	pdrToStore.Imsi = imsiUint64
@@ -362,7 +370,7 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 		pdrToStore.UeIpv6.In6U.U6Addr8 = IPToIn6Addr(defaultPdr.UEIPv6Prefix)
 	}
 
-	return pdrToStore
+	return pdrToStore, nil
 }
 
 // PutSdfFilterList writes a filter list into the sdf_filters BPF array.

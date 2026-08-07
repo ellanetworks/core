@@ -34,11 +34,11 @@ func (ueConn *UeConn) UpdateLocation(ctx context.Context, uli ngap.UserLocationI
 	ueConn.Location = loc
 	ueConn.Tai = *tai
 
-	if ueConn.ue != nil {
-		ueConn.ue.mu.Lock()
-		ueConn.ue.Location = loc
-		ueConn.ue.Tai = *tai
-		ueConn.ue.mu.Unlock()
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.mu.Lock()
+		ue.Location = loc
+		ue.Tai = *tai
+		ue.mu.Unlock()
 	}
 }
 

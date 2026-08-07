@@ -131,9 +131,8 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	}
 
 	sc.Mutex.Lock()
-	ul := sc.Tunnel.DataPath.UpLinkTunnel
-	bearer.SGW = models.FTEID{TEID: ul.TEID, Addr: ul.N3IPv4}
-	bearer.SGWN3IPv6 = ul.N3IPv6
+	bearer.SGW = models.FTEID{TEID: sc.Tunnel.N3TEID, Addr: sc.Tunnel.N3IPv4}
+	bearer.SGWN3IPv6 = sc.Tunnel.N3IPv6
 	sc.Mutex.Unlock()
 
 	return bearer, nil
@@ -164,12 +163,12 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.DataPath.Activated {
+	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
 		return fmt.Errorf("EPS session for %s is not activated", imsi)
 	}
 
-	dl := smContext.Tunnel.DataPath.DownLinkTunnel.PDR
-	ul := smContext.Tunnel.DataPath.UpLinkTunnel.PDR
+	dl := smContext.Tunnel.DownlinkPDR
+	ul := smContext.Tunnel.UplinkPDR
 	dl.FAR.ApplyAction = models.ApplyAction{Forw: true}
 
 	// bindAccessTunnel aligns the uplink OuterHeaderRemoval, which defaults to IPv4
@@ -185,17 +184,13 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 
 	smContext.bindAccessTunnel(an)
 
-	dl.State = RuleUpdate
-	dl.FAR.State = RuleUpdate
-	ul.State = RuleUpdate
-
 	var policyID string
 	if smContext.PolicyData != nil {
 		policyID = smContext.PolicyData.PolicyID
 	}
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
+		smContext.PFCPContext.SEID,
 		policyID,
 		[]*PDR{dl, ul},
 		[]*FAR{dl.FAR},

@@ -53,7 +53,9 @@ type UeConn struct {
 	HandOverType ngap.HandoverType
 	Tai          models.Tai
 	Location     models.UserLocation
-	ue           *UeContext
+	// Written only under amf.mu but read all over the NGAP dispatch path without
+	// it, so atomic — as UeContext.active is for the reverse pointer.
+	ue atomic.Pointer[UeContext]
 	// conn is the NGAP association this UE sends through and the key into the AMF's
 	// radios index for node metadata (looked up via amf.radioFor(conn)).
 	conn NGAPWriter
@@ -116,7 +118,7 @@ type UeConn struct {
 
 // Parent returns the UeContext this connection is bound to, or nil when bare.
 func (ueConn *UeConn) Parent() *UeContext {
-	return ueConn.ue
+	return ueConn.ue.Load()
 }
 
 // Release stops the NAS guard and clears this connection from its UeContext. Clearing
@@ -132,8 +134,8 @@ func (ueConn *UeConn) Release() {
 	}
 
 	a.mu.Lock()
-	if ueConn.ue != nil {
-		ueConn.ue.active.CompareAndSwap(ueConn, nil)
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.active.CompareAndSwap(ueConn, nil)
 	}
 	a.mu.Unlock()
 }
@@ -277,36 +279,36 @@ func (ueConn *UeConn) ResetICS() {
 // each other.
 
 func (ueConn *UeConn) SetRegistrationType5GS(v uint8) {
-	if ueConn.ue != nil {
-		ueConn.ue.mu.Lock()
-		defer ueConn.ue.mu.Unlock()
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.mu.Lock()
+		defer ue.mu.Unlock()
 	}
 
 	ueConn.RegistrationType5GS = fgs.RegistrationType(v)
 }
 
 func (ueConn *UeConn) SetIdentityTypeUsedForRegistration(v uint8) {
-	if ueConn.ue != nil {
-		ueConn.ue.mu.Lock()
-		defer ueConn.ue.mu.Unlock()
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.mu.Lock()
+		defer ue.mu.Unlock()
 	}
 
 	ueConn.IdentityTypeUsedForRegistration = v
 }
 
 func (ueConn *UeConn) SetRetransmissionOfInitialNASMsg(v bool) {
-	if ueConn.ue != nil {
-		ueConn.ue.mu.Lock()
-		defer ueConn.ue.mu.Unlock()
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.mu.Lock()
+		defer ue.mu.Unlock()
 	}
 
 	ueConn.RetransmissionOfInitialNASMsg = v
 }
 
 func (ueConn *UeConn) SetResyncTried(v bool) {
-	if ueConn.ue != nil {
-		ueConn.ue.mu.Lock()
-		defer ueConn.ue.mu.Unlock()
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.mu.Lock()
+		defer ue.mu.Unlock()
 	}
 
 	ueConn.resyncTried = v
@@ -315,9 +317,9 @@ func (ueConn *UeConn) SetResyncTried(v bool) {
 // ResyncTried reports whether an AUTS re-synchronisation has already been attempted
 // this authentication exchange.
 func (ueConn *UeConn) ResyncTried() bool {
-	if ueConn.ue != nil {
-		ueConn.ue.mu.Lock()
-		defer ueConn.ue.mu.Unlock()
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.mu.Lock()
+		defer ue.mu.Unlock()
 	}
 
 	return ueConn.resyncTried
@@ -356,17 +358,19 @@ func (ueConn *UeConn) UeContext() *UeContext {
 		return nil
 	}
 
-	return ueConn.ue
+	return ueConn.ue.Load()
 }
 
 // TouchLastSeen propagates a last-seen timestamp to the associated UeContext.
 // Safe to call on nil receivers or when UeContext/Radio is nil.
 func (ueConn *UeConn) TouchLastSeen() {
-	if ueConn == nil || ueConn.ue == nil {
+	if ueConn == nil {
 		return
 	}
 
-	ueConn.ue.TouchLastSeen()
+	if ue := ueConn.ue.Load(); ue != nil {
+		ue.TouchLastSeen()
+	}
 }
 
 // sendTarget resolves the AMF and radio this RAN UE sends through.
@@ -461,7 +465,7 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 // RemoveUeConn ends the key-chain procedure. On target removal the source is left in place,
 // aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
 func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
-	ue := ueConn.ue
+	ue := ueConn.ue.Load()
 	if ue == nil {
 		return
 	}
@@ -524,8 +528,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 
 	ueConn.abortHandoverOnRemoval(ctx)
 
-	if ueConn.ue != nil {
-		a.ReleaseNasConnection(ueConn.ue, ueConn)
+	if ue := ueConn.ue.Load(); ue != nil {
+		a.ReleaseNasConnection(ue, ueConn)
 	}
 
 	a.mu.Lock()

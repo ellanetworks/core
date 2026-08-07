@@ -24,7 +24,7 @@ func TestBearerResourceAllocationRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := HandleEmmMessage(context.Background(), m, ue, req, true)
+	d := HandleEmmMessage(context.Background(), m, ue, ue.Conn(), req, true)
 	if d.Action != nasreply.ActionHandled {
 		t.Fatalf("disposition = %+v, want ActionHandled (a reject was already sent)", d)
 	}
@@ -56,7 +56,7 @@ func TestBearerResourceModificationRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := HandleEmmMessage(context.Background(), m, ue, req, true)
+	d := HandleEmmMessage(context.Background(), m, ue, ue.Conn(), req, true)
 	if d.Action != nasreply.ActionHandled {
 		t.Fatalf("disposition = %+v, want ActionHandled (a reject was already sent)", d)
 	}
@@ -86,7 +86,7 @@ func TestBearerResourceModificationInvalidPTI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	HandleEmmMessage(context.Background(), m, ue, req, true)
+	HandleEmmMessage(context.Background(), m, ue, ue.Conn(), req, true)
 
 	reject, err := eps.ParseBearerResourceModificationReject(lastDownlinkESM(t, ue, cc))
 	if err != nil {

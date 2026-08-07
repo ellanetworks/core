@@ -46,11 +46,11 @@ func TestModifyEPSSessionRejects5GPDUSession(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	an := sc.Tunnel.ANInformation
+	an := sc.Tunnel.AN
 	sc.Mutex.Unlock()
 
-	if an.TEID == enb.TEID && net.IP(enb.Addr.AsSlice()).Equal(an.IPv4Address) {
-		t.Errorf("5G session's AN endpoint = eNB S1-U %v/0x%x, want it unchanged", an.IPv4Address, an.TEID)
+	if an.TEID == enb.TEID && net.IP(enb.Addr.AsSlice()).Equal(an.IPv4) {
+		t.Errorf("5G session's AN endpoint = eNB S1-U %v/0x%x, want it unchanged", an.IPv4, an.TEID)
 	}
 
 	upf.mu.Lock()

@@ -431,22 +431,22 @@ func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyReq
 	return a.engine.ModifySession(ctx, req)
 }
 
-func (a *smfUPFAdapter) FlushUsage(ctx context.Context, remoteSEID uint64) {
+func (a *smfUPFAdapter) FlushUsage(ctx context.Context, seid uint64) {
 	if a.upf != nil {
-		a.upf.FlushUsage(ctx, remoteSEID)
+		a.upf.FlushUsage(ctx, seid)
 	}
 }
 
-func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) error {
-	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: remoteSEID})
+func (a *smfUPFAdapter) DeleteSession(ctx context.Context, seid uint64) error {
+	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: seid})
 }
 
-func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
-	a.engine.SuppressDownlinkDataNotification(remoteSEID)
+func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, seid uint64) {
+	a.engine.SuppressDownlinkDataNotification(seid)
 }
 
-func (a *smfUPFAdapter) ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
-	a.engine.ClearDownlinkDataNotification(remoteSEID)
+func (a *smfUPFAdapter) ClearDownlinkDataNotification(ctx context.Context, seid uint64) {
+	a.engine.ClearDownlinkDataNotification(seid)
 }
 
 func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {

@@ -44,7 +44,26 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		target.SendUEContextReleaseCommand(ctx, cause)
 	}
 
+	if aborted {
+		unbindHandoverTarget(ctx, amfInstance, amfUe)
+	}
+
 	// The acknowledge is mandatory, so it is sent regardless of the target-release
 	// outcome (TS 38.413 §8.4.5).
 	sourceUe.SendHandoverCancelAcknowledge(ctx)
+}
+
+// Without this the binding made at HANDOVER REQUEST ACKNOWLEDGE survives, and
+// the next PFCP modification for any reason black-holes the downlink.
+func unbindHandoverTarget(ctx context.Context, amfInstance *amf.AMF, amfUe *amf.UeContext) {
+	if amfUe == nil {
+		return
+	}
+
+	for _, ref := range amfUe.SmContextRefs() {
+		if err := amfInstance.Session.UpdateSmContextN2HandoverCanceled(ctx, ref.Ref); err != nil {
+			logger.WithTrace(ctx, logger.AmfLog).Error("failed to restore the source access tunnel after an abandoned handover",
+				zap.Error(err), zap.Uint8("pdu-session-id", ref.PduSessionID))
+		}
+	}
 }

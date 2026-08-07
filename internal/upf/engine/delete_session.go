@@ -29,7 +29,7 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 
 	session := conn.GetSession(req.SEID)
 	if session == nil {
-		err := fmt.Errorf("session not found for SEID %d", req.SEID)
+		err := fmt.Errorf("%w: SEID %d", models.ErrSessionNotFound, req.SEID)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "session not found")
 

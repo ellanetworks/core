@@ -25,15 +25,15 @@ func handleERABModifyResponse(m *mme.MME, ctx context.Context, radio *mme.Radio,
 	// Both identities are mandatory but ignore criticality, so an absent one
 	// still reaches the handler. resolveUEIDs also rejects a response naming a
 	// UE on another radio.
-	ue, ok := resolveUEIDs(m, radio.Conn, resp.MMEUES1APID, resp.ENBUES1APID)
+	ue, ueConn, ok := resolveUEIDs(m, radio.Conn, resp.MMEUES1APID, resp.ENBUES1APID)
 	if !ok {
 		return
 	}
 
-	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID), resp.Diagnostics())
+	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcERABModify, s1ap.TriggeringSuccessfulOutcome, ueAssociated(ueConn.MMEUES1APID, ueConn.ENBUES1APID), resp.Diagnostics())
 
 	ue.TouchLastSeen()
-	captureUserLocation(ue, resp.UserLocationInformation)
+	captureUserLocation(ueConn, resp.UserLocationInformation)
 
 	if len(resp.ERABFailedToModify) > 0 {
 		logger.MmeLog.Warn("eNB failed to modify E-RAB(s)",

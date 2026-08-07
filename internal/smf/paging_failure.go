@@ -46,5 +46,5 @@ func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, smContext *S
 		return
 	}
 
-	s.upf.SuppressDownlinkDataNotification(ctx, pfcp.RemoteSEID)
+	s.upf.SuppressDownlinkDataNotification(ctx, pfcp.SEID)
 }

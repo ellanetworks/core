@@ -26,12 +26,11 @@ func (w *Writer) Aligned() bool { return w.bit == 0 }
 // Buf returns the internal buffer, invalidated by any further write.
 func (w *Writer) Buf() []byte { return w.buf }
 
-// Bytes returns a copy of the encoded octets. It panics unless the writer is
-// octet-aligned.
+// Pads to the next octet boundary first: a complete PER encoding is
+// octet-aligned. Use [Writer.Aligned] to check alignment without ending the
+// encoding.
 func (w *Writer) Bytes() []byte {
-	if w.bit != 0 {
-		panic("per: Bytes() called on non-octet-aligned writer")
-	}
+	w.AlignToByte()
 
 	out := make([]byte, len(w.buf))
 	copy(out, w.buf)

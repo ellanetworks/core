@@ -56,8 +56,8 @@ func TestEstablishSessionSkipsMismatchedFamilyFramedRoute(t *testing.T) {
 	v6Route := netip.MustParsePrefix("fd00:beef::/48")
 
 	req := &models.EstablishRequest{
-		LocalSEID: 1,
-		IMSI:      "001010000000001",
+		SEID: 1,
+		IMSI: "001010000000001",
 		PDRs: []models.PDR{{
 			PDRID: 1, FARID: 1, QERID: 1, URRID: 1,
 			PDI: models.PDI{UEIPAddress: netip.MustParseAddr("10.45.0.1")},

@@ -140,14 +140,7 @@ func testHandoverRequired(t *testing.T, withCause bool) {
 			},
 		},
 	}
-	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel: &smf.GTPTunnel{
-				TEID:   1234,
-				N3IPv4: netip.MustParseAddr("10.0.0.1"),
-			},
-		},
-	}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
@@ -364,11 +357,7 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
 	}
-	smCtx.Tunnel = &smf.UPTunnel{
-		DataPath: &smf.DataPath{
-			UpLinkTunnel: &smf.GTPTunnel{TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")},
-		},
-	}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
@@ -452,7 +441,7 @@ func TestHandoverRequired_SourceDropReleasesTarget(t *testing.T) {
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{QFI: 1, Var5qi: 9, Arp: &models.Arp{PriorityLevel: 8}},
 	}
-	smCtx.Tunnel = &smf.UPTunnel{DataPath: &smf.DataPath{UpLinkTunnel: &smf.GTPTunnel{TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}}}
+	smCtx.Tunnel = &smf.UPTunnel{N3TEID: 1234, N3IPv4: netip.MustParseAddr("10.0.0.1")}
 
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)

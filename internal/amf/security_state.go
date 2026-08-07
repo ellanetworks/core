@@ -118,6 +118,41 @@ func (ue *UeContext) SetUESecurityCapability(caps *fgs.UESecurityCapability, _ A
 	ue.ueSecurityCapability = caps
 }
 
+// TS 24.501 §5.5.1.2.4, §5.5.1.3.4: "the AMF shall store all octets received".
+// Unlike the UE security capability these are not replay-protected, so no
+// AuthProof. A registration that omits an element does not withdraw it.
+func (ue *UeContext) SetUECapabilities(gmm *fgs.GMMCapability, s1 []byte) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if gmm != nil {
+		ue.gmmCapability = gmm
+	}
+
+	if s1 != nil {
+		ue.s1UENetworkCapability = append([]byte(nil), s1...)
+	}
+}
+
+func (ue *UeContext) GMMCapability() *fgs.GMMCapability {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.gmmCapability
+}
+
+// A copy, so a caller replaying it cannot alter what the UE compares against.
+func (ue *UeContext) S1UENetworkCapability() []byte {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.s1UENetworkCapability == nil {
+		return nil
+	}
+
+	return append([]byte(nil), ue.s1UENetworkCapability...)
+}
+
 // NextNgKsi returns the next available NAS Key Set Identifier. KSI is a 3-bit
 // field (0–6 valid, 7 means "no key available"); see TS 24.501 §9.11.3.32.
 func NextNgKsi(current int32) int32 {

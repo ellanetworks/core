@@ -63,6 +63,7 @@ type UPF struct {
 	// gcMu serialises startGC / stopGC (e.g. from ReloadNAT and Close).
 	gcMu     sync.Mutex
 	gcCancel context.CancelFunc
+	gcDone   chan struct{} // closed when collectCollectionTrackingGarbage exits
 
 	// fcMu serialises concurrent calls to startFlowCollection / stopFlowCollection
 	// (e.g. from ReloadFlowAccounting and Close running in different goroutines).
@@ -385,18 +386,41 @@ func (u *UPF) startGC(ctx context.Context) {
 	cctx, cancel := context.WithCancel(ctx)
 
 	u.gcCancel = cancel
+	u.gcDone = make(chan struct{})
 
-	go u.collectCollectionTrackingGarbage(cctx)
+	// Captured locally so the deferred close targets this channel, not whatever
+	// u.gcDone points at by the time the goroutine exits.
+	done := u.gcDone
+
+	go func() {
+		defer close(done)
+
+		u.collectCollectionTrackingGarbage(cctx)
+	}()
 }
 
+// Waits, so a caller that goes on to close the BPF collection cannot pull the
+// maps out from under an in-flight NatCt.BatchLookup / BatchDelete. gcCancel is
+// cleared before the wait, so a concurrent startGC cannot mistake a pipeline
+// being torn down for one already running.
 func (u *UPF) stopGC() {
 	u.gcMu.Lock()
-	defer u.gcMu.Unlock()
 
-	if u.gcCancel != nil {
-		u.gcCancel()
-		u.gcCancel = nil
+	if u.gcCancel == nil {
+		u.gcMu.Unlock()
+		return
 	}
+
+	cancel := u.gcCancel
+	done := u.gcDone
+	u.gcCancel = nil
+	u.gcDone = nil
+
+	u.gcMu.Unlock()
+
+	cancel()
+
+	<-done
 }
 
 func (u *UPF) startFlowCollection(ctx context.Context) {
@@ -551,6 +575,13 @@ func (u *UPF) listenForTrafficNotifications() {
 		err := u.notificationReader.ReadInto(&record)
 		if errors.Is(err, os.ErrClosed) {
 			return
+		}
+
+		// record still holds the previous iteration's sample; falling through
+		// re-notifies the SMF of downlink data it already has, in a tight loop.
+		if err != nil {
+			logger.UpfLog.Warn("downlink notification ring buffer read error", zap.Error(err))
+			continue
 		}
 
 		if err = binary.Read(bytes.NewBuffer(record.RawSample), binary.NativeEndian, &event); err != nil {
@@ -727,6 +758,12 @@ func (u *UPF) listenForMissingNeighbours() {
 		err := u.noNeighReader.ReadInto(&record)
 		if errors.Is(err, os.ErrClosed) {
 			return
+		}
+
+		// record still holds the previous sample; see listenForTrafficNotifications.
+		if err != nil {
+			logger.UpfLog.Warn("missing-neighbour ring buffer read error", zap.Error(err))
+			continue
 		}
 
 		ifindex, ip, ok := parseNoNeighEvent(record.RawSample)

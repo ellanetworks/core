@@ -20,7 +20,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 	defer span.End()
 
 	smContext := s.GetSessionBySEID(report.SEID)
-	if smContext == nil || !smContext.Supi.IsValid() {
+	if smContext == nil || !smContext.Supi.IsIMSI() {
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
@@ -33,7 +33,7 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return s.mme.Page(ctx, smContext.Supi.IMSI())
 	}
 
-	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
+	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
 	if err != nil {
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}
@@ -50,7 +50,7 @@ func (s *SMF) HandleUsageReport(ctx context.Context, report *models.UsageReport)
 	defer span.End()
 
 	smContext := s.GetSessionBySEID(report.SEID)
-	if smContext == nil || !smContext.Supi.IsValid() {
+	if smContext == nil || !smContext.Supi.IsIMSI() {
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 

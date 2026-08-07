@@ -13,9 +13,10 @@ import (
 type Session struct {
 	// opMu serializes a whole control-plane operation on this session — modify,
 	// delete, and the reconciler's filter propagation — so their compound
-	// read-modify-apply sequences never interleave. It is the outermost lock:
-	// never acquired while holding conn.mu or filterMu, and only one is held at a
-	// time. mu still guards individual field access underneath it.
+	// read-modify-apply sequences never interleave. Acquired while holding
+	// filterMu and never the reverse — a filter release propagates into sessions
+	// under filterMu, so the other order deadlocks — and never while holding
+	// conn.mu.
 	opMu    sync.Mutex
 	deleted bool // guarded by opMu
 
