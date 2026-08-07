@@ -393,6 +393,9 @@ const (
 	n1ModeBit   = 1 << 5
 )
 
+// SupportsN1Mode reports N1 mode support for 3GPP access (octet 9, bit 6). A
+// capability too short to carry the bit indicated nothing: §9.9.3.34 has the
+// receiver treat absent octets as all-zero.
 func (c UENetworkCapability) SupportsN1Mode() bool {
 	if len(c.Rest) <= n1ModeOctet {
 		return false
