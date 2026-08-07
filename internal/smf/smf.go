@@ -94,18 +94,17 @@ type SessionStore interface {
 
 // UPFClient abstracts the session management interface toward the UPF.
 type UPFClient interface {
-	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
-	ModifySession(ctx context.Context, req *models.ModifyRequest) error
-	// FlushUsage delivers a final URR usage report for the given SEID before
-	// the session is deleted, preventing loss of bytes accounted since the
-	// last periodic poll.
-	FlushUsage(ctx context.Context, remoteSEID uint64)
-	DeleteSession(ctx context.Context, remoteSEID uint64) error
+	// Apply states a session's whole intended user plane. The first call for a
+	// SEID creates the session and later ones converge it, so the SMF never has
+	// to say which rules changed. It answers with the resources the UPF owns.
+	Apply(ctx context.Context, desired *models.SessionState) (*models.SessionApplied, error)
 
-	SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64)
-	ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64)
+	// Delete tears the session down, reporting the usage accounted since the
+	// last poll before the counters go (TS 29.244 §5.2.2.4).
+	Delete(ctx context.Context, seid uint64) error
 
-	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
+	SuppressDownlinkDataNotification(ctx context.Context, seid uint64)
+	ClearDownlinkDataNotification(ctx context.Context, seid uint64)
 
 	// RegisterIPv6Session tells the UPF's RA responder about a new IPv6
 	// session so it can respond to Router Solicitations with an RA
@@ -199,7 +198,7 @@ type SMF struct {
 	// superseded session keeps its pool entry but not its byKey entries.
 	byKey map[string]*SMContext
 
-	// bySEID resolves a session from a PFCP report without walking the pool, so
+	// bySEID resolves a session from a UPF report without walking the pool, so
 	// the receive path does not wait on the lock of every unrelated session.
 	bySEID map[uint64]*SMContext
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
@@ -211,7 +210,7 @@ type SMF struct {
 	mme   MMECallback // set after construction
 	clock func() time.Time
 
-	seidCounter uint64 // atomic; local SEID allocation
+	seidCounter uint64 // atomic; SEID allocation
 
 	t3591 time.Duration // network-requested modification command retransmission
 	t3592 time.Duration // network-requested release command retransmission
@@ -272,7 +271,7 @@ func (s *SMF) SetMME(mme MMECallback) {
 	s.mme = mme
 }
 
-func (s *SMF) AllocateLocalSEID() uint64 {
+func (s *SMF) AllocateSEID() uint64 {
 	return atomic.AddUint64(&s.seidCounter, 1)
 }
 
@@ -424,11 +423,10 @@ func (s *SMF) dropFromPool(sc *SMContext) {
 	}
 }
 
-// GetSessionBySEID finds a session by its local PFCP SEID.
-// AssignPFCPSession gives a session its local PFCP SEID and indexes it under
-// that SEID, so a report can be resolved without walking the pool.
-func (s *SMF) AssignPFCPSession(sc *SMContext, seid uint64) {
-	sc.SetPFCPSession(seid)
+// AssignUPFSession gives a session its UPF SEID and indexes it under that
+// SEID, so a report can be resolved without walking the pool.
+func (s *SMF) AssignUPFSession(sc *SMContext, seid uint64) {
+	sc.SetUPFSession(seid)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

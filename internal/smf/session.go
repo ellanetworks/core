@@ -51,7 +51,7 @@ type ueAddresses struct {
 
 // establishSession is the shared create core of the 5G and 4G paths (the SMF as
 // combined SMF+PGW-C, TS 23.501 §4.3): it allocates the UE address(es), programs
-// the data path, and establishes the UPF (PFCP) session. On failure it rolls the
+// the data path, and establishes the UPF session. On failure it rolls the
 // partial session back and wraps a sentinel error for the adapter to map to its
 // NAS cause.
 func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMContext, ueAddresses, error) {
@@ -133,9 +133,9 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errDataPathActivation, err)
 	}
 
-	sc.mu.Unlock() // sendPFCPRules re-acquires it
+	sc.mu.Unlock() // applySession re-acquires it
 
-	if err := s.sendPFCPRules(ctx, sc); err != nil {
+	if err := s.applySessionLocking(ctx, sc); err != nil {
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUPFSession, err)
 	}
 
@@ -242,129 +242,71 @@ func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
 	}
 }
 
-func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
-	ctx, span := tracer.Start(ctx, "smf/send_pfcp_rules",
+// applySessionLocking is applySession for a caller that does not hold
+// smContext.mu.
+func (s *SMF) applySessionLocking(ctx context.Context, smContext *SMContext) error {
+	smContext.mu.Lock()
+	defer smContext.mu.Unlock()
+
+	return s.applySession(ctx, smContext, nil)
+}
+
+// applySession states the session's whole user plane to the UPF and adopts the
+// resources the UPF answers with. policy names the policy whose SDF filters the
+// session's PDRs use; nil takes the one the session holds, which is every
+// caller but a move, where the target access's policy is being staged.
+//
+// A session with no activated data path states nothing: there are no rules for
+// the UPF to converge to. Caller holds smContext.mu.
+func (s *SMF) applySession(ctx context.Context, smContext *SMContext, policy *Policy) error {
+	ctx, span := tracer.Start(ctx, "smf/apply_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
 	defer span.End()
 
-	smContext.mu.Lock()
-	defer smContext.mu.Unlock()
-
-	dataPath := smContext.Tunnel.DataPath
-	if !dataPath.Activated {
-		logger.WithTrace(ctx, logger.SmfLog).Debug("DataPath is not activated, skip sending PFCP rules")
+	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || !smContext.Tunnel.DataPath.Activated {
+		logger.WithTrace(ctx, logger.SmfLog).Debug("data path is not activated, nothing to state to the UPF")
 		return nil
 	}
 
-	pdrList := make([]*PDR, 0, 3)
-	farList := make([]*FAR, 0, 2)
-	qerList := make([]*QER, 0, 2)
-	urrList := make([]*URR, 0, 2)
+	if smContext.UPFSession == nil {
+		err := fmt.Errorf("UPF session context not initialized")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "UPF session context not initialized")
 
-	if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, dataPath.UpLinkTunnel.PDR)
-		farList = append(farList, dataPath.UpLinkTunnel.PDR.FAR)
-
-		if dataPath.UpLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, dataPath.UpLinkTunnel.PDR.QER)
-		}
-
-		if dataPath.UpLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, dataPath.UpLinkTunnel.PDR.URR)
-		}
+		return err
 	}
 
-	if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-		pdrList = append(pdrList, dataPath.DownLinkTunnel.PDR)
-		farList = append(farList, dataPath.DownLinkTunnel.PDR.FAR)
-
-		if dataPath.DownLinkTunnel.PDR.QER != nil {
-			qerList = append(qerList, dataPath.DownLinkTunnel.PDR.QER)
-		}
-
-		if dataPath.DownLinkTunnel.PDR.URR != nil {
-			urrList = append(urrList, dataPath.DownLinkTunnel.PDR.URR)
-		}
+	if policy == nil {
+		policy = smContext.PolicyData
 	}
 
-	if dataPath.SecondPDR != nil {
-		pdrList = append(pdrList, dataPath.SecondPDR)
-
-		if dataPath.SecondPDR.QER != nil {
-			qerList = append(qerList, dataPath.SecondPDR.QER)
-		}
-
-		if dataPath.SecondPDR.URR != nil {
-			urrList = append(urrList, dataPath.SecondPDR.URR)
-		}
-	}
-
-	if smContext.PFCPContext == nil {
-		span.RecordError(fmt.Errorf("PFCP context not initialized"))
-		span.SetStatus(codes.Error, "PFCP context not initialized")
-
-		return fmt.Errorf("PFCP context not initialized")
-	}
-
-	var policyID string
-	if smContext.PolicyData != nil {
-		policyID = smContext.PolicyData.PolicyID
-	}
-
-	if smContext.PFCPContext.RemoteSEID == 0 {
-		req := BuildEstablishRequest(
-			smContext.PFCPContext.LocalSEID,
-			smContext.Supi.IMSI(),
-			policyID,
-			pdrList, farList, qerList, urrList,
-		)
-		req.FramedRoutes = smContext.FramedRoutes
-
-		resp, err := s.upf.EstablishSession(ctx, req)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to establish PFCP session")
-
-			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
-		}
-
-		smContext.PFCPContext.RemoteSEID = resp.RemoteSEID
-
-		for _, cp := range resp.CreatedPDRs {
-			if cp.TEID != 0 {
-				smContext.Tunnel.DataPath.UpLinkTunnel.TEID = cp.TEID
-				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4 = cp.N3IPv4
-				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6 = cp.N3IPv6
-
-				break
-			}
-		}
-
-		if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-			dataPath.DownLinkTunnel.PDR.State = RuleCreate
-		}
-
-		if dataPath.SecondPDR != nil {
-			dataPath.SecondPDR.State = RuleCreate
-		}
-
-		return nil
-	}
-
-	err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		policyID,
-		pdrList, farList, qerList,
-	))
+	applied, err := s.upf.Apply(ctx, BuildSessionState(smContext, policy))
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to modify PFCP session")
+		span.SetStatus(codes.Error, "failed to apply the session state")
 
-		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		return fmt.Errorf("failed to apply the UPF session state: %v", err)
 	}
 
-	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request to upf")
+	smContext.UPFSession.Established = true
+
+	// The local F-TEID is the UPF's, restated on every apply, so the endpoint the
+	// SMF advertises to the RAN follows it.
+	for _, up := range applied.UplinkPDRs {
+		if up.PDRID != pdrIDUplink {
+			continue
+		}
+
+		smContext.Tunnel.DataPath.UpLinkTunnel.TEID = up.TEID
+		smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4 = up.N3IPv4
+		smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6 = up.N3IPv6
+
+		break
+	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Debug("Applied the session state to the UPF",
+		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
 }

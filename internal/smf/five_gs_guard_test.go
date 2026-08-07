@@ -93,8 +93,9 @@ func TestFiveGSEntryPointsRefuseASessionMovedToEPS(t *testing.T) {
 
 			ref := movedFrom5GSToEPS(t, s)
 
+			appliesBefore := upf.applyCount()
+
 			upf.mu.Lock()
-			modifiesBefore := len(upf.modifyCalls)
 			deletesBefore := len(upf.deleteCalls)
 			upf.mu.Unlock()
 
@@ -118,13 +119,14 @@ func TestFiveGSEntryPointsRefuseASessionMovedToEPS(t *testing.T) {
 				t.Error("the session was moved off EPS by a 5GS entry point")
 			}
 
+			applies := upf.applyCount() - appliesBefore
+
 			upf.mu.Lock()
-			modifies := len(upf.modifyCalls) - modifiesBefore
 			deletes := len(upf.deleteCalls) - deletesBefore
 			upf.mu.Unlock()
 
-			if modifies != 0 || deletes != 0 {
-				t.Errorf("UPF modifications = %d and deletions = %d, want 0 and 0", modifies, deletes)
+			if applies != 0 || deletes != 0 {
+				t.Errorf("UPF session statements = %d and deletions = %d, want 0 and 0", applies, deletes)
 			}
 		})
 	}

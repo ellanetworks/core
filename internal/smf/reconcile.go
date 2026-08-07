@@ -25,7 +25,7 @@ import (
 // session.
 //
 // QoS/AMBR/DNS changes use the network-requested PDU Session Modification
-// procedure (TS 23.502): PFCP update plus N1+N2 to the UE and gNB.
+// procedure (TS 23.502): a UPF update plus N1+N2 to the UE and gNB.
 //
 // Slice (SST/SD), MTU, or IP pool changes release the session with cause #39
 // "reactivation requested" (TS 24.501) so the UE re-establishes with the
@@ -254,21 +254,21 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	}
 
 	if hasQoSChange || hasAmbrChange {
-		if err := s.updatePFCPRules(ctx, smContext, newPolicy); err != nil {
+		if err := s.applyPolicyQoS(ctx, smContext, newPolicy); err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to update PFCP rules")
+			span.SetStatus(codes.Error, "failed to apply the policy QoS")
 
-			logger.SmfLog.Error("failed to update PFCP rules during reconciliation",
+			logger.SmfLog.Error("failed to apply the policy QoS during reconciliation",
 				zap.Error(err),
 				logger.SUPI(smContext.Supi.String()),
 				logger.PDUSessionID(smContext.PDUSessionID),
 				zap.String("reason", string(req.Reason)),
 			)
 
-			return fmt.Errorf("failed to update PFCP rules: %v", err)
+			return fmt.Errorf("failed to apply the policy QoS: %v", err)
 		}
 
-		logger.SmfLog.Info("PFCP rules updated during reconciliation",
+		logger.SmfLog.Info("policy QoS applied during reconciliation",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
 			zap.Bool("qosChange", hasQoSChange),
@@ -381,7 +381,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 
 	// T3591 retransmits the command until the UE replies; on the final expiry
 	// the procedure is aborted and the session stays PDU SESSION ACTIVE
-	// (TS 24.501). The committed PFCP/policy change is not rolled back.
+	// (TS 24.501). The committed policy change is not rolled back.
 	supi := smContext.Supi
 	pduSessionID := smContext.PDUSessionID
 	s.armRetransmit(smContext, s.t3591,
@@ -408,16 +408,16 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	return nil
 }
 
-// updatePFCPRules pushes the policy's QoS (QFI + session-AMBR) to the UPF data
+// applyPolicyQoS pushes the policy's QoS (QFI + session-AMBR) to the UPF data
 // plane (TS 29.244).
-func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy *Policy) error {
-	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
+func (s *SMF) applyPolicyQoS(ctx context.Context, smContext *SMContext, policy *Policy) error {
+	return s.applySessionQERs(ctx, smContext, policy, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
 }
 
 // applySessionQERs sets every distinct session QER (deduped across UL/DL) to the
-// given QFI and AMBR-derived MBR, marks them for update, and sends a PFCP Session
-// Modification. On a failed modify it restores each QER's prior MBR/QFI/state, so
-// the cached rules never run ahead of the data plane.
+// given QFI and AMBR-derived MBR and states the session to the UPF. On a failed
+// apply it restores each QER's prior MBR/QFI, so the cached rules never run
+// ahead of the data plane.
 //
 // QER MBR is set to the session AMBR because this implementation supports a single
 // QoS flow per session (non-GBR only): per TS 23.501 the session AMBR is the
@@ -425,24 +425,20 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 // multiple or GBR flows are ever supported, this must use per-flow MBR values.
 //
 // The caller holds smContext.mu.
-func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
-	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
-		return fmt.Errorf("PFCP session not established")
+func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy *Policy, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
+	if smContext.UPFSession == nil || !smContext.UPFSession.Established {
+		return fmt.Errorf("UPF session not established")
 	}
 
-	qerList, restore, err := stageSessionQERs(smContext, qfi, ambrUplink, ambrDownlink)
+	_, restore, err := stageSessionQERs(smContext, qfi, ambrUplink, ambrDownlink)
 	if err != nil {
 		return err
 	}
 
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		policyID,
-		nil, nil, qerList,
-	)); err != nil {
+	if err := s.applySession(ctx, smContext, policy); err != nil {
 		restore()
 
-		return fmt.Errorf("failed to modify PFCP session: %w", err)
+		return fmt.Errorf("failed to apply the UPF session state: %w", err)
 	}
 
 	return nil
@@ -459,10 +455,9 @@ func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink 
 	dataPath := smContext.Tunnel.DataPath
 
 	type qerSnapshot struct {
-		qer   *QER
-		mbr   *models.MBR
-		qfi   uint8
-		state RuleState
+		qer *QER
+		mbr *models.MBR
+		qfi uint8
 	}
 
 	var (
@@ -491,14 +486,13 @@ func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink 
 			continue
 		}
 
-		snapshots = append(snapshots, qerSnapshot{qer: qer, mbr: qer.MBR, qfi: qer.QFI, state: qer.State})
+		snapshots = append(snapshots, qerSnapshot{qer: qer, mbr: qer.MBR, qfi: qer.QFI})
 
 		qer.QFI = qfi
 		qer.MBR = &models.MBR{
 			ULMBR: ambrUplink.Kbps(),
 			DLMBR: ambrDownlink.Kbps(),
 		}
-		qer.State = RuleUpdate
 		qerList = append(qerList, qer)
 	}
 
@@ -510,7 +504,6 @@ func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink 
 		for _, snap := range snapshots {
 			snap.qer.MBR = snap.mbr
 			snap.qer.QFI = snap.qfi
-			snap.qer.State = snap.state
 		}
 	}, nil
 }

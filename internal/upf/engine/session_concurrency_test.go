@@ -66,16 +66,16 @@ func TestDeleteVsFilterPropagationNoResurrection(t *testing.T) {
 		seid := uint64(1000 + i)
 		ueIP := netip.AddrFrom4([4]byte{10, 0, byte(i >> 8), byte(i)})
 
-		establish := &models.EstablishRequest{
-			LocalSEID: seid,
-			IMSI:      "001010000000001",
-			PolicyID:  policyID,
-			URRs:      []models.URR{{URRID: 1}},
-			FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
-			PDRs:      []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
+		establish := &models.SessionState{
+			SEID:     seid,
+			IMSI:     "001010000000001",
+			PolicyID: policyID,
+			URRs:     []models.URR{{URRID: 1}},
+			FARs:     []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+			PDRs:     []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
 		}
 
-		if _, err := conn.EstablishSession(ctx, establish); err != nil {
+		if _, err := conn.Apply(ctx, establish); err != nil {
 			t.Fatalf("iter %d establish: %v", i, err)
 		}
 
@@ -92,7 +92,7 @@ func TestDeleteVsFilterPropagationNoResurrection(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			if err := conn.DeleteSession(ctx, &models.DeleteRequest{SEID: seid}); err != nil {
+			if err := conn.Delete(ctx, seid); err != nil {
 				t.Errorf("iter %d delete: %v", i, err)
 			}
 		}()

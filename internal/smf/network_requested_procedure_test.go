@@ -94,19 +94,13 @@ func TestReconcileSkipsIdleSession(t *testing.T) {
 		t.Fatalf("DeactivateSmContext: %v", err)
 	}
 
-	// Ignore the PFCP modify from the deactivation itself.
-	upf.mu.Lock()
-	upf.modifyCalls = nil
-	upf.mu.Unlock()
+	// The deactivation states the session itself; discard that.
+	upf.resetApplies()
 
 	reconcileAmbrChange(t, s, ref)
 
-	upf.mu.Lock()
-	upfModifies := len(upf.modifyCalls)
-	upf.mu.Unlock()
-
-	if upfModifies != 0 {
-		t.Fatalf("an idle session must not be pushed to the UPF, got %d modify calls", upfModifies)
+	if upfApplies := upf.applyCount(); upfApplies != 0 {
+		t.Fatalf("an idle session must not be stated to the UPF, got %d statements", upfApplies)
 	}
 
 	if got := modifyCallCount(amfCb); got != 0 {

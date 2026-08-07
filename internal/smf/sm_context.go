@@ -18,9 +18,15 @@ import (
 	"github.com/ellanetworks/core/internal/smf/procedure"
 )
 
-type PFCPSessionContext struct {
-	LocalSEID  uint64
-	RemoteSEID uint64
+// UPFSessionContext is the session's identity toward the UPF. One identifier
+// names it on both sides: the SMF allocates the SEID and the UPF keys its
+// datapath state by that same value.
+type UPFSessionContext struct {
+	SEID uint64
+
+	// Established records that the UPF holds the session, so a later rule change
+	// is a modification of it.
+	Established bool
 }
 
 type UPTunnel struct {
@@ -40,12 +46,12 @@ type SMContext struct {
 	// targets an exact instance.
 	Ref string
 
-	Supi        etsi.SUPI
-	Dnn         string
-	Snssai      *models.Snssai
-	Tunnel      *UPTunnel
-	PolicyData  *Policy
-	PFCPContext *PFCPSessionContext
+	Supi       etsi.SUPI
+	Dnn        string
+	Snssai     *models.Snssai
+	Tunnel     *UPTunnel
+	PolicyData *Policy
+	UPFSession *UPFSessionContext
 
 	// The PDU session half is fixed at creation; the EPS half is reassigned under
 	// mu and the registry lock.
@@ -102,7 +108,7 @@ func (smContext *SMContext) stopProcedureTimer() {
 // hasUserPlane reports whether the session holds the UPF session and downlink
 // rule a move rebinds. Caller must hold mu.
 func (smContext *SMContext) hasUserPlane() bool {
-	if smContext.PFCPContext == nil || smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
+	if smContext.UPFSession == nil || smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
 		return false
 	}
 
@@ -162,13 +168,13 @@ func (smContext *SMContext) SetPolicyData(policy *Policy) {
 	smContext.PolicyData = policy
 }
 
-func (smContext *SMContext) SetPFCPSession(seid uint64) {
-	if smContext.PFCPContext != nil {
+func (smContext *SMContext) SetUPFSession(seid uint64) {
+	if smContext.UPFSession != nil {
 		return
 	}
 
-	smContext.PFCPContext = &PFCPSessionContext{
-		LocalSEID: seid,
+	smContext.UPFSession = &UPFSessionContext{
+		SEID: seid,
 	}
 }
 
@@ -186,8 +192,8 @@ type SMContextView struct {
 	PolicyData                     *Policy
 	// AN endpoint of the access serving the session; absent when the user plane
 	// has been torn down.
-	AN            *ANEndpointView
-	PFCPLocalSEID *uint64
+	AN      *ANEndpointView
+	UPFSEID *uint64
 }
 
 // ANEndpointView is the RAN tunnel endpoint the downlink is bound to.
@@ -225,9 +231,9 @@ func (smContext *SMContext) View() SMContextView {
 		view.AN = an
 	}
 
-	if smContext.PFCPContext != nil {
-		seid := smContext.PFCPContext.LocalSEID
-		view.PFCPLocalSEID = &seid
+	if smContext.UPFSession != nil {
+		seid := smContext.UPFSession.SEID
+		view.UPFSEID = &seid
 	}
 
 	return view

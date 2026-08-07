@@ -10,10 +10,11 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// EstablishRequest asks the UPF to create a new session with the
-// given packet detection, forwarding, QoS, and usage reporting rules.
-type EstablishRequest struct {
-	LocalSEID    uint64
+// SessionState is the SMF's statement of a UPF session's whole intended state,
+// carried in full on every Apply. The UPF converges what it holds to exactly
+// this, so an absent rule is a removed rule and an absent field is a zero one.
+type SessionState struct {
+	SEID         uint64
 	IMSI         string
 	PolicyID     string
 	PDRs         []PDR
@@ -23,19 +24,19 @@ type EstablishRequest struct {
 	FramedRoutes []netip.Prefix
 }
 
-// EstablishResponse returns the allocated identifiers from the UPF.
-type EstablishResponse struct {
-	RemoteSEID  uint64
-	CreatedPDRs []CreatedPDR
+// SessionApplied reports the resources the UPF owns for the session. It is
+// restated in full on every Apply, so the SMF's copy converges too.
+type SessionApplied struct {
+	UplinkPDRs []AppliedPDR
 }
 
-// CreatedPDR describes a PDR created by the UPF with any allocated
-// resources (TEID for GTP uplink, or UE IP confirmation for downlink).
-type CreatedPDR struct {
+// AppliedPDR is the local F-TEID the UPF holds for one uplink PDR, together
+// with the N3 transport addresses the RAN sends its GTP-U to.
+type AppliedPDR struct {
 	PDRID  uint16
 	TEID   uint32
-	N3IPv4 netip.Addr // may be zero if not available
-	N3IPv6 netip.Addr // may be zero if not available
+	N3IPv4 netip.Addr // zero when the N3 has no address of that family
+	N3IPv6 netip.Addr
 }
 
 // PDR describes a Packet Detection Rule for the UPF session API.
@@ -48,16 +49,18 @@ type PDR struct {
 	PDI                PDI
 }
 
-// PDI describes the Packet Detection Information for a PDR.
+// PDI describes the Packet Detection Information for a PDR. Exactly one of the
+// two is set: a local F-TEID matches uplink GTP-U, a UE IP address matches
+// downlink. The local F-TEID's value is the UPF's to assign and hold for the
+// session's lifetime — it names a resource out of the UPF's own pool, which the
+// SMF cannot predict — and is reported back in SessionApplied.
 type PDI struct {
 	LocalFTEID  *FTEID
 	UEIPAddress netip.Addr
 }
 
 // FTEID is a fully qualified Tunnel Endpoint Identifier (TS 29.244 §8.2.3): a
-// GTP-U TEID together with the IP address that terminates the tunnel. A zero
-// value (TEID 0, invalid Addr) signals "to be assigned by the UPF" when used as
-// a PDI local F-TEID.
+// GTP-U TEID together with the IP address that terminates the tunnel.
 type FTEID struct {
 	TEID uint32
 	Addr netip.Addr
@@ -192,32 +195,6 @@ type MBR struct {
 // URR describes a Usage Reporting Rule for the UPF session API.
 type URR struct {
 	URRID uint32
-}
-
-// ModifyRequest asks the UPF to modify an existing session.
-// Rules are split into separate Create/Update/Remove slices
-// mirroring the PFCP state machine (RuleInitial→Create,
-// RuleUpdate→Update, RuleRemove→Remove).
-type ModifyRequest struct {
-	SEID     uint64
-	PolicyID string
-
-	CreatePDRs   []PDR
-	UpdatePDRs   []PDR
-	RemovePDRIDs []uint16
-
-	CreateFARs   []FAR
-	UpdateFARs   []FAR
-	RemoveFARIDs []uint32
-
-	CreateQERs   []QER
-	UpdateQERs   []QER
-	RemoveQERIDs []uint32
-}
-
-// DeleteRequest asks the UPF to delete a session by its SEID.
-type DeleteRequest struct {
-	SEID uint64
 }
 
 // DownlinkDataReport notifies the SMF that buffered downlink data

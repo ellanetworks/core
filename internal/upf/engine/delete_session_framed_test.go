@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
@@ -64,7 +63,7 @@ func TestDeleteSessionRemovesFramedRoutes(t *testing.T) {
 		t.Fatalf("framed route missing before delete: has=%v err=%v", has, err)
 	}
 
-	if err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err != nil {
+	if err := conn.Delete(context.Background(), seid); err != nil {
 		t.Fatalf("delete session: %v", err)
 	}
 

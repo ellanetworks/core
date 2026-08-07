@@ -181,9 +181,8 @@ func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowR
 type fakeUPF struct {
 	mu               sync.Mutex
 	teardownSeq      *teardownRecorder
-	establishResult  *models.EstablishResponse
-	lastEstablish    *models.EstablishRequest
-	modifyCalls      []*models.ModifyRequest
+	applyResult      *models.SessionApplied
+	applyCalls       []*models.SessionState
 	deleteCalls      []deletionCall
 	suppressDDNCalls []uint64
 	clearDDNCalls    []uint64
@@ -192,56 +191,95 @@ type fakeUPF struct {
 }
 
 type deletionCall struct {
-	remoteSEID uint64
+	seid uint64
 }
 
-func (f *fakeUPF) EstablishSession(_ context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
+func (f *fakeUPF) Apply(_ context.Context, desired *models.SessionState) (*models.SessionApplied, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.lastEstablish = req
+	f.applyCalls = append(f.applyCalls, desired)
 
-	return f.establishResult, f.err
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	if f.applyResult != nil {
+		return f.applyResult, nil
+	}
+
+	return &models.SessionApplied{}, nil
 }
 
-func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) error {
+// applies returns the session states the SMF stated, in order.
+func (f *fakeUPF) applies() []*models.SessionState {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.modifyCalls = append(f.modifyCalls, req)
-
-	return f.err
+	return append([]*models.SessionState(nil), f.applyCalls...)
 }
 
-func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
+// applyCount reports how many times the SMF stated the session.
+func (f *fakeUPF) applyCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return len(f.applyCalls)
+}
+
+func (f *fakeUPF) resetApplies() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.applyCalls = nil
+}
+
+// firstApply is the state that created the session, nil when none was stated.
+func (f *fakeUPF) firstApply() *models.SessionState {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if len(f.applyCalls) == 0 {
+		return nil
+	}
+
+	return f.applyCalls[0]
+}
+
+// defaultQER finds the session's default QoS rule in a stated session state.
+func defaultQER(state *models.SessionState) *models.QER {
+	for i := range state.QERs {
+		if state.QERs[i].QERID == 1 {
+			return &state.QERs[i]
+		}
+	}
+
+	return nil
+}
+
+func (f *fakeUPF) Delete(_ context.Context, seid uint64) error {
 	f.teardownSeq.record("delete-session")
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.deleteCalls = append(f.deleteCalls, deletionCall{remoteSEID})
+	f.deleteCalls = append(f.deleteCalls, deletionCall{seid})
 
 	return f.err
 }
 
-func (f *fakeUPF) SuppressDownlinkDataNotification(_ context.Context, remoteSEID uint64) {
+func (f *fakeUPF) SuppressDownlinkDataNotification(_ context.Context, seid uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.suppressDDNCalls = append(f.suppressDDNCalls, remoteSEID)
+	f.suppressDDNCalls = append(f.suppressDDNCalls, seid)
 }
 
-func (f *fakeUPF) ClearDownlinkDataNotification(_ context.Context, remoteSEID uint64) {
+func (f *fakeUPF) ClearDownlinkDataNotification(_ context.Context, seid uint64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.clearDDNCalls = append(f.clearDDNCalls, remoteSEID)
-}
-
-func (f *fakeUPF) FlushUsage(_ context.Context, _ uint64) {}
-
-func (f *fakeUPF) UpdateFilters(_ context.Context, _ string, _ models.Direction, _ []models.FilterRule) error {
-	return nil
+	f.clearDDNCalls = append(f.clearDDNCalls, seid)
 }
 
 func (f *fakeUPF) RegisterIPv6Session(_ context.Context, reg *models.IPv6SessionRegistration) error {
@@ -465,9 +503,8 @@ func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 		releasedIP:  netip.MustParseAddr("10.0.0.1"),
 	}
 	upf := &fakeUPF{
-		establishResult: &models.EstablishResponse{
-			RemoteSEID: 100,
-			CreatedPDRs: []models.CreatedPDR{
+		applyResult: &models.SessionApplied{
+			UplinkPDRs: []models.AppliedPDR{
 				{PDRID: 1, TEID: 5000, N3IPv4: netip.MustParseAddr("192.168.1.1")},
 			},
 		},
@@ -621,8 +658,8 @@ func TestGetSessionBySEID(t *testing.T) {
 
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
-	seid := s.AllocateLocalSEID()
-	s.AssignPFCPSession(smCtx, seid)
+	seid := s.AllocateSEID()
+	s.AssignUPFSession(smCtx, seid)
 
 	got := s.GetSessionBySEID(seid)
 	if got != smCtx {
@@ -635,13 +672,13 @@ func TestGetSessionBySEID(t *testing.T) {
 	}
 }
 
-func TestAllocateLocalSEID_Increments(t *testing.T) {
+func TestAllocateSEID_Increments(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	seid1 := s.AllocateLocalSEID()
-	seid2 := s.AllocateLocalSEID()
-	seid3 := s.AllocateLocalSEID()
+	seid1 := s.AllocateSEID()
+	seid2 := s.AllocateSEID()
+	seid3 := s.AllocateSEID()
 
 	if seid1 != 1 || seid2 != 2 || seid3 != 3 {
 		t.Fatalf("expected SEIDs 1,2,3 but got %d,%d,%d", seid1, seid2, seid3)

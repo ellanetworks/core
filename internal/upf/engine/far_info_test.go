@@ -133,69 +133,69 @@ func TestFarInfoFromModel_ApplyActionDrop(t *testing.T) {
 	}
 }
 
-// TestFarInfoFromMerge_IPv4ToIPv6 verifies that updating a FAR from IPv4 to
-// IPv6 OHC switches the local and remote addresses correctly.
-func TestFarInfoFromMerge_IPv4ToIPv6(t *testing.T) {
-	// Existing FAR uses IPv4 transport
-	existingFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
-	existing := farInfoFromModel(existingFAR, localIPv4, localIPv6)
-
-	// Update FAR switches to IPv6 transport
-	updateFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv6, 20, "", "2001:db8::2")
-
-	merged := farInfoFromMerge(updateFAR, localIPv4, localIPv6, existing)
-
-	if merged.OuterHeaderCreation != 2 {
-		t.Errorf("OuterHeaderCreation: got %d, want 2", merged.OuterHeaderCreation)
+// A forwarding rule is stated in full on every apply, so a rule whose transport
+// changes family carries the new one and nothing of the old.
+func TestFarInfoFromModel_IPv4ToIPv6(t *testing.T) {
+	ipv4FAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
+	if before := farInfoFromModel(ipv4FAR, localIPv4, localIPv6); before.TeID != 10 {
+		t.Fatalf("TeID over IPv4 transport: got %d, want 10", before.TeID)
 	}
 
-	if merged.TeID != 20 {
-		t.Errorf("TeID: got %d, want 20", merged.TeID)
+	ipv6FAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv6, 20, "", "2001:db8::2")
+
+	info := farInfoFromModel(ipv6FAR, localIPv4, localIPv6)
+
+	if info.OuterHeaderCreation != 2 {
+		t.Errorf("OuterHeaderCreation: got %d, want 2", info.OuterHeaderCreation)
+	}
+
+	if info.TeID != 20 {
+		t.Errorf("TeID: got %d, want 20", info.TeID)
 	}
 
 	wantLocal := ebpf.IPToIn6Addr(localIPv6)
-	if merged.LocalIP != wantLocal {
-		t.Errorf("LocalIP: got %v, want %v", merged.LocalIP, wantLocal)
+	if info.LocalIP != wantLocal {
+		t.Errorf("LocalIP: got %v, want %v", info.LocalIP, wantLocal)
 	}
 
 	wantRemote := ebpf.IPToIn6Addr(netip.MustParseAddr("2001:db8::2"))
-	if merged.RemoteIP != wantRemote {
-		t.Errorf("RemoteIP: got %v, want %v", merged.RemoteIP, wantRemote)
+	if info.RemoteIP != wantRemote {
+		t.Errorf("RemoteIP: got %v, want %v", info.RemoteIP, wantRemote)
 	}
 }
 
-// TestFarInfoFromMerge_NoUpdate verifies that a merge with no forwarding
-// parameters preserves the existing FAR fields.
-func TestFarInfoFromMerge_NoUpdate(t *testing.T) {
-	existingFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 42, "10.0.0.5", "")
-	existing := farInfoFromModel(existingFAR, localIPv4, localIPv6)
+// A forwarding rule with no forwarding parameters names no tunnel endpoint.
+// Nothing of a rule the session held before survives the statement, so an
+// endpoint the control plane withdrew cannot be left forwarding.
+func TestFarInfoFromModel_NoForwardingParametersNamesNoEndpoint(t *testing.T) {
+	bound := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 42, "10.0.0.5", "")
+	if before := farInfoFromModel(bound, localIPv4, localIPv6); before.TeID != 42 {
+		t.Fatalf("TeID after bind: got %d, want 42", before.TeID)
+	}
 
-	update := models.FAR{
+	withdrawn := models.FAR{
 		FARID:       1,
 		ApplyAction: models.ApplyAction{Forw: true},
 	}
 
-	merged := farInfoFromMerge(update, localIPv4, localIPv6, existing)
+	info := farInfoFromModel(withdrawn, localIPv4, localIPv6)
 
-	if merged.TeID != existing.TeID {
-		t.Errorf("TeID preserved: got %d, want %d", merged.TeID, existing.TeID)
-	}
+	var zeroIP [16]byte
 
-	if merged.RemoteIP != existing.RemoteIP {
-		t.Errorf("RemoteIP preserved: got %v, want %v", merged.RemoteIP, existing.RemoteIP)
+	if info.TeID != 0 || info.OuterHeaderCreation != 0 || info.RemoteIP != zeroIP || info.LocalIP != zeroIP {
+		t.Errorf("withdrawn forwarding parameters left an endpoint: %+v", info)
 	}
 }
 
-// TestFarInfoFromMerge_ClearedOuterHeaderCreation covers the downlink suspend
-// (ApplyAction Buff|Nocp with the outer header creation withdrawn): the merged
-// FAR must name no tunnel endpoint.
-func TestFarInfoFromMerge_ClearedOuterHeaderCreation(t *testing.T) {
+// The downlink suspend (buffer + notify with the outer header creation
+// withdrawn) must name no tunnel endpoint: an endpoint left behind keeps the
+// datapath forwarding to an access the session has left.
+func TestFarInfoFromModel_SuspendedDownlinkNamesNoEndpoint(t *testing.T) {
 	boundFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 0x9001, "10.0.0.9", "")
 	boundFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
 
-	existing := farInfoFromModel(boundFAR, localIPv4, localIPv6)
-	if existing.TeID != 0x9001 {
-		t.Fatalf("TeID after bind: got %#x, want 0x9001", existing.TeID)
+	if before := farInfoFromModel(boundFAR, localIPv4, localIPv6); before.TeID != 0x9001 {
+		t.Fatalf("TeID after bind: got %#x, want 0x9001", before.TeID)
 	}
 
 	suspend := models.FAR{
@@ -204,45 +204,43 @@ func TestFarInfoFromMerge_ClearedOuterHeaderCreation(t *testing.T) {
 		ForwardingParameters: &models.ForwardingParameters{},
 	}
 
-	merged := farInfoFromMerge(suspend, localIPv4, localIPv6, existing)
+	info := farInfoFromModel(suspend, localIPv4, localIPv6)
 
-	if merged.Action != 0x0c {
-		t.Errorf("Action: got %#x, want 0x0c", merged.Action)
+	if info.Action != 0x0c {
+		t.Errorf("Action: got %#x, want 0x0c", info.Action)
 	}
 
-	if merged.OuterHeaderCreation != 0 {
-		t.Errorf("OuterHeaderCreation: got %#x, want 0", merged.OuterHeaderCreation)
+	if info.OuterHeaderCreation != 0 {
+		t.Errorf("OuterHeaderCreation: got %#x, want 0", info.OuterHeaderCreation)
 	}
 
-	if merged.TeID != 0 {
-		t.Errorf("TeID: got %#x, want 0", merged.TeID)
+	if info.TeID != 0 {
+		t.Errorf("TeID: got %#x, want 0", info.TeID)
 	}
 
 	var zeroIP [16]byte
 
-	if merged.RemoteIP != zeroIP {
-		t.Errorf("RemoteIP: got %v, want zero", merged.RemoteIP)
+	if info.RemoteIP != zeroIP {
+		t.Errorf("RemoteIP: got %v, want zero", info.RemoteIP)
 	}
 
-	if merged.LocalIP != zeroIP {
-		t.Errorf("LocalIP: got %v, want zero", merged.LocalIP)
+	if info.LocalIP != zeroIP {
+		t.Errorf("LocalIP: got %v, want zero", info.LocalIP)
 	}
 }
 
-func TestFarInfoFromMerge_S1UKeepsNoPSC(t *testing.T) {
+func TestFarInfoFromModel_S1UKeepsNoPSC(t *testing.T) {
 	establishFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
 	establishFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
 
-	existing := farInfoFromModel(establishFAR, localIPv4, localIPv6)
-	if existing.OuterHeaderCreation != 0x11 {
-		t.Fatalf("OuterHeaderCreation after establish: got %#x, want 0x11", existing.OuterHeaderCreation)
+	if info := farInfoFromModel(establishFAR, localIPv4, localIPv6); info.OuterHeaderCreation != 0x11 {
+		t.Fatalf("OuterHeaderCreation after establish: got %#x, want 0x11", info.OuterHeaderCreation)
 	}
 
-	updateFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 84, "10.0.0.1", "")
-	updateFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
+	rebindFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 84, "10.0.0.1", "")
+	rebindFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
 
-	merged := farInfoFromMerge(updateFAR, localIPv4, localIPv6, existing)
-	if merged.OuterHeaderCreation != 0x11 {
-		t.Errorf("OuterHeaderCreation after modify: got %#x, want 0x11", merged.OuterHeaderCreation)
+	if info := farInfoFromModel(rebindFAR, localIPv4, localIPv6); info.OuterHeaderCreation != 0x11 {
+		t.Errorf("OuterHeaderCreation after rebind: got %#x, want 0x11", info.OuterHeaderCreation)
 	}
 }

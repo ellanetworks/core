@@ -245,7 +245,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		IPv6IID:        sc.IPv6IID,
 	}
 
-	// The PFCP session is up, so the establishment counts as an accept even if
+	// The UPF session is up, so the establishment counts as an accept even if
 	// the N1N2 delivery below fails.
 	establishmentResult = metrics.ResultAccept
 

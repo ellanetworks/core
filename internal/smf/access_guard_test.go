@@ -24,20 +24,16 @@ func TestDeactivateEPSSessionRefusesASessionOnFiveGS(t *testing.T) {
 
 	ref := movedFromEPSTo5GS(t, s)
 
-	upf.mu.Lock()
-	modifiesBefore := len(upf.modifyCalls)
-	upf.mu.Unlock()
+	appliesBefore := upf.applyCount()
 
 	if err := s.DeactivateEPSSession(context.Background(), ref); err == nil {
 		t.Error("DeactivateEPSSession(session on 5GS) = nil, want an error")
 	}
 
-	upf.mu.Lock()
-	modifiesAfter := len(upf.modifyCalls)
-	upf.mu.Unlock()
+	appliesAfter := upf.applyCount()
 
-	if modifiesAfter != modifiesBefore {
-		t.Errorf("UPF ModifySession calls = %d, want %d", modifiesAfter, modifiesBefore)
+	if appliesAfter != appliesBefore {
+		t.Errorf("UPF Apply calls = %d, want %d", appliesAfter, appliesBefore)
 	}
 }
 
@@ -50,20 +46,16 @@ func TestDeactivateSmContextRefusesASessionOnEPS(t *testing.T) {
 		t.Fatalf("CreateEPSSession: %v", err)
 	}
 
-	upf.mu.Lock()
-	modifiesBefore := len(upf.modifyCalls)
-	upf.mu.Unlock()
+	appliesBefore := upf.applyCount()
 
 	if err := s.DeactivateSmContext(context.Background(), bearer.Ref); err == nil {
 		t.Error("DeactivateSmContext(session on EPS) = nil, want an error")
 	}
 
-	upf.mu.Lock()
-	modifiesAfter := len(upf.modifyCalls)
-	upf.mu.Unlock()
+	appliesAfter := upf.applyCount()
 
-	if modifiesAfter != modifiesBefore {
-		t.Errorf("UPF ModifySession calls = %d, want %d", modifiesAfter, modifiesBefore)
+	if appliesAfter != appliesBefore {
+		t.Errorf("UPF Apply calls = %d, want %d", appliesAfter, appliesBefore)
 	}
 }
 

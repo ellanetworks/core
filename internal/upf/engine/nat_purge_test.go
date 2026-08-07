@@ -71,15 +71,15 @@ func TestDeleteSessionPurgesNATConntrack(t *testing.T) {
 	otherUEIP := netip.MustParseAddr("10.45.0.9")
 	natIP := netip.MustParseAddr("192.0.2.1")
 
-	req := &models.EstablishRequest{
-		LocalSEID: seid,
-		IMSI:      "001010000000001",
-		URRs:      []models.URR{{URRID: 1}},
-		FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
-		PDRs:      []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
+	req := &models.SessionState{
+		SEID: seid,
+		IMSI: "001010000000001",
+		URRs: []models.URR{{URRID: 1}},
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+		PDRs: []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
 	}
 
-	if _, err := conn.EstablishSession(context.Background(), req); err != nil {
+	if _, err := conn.Apply(context.Background(), req); err != nil {
 		t.Fatalf("establish: %v", err)
 	}
 
@@ -101,7 +101,7 @@ func TestDeleteSessionPurgesNATConntrack(t *testing.T) {
 		}
 	}
 
-	if err := conn.DeleteSession(context.Background(), &models.DeleteRequest{SEID: seid}); err != nil {
+	if err := conn.Delete(context.Background(), seid); err != nil {
 		t.Fatalf("delete session: %v", err)
 	}
 

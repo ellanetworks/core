@@ -223,7 +223,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return err
 	}
 
-	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
+	err = handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
 	if err != nil {
 		if commit != nil {
 			commit.restore()
@@ -235,7 +235,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("error handling N2 message: %v", err)
 	}
 
-	if smContext.PFCPContext == nil {
+	if smContext.UPFSession == nil {
 		if commit != nil {
 			commit.restore()
 		}
@@ -246,30 +246,22 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("pfcp session context not found")
 	}
 
-	// The move's QoS travels in the bind's own modification, so it costs no PFCP
-	// round trip of its own.
-	var (
-		policyID string
-		qerList  []*QER
-	)
-
+	// The move's QoS is already staged on the session's rules, so it travels in
+	// the bind's own statement and costs no round trip of its own.
+	policy := smContext.PolicyData
 	if commit != nil {
-		policyID, qerList = commit.policy.PolicyID, commit.qers
+		policy = commit.policy
 	}
 
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		policyID,
-		pdrList, farList, qerList,
-	)); err != nil {
+	if err := s.applySession(ctx, smContext, policy); err != nil {
 		if commit != nil {
 			commit.restore()
 		}
 
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to modify PFCP session")
+		span.SetStatus(codes.Error, "failed to apply the UPF session state")
 
-		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		return err
 	}
 
 	if commit != nil {
@@ -278,41 +270,25 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
-	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.SmfLog.Info("Applied the UPF session state", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
 }
 
-func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smContext *SMContext) ([]*PDR, []*FAR, error) {
+func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smContext *SMContext) error {
 	logger.SmfLog.Debug("received n2 sm info type", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-	var pdrList []*PDR
-
-	var farList []*FAR
-
 	// The transfer is parsed before the downlink is opened, so a malformed one
-	// cannot leave the FAR forwarding with no endpoint for a later modification to
-	// ship.
+	// cannot leave the FAR forwarding with no endpoint.
 	if err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext); err != nil {
-		return nil, nil, fmt.Errorf("handle PDUSessionResourceSetupResponseTransfer failed: %v", err)
+		return fmt.Errorf("handle PDUSessionResourceSetupResponseTransfer failed: %v", err)
 	}
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
-
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.State = RuleUpdate
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-
-		// Initial PDR creation set the UL OuterHeaderRemoval before the gNB IP was
-		// known; mark it for update so the corrected value reaches the UPF.
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
 	}
 
-	return pdrList, farList, nil
+	return nil
 }
 
 func anchorFromGTPTunnel(t libngap.GTPTunnel) AnchorBinding {

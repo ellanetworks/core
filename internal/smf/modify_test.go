@@ -76,10 +76,7 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 		t.Fatalf("expected confirm list naming QFI 1, got %v", confirm.QosFlowModifyConfirm)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if len(upf.modifyCalls) != 1 {
-		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 1 {
+		t.Fatalf("UPF session statements = %d, want 1", got)
 	}
 }

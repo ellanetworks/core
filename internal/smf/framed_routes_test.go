@@ -34,11 +34,11 @@ func TestCreateSessionEmitsFramedRoutes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if upf.lastEstablish == nil {
+	if upf.firstApply() == nil {
 		t.Fatal("no UPF establish request captured")
 	}
 
-	got := upf.lastEstablish.FramedRoutes
+	got := upf.firstApply().FramedRoutes
 	if len(got) != 2 {
 		t.Fatalf("expected 2 framed routes in establish request, got %+v", got)
 	}

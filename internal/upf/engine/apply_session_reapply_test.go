@@ -19,10 +19,10 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestReEstablishTearsDownOldSession asserts that establishing a session for a
-// SEID that already has a live session tears the old one down first, leaving no
-// orphaned datapath entry from the previous session. Requires root.
-func TestReEstablishTearsDownOldSession(t *testing.T) {
+// TestApplyMovesTheDownlinkToARestatedUEAddress asserts that a statement giving
+// the session a different UE address converges the datapath onto it, leaving no
+// entry under the address the session held. Requires root.
+func TestApplyMovesTheDownlinkToARestatedUEAddress(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
 		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
@@ -58,34 +58,34 @@ func TestReEstablishTearsDownOldSession(t *testing.T) {
 	oldIP := netip.MustParseAddr("10.0.0.1")
 	newIP := netip.MustParseAddr("10.0.0.2")
 
-	req := func(ueIP netip.Addr) *models.EstablishRequest {
-		return &models.EstablishRequest{
-			LocalSEID: seid,
-			IMSI:      "001010000000001",
-			URRs:      []models.URR{{URRID: 1}},
-			FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
-			PDRs:      []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
+	req := func(ueIP netip.Addr) *models.SessionState {
+		return &models.SessionState{
+			SEID: seid,
+			IMSI: "001010000000001",
+			URRs: []models.URR{{URRID: 1}},
+			FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+			PDRs: []models.PDR{{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
 		}
 	}
 
-	if _, err := conn.EstablishSession(context.Background(), req(oldIP)); err != nil {
-		t.Fatalf("first establish: %v", err)
+	if _, err := conn.Apply(context.Background(), req(oldIP)); err != nil {
+		t.Fatalf("first apply: %v", err)
 	}
 
-	if _, err := conn.EstablishSession(context.Background(), req(newIP)); err != nil {
-		t.Fatalf("re-establish: %v", err)
+	if _, err := conn.Apply(context.Background(), req(newIP)); err != nil {
+		t.Fatalf("second apply: %v", err)
 	}
 
 	if conn.GetSession(seid) == nil {
-		t.Fatal("session not registered after re-establish")
+		t.Fatal("session left the engine after a second apply")
 	}
 
 	var v upfebpf.N3N6EntrypointPdrInfo
 	if lookupErr := obj.PdrsDownlinkIp4.Lookup(oldIP.As4(), &v); !errors.Is(lookupErr, ebpf.ErrKeyNotExist) {
-		t.Fatalf("old session's downlink PDR leaked: want ErrKeyNotExist for %s, got %v", oldIP, lookupErr)
+		t.Fatalf("the entry under the superseded UE address leaked: want ErrKeyNotExist for %s, got %v", oldIP, lookupErr)
 	}
 
 	if lookupErr := obj.PdrsDownlinkIp4.Lookup(newIP.As4(), &v); lookupErr != nil {
-		t.Fatalf("new session's downlink PDR missing for %s: %v", newIP, lookupErr)
+		t.Fatalf("downlink PDR missing under the stated UE address %s: %v", newIP, lookupErr)
 	}
 }

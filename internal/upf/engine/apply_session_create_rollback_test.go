@@ -18,11 +18,11 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestEstablishSessionRollsBackOnFailure asserts that a mid-establish failure
-// unwinds every datapath change applied so far, leaving no orphaned URR or PDR
-// entry — the session is never registered, so nothing else could reclaim them.
-// Requires root to load the eBPF maps.
-func TestEstablishSessionRollsBackOnFailure(t *testing.T) {
+// TestApplyCreateRollsBackOnFailure asserts that a failure while a session's
+// first statement is being applied unwinds every datapath change made so far,
+// leaving no orphaned URR or PDR entry — the session never joins the engine, so
+// nothing else could reclaim them. Requires root to load the eBPF maps.
+func TestApplyCreateRollsBackOnFailure(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
 		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
@@ -58,23 +58,23 @@ func TestEstablishSessionRollsBackOnFailure(t *testing.T) {
 	// PDR 1 is a valid uplink PDR (allocates a TEID, applies to pdrs_uplink); PDR
 	// 2 has neither an F-TEID nor a UE IP, so ExtractPDR fails after PDR 1 and the
 	// URR are already installed.
-	req := &models.EstablishRequest{
-		LocalSEID: seid,
-		IMSI:      "001010000000001",
-		URRs:      []models.URR{{URRID: 1}},
-		FARs:      []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
+	req := &models.SessionState{
+		SEID: seid,
+		IMSI: "001010000000001",
+		URRs: []models.URR{{URRID: 1}},
+		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
 		PDRs: []models.PDR{
 			{PDRID: 1, FARID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
 			{PDRID: 2, FARID: 1, PDI: models.PDI{}},
 		},
 	}
 
-	if _, err := conn.EstablishSession(context.Background(), req); err == nil {
-		t.Fatal("expected establish to fail on the malformed PDR")
+	if _, err := conn.Apply(context.Background(), req); err == nil {
+		t.Fatal("expected the apply to fail on the malformed PDR")
 	}
 
 	if conn.GetSession(seid) != nil {
-		t.Fatal("session must not be registered after a failed establish")
+		t.Fatal("session joined the engine after a failed first apply")
 	}
 
 	var perCPU []uint64
@@ -83,7 +83,7 @@ func TestEstablishSessionRollsBackOnFailure(t *testing.T) {
 	}
 
 	if n := countUplinkPDRs(t, obj); n != 0 {
-		t.Fatalf("pdrs_uplink leaked %d entries after failed establish", n)
+		t.Fatalf("pdrs_uplink leaked %d entries after a failed first apply", n)
 	}
 }
 

@@ -44,30 +44,17 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("build modify confirm transfer: %v", err)
 	}
 
-	if smContext.PFCPContext == nil {
-		return nil, fmt.Errorf("pfcp session context not found for upf")
+	if smContext.UPFSession == nil {
+		return nil, fmt.Errorf("UPF session context not found")
 	}
 
-	var pdrList []*PDR
-
-	var farList []*FAR
-
-	if smContext.Tunnel.DataPath.Activated {
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		"",
-		pdrList, farList, nil,
-	)); err != nil {
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
+	if err := s.applySession(ctx, smContext, nil); err != nil {
+		return nil, err
 	}
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
-	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.SmfLog.Info("Applied the UPF session state", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return n2buf, nil
 }
@@ -82,10 +69,6 @@ func handleModifyIndicationTransfer(b []byte, smContext *SMContext) ([]int64, er
 	}
 
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel))
-
-	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-	}
 
 	qfis := make([]int64, 0, len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList))
 	for _, item := range transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList {

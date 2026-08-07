@@ -175,7 +175,7 @@ func (sc *SMContext) abandonTransfer() {
 }
 
 // transferCommit is the staged half of a move: the target access's identity and
-// QoS are on the session, and the binding entry point's own PFCP modification
+// QoS are on the session, and the binding entry point's own statement to the UPF
 // carries them.
 type transferCommit struct {
 	source   AccessType
@@ -198,8 +198,8 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 
 	// The session is unlocked between the request and this bind, so the
 	// preconditions the request checked are checked again: a release sets
-	// releasing, and a deactivation the UPF refuses drops the tunnel and the PFCP
-	// context.
+	// releasing, and a deactivation the UPF refuses drops the tunnel and the UPF
+	// session.
 	if sc.releasing {
 		return nil, fmt.Errorf("session %q is being released", sc.Ref)
 	}

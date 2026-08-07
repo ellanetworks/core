@@ -41,11 +41,11 @@ func (s *SMF) suppressDownlinkDataNotification(ctx context.Context, ref string, 
 
 	defer unlock()
 
-	if smContext.PFCPContext == nil {
+	if smContext.UPFSession == nil {
 		return nil
 	}
 
-	s.upf.SuppressDownlinkDataNotification(ctx, smContext.PFCPContext.RemoteSEID)
+	s.upf.SuppressDownlinkDataNotification(ctx, smContext.UPFSession.SEID)
 
 	return nil
 }

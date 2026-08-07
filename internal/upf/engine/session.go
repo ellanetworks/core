@@ -25,6 +25,7 @@ type Session struct {
 	pdrs         map[uint32]SPDRInfo
 	fars         map[uint32]ebpf.FarInfo
 	qers         map[uint32]ebpf.QerInfo
+	urrs         map[uint32]struct{}
 	framedRoutes []netip.Prefix
 	ueIPv4       netip.Addr
 	ueIPv6       netip.Addr
@@ -36,6 +37,7 @@ func NewSession(seid uint64) *Session {
 		pdrs: map[uint32]SPDRInfo{},
 		fars: map[uint32]ebpf.FarInfo{},
 		qers: map[uint32]ebpf.QerInfo{},
+		urrs: map[uint32]struct{}{},
 	}
 }
 
@@ -224,19 +226,95 @@ func (s *Session) ListQERs() map[uint32]ebpf.QerInfo {
 	return c
 }
 
-// snapshot copies the rule maps so a failed modification can restore them.
-func (s *Session) snapshot() (pdrs map[uint32]SPDRInfo, fars map[uint32]ebpf.FarInfo, qers map[uint32]ebpf.QerInfo) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return maps.Clone(s.pdrs), maps.Clone(s.fars), maps.Clone(s.qers)
-}
-
-func (s *Session) restore(pdrs map[uint32]SPDRInfo, fars map[uint32]ebpf.FarInfo, qers map[uint32]ebpf.QerInfo) {
+// addURR records a usage reporting rule the session now holds.
+func (s *Session) addURR(id uint32) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.pdrs = pdrs
-	s.fars = fars
-	s.qers = qers
+	s.urrs[id] = struct{}{}
+}
+
+func (s *Session) removeURR(id uint32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.urrs, id)
+}
+
+// URRs returns a snapshot copy of the session's usage reporting rule IDs.
+func (s *Session) URRs() map[uint32]struct{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return maps.Clone(s.urrs)
+}
+
+// held is what the UPF holds for the session, the left-hand side of a
+// reconciliation.
+func (s *Session) held() heldSession {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return heldSession{
+		pdrs:         maps.Clone(s.pdrs),
+		urrs:         maps.Clone(s.urrs),
+		framedRoutes: append([]netip.Prefix(nil), s.framedRoutes...),
+		ueIPv4:       s.ueIPv4,
+		ueIPv6:       s.ueIPv6,
+	}
+}
+
+// putRules installs the forwarding and QoS rules the session is to have, along
+// with the UE source addresses its uplink PDRs authorise.
+func (s *Session) putRules(fars map[uint32]ebpf.FarInfo, qers map[uint32]ebpf.QerInfo, ueIPv4, ueIPv6 netip.Addr) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.fars = maps.Clone(fars)
+	s.qers = maps.Clone(qers)
+	s.ueIPv4 = ueIPv4
+	s.ueIPv6 = ueIPv6
+}
+
+// sessionSnapshot is a session's whole rule state, so a failed apply can put
+// back exactly what the datapath is unwound to.
+type sessionSnapshot struct {
+	pdrs         map[uint32]SPDRInfo
+	fars         map[uint32]ebpf.FarInfo
+	qers         map[uint32]ebpf.QerInfo
+	urrs         map[uint32]struct{}
+	framedRoutes []netip.Prefix
+	ueIPv4       netip.Addr
+	ueIPv6       netip.Addr
+	policyID     string
+}
+
+func (s *Session) snapshot() sessionSnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return sessionSnapshot{
+		pdrs:         maps.Clone(s.pdrs),
+		fars:         maps.Clone(s.fars),
+		qers:         maps.Clone(s.qers),
+		urrs:         maps.Clone(s.urrs),
+		framedRoutes: append([]netip.Prefix(nil), s.framedRoutes...),
+		ueIPv4:       s.ueIPv4,
+		ueIPv6:       s.ueIPv6,
+		policyID:     s.policyID,
+	}
+}
+
+func (s *Session) restore(snap sessionSnapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pdrs = snap.pdrs
+	s.fars = snap.fars
+	s.qers = snap.qers
+	s.urrs = snap.urrs
+	s.framedRoutes = snap.framedRoutes
+	s.ueIPv4 = snap.ueIPv4
+	s.ueIPv6 = snap.ueIPv6
+	s.policyID = snap.policyID
 }

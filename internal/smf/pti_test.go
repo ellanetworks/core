@@ -229,11 +229,7 @@ func TestCreateSmContext_UnassignedPTI_Status81(t *testing.T) {
 		t.Errorf("STATUS cause = %d, want %d (#81 invalid PTI value)", got, fgs.GSMCauseInvalidPTIValue)
 	}
 
-	upf.mu.Lock()
-	established := upf.lastEstablish
-	upf.mu.Unlock()
-
-	if established != nil {
+	if established := upf.firstApply(); established != nil {
 		t.Error("an invalid-PTI establishment request must not establish a PFCP session")
 	}
 }

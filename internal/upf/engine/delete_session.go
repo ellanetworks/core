@@ -9,27 +9,26 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
-// DeleteSession deletes an existing UPF session by SEID.
-func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.DeleteRequest) error {
+// Delete removes a session and everything it holds on the datapath.
+func (conn *SessionEngine) Delete(ctx context.Context, seid uint64) error {
 	ctx, span := tracer.Start(ctx, "upf/delete_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("session.operation", "delete"),
-			attribute.Int64("session.seid", int64(req.SEID)),
+			attribute.Int64("session.seid", int64(seid)),
 		),
 	)
 	defer span.End()
 
-	session := conn.GetSession(req.SEID)
+	session := conn.GetSession(seid)
 	if session == nil {
-		err := fmt.Errorf("session not found for SEID %d", req.SEID)
+		err := fmt.Errorf("session not found for SEID %d", seid)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "session not found")
 
@@ -43,33 +42,37 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		return nil
 	}
 
-	// Mark deleted before teardown so a filter propagation that acquires opMu
+	// Marked deleted before teardown so a filter propagation that acquires opMu
 	// after this point skips the session (see applyFilterIndexToSession).
 	session.deleted = true
 
 	bpfObjects := conn.BpfObjects
-	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
-	// An already-removed PDR map key is a benign no-op; the session must still be fully
+	// An already-removed map key is a benign no-op; the session must still be fully
 	// removed so a torn-down session is not orphaned in the engine (reporting usage and
 	// leaking forwarding state to a later session that reuses the UE IP).
-	var pdrErr error
+	var teardownErr error
 
 	for _, pdrInfo := range session.ListPDRs() {
-		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
-			pdrErr = errors.Join(pdrErr, err)
+		if err := deletePDR(seid, pdrInfo, bpfObjects, conn.FteIDResourceManager); err != nil {
+			teardownErr = errors.Join(teardownErr, err)
 		}
 	}
 
-	// Remove the session's framed-route LPM entries alongside its PDRs.
+	for urrID := range session.URRs() {
+		if err := bpfObjects.DeleteUrr(seid, urrID); err != nil {
+			teardownErr = errors.Join(teardownErr, err)
+		}
+	}
+
 	for _, fr := range session.FramedRoutes() {
 		if err := bpfObjects.DeleteFramedDownlink(fr); err != nil {
-			pdrErr = errors.Join(pdrErr, err)
+			teardownErr = errors.Join(teardownErr, err)
 		}
 	}
 
 	if bpfObjects != nil {
-		bpfObjects.ClearNotifiedForSEID(req.SEID)
+		bpfObjects.ClearNotifiedForSEID(seid)
 	}
 
 	ueIPv4, _ := session.UEAddresses()
@@ -78,19 +81,19 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 	policyID := session.PolicyID()
 
 	conn.mu.Lock()
-	delete(conn.sessions, req.SEID)
-	conn.deregisterPolicy(policyID, req.SEID)
+	delete(conn.sessions, seid)
+	conn.deregisterPolicy(policyID, seid)
 	conn.mu.Unlock()
 
-	conn.ReleaseResources(req.SEID)
+	conn.ReleaseResources(seid)
 
-	if pdrErr != nil {
-		span.RecordError(pdrErr)
-		logger.WithTrace(ctx, logger.UpfLog).Warn("deleted session with residual PDR-delete errors",
-			logger.SEID(req.SEID), zap.Error(pdrErr))
+	if teardownErr != nil {
+		span.RecordError(teardownErr)
+		logger.WithTrace(ctx, logger.UpfLog).Warn("deleted session with residual teardown errors",
+			logger.SEID(seid), zap.Error(teardownErr))
 	}
 
-	logger.WithTrace(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(req.SEID))
+	logger.WithTrace(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(seid))
 
 	return nil
 }

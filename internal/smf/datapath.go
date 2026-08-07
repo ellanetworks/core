@@ -74,9 +74,9 @@ func (dp *DataPath) ActivateDlLinkPdr(anIPv4 net.IP, anIPv6 net.IP, teid uint32,
 }
 
 func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy *Policy, ueIP netip.Addr) error {
-	seid := smf.AllocateLocalSEID()
+	seid := smf.AllocateSEID()
 
-	smf.AssignPFCPSession(smContext, seid)
+	smf.AssignUPFSession(smContext, seid)
 
 	dp.UpLinkTunnel.PDR = NewPDR(pdrIDUplink, farIDUplink)
 	dp.DownLinkTunnel.PDR = NewPDR(pdrIDDownlink, farIDDownlink)

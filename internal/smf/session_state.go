@@ -55,121 +55,69 @@ func (u *URR) ToURR() models.URR {
 	}
 }
 
-// BuildEstablishRequest advances each rule to RuleCreate so later modifications
-// dispatch as updates.
-func BuildEstablishRequest(
-	localSEID uint64,
-	imsi string,
-	policyID string,
-	pdrs []*PDR,
-	fars []*FAR,
-	qers []*QER,
-	urrs []*URR,
-) *models.EstablishRequest {
-	mpdrs := make([]models.PDR, 0, len(pdrs))
-	for _, pdr := range pdrs {
-		mpdrs = append(mpdrs, pdr.ToPDR())
+// BuildSessionState states the session's whole user plane: every rule it is to
+// have, named once. The UPF converges to exactly this, so a rule the data path
+// is to stop carrying is one this omits. policy names the policy whose SDF
+// filters the session's PDRs use, which during a move is the target access's.
+// Caller holds smContext.mu.
+func BuildSessionState(smContext *SMContext, policy *Policy) *models.SessionState {
+	state := &models.SessionState{
+		SEID:         smContext.UPFSession.SEID,
+		IMSI:         smContext.Supi.IMSI(),
+		FramedRoutes: smContext.FramedRoutes,
 	}
 
-	mfars := make([]models.FAR, 0, len(fars))
-	for _, far := range fars {
-		mfars = append(mfars, far.ToFAR())
-		far.State = RuleCreate
+	if policy != nil {
+		state.PolicyID = policy.PolicyID
 	}
 
-	mqers := make([]models.QER, 0, len(qers))
-	seen := make(map[uint32]struct{})
+	dataPath := smContext.Tunnel.DataPath
 
-	for _, qer := range qers {
-		if _, dup := seen[qer.QERID]; dup {
-			continue
+	pdrs := make([]*PDR, 0, 3)
+
+	for _, t := range []*GTPTunnel{dataPath.UpLinkTunnel, dataPath.DownLinkTunnel} {
+		if t != nil && t.PDR != nil {
+			pdrs = append(pdrs, t.PDR)
 		}
-
-		seen[qer.QERID] = struct{}{}
-		mqers = append(mqers, qer.ToQER())
-		qer.State = RuleCreate
 	}
 
-	murrs := make([]models.URR, 0, len(urrs))
-	for _, urr := range urrs {
-		murrs = append(murrs, urr.ToURR())
+	if dataPath.SecondPDR != nil {
+		pdrs = append(pdrs, dataPath.SecondPDR)
 	}
 
-	return &models.EstablishRequest{
-		LocalSEID: localSEID,
-		IMSI:      imsi,
-		PolicyID:  policyID,
-		PDRs:      mpdrs,
-		FARs:      mfars,
-		QERs:      mqers,
-		URRs:      murrs,
-	}
-}
-
-// BuildModifyRequest buckets each rule by its RuleState and advances it to
-// RuleCreate.
-func BuildModifyRequest(
-	remoteSEID uint64,
-	policyID string,
-	pdrs []*PDR,
-	fars []*FAR,
-	qers []*QER,
-) *models.ModifyRequest {
-	req := &models.ModifyRequest{
-		SEID:     remoteSEID,
-		PolicyID: policyID,
-	}
+	// Rule IDs are scoped to the session and several PDRs share a forwarding,
+	// QoS or usage rule, so each of those is stated once.
+	seenFAR := make(map[uint32]struct{}, len(pdrs))
+	seenQER := make(map[uint32]struct{}, len(pdrs))
+	seenURR := make(map[uint32]struct{}, len(pdrs))
 
 	for _, pdr := range pdrs {
-		switch pdr.State {
-		case RuleInitial:
-			req.CreatePDRs = append(req.CreatePDRs, pdr.ToPDR())
-		case RuleUpdate:
-			req.UpdatePDRs = append(req.UpdatePDRs, pdr.ToPDR())
-		case RuleRemove:
-			req.RemovePDRIDs = append(req.RemovePDRIDs, pdr.PDRID)
+		state.PDRs = append(state.PDRs, pdr.ToPDR())
+
+		if pdr.FAR != nil {
+			if _, dup := seenFAR[pdr.FAR.FARID]; !dup {
+				seenFAR[pdr.FAR.FARID] = struct{}{}
+				state.FARs = append(state.FARs, pdr.FAR.ToFAR())
+			}
 		}
 
-		pdr.State = RuleCreate
-	}
-
-	for _, far := range fars {
-		switch far.State {
-		case RuleInitial:
-			req.CreateFARs = append(req.CreateFARs, far.ToFAR())
-		case RuleUpdate:
-			req.UpdateFARs = append(req.UpdateFARs, far.ToFAR())
-		case RuleRemove:
-			req.RemoveFARIDs = append(req.RemoveFARIDs, far.FARID)
+		if pdr.QER != nil {
+			if _, dup := seenQER[pdr.QER.QERID]; !dup {
+				seenQER[pdr.QER.QERID] = struct{}{}
+				state.QERs = append(state.QERs, pdr.QER.ToQER())
+			}
 		}
 
-		far.State = RuleCreate
-	}
-
-	for _, qer := range qers {
-		switch qer.State {
-		case RuleInitial:
-			req.CreateQERs = append(req.CreateQERs, qer.ToQER())
-		case RuleUpdate:
-			req.UpdateQERs = append(req.UpdateQERs, qer.ToQER())
-		case RuleRemove:
-			req.RemoveQERIDs = append(req.RemoveQERIDs, qer.QERID)
+		if pdr.URR != nil {
+			if _, dup := seenURR[pdr.URR.URRID]; !dup {
+				seenURR[pdr.URR.URRID] = struct{}{}
+				state.URRs = append(state.URRs, pdr.URR.ToURR())
+			}
 		}
-
-		qer.State = RuleCreate
 	}
 
-	return req
+	return state
 }
-
-const (
-	RuleInitial RuleState = 0
-	RuleCreate  RuleState = 1
-	RuleUpdate  RuleState = 2
-	RuleRemove  RuleState = 3
-)
-
-type RuleState uint8
 
 // Packet Detection Rule.
 type PDR struct {
@@ -180,7 +128,6 @@ type PDR struct {
 	QER *QER
 
 	PDI   models.PDI
-	State RuleState
 	PDRID uint16
 }
 
@@ -188,7 +135,6 @@ type PDR struct {
 type FAR struct {
 	ForwardingParameters *models.ForwardingParameters
 
-	State RuleState
 	FARID uint32
 
 	ApplyAction models.ApplyAction
@@ -199,7 +145,6 @@ type QER struct {
 	GateStatus *models.GateStatus
 	MBR        *models.MBR
 
-	State RuleState
 	QFI   uint8
 	QERID uint32
 }

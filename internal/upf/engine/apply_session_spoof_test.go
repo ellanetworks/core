@@ -17,11 +17,11 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestEstablishSessionStampsUplinkUEAddresses asserts that establishing a
-// dual-stack session records both UE source addresses on the session and stamps
-// them onto the uplink PDR programmed into pdrs_uplink (anti-spoofing). The IPv6
+// TestApplyStampsUplinkUEAddresses asserts that a dual-stack session's
+// statement records both UE source addresses on the session and stamps them
+// onto the uplink PDR programmed into pdrs_uplink (anti-spoofing). The IPv6
 // address is stored as the /64 base. Requires root/CAP_BPF.
-func TestEstablishSessionStampsUplinkUEAddresses(t *testing.T) {
+func TestApplyStampsUplinkUEAddresses(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
 		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
@@ -57,9 +57,9 @@ func TestEstablishSessionStampsUplinkUEAddresses(t *testing.T) {
 
 	// PDRs arrive uplink-first, IPv6 downlink last — the order that makes a
 	// per-PDR (rather than pre-scan) population miss the IPv6 /64.
-	req := &models.EstablishRequest{
-		LocalSEID: 1,
-		IMSI:      "001010000000001",
+	req := &models.SessionState{
+		SEID: 1,
+		IMSI: "001010000000001",
 		PDRs: []models.PDR{
 			{PDRID: 1, FARID: 1, QERID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
 			{PDRID: 2, FARID: 1, QERID: 1, PDI: models.PDI{UEIPAddress: ueV4}},
@@ -69,7 +69,7 @@ func TestEstablishSessionStampsUplinkUEAddresses(t *testing.T) {
 		QERs: []models.QER{{QERID: 1, QFI: 9}},
 	}
 
-	if _, err := conn.EstablishSession(context.Background(), req); err != nil {
+	if _, err := conn.Apply(context.Background(), req); err != nil {
 		t.Fatalf("establishment failed: %v", err)
 	}
 

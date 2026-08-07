@@ -25,9 +25,8 @@ func epsTestSMF() (*fakeStore, *fakeUPF) {
 		allocatedIPv6: netip.MustParseAddr("2001:db8:2::"),
 		releasedIP:    netip.AddrFrom4([4]byte{10, 45, 0, 7}),
 	}
-	upf := &fakeUPF{establishResult: &models.EstablishResponse{
-		RemoteSEID:  0x99,
-		CreatedPDRs: []models.CreatedPDR{{PDRID: 1, TEID: 0xABCD, N3IPv4: netip.AddrFrom4([4]byte{10, 3, 0, 2})}},
+	upf := &fakeUPF{applyResult: &models.SessionApplied{
+		UplinkPDRs: []models.AppliedPDR{{PDRID: 1, TEID: 0xABCD, N3IPv4: netip.AddrFrom4([4]byte{10, 3, 0, 2})}},
 	}}
 
 	return store, upf
@@ -69,8 +68,8 @@ func TestCreateEPSSessionIPv4(t *testing.T) {
 		t.Fatalf("S-GW F-TEID = %+v, want %+v", bearer.SGW, want)
 	}
 
-	if upf.lastEstablish == nil || len(upf.lastEstablish.PDRs) < 2 {
-		t.Fatalf("expected an establish with >=2 PDRs, got %+v", upf.lastEstablish)
+	if upf.firstApply() == nil || len(upf.firstApply().PDRs) < 2 {
+		t.Fatalf("expected an establish with >=2 PDRs, got %+v", upf.firstApply())
 	}
 }
 
@@ -124,12 +123,12 @@ func TestCreateEPSSessionBindsPolicyID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if upf.lastEstablish == nil {
+	if upf.firstApply() == nil {
 		t.Fatal("no UPF establish request captured")
 	}
 
-	if upf.lastEstablish.PolicyID != "policy-uuid-123" {
-		t.Fatalf("UPF establish PolicyID = %q, want %q", upf.lastEstablish.PolicyID, "policy-uuid-123")
+	if upf.firstApply().PolicyID != "policy-uuid-123" {
+		t.Fatalf("UPF establish PolicyID = %q, want %q", upf.firstApply().PolicyID, "policy-uuid-123")
 	}
 }
 
@@ -173,8 +172,8 @@ func TestCreateEPSSessionIPv4v6(t *testing.T) {
 	}
 
 	// Dual-stack adds the second (IPv6) downlink PDR: uplink + downlink-v4 + v6.
-	if upf.lastEstablish == nil || len(upf.lastEstablish.PDRs) < 3 {
-		t.Fatalf("expected a dual-stack establish with >=3 PDRs, got %d", len(upf.lastEstablish.PDRs))
+	if upf.firstApply() == nil || len(upf.firstApply().PDRs) < 3 {
+		t.Fatalf("expected a dual-stack establish with >=3 PDRs, got %d", len(upf.firstApply().PDRs))
 	}
 }
 
@@ -200,9 +199,8 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			store, _ := epsTestSMF()
-			upf := &fakeUPF{establishResult: &models.EstablishResponse{
-				RemoteSEID:  0x99,
-				CreatedPDRs: []models.CreatedPDR{{PDRID: 1, TEID: 0xABCD, N3IPv4: tc.n3v4, N3IPv6: tc.n3v6}},
+			upf := &fakeUPF{applyResult: &models.SessionApplied{
+				UplinkPDRs: []models.AppliedPDR{{PDRID: 1, TEID: 0xABCD, N3IPv4: tc.n3v4, N3IPv6: tc.n3v6}},
 			}}
 			s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
@@ -225,8 +223,8 @@ func TestCreateEPSSessionSGWN3Family(t *testing.T) {
 // TestCreateEPSSessionUPFFailureReleasesTunnel verifies that when the UPF
 // establish fails mid-create, the abort path releases the tunnel — freeing the
 // PDR/FAR/QER/URR IDs that ActivateTunnelAndPDR allocated before establish, even
-// though RemoteSEID is still 0 (regression for the leaked-rule-ID bug, F2).
-// releaseTunnel running is observable via the UPF DeleteSession call it issues.
+// though the UPF never confirmed the session. releaseTunnel running is
+// observable via the UPF DeleteSession call it issues.
 func TestCreateEPSSessionUPFFailureReleasesTunnel(t *testing.T) {
 	store, upf := epsTestSMF()
 	upf.err = errors.New("upf establish failed")
@@ -267,7 +265,7 @@ func TestCreateEPSSessionRejectsInvalidRequest(t *testing.T) {
 				t.Fatalf("expected CreateEPSSession to reject %s", tc.name)
 			}
 
-			if upf.lastEstablish != nil {
+			if upf.firstApply() != nil {
 				t.Fatalf("rejected request reached the UPF for %s", tc.name)
 			}
 		})
@@ -351,14 +349,15 @@ func TestModifyEPSSessionRegistersIPv6(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(upf.modifyCalls) != 1 {
-		t.Fatalf("expected 1 ModifySession, got %d", len(upf.modifyCalls))
+	applies := upf.applies()
+	if len(applies) != 2 {
+		t.Fatalf("UPF session statements = %d, want 2 (the establishment and the bind)", len(applies))
 	}
 
 	// The downlink FAR encaps toward the eNB, PSC-less.
 	var ohc *models.OuterHeaderCreation
 
-	for _, far := range upf.modifyCalls[0].UpdateFARs {
+	for _, far := range applies[1].FARs {
 		if far.ForwardingParameters != nil && far.ForwardingParameters.OuterHeaderCreation != nil {
 			ohc = far.ForwardingParameters.OuterHeaderCreation
 		}
@@ -392,12 +391,17 @@ func TestReleaseEPSSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	seid := s.GetSession(bearer.Ref).View().UPFSEID
+	if seid == nil {
+		t.Fatal("established session carries no SEID")
+	}
+
 	if err := s.ReleaseEPSSession(context.Background(), bearer.Ref); err != nil {
 		t.Fatal(err)
 	}
 
-	if len(upf.deleteCalls) != 1 || upf.deleteCalls[0].remoteSEID != 0x99 {
-		t.Fatalf("expected 1 DeleteSession for SEID 0x99, got %+v", upf.deleteCalls)
+	if len(upf.deleteCalls) != 1 || upf.deleteCalls[0].seid != *seid {
+		t.Fatalf("DeleteSession calls = %+v, want one for SEID %d", upf.deleteCalls, *seid)
 	}
 
 	if len(store.releasedIPs) != 1 {

@@ -115,38 +115,23 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 	defer unlock()
 
 	if smContext.Tunnel.DataPath.Activated {
-		if smContext.PFCPContext == nil {
+		if smContext.UPFSession == nil {
 			span.RecordError(fmt.Errorf("pfcp session context not found"))
 			span.SetStatus(codes.Error, "pfcp session context not found")
 
 			return fmt.Errorf("pfcp session context not found")
 		}
 
-		var (
-			pdrList []*PDR
-			farList []*FAR
-		)
-
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
-
-		if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-			smContext.PFCPContext.RemoteSEID,
-			"",
-			pdrList, farList, nil,
-		)); err != nil {
+		if err := s.applySession(ctx, smContext, nil); err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to modify PFCP session")
+			span.SetStatus(codes.Error, "failed to apply the UPF session state")
 
-			return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+			return err
 		}
 
 		s.registerIPv6SessionIfNeeded(ctx, smContext)
 
-		logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
+		logger.SmfLog.Info("Applied the UPF session state for N2 handover completion",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID))
 	}
@@ -161,10 +146,6 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	}
 
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel))
-
-	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-	}
 
 	return nil
 }
@@ -183,57 +164,40 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 
 	defer unlock()
 
-	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
+	n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
 	if err != nil {
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
-	if smContext.PFCPContext == nil {
-		return nil, fmt.Errorf("pfcp session context not found for upf")
+	if smContext.UPFSession == nil {
+		return nil, fmt.Errorf("UPF session context not found")
 	}
 
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		"",
-		pdrList, farList, nil,
-	)); err != nil {
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
+	if err := s.applySession(ctx, smContext, nil); err != nil {
+		return nil, err
 	}
 
 	// Re-register the IPv6 session with the new gNB tunnel endpoint.
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
-	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	logger.SmfLog.Info("Applied the UPF session state", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return n2buf, nil
 }
 
-func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContext) ([]*PDR, []*FAR, []byte, error) {
+func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContext) ([]byte, error) {
 	logger.SmfLog.Debug("handle Path Switch Request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	if err := handlePathSwitchRequestTransfer(n2Data, smContext); err != nil {
-		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
+		return nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
 	}
 
 	n2Buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
+		return nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
 	}
 
-	var pdrList []*PDR
-
-	var farList []*FAR
-
-	if smContext.Tunnel.DataPath.Activated {
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
-		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
-
-		// Include the UL PDR so its updated OuterHeaderRemoval reaches the UPF.
-		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
-		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
-	}
-
-	return pdrList, farList, n2Buf, nil
+	return n2Buf, nil
 }
 
 func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
@@ -243,10 +207,6 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	}
 
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel))
-
-	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-	}
 
 	return nil
 }

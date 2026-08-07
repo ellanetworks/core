@@ -286,27 +286,17 @@ func (f *fakeSessionStore) GetStaticIP(_ context.Context, _ string, _ bool) (net
 
 type fakeUPFClient struct{}
 
-func (f *fakeUPFClient) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
+func (f *fakeUPFClient) Apply(ctx context.Context, desired *models.SessionState) (*models.SessionApplied, error) {
 	return nil, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeUPFClient) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
+func (f *fakeUPFClient) Delete(ctx context.Context, seid uint64) error {
 	return nil
 }
 
-func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) error {
-	return nil
-}
+func (f *fakeUPFClient) SuppressDownlinkDataNotification(ctx context.Context, seid uint64) {}
 
-func (f *fakeUPFClient) FlushUsage(ctx context.Context, remoteSEID uint64) {}
-
-func (f *fakeUPFClient) SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {}
-
-func (f *fakeUPFClient) ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {}
-
-func (f *fakeUPFClient) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
-	return nil
-}
+func (f *fakeUPFClient) ClearDownlinkDataNotification(ctx context.Context, seid uint64) {}
 
 func (f *fakeUPFClient) RegisterIPv6Session(ctx context.Context, reg *models.IPv6SessionRegistration) error {
 	return nil

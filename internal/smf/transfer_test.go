@@ -83,13 +83,6 @@ func onEPS(t *testing.T, s *smf.SMF, ref string) bool {
 	return sc.IsEPS()
 }
 
-func upfModifications(upf *fakeUPF) int {
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	return len(upf.modifyCalls)
-}
-
 // TS 23.502 §4.11.2.2 step 13, TS 23.401 §5.10.2: the request moves nothing —
 // the PDN GW switches the downlink at step 13a, when the eNB binds.
 func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
@@ -109,25 +102,21 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 
 	unlock := sc.LockForTest()
 	ip := sc.PDUIPV4Address.String()
-	seid := sc.PFCPContext.LocalSEID
+	seid := sc.UPFSession.SEID
 	ulTEID := sc.Tunnel.DataPath.UpLinkTunnel.TEID
 	qfi := sc.PolicyData.QosData.QFI
 
 	unlock()
 
-	upf.mu.Lock()
-	establishesBefore := upf.lastEstablish
-	upf.mu.Unlock()
-
-	modifiesBefore := upfModifications(upf)
+	appliesBefore := upf.applyCount()
 
 	bearer, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover))
 	if err != nil {
 		t.Fatalf("CreateEPSSession(handover): %v", err)
 	}
 
-	if modifies := upfModifications(upf) - modifiesBefore; modifies != 0 {
-		t.Errorf("UPF modifications for the transfer request = %d, want 0: the downlink switches at the bind", modifies)
+	if applies := upf.applyCount() - appliesBefore; applies != 0 {
+		t.Errorf("UPF session statements for the transfer request = %d, want 0: the downlink switches at the bind", applies)
 	}
 
 	if bearer.Ref != ref {
@@ -160,8 +149,8 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 		t.Fatalf("ModifyEPSSession: %v", err)
 	}
 
-	if modifies := upfModifications(upf) - modifiesBefore; modifies != 1 {
-		t.Errorf("UPF modifications for the request and the bind = %d, want 1", modifies)
+	if applies := upf.applyCount() - appliesBefore; applies != 1 {
+		t.Errorf("UPF session statements for the request and the bind = %d, want 1", applies)
 	}
 
 	func() {
@@ -175,8 +164,8 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 			t.Errorf("identity = ebi %d pdu-session-id %d, want %d and %d", sc.EBI, sc.PDUSessionID, epsTestEBI, transferTestPDUSessionID)
 		}
 
-		if sc.PFCPContext.LocalSEID != seid {
-			t.Errorf("SEID = %d, want it preserved at %d", sc.PFCPContext.LocalSEID, seid)
+		if sc.UPFSession.SEID != seid {
+			t.Errorf("SEID = %d, want it preserved at %d", sc.UPFSession.SEID, seid)
 		}
 
 		if sc.Tunnel.DataPath.UpLinkTunnel.TEID != ulTEID {
@@ -213,11 +202,12 @@ func TestTransfer5GSToEPSKeepsSession(t *testing.T) {
 		t.Errorf("N2 releases for the moved session = %d, want 1", releases)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if upf.lastEstablish != establishesBefore {
-		t.Error("UPF establish request after the transfer = a new one, want the one from the establishment")
+	// The move never creates a second UPF session: the one the establishment made
+	// is the one the bind converges.
+	for _, state := range upf.applies() {
+		if state.SEID != seid {
+			t.Errorf("UPF session statement names SEID %d, want the session kept at %d", state.SEID, seid)
+		}
 	}
 }
 
@@ -243,24 +233,20 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 
 	unlock := sc.LockForTest()
 	ip := sc.PDUIPV4Address.String()
-	seid := sc.PFCPContext.LocalSEID
+	seid := sc.UPFSession.SEID
 	ulTEID := sc.Tunnel.DataPath.UpLinkTunnel.TEID
 
 	unlock()
 
-	upf.mu.Lock()
-	establishesBefore := upf.lastEstablish
-	upf.mu.Unlock()
-
-	modifiesBefore := upfModifications(upf)
+	appliesBefore := upf.applyCount()
 
 	ref, rejectN1, err := s.CreateSmContext(ctx, testSUPI(), transferTestPDUSessionID, testDNN, testSnssai, fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest())
 	if err != nil {
 		t.Fatalf("CreateSmContext(existing PDU session): %v", err)
 	}
 
-	if modifies := upfModifications(upf) - modifiesBefore; modifies != 0 {
-		t.Errorf("UPF modifications for the transfer request = %d, want 0: the downlink switches at the bind", modifies)
+	if applies := upf.applyCount() - appliesBefore; applies != 0 {
+		t.Errorf("UPF session statements for the transfer request = %d, want 0: the downlink switches at the bind", applies)
 	}
 
 	if rejectN1 != nil {
@@ -293,8 +279,8 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 
 	bindGNB(t, s, ref)
 
-	if modifies := upfModifications(upf) - modifiesBefore; modifies != 1 {
-		t.Errorf("UPF modifications for the request and the bind = %d, want 1", modifies)
+	if applies := upf.applyCount() - appliesBefore; applies != 1 {
+		t.Errorf("UPF session statements for the request and the bind = %d, want 1", applies)
 	}
 
 	func() {
@@ -316,9 +302,9 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 			t.Errorf("UE address = %s, want the one it held on EPS, %s", sc.PDUIPV4Address, ip)
 		}
 
-		if sc.PFCPContext.LocalSEID != seid || sc.Tunnel.DataPath.UpLinkTunnel.TEID != ulTEID {
+		if sc.UPFSession.SEID != seid || sc.Tunnel.DataPath.UpLinkTunnel.TEID != ulTEID {
 			t.Errorf("SEID/uplink TEID = %d/%#x, want them preserved at %d/%#x",
-				sc.PFCPContext.LocalSEID, sc.Tunnel.DataPath.UpLinkTunnel.TEID, seid, ulTEID)
+				sc.UPFSession.SEID, sc.Tunnel.DataPath.UpLinkTunnel.TEID, seid, ulTEID)
 		}
 
 		if sc.PolicyData == nil || sc.PolicyData.QosData.QFI == 0 {
@@ -338,11 +324,10 @@ func TestTransferEPSTo5GSKeepsSession(t *testing.T) {
 		t.Errorf("MME told of moved connections = %v, want [%d]", moved, epsTestEBI)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if upf.lastEstablish != establishesBefore {
-		t.Error("UPF establish request after the transfer = a new one, want the one from the establishment")
+	for _, state := range upf.applies() {
+		if state.SEID != seid {
+			t.Errorf("UPF session statement names SEID %d, want the session kept at %d", state.SEID, seid)
+		}
 	}
 }
 
@@ -1101,12 +1086,17 @@ func newGatedUPF(upf *fakeUPF) *gatedUPF {
 		entered: make(chan struct{}),
 		proceed: make(chan struct{}),
 	}
-	g.arm <- struct{}{}
 
 	return g
 }
 
-func (g *gatedUPF) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
+// gateNextApply holds the next statement to the UPF open, so a second procedure
+// can reach the session while the first is mid-apply.
+func (g *gatedUPF) gateNextApply() {
+	g.arm <- struct{}{}
+}
+
+func (g *gatedUPF) Apply(ctx context.Context, desired *models.SessionState) (*models.SessionApplied, error) {
 	select {
 	case <-g.arm:
 		close(g.entered)
@@ -1114,7 +1104,7 @@ func (g *gatedUPF) ModifySession(ctx context.Context, req *models.ModifyRequest)
 	default:
 	}
 
-	return g.fakeUPF.ModifySession(ctx, req)
+	return g.fakeUPF.Apply(ctx, desired)
 }
 
 // A release and a bind both rewrite the session across a blocking UPF call, so
@@ -1133,6 +1123,8 @@ func TestReleaseRacingATransferCommitLeavesOneOutcome(t *testing.T) {
 	if _, err := s.CreateEPSSession(ctx, epsTransferRequest(t, eps.RequestTypeHandover)); err != nil {
 		t.Fatalf("CreateEPSSession(handover): %v", err)
 	}
+
+	gated.gateNextApply()
 
 	bound := make(chan error, 1)
 

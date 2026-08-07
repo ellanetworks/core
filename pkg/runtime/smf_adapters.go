@@ -423,34 +423,27 @@ type smfUPFAdapter struct {
 	upf    *upf.UPF
 }
 
-func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
-	return a.engine.EstablishSession(ctx, req)
+func (a *smfUPFAdapter) Apply(ctx context.Context, desired *models.SessionState) (*models.SessionApplied, error) {
+	return a.engine.Apply(ctx, desired)
 }
 
-func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
-	return a.engine.ModifySession(ctx, req)
-}
-
-func (a *smfUPFAdapter) FlushUsage(ctx context.Context, remoteSEID uint64) {
+// Delete drains the session's usage counters before the engine drops them, so
+// the bytes accounted since the last periodic poll reach the subscriber-usage
+// store (TS 29.244 §5.2.2.4 termination reporting trigger).
+func (a *smfUPFAdapter) Delete(ctx context.Context, seid uint64) error {
 	if a.upf != nil {
-		a.upf.FlushUsage(ctx, remoteSEID)
+		a.upf.FlushUsage(ctx, seid)
 	}
+
+	return a.engine.Delete(ctx, seid)
 }
 
-func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) error {
-	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: remoteSEID})
+func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, seid uint64) {
+	a.engine.SuppressDownlinkDataNotification(seid)
 }
 
-func (a *smfUPFAdapter) SuppressDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
-	a.engine.SuppressDownlinkDataNotification(remoteSEID)
-}
-
-func (a *smfUPFAdapter) ClearDownlinkDataNotification(ctx context.Context, remoteSEID uint64) {
-	a.engine.ClearDownlinkDataNotification(remoteSEID)
-}
-
-func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
-	return a.engine.UpdateFilters(ctx, policyID, direction, rules)
+func (a *smfUPFAdapter) ClearDownlinkDataNotification(ctx context.Context, seid uint64) {
+	a.engine.ClearDownlinkDataNotification(seid)
 }
 
 func (a *smfUPFAdapter) RegisterIPv6Session(_ context.Context, reg *models.IPv6SessionRegistration) error {

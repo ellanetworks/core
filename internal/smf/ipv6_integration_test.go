@@ -55,9 +55,8 @@ func ipv6Fakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 		releasedIPv6:  netip.MustParseAddr("2001:db8::"),
 	}
 	upf := &fakeUPF{
-		establishResult: &models.EstablishResponse{
-			RemoteSEID: 100,
-			CreatedPDRs: []models.CreatedPDR{
+		applyResult: &models.SessionApplied{
+			UplinkPDRs: []models.AppliedPDR{
 				{PDRID: 1, TEID: 5000, N3IPv4: netip.MustParseAddr("192.168.1.1")},
 			},
 		},
@@ -106,9 +105,8 @@ func dualStackFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 		releasedIPv6:  netip.MustParseAddr("2001:db8:abcd::"),
 	}
 	upf := &fakeUPF{
-		establishResult: &models.EstablishResponse{
-			RemoteSEID: 200,
-			CreatedPDRs: []models.CreatedPDR{
+		applyResult: &models.SessionApplied{
+			UplinkPDRs: []models.AppliedPDR{
 				{PDRID: 1, TEID: 6000, N3IPv4: netip.MustParseAddr("192.168.1.1")},
 			},
 		},
@@ -170,17 +168,14 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 		t.Fatalf("expected nil PDUAddress for IPv6-only, got %s", smCtx.PDUIPV4Address)
 	}
 
-	upf.mu.Lock()
-	if upf.lastEstablish == nil {
-		upf.mu.Unlock()
-		t.Fatal("expected PFCP establishment call")
+	established := upf.firstApply()
+	if established == nil {
+		t.Fatal("expected the session to be stated to the UPF")
 	}
 
-	if upf.lastEstablish.IMSI != testIMSI {
-		upf.mu.Unlock()
-		t.Fatalf("expected IMSI %s in establish request, got %s", testIMSI, upf.lastEstablish.IMSI)
+	if established.IMSI != testIMSI {
+		t.Fatalf("stated IMSI = %s, want %s", established.IMSI, testIMSI)
 	}
-	upf.mu.Unlock()
 
 	amfCb.mu.Lock()
 	if len(amfCb.n1n2Calls) != 1 {
@@ -281,14 +276,11 @@ func TestCreateSmContext_DualStack_SendsTwoDownlinkPDRs(t *testing.T) {
 		t.Fatalf("CreateSmContext (IPv4v6) failed: %v", err)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if upf.lastEstablish == nil {
+	if upf.firstApply() == nil {
 		t.Fatal("expected PFCP establishment call")
 	}
 
-	req := upf.lastEstablish
+	req := upf.firstApply()
 
 	var (
 		downlinkPDRCount int
@@ -345,14 +337,11 @@ func TestCreateSmContext_IPv4Only_SendsOneDownlinkPDR(t *testing.T) {
 		t.Fatalf("CreateSmContext (IPv4) failed: %v", err)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if upf.lastEstablish == nil {
+	if upf.firstApply() == nil {
 		t.Fatal("expected PFCP establishment call")
 	}
 
-	req := upf.lastEstablish
+	req := upf.firstApply()
 
 	var downlinkPDRCount int
 
@@ -380,14 +369,11 @@ func TestCreateSmContext_IPv6Only_SendsOneDownlinkPDR(t *testing.T) {
 		t.Fatalf("CreateSmContext (IPv6) failed: %v", err)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if upf.lastEstablish == nil {
+	if upf.firstApply() == nil {
 		t.Fatal("expected PFCP establishment call")
 	}
 
-	req := upf.lastEstablish
+	req := upf.firstApply()
 
 	var downlinkPDRCount int
 
@@ -475,9 +461,9 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	supi := testSUPI()
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
-	seid := s.AllocateLocalSEID()
-	s.AssignPFCPSession(smCtx, seid)
-	smCtx.PFCPContext.RemoteSEID = 100
+	seid := s.AllocateSEID()
+	s.AssignUPFSession(smCtx, seid)
+	smCtx.UPFSession.Established = true
 
 	ulPdr := smf.NewPDR(1, 1)
 	dlPdr := smf.NewPDR(2, 2)

@@ -312,7 +312,6 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, ref string, enb models.FTEID)
 	}
 
 	dl := smContext.Tunnel.DataPath.DownLinkTunnel.PDR
-	ul := smContext.Tunnel.DataPath.UpLinkTunnel.PDR
 	dl.FAR.ApplyAction = models.ApplyAction{Forw: true}
 
 	// bindAccessTunnel aligns the uplink OuterHeaderRemoval, which defaults to IPv4
@@ -328,29 +327,14 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, ref string, enb models.FTEID)
 
 	smContext.bindAccessTunnel(an)
 
-	dl.State = RuleUpdate
-	dl.FAR.State = RuleUpdate
-	ul.State = RuleUpdate
-
-	// The move's QoS travels in the bind's own modification, so it costs no PFCP
-	// round trip of its own.
-	policy, qerList := smContext.PolicyData, []*QER(nil)
+	// The move's QoS is already staged on the session's rules, so it travels in
+	// the bind's own statement and costs no round trip of its own.
+	policy := smContext.PolicyData
 	if commit != nil {
-		policy, qerList = commit.policy, commit.qers
+		policy = commit.policy
 	}
 
-	var policyID string
-	if policy != nil {
-		policyID = policy.PolicyID
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.RemoteSEID,
-		policyID,
-		[]*PDR{dl, ul},
-		[]*FAR{dl.FAR},
-		qerList,
-	)); err != nil {
+	if err := s.applySession(ctx, smContext, policy); err != nil {
 		if commit != nil {
 			commit.restore()
 		}
@@ -385,17 +369,12 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, 
 	ctx, span := tracer.Start(ctx, "smf/update_eps_session_ambr", epsSessionAttributes(smContext))
 	defer span.End()
 
-	var (
-		policyID string
-		qfi      uint8
-	)
-
+	var qfi uint8
 	if smContext.PolicyData != nil {
-		policyID = smContext.PolicyData.PolicyID
 		qfi = smContext.PolicyData.QosData.QFI
 	}
 
-	if err := s.applySessionQERs(ctx, smContext, policyID, qfi, ambrUplink, ambrDownlink); err != nil {
+	if err := s.applySessionQERs(ctx, smContext, smContext.PolicyData, qfi, ambrUplink, ambrDownlink); err != nil {
 		return fmt.Errorf("update Session-AMBR for %q: %w", ref, err)
 	}
 

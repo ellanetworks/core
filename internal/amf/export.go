@@ -444,7 +444,7 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 			pdu.PDUIPV4Address = view.PDUIPV4Address
 			pdu.PDUIPV6Prefix = view.PDUIPV6Prefix
 			pdu.PolicyData = policyDataFromSMF(view.PolicyData)
-			pdu.PFCPLocalSEID = view.PFCPLocalSEID
+			pdu.PFCPLocalSEID = view.UPFSEID
 
 			if view.AN != nil {
 				pdu.Tunnel = &TunnelExport{

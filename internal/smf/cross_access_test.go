@@ -33,9 +33,7 @@ func TestModifyEPSSessionRejectsSupersededRef(t *testing.T) {
 		t.Fatalf("two sessions for EBI %d share ref %q", epsTestEBI, live.Ref)
 	}
 
-	upf.mu.Lock()
-	modifiesBefore := len(upf.modifyCalls)
-	upf.mu.Unlock()
+	appliesBefore := upf.applyCount()
 
 	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
 
@@ -57,12 +55,10 @@ func TestModifyEPSSessionRejectsSupersededRef(t *testing.T) {
 		t.Errorf("live session's AN endpoint = eNB S1-U %v/0x%x, want it unchanged", an.IPv4Address, an.TEID)
 	}
 
-	upf.mu.Lock()
-	modifiesAfter := len(upf.modifyCalls)
-	upf.mu.Unlock()
+	appliesAfter := upf.applyCount()
 
-	if modifiesAfter != modifiesBefore {
-		t.Errorf("UPF ModifySession calls = %d, want %d", modifiesAfter, modifiesBefore)
+	if appliesAfter != appliesBefore {
+		t.Errorf("UPF Apply calls = %d, want %d", appliesAfter, appliesBefore)
 	}
 }
 

@@ -74,9 +74,9 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	supi := testSUPI()
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
-	seid := s.AllocateLocalSEID()
-	s.AssignPFCPSession(smCtx, seid)
-	smCtx.PFCPContext.RemoteSEID = 100
+	seid := s.AllocateSEID()
+	s.AssignUPFSession(smCtx, seid)
+	smCtx.UPFSession.Established = true
 
 	ulPdr := smf.NewPDR(1, 1)
 	dlPdr := smf.NewPDR(2, 2)
@@ -174,8 +174,8 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 		t.Fatal("expected DataPath to be Activated")
 	}
 
-	if smCtx.PFCPContext == nil {
-		t.Fatal("expected PFCPContext to be set")
+	if smCtx.UPFSession == nil {
+		t.Fatal("expected the UPF session context to be set")
 	}
 
 	if smCtx.Tunnel.DataPath.UpLinkTunnel.PDR == nil {
@@ -355,11 +355,8 @@ func TestDeactivateSmContext_HappyPath(t *testing.T) {
 		t.Fatalf("DeactivateSmContext failed: %v", err)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if len(upf.modifyCalls) != 1 {
-		t.Fatalf("expected 1 ModifySession call, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 1 {
+		t.Fatalf("UPF session statements = %d, want 1", got)
 	}
 
 	smCtx := s.GetSession(ref)
@@ -398,17 +395,17 @@ func TestDeactivateSmContext_NotFound(t *testing.T) {
 	}
 }
 
-func TestDeactivateSmContext_NilPFCPContext(t *testing.T) {
+func TestDeactivateSmContext_NilUPFSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
-	smCtx.PFCPContext = nil
+	smCtx.UPFSession = nil
 
 	err := s.DeactivateSmContext(ctx, ref)
 	if err == nil {
-		t.Fatal("expected error when PFCPContext is nil")
+		t.Fatal("expected error when the UPF session context is nil")
 	}
 }
 
@@ -546,17 +543,14 @@ func TestCreateSmContext_HappyPath(t *testing.T) {
 		t.Fatal("session should be in pool")
 	}
 
-	upf.mu.Lock()
-	if upf.lastEstablish == nil {
-		upf.mu.Unlock()
-		t.Fatal("expected PFCP establishment call")
+	established := upf.firstApply()
+	if established == nil {
+		t.Fatal("expected the session to be stated to the UPF")
 	}
 
-	if upf.lastEstablish.IMSI != testIMSI {
-		upf.mu.Unlock()
-		t.Fatalf("expected IMSI %s in establish request, got %s", testIMSI, upf.lastEstablish.IMSI)
+	if established.IMSI != testIMSI {
+		t.Fatalf("stated IMSI = %s, want %s", established.IMSI, testIMSI)
 	}
-	upf.mu.Unlock()
 
 	amfCb.mu.Lock()
 	if len(amfCb.n1n2Calls) != 1 {
@@ -1169,17 +1163,17 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_NotFound(t *testing.T) {
 	}
 }
 
-func TestUpdateSmContextN2InfoPduResSetupRsp_NilPFCPContext(t *testing.T) {
+func TestUpdateSmContextN2InfoPduResSetupRsp_NilUPFSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
-	smCtx.PFCPContext = nil
+	smCtx.UPFSession = nil
 
 	err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, nil)
 	if err == nil {
-		t.Fatal("expected error for nil N2 data or nil PFCPContext")
+		t.Fatal("expected error for nil N2 data or no UPF session context")
 	}
 }
 
@@ -1190,7 +1184,7 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_TunnelReleased(t *testing.T) {
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
 	smCtx.Tunnel = nil
-	smCtx.PFCPContext = nil
+	smCtx.UPFSession = nil
 
 	gnbIP := net.ParseIP("10.0.0.200").To4()
 
@@ -1203,11 +1197,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_TunnelReleased(t *testing.T) {
 		t.Fatal("expected error when tunnel was released, got nil")
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if len(upf.modifyCalls) != 0 {
-		t.Fatalf("expected no PFCP modify calls after tunnel release, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 0 {
+		t.Fatalf("UPF session statements after tunnel release = %d, want 0", got)
 	}
 }
 
@@ -1223,7 +1214,7 @@ func TestHandleDownlinkDataReport(t *testing.T) {
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
 	err := s.HandleDownlinkDataReport(ctx, &models.DownlinkDataReport{
-		SEID:  smCtx.PFCPContext.LocalSEID,
+		SEID:  smCtx.UPFSession.SEID,
 		PDRID: smCtx.Tunnel.DataPath.UpLinkTunnel.PDR.PDRID,
 		QFI:   smCtx.PolicyData.QosData.QFI,
 	})
@@ -1260,20 +1251,16 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	upf.mu.Lock()
-	if len(upf.modifyCalls) != 1 {
-		upf.mu.Unlock()
-		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	applies := upf.applies()
+	if len(applies) != 1 {
+		t.Fatalf("UPF session statements = %d, want 1", len(applies))
 	}
 
-	modifyReq := upf.modifyCalls[0]
-	upf.mu.Unlock()
-
-	if len(modifyReq.UpdateQERs) != 1 {
-		t.Fatalf("expected 1 QER update, got %d", len(modifyReq.UpdateQERs))
+	qer := defaultQER(applies[0])
+	if qer == nil {
+		t.Fatal("the stated session names no QER 1")
 	}
 
-	qer := modifyReq.UpdateQERs[0]
 	if qer.MBR == nil {
 		t.Fatal("expected QER MBR")
 	}
@@ -1345,7 +1332,7 @@ func TestReconcileSmContext_AmbrOnly(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	qer := upf.modifyCalls[0].UpdateQERs[0]
+	qer := defaultQER(upf.applies()[0])
 	if qer.MBR.ULMBR != 300000 || qer.MBR.DLMBR != 400000 {
 		t.Fatalf("QER MBR = %d/%d, want 300000/400000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
@@ -1382,7 +1369,7 @@ func TestReconcileSmContext_QoSOnly(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	qer := upf.modifyCalls[0].UpdateQERs[0]
+	qer := defaultQER(upf.applies()[0])
 	if qer.MBR.ULMBR != 100000 || qer.MBR.DLMBR != 200000 {
 		t.Fatalf("QER MBR = %d/%d, want 100000/200000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
@@ -1488,12 +1475,8 @@ func TestReconcileSmContext_ModifyIdleUE_CommitsPolicy(t *testing.T) {
 		t.Fatalf("ReconcileSmContext should succeed for idle UE, got: %v", err)
 	}
 
-	upf.mu.Lock()
-	pfcpModifyCalls := len(upf.modifyCalls)
-	upf.mu.Unlock()
-
-	if pfcpModifyCalls != 1 {
-		t.Fatalf("expected 1 PFCP modify call, got %d", pfcpModifyCalls)
+	if got := upf.applyCount(); got != 1 {
+		t.Fatalf("UPF session statements = %d, want 1", got)
 	}
 
 	// Policy should have been committed despite N1N2 skip.
@@ -1570,13 +1553,10 @@ func TestReconcileSmContext_DNSChange(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// No PFCP modify should be called for DNS-only change.
-	upf.mu.Lock()
-	if len(upf.modifyCalls) != 0 {
-		upf.mu.Unlock()
-		t.Fatalf("expected 0 PFCP modify calls for DNS-only change, got %d", len(upf.modifyCalls))
+	// DNS travels in the NAS Extended PCO, so the user plane is unchanged.
+	if got := upf.applyCount(); got != 0 {
+		t.Fatalf("UPF session statements for a DNS-only change = %d, want 0", got)
 	}
-	upf.mu.Unlock()
 
 	amfCb.mu.Lock()
 	if len(amfCb.modifyCalls) != 1 {
@@ -1655,12 +1635,9 @@ func TestReconcileSmContext_InvalidDNS(t *testing.T) {
 		t.Fatal("expected error for invalid DNS address, got nil")
 	}
 
-	upf.mu.Lock()
-	if len(upf.modifyCalls) != 0 {
-		upf.mu.Unlock()
-		t.Fatalf("expected 0 PFCP modify calls, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 0 {
+		t.Fatalf("UPF session statements = %d, want 0", got)
 	}
-	upf.mu.Unlock()
 
 	amfCb.mu.Lock()
 	if len(amfCb.modifyCalls) != 0 {
@@ -1884,7 +1861,7 @@ func TestHandleUsageReport(t *testing.T) {
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
 	err := s.HandleUsageReport(ctx, &models.UsageReport{
-		SEID:           smCtx.PFCPContext.LocalSEID,
+		SEID:           smCtx.UPFSession.SEID,
 		UplinkVolume:   500,
 		DownlinkVolume: 300,
 	})
@@ -1925,8 +1902,8 @@ func TestHandleDownlinkDataReportEPS(t *testing.T) {
 
 	supi := testSUPI()
 	smCtx, _ := s.NewSession(supi, smf.Access4G, smf.SessionIdentity{EBI: 5}, testDNN, testSnssai) // EPS session keyed by the default bearer EBI
-	seid := s.AllocateLocalSEID()
-	s.AssignPFCPSession(smCtx, seid)
+	seid := s.AllocateSEID()
+	s.AssignUPFSession(smCtx, seid)
 
 	if err := s.HandleDownlinkDataReport(context.Background(), &models.DownlinkDataReport{SEID: seid}); err != nil {
 		t.Fatalf("HandleDownlinkDataReport: %v", err)
@@ -2174,11 +2151,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 		t.Fatalf("expected DL FAR IP %s, got %s", gnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if len(upf.modifyCalls) != 1 {
-		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 1 {
+		t.Fatalf("UPF session statements = %d, want 1", got)
 	}
 }
 
@@ -2231,11 +2205,8 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if len(upf.modifyCalls) != 1 {
-		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 1 {
+		t.Fatalf("UPF session statements = %d, want 1", got)
 	}
 }
 
@@ -2311,11 +2282,9 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 
 	// Verify UpdateSmContextN2HandoverPrepared did NOT call ModifySession.
 	// Per 3GPP TS 23.502 §4.9.1.3.3, the N4 modification happens after HandoverNotify.
-	upf.mu.Lock()
-	if len(upf.modifyCalls) != 0 {
-		t.Fatalf("expected 0 PFCP modify calls after N2 handover prepared, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 0 {
+		t.Fatalf("UPF session statements after N2 handover prepared = %d, want 0", got)
 	}
-	upf.mu.Unlock()
 
 	// Phase 3: "Complete" — AMF calls UpdateSmContextN2HandoverComplete after
 	// the UE has successfully moved to the target gNB.
@@ -2323,11 +2292,8 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2HandoverComplete: %v", err)
 	}
 
-	upf.mu.Lock()
-	defer upf.mu.Unlock()
-
-	if len(upf.modifyCalls) != 1 {
-		t.Fatalf("expected 1 PFCP modify call after N2 handover complete, got %d", len(upf.modifyCalls))
+	if got := upf.applyCount(); got != 1 {
+		t.Fatalf("UPF session statements after N2 handover complete = %d, want 1", got)
 	}
 }
 

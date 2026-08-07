@@ -46,9 +46,9 @@ func (s *SMF) clearDownlinkDataNotification(ctx context.Context, ref string, acc
 
 	defer unlock()
 
-	if smContext.PFCPContext == nil {
+	if smContext.UPFSession == nil {
 		return
 	}
 
-	s.upf.ClearDownlinkDataNotification(ctx, smContext.PFCPContext.RemoteSEID)
+	s.upf.ClearDownlinkDataNotification(ctx, smContext.UPFSession.SEID)
 }

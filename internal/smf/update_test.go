@@ -67,10 +67,6 @@ func TestHandleHandoverRequestAcknowledgeTransfer_ActivatedNilForwarding(t *test
 	if ohc.Description != models.OuterHeaderCreationGtpUUdpIpv4 {
 		t.Errorf("OuterHeaderCreation.Description = %v, want IPv4 GTP-U", ohc.Description)
 	}
-
-	if dlFAR.State != RuleUpdate {
-		t.Errorf("downlink FAR State = %v, want RuleUpdate", dlFAR.State)
-	}
 }
 
 // With no active data path the tunnel endpoint is recorded but no FAR is

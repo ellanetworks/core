@@ -16,7 +16,7 @@ import (
 )
 
 // ReleaseSmContext tears down a PDU session entirely: releases the IP address,
-// deletes the PFCP session on the UPF, and removes the context from the pool.
+// deletes the session on the UPF, and removes the context from the pool.
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	return s.releaseSmContext(ctx, smContextRef, Access5G)
 }
@@ -144,19 +144,17 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR()
 
-	if smContext.PFCPContext == nil {
+	if smContext.UPFSession == nil {
 		smContext.Tunnel = nil
 		return nil
 	}
 
-	s.upf.FlushUsage(ctx, smContext.PFCPContext.RemoteSEID)
-
-	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.RemoteSEID); err != nil {
-		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
+	if err := s.upf.Delete(ctx, smContext.UPFSession.SEID); err != nil {
+		return fmt.Errorf("UPF session deletion failed: %v", err)
 	}
 
 	smContext.Tunnel = nil
-	smContext.PFCPContext = nil
+	smContext.UPFSession = nil
 
 	return nil
 }

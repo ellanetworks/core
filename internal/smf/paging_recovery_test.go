@@ -19,15 +19,15 @@ func TestClearEPSPagingSuppression_ClearsDownlinkNotification(t *testing.T) {
 	const ebi = 5
 
 	smCtx, _ := s.NewSession(supi, smf.Access4G, smf.SessionIdentity{EBI: ebi}, testDNN, testSnssai)
-	s.AssignPFCPSession(smCtx, s.AllocateLocalSEID())
-	smCtx.PFCPContext.RemoteSEID = 7
+	seid := s.AllocateSEID()
+	s.AssignUPFSession(smCtx, seid)
 
 	if err := s.ClearEPSPagingSuppression(context.Background(), testIMSI, ebi); err != nil {
 		t.Fatalf("ClearEPSPagingSuppression: %v", err)
 	}
 
-	if got := upf.clearDDNCalls; len(got) != 1 || got[0] != 7 {
-		t.Fatalf("clear calls = %v, want [7]", got)
+	if got := upf.clearDDNCalls; len(got) != 1 || got[0] != seid {
+		t.Fatalf("clear calls = %v, want [%d]", got, seid)
 	}
 }
 
@@ -40,15 +40,15 @@ func TestClearPagingSuppression_ClearsDownlinkNotification(t *testing.T) {
 	const pduSessionID = 1
 
 	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, testDNN, testSnssai)
-	s.AssignPFCPSession(smCtx, s.AllocateLocalSEID())
-	smCtx.PFCPContext.RemoteSEID = 4242
+	seid := s.AllocateSEID()
+	s.AssignUPFSession(smCtx, seid)
 
 	if err := s.ClearPagingSuppression(context.Background(), supi, pduSessionID); err != nil {
 		t.Fatalf("ClearPagingSuppression: %v", err)
 	}
 
-	if got := upf.clearDDNCalls; len(got) != 1 || got[0] != 4242 {
-		t.Fatalf("clear calls = %v, want [4242]", got)
+	if got := upf.clearDDNCalls; len(got) != 1 || got[0] != seid {
+		t.Fatalf("clear calls = %v, want [%d]", got, seid)
 	}
 }
 
