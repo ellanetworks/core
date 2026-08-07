@@ -138,7 +138,16 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, cause eps.EMMCause) {
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 	ue.Conn().StopNASGuard()
-	ue.Conn().SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
+
+	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
+	// plain form is for the rejects preceding security activation.
+	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
+	if ue.Secured() {
+		ue.Conn().SendDownlinkProtected(ctx, reject)
+	} else {
+		ue.Conn().SendDownlinkMessage(ctx, reject)
+	}
+
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
 }
 

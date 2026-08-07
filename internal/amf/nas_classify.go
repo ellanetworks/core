@@ -27,6 +27,32 @@ type DecodeResult struct {
 	Plain []byte
 }
 
+// A standalone 5GSM message, or one whose type will not peek, lands on the
+// required-ciphered default.
+func cipheringRequiredFor(plain []byte) bool {
+	mt, err := fgs.PeekMessageType(plain)
+	if err != nil {
+		return true
+	}
+
+	return cipheringRequired(mt)
+}
+
+// TS 24.501 §4.4.6 has the UE set the security header type of an initial NAS
+// message to "integrity protected" and carry its non-cleartext IEs in the
+// ciphered NAS message container, so these four are unciphered by design.
+func cipheringRequired(mt fgs.MessageType) bool {
+	switch mt {
+	case fgs.MsgRegistrationRequest,
+		fgs.MsgDeregistrationRequestUEOrig,
+		fgs.MsgServiceRequest,
+		fgs.MsgControlPlaneServiceRequest:
+		return false
+	}
+
+	return true
+}
+
 // plainNasAllowed reports whether a NAS message type may be processed without a verified
 // MAC before secure exchange (TS 24.501 §4.4.4.3, TS 33.501) — either sent as plain NAS,
 // or received integrity-protected with a failed MAC. SERVICE REQUEST is on the spec's

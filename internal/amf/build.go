@@ -257,8 +257,11 @@ func BuildRegistrationAccept(
 			EMF:         nfs.Emf,
 			IWKN26:      nfs.IwkN26 != 0,
 			MPSI:        nfs.Mpsi != 0,
-			EMCN3:       nfs.EmcN3 != 0,
-			MCSI:        nfs.Mcsi != 0,
+			// EMCN3 and MCSI live in octet 4, which the element omits unless it is
+			// asked for (TS 24.501 §9.11.3.5).
+			HasOctet4: true,
+			EMCN3:     nfs.EmcN3 != 0,
+			MCSI:      nfs.Mcsi != 0,
 		}
 	}
 

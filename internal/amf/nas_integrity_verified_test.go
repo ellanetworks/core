@@ -29,6 +29,21 @@ func wrapIntegrityProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8
 	return pdu
 }
 
+// wrapProtected builds the security header a UE uses for everything after the
+// security mode procedure: integrity protected and ciphered.
+func wrapProtected(t *testing.T, ue *UeContext, inner []byte, sqn uint8) []byte {
+	t.Helper()
+
+	cnt, _ := ue.ulCount.Estimate(sqn)
+
+	pdu, err := fgs.Protect(inner, fgs.SHTIntegrityProtectedCiphered, cnt, nas.DirectionUplink, ue.sc)
+	if err != nil {
+		t.Fatalf("protect NAS: %v", err)
+	}
+
+	return pdu
+}
+
 func newSecuredUE(t *testing.T) *UeContext {
 	t.Helper()
 

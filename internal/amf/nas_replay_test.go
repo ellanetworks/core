@@ -13,7 +13,7 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)
 
-	msg := wrapIntegrityProtected(t, ue, encodePlainULNasTransport(t), 0)
+	msg := wrapProtected(t, ue, encodePlainULNasTransport(t), 0)
 
 	res, err := DecodeNASMessage(ue, msg)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestNASUplinkCountWrap(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(255)
 
-	if _, err := DecodeNASMessage(ue, wrapIntegrityProtected(t, ue, encodePlainULNasTransport(t), 255)); err != nil {
+	if _, err := DecodeNASMessage(ue, wrapProtected(t, ue, encodePlainULNasTransport(t), 255)); err != nil {
 		t.Fatalf("sequence 255 not accepted: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestNASUplinkCountWrap(t *testing.T) {
 	}
 
 	// The UE's sequence wraps 255->0 and its overflow becomes 1.
-	if _, err := DecodeNASMessage(ue, wrapIntegrityProtected(t, ue, encodePlainULNasTransport(t), 0)); err != nil {
+	if _, err := DecodeNASMessage(ue, wrapProtected(t, ue, encodePlainULNasTransport(t), 0)); err != nil {
 		t.Fatalf("wrapped message not accepted: %v", err)
 	}
 

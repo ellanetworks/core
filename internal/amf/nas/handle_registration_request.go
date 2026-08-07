@@ -188,7 +188,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if req.UESecurityCapability != nil {
-		acceptRegistrationUESecurityCapability(ctx, ue, req.UESecurityCapability)
+		acceptRegistrationUESecurityCapability(ctx, ue, req.UESecurityCapability, integrityVerified)
 	}
 
 	return nil
@@ -199,7 +199,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 // Registration overwrite the stored value; Mobility and Periodic Registration
 // Update keep it on match and log a mismatch. With no stored value, the received
 // caps are adopted through the same audited write path.
-func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeContext, received *fgs.UESecurityCapability) {
+func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeContext, received *fgs.UESecurityCapability, integrityVerified bool) {
 	conn := ue.Conn()
 	if conn == nil {
 		return
@@ -221,6 +221,14 @@ func acceptRegistrationUESecurityCapability(ctx context.Context, ue *amf.UeConte
 		// protection relies on the SMC replay check (TS 33.501).
 		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
 	case amf.VerifyMismatch:
+		// TS 24.501 §5.5.1.3.4 has the AMF store what the request carries. Only an
+		// unverified request is refused: that is where a downgrade could enter
+		// (TS 33.501 §6.7.2).
+		if integrityVerified {
+			ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
+			return
+		}
+
 		logger.From(ctx, logger.AmfLog).Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501)",
 			zap.String("registrationType", registrationTypeName(conn.RegistrationType5GS)),

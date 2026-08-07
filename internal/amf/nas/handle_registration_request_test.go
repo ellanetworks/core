@@ -1228,7 +1228,7 @@ func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) 
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}) // EA1/2/3 + IA1/2/3
 
-	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x80, IA: 0x80}) // only EA1 + IA1
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x80, IA: 0x80}, false) // only EA1 + IA1
 
 	if !ue.UESecurityCapabilityForTest().Equal(fgs.UESecurityCapability{EA: 0x80, IA: 0x80}) {
 		t.Fatalf("Initial Registration must replace stored caps, got %#v", ue.UESecurityCapabilityForTest())
@@ -1240,7 +1240,7 @@ func TestAcceptRegistrationUESecurityCapability_EmergencyOverwrites(t *testing.T
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeEmergency
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
 
-	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x00, IA: 0x00}, false)
 
 	if !ue.UESecurityCapabilityForTest().Equal(fgs.UESecurityCapability{EA: 0x00, IA: 0x00}) {
 		t.Fatalf("Emergency Registration must replace stored caps, got %#v", ue.UESecurityCapabilityForTest())
@@ -1252,7 +1252,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 	ue.SetUESecurityCapabilityForTest(nil)
 
-	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}, false)
 
 	if !ue.UESecurityCapabilityForTest().Equal(fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}) {
 		t.Fatalf("Mobility Update with no stored caps must adopt received caps, got %#v", ue.UESecurityCapabilityForTest())
@@ -1267,7 +1267,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *test
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
 
-	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x00, IA: 0x00}, false)
 
 	if !ue.UESecurityCapabilityForTest().Equal(fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}) {
 		t.Fatalf("Mobility Update must NOT overwrite stored caps with forged downgrade (TS 33.501): %#v", ue.UESecurityCapabilityForTest())
@@ -1279,7 +1279,7 @@ func TestAcceptRegistrationUESecurityCapability_PeriodicRejectsDowngrade(t *test
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypePeriodicUpdating
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
 
-	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x00, IA: 0x00}, false)
 
 	if !ue.UESecurityCapabilityForTest().Equal(fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}) {
 		t.Fatalf("Periodic Update must NOT overwrite stored caps with forged downgrade")
@@ -1291,7 +1291,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityIdenticalCapsNoop(t *tes
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
 
-	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}, false)
 
 	if !ue.UESecurityCapabilityForTest().Equal(fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}) {
 		t.Fatalf("Mobility Update with identical caps must be a no-op")
@@ -1417,5 +1417,23 @@ func TestHandleRegistrationRequest_ContextSetup_AfterSecurityModeContainer_Resen
 
 	if ue.State() == amf.Deregistered {
 		t.Fatal("an identical duplicate must not deregister the UE")
+	}
+}
+
+// TS 24.501 §5.5.1.3.4: the AMF stores what the request carries. A mobility
+// update reaches a committed context only when its MAC verified, so a changed
+// capability there is authenticated and replaying the stale one would make the
+// UE reject the SECURITY MODE COMMAND (TS 33.501 §6.7.2 step 2a).
+func TestAcceptRegistrationUESecurityCapability_MobilityStoresVerifiedChange(t *testing.T) {
+	ue := newBoundUe(t)
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
+	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
+
+	changed := fgs.UESecurityCapability{EA: 0xC0, IA: 0xC0}
+
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &changed, true)
+
+	if !ue.UESecurityCapabilityForTest().Equal(changed) {
+		t.Fatalf("stored capability = %#v, want the verified %#v", ue.UESecurityCapabilityForTest(), changed)
 	}
 }

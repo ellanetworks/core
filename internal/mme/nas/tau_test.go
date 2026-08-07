@@ -31,7 +31,7 @@ func TestTrackingAreaUpdateTrackingAreaNotAllowed(t *testing.T) {
 		t.Fatal("expected a TAU Reject, got no downlink")
 	}
 
-	rej, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, cc.sent[0]))
+	rej, err := eps.ParseTrackingAreaUpdateReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
 	if err != nil {
 		t.Fatalf("not a TAU Reject: %v", err)
 	}

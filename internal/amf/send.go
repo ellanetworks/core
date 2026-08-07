@@ -200,7 +200,19 @@ func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCa
 	sendGmm(ctx, ue, "nas/send_registration_reject",
 		[]attribute.KeyValue{attribute.Int("cause", int(cause5GMM))},
 		func(amfUe *UeContext) ([]byte, error) {
-			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
+			plain, err := BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
+			if err != nil {
+				return nil, err
+			}
+
+			// A UE that has established secure exchange discards an unprotected
+			// downlink (TS 24.501 §4.4.4.2); the plain form is for the rejects that
+			// precede security activation, which §4.4.4.2 admits.
+			if !ue.SecureExchangeEstablished() {
+				return plain, nil
+			}
+
+			return amfUe.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
 		})
 }
 

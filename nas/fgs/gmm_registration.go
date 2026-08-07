@@ -829,6 +829,10 @@ func ParseNetworkFeatureSupport(b []byte) (NetworkFeatureSupport, error) {
 // AppendBinary encodes the network feature support IE value as two octets.
 // The encoding is appended to b.
 func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
+	if !n.HasOctet4 && (n.EMCN3 || n.MCSI || n.Octet4Spare != 0 || len(n.Rest) > 0) {
+		return b, fmt.Errorf("nas/fgs: network feature support: octet 4 content requires octet 4")
+	}
+
 	if n2 := 2 + len(n.Rest); n.HasOctet4 && n2 > maxNetworkFeatureSupportLen {
 		return b, fmt.Errorf(
 			"nas/fgs: network feature support is %d octets, want at most %d", n2, maxNetworkFeatureSupportLen)

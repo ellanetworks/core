@@ -5,6 +5,7 @@ package nas
 
 import (
 	"context"
+	"slices"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -51,12 +52,17 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		req, err := eps.ParseAttachRequest(smc.ReplayedNASMessageContainer)
 		if !decoded(ctx, "AttachRequest", err) {
 			logger.From(ctx, logger.MmeLog).Warn("failed to decode replayed NAS message container in Security Mode Complete", zap.Error(err))
+			rejectAttach(ctx, m, ue, eps.EMMCauseInvalidMandatoryInformation)
+
 			return nasreply.Handled()
 		}
 
 		logger.From(ctx, logger.MmeLog).Info("recovered genuine Attach Request from replayed NAS message container", zap.String("imsi", ue.IMSI()))
 
 		ingestAttachRequest(ctx, ue, req)
+		// The container carries the genuine message, so it becomes the oracle a
+		// later retransmission is compared against (TS 24.301 §5.5.1.2.7 case d).
+		ue.Conn().AttachRequestPlain = slices.Clone(smc.ReplayedNASMessageContainer)
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("NAS security context established",
