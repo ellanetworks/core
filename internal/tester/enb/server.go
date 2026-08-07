@@ -4,16 +4,22 @@
 package enb
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/ishidawataru/sctp"
 	"go.uber.org/zap"
 )
+
+// n2DialTimeout bounds the handshake so a core that never answers the INIT
+// fails start-up instead of hanging.
+const n2DialTimeout = 2 * time.Second
 
 type NgeNB struct {
 	*gnb.GnodeB
@@ -44,18 +50,17 @@ func Start(
 		},
 	}
 
-	n2Conn, err := sctp.DialSCTPExt(
+	dialCtx, cancel := context.WithTimeout(context.Background(), n2DialTimeout)
+	defer cancel()
+
+	n2Conn, err := sctp.Dial(
+		dialCtx,
 		"sctp",
 		localAddr,
 		rem,
 		sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
 	if err != nil {
 		return nil, fmt.Errorf("could not dial SCTP: %w", err)
-	}
-
-	err = n2Conn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO)
-	if err != nil {
-		return nil, fmt.Errorf("could not subscribe SCTP events: %w", err)
 	}
 
 	var (

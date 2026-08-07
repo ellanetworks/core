@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/tester/air"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/ngap"
-	"github.com/ishidawataru/sctp"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/zap"
 )
@@ -27,20 +27,21 @@ const (
 
 	n2DialAttempts = 5
 	n2DialBackoff  = 200 * time.Millisecond
+	// n2DialTimeout bounds one handshake so a core that never answers the INIT
+	// cannot stall the failover below.
+	n2DialTimeout = 2 * time.Second
 )
 
 // dialN2 establishes the N2 SCTP association, retrying with a fresh socket on
 // transient connect failures (e.g. EISCONN from a lingering association left by
-// a prior gNB process on the same source address). Bounded so a genuinely
-// unreachable core still fails within ~2s.
-func dialN2(local, rem *sctp.SCTPAddr, address string) (*sctp.SCTPConn, error) {
+// a prior gNB process on the same source address). Each attempt is bounded by
+// n2DialTimeout, so an unreachable core fails the whole loop in ~12s rather
+// than hanging on the kernel's INIT retries.
+func dialN2(local, rem *sctp.SCTPAddr) (*sctp.SCTPConn, error) {
 	var lastErr error
 
 	for attempt := 0; attempt < n2DialAttempts; attempt++ {
-		conn, err := sctp.DialSCTPExt(
-			"sctp", local, rem,
-			sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2},
-		)
+		conn, err := dialN2Once(local, rem)
 		if err == nil {
 			return conn, nil
 		}
@@ -52,18 +53,23 @@ func dialN2(local, rem *sctp.SCTPAddr, address string) (*sctp.SCTPConn, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("dial %s: %w", address, lastErr)
+	return nil, fmt.Errorf("%d attempts: %w", n2DialAttempts, lastErr)
 }
+
+// dialN2Once performs a single bounded handshake attempt.
+func dialN2Once(local, rem *sctp.SCTPAddr) (*sctp.SCTPConn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), n2DialTimeout)
+	defer cancel()
+
+	return sctp.Dial(ctx, "sctp", local, rem, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
+}
+
+// ngapPPID is the SCTP payload protocol identifier for NGAP (TS 38.412), in
+// host order; sctp.PPIDWireOrder byte-swaps it at each write.
+const ngapPPID uint32 = 60
 
 // ErrNoActivePeer indicates no N2 peer is currently usable. Returned by
 // SendToRan when every configured peer has failed.
-// ngapPPID is the SCTP payload protocol identifier for NGAP (60, TS 38.412),
-// pre-encoded in network byte order the way the SCTP socket layer expects. The
-// pinned ishidawataru/sctp release writes SndRcvInfo.PPID verbatim, so the
-// value must already be byte-swapped; the AMF converts it back with
-// sctp.PPIDWireOrder. internal/tester/s1enb declares its S1AP PPID the same way.
-const ngapPPID uint32 = 0x3c000000
-
 var ErrNoActivePeer = errors.New("gnb: no active N2 peer")
 
 // ErrNoRotationCandidate indicates RotateToNextPeer was called but no other
@@ -525,17 +531,10 @@ func (g *GnodeB) n2DialAndActivateLocked(idx int) error {
 		return fmt.Errorf("resolve %s: %w", peer.address, err)
 	}
 
-	conn, err := dialN2(g.n2Local, rem, peer.address)
+	conn, err := dialN2(g.n2Local, rem)
 	if err != nil {
 		peer.state = n2StateFailed
 		return err
-	}
-
-	if err := conn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO); err != nil {
-		_ = conn.Close()
-		peer.state = n2StateFailed
-
-		return fmt.Errorf("subscribe SCTP events on %s: %w", peer.address, err)
 	}
 
 	peer.conn = conn
@@ -583,7 +582,7 @@ func (g *GnodeB) runReceiver(idx int, conn *sctp.SCTPConn) {
 	buf := make([]byte, SCTPReadBufferSize)
 
 	for {
-		n, info, err := conn.SCTPRead(buf)
+		n, info, err := conn.ReadMsg(buf)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				logger.GnbLogger.Debug("SCTP peer closed (EOF)", zap.Int("peer", idx))
