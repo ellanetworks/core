@@ -34,12 +34,6 @@ Ella Core is a single binary and does not expose internal 3GPP interfaces. See [
 - **Handover.** 4G: S1 handover, and X2 handover via the Path Switch procedure. 5G: Xn handover, and N2 handover between radios served by Ella Core.
 - **4G/5G interworking.** A device moving between 4G and 5G keeps its IP address and its session.
 
-    !!! note
-
-        This needs a device supporting both S1 and N1 mode in single-registration mode that re-requests its session on the target access, with request type `handover` on 4G or `existing PDU session` on 5G. A device that does a plain tracking area update instead gets a new session and a new address; the network cannot force the choice (TS 23.501 §5.17.2.3.2).
-
-        A device is registered on both accesses while it moves its sessions one at a time — `radio_access_types` reports every access it holds.
-
 ### Sessions
 
 Ella Core carries IP data sessions for 4G and 5G subscribers.

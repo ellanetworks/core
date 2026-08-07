@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/procedure"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -25,61 +24,133 @@ import (
 
 var tracer = otel.Tracer("ella-core/smf/session")
 
+// ErrDNNNotFound indicates that the requested data network (DNN) does not exist.
 var ErrDNNNotFound = errors.New("data network not found")
+
+// ErrDNNNotInSlice indicates that the requested slice is served, but no policy
+// provides the requested DNN within it.
 var ErrDNNNotInSlice = errors.New("data network not found in slice")
+
+// ErrNoPolicyMatch indicates that no policy matches the session's slice (SST/SD)
+// and DNN.
 var ErrNoPolicyMatch = errors.New("no matching policy for slice and DNN")
+
+// For a caller holding a routing context of its own — the AMF's SmContextList
+// entry — this is the signal the session is gone for good, as opposed to a
+// transient failure worth retrying.
 var ErrSMContextNotFound = errors.New("sm context not found")
+
+// ErrUENotReachable indicates that the UE is in CM-IDLE state and the requested
+// signaling cannot be delivered over the radio. AMFCallback implementations
+// must return this error (wrapping is fine) when the UE has no active RAN
+// connection.
 var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
 
+// SessionQuerier provides read-only access to active sessions for external
+// packages (API, AMF export, metrics), avoiding a package-level SMF singleton.
 type SessionQuerier interface {
 	GetSession(ref string) *SMContext
 	SessionsByDNN(dnn string) []*SMContext
 	SessionCount() int
 }
 
+// PCF abstracts the Policy Control Function (3GPP TS 23.503), backed by the local
+// database.
 type PCF interface {
+	// GetSessionPolicy returns the PCC rules (QoS + traffic filters) and DNN
+	// configuration for a subscriber in one call (3GPP Npcf_SMPolicyControl_Create).
 	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
 }
 
+// DNNStore is the session-data surface bound to one data network resolved once
+// via SessionStore.ResolveDNN. Leases are keyed by the session's converged id
+// (SMContext.keyID), so 4G and 5G sessions with the same wire id hold distinct
+// leases.
 type DNNStore interface {
 	AllocateIP(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
+
+	// ReleaseIP frees the session's lease and returns the freed IPv4 address so
+	// the caller can withdraw the BGP route.
 	ReleaseIP(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
+
+	// AllocateIPv6 assigns a /64 prefix from the data network's IPv6 pool and
+	// returns its base address (lower 64 bits = 0).
 	AllocateIPv6(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
+
 	ReleaseIPv6(ctx context.Context, imsi string, sessionKeyID uint8) (netip.Addr, error)
+
 	ListFramedRoutes(ctx context.Context, imsi string) ([]netip.Prefix, error)
+
+	// GetStaticIP returns the reserved static address for the family (ipv6
+	// selects the IPv6 pool), and whether one exists.
 	GetStaticIP(ctx context.Context, imsi string, ipv6 bool) (netip.Addr, bool, error)
 }
 
+// SessionStore is the minimal DB surface the SMF needs for session-level
+// data operations (IP management, usage accounting, flow reports).
 type SessionStore interface {
 	ResolveDNN(ctx context.Context, dnn string) (DNNStore, error)
+
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
+
+	// InsertFlowReports persists flow measurement records in one transaction.
 	InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error
 }
 
+// UPFClient abstracts the session management interface toward the UPF.
 type UPFClient interface {
 	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
 	ModifySession(ctx context.Context, req *models.ModifyRequest) error
+	// FlushUsage delivers a final URR usage report for the given SEID before
+	// the session is deleted, preventing loss of bytes accounted since the
+	// last periodic poll.
 	FlushUsage(ctx context.Context, seid uint64)
 	DeleteSession(ctx context.Context, seid uint64) error
+
 	SuppressDownlinkDataNotification(ctx context.Context, seid uint64)
 	ClearDownlinkDataNotification(ctx context.Context, seid uint64)
+
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
+
+	// RegisterIPv6Session tells the UPF's RA responder about a new IPv6
+	// session so it can respond to Router Solicitations with an RA
+	// containing the delegated /64 prefix.
 	RegisterIPv6Session(ctx context.Context, reg *models.IPv6SessionRegistration) error
+
 	UnregisterIPv6Session(ctx context.Context, ulTEID uint32) error
 }
 
+// AMFCallback abstracts the SMF → AMF communication.
+// This breaks the circular dependency between the SMF and AMF packages.
 type AMFCallback interface {
 	TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error
+
+	// TransferN1N2 delivers a combined N1+N2 message for PDU Session Setup.
 	TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error
+
+	// ModifyN1N2 delivers a PDU Session Modification Command (N1) to the UE.
+	// A non-nil n2Msg (AMBR/QoS change) is carried by NGAP
+	// PDUSessionResourceModifyRequest (TS 38.413 §9.2.1.5); a nil n2Msg
+	// (e.g. DNS-only change via Extended PCO) uses Downlink NAS Transport
+	// (TS 38.413 §8.6.2).
 	ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error
+
+	// ReleaseSession sends a network-initiated PDU Session Release to the UE/gNB.
+	// N1 (NAS PDU Session Release Command) is delivered piggy-backed on the
+	// NGAP PDUSessionResourceReleaseCommand (TS 38.413 §9.2.1.3).
+	// n2Transfer is the PDUSessionResourceReleaseCommandTransfer IE.
 	ReleaseSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error
+
+	// N2TransferOrPage sends an N2 message to the radio, paging the UE if needed.
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
-	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
 }
 
+// MMECallback abstracts the SMF → MME communication for 4G paging, breaking the
+// circular dependency between the SMF and MME packages.
 type MMECallback interface {
+	// Page triggers an S1AP Paging for the idle UE identified by IMSI so it
+	// re-establishes the bearer (TS 23.401 §5.3.4.3).
 	Page(ctx context.Context, imsi string) error
-	SessionTransferred(ctx context.Context, imsi string, ebi uint8, ref string)
 }
 
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
@@ -110,31 +181,46 @@ type Policy struct {
 
 // SMF implements the Session Management Function.
 type SMF struct {
-	mu          sync.RWMutex
-	pool        map[string]*SMContext // key: SMContext.Ref (unique per session instance)=
-	byKey       map[string]*SMContext
-	refSeq      uint64 // guarded by mu; unique-Ref suffix counter
-	pcf         PCF
-	store       SessionStore
-	upf         UPFClient
-	amf         AMFCallback
-	mme         MMECallback // set after construction
-	clock       func() time.Time
-	seidCounter uint64        // atomic; local SEID allocation
-	t3591       time.Duration // network-requested modification command retransmission
-	t3592       time.Duration // network-requested release command retransmission
+	mu   sync.RWMutex
+	pool map[string]*SMContext // key: SMContext.Ref (unique per session instance)
+	// byKey indexes the current session for a (SUPI, PDU session id). A superseded
+	// session stays in pool under its own Ref until released, but is no longer the
+	// byKey current.
+	byKey  map[string]*SMContext
+	refSeq uint64 // guarded by mu; unique-Ref suffix counter
+
+	pcf   PCF
+	store SessionStore
+	upf   UPFClient
+	amf   AMFCallback
+	mme   MMECallback // set after construction
+	clock func() time.Time
+
+	seidCounter uint64 // atomic; local SEID allocation
+
+	t3591 time.Duration // network-requested modification command retransmission
+	t3592 time.Duration // network-requested release command retransmission
 }
 
+// maxSMProcedureRetransmissions is the number of command retransmissions before
+// the SMF aborts a network-requested procedure: the command is resent on each of
+// the first four T3591/T3592 expiries and the procedure is aborted on the fifth
+// (TS 24.501 §6.3.2.5, §6.3.3).
 const maxSMProcedureRetransmissions = 4
 
+// Option configures an SMF instance.
 type Option func(*SMF)
 
+// WithClock overrides the time source (useful for testing).
 func WithClock(fn func() time.Time) Option { return func(s *SMF) { s.clock = fn } }
 
+// WithT3591 overrides the network-requested modification retransmission interval.
 func WithT3591(d time.Duration) Option { return func(s *SMF) { s.t3591 = d } }
 
+// WithT3592 overrides the network-requested release retransmission interval.
 func WithT3592(d time.Duration) Option { return func(s *SMF) { s.t3592 = d } }
 
+// New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
 		pool:  make(map[string]*SMContext),
@@ -174,48 +260,30 @@ func (s *SMF) AllocateSEID() uint64 {
 	return atomic.AddUint64(&s.seidCounter, 1)
 }
 
-func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, dnn string, snssai *models.Snssai) (*SMContext, error) {
+// NewSession creates a new SMContext with a unique Ref and adds it to the pool,
+// making it the current session for its (SUPI, access, id). It never overwrites
+// or orphans a prior session for the same slot: that session keeps its own Ref
+// and pool entry until it is explicitly released.
+func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, pduSessionID uint8, dnn string, snssai *models.Snssai) *SMContext {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !id.valid() {
-		return nil, fmt.Errorf("session identity %s names no session", id)
-	}
-
-	if id.PDUSessionID != 0 && s.byKey[canonicalName(supi, id.PDUSessionID)] != nil {
-		if id.EBI == 0 {
-			return nil, fmt.Errorf("PDU session identity %d is already in use", id.PDUSessionID)
-		}
-
-		logger.SmfLog.Warn("ignoring a PDU session identity a live session already holds",
-			logger.SUPI(supi.String()), logger.PDUSessionID(id.PDUSessionID))
-
-		id.PDUSessionID = 0
-	}
-
-	if id.EBI != 0 && s.byKey[canonicalName(supi, epsBearerKey(id.EBI))] != nil {
-		return nil, fmt.Errorf("EPS bearer identity %d is already in use", id.EBI)
-	}
-
 	s.refSeq++
+	key := CanonicalName(supi, access, pduSessionID)
 
 	ctx := &SMContext{
-		SessionIdentity: id,
-		procedures:      procedure.NewRegistry(logger.SmfLog),
-		Supi:            supi,
-		Access:          access,
-		Dnn:             dnn,
-		Snssai:          snssai,
-		Ref:             fmt.Sprintf("%s#%d", canonicalName(supi, id.sessionKey()), s.refSeq),
+		PDUSessionID: pduSessionID,
+		Supi:         supi,
+		Access:       access,
+		Dnn:          dnn,
+		Snssai:       snssai,
+		Ref:          fmt.Sprintf("%s#%d", key, s.refSeq),
 	}
 
 	s.pool[ctx.Ref] = ctx
+	s.byKey[key] = ctx
 
-	for _, key := range id.sessionKeys() {
-		s.byKey[canonicalName(supi, key)] = ctx
-	}
-
-	return ctx, nil
+	return ctx
 }
 
 // GetSession retrieves a session by its unique Ref.
@@ -226,32 +294,30 @@ func (s *SMF) GetSession(ref string) *SMContext {
 	return s.pool[ref]
 }
 
-func (s *SMF) currentSession(supi etsi.SUPI, sessionKey uint8) *SMContext {
+// currentSession returns the live session for a (SUPI, access, id), or nil.
+// Use it for operations that act on whichever session is current (modify, AMBR,
+// idle deactivation, duplicate detection) — never for a release, which must target
+// a specific instance by its Ref so it cannot tear down a newer session.
+func (s *SMF) currentSession(supi etsi.SUPI, access AccessType, pduSessionID uint8) *SMContext {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.byKey[canonicalName(supi, sessionKey)]
+	return s.byKey[CanonicalName(supi, access, pduSessionID)]
 }
 
-func (s *SMF) currentPDUSession(supi etsi.SUPI, pduSessionID uint8) *SMContext {
-	return s.currentSession(supi, SessionIdentity{PDUSessionID: pduSessionID}.sessionKey())
-}
-
-func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
-	return s.currentSession(supi, SessionIdentity{EBI: ebi}.sessionKey())
-}
-
+// dropFromPool removes sc from the pool by its unique Ref, and from the secondary
+// index only if sc is still the current session for its (SUPI, access, id) — so
+// releasing a superseded session cannot evict the newer one that replaced it.
+// Caller must not hold s.mu.
 func (s *SMF) dropFromPool(sc *SMContext) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	delete(s.pool, sc.Ref)
 
-	for _, k := range sc.sessionKeys() {
-		key := canonicalName(sc.Supi, k)
-		if s.byKey[key] == sc {
-			delete(s.byKey, key)
-		}
+	key := sc.CanonicalName()
+	if s.byKey[key] == sc {
+		delete(s.byKey, key)
 	}
 }
 
