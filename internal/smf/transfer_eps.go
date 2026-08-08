@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
@@ -21,12 +22,20 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		Access: Access4G,
 		EBI:    req.EPSBearerIdentity,
 		Dnn:    req.APN,
+		Snssai: req.Snssai,
 		Policy: policy,
 	}
 
 	sc, err := s.findTransferable(supi, req.PDUSessionID, move)
 	if err != nil {
 		return models.EPSBearer{}, err
+	}
+
+	// An attach from an already-attached UE deletes its existing EPS bearer
+	// contexts (TS 24.301 §5.5.1.2.7 f). Left in place, the stale session holds
+	// the bearer identity and every retry draws the same refusal.
+	if held := s.currentEPSSession(supi, req.EPSBearerIdentity); held != nil && held != sc {
+		s.handlePduSessionContextReplacement(ctx, held, Access4G)
 	}
 
 	if err := s.prepareTransfer(sc, move); err != nil {
@@ -102,6 +111,21 @@ func (s *SMF) AbandonEPSTransfer(_ context.Context, ref string) {
 
 // The enumerations diverge above IPv4v6 (TS 24.301 §9.9.4.10 vs TS 24.501
 // §9.11.4.11), so anything else is refused rather than cast.
+// The mirror of pdnTypeFor, applied where an EPS PDN type enters the SMF so
+// everything downstream speaks one enumeration.
+func pduSessionTypeFor(pdnType uint8) (uint8, error) {
+	switch eps.PDNType(pdnType) {
+	case eps.PDNTypeIPv4:
+		return uint8(fgs.PDUSessionTypeIPv4), nil
+	case eps.PDNTypeIPv6:
+		return uint8(fgs.PDUSessionTypeIPv6), nil
+	case eps.PDNTypeIPv4v6:
+		return uint8(fgs.PDUSessionTypeIPv4v6), nil
+	default:
+		return 0, fmt.Errorf("PDN type %d has no PDU session type", pdnType)
+	}
+}
+
 func pdnTypeFor(pduSessionType uint8) (eps.PDNType, error) {
 	switch pduSessionType {
 	case 1:
@@ -113,4 +137,25 @@ func pdnTypeFor(pduSessionType uint8) (eps.PDNType, error) {
 	default:
 		return 0, fmt.Errorf("PDU session type %d has no EPS PDN type", pduSessionType)
 	}
+}
+
+// The EPS mirror of pduSessionTypeRejectCause: the anchor holds the pools, so it
+// is what can tell an unusable type (#28) from one narrowed to a single family
+// (#50, #51) (TS 24.301 §6.5.1.4.1). requested is in the 5GS enumeration.
+func pdnTypeRejectCause(requested uint8, policy *Policy) eps.ESMCause {
+	hasIPv4 := policy.IPv4Pool != ""
+	hasIPv6 := policy.IPv6Pool != ""
+
+	switch requested {
+	case uint8(fgs.PDUSessionTypeIPv6):
+		if hasIPv4 && !hasIPv6 {
+			return eps.ESMCausePDNTypeIPv4OnlyAllowed
+		}
+	case uint8(fgs.PDUSessionTypeIPv4):
+		if !hasIPv4 && hasIPv6 {
+			return eps.ESMCausePDNTypeIPv6OnlyAllowed
+		}
+	}
+
+	return eps.ESMCauseUnknownPDNType
 }

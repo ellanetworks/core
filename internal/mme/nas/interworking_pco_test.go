@@ -100,16 +100,22 @@ func TestPDUSessionIDFromPCO(t *testing.T) {
 		return &pco
 	}
 
-	if got := pduSessionIDFromPCO(uplink(7)); got != 7 {
-		t.Errorf("pduSessionIDFromPCO = %d, want 7", got)
+	if got := pduSessionIDFromPCOs(uplink(7), nil); got != 7 {
+		t.Errorf("from the classic PCO = %d, want 7", got)
 	}
 
-	if got := pduSessionIDFromPCO(nil); got != 0 {
-		t.Errorf("pduSessionIDFromPCO(nil) = %d, want 0", got)
+	// A UE that supports the extended element sends only that one, so the
+	// identity has to be found there too (TS 24.301 §8.3.20.4).
+	if got := pduSessionIDFromPCOs(nil, uplink(9)); got != 9 {
+		t.Errorf("from the extended PCO = %d, want 9", got)
+	}
+
+	if got := pduSessionIDFromPCOs(nil, nil); got != 0 {
+		t.Errorf("with no options at all = %d, want 0", got)
 	}
 
 	empty := nas.NewRequestedProtocolConfigurationOptions(nas.PCOContainerDNSServerIPv4Address)
-	if got := pduSessionIDFromPCO(&empty); got != 0 {
-		t.Errorf("pduSessionIDFromPCO with no identity container = %d, want 0", got)
+	if got := pduSessionIDFromPCOs(&empty, nil); got != 0 {
+		t.Errorf("with no identity container = %d, want 0", got)
 	}
 }

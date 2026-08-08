@@ -97,6 +97,8 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 			continue
 		}
 
+		m.CommitTransfer(ue, p)
+
 		setup++
 
 		logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Response",

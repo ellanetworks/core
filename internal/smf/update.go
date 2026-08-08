@@ -229,19 +229,19 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 		return nil, fmt.Errorf("session already released")
 	}
 
+	if smContext.PFCPContext == nil {
+		span.RecordError(fmt.Errorf("pfcp session context not found"))
+		span.SetStatus(codes.Error, "pfcp session context not found")
+
+		return nil, fmt.Errorf("pfcp session context not found")
+	}
+
 	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle N2 message")
 
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
-	}
-
-	if smContext.PFCPContext == nil {
-		span.RecordError(fmt.Errorf("pfcp session context not found"))
-		span.SetStatus(codes.Error, "pfcp session context not found")
-
-		return nil, fmt.Errorf("pfcp session context not found")
 	}
 
 	commit, err := s.beginTransferCommit(ctx, smContext, Access5G)
@@ -331,7 +331,7 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 	// UPTransportLayerInformation is a CHOICE whose only modelled alternative is
 	// gTPTunnel; the decoder refuses choice-Extensions on our behalf.
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), Access5G)
 
 	return nil
 }
@@ -357,6 +357,11 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
+
+	// The RAN has no resources for the session, so a move onto it cannot commit.
+	// The session stays where it is and becomes movable again; it is not released,
+	// because the access it is still on is serving it.
+	smContext.abandonTransfer()
 
 	return handlePDUSessionResourceSetupUnsuccessfulTransfer(n2Data)
 }

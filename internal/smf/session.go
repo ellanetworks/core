@@ -196,10 +196,13 @@ type AnchorBinding struct {
 }
 
 // bindAccessTunnel points the downlink FAR at the AN tunnel endpoint and aligns
-// the uplink OuterHeaderRemoval to its IP family, marking the downlink S1U flag by
-// access (4G S1-U vs 5G N3 PSC; TS 29.281). The endpoint is always recorded on
-// the tunnel; the FAR is updated only once the rules exist. Caller holds sc.Mutex.
-func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
+// the uplink OuterHeaderRemoval to its IP family. access is the one the endpoint
+// belongs to, passed rather than read off the session: S1-U carries no PDU
+// Session Container and N3 does (TS 29.281), and during a move the session's own
+// access is whichever half of the commit has run. The endpoint is always
+// recorded on the tunnel; the FAR is updated only once the rules exist. Caller
+// holds sc.Mutex.
+func (sc *SMContext) bindAccessTunnel(an AnchorBinding, access AccessType) {
 	if sc.Tunnel == nil {
 		return
 	}
@@ -217,7 +220,7 @@ func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
 		dl.FAR.ForwardingParameters = &models.ForwardingParameters{}
 	}
 
-	s1u := sc.Access == Access4G
+	s1u := access == Access4G
 
 	if an.IPv6 != nil {
 		dl.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{

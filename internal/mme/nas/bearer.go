@@ -107,7 +107,9 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
-	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer)
+	moved := ue.RequestedType == eps.RequestTypeHandover
+
+	pdnType, dns, esmCause := m.InstallDefaultBearer(ue, qos, bearer, moved)
 
 	logger.From(ctx, logger.MmeLog).Info("EPS default bearer established",
 		zap.String("imsi", ue.IMSI()),
@@ -121,7 +123,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
 
 		if p := m.DefaultPDN(ue); p != nil {
-			m.UnwindPDN(ctx, ue, p, ue.RequestedType == eps.RequestTypeHandover)
+			m.UnwindPDN(ctx, ue, p, moved)
 		}
 
 		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)

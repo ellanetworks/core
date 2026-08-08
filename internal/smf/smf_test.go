@@ -258,35 +258,35 @@ func (f *fakeUPF) UnregisterIPv6Session(_ context.Context, _ uint32) error {
 }
 
 type fakeAMF struct {
-	mu               sync.Mutex
-	n1Calls          []n1Call
-	n1n2Calls        []n1n2Call
-	modifyCalls      []n1n2Call
-	releaseCalls     []releaseCall
-	pageCalls        []pageCall
-	transferredCalls []transferredCall
-	err              error
+	mu           sync.Mutex
+	n1Calls      []n1Call
+	n1n2Calls    []n1n2Call
+	modifyCalls  []n1n2Call
+	releaseCalls []releaseCall
+	pageCalls    []pageCall
+	droppedCalls []droppedCall
+	err          error
 }
 
-type transferredCall struct {
+type droppedCall struct {
 	supi         etsi.SUPI
 	pduSessionID uint8
 	ref          string
 	n2Transfer   []byte
 }
 
-func (f *fakeAMF) SessionTransferred(_ context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+func (f *fakeAMF) SessionDropped(_ context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.transferredCalls = append(f.transferredCalls, transferredCall{supi, pduSessionID, ref, n2Transfer})
+	f.droppedCalls = append(f.droppedCalls, droppedCall{supi, pduSessionID, ref, n2Transfer})
 }
 
-func (f *fakeAMF) transferred() []transferredCall {
+func (f *fakeAMF) dropped() []droppedCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return append([]transferredCall(nil), f.transferredCalls...)
+	return append([]droppedCall(nil), f.droppedCalls...)
 }
 
 type n1Call struct {
@@ -364,10 +364,10 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 
 // fakeMME records 4G paging calls, standing in for the MME's smf.MMECallback.
 type fakeMME struct {
-	mu               sync.Mutex
-	pagedIMSI        []string
-	transferredCalls []mmeTransferredCall
-	err              error
+	mu           sync.Mutex
+	pagedIMSI    []string
+	droppedCalls []mmeTransferredCall
+	err          error
 }
 
 type mmeTransferredCall struct {
@@ -376,18 +376,18 @@ type mmeTransferredCall struct {
 	ref  string
 }
 
-func (f *fakeMME) SessionTransferred(_ context.Context, imsi string, ebi uint8, ref string) {
+func (f *fakeMME) SessionDropped(_ context.Context, imsi string, ebi uint8, ref string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.transferredCalls = append(f.transferredCalls, mmeTransferredCall{imsi, ebi, ref})
+	f.droppedCalls = append(f.droppedCalls, mmeTransferredCall{imsi, ebi, ref})
 }
 
-func (f *fakeMME) transferred() []mmeTransferredCall {
+func (f *fakeMME) dropped() []mmeTransferredCall {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return append([]mmeTransferredCall(nil), f.transferredCalls...)
+	return append([]mmeTransferredCall(nil), f.droppedCalls...)
 }
 
 func (f *fakeMME) Page(_ context.Context, imsi string) error {

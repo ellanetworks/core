@@ -97,7 +97,7 @@ func handleModifyIndicationTransfer(b []byte, smContext *SMContext) ([]int64, er
 		return nil, err
 	}
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), Access5G)
 
 	qfis := make([]int64, 0, len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList))
 	for _, item := range transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList {

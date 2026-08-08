@@ -14,8 +14,11 @@ import (
 const (
 	ieiESMInformationTransferFlag   uint8 = 0xD0 // type 1
 	ieiProtocolConfigurationOptions uint8 = 0x27
-	ieiAccessPointName              uint8 = 0x28
-	ieiESMCause                     uint8 = 0x58
+	// Mutually exclusive with the classic PCO: a UE that sends one sends no other
+	// (TS 24.301 §8.3.20.4).
+	ieiExtendedProtocolConfigurationOptions uint8 = 0x7B
+	ieiAccessPointName                      uint8 = 0x28
+	ieiESMCause                             uint8 = 0x58
 	// ieiNewEPSQoS and ieiRequiredTrafficFlowQoS are the same EPS quality of
 	// service element under the two names its messages give it.
 	ieiNewEPSQoS              uint8 = 0x5B

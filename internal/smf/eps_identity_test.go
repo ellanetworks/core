@@ -5,9 +5,11 @@ package smf_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 func TestCreateEPSSessionKeepsTheUEAllocatedIdentity(t *testing.T) {
@@ -106,5 +108,48 @@ func TestCreateEPSSessionRefusesAnUnallocatableIdentity(t *testing.T) {
 
 	if _, err := s.CreateEPSSession(context.Background(), req); err == nil {
 		t.Fatal("a PDU session identity outside the range a UE may allocate was accepted")
+	}
+}
+
+// The two enumerations agree only up to IPv4v6: EPS numbers non-IP 5 and
+// Ethernet 6, where 5GS numbers Ethernet 5 (TS 24.301 §9.9.4.10,
+// TS 24.501 §9.11.4.11). A numeric cast would serve a non-IP request as an
+// Ethernet session.
+func TestCreateEPSSessionRefusesADivergentPDNType(t *testing.T) {
+	for _, pdnType := range []uint8{uint8(eps.PDNTypeNonIP), uint8(eps.PDNTypeEthernet)} {
+		store, upf := epsTestSMF()
+		s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+		req := epsRequest(pdnType)
+
+		_, err := s.CreateEPSSession(context.Background(), req)
+		if err == nil {
+			t.Fatalf("PDN type %d was accepted, and would have been served as another type", pdnType)
+		}
+
+		var pdnErr *models.PDNTypeError
+		if !errors.As(err, &pdnErr) || pdnErr.Cause != eps.ESMCauseUnknownPDNType {
+			t.Errorf("PDN type %d drew %v, want ESM cause #28", pdnType, err)
+		}
+	}
+}
+
+// A request the data network can only half serve draws #50/#51 so the UE knows
+// which family to use, not the generic #31.
+func TestCreateEPSSessionReportsTheNarrowedFamily(t *testing.T) {
+	store, upf := epsTestSMF()
+	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+	req := epsRequest(uint8(eps.PDNTypeIPv6))
+	req.IPv6Pool = ""
+
+	_, err := s.CreateEPSSession(context.Background(), req)
+	if err == nil {
+		t.Fatal("an IPv6 request on an IPv4-only data network was accepted")
+	}
+
+	var pdnErr *models.PDNTypeError
+	if !errors.As(err, &pdnErr) || pdnErr.Cause != eps.ESMCausePDNTypeIPv4OnlyAllowed {
+		t.Errorf("drew %v, want ESM cause #50 IPv4 only allowed", err)
 	}
 }

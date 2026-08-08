@@ -186,7 +186,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	source := smContext.Tunnel.AN
 	smContext.handoverSourceAN = &source
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
 
 	return nil
 }
@@ -218,7 +218,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 
 	smContext.handoverSourceAN = nil
 
-	smContext.bindAccessTunnel(*source)
+	smContext.bindAccessTunnel(*source, Access5G)
 
 	if !smContext.Tunnel.Activated || smContext.PFCPContext == nil {
 		return nil
@@ -326,7 +326,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 		return err
 	}
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
 
 	return nil
 }

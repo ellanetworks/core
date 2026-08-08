@@ -112,3 +112,12 @@ func (ue *UeContext) BearerDeactivating(p *PdnConnection) bool {
 
 	return p.Deactivating
 }
+
+// CommitTransfer records that a moved connection's bind reached the anchor, so
+// an ordinary release tears the session down from here on.
+func (m *MME) CommitTransfer(ue *UeContext, p *PdnConnection) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	p.PendingTransfer = false
+}

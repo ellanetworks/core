@@ -69,6 +69,7 @@ type fakeSessionManager struct {
 
 	suppressCalls         int // counts HandleEPSPagingFailure calls
 	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
+	abandoned             bool
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -117,7 +118,7 @@ func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string) e
 	return nil
 }
 
-func (f *fakeSessionManager) AbandonEPSTransfer(_ context.Context, _ string) {}
+func (f *fakeSessionManager) AbandonEPSTransfer(_ context.Context, _ string) { f.abandoned = true }
 
 func (f *fakeSessionManager) HandleEPSPagingFailure(_ context.Context, _ string, _ uint8) error {
 	f.suppressCalls++

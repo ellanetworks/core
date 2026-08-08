@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
+	libngap "github.com/ellanetworks/core/ngap"
 )
 
 func interworkingFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF, *fakeMME) {
@@ -152,9 +153,9 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 		t.Errorf("IP pool operations = %d, want %d: the move must not touch the lease", got, establishes)
 	}
 
-	calls := amfCb.transferred()
+	calls := amfCb.dropped()
 	if len(calls) != 1 {
-		t.Fatalf("AMF SessionTransferred calls = %d, want 1", len(calls))
+		t.Fatalf("AMF SessionDropped calls = %d, want 1", len(calls))
 	}
 
 	if calls[0].ref != sc.Ref || calls[0].pduSessionID != 3 {
@@ -246,9 +247,9 @@ func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 		t.Errorf("IP pool operations = %d, want %d: the move must not touch the lease", got, establishes)
 	}
 
-	calls := mmeCb.transferred()
+	calls := mmeCb.dropped()
 	if len(calls) != 1 {
-		t.Fatalf("MME SessionTransferred calls = %d, want 1", len(calls))
+		t.Fatalf("MME SessionDropped calls = %d, want 1", len(calls))
 	}
 
 	if calls[0].ref != sc.Ref || calls[0].ebi != epsTestEBI {
@@ -437,5 +438,317 @@ func assertGSMCause(t *testing.T, reject []byte, want fgs.GSMCause) {
 
 	if got.Cause != want {
 		t.Errorf("reject cause = %s, want %s", got.Cause, want)
+	}
+}
+
+// TS 23.501 §5.7.1.1: N3 carries the QFI in the PDU Session Container; S1-U has
+// no such header. The downlink FAR must therefore be stamped for the access the
+// session is moving *to*, not the one it is leaving.
+func TestTransferEPSTo5GSStampsTheDownlinkForN3(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(1)
+	req.APN = testDNN
+	req.PDUSessionID = movedPDUSessionID
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest())
+	if err != nil || reject != nil {
+		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
+	}
+
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	var ohc *models.OuterHeaderCreation
+
+	for _, call := range upf.modifyCalls {
+		for _, far := range call.UpdateFARs {
+			if far.ForwardingParameters != nil && far.ForwardingParameters.OuterHeaderCreation != nil {
+				ohc = far.ForwardingParameters.OuterHeaderCreation
+			}
+		}
+	}
+
+	if ohc == nil {
+		t.Fatal("no downlink FAR with an outer header creation was pushed to the UPF")
+	}
+
+	if ohc.TEID != 0x7001 {
+		t.Errorf("downlink FAR TEID = %#x, want the gNB's %#x", ohc.TEID, 0x7001)
+	}
+
+	if ohc.S1U {
+		t.Error("downlink FAR is stamped S1-U after the move to 5GS: N3 would carry no PDU Session Container, so the gNB gets no QFI")
+	}
+}
+
+// The MME still holds the ref, DefaultEBI and a live E-RAB until the move
+// commits, so a failed accept must leave the session where it is rather than
+// release it out from under EPS.
+func TestTransferEPSTo5GSKeepsTheSessionWhenTheAcceptCannotBeDelivered(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(1)
+	req.APN = testDNN
+	req.PDUSessionID = movedPDUSessionID
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	releasesBefore := len(store.releasedIPs)
+
+	amfCb.mu.Lock()
+	amfCb.err = errors.New("no N1N2 path to the UE")
+	amfCb.mu.Unlock()
+
+	if _, _, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err == nil {
+		t.Fatal("the move reported success though the accept could not be delivered")
+	}
+
+	sc := s.GetSession(bearer.Ref)
+	if sc == nil {
+		t.Fatal("the session the MME still owns was released when the accept failed")
+	}
+
+	sc.Mutex.Lock()
+	access := sc.Access
+	sc.Mutex.Unlock()
+
+	if access != smf.Access4G {
+		t.Errorf("session is on %v, want it left on EPS", access)
+	}
+
+	if got := len(store.releasedIPs); got != releasesBefore {
+		t.Errorf("IP lease releases = %d, want %d: the UE's address was freed while EPS still serves it", got, releasesBefore)
+	}
+
+	// The transfer must also be released, or the session can never move again.
+	if _, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID)); err == nil {
+		t.Fatal("a move to EPS succeeded for a session already on EPS")
+	}
+}
+
+// A move that cannot commit must leave the session movable. Wedging it with a
+// pending move no message can clear means the UE can never return to the access
+// it came from.
+func TestFailedCommitLeavesTheSessionMovable(t *testing.T) {
+	t.Run("the UPF refuses the bind", func(t *testing.T) {
+		pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+		s := newTestSMF(pcf, store, upf, amfCb)
+		s.SetMME(mmeCb)
+
+		ctx := context.Background()
+		sc := establish5GS(t, s)
+
+		if _, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID)); err != nil {
+			t.Fatalf("move to EPS: %v", err)
+		}
+
+		upf.mu.Lock()
+		upf.err = errors.New("UPF refused the modification")
+		upf.mu.Unlock()
+
+		enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+		if err := s.ModifyEPSSession(ctx, sc.Ref, enb); err == nil {
+			t.Fatal("the bind reported success though the UPF refused it")
+		}
+
+		assertMovable(t, sc)
+	})
+
+	t.Run("the RAN has no resources", func(t *testing.T) {
+		pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+		s := newTestSMF(pcf, store, upf, amfCb)
+		s.SetMME(mmeCb)
+
+		ctx := context.Background()
+
+		req := epsRequest(1)
+		req.APN = testDNN
+		req.PDUSessionID = movedPDUSessionID
+		req.Snssai = testSnssai
+
+		bearer, err := s.CreateEPSSession(ctx, req)
+		if err != nil {
+			t.Fatalf("CreateEPSSession: %v", err)
+		}
+
+		enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+		if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+			t.Fatalf("ModifyEPSSession: %v", err)
+		}
+
+		if _, _, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+			fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest()); err != nil {
+			t.Fatalf("move to 5GS: %v", err)
+		}
+
+		fail, err := buildPDUSessionResourceSetupUnsuccessfulTransfer()
+		if err != nil {
+			t.Fatalf("build N2 failure: %v", err)
+		}
+
+		_ = s.UpdateSmContextN2InfoPduResSetupFail(ctx, bearer.Ref, fail)
+
+		assertMovable(t, s.GetSession(bearer.Ref))
+	})
+}
+
+// assertMovable reports whether a fresh move would be admitted; a wedged session
+// refuses every one with "already moving".
+func assertMovable(t *testing.T, sc *smf.SMContext) {
+	t.Helper()
+
+	if sc == nil {
+		t.Fatal("the session was released by a failed move")
+	}
+
+	sc.Mutex.Lock()
+	moving := sc.TransferPendingForTest()
+	sc.Mutex.Unlock()
+
+	if moving {
+		t.Fatal("the session is still marked mid-move, so it can never move again")
+	}
+}
+
+func buildPDUSessionResourceSetupUnsuccessfulTransfer() ([]byte, error) {
+	transfer := libngap.PDUSessionResourceSetupUnsuccessfulTransfer{
+		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnspecified},
+	}
+
+	return transfer.Marshal()
+}
+
+func TestTransferToEPSChecksTheSlice(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	sc := establish5GS(t, s)
+
+	move := epsMove(movedPDUSessionID)
+	move.Snssai = &models.Snssai{Sst: 2, Sd: "0a0b0c"}
+
+	if _, err := s.CreateEPSSession(context.Background(), move); err == nil {
+		t.Fatal("a move onto a policy from another slice succeeded")
+	}
+
+	sc.Mutex.Lock()
+	access := sc.Access
+	sc.Mutex.Unlock()
+
+	if access != smf.Access5G {
+		t.Error("the refused move took the session off 5GS")
+	}
+}
+
+func TestTransferTo5GSRefusesEmergencySessions(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(1)
+	req.APN = testDNN
+	req.PDUSessionID = movedPDUSessionID
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	_, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+		fgs.RequestTypeExistingEmergencyPDUSession, buildPDUSessionEstRequest())
+	if err == nil {
+		t.Fatal("a move naming an emergency PDU session succeeded")
+	}
+
+	assertGSMCause(t, reject, fgs.GSMCausePDUSessionDoesNotExist)
+
+	sc := s.GetSession(bearer.Ref)
+	if sc == nil {
+		t.Fatal("the refused move released the session")
+	}
+
+	sc.Mutex.Lock()
+	access := sc.Access
+	sc.Mutex.Unlock()
+
+	if access != smf.Access4G {
+		t.Error("the refused move took the session off EPS")
+	}
+}
+
+func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	sc := establish5GS(t, s)
+
+	if err := s.DeactivateSmContext(ctx, sc.Ref); err != nil {
+		t.Fatalf("DeactivateSmContext: %v", err)
+	}
+
+	bearer, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID))
+	if err != nil {
+		t.Fatalf("move to EPS: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	calls := amfCb.dropped()
+	if len(calls) != 1 {
+		t.Fatalf("AMF SessionDropped calls = %d, want 1", len(calls))
+	}
+
+	if calls[0].n2Transfer != nil {
+		t.Error("an N2 release went for a session whose user plane was already down")
 	}
 }

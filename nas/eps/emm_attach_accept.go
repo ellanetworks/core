@@ -122,7 +122,7 @@ func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
 		return b, fmt.Errorf("nas/eps: EPS network feature support: octet 5 onwards requires octet 4")
 	}
 
-	if n.HasOctet4 {
+	if hasOctet4 {
 		if size := 2 + len(n.Rest); size > maxNetworkFeatureSupportLen {
 			return b, fmt.Errorf(
 				"nas/eps: EPS network feature support value is %d octets, want at most %d", size, maxNetworkFeatureSupportLen)

@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/procedure"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -145,12 +144,12 @@ type AMFCallback interface {
 	// N2TransferOrPage sends an N2 message to the radio, paging the UE if needed.
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
 
-	// SessionTransferred reports a session moved to EPS. Nothing is released: the
+	// SessionDropped reports a session moved to EPS. Nothing is released: the
 	// session, its UPF state and the UE address survive on the other access
 	// (TS 23.502 §4.11.2.2 step 14). n2Transfer frees the radio resources it
 	// held. ref names the exact instance, so a stale report cannot disturb a
 	// newer session.
-	SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
+	SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
 }
 
 // MMECallback abstracts the SMF → MME communication for 4G paging, breaking the
@@ -160,12 +159,13 @@ type MMECallback interface {
 	// re-establishes the bearer (TS 23.401 §5.3.4.3).
 	Page(ctx context.Context, imsi string) error
 
-	// SessionTransferred reports a session moved to 5GS. The anchor session is
-	// not released, but the E-RAB is: TS 23.502 §4.11.2.3 step 10 runs the EPS
-	// bearer deactivation of TS 23.401 §5.4.4.1 except its NAS exchange with the
-	// UE. An attached UE always holds at least one PDN connection
-	// (TS 23.401 §5.10.3), so losing its last one detaches it.
-	SessionTransferred(ctx context.Context, imsi string, ebi uint8, ref string)
+	// SessionDropped reports that this access no longer routes the session — it
+	// moved to 5GS, or was superseded there. The E-RAB is released:
+	// TS 23.502 §4.11.2.3 step 10 runs the EPS bearer deactivation of
+	// TS 23.401 §5.4.4.1 except its NAS exchange with the UE. An attached UE
+	// always holds at least one PDN connection (TS 23.401 §5.10.3), so losing its
+	// last one detaches it.
+	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
 }
 
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
@@ -315,7 +315,6 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 
 	ctx := &SMContext{
 		SessionIdentity: id,
-		procedures:      procedure.NewRegistry(logger.SmfLog),
 		Supi:            supi,
 		Access:          access,
 		Dnn:             dnn,

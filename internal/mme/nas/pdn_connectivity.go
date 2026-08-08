@@ -68,7 +68,7 @@ func handlePDNConnectivityRequest(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		return nasreply.Handled()
 	}
 
-	ue.RequestedPDUSessionID = pduSessionIDFromPCO(req.ProtocolConfigurationOptions)
+	ue.RequestedPDUSessionID = pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
 	ue.RequestedType = req.RequestType
 
 	if req.ESMInformationTransferFlag != nil && *req.ESMInformationTransferFlag {
@@ -167,9 +167,9 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	m.FillBearer(ue, p, qos, bearer)
-
 	moved := ue.RequestedType == eps.RequestTypeHandover
+
+	m.FillBearer(ue, p, qos, bearer, moved)
 
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {

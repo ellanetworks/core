@@ -12,17 +12,20 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-func pduSessionIDFromPCO(pco *nas.ProtocolConfigurationOptions) uint8 {
-	if pco == nil {
-		return 0
+// The UE puts it in whichever options element it sent, and it sends only one
+// (TS 24.301 §6.5.1.2, §8.3.20.4).
+func pduSessionIDFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) uint8 {
+	for _, opts := range []*nas.ProtocolConfigurationOptions{epco, pco} {
+		if opts == nil {
+			continue
+		}
+
+		if id, ok := opts.PDUSessionID(); ok {
+			return id
+		}
 	}
 
-	id, ok := pco.PDUSessionID()
-	if !ok {
-		return 0
-	}
-
-	return id
+	return 0
 }
 
 func snssaiPCOContainer(snssai models.Snssai, plmn models.PlmnID) (nas.PCOContainer, error) {

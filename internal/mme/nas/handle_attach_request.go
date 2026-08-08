@@ -145,7 +145,7 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 			ue.RequestedAPN = string(*pc.AccessPointName)
 		}
 
-		ue.RequestedPDUSessionID = pduSessionIDFromPCO(pc.ProtocolConfigurationOptions)
+		ue.RequestedPDUSessionID = pduSessionIDFromPCOs(pc.ProtocolConfigurationOptions, pc.ExtendedProtocolConfigurationOptions)
 
 		if pc.RequestType != 0 {
 			ue.RequestedType = pc.RequestType

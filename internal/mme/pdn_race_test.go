@@ -32,7 +32,7 @@ func TestPDNBearerWriteVsStatusNoRace(t *testing.T) {
 		defer wg.Done()
 
 		for range 500 {
-			m.InstallDefaultBearer(ue, qos, bearer)
+			m.InstallDefaultBearer(ue, qos, bearer, false)
 		}
 	}()
 

@@ -27,9 +27,17 @@ func (s *SMF) transferTo5GS(
 	pduSessionID uint8,
 	dnn string,
 	snssai *models.Snssai,
+	requestType fgs.RequestType,
 	req *fgs.PDUSessionEstablishmentRequest,
 	pti uint8,
 ) (string, []byte, error) {
+	// This network establishes no emergency sessions, so no session the anchor
+	// holds can be the one such a request names (TS 24.501 §6.4.1.7 d).
+	if requestType == fgs.RequestTypeExistingEmergencyPDUSession {
+		return "", rejectTransfer5GS(pduSessionID, pti, fgs.GSMCausePDUSessionDoesNotExist),
+			fmt.Errorf("no emergency PDU session to move onto 5GS")
+	}
+
 	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
 	if err != nil {
 		return "", rejectTransfer5GS(pduSessionID, pti, establishmentRejectCause(err)),
@@ -69,20 +77,14 @@ func (s *SMF) transferTo5GS(
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("dnn", dnn))
 
 	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
-		s.abandonAndRelease(ctx, sc)
+		// Left where it is, not released: the move has not committed, so EPS still
+		// holds the ref, the bearer identity and a live E-RAB for this session.
+		sc.abandonTransfer()
 
 		return "", nil, fmt.Errorf("failed to send the establishment accept for a moved session: %w", err)
 	}
 
 	return sc.Ref, nil, nil
-}
-
-func (s *SMF) abandonAndRelease(ctx context.Context, sc *SMContext) {
-	sc.abandonTransfer()
-
-	sc.Mutex.Lock()
-	s.RemoveSession(ctx, sc.Ref)
-	sc.Mutex.Unlock()
 }
 
 func rejectTransfer5GS(pduSessionID, pti uint8, cause fgs.GSMCause) []byte {

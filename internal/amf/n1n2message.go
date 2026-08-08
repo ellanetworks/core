@@ -483,10 +483,10 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 	return id
 }
 
-func (amf *AMF) SessionTransferred(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+func (amf *AMF) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF SessionTransferred",
+		"AMF SessionDropped",
 		trace.WithAttributes(
 			attribute.String("supi", supi.String()),
 			attribute.Int("pdu_session_id", int(pduSessionID)),

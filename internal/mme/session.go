@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
 
@@ -45,10 +44,7 @@ func (m *MME) SnapshotPDNs(ue *UeContext) []*PdnConnection {
 // ReleasePDN tears down a PDN connection's anchor session and removes it from the
 // UE, freeing its EPS bearer identity.
 func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
-	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
-		logger.MmeLog.Warn("failed to release PDN connection session",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
-	}
+	m.releaseAnchorSession(ctx, ue, p)
 
 	ue.mu.Lock()
 	delete(ue.Pdns, p.Ebi)
@@ -79,10 +75,22 @@ func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection
 // them from the UE.
 func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext) {
 	for _, p := range takeAllPDNs(ue) {
-		if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
-			logger.MmeLog.Warn("failed to release PDN connection session",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
-		}
+		m.releaseAnchorSession(ctx, ue, p)
+	}
+}
+
+// A connection whose move has not committed names a session 5GS is still
+// serving, so it is abandoned rather than released: releasing would tear down a
+// session the UE is running and free its address.
+func (m *MME) releaseAnchorSession(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	if p.PendingTransfer {
+		m.Session.AbandonEPSTransfer(ctx, p.SessionRef)
+		return
+	}
+
+	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
+		logger.MmeLog.Warn("failed to release PDN connection session",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 	}
 }
 
@@ -97,7 +105,7 @@ func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 	}
 }
 
-func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, ref string) {
+func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
 		return
@@ -114,28 +122,13 @@ func (m *MME) SessionTransferred(ctx context.Context, imsi string, ebi uint8, re
 	logger.From(ctx, logger.MmeLog).Info("PDN connection moved to 5GS; dropping the EPS routing context",
 		zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.Bool("last-pdn", last))
 
+	// TS 23.502 §4.11.2.3 step 10 excludes steps 4-7 of TS 23.401 §5.4.4.1, and
+	// step 4c is the S1AP leg: the UE has left E-UTRAN, so nothing is signalled
+	// for the bearer. An attached UE with no PDN connection is a state this MME
+	// cannot serve, so the last one going takes the context with it.
 	if last {
 		ue.TransitionTo(EMMDeregistered)
 		m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
-
-		return
-	}
-
-	conn := ue.Conn()
-	if conn == nil {
-		return
-	}
-
-	cmd := &s1ap.ERABReleaseCommand{
-		ERABToBeReleased: []s1ap.ERABItem{{
-			ERABID: s1ap.ERABID(ebi),
-			Cause:  CauseNASNormalRelease,
-		}},
-	}
-
-	if err := conn.SendERABRelease(ctx, cmd); err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to release the E-RAB of a moved PDN connection",
-			zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.Error(err))
 	}
 }
 
@@ -151,10 +144,25 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 	delete(ue.Pdns, ebi)
 
 	if ue.DefaultEBI == ebi {
-		ue.DefaultEBI = 0
+		// An attached UE keeps a default PDN connection: leaving this at 0 while
+		// other connections remain makes its next Initial Context Setup fail.
+		ue.DefaultEBI = lowestEBILocked(ue)
 	}
 
 	return p, len(ue.Pdns) == 0
+}
+
+// Caller holds ue.mu.
+func lowestEBILocked(ue *UeContext) uint8 {
+	lowest := uint8(0)
+
+	for ebi := range ue.Pdns {
+		if lowest == 0 || ebi < lowest {
+			lowest = ebi
+		}
+	}
+
+	return lowest
 }
 
 func (m *MME) UnwindPDN(ctx context.Context, ue *UeContext, p *PdnConnection, moved bool) {

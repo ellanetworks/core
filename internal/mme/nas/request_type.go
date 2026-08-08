@@ -37,5 +37,12 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 		return transferRejectCause(err)
 	}
 
+	// The anchor computed the cause, since it holds the pools the answer depends
+	// on (TS 24.301 §6.5.1.4.1).
+	var pdnType *models.PDNTypeError
+	if errors.As(err, &pdnType) {
+		return pdnType.Cause
+	}
+
 	return eps.ESMCauseRequestRejectedUnspecified
 }

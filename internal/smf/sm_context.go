@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/procedure"
 )
 
 // One SEID, not the local/remote pair PFCP defines for two nodes (TS 29.244
@@ -105,9 +104,10 @@ type SMContext struct {
 	// Guarded by Mutex.
 	handoverSourceAN *AnchorBinding
 
+	// A move the UE asked for and the target access has not yet bound
+	// (TS 23.502 §4.11.2). Set and cleared under Mutex, which is what admits one
+	// transfer at a time.
 	pending *pendingTransfer
-
-	procedures *procedure.Registry
 }
 
 // stopProcedureTimer stops the retransmission guard; safe to call when none is

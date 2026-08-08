@@ -78,19 +78,33 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		MTU:      req.MTU,
 	}
 
+	// Precedes the supersede below, which would tear down the session being moved.
 	if req.RequestType == eps.RequestTypeHandover {
 		return s.transferToEPS(ctx, supi, req, policy)
 	}
 
-	pdnType, err := s.negotiatePDUSessionType(ctx, req.RequestedPDNType, policy)
-	if err != nil {
-		return models.EPSBearer{}, fmt.Errorf("negotiate PDN type: %w", err)
+	// The local release is unconditional (TS 24.301 §5.5.1.2.7 f), so it precedes
+	// the type negotiation, as the 5GS path does — a failed negotiation must not
+	// leave the superseded session alive.
+	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil {
+		s.handlePduSessionContextReplacement(ctx, existing, Access4G)
 	}
 
-	// Must precede establishSession: the superseded context's release frees the address by
-	// (imsi, dnn, ebi), which the new session would already hold (TS 24.301 §5.5.1.2.4 case f).
-	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil {
-		s.handlePduSessionContextReplacement(ctx, existing)
+	// Converted at the boundary so nothing downstream mixes the two enumerations,
+	// which agree only up to IPv4v6.
+	requestedType, err := pduSessionTypeFor(req.RequestedPDNType)
+	if err != nil {
+		return models.EPSBearer{}, &models.PDNTypeError{Cause: eps.ESMCauseUnknownPDNType}
+	}
+
+	pduType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)
+	if err != nil {
+		return models.EPSBearer{}, &models.PDNTypeError{Cause: pdnTypeRejectCause(requestedType, policy)}
+	}
+
+	pdnType, err := pdnTypeFor(pduType)
+	if err != nil {
+		return models.EPSBearer{}, &models.PDNTypeError{Cause: eps.ESMCauseUnknownPDNType}
 	}
 
 	sc, addrs, err := s.establishSession(ctx, SessionRequest{
@@ -99,7 +113,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		Dnn:      req.APN,
 		Snssai:   req.Snssai,
 		Access:   Access4G,
-		PDUType:  pdnType,
+		PDUType:  pduType,
 		Policy:   policy,
 	})
 	if err != nil {
@@ -113,7 +127,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	bearer = models.EPSBearer{
 		Ref:          sc.Ref,
-		PDNType:      eps.PDNType(pdnType),
+		PDNType:      pdnType,
 		DNS:          dns.Unmap(),
 		IPv4:         addrs.IPv4,
 		IPv6Prefix:   addrs.IPv6Prefix,
@@ -125,7 +139,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	// When the UE asked for IPv4v6 but the data network offers a single family,
 	// the Activate Default EPS Bearer Context Request carries ESM cause #50/#51
 	// (TS 24.301).
-	switch narrowPDUType(req.RequestedPDNType, pdnType) {
+	switch narrowPDUType(requestedType, pduType) {
 	case narrowIPv4Only:
 		bearer.ESMCause = eps.ESMCausePDNTypeIPv4OnlyAllowed
 	case narrowIPv6Only:
@@ -200,7 +214,7 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 		an.IPv4 = enbIP
 	}
 
-	smContext.bindAccessTunnel(an)
+	smContext.bindAccessTunnel(an, Access4G)
 
 	var (
 		policyID string

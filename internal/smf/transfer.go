@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/ngap"
-	"github.com/ellanetworks/core/internal/smf/procedure"
 	"go.uber.org/zap"
 )
 
@@ -36,9 +35,10 @@ type pendingTransfer struct {
 }
 
 type droppedSource struct {
-	supi   etsi.SUPI
-	access AccessType
-	id     SessionIdentity
+	supi     etsi.SUPI
+	access   AccessType
+	id       SessionIdentity
+	upActive bool
 }
 
 func (s *SMF) findTransferable(supi etsi.SUPI, pduSessionID uint8, req transferRequest) (*SMContext, error) {
@@ -82,14 +82,15 @@ func (sc *SMContext) transferable(req transferRequest) error {
 		return fmt.Errorf("%w: PDU session %d is on data network %q, not %q", ErrSessionOnOtherDNN, sc.PDUSessionID, sc.Dnn, req.Dnn)
 	}
 
-	if req.Access == Access5G {
-		if sc.Snssai == nil || req.Snssai == nil {
-			return fmt.Errorf("%w: PDU session %d cannot have its slice compared", ErrSessionNotMovable, sc.PDUSessionID)
-		}
+	// Moving into 5GS the UE names the slice, so it must be there to compare.
+	// Moving into EPS the network derives it from the policy, which need not name
+	// one; when it does, a mismatch still means the request is for another session.
+	if req.Access == Access5G && (sc.Snssai == nil || req.Snssai == nil) {
+		return fmt.Errorf("%w: PDU session %d cannot have its slice compared", ErrSessionNotMovable, sc.PDUSessionID)
+	}
 
-		if !sc.Snssai.Equal(*req.Snssai) {
-			return fmt.Errorf("%w: PDU session %d is on slice %+v, not %+v", ErrSessionNotMovable, sc.PDUSessionID, sc.Snssai, req.Snssai)
-		}
+	if sc.Snssai != nil && req.Snssai != nil && !sc.Snssai.Equal(*req.Snssai) {
+		return fmt.Errorf("%w: PDU session %d is on slice %+v, not %+v", ErrSessionNotMovable, sc.PDUSessionID, sc.Snssai, req.Snssai)
 	}
 
 	if sc.releasing {
@@ -108,18 +109,6 @@ func (sc *SMContext) hasUserPlane() bool {
 }
 
 func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
-	if err := sc.procedures.Begin(procedure.Transfer); err != nil {
-		return fmt.Errorf("%w: PDU session %d already has a transfer in flight: %v", ErrSessionNotMovable, sc.PDUSessionID, err)
-	}
-
-	committed := false
-
-	defer func() {
-		if !committed {
-			sc.procedures.End(procedure.Transfer)
-		}
-	}()
-
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
@@ -138,22 +127,21 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 	}
 
 	sc.pending = &pendingTransfer{to: req.Access, ebi: req.EBI, policy: req.Policy}
-	committed = true
 
 	return nil
 }
 
 func (sc *SMContext) abandonTransfer() {
 	sc.Mutex.Lock()
-	sc.pending = nil
-	sc.Mutex.Unlock()
+	defer sc.Mutex.Unlock()
 
-	sc.procedures.End(procedure.Transfer)
+	sc.pending = nil
 }
 
 type transferCommit struct {
 	source   AccessType
 	sourceID SessionIdentity
+	sourceUP bool
 	policy   *Policy
 	qers     []*QER
 	restore  func()
@@ -172,15 +160,22 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 		return nil, fmt.Errorf("session %q has no user plane to move", sc.Ref)
 	}
 
-	source, sourceID := sc.Access, sc.SessionIdentity
+	source, sourceID, sourceUP := sc.Access, sc.SessionIdentity, sc.upConnectionActive()
 
-	if err := s.setEPSBearerIdentity(sc, sc.pending.ebi); err != nil {
+	// Taken, not read: the caller holds sc.Mutex across the whole commit, so no
+	// other transfer can be admitted meanwhile, and clearing it here means every
+	// way out from here — success, error, or a restore — leaves the session
+	// movable again rather than wedged mid-move.
+	move := sc.pending
+	sc.pending = nil
+
+	if err := s.setEPSBearerIdentity(sc, move.ebi); err != nil {
 		return nil, err
 	}
 
 	sc.Access = access
 
-	policy := transferPolicy(sc.PolicyData, sc.pending.policy)
+	policy := transferPolicy(sc.PolicyData, move.policy)
 
 	qers, restoreQERs, err := stageSessionQERs(sc, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
 	if err != nil {
@@ -193,6 +188,7 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 	return &transferCommit{
 		source:   source,
 		sourceID: sourceID,
+		sourceUP: sourceUP,
 		policy:   policy,
 		qers:     qers,
 		restore: func() {
@@ -206,15 +202,12 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 
 func (sc *SMContext) finishTransferCommit(c *transferCommit) *droppedSource {
 	sc.PolicyData = c.policy
-	sc.pending = nil
 
 	if sc.Access == Access4G {
 		sc.discardOutstandingProcedures()
 	}
 
-	sc.procedures.End(procedure.Transfer)
-
-	return &droppedSource{supi: sc.Supi, access: c.source, id: c.sourceID}
+	return &droppedSource{supi: sc.Supi, access: c.source, id: c.sourceID, upActive: c.sourceUP}
 }
 
 func transferPolicy(current, target *Policy) *Policy {
@@ -246,18 +239,24 @@ func (s *SMF) dropSourceRouting(ctx context.Context, ref string, dropped *droppe
 			return
 		}
 
-		n2Release, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
-		if err != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
-				zap.Error(err), logger.SUPI(dropped.supi.String()), logger.PDUSessionID(dropped.id.PDUSessionID))
+		// TS 23.502 §4.11.2.2 step 14: the N2 release goes only when the 5GS user
+		// plane was still up, and never carries an N1 container — the UE has moved.
+		var n2Release []byte
 
-			n2Release = nil
+		if dropped.upActive {
+			built, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
+			if err != nil {
+				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
+					zap.Error(err), logger.SUPI(dropped.supi.String()), logger.PDUSessionID(dropped.id.PDUSessionID))
+			} else {
+				n2Release = built
+			}
 		}
 
-		s.amf.SessionTransferred(ctx, dropped.supi, dropped.id.PDUSessionID, ref, n2Release)
+		s.amf.SessionDropped(ctx, dropped.supi, dropped.id.PDUSessionID, ref, n2Release)
 	case Access4G:
 		if s.mme != nil {
-			s.mme.SessionTransferred(ctx, dropped.supi.IMSI(), dropped.id.EBI, ref)
+			s.mme.SessionDropped(ctx, dropped.supi.IMSI(), dropped.id.EBI, ref)
 		}
 	}
 }
