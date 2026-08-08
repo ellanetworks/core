@@ -26,8 +26,6 @@ func bindConnectivityProbeFlags(fs *pflag.FlagSet) *connectivityProbeParams {
 	return p
 }
 
-// probeSourcePorts is the port block UE index ue probes from, so every UE in a
-// parallel run holds a distinct block.
 func probeSourcePorts(base, ue int) int {
 	if base == 0 {
 		return 0

@@ -37,9 +37,6 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 		pduSessionID := int64(item.PDUSessionID)
 		ids = append(ids, pduSessionID)
 
-		// Apply the QoS before the NAS PDU reaches the UE: delivering it releases
-		// scenarios waiting on the PDU Session Modification Command, which then
-		// read this session's QoS.
 		modInfo, err := getPDUSessionInfoFromModifyRequestTransfer(item.Transfer)
 		if err != nil {
 			logger.GnbLogger.Debug("could not parse PDU Session Resource Modify Request Transfer",

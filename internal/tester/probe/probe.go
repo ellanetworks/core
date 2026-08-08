@@ -51,10 +51,6 @@ func ParseProtocol(s string) (Protocol, error) {
 	}
 }
 
-// RunFromSourcePorts probes as Run does, but sources the TCP attempts from
-// srcPortBase, srcPortBase+1, ... so a caller can tell this probe's flow records
-// apart from any other traffic on the same interface. A zero base keeps the
-// ephemeral ports Run uses.
 func RunFromSourcePorts(ctx context.Context, protocol Protocol, tun, dst string, port int, ipv6 bool, srcPortBase int) error {
 	if protocol == TCP {
 		return sendTCP(ctx, tun, dst, port, AttemptCount, AttemptTimeout, DefaultPayload, srcPortBase)
@@ -199,7 +195,6 @@ func SendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTi
 	return sendTCP(ctx, tun, dst, port, count, perAttemptTimeout, payload, 0)
 }
 
-// sendTCP sources attempt i from srcPortBase+i when srcPortBase is non-zero.
 func sendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte, srcPortBase int) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
@@ -211,13 +206,10 @@ func sendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTi
 	var lastErr error
 
 	if srcPortBase != 0 {
-		// SO_REUSEADDR so a fixed source port left in TIME_WAIT by an earlier
-		// probe does not turn into a dial error the caller would read as a
-		// blocked connection.
 		dialer.Control = reusableBindToDeviceControl(tun)
 	}
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		if srcPortBase != 0 {
 			dialer.LocalAddr = &net.TCPAddr{Port: srcPortBase + i}
 		}

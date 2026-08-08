@@ -201,15 +201,10 @@ func registerScenarioTest(scenarioName string) *TestResult {
 	return globalReporter.Start(scenarioName)
 }
 
-// skipScenarioTest records a scenario the runner declined to run.
-// Call this instead of finishScenarioTest: t.Failed() is true on the parent
-// once any earlier subtest failed, so it cannot report this scenario's outcome.
 func skipScenarioTest(tr *TestResult, reason string) {
 	globalReporter.Skip(tr, reason)
 }
 
-// finishScenarioTest records the outcome of a scenario subtest.
-// Call this from inside the subtest, where t.Failed() reflects that subtest.
 func finishScenarioTest(t *testing.T, tr *TestResult) {
 	if t.Failed() {
 		reason := tr.Reason

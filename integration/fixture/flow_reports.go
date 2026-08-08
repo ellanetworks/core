@@ -399,6 +399,33 @@ func EachTupleHasAtMost(n int) FlowReportPredicate {
 	}
 }
 
+func EachTuplePacketsAtMost(n uint64) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		type key struct {
+			imsi string
+			sp   uint16
+			dp   uint16
+		}
+
+		packets := make(map[key]uint64)
+		for _, f := range items {
+			packets[key{imsi: f.SubscriberID, sp: f.SourcePort, dp: f.DestinationPort}] += f.Packets
+		}
+
+		if len(packets) == 0 {
+			return false
+		}
+
+		for _, p := range packets {
+			if p > n {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
 // EachBytesPerPacketIs requires every record to account exactly size bytes for
 // each of its packets. It pins the per-packet accounting without pinning how
 // many packets a peer chose to send.

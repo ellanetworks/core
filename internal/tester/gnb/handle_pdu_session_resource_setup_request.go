@@ -41,11 +41,6 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 
 	for _, pduSession := range req.PDUSessionResourceSetup {
 		pduSessionID := int64(pduSession.PDUSessionID)
-
-		// Store the session before the NAS PDU reaches the UE: delivering it
-		// releases scenarios waiting on the PDU Session Establishment Accept,
-		// which then read this session. A missing transfer yields no UPF/TEID
-		// info; skip the store without failing the whole NGAP flow.
 		pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.Transfer)
 		if err != nil {
 			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store",

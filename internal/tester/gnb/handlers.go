@@ -47,9 +47,6 @@ func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
 		return fmt.Errorf("NGAP PDU alternative is invalid: %T", pdu)
 	}
 
-	// File the frame once the handler has applied the state the PDU carries, so
-	// a scenario released by WaitForMessage observes it. Deferred so a handler
-	// error still leaves the frame available to the waiter.
 	defer updateReceivedFramesMap(gnb, sctpFrame)
 
 	return handleFrame(gnb, sctpFrame)

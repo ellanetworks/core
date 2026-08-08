@@ -57,19 +57,13 @@ func runNetworkRulesAndFlowReports(t *testing.T, ranPrefix string) {
 // runs each protocol's probe under the same policy, and asserts the
 // per-protocol downlink-or-uplink flow content.
 type ruleShape struct {
-	name      string
-	direction string // "uplink" or "downlink"
-	action    string // "allow" or "drop"
-	scenario  string // "allowed" or "blocked", resolved from fp
-	protocols []string
-	// srcPortBase is the TCP source-port block this shape's probe uses, assigned
-	// per shape so its flow records are distinguishable from every other shape's.
+	name        string
+	direction   string // "uplink" or "downlink"
+	action      string // "allow" or "drop"
+	scenario    string // "allowed" or "blocked", resolved from fp
+	protocols   []string
 	srcPortBase int
-	// buildRules returns the per-protocol rules for one protocol. The
-	// returned rules are merged with rules from other protocols and
-	// placed into either policy.Downlink or policy.Uplink depending
-	// on shape.direction.
-	buildRules func(fp ipFamilyParams, pp probeProtocolParams) []client.PolicyRule
+	buildRules  func(fp ipFamilyParams, pp probeProtocolParams) []client.PolicyRule
 }
 
 func buildRuleShapes(fp ipFamilyParams) []ruleShape {
