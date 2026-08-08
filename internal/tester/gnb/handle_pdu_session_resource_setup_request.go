@@ -41,6 +41,7 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 
 	for _, pduSession := range req.PDUSessionResourceSetup {
 		pduSessionID := int64(pduSession.PDUSessionID)
+
 		pduSessionInfo, err := getPDUSessionInfoFromSetupRequestTransfer(gnb, pduSession.Transfer)
 		if err != nil {
 			logger.GnbLogger.Debug("could not validate PDU Session Resource Setup Transfer, skipping PDU session store",
