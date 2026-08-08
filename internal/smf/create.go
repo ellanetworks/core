@@ -119,7 +119,6 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	// Precedes the supersede below, which would tear down the session being moved.
 	if isTransferRequest(requestType) {
 		establishmentResult = metrics.ResultAccept
 

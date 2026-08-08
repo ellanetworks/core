@@ -99,9 +99,6 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, enb m
 	return nil
 }
 
-// hookSessionManager runs onModify on the first ModifyEPSSession, so a test can
-// simulate a concurrent release (freeing ue.active) during the unlocked user-plane
-// switch of a Path Switch or Handover Notify.
 func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, ambrUplink, ambrDownlink models.BitRate) error {
 	if f.ambrErr != nil {
 		return f.ambrErr

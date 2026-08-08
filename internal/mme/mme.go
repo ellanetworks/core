@@ -38,37 +38,16 @@ type NASHandler interface {
 	HandleServiceRequest(ctx context.Context, conn S1APWriter, msg *s1ap.InitialUEMessage)
 }
 
-// epsSessionManager is the converged session anchor (SMF acting as PGW-C) the
-// MME delegates EPS default-bearer establishment to: it allocates the UE IP and
-// owns the session. *smf.SMF satisfies it. Defined here (consumer side) so there
-// is no mme → smf import.
 type epsSessionManager interface {
-	// CreateEPSSession negotiates the PDN type, allocates the UE address(es), and
-	// programs the default bearer, returning the negotiated type, the addresses,
-	// and the S-GW S1-U F-TEID for the eNB to send uplink to.
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
 	ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID) error
-	// UpdateEPSSessionAMBR updates the Session-AMBR enforced by the UPF QER for a
-	// PDN connection's default bearer, in the "<n> <unit>" form.
 	UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error
-	// DeactivateEPSSession buffers the downlink bearer when the UE goes ECM-IDLE
-	// so downlink data triggers paging.
 	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error
-	// ClearEPSPagingSuppression releases the suppression once the UE is reachable
-	// again (ECM-CONNECTED), so subsequent downlink data pages it
-	// (TS 24.301 §5.3.5; TS 23.401 §5.3.4.3).
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
-	// ReleaseEPSSession releases the anchor session identified by its unique ref
-	// (as returned in models.EPSBearer.Ref and stored on the PDN connection), so a
-	// superseded context releases its own session and never a newer one that reused
-	// the same (IMSI, EBI).
 	ReleaseEPSSession(ctx context.Context, ref string) error
-
 	AbandonEPSTransfer(ctx context.Context, ref string)
-
 	FramedRoutesChanged(ctx context.Context, ref string) (bool, error)
-
 	StaticIPChanged(ctx context.Context, ref string) (bool, error)
 }
 

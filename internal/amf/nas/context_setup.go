@@ -30,10 +30,6 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	conn.RegistrationRequest = msg
 	conn.RegistrationRequestPlain = plain
 
-	// Neither is a cleartext IE (TS 24.501 §4.4.6), so a UE with no valid 5G NAS
-	// security context sends them only in the SECURITY MODE COMPLETE container.
-	// Reading them off the cleartext request leaves them empty for every
-	// conformant UE.
 	if msg != nil {
 		ue.SetUECapabilities(msg.GMMCapability, msg.S1UENetworkCapability)
 	}

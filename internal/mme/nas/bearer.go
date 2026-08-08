@@ -284,14 +284,11 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	nfs := m.NetworkFeatureSupport(ue.UeNetCap().SupportsN1Mode())
 
 	accept := &eps.AttachAccept{
-		EPSAttachResult:     eps.AttachResultEPS,
-		T3412:               t3412,
-		TAIList:             taiList,
-		ESMMessageContainer: esm,
-		GUTI:                &guti,
-		// Advertise IMS voice over PS session (TS 24.301). Without it a
-		// voice-centric UE concludes E-UTRAN cannot serve voice and leaves for
-		// another RAT (TS 23.221).
+		EPSAttachResult:       eps.AttachResultEPS,
+		T3412:                 t3412,
+		TAIList:               taiList,
+		ESMMessageContainer:   esm,
+		GUTI:                  &guti,
 		NetworkFeatureSupport: nfs,
 	}
 

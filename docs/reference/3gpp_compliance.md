@@ -58,4 +58,3 @@ Cell identity and E-CID positioning: LPPa on 4G, NRPPa on 5G. See the [Location 
 - **No voice.** Ella Core provides no IMS, VoLTE, or VoNR.
 - **No emergency services.** Emergency sessions and emergency service requests are rejected.
 - **No roaming.** Ella Core is a self-contained core for a single network; there is no S6a, S8, or inter-operator interface.
-- **No N26 interface.** Moving between 4G and 5G is a re-registration, not a connected-mode handover, so there is a service gap of a few seconds. The IP address and the session survive it.

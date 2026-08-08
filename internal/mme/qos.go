@@ -171,8 +171,6 @@ func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork, sns
 	}, nil
 }
 
-// The S-NSSAI is in it because the UE sends it back to move the connection to
-// 5GS, where a stale one resolves no session.
 func (q *EpsQoS) DnFingerprint() string {
 	var snssai string
 	if q.Snssai != nil {

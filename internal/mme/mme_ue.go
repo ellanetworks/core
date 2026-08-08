@@ -128,82 +128,36 @@ type PendingPDNConnectivity struct {
 // UeContext is the MME's persistent per-UE EMM context: subscriber identity, the
 // EPS NAS security context, and the bearer state.
 type UeContext struct {
-	// active is the UE's current UE-associated S1-connection, nil in ECM-IDLE. It is
-	// an atomic pointer: it is swapped under MME.mu on the connection lifecycle
-	// (bind/release) but read lock-free on the hot path, so a release racing a
-	// handler read is memory-model-safe. Read via Conn().
 	active atomic.Pointer[UeConn]
 
-	supi etsi.SUPI
-	Imei etsi.IMEI // IMEI/IMEISV equipment identity (TS 24.301; 5G PEI, TS 23.501 §5.9.3)
-	// registrationArea is the UE's registered tracking area (TS 24.301 §5.5.1): the TAI
-	// list assigned in ATTACH/TAU ACCEPT and the area the UE is paged in. Under ue.mu.
-	registrationArea []models.Tai
-	// ueNetCap/msNetCap are the UE/MS network capabilities (algorithm selection +
-	// replay; msNetCap sources the replayed GERAN GEA capabilities, TS 24.301). Written
-	// only through the AuthProof-gated SetUESecurityCapability.
-	ueNetCap eps.UENetworkCapability
-	msNetCap *eps.MSNetworkCapability
-	// DRXParameter is the UE's requested DRX parameter from the ATTACH REQUEST (TS
-	// 24.301 §9.9.3.8). Nil when omitted.
-	DRXParameter    []byte
-	RadioCapability []byte // UE Radio Capability (S1AP UE Capability Info Indication), replayed in Initial Context Setup (TS 23.401)
-	// RadioCapabilityForPaging is the eNB-reported paging-specific capability, included
-	// in PAGING so the eNB can apply paging optimisations (TS 36.413 §9.1.6.1).
+	supi                     etsi.SUPI
+	Imei                     etsi.IMEI // IMEI/IMEISV equipment identity (TS 24.301; 5G PEI, TS 23.501 §5.9.3)
+	registrationArea         []models.Tai
+	ueNetCap                 eps.UENetworkCapability
+	msNetCap                 *eps.MSNetworkCapability
+	DRXParameter             []byte
+	RadioCapability          []byte // UE Radio Capability (S1AP UE Capability Info Indication), replayed in Initial Context Setup (TS 23.401)
 	RadioCapabilityForPaging []byte
-	// RequestedPTI is the procedure transaction identity of the PDN Connectivity
-	// Request the ATTACH REQUEST carried, replayed in the default bearer's
-	// ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §6.4.1).
-	RequestedPTI nas.ProcedureTransactionIdentity
-	// kenbCount is the uplink NAS COUNT the K_eNB derivation uses, pinned when the
-	// message that names it is accepted (TS 33.401 §7.2.5.2.2, §7.2.6.2).
-	kenbCount uint32
-	// Swapped from the NAS goroutine and the T3489 timer goroutine.
-	esmInfoWait atomic.Pointer[ESMInfoWait]
+	RequestedPTI             nas.ProcedureTransactionIdentity
+	kenbCount                uint32
+	esmInfoWait              atomic.Pointer[ESMInfoWait]
 
 	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
-	// HashmmeInput is the plain Attach Request to hash into the SECURITY MODE
-	// COMMAND HashMME IE, set when the Attach arrived without integrity protection;
-	// nil when the Attach verified (TS 24.301 §5.4.3.2).
-	HashmmeInput []byte
+	HashmmeInput   []byte
 
-	// lastSeen is the Unix-nanosecond time of the UE's most recent uplink NAS
-	// activity, updated on the hot path and read concurrently by the status API.
 	lastSeen atomic.Int64
 
-	// PDN connections (default EPS bearers), each to one APN, keyed by EPS bearer
-	// identity (TS 24.301 §6.5). defaultEBI is the EBI of the bearer established at
-	// attach (0 = none yet); it is the linked bearer of the UE's first PDN.
-	Pdns       map[uint8]*PdnConnection
-	DefaultEBI uint8
-
+	Pdns                  map[uint8]*PdnConnection
+	DefaultEBI            uint8
 	Ambr                  *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	RequestedPDNType      uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
 	RequestedAPN          string       // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
 	RequestedPDUSessionID uint8
 	RequestedType         eps.RequestType
+	tmsi                  etsi.TMSI
+	oldTmsi               etsi.TMSI
+	Location              models.UserLocation
 
-	// tmsi is the M-TMSI of the GUTI assigned at attach (InvalidTMSI = none); it
-	// indexes the UE for S-TMSI-addressed procedures (Service Request, paging).
-	// oldTmsi is the M-TMSI being replaced during a GUTI reallocation at TAU
-	// (InvalidTMSI = none): both stay resolvable, and the UE is paged with the old
-	// one, until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
-	// 0 is a legal M-TMSI (only all-ones is reserved, TS 23.003 §2.4), so the
-	// reserved InvalidTMSI value is the "none" sentinel, never 0.
-	// Guarded by MME.mu (the registry lock, which also guards the uesByTmsi index):
-	// written only by the guti realloc/clear methods; read via Tmsi()/OldTmsi().
-	tmsi    etsi.TMSI
-	oldTmsi etsi.TMSI
-
-	// Location is the UE's serving-cell User Location (E-UTRAN CGI + TAI), refreshed
-	// on every UE-associated S1AP message that carries it. Guarded by mu.
-	Location models.UserLocation
-
-	// mu is the per-UE lock guarding this UE's data state — the EPS NAS security
-	// context below (dlCount, knasEnc, knasInt, eea, eia, imei, secured), the PDN
-	// modification state (the pdns map, defaultEBI, and each PdnConnection's
-	// in-flight flags), and imsi. See the MME concurrency model. releasing is
-	// guarded by MME.mu (it gates a registry op).
 	mu sync.Mutex
 
 	// EPS NAS security context (TS 33.401).
@@ -216,62 +170,26 @@ type UeContext struct {
 	dlCount      nas.DownlinkCounter
 	sc           *nas.SecurityContext
 	secured      bool
-	// eksi is the eKSI (NAS key set identifier, TS 24.301 §9.9.3.21) of the current EPS
-	// security context. Cycled to a value distinct from the stored one on each new
-	// authentication (§5.4.2.4).
-	eksi uint8
+	eksi         uint8
 
-	// X2-handover key chain (TS 33.401): nh is the Next Hop the next path
-	// switch hands to the target eNB, ncc its chaining counter. Seeded at initial
-	// context setup (NCC=1) and advanced on each Path Switch or S1 handover.
+	// X2-handover key chain (TS 33.401)
 	nh  [32]byte
 	ncc uint8
 
-	// procedures tracks the UE's in-flight key-changing procedures (NAS security
-	// mode, Path Switch, S1 handover) in the shared procedure engine. They are
-	// mutually exclusive, so at most one advances the {NH, NCC} chain at a time and
-	// two cannot re-key from the same base concurrently and desync the AS/NAS key
-	// chain (TS 33.501 §6.9.5.1, TS 33.401 §7.2.8). The registry is
-	// self-synchronising; the MME claims/releases under MME.mu so a claim is atomic
-	// with the connection/handover state it guards.
 	procedures *procedure.Registry
 
-	// handover is the in-flight S1 handover (nil when none). It holds the source
-	// and target connections, each a distinct s1Conn with its own MME-UE-S1AP-ID;
-	// active stays the source until HANDOVER NOTIFY switches it to the target (TS 36.413
-	// §8.4). Its supervision timeout is the S1Handover procedure's registry Supervise
-	// (staleness is the procedure id). Guarded by MME.mu.
 	handover *handoverContext
 
-	// emmState is the EPS Mobility Management state (TS 23.401), independent of the
-	// ECM state on s1Conn: an S1 release moves the UE to ECM-IDLE while leaving the
-	// EMM state untouched, so the release-complete handler deletes the context only
-	// if the UE is also EMM-DEREGISTERED (detach), else it is retained in ECM-IDLE.
-	// Guarded by mu.
 	emmState EMMState
 
-	// regStep is the sub-phase within the attach procedure, meaningful only in
-	// EMM-REGISTERED-INITIATED. Guarded by ue.mu.
 	regStep RegStep
 
-	// Idle-mode supervision lives on the persistent context because it runs while
-	// the UE has no S1-connection (TS 24.301), armed in ECM-IDLE and cancelled on
-	// reconnect. idleGen invalidates a timer callback that fired just as a reconnect
-	// or re-arm ran.
 	mobileReachableTimer guard.Guard
 	implicitDetachTimer  guard.Guard
 	idleGen              uint64
 
-	// Paging supervision (T3413, TS 24.301 §5.6.2): armed when the MME pages an
-	// idle UE for buffered downlink data, retransmitted a bounded number of times
-	// (the guard counts them), and cancelled when the UE reconnects. The Paging PDU
-	// is captured by the retransmit closure.
 	pagingTimer guard.Guard
 
-	// LPPa positioning state (TS 36.455), independent of EMM/ESM state and each
-	// guarded by its own lock. lppaMessages buffers the raw LPPa PDUs the eNB
-	// relays uplink for the LMF to correlate and decode; radioMeasurements caches
-	// the E-CID measurement result the LMF last obtained.
 	lppaMu            sync.RWMutex
 	lppaMessages      []LPPaMessage
 	radioMu           sync.RWMutex
