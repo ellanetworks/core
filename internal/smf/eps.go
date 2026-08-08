@@ -83,9 +83,10 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		return s.transferToEPS(ctx, supi, req, policy)
 	}
 
-	// The local release is unconditional (TS 24.301 §5.5.1.2.7 f), so it precedes
-	// the type negotiation, as the 5GS path does — a failed negotiation must not
-	// leave the superseded session alive.
+	// §5.5.1.2.7 f) deletes the old bearers once the re-attach is known genuine —
+	// otherwise the EMM context is left unchanged — so the caller authenticates
+	// first and this then precedes the type negotiation, as the 5GS path does: a
+	// failed negotiation must not leave the superseded session alive.
 	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil {
 		s.handlePduSessionContextReplacement(ctx, existing, Access4G)
 	}
@@ -258,7 +259,7 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 
 	// Register the IPv6 session so the UPF's RA responder answers the UE's Router
 	// Solicitation with the /64 prefix. No-op for an IPv4-only bearer.
-	s.registerIPv6SessionIfNeeded(ctx, smContext)
+	s.registerIPv6SessionIfNeeded(ctx, smContext, Access4G)
 
 	return dropped, nil
 }

@@ -112,6 +112,8 @@ func pduSessionTypeFor(pdnType uint8) (uint8, error) {
 		return uint8(fgs.PDUSessionTypeIPv6), nil
 	case eps.PDNTypeIPv4v6:
 		return uint8(fgs.PDUSessionTypeIPv4v6), nil
+	case eps.PDNTypeUnusedIPv6:
+		return uint8(fgs.PDUSessionTypeIPv6), nil
 	default:
 		return 0, fmt.Errorf("PDN type %d has no PDU session type", pdnType)
 	}
@@ -136,6 +138,10 @@ func pdnTypeFor(pduSessionType uint8) (eps.PDNType, error) {
 func pdnTypeRejectCause(requested uint8, policy *Policy) eps.ESMCause {
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
+
+	if !hasIPv4 && !hasIPv6 {
+		return eps.ESMCauseInsufficientResources
+	}
 
 	switch requested {
 	case uint8(fgs.PDUSessionTypeIPv6):

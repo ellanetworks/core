@@ -253,7 +253,7 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	m.UEs[supi] = ue
 	m.mu.Unlock()
 
-	// TS 24.301 §5.5.1.2.4 case f: a genuine re-attach supersedes the old context and
+	// TS 24.301 §5.5.1.2.7 f): a genuine re-attach supersedes the old context and
 	// its EPS bearer contexts are deleted. The anchor sessions are released outside
 	// m.mu, since external calls cannot run under it.
 	if superseded {

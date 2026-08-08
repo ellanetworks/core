@@ -561,10 +561,9 @@ func TestTransferEPSTo5GSKeepsTheSessionWhenTheAcceptCannotBeDelivered(t *testin
 		t.Errorf("IP lease releases = %d, want %d: the UE's address was freed while EPS still serves it", got, releasesBefore)
 	}
 
-	// The transfer must also be released, or the session can never move again.
-	if _, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID)); err == nil {
-		t.Fatal("a move to EPS succeeded for a session already on EPS")
-	}
+	// CreateEPSSession would fail here on transferable()'s access check whether or
+	// not the move was abandoned, so the pending mark is read directly.
+	assertMovable(t, sc)
 }
 
 // A move that cannot commit must leave the session movable. Wedging it with a

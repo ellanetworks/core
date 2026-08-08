@@ -85,7 +85,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	// An adopted native-GUTI re-attach reuses the held EPS security context, so
 	// authentication and the security mode procedure are skipped (TS 24.301 §4.4.3,
-	// §5.4.3.3). Its old EPS bearers are deleted (§5.5.1.2.4 case f) before the new
+	// §5.4.3.3). Its old EPS bearers are deleted (§5.5.1.2.7 f) before the new
 	// default bearer is activated.
 	if ue.Secured() && integrityVerified {
 		ue.PinKeNBFreshness()

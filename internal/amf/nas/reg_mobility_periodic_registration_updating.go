@@ -306,10 +306,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 // how a registration announces an inter-system move (TS 24.501 §9.11.3.56).
 //
 // Such a UE lists the PDN connections it is about to transfer in its PDU session
-// status (TS 23.502 §4.11.2.3 NOTE 1), and this AMF holds none of them:
-// synchronising would report every one inactive, on which the UE locally
-// releases exactly the sessions it came to move. §4.11.2.3 step 3 has the AMF
-// skip the synchronisation, and omitting the IE is what leaves them alone.
+// status (TS 23.502 §4.11.2.3 NOTE 1), and this AMF holds none of them, so
+// synchronising would answer that every one is inactive. §4.11.2.3 step 3 has the
+// AMF skip the synchronisation, and omitting the IE is what implements that.
+// A compliant UE would not act on the answer either way — TS 24.501 §5.5.1.3.4
+// has it ignore the IE outright once it is moving without N26 — but the release
+// loop the synchronisation drives runs on this side.
 func movingFromEPC(req *fgs.RegistrationRequest) bool {
 	return req != nil && req.UEStatus != nil && req.UEStatus.S1ModeReg
 }

@@ -32,6 +32,14 @@ func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
 
+	// Unused values are read as IPv4v6 (TS 24.501 table 9.11.4.11.1); Unstructured,
+	// Ethernet and the reserved value are named types this network does not serve,
+	// and keep falling through to the refusal below.
+	switch requested {
+	case 0, 6:
+		requested = uint8(fgs.PDUSessionTypeIPv4v6)
+	}
+
 	switch requested {
 	case uint8(fgs.PDUSessionTypeIPv4):
 		if hasIPv4 {
@@ -72,11 +80,15 @@ func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy
 //
 //   - IPv6 requested, only IPv4 supported           → #50 IPv4 only allowed
 //   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
-//   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
+//   - IPv4/IPv6/IPv4v6 requested, neither supported → #26 insufficient resources
 //   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
 func pduSessionTypeRejectCause(requested uint8, policy *Policy) fgs.GSMCause {
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
+
+	if !hasIPv4 && !hasIPv6 {
+		return fgs.GSMCauseInsufficientResources
+	}
 
 	switch requested {
 	case uint8(fgs.PDUSessionTypeIPv6):

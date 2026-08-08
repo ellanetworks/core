@@ -75,7 +75,6 @@ var registrationRequestIEs = []nas.OptionalIE{
 	{IEI: ieiUEUsageSetting, Format: nas.IETLV, Name: "UE usage setting"},
 	{IEI: ieiAllowedPDUSessionStatus, Format: nas.IETLV, Name: "Allowed PDU session status"},
 	{IEI: ieiUEStatus, Format: nas.IETLV, Name: "UE status"},
-	{IEI: ieiUEStatus, Format: nas.IETLV, Name: "UE status"},
 	{IEI: ieiUESecurityCapability, Format: nas.IETLV, Critical: true, Name: "UE security capability"},
 	{IEI: ieiRequestedNSSAI, Format: nas.IETLV, Name: "Requested NSSAI"},
 	{IEI: ieiUplinkDataStatus, Format: nas.IETLV, Name: "Uplink data status"},
@@ -118,12 +117,6 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiGMMCapability, raw)
 	}
 
-	// Table order (0x17 precedes 0x2E), so a decoded message re-encodes with its
-	// elements in the order TS 24.501 table 8.2.6.1.1 lists.
-	if m.S1UENetworkCapability != nil {
-		o.TLV(ieiS1UENetworkCapability, m.S1UENetworkCapability)
-	}
-
 	if m.UESecurityCapability != nil {
 		raw, err := m.UESecurityCapability.MarshalBinary()
 		if err != nil {
@@ -140,6 +133,12 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiRequestedNSSAI, raw)
+	}
+
+	// Table 8.2.6.1.1 orders 2E, 2F, 52 then 17, so a decoded message re-encodes
+	// with its elements in the order the table lists.
+	if m.S1UENetworkCapability != nil {
+		o.TLV(ieiS1UENetworkCapability, m.S1UENetworkCapability)
 	}
 
 	if m.UplinkDataStatus != nil {

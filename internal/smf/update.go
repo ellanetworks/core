@@ -236,22 +236,12 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 		return nil, fmt.Errorf("pfcp session context not found")
 	}
 
-	restoreBinding := smContext.stageAccessBinding()
-
-	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
-	if err != nil {
-		restoreBinding()
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to handle N2 message")
-
-		return nil, fmt.Errorf("error handling N2 message: %v", err)
-	}
-
+	// The commit is taken before the N2 message is applied, as the EPS direction
+	// does: applying it marks the downlink forwarding, which is the state
+	// beginTransferCommit reads to decide whether the source access still had a
+	// user plane to release.
 	commit, err := s.beginTransferCommit(ctx, smContext, Access5G)
 	if err != nil {
-		restoreBinding()
-
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to move the session to 5GS")
 
@@ -262,13 +252,27 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 	// 5GS can take: pushing a gNB downlink onto one still recorded as EPS would
 	// leave the MME routing a session the gNB now holds.
 	if commit == nil && smContext.Access != Access5G {
-		restoreBinding()
-
 		err := fmt.Errorf("session %q is on %s, not 5GS", smContext.Ref, smContext.Access)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "session is not on 5GS")
 
 		return nil, err
+	}
+
+	restoreBinding := smContext.stageAccessBinding()
+
+	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
+	if err != nil {
+		restoreBinding()
+
+		if commit != nil {
+			commit.restore()
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to handle N2 message")
+
+		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
 	var qers []*QER
@@ -302,7 +306,7 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 		dropped = smContext.finishTransferCommit(commit)
 	}
 
-	s.registerIPv6SessionIfNeeded(ctx, smContext)
+	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -493,7 +497,7 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 // registerIPv6SessionIfNeeded registers the IPv6 session with the UPF's RA
 // responder if the session has a delegated IPv6 prefix and the gNB's tunnel
 // endpoint is known. Must be called with smContext.Mutex held.
-func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMContext) {
+func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMContext, access AccessType) {
 	if smContext.PDUIPV6Prefix == nil || smContext.Tunnel == nil {
 		return
 	}
@@ -545,7 +549,7 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		QFI:          qfi,
 		// A 4G S1-U bearer carries the RA PSC-less; 5G N3 carries it in the PDU
 		// Session Container. The encap follows the access.
-		S1U: !smContext.Access.usesPSC(),
+		S1U: !access.usesPSC(),
 	}
 
 	if err := s.upf.RegisterIPv6Session(ctx, reg); err != nil {

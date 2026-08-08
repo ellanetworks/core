@@ -146,9 +146,10 @@ type AMFCallback interface {
 
 	// SessionDropped reports a session moved to EPS. Nothing is released: the
 	// session, its UPF state and the UE address survive on the other access
-	// (TS 23.502 §4.11.2.2 step 14). n2Transfer frees the radio resources it
-	// held. ref names the exact instance, so a stale report cannot disturb a
-	// newer session.
+	// (TS 23.502 §4.11.2.2 step 14). n2Transfer is the N2 release, and is nil
+	// unless the 5GS user plane was still up — step 14 sends it only then, and
+	// never with an N1 container. ref names the exact instance, so a stale report
+	// cannot disturb a newer session.
 	SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
 }
 
@@ -160,11 +161,11 @@ type MMECallback interface {
 	Page(ctx context.Context, imsi string) error
 
 	// SessionDropped reports that this access no longer routes the session — it
-	// moved to 5GS, or was superseded there. The E-RAB is released:
-	// TS 23.502 §4.11.2.3 step 10 runs the EPS bearer deactivation of
-	// TS 23.401 §5.4.4.1 except its NAS exchange with the UE. An attached UE
-	// always holds at least one PDN connection (TS 23.401 §5.10.3), so losing its
-	// last one detaches it.
+	// moved to 5GS, or was superseded there. Nothing is signalled for the bearer:
+	// TS 23.502 §4.11.2.3 step 10 runs the EPS bearer deactivation of TS 23.401
+	// §5.4.4.1 except steps 4-7, and step 4c is the S1AP leg. An attached UE always
+	// holds at least one PDN connection (TS 23.401 §5.10.3), so losing its last one
+	// detaches it.
 	SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string)
 }
 

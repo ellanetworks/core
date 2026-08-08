@@ -261,7 +261,7 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 }
 
 // TestAttachReusesContextForNativeGUTI_ReleasesOldBearers asserts TS 24.301
-// §5.5.1.2.4 case f: a genuine re-attach reuses the security context (§4.4.3, keys
+// §5.5.1.2.7 f): a genuine re-attach reuses the security context (§4.4.3, keys
 // kept) but the UE's OLD EPS bearer contexts are deleted — their anchor sessions
 // released, not preserved — before the new attach is progressed.
 func TestAttachReusesContextForNativeGUTI_ReleasesOldBearers(t *testing.T) {
