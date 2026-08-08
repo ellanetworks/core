@@ -167,19 +167,20 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 
 	uecap := ue.UeNetCap()
 
-	defaultPDN := m.DefaultPDN(ue)
-	if defaultPDN == nil {
-		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no active PDN")
-		return
-	}
-
 	// A UE re-established from ECM-IDLE reactivates the radio and S1 bearers for all
 	// the active EPS bearers in one Initial Context Setup; the S1 Service Request has
 	// no per-bearer data-status IE, so every active bearer is set up (TS 23.401
-	// §5.3.4.1). The NAS PDU (the Attach Accept, on attach only) rides the default
-	// bearer.
+	// §5.3.4.1).
 	pdns := m.SnapshotPDNs(ue)
 	erabs := make([]s1ap.ERABToBeSetupItemCtxtSUReq, 0, len(pdns))
+
+	carrier := uint8(0)
+
+	for _, p := range pdns {
+		if carrier == 0 || p.Ebi < carrier {
+			carrier = p.Ebi
+		}
+	}
 
 	for _, p := range pdns {
 		// The S1-U endpoint advertises whichever transport address family the N3 has
@@ -202,7 +203,9 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
 		}
 
-		if p.Ebi == defaultPDN.Ebi {
+		// TS 36.413 §9.1.4.1 makes NAS-PDU optional per E-RAB item, so any one item
+		// carries it; the lowest EBI is picked so the choice is deterministic.
+		if len(naspdu) > 0 && p.Ebi == carrier {
 			item.NASPDU = s1ap.NASPDU(naspdu)
 		}
 
@@ -226,7 +229,7 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
 	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Request",
 		zap.Uint32("enb-ue-id", uint32(ueConn.ENBUES1APID)),
-		zap.String("ue-ip", defaultPDN.UeIP.String()),
+		zap.Uint8("nas-pdu-bearer", carrier),
 		zap.Int("bearers", len(erabs)),
 		zap.Uint32("kenb-ul-count", kenbCount),
 		zap.Stringer("eea", ue.EEA()),

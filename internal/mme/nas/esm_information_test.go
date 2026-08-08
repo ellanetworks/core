@@ -91,7 +91,7 @@ func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 		t.Fatalf("message count is %d, want 2 (ESM Information Request, Initial Context Setup)", len(cc.sent))
 	}
 
-	if ue.DefaultEBI == 0 {
+	if ue.PDNCount() == 0 {
 		t.Error("no default bearer was activated after the ESM information arrived")
 	}
 }
@@ -214,7 +214,7 @@ func TestAttachWithoutESMInformationTransferFlagDoesNotRequestIt(t *testing.T) {
 		t.Error("an ESM information procedure was started for a UE that did not defer")
 	}
 
-	if ue.DefaultEBI == 0 {
+	if ue.PDNCount() == 0 {
 		t.Error("no default bearer was activated")
 	}
 

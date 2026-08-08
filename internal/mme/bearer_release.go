@@ -49,7 +49,7 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	// then an idempotent no-op.
 	m.releaseAnchorSession(ctx, ue, p)
 
-	if disconnecting || p.Ebi != ue.DefaultEBI {
+	if ue.BearerReleaseOnly(p) {
 		m.sendERABRelease(ctx, ueConn, p, naspdu)
 		// The eNB releases the radio bearer, but the NAS DEACTIVATE EPS BEARER
 		// CONTEXT REQUEST still needs an answer: guard it with T3495 so it is

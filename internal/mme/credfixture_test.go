@@ -261,8 +261,6 @@ func newTestMME(t *testing.T) *MME {
 // testPDN returns the UE's default PDN connection (on the default EPS bearer
 // identity), creating it if absent, so tests can set and read per-bearer fields.
 func testPDN(ue *UeContext) *PdnConnection {
-	ue.DefaultEBI = DefaultERABID
-
 	return ue.EnsurePDN(DefaultERABID)
 }
 

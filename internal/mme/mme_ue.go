@@ -152,7 +152,6 @@ type UeContext struct {
 	lastSeen atomic.Int64
 
 	Pdns                  map[uint8]*PdnConnection
-	DefaultEBI            uint8
 	Ambr                  *models.Ambr // UE-AMBR (profile UE-AMBR), shared model; nil until set at attach
 	RequestedPDNType      uint8        // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
 	RequestedAPN          string       // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
@@ -307,14 +306,20 @@ func (ue *UeContext) Snapshot() UESnapshot {
 	}
 }
 
-// defaultPDNLocked returns the UE's default PDN connection (the bearer
-// established at attach), or nil if no PDN is active. The caller holds ue.mu.
+// defaultPDNLocked returns the UE's lowest-EBI live PDN connection, or nil if
+// none is active. TS 23.401 §5.7.2 makes the default bearer a property of each
+// PDN connection, so this names no 3GPP concept: it only picks one connection
+// deterministically where any would do. The caller holds ue.mu.
 func (ue *UeContext) defaultPDNLocked() *PdnConnection {
-	if ue.DefaultEBI == 0 {
-		return nil
+	var lowest *PdnConnection
+
+	for _, p := range ue.Pdns {
+		if lowest == nil || p.Ebi < lowest.Ebi {
+			lowest = p
+		}
 	}
 
-	return ue.Pdns[ue.DefaultEBI]
+	return lowest
 }
 
 // DefaultPDN returns the UE's default PDN connection under ue.mu, so a caller on
@@ -371,10 +376,7 @@ func (m *MME) AddDefaultPDN(ue *UeContext) *PdnConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	p := ue.EnsurePDN(DefaultERABID)
-	ue.DefaultEBI = DefaultERABID
-
-	return p
+	return ue.EnsurePDN(DefaultERABID)
 }
 
 // fillBearerLocked populates a PDN connection's addressing/QoS from a created EPS
@@ -415,7 +417,6 @@ func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPS
 	ue.Ambr = &models.Ambr{Uplink: qos.AMBRUL, Downlink: qos.AMBRDL}
 
 	p := ue.EnsurePDN(DefaultERABID)
-	ue.DefaultEBI = DefaultERABID
 
 	fillBearerLocked(p, qos, bearer, moved)
 
@@ -495,10 +496,6 @@ func (m *MME) DropPDN(ue *UeContext, ebi uint8) {
 	defer ue.mu.Unlock()
 
 	delete(ue.Pdns, ebi)
-
-	if ue.DefaultEBI == ebi {
-		ue.DefaultEBI = 0
-	}
 }
 
 // NewUeConn allocates an MME-UE-S1AP-ID and registers a bare UE-associated

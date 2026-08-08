@@ -69,8 +69,6 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		m.DropPDN(ue, ebi)
 	}
 
-	mme.EnsureDefaultPDN(ue, admitted)
-
 	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
 		// A concurrent release (e.g. the source association dropping) tore the UE

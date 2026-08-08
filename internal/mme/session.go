@@ -22,7 +22,6 @@ func takeAllPDNs(ue *UeContext) []*PdnConnection {
 	}
 
 	ue.Pdns = nil
-	ue.DefaultEBI = 0
 
 	return out
 }
@@ -48,11 +47,6 @@ func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
 
 	ue.mu.Lock()
 	delete(ue.Pdns, p.Ebi)
-
-	if ue.DefaultEBI == p.Ebi {
-		ue.DefaultEBI = 0
-	}
-
 	ue.mu.Unlock()
 }
 
@@ -143,26 +137,7 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 
 	delete(ue.Pdns, ebi)
 
-	if ue.DefaultEBI == ebi {
-		// An attached UE keeps a default PDN connection: leaving this at 0 while
-		// other connections remain makes its next Initial Context Setup fail.
-		ue.DefaultEBI = lowestEBILocked(ue)
-	}
-
 	return p, len(ue.Pdns) == 0
-}
-
-// Caller holds ue.mu.
-func lowestEBILocked(ue *UeContext) uint8 {
-	lowest := uint8(0)
-
-	for ebi := range ue.Pdns {
-		if lowest == 0 || ebi < lowest {
-			lowest = ebi
-		}
-	}
-
-	return lowest
 }
 
 func (m *MME) UnwindPDN(ctx context.Context, ue *UeContext, p *PdnConnection, moved bool) {
@@ -175,10 +150,5 @@ func (m *MME) UnwindPDN(ctx context.Context, ue *UeContext, p *PdnConnection, mo
 
 	ue.mu.Lock()
 	delete(ue.Pdns, p.Ebi)
-
-	if ue.DefaultEBI == p.Ebi {
-		ue.DefaultEBI = 0
-	}
-
 	ue.mu.Unlock()
 }

@@ -312,8 +312,6 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 
 // testPDN returns the UE's default PDN connection, creating it if absent.
 func testPDN(ue *mme.UeContext) *mme.PdnConnection {
-	ue.DefaultEBI = mme.DefaultERABID
-
 	return ue.EnsurePDN(mme.DefaultERABID)
 }
 

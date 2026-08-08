@@ -842,10 +842,9 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 		t.Fatal("rejected attach-default PDN not dropped")
 	}
 
-	defaultEBI := ue.DefaultEBI
-
-	if defaultEBI != 6 {
-		t.Fatalf("default EBI = %d, want 6 (promoted survivor)", defaultEBI)
+	survivor := m.DefaultPDN(ue)
+	if survivor == nil || survivor.Ebi != 6 {
+		t.Fatalf("surviving PDN = %+v, want the one on EBI 6", survivor)
 	}
 }
 
