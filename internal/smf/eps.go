@@ -92,9 +92,12 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 
 	// Converted at the boundary so nothing downstream mixes the two enumerations,
 	// which agree only up to IPv4v6.
+	// #28 is "could not be recognised", which has the UE retry with another type
+	// and ignore the back-off timer (TS 24.301 §6.5.1.4.3). Non-IP and Ethernet are
+	// recognised and disallowed here, which is #57.
 	requestedType, err := pduSessionTypeFor(req.RequestedPDNType)
 	if err != nil {
-		return models.EPSBearer{}, &models.PDNTypeError{Cause: eps.ESMCauseUnknownPDNType}
+		return models.EPSBearer{}, &models.PDNTypeError{Cause: eps.ESMCausePDNTypeIPv4v6OnlyAllowed}
 	}
 
 	pduType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)

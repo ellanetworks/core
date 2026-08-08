@@ -12,17 +12,49 @@ import (
 func TestNetworkFeatureSupportAdvertisesInterworking(t *testing.T) {
 	m := &MME{}
 
-	if nfs := m.NetworkFeatureSupport(false); nfs.IWKN26 {
+	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{}); nfs.IWKN26 {
 		t.Error("IWK N26 advertised to a UE that did not indicate N1 mode")
 	}
 
-	nfs := m.NetworkFeatureSupport(true)
+	// Octet 9 bit 6 is N1 mode; octet 8 bit 8 is ePCO.
+	nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x80, 0x20}})
 	if !nfs.IWKN26 {
 		t.Error("IWK N26 not advertised to a UE that indicated N1 mode")
 	}
 
+	if !nfs.EPCO {
+		t.Error("ePCO not advertised to a UE that indicated support for the IE")
+	}
+
 	if !nfs.IMSVoPS {
 		t.Error("the IMS VoPS indication was lost")
+	}
+
+	// TS 24.301 §5.5.1.2.4 keys the bit on the UE's own advertisement: claiming it
+	// to a UE that cannot parse the element would lose the container entirely.
+	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x00, 0x20}}); nfs.EPCO {
+		t.Error("ePCO advertised to a UE that did not indicate support for the IE")
+	}
+}
+
+func TestUENetworkCapabilitySupportsEPCO(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		rest []byte
+		want bool
+	}{
+		{"no feature octets at all", nil, false},
+		{"too short to reach octet 8", []byte{0x00}, false},
+		{"octet 8 present, ePCO clear", []byte{0x00, 0x00}, false},
+		{"octet 8 present, ePCO set", []byte{0x00, 0x80}, true},
+		{"HC-CP CIoT set, ePCO clear", []byte{0x00, 0x40}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := eps.UENetworkCapability{Rest: tc.rest}
+			if got := c.SupportsEPCO(); got != tc.want {
+				t.Errorf("SupportsEPCO() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

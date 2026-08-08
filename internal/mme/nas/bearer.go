@@ -255,7 +255,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 
 	plmn := operator.PLMN()
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn)
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, transferredWithEPCO(ue))
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, fmt.Errorf("encode T3412: %w", err)
 	}
 
-	nfs := m.NetworkFeatureSupport(ue.UeNetCap().SupportsN1Mode())
+	nfs := m.NetworkFeatureSupport(ue.UeNetCap())
 
 	accept := &eps.AttachAccept{
 		EPSAttachResult:       eps.AttachResultEPS,
@@ -367,7 +367,12 @@ func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
 // REQUEST for a PDN connection (TS 24.301 §8.3.1).
-func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID) ([]byte, error) {
+// useEPCO selects the Extended protocol configuration options IE over the classic
+// one. TS 24.301 §6.6.1.1 makes ePCO end-to-end for the MME on a PDN connection
+// transferred from a PDU session, and for the UE on the same connection once the
+// ePCO bit was set — which tracks the UE's own advertised support, so both ends
+// agree. The two elements are mutually exclusive (§8.3.6.4).
+func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID, useEPCO bool) ([]byte, error) {
 	apn := eps.APN(qos.APN)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -412,7 +417,11 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
 
-	if snssai := p.Snssai; snssai != nil {
+	// A UE that allocated no PDU session identity does not support 5GC NAS, and
+	// gets no 5GS parameters (TS 23.502 §4.11.0a.5 NOTE 1). N1 mode being disabled
+	// is not the test: such a UE still allocates one, and still needs the slice so
+	// its address survives a later move (TS 23.501 §5.17.2.1 NOTE 4).
+	if snssai := p.Snssai; snssai != nil && p.PDUSessionID != 0 {
 		container, err := snssaiPCOContainer(*snssai, plmn)
 		if err != nil {
 			return nil, err
@@ -421,7 +430,11 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 		pco.Containers = append(pco.Containers, container)
 	}
 
-	activate.ProtocolConfigurationOptions = &pco
+	if useEPCO {
+		activate.ExtendedProtocolConfigurationOptions = &pco
+	} else {
+		activate.ProtocolConfigurationOptions = &pco
+	}
 
 	// On an IPv4v6→single-stack downgrade, tell the UE which family was allowed
 	// (#50/#51) so it does not retry the other on this APN (TS 24.301).

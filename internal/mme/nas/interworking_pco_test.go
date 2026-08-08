@@ -16,10 +16,11 @@ import (
 
 func TestActivateDefaultCarriesTheSNSSAI(t *testing.T) {
 	p := &mme.PdnConnection{
-		Ebi:     mme.DefaultERABID,
-		PdnType: eps.PDNTypeIPv4,
-		UeIP:    netip.MustParseAddr("10.45.0.1"),
-		Snssai:  &models.Snssai{Sst: 1, Sd: "000001"},
+		Ebi:          mme.DefaultERABID,
+		PdnType:      eps.PDNTypeIPv4,
+		UeIP:         netip.MustParseAddr("10.45.0.1"),
+		Snssai:       &models.Snssai{Sst: 1, Sd: "000001"},
+		PDUSessionID: 5,
 	}
 	qos := &mme.EpsQoS{
 		APN: "internet", QCI: 9,
@@ -76,7 +77,13 @@ func TestActivateDefaultOmitsTheSNSSAIWhenTheAnchorHasNone(t *testing.T) {
 func buildActivate(t *testing.T, p *mme.PdnConnection, qos *mme.EpsQoS) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"})
+	return buildActivateWithEPCO(t, p, qos, false)
+}
+
+func buildActivateWithEPCO(t *testing.T, p *mme.PdnConnection, qos *mme.EpsQoS, useEPCO bool) *eps.ActivateDefaultEPSBearerContextRequest {
+	t.Helper()
+
+	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, useEPCO)
 	if err != nil {
 		t.Fatalf("buildActivateDefaultESM: %v", err)
 	}
@@ -117,5 +124,73 @@ func TestPDUSessionIDFromPCO(t *testing.T) {
 	empty := nas.NewRequestedProtocolConfigurationOptions(nas.PCOContainerDNSServerIPv4Address)
 	if got := pduSessionIDFromPCOs(&empty, nil); got != 0 {
 		t.Errorf("with no identity container = %d, want 0", got)
+	}
+}
+
+// A UE that allocated no PDU session identity does not support 5GC NAS, so it
+// gets no 5GS parameters (TS 23.502 §4.11.0a.5 NOTE 1).
+func TestActivateDefaultWithholdsTheSNSSAIFromA5GCUnawareUE(t *testing.T) {
+	p := &mme.PdnConnection{
+		Ebi:     mme.DefaultERABID,
+		PdnType: eps.PDNTypeIPv4,
+		UeIP:    netip.MustParseAddr("10.45.0.1"),
+		Snssai:  &models.Snssai{Sst: 1, Sd: "000001"},
+	}
+	qos := &mme.EpsQoS{
+		APN: "internet", QCI: 9,
+		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
+		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
+	}
+
+	act := buildActivate(t, p, qos)
+
+	if act.ProtocolConfigurationOptions == nil {
+		t.Fatal("no protocol configuration options in the Activate Default EPS Bearer Context Request")
+	}
+
+	for _, c := range act.ProtocolConfigurationOptions.Containers {
+		if c.ID == nas.PCOContainerSNSSAI {
+			t.Error("an S-NSSAI container went to a UE that sent no PDU session identity")
+		}
+	}
+}
+
+// TS 24.301 §6.6.1.1: a PDN connection transferred from a PDU session carries its
+// protocol configuration options in the extended element, and §8.3.6.4 makes the
+// two mutually exclusive — so the S-NSSAI container must move with it.
+func TestActivateDefaultCarriesTheSNSSAIInEPCOOnATransferredPDN(t *testing.T) {
+	p := &mme.PdnConnection{
+		Ebi:          mme.DefaultERABID,
+		PdnType:      eps.PDNTypeIPv4,
+		UeIP:         netip.MustParseAddr("10.45.0.1"),
+		Snssai:       &models.Snssai{Sst: 1, Sd: "000001"},
+		PDUSessionID: 5,
+	}
+	qos := &mme.EpsQoS{
+		APN: "internet", QCI: 9,
+		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
+		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
+	}
+
+	act := buildActivateWithEPCO(t, p, qos, true)
+
+	if act.ProtocolConfigurationOptions != nil {
+		t.Error("both protocol configuration options elements were sent; TS 24.301 §8.3.6.4 makes them exclusive")
+	}
+
+	if act.ExtendedProtocolConfigurationOptions == nil {
+		t.Fatal("no extended protocol configuration options on a transferred PDN connection")
+	}
+
+	found := false
+
+	for _, c := range act.ExtendedProtocolConfigurationOptions.Containers {
+		if c.ID == nas.PCOContainerSNSSAI {
+			found = true
+		}
+	}
+
+	if !found {
+		t.Error("the S-NSSAI container did not move into the extended element")
 	}
 }

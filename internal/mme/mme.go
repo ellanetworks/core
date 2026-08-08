@@ -221,13 +221,18 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 	}
 }
 
-func (m *MME) NetworkFeatureSupport(n1Mode bool) *eps.NetworkFeatureSupport {
+// NetworkFeatureSupport builds the EPS network feature support IE from the UE's
+// advertised capability. TS 24.301 §5.5.1.2.4 makes the ePCO bit a `shall` once
+// both ends support the IE, and §6.6.1.1 then has a transferred PDN connection
+// carry its protocol configuration options in the extended element.
+func (m *MME) NetworkFeatureSupport(cap eps.UENetworkCapability) *eps.NetworkFeatureSupport {
 	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
 	if m.EPSNetworkFeatureSupport != nil {
 		nfs = *m.EPSNetworkFeatureSupport
 	}
 
-	nfs.IWKN26 = n1Mode && models.InterworkingWithoutN26
+	nfs.IWKN26 = cap.SupportsN1Mode() && models.InterworkingWithoutN26
+	nfs.EPCO = cap.SupportsEPCO()
 
 	return &nfs
 }

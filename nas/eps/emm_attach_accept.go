@@ -65,6 +65,9 @@ type NetworkFeatureSupport struct {
 	// Reads inverted: 1 means the network has no N26 interface and the UE must
 	// move its own sessions (octet 4 bit 7).
 	IWKN26 bool
+	// EPCO advertises the Extended protocol configuration options IE
+	// (TS 24.301 §5.5.1.2.4).
+	EPCO bool
 
 	// HasOctet4 records whether the sender included octet 4, so the element
 	// re-encodes at the length it arrived with; Rest carries octet 5 onwards.
@@ -73,7 +76,10 @@ type NetworkFeatureSupport struct {
 	Rest        []byte
 }
 
-const iwkN26Bit = 1 << 6
+const (
+	iwkN26Bit = 1 << 6
+	epcoBit4  = 1 << 3
+)
 
 // maxNetworkFeatureSupportLen is the element's longest value: TS 24.301
 // §9.9.3.12A caps the element at 5 octets, two of which are its IEI and length.
@@ -104,7 +110,8 @@ func ParseNetworkFeatureSupport(b []byte) (NetworkFeatureSupport, error) {
 	if len(b) > 1 {
 		out.HasOctet4 = true
 		out.IWKN26 = b[1]&iwkN26Bit != 0
-		out.Octet4Spare = b[1] &^ iwkN26Bit
+		out.EPCO = b[1]&epcoBit4 != 0
+		out.Octet4Spare = b[1] &^ (iwkN26Bit | epcoBit4)
 	}
 
 	if len(b) > 2 {
@@ -116,7 +123,7 @@ func ParseNetworkFeatureSupport(b []byte) (NetworkFeatureSupport, error) {
 
 // AppendBinary encodes the EPS network feature support IE value onto b.
 func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
-	hasOctet4 := n.HasOctet4 || n.IWKN26 || n.Octet4Spare != 0
+	hasOctet4 := n.HasOctet4 || n.IWKN26 || n.EPCO || n.Octet4Spare != 0
 
 	if len(n.Rest) > 0 && !hasOctet4 {
 		return b, fmt.Errorf("nas/eps: EPS network feature support: octet 5 onwards requires octet 4")
@@ -138,7 +145,11 @@ func (n NetworkFeatureSupport) AppendBinary(b []byte) ([]byte, error) {
 		return b, nil
 	}
 
-	octet4 := n.Octet4Spare &^ iwkN26Bit
+	octet4 := n.Octet4Spare &^ (iwkN26Bit | epcoBit4)
+	if n.EPCO {
+		octet4 |= epcoBit4
+	}
+
 	if n.IWKN26 {
 		octet4 |= iwkN26Bit
 	}

@@ -127,9 +127,11 @@ func TestCreateEPSSessionRefusesADivergentPDNType(t *testing.T) {
 			t.Fatalf("PDN type %d was accepted, and would have been served as another type", pdnType)
 		}
 
+		// #57, not #28: the type is recognised and disallowed, and #28 would have the
+		// UE retry with another type in a loop (TS 24.301 §6.5.1.4.3).
 		var pdnErr *models.PDNTypeError
-		if !errors.As(err, &pdnErr) || pdnErr.Cause != eps.ESMCauseUnknownPDNType {
-			t.Errorf("PDN type %d drew %v, want ESM cause #28", pdnType, err)
+		if !errors.As(err, &pdnErr) || pdnErr.Cause != eps.ESMCausePDNTypeIPv4v6OnlyAllowed {
+			t.Errorf("PDN type %d drew %v, want ESM cause #57", pdnType, err)
 		}
 	}
 }

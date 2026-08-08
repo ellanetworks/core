@@ -6,6 +6,7 @@ package nas
 import (
 	"errors"
 
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -45,4 +46,14 @@ func attachBearerRejectCause(t eps.RequestType, err error) eps.ESMCause {
 	}
 
 	return eps.ESMCauseRequestRejectedUnspecified
+}
+
+// transferredWithEPCO reports whether this PDN connection's protocol
+// configuration options go in the extended element: TS 24.301 §6.6.1.1 makes
+// ePCO end-to-end on a connection transferred from a PDU session, and the UE
+// only agrees once the ePCO bit was set, which follows its own advertised
+// support. The clause's other unconditional cases — NB-S1 mode, UAS APNs, non-IP
+// and Ethernet PDN types — are all refused by this network.
+func transferredWithEPCO(ue *mme.UeContext) bool {
+	return ue.RequestedType == eps.RequestTypeHandover && ue.UeNetCap().SupportsEPCO()
 }

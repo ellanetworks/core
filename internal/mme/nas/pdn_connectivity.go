@@ -177,7 +177,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), plmn)
+	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), plmn, transferredWithEPCO(ue))
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)

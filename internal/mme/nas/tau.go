@@ -233,7 +233,7 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		EPSUpdateResult:       eps.EPSUpdateResultTA,
 		GUTI:                  &guti,
 		TAIList:               &taiList,
-		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap().SupportsN1Mode()),
+		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap()),
 	}
 
 	if opts.combined {

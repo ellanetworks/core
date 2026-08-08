@@ -148,13 +148,6 @@ func (smContext *SMContext) IsPTIInUse(pti uint8) bool {
 	return ok
 }
 
-func (smContext *SMContext) SetPolicyData(policy *Policy) {
-	smContext.Mutex.Lock()
-	defer smContext.Mutex.Unlock()
-
-	smContext.PolicyData = policy
-}
-
 func (smContext *SMContext) SetPFCPSession(seid uint64) {
 	if smContext.PFCPContext != nil {
 		return
