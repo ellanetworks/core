@@ -201,8 +201,10 @@ func registerScenarioTest(scenarioName string) *TestResult {
 	return globalReporter.Start(scenarioName)
 }
 
-// finishScenarioTest records the outcome of a scenario subtest.
-// Call this after t.Run returns, using t.Failed() to determine pass/fail.
+func skipScenarioTest(tr *TestResult, reason string) {
+	globalReporter.Skip(tr, reason)
+}
+
 func finishScenarioTest(t *testing.T, tr *TestResult) {
 	if t.Failed() {
 		reason := tr.Reason

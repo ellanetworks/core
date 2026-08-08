@@ -42,8 +42,9 @@ func runNetworkRulesAndFlowReports(t *testing.T, ranPrefix string) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	for _, shape := range buildRuleShapes(fp) {
+	for i, shape := range buildRuleShapes(fp) {
 		shape := shape
+		shape.srcPortBase = probeSourcePortBase + i*probeSourcePortStride
 
 		t.Run(shape.name, func(t *testing.T) {
 			runRuleShape(ctx, t, env, fp, shape)
@@ -56,16 +57,13 @@ func runNetworkRulesAndFlowReports(t *testing.T, ranPrefix string) {
 // runs each protocol's probe under the same policy, and asserts the
 // per-protocol downlink-or-uplink flow content.
 type ruleShape struct {
-	name      string
-	direction string // "uplink" or "downlink"
-	action    string // "allow" or "drop"
-	scenario  string // "allowed" or "blocked", resolved from fp
-	protocols []string
-	// buildRules returns the per-protocol rules for one protocol. The
-	// returned rules are merged with rules from other protocols and
-	// placed into either policy.Downlink or policy.Uplink depending
-	// on shape.direction.
-	buildRules func(fp ipFamilyParams, pp probeProtocolParams) []client.PolicyRule
+	name        string
+	direction   string // "uplink" or "downlink"
+	action      string // "allow" or "drop"
+	scenario    string // "allowed" or "blocked", resolved from fp
+	protocols   []string
+	srcPortBase int
+	buildRules  func(fp ipFamilyParams, pp probeProtocolParams) []client.PolicyRule
 }
 
 func buildRuleShapes(fp ipFamilyParams) []ruleShape {
@@ -288,7 +286,7 @@ func runRuleShape(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamily
 		scenarioName := fmt.Sprintf("%s/%s", shape.scenario, p)
 		tr := globalReporter.Start(scenarioName)
 		QuietLogf(t, tr, "running %s", scenarioName)
-		env.RunScenario(ctx, t, shape.scenario, tr, scenarioRunArgs(shape.scenario, spec, pp)...)
+		env.RunScenario(ctx, t, shape.scenario, tr, scenarioRunArgs(shape.scenario, spec, pp, shape.srcPortBase)...)
 		finishScenarioTest(t, tr)
 	}
 
@@ -326,6 +324,7 @@ func assertRuleShapeProtocol(
 	flows := fixture.AssertFlowReports(
 		ctx, t, env.Client,
 		&filter,
+		probeTupleScope(shape.direction, pp, shape.srcPortBase, len(expectedIMSIs)),
 		expectedFlowsContentPredicate(shape.direction, shape.action, expectedIMSIs, fp, pp),
 		90*time.Second,
 	)

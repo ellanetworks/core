@@ -77,6 +77,7 @@ func runConnectivityExpectAllowedIPv6(ctx context.Context, env scenarios.Env, pa
 					tunInterfaceName,
 					env.PDUSessionType(),
 					protocol,
+					probeSourcePorts(params.SourcePortBase, i),
 				)
 			})
 		}()
@@ -97,6 +98,7 @@ func runConnectivityExpectAllowedIPv6Test(
 	tunInterfaceName string,
 	pduSessionType uint8,
 	protocol connectivityProbeProtocol,
+	srcPortBase int,
 ) error {
 	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, pduSessionType)
 	if err != nil {
@@ -149,7 +151,7 @@ func runConnectivityExpectAllowedIPv6Test(
 		return fmt.Errorf("timeout waiting for ULA address on %s: %v", tunInterfaceName, err)
 	}
 
-	if err := runConnectivityProbe(ctx, protocol, tunInterfaceName, scenarios.DefaultPingDestinationV6, true); err != nil {
+	if err := runConnectivityProbe(ctx, protocol, tunInterfaceName, scenarios.DefaultPingDestinationV6, true, srcPortBase); err != nil {
 		return fmt.Errorf("%s probe to %s via %s failed, but was expected to succeed: %v", protocol, scenarios.DefaultPingDestinationV6, tunInterfaceName, err)
 	}
 

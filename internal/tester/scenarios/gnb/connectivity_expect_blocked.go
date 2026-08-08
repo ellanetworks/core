@@ -78,6 +78,7 @@ func runConnectivityExpectBlocked(ctx context.Context, env scenarios.Env, params
 					env.PingDestination(),
 					env.PDUSessionType(),
 					protocol,
+					probeSourcePorts(params.SourcePortBase, i),
 				)
 			})
 		}()
@@ -99,6 +100,7 @@ func runConnectivityExpectBlockedTest(
 	pingDestination string,
 	pduSessionType uint8,
 	protocol connectivityProbeProtocol,
+	srcPortBase int,
 ) error {
 	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, pduSessionType)
 	if err != nil {
@@ -147,7 +149,7 @@ func runConnectivityExpectBlockedTest(
 		zap.String("UE IP", ueIP),
 	)
 
-	if err := runConnectivityProbe(ctx, protocol, tunInterfaceName, pingDestination, false); err == nil {
+	if err := runConnectivityProbe(ctx, protocol, tunInterfaceName, pingDestination, false, srcPortBase); err == nil {
 		return fmt.Errorf("%s probe to %s via %s succeeded, but was expected to fail (deny rule should be in force)", protocol, pingDestination, tunInterfaceName)
 	}
 

@@ -51,6 +51,14 @@ func ParseProtocol(s string) (Protocol, error) {
 	}
 }
 
+func RunFromSourcePorts(ctx context.Context, protocol Protocol, tun, dst string, port int, ipv6 bool, srcPortBase int) error {
+	if protocol == TCP {
+		return sendTCP(ctx, tun, dst, port, AttemptCount, AttemptTimeout, DefaultPayload, srcPortBase)
+	}
+
+	return Run(ctx, protocol, tun, dst, port, ipv6)
+}
+
 // Run probes dst:port from tun; ICMP ignores port. Returns nil once one reply arrives.
 func Run(ctx context.Context, protocol Protocol, tun, dst string, port int, ipv6 bool) error {
 	switch protocol {
@@ -112,6 +120,27 @@ func bindToDeviceControl(tun string) func(network, address string, c syscall.Raw
 	}
 }
 
+func reusableBindToDeviceControl(tun string) func(network, address string, c syscall.RawConn) error {
+	bind := bindToDeviceControl(tun)
+
+	return func(network, address string, c syscall.RawConn) error {
+		if err := bind(network, address, c); err != nil {
+			return err
+		}
+
+		var sockErr error
+
+		ctrlErr := c.Control(func(fd uintptr) {
+			sockErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+		})
+		if ctrlErr != nil {
+			return ctrlErr
+		}
+
+		return sockErr
+	}
+}
+
 // SendUDP sends all count datagrams regardless of per-attempt errors so flow-report
 // packet counts stay deterministic. Returns nil if at least one reply was received.
 func SendUDP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
@@ -163,6 +192,10 @@ func SendUDP(ctx context.Context, tun, dst string, port, count int, perAttemptTi
 // SendTCP attempts all count connections regardless of per-attempt errors so flow
 // counts stay deterministic. Returns nil if at least one connection completed.
 func SendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
+	return sendTCP(ctx, tun, dst, port, count, perAttemptTimeout, payload, 0)
+}
+
+func sendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte, srcPortBase int) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
 		Control: bindToDeviceControl(tun),
@@ -172,7 +205,15 @@ func SendTCP(ctx context.Context, tun, dst string, port, count int, perAttemptTi
 
 	var lastErr error
 
-	for i := 0; i < count; i++ {
+	if srcPortBase != 0 {
+		dialer.Control = reusableBindToDeviceControl(tun)
+	}
+
+	for i := range count {
+		if srcPortBase != 0 {
+			dialer.LocalAddr = &net.TCPAddr{Port: srcPortBase + i}
+		}
+
 		if err := tcpProbeAttempt(ctx, &dialer, dst, port, perAttemptTimeout, payload); err != nil {
 			lastErr = err
 			continue

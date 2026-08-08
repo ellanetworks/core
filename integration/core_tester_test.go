@@ -143,18 +143,20 @@ func TestIntegrationTester(t *testing.T) {
 		if reason, skip := scenariosSkipped[name]; skip {
 			tr := registerScenarioTest(name)
 			t.Run(name, func(t *testing.T) { t.Skipf("%s: %s", name, reason) })
-			finishScenarioTest(t, tr)
+			skipScenarioTest(tr, reason)
 
 			continue
 		}
 
 		if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
 			if DetectIPFamily() != requiredFamily {
+				reason := fmt.Sprintf("requires %s mode, running %s", requiredFamily, DetectIPFamily())
+
 				tr := registerScenarioTest(name)
 				t.Run(name, func(t *testing.T) {
-					t.Skipf("skipping %s: requires %s mode, running %s", name, requiredFamily, DetectIPFamily())
+					t.Skipf("skipping %s: %s", name, reason)
 				})
-				finishScenarioTest(t, tr)
+				skipScenarioTest(tr, reason)
 
 				continue
 			}
@@ -162,11 +164,13 @@ func TestIntegrationTester(t *testing.T) {
 
 		if exclusions, ok := scenarioIPFamilyExclusions[name]; ok {
 			if exclusions[DetectIPFamily()] {
+				reason := fmt.Sprintf("N6 does not support this address family in %s mode", DetectIPFamily())
+
 				tr := registerScenarioTest(name)
 				t.Run(name, func(t *testing.T) {
-					t.Skipf("skipping %s: N6 does not support this address family in %s mode", name, DetectIPFamily())
+					t.Skipf("skipping %s: %s", name, reason)
 				})
-				finishScenarioTest(t, tr)
+				skipScenarioTest(tr, reason)
 
 				continue
 			}
