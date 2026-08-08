@@ -360,8 +360,6 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
 
-	smContext.SetPolicyData(policy)
-
 	err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
 	if err != nil {
 		span.RecordError(err)

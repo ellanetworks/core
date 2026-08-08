@@ -276,15 +276,16 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
+	var dropped *droppedSource
+	if commit != nil {
+		dropped = smContext.finishTransferCommit(commit)
+	}
+
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-	if commit == nil {
-		return nil, nil
-	}
-
-	return smContext.finishTransferCommit(commit), nil
+	return dropped, nil
 }
 
 func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smContext *SMContext) ([]*PDR, []*FAR, error) {

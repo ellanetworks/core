@@ -244,15 +244,16 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 		return nil, err
 	}
 
+	var dropped *droppedSource
+	if commit != nil {
+		dropped = smContext.finishTransferCommit(commit)
+	}
+
 	// Register the IPv6 session so the UPF's RA responder answers the UE's Router
 	// Solicitation with the /64 prefix. No-op for an IPv4-only bearer.
 	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
-	if commit == nil {
-		return nil, nil
-	}
-
-	return smContext.finishTransferCommit(commit), nil
+	return dropped, nil
 }
 
 // UpdateEPSSessionAMBR updates an established session's Session-AMBR in the UPF
@@ -286,10 +287,14 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, 
 		return fmt.Errorf("update Session-AMBR for %q: %w", ref, err)
 	}
 
-	// Cache the new rate only after the data plane has accepted it.
+	// Cache the new rate only after the data plane has accepted it. Swapped, not
+	// written through: a published *Policy is read by whoever holds a pointer to
+	// it, so it is treated as immutable.
 	if smContext.PolicyData != nil {
-		smContext.PolicyData.Ambr.Uplink = ambrUplink
-		smContext.PolicyData.Ambr.Downlink = ambrDownlink
+		updated := *smContext.PolicyData
+		updated.Ambr.Uplink = ambrUplink
+		updated.Ambr.Downlink = ambrDownlink
+		smContext.PolicyData = &updated
 	}
 
 	return nil

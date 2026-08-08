@@ -752,3 +752,136 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 		t.Error("an N2 release went for a session whose user plane was already down")
 	}
 }
+
+// The session's policy must describe the access it is on. Between the accept and
+// the RAN bind the move has not committed, so a reader must still see the EPS
+// policy, not the 5GS one the accept was built from.
+func TestTransferCommitsTheTargetPolicyOnlyAtTheRANBind(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	pcf.policy.PolicyID = "5gs-policy"
+
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(1)
+	req.APN = testDNN
+	req.PDUSessionID = movedPDUSessionID
+	req.Snssai = testSnssai
+	req.PolicyID = "eps-policy"
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	sc := s.GetSession(bearer.Ref)
+	if sc == nil {
+		t.Fatal("EPS session is not in the pool")
+	}
+
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest())
+	if err != nil || reject != nil {
+		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
+	}
+
+	sc.Mutex.Lock()
+	access, policyID, qfi := sc.Access, sc.PolicyData.PolicyID, sc.PolicyData.QosData.QFI
+	sc.Mutex.Unlock()
+
+	if access != smf.Access4G {
+		t.Fatal("the session left EPS before the gNB bound its downlink")
+	}
+
+	if policyID != "eps-policy" {
+		t.Errorf("policy %q is in force on an EPS session, want %q: the target policy was committed early", policyID, "eps-policy")
+	}
+
+	if qfi != 0 {
+		t.Errorf("QFI %d is in force on an EPS session, want 0", qfi)
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
+	}
+
+	sc.Mutex.Lock()
+	access, policyID, qfi = sc.Access, sc.PolicyData.PolicyID, sc.PolicyData.QosData.QFI
+	sc.Mutex.Unlock()
+
+	if access != smf.Access5G {
+		t.Fatal("the session is not on 5GS after the gNB bound its downlink")
+	}
+
+	if policyID != "5gs-policy" || qfi != 1 {
+		t.Errorf("policy %q QFI %d in force after the move, want %q / 1", policyID, qfi, "5gs-policy")
+	}
+}
+
+// The RA tunnel entry is programmed from the committed policy, not the source
+// access's: it already reads the committed access for its encapsulation, so a
+// policy read on the other side of the commit would disagree with it.
+func TestTransferRegistersTheRAEntryWithTheTargetQFI(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	store.allocatedIPv6 = netip.MustParseAddr("2001:db8:2::")
+
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(3)
+	req.APN = testDNN
+	req.PDUSessionID = movedPDUSessionID
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest())
+	if err != nil || reject != nil {
+		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
+	}
+
+	reg := upf.lastIPv6Reg
+	if reg == nil {
+		t.Fatal("IPv6 session not registered with the UPF after the move")
+	}
+
+	if reg.QFI != 1 {
+		t.Errorf("RA entry QFI = %d, want 1: it was programmed from the EPS policy", reg.QFI)
+	}
+
+	if reg.S1U {
+		t.Error("RA entry marked S1U (PSC-less) for a session now on N3")
+	}
+}
