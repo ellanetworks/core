@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 type deregisterTestSmf struct {
@@ -40,7 +41,7 @@ func (s *deregisterTestSmf) SessionsByDNN(string) []*smf.SMContext { return nil 
 
 func (s *deregisterTestSmf) SessionCount() int { return 0 }
 
-func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, []byte) (string, []byte, error) {
+func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte) (string, []byte, error) {
 	return "", nil, nil
 }
 

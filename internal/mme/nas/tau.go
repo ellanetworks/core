@@ -54,15 +54,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		reconcileBearerContextStatus(ctx, m, ue, *req.EPSBearerContextStatus)
 	}
 
-	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
-		combined:            isCombinedUpdate(uint8(req.EPSUpdateType)),
-		includeBearerStatus: req.EPSBearerContextStatus != nil,
-	})
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		return nasreply.Handled()
-	}
-
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
 		ueNetCap := ue.UeNetCap()
 		if req.UENetworkCapability != nil {
@@ -75,6 +66,15 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		}
 
 		ue.SetUESecurityCapability(ueNetCap, msNetCap, mme.MintAuthProofForTrackingAreaUpdate())
+	}
+
+	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
+		combined:            isCombinedUpdate(uint8(req.EPSUpdateType)),
+		includeBearerStatus: req.EPSBearerContextStatus != nil,
+	})
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		return nasreply.Handled()
 	}
 
 	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
@@ -230,12 +230,10 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	accept := &eps.TrackingAreaUpdateAccept{
-		EPSUpdateResult: eps.EPSUpdateResultTA,
-		GUTI:            &guti,
-		TAIList:         &taiList,
-		// Re-advertise IMS voice over PS session so the indication is not lost on a
-		// periodic TAU (TS 24.301), consistent with the Attach Accept.
-		NetworkFeatureSupport: m.NetworkFeatureSupport(),
+		EPSUpdateResult:       eps.EPSUpdateResultTA,
+		GUTI:                  &guti,
+		TAIList:               &taiList,
+		NetworkFeatureSupport: m.NetworkFeatureSupport(ue.UeNetCap()),
 	}
 
 	if opts.combined {

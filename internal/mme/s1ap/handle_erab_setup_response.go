@@ -52,7 +52,7 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 		p.EnbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
 
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, p.EnbFTEID); err != nil {
+		if err := m.Session.ModifyEPSSession(ctx, p.SessionRef, p.EnbFTEID); err != nil {
 			logger.MmeLog.Error("failed to set the eNB F-TEID on the additional EPS session",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 

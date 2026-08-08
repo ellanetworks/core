@@ -16,6 +16,7 @@ type UplinkNasTransportOpts struct {
 	PayloadContainer []byte
 	DNN              string
 	SNSSAI           models.Snssai
+	RequestType      fgs.RequestType
 }
 
 func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) ([]byte, error) {
@@ -32,7 +33,11 @@ func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) ([]byte, error) {
 	}
 
 	pduSessionID := fgs.PDUSessionID(opts.PDUSessionID)
-	requestType := fgs.RequestType(1) // initial request
+
+	requestType := opts.RequestType
+	if requestType == 0 {
+		requestType = fgs.RequestTypeInitialRequest
+	}
 
 	snssai := fgs.SNSSAI{SST: uint8(opts.SNSSAI.Sst)}
 

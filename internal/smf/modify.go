@@ -81,7 +81,7 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
-	s.registerIPv6SessionIfNeeded(ctx, smContext)
+	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -97,7 +97,7 @@ func handleModifyIndicationTransfer(b []byte, smContext *SMContext) ([]int64, er
 		return nil, err
 	}
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), Access5G)
 
 	qfis := make([]int64, 0, len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList))
 	for _, item := range transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList {

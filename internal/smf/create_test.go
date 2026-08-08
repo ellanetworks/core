@@ -237,7 +237,7 @@ func TestPDUSessionTypeRejectCause(t *testing.T) {
 		typeIPv6         = fgs.PDUSessionTypeIPv6
 		typeIPv4v6       = fgs.PDUSessionTypeIPv4v6
 		typeUnstructured = uint8(4)
-		typeEthernet     = uint8(3)
+		typeEthernet     = uint8(5)
 	)
 
 	tests := []struct {
@@ -249,13 +249,17 @@ func TestPDUSessionTypeRejectCause(t *testing.T) {
 	}{
 		{"IPv6 requested + IPv4-only pool", uint8(typeIPv6), "10.0.0.0/24", "", fgs.GSMCausePDUSessionTypeIPv4OnlyAllowed},
 		{"IPv4 requested + IPv6-only pool", uint8(typeIPv4), "", "2001:db8::/32", fgs.GSMCausePDUSessionTypeIPv6OnlyAllowed},
-		{"IPv6 requested + no pools", uint8(typeIPv6), "", "", fgs.GSMCauseUnknownPDUSessionType},
-		{"IPv4 requested + no pools", uint8(typeIPv4), "", "", fgs.GSMCauseUnknownPDUSessionType},
-		{"IPv4v6 requested + no pools", uint8(typeIPv4v6), "", "", fgs.GSMCauseUnknownPDUSessionType},
+		// No pool at all is not an unrecognised type: it is the network having no
+		// address to give, which is #26 — and the only one of these that may carry a
+		// Back-off timer value IE (TS 24.301 §6.5.1.4.1).
+		{"IPv6 requested + no pools", uint8(typeIPv6), "", "", fgs.GSMCauseInsufficientResources},
+		{"IPv4 requested + no pools", uint8(typeIPv4), "", "", fgs.GSMCauseInsufficientResources},
+		{"IPv4v6 requested + no pools", uint8(typeIPv4v6), "", "", fgs.GSMCauseInsufficientResources},
+		{"Unstructured requested + no pools", typeUnstructured, "", "", fgs.GSMCauseInsufficientResources},
 		{"Unstructured requested + IPv4-only pool", typeUnstructured, "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
 		{"Unstructured requested + IPv6-only pool", typeUnstructured, "", "2001:db8::/32", fgs.GSMCauseUnknownPDUSessionType},
 		{"Ethernet requested + IPv4-only pool", typeEthernet, "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
-		{"Ethernet requested + no pools", typeEthernet, "", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"IPv4v6 requested + IPv4-only pool", uint8(typeIPv4v6), "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
 	}
 
 	for _, tc := range tests {

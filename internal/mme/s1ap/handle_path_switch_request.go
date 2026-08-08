@@ -189,7 +189,7 @@ func switchPathBearers(m *mme.MME, ctx context.Context, ue *mme.UeContext, mmeID
 
 		fteid := models.FTEID{TEID: uint32(erab.GTPTEID), Addr: addr}
 
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, fteid); err != nil {
+		if err := m.Session.ModifyEPSSession(ctx, p.SessionRef, fteid); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the target eNB",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)), zap.Error(err))
 

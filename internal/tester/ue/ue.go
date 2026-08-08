@@ -794,6 +794,14 @@ func (ue *UE) SendDeregistrationRequest(amfUENGAPID int64, ranUENGAPID int64) er
 }
 
 func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai) error {
+	return ue.sendPDUSessionRequest(amfUENGAPID, ranUENGAPID, pduSessionID, dnn, snssai, fgs.RequestTypeInitialRequest)
+}
+
+func (ue *UE) MovePDUSessionFromEPC(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai) error {
+	return ue.sendPDUSessionRequest(amfUENGAPID, ranUENGAPID, pduSessionID, dnn, snssai, fgs.RequestTypeExistingPDUSession)
+}
+
+func (ue *UE) sendPDUSessionRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionID uint8, dnn string, snssai models.Snssai, requestType fgs.RequestType) error {
 	pduReq, err := BuildPduSessionEstablishmentRequest(&PduSessionEstablishmentRequestOpts{
 		PDUSessionID:   pduSessionID,
 		PDUSessionType: ue.PDUSessionType,
@@ -807,6 +815,7 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 		PayloadContainer: pduReq,
 		DNN:              dnn,
 		SNSSAI:           snssai,
+		RequestType:      requestType,
 	})
 	if err != nil {
 		return fmt.Errorf("could not build Uplink NAS Transport for PDU Session: %v", err)

@@ -99,8 +99,13 @@ func handleESMInformationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 		ue.RequestedAPN = string(*req.AccessPointName)
 	}
 
+	if req.ProtocolConfigurationOptions != nil || req.ExtendedProtocolConfigurationOptions != nil {
+		ue.RequestedPDUSessionID = pduSessionIDFromPCOs(req.ProtocolConfigurationOptions, req.ExtendedProtocolConfigurationOptions)
+	}
+
 	logger.From(ctx, logger.MmeLog).Info("received deferred ESM information",
-		zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN))
+		zap.String("imsi", ue.IMSI()), zap.String("apn", ue.RequestedAPN),
+		zap.Uint8("pdu_session_id", ue.RequestedPDUSessionID))
 
 	if wait.Standalone != nil {
 		resumePDNConnectivity(ctx, m, ue, ueConn, wait.Standalone)

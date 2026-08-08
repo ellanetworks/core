@@ -75,9 +75,19 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
+	if cause, refused := requestTypeRefusal(ue.RequestedType); refused {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: request type not served",
+			zap.String("imsi", ue.IMSI()), zap.Stringer("request-type", ue.RequestedType))
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), cause)
+
+		return
+	}
+
 	bearer, err := m.Session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.IMSI(),
 		EPSBearerIdentity: mme.DefaultERABID,
+		PDUSessionID:      ue.RequestedPDUSessionID,
+		Snssai:            qos.Snssai,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
 		AMBRUplink:        qos.SessAmbrUL,
@@ -87,13 +97,12 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		DNS:               qos.DNS,
 		MTU:               qos.MTU,
 		RequestedPDNType:  ue.RequestedPDNType,
+		RequestType:       ue.RequestedType,
 	})
 	if err != nil {
-		// No PDN type the UE requested can be served (e.g. it asked for IPv6 on an
-		// IPv4-only data network); reject with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), attachBearerRejectCause(ue.RequestedType, err))
 
 		return
 	}
@@ -110,6 +119,13 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	naspdu, err := buildProtectedAttachAccept(ctx, m, ue, qos)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
+
+		if p := m.DefaultPDN(ue); p != nil {
+			m.ReleasePDN(ctx, ue, p)
+		}
+
+		rejectAttachESM(ctx, m, ue, ueConn, uint8(ue.RequestedPTI), eps.ESMCauseRequestRejectedUnspecified)
+
 		return
 	}
 
@@ -149,19 +165,20 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 
 	uecap := ue.UeNetCap()
 
-	defaultPDN := m.DefaultPDN(ue)
-	if defaultPDN == nil {
-		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no active PDN")
-		return
-	}
-
 	// A UE re-established from ECM-IDLE reactivates the radio and S1 bearers for all
 	// the active EPS bearers in one Initial Context Setup; the S1 Service Request has
 	// no per-bearer data-status IE, so every active bearer is set up (TS 23.401
-	// §5.3.4.1). The NAS PDU (the Attach Accept, on attach only) rides the default
-	// bearer.
+	// §5.3.4.1).
 	pdns := m.SnapshotPDNs(ue)
 	erabs := make([]s1ap.ERABToBeSetupItemCtxtSUReq, 0, len(pdns))
+
+	carrier := uint8(0)
+
+	for _, p := range pdns {
+		if carrier == 0 || p.Ebi < carrier {
+			carrier = p.Ebi
+		}
+	}
 
 	for _, p := range pdns {
 		// The S1-U endpoint advertises whichever transport address family the N3 has
@@ -184,7 +201,9 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
 		}
 
-		if p.Ebi == defaultPDN.Ebi {
+		// TS 36.413 §9.1.4.1 makes NAS-PDU optional per E-RAB item, so any one item
+		// carries it; the lowest EBI is picked so the choice is deterministic.
+		if len(naspdu) > 0 && p.Ebi == carrier {
 			item.NASPDU = s1ap.NASPDU(naspdu)
 		}
 
@@ -208,7 +227,7 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 	// algorithm mismatch can be told apart from a radio-side release (TS 33.401).
 	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Request",
 		zap.Uint32("enb-ue-id", uint32(ueConn.ENBUES1APID)),
-		zap.String("ue-ip", defaultPDN.UeIP.String()),
+		zap.Uint8("nas-pdu-bearer", carrier),
 		zap.Int("bearers", len(erabs)),
 		zap.Uint32("kenb-ul-count", kenbCount),
 		zap.Stringer("eea", ue.EEA()),
@@ -229,17 +248,17 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, fmt.Errorf("attach accept with no active PDN")
 	}
 
-	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI))
-	if err != nil {
-		return nil, err
-	}
-
 	operator, err := m.Operator(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	plmn := operator.PLMN()
+
+	esm, err := buildActivateDefaultESM(p, qos, uint8(ue.RequestedPTI), plmn, transferredWithEPCO(ue))
+	if err != nil {
+		return nil, err
+	}
 
 	served, err := operator.ServedTAIs()
 	if err != nil {
@@ -265,17 +284,14 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		return nil, fmt.Errorf("encode T3412: %w", err)
 	}
 
-	nfs := m.NetworkFeatureSupport()
+	nfs := m.NetworkFeatureSupport(ue.UeNetCap())
 
 	accept := &eps.AttachAccept{
-		EPSAttachResult:     eps.AttachResultEPS,
-		T3412:               t3412,
-		TAIList:             taiList,
-		ESMMessageContainer: esm,
-		GUTI:                &guti,
-		// Advertise IMS voice over PS session (TS 24.301). Without it a
-		// voice-centric UE concludes E-UTRAN cannot serve voice and leaves for
-		// another RAT (TS 23.221).
+		EPSAttachResult:       eps.AttachResultEPS,
+		T3412:                 t3412,
+		TAIList:               taiList,
+		ESMMessageContainer:   esm,
+		GUTI:                  &guti,
 		NetworkFeatureSupport: nfs,
 	}
 
@@ -351,7 +367,12 @@ func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 
 // buildActivateDefaultESM assembles the ACTIVATE DEFAULT EPS BEARER CONTEXT
 // REQUEST for a PDN connection (TS 24.301 §8.3.1).
-func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) ([]byte, error) {
+// useEPCO selects the Extended protocol configuration options IE over the classic
+// one. TS 24.301 §6.6.1.1 makes ePCO end-to-end for the MME on a PDN connection
+// transferred from a PDU session, and for the UE on the same connection once the
+// ePCO bit was set — which tracks the UE's own advertised support, so both ends
+// agree. The two elements are mutually exclusive (§8.3.6.4).
+func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, plmn models.PlmnID, useEPCO bool) ([]byte, error) {
 	apn := eps.APN(qos.APN)
 
 	// PDN Address per the negotiated type (TS 24.301): IPv4 carries the
@@ -395,7 +416,25 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8) (
 	}
 
 	pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
-	activate.ProtocolConfigurationOptions = &pco
+
+	// A UE that allocated no PDU session identity does not support 5GC NAS, and
+	// gets no 5GS parameters (TS 23.502 §4.11.0a.5 NOTE 1). N1 mode being disabled
+	// is not the test: such a UE still allocates one, and still needs the slice so
+	// its address survives a later move (TS 23.501 §5.17.2.1 NOTE 4).
+	if snssai := p.Snssai; snssai != nil && p.PDUSessionID != 0 {
+		container, err := snssaiPCOContainer(*snssai, plmn)
+		if err != nil {
+			return nil, err
+		}
+
+		pco.Containers = append(pco.Containers, container)
+	}
+
+	if useEPCO {
+		activate.ExtendedProtocolConfigurationOptions = &pco
+	} else {
+		activate.ProtocolConfigurationOptions = &pco
+	}
 
 	// On an IPv4v6→single-stack downgrade, tell the UE which family was allowed
 	// (#50/#51) so it does not retry the other on this APN (TS 24.301).

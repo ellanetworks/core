@@ -64,7 +64,7 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 // without it: leases are keyed by (imsi, keyID), keyID is reused by the next
 // session with the same PDU session id, and the session stays in the pool until
 // dropFromPool below — so a replacement landing mid-release adopts the row this
-// is about to delete (TS 24.301 §5.5.1.2.4 case f; see eps.go).
+// is about to delete (TS 24.301 §5.5.1.2.7 f); see eps.go).
 func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
 	if err := s.releaseTunnel(ctx, sc); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",

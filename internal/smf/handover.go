@@ -165,7 +165,7 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 			return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}
 
-		s.registerIPv6SessionIfNeeded(ctx, smContext)
+		s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
 		logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
 			logger.SUPI(smContext.Supi.String()),
@@ -186,7 +186,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	source := smContext.Tunnel.AN
 	smContext.handoverSourceAN = &source
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
 
 	return nil
 }
@@ -218,7 +218,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 
 	smContext.handoverSourceAN = nil
 
-	smContext.bindAccessTunnel(*source)
+	smContext.bindAccessTunnel(*source, Access5G)
 
 	if !smContext.Tunnel.Activated || smContext.PFCPContext == nil {
 		return nil
@@ -288,7 +288,7 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 	}
 
 	// Re-register the IPv6 session with the new gNB tunnel endpoint.
-	s.registerIPv6SessionIfNeeded(ctx, smContext)
+	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -326,7 +326,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 		return err
 	}
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
 
 	return nil
 }

@@ -255,7 +255,7 @@ func BuildRegistrationAccept(
 			IMSVoPS3GPP: nfs.ImsVoPS != 0,
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
-			IWKN26:      nfs.IwkN26 != 0,
+			IWKN26:      ue.SupportsS1Mode() && models.InterworkingWithoutN26,
 			MPSI:        nfs.Mpsi != 0,
 			// EMCN3 and MCSI are dropped unless octet 4 is asked for.
 			HasOctet4: true,

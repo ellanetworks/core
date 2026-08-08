@@ -38,44 +38,16 @@ type NASHandler interface {
 	HandleServiceRequest(ctx context.Context, conn S1APWriter, msg *s1ap.InitialUEMessage)
 }
 
-// epsSessionManager is the converged session anchor (SMF acting as PGW-C) the
-// MME delegates EPS default-bearer establishment to: it allocates the UE IP and
-// owns the session. *smf.SMF satisfies it. Defined here (consumer side) so there
-// is no mme → smf import.
 type epsSessionManager interface {
-	// CreateEPSSession negotiates the PDN type, allocates the UE address(es), and
-	// programs the default bearer, returning the negotiated type, the addresses,
-	// and the S-GW S1-U F-TEID for the eNB to send uplink to.
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
-	// ModifyEPSSession sets the downlink endpoint to the eNB S1-U F-TEID. ebi
-	// identifies the PDN connection's default bearer.
-	ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error
-	// UpdateEPSSessionAMBR updates the Session-AMBR enforced by the UPF QER for a
-	// PDN connection's default bearer, in the "<n> <unit>" form.
-	UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink models.BitRate) error
-	// DeactivateEPSSession buffers the downlink bearer when the UE goes ECM-IDLE
-	// so downlink data triggers paging.
-	DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error
+	ModifyEPSSession(ctx context.Context, ref string, enb models.FTEID) error
+	UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error
+	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error
-	// ClearEPSPagingSuppression releases the suppression once the UE is reachable
-	// again (ECM-CONNECTED), so subsequent downlink data pages it
-	// (TS 24.301 §5.3.5; TS 23.401 §5.3.4.3).
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
-	// ReleaseEPSSession releases the anchor session identified by its unique ref
-	// (as returned in models.EPSBearer.Ref and stored on the PDN connection), so a
-	// superseded context releases its own session and never a newer one that reused
-	// the same (IMSI, EBI).
 	ReleaseEPSSession(ctx context.Context, ref string) error
-
-	// FramedRoutesChanged reports whether the subscriber's framed routes for the
-	// default bearer (imsi, ebi) differ from those installed at establishment, so
-	// the reconciler reactivates the bearer on a change (TS 23.501 §5.6.14).
-	FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
-
-	// StaticIPChanged reports whether the subscriber's reserved static IP for the
-	// default bearer (imsi, ebi) changed since establishment, so the reconciler
-	// reactivates the bearer on a change (TS 24.301 §6.4.4.2).
-	StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
+	FramedRoutesChanged(ctx context.Context, ref string) (bool, error)
+	StaticIPChanged(ctx context.Context, ref string) (bool, error)
 }
 
 // credentialProvider is the UDM surface the MME requires for EPS authentication:
@@ -249,15 +221,20 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 	}
 }
 
-// NetworkFeatureSupport returns the EPS network feature support advertised to UEs
-// (TS 24.301 §9.9.3.12A), or the default when unset.
-func (m *MME) NetworkFeatureSupport() *eps.NetworkFeatureSupport {
+// NetworkFeatureSupport builds the EPS network feature support IE from the UE's
+// advertised capability. TS 24.301 §5.5.1.2.4 makes the ePCO bit a `shall` once
+// both ends support the IE, and §6.6.1.1 then has a transferred PDN connection
+// carry its protocol configuration options in the extended element.
+func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability) *eps.NetworkFeatureSupport {
+	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
 	if m.EPSNetworkFeatureSupport != nil {
-		nfs := *m.EPSNetworkFeatureSupport
-		return &nfs
+		nfs = *m.EPSNetworkFeatureSupport
 	}
 
-	return &eps.NetworkFeatureSupport{IMSVoPS: true}
+	nfs.IWKN26 = ueCap.SupportsN1Mode() && models.InterworkingWithoutN26
+	nfs.EPCO = ueCap.SupportsEPCO()
+
+	return &nfs
 }
 
 // Tracer instruments the MME's S1AP/EMM control plane.

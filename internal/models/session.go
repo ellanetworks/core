@@ -67,10 +67,10 @@ type FTEID struct {
 // that family; RequestedPDNType is the UE's requested type (1 IPv4, 2 IPv6,
 // 3 IPv4v6, TS 24.301 §9.9.4.10).
 type EPSBearerRequest struct {
-	IMSI string
-	// EPSBearerIdentity is the default bearer's EBI (5..15), which the SMF uses as
-	// the PDU session id keying this PDN connection so one IMSI can hold several.
+	IMSI              string
 	EPSBearerIdentity uint8
+	PDUSessionID      uint8
+	Snssai            *Snssai
 	PolicyID          string // policy DB ID, so the UPF binds the session to its network rules
 	APN               string
 	AMBRUplink        BitRate
@@ -80,6 +80,7 @@ type EPSBearerRequest struct {
 	DNS               string
 	MTU               uint16
 	RequestedPDNType  uint8
+	RequestType       eps.RequestType
 }
 
 // EPSBearer is the result of establishing a default bearer: the negotiated PDN
@@ -101,7 +102,9 @@ type EPSBearer struct {
 	SGWN3IPv6 netip.Addr
 	// ESMCause, when non-zero, is the reason the assigned PDN type is narrower
 	// than requested (#50 IPv4-only / #51 IPv6-only allowed, TS 24.301 §6.5.1.3).
-	ESMCause eps.ESMCause
+	ESMCause     eps.ESMCause
+	PDUSessionID uint8
+	Snssai       *Snssai
 }
 
 // FAR describes a Forwarding Action Rule for the UPF session API.

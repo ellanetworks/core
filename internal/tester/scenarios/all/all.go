@@ -9,6 +9,7 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/enb"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/gnb"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/ha"
+	_ "github.com/ellanetworks/core/internal/tester/scenarios/interworking"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/multi"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/s1enb"
 )

@@ -25,18 +25,19 @@ var (
 	errFramedRouteResolve  = errors.New("framed route resolution failed")
 	errStaticIPResolve     = errors.New("static IP resolution failed")
 	errUPFSession          = errors.New("UPF session establishment failed")
+	errSessionIdentity     = errors.New("session identity is unusable")
 )
 
 // SessionRequest is the RAT-agnostic input to establishSession, common to the
 // 5G and 4G paths.
 type SessionRequest struct {
-	Supi    etsi.SUPI
-	Key     uint8 // PDU Session ID (5G) or default-bearer EBI (4G)
-	Dnn     string
-	Snssai  *models.Snssai // nil for 4G
-	Access  AccessType
-	PDUType uint8 // the negotiated PDU/PDN type
-	Policy  *Policy
+	Supi     etsi.SUPI
+	Identity SessionIdentity
+	Dnn      string
+	Snssai   *models.Snssai
+	Access   AccessType
+	PDUType  uint8 // the negotiated PDU/PDN type
+	Policy   *Policy
 }
 
 // ueAddresses is the address set allocated for a session; the IPv6 prefix is the
@@ -58,7 +59,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
 	}
 
-	sc := s.NewSession(req.Supi, req.Access, req.Key, req.Dnn, req.Snssai)
+	sc, err := s.NewSession(req.Supi, req.Access, req.Identity, req.Dnn, req.Snssai)
+	if err != nil {
+		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errSessionIdentity, err)
+	}
 
 	committed := false
 
@@ -166,13 +170,13 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 			logger.SmfLog.Warn("failed to resolve data network to release UE addresses after aborted session", zap.String("imsi", imsi), zap.Error(err))
 		} else {
 			if sc.PDUIPV4Address != nil {
-				if _, err := dn.ReleaseIP(ctx, imsi, sc.keyID()); err != nil {
+				if _, err := dn.ReleaseIP(ctx, imsi, sc.sessionKey()); err != nil {
 					logger.SmfLog.Warn("failed to release UE IPv4 after aborted session", zap.String("imsi", imsi), zap.Error(err))
 				}
 			}
 
 			if sc.PDUIPV6Prefix != nil {
-				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.keyID()); err != nil {
+				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.sessionKey()); err != nil {
 					logger.SmfLog.Warn("failed to release UE IPv6 after aborted session", zap.String("imsi", imsi), zap.Error(err))
 				}
 			}
@@ -192,10 +196,13 @@ type AnchorBinding struct {
 }
 
 // bindAccessTunnel points the downlink FAR at the AN tunnel endpoint and aligns
-// the uplink OuterHeaderRemoval to its IP family, marking the downlink S1U flag by
-// access (4G S1-U vs 5G N3 PSC; TS 29.281). The endpoint is always recorded on
-// the tunnel; the FAR is updated only once the rules exist. Caller holds sc.Mutex.
-func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
+// the uplink OuterHeaderRemoval to its IP family. access is the one the endpoint
+// belongs to, passed rather than read off the session: S1-U carries no PDU
+// Session Container and N3 does (TS 29.281), and during a move the session's own
+// access is whichever half of the commit has run. The endpoint is always
+// recorded on the tunnel; the FAR is updated only once the rules exist. Caller
+// holds sc.Mutex.
+func (sc *SMContext) bindAccessTunnel(an AnchorBinding, access AccessType) {
 	if sc.Tunnel == nil {
 		return
 	}
@@ -213,7 +220,7 @@ func (sc *SMContext) bindAccessTunnel(an AnchorBinding) {
 		dl.FAR.ForwardingParameters = &models.ForwardingParameters{}
 	}
 
-	s1u := sc.Access == Access4G
+	s1u := access == Access4G
 
 	if an.IPv6 != nil {
 		dl.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
@@ -289,4 +296,56 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 	tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6 = resp.N3TEID, resp.N3IPv4, resp.N3IPv6
 
 	return nil
+}
+
+// stageAccessBinding captures the tunnel state a downlink bind overwrites and
+// returns a restore. bindAccessTunnel replaces the outer-header pointers rather
+// than editing them, so saving the pointers is enough. Without this a refused
+// PFCP modify leaves the model describing an endpoint the data plane never
+// accepted — including a Forw apply-action on a session still buffering.
+// Caller holds Mutex.
+func (sc *SMContext) stageAccessBinding() func() {
+	if sc.Tunnel == nil {
+		return func() {}
+	}
+
+	tun := sc.Tunnel
+	an := tun.AN
+
+	var (
+		dlAction models.ApplyAction
+		dlParams *models.ForwardingParameters
+		dlOHC    *models.OuterHeaderCreation
+		ulOHR    *uint8
+	)
+
+	if dl := tun.DownlinkPDR; dl != nil && dl.FAR != nil {
+		dlAction = dl.FAR.ApplyAction
+		dlParams = dl.FAR.ForwardingParameters
+
+		if dlParams != nil {
+			dlOHC = dlParams.OuterHeaderCreation
+		}
+	}
+
+	if ul := tun.UplinkPDR; ul != nil {
+		ulOHR = ul.OuterHeaderRemoval
+	}
+
+	return func() {
+		tun.AN = an
+
+		if dl := tun.DownlinkPDR; dl != nil && dl.FAR != nil {
+			dl.FAR.ApplyAction = dlAction
+			dl.FAR.ForwardingParameters = dlParams
+
+			if dlParams != nil {
+				dlParams.OuterHeaderCreation = dlOHC
+			}
+		}
+
+		if ul := tun.UplinkPDR; ul != nil {
+			ul.OuterHeaderRemoval = ulOHR
+		}
+	}
 }

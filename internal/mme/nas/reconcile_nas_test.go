@@ -46,6 +46,43 @@ func TestDeactivateBearerAcceptReleases(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[0])
 }
 
+// TS 23.401 §5.10.3 releases a PDN connection "including the default bearer of
+// this PDN" without detaching, as long as another survives — whichever one it is.
+func TestDeactivateBearerAcceptKeepsAUEWithAnotherPDN(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+	testPDN(ue).Deactivating = true
+	ue.EnsurePDN(6)
+
+	plain, err := (&eps.DeactivateEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(mme.DefaultERABID)}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, uint8(ue.ULCount())), nas.DirectionUplink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), wire)
+
+	if ue.EMMState() == mme.EMMDeregistered {
+		t.Error("the UE was detached though it still has a PDN connection on EBI 6")
+	}
+
+	if m.LookupPDN(ue, mme.DefaultERABID) != nil {
+		t.Error("the deactivated PDN connection was not released")
+	}
+
+	if m.LookupPDN(ue, 6) == nil {
+		t.Error("the surviving PDN connection was released too")
+	}
+
+	if len(cc.sent) != 0 {
+		t.Errorf("sent %d S1AP messages, want 0: releasing one of two PDNs must not release the UE context", len(cc.sent))
+	}
+}
+
 // TestReconcileDataNetworkModifiesDNSOnly verifies a DNS-only change is applied
 // in place with a MODIFY EPS BEARER CONTEXT REQUEST (no deactivation), mirroring
 // the 5G PDU Session Modification path, and that dnConfig is committed only when

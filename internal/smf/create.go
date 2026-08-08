@@ -37,7 +37,7 @@ func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 
 // CreateSmContext establishes a new 5G PDU session from the UE's NAS
 // establishment request, returning the SM context ref or a NAS reject message.
-func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
+func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -119,8 +119,19 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	defer func() { recordSessionEstablishmentResult(metrics.RAT5G, establishmentResult) }()
 
-	if existing := s.currentSession(supi, Access5G, pduSessionID); existing != nil {
-		s.handlePduSessionContextReplacement(ctx, existing)
+	if isTransferRequest(requestType) {
+		establishmentResult = metrics.ResultAccept
+
+		ref, rsp, err := s.transferTo5GS(ctx, supi, pduSessionID, dnn, snssai, requestType, req, uint8(reqPTI))
+		if err != nil {
+			establishmentResult = metrics.ResultReject
+		}
+
+		return ref, rsp, err
+	}
+
+	if existing := s.currentPDUSession(supi, pduSessionID); existing != nil {
+		s.handlePduSessionContextReplacement(ctx, existing, Access5G)
 	}
 
 	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
@@ -165,13 +176,13 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	}
 
 	sc, _, err := s.establishSession(ctx, SessionRequest{
-		Supi:    supi,
-		Key:     pduSessionID,
-		Dnn:     dnn,
-		Snssai:  snssai,
-		Access:  Access5G,
-		PDUType: negotiatedType,
-		Policy:  policy,
+		Supi:     supi,
+		Identity: SessionIdentity{PDUSessionID: pduSessionID},
+		Dnn:      dnn,
+		Snssai:   snssai,
+		Access:   Access5G,
+		PDUType:  negotiatedType,
+		Policy:   policy,
 	})
 	if err != nil {
 		establishmentResult = metrics.ResultReject
@@ -180,8 +191,12 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		span.SetStatus(codes.Error, "failed to create SM context")
 
 		cause := fgs.GSMCauseRequestRejectedUnspecified
-		if errors.Is(err, errUEAddressAllocation) {
+
+		switch {
+		case errors.Is(err, errUEAddressAllocation):
 			cause = fgs.GSMCauseInsufficientResources
+		case errors.Is(err, errSessionIdentity):
+			cause = fgs.GSMCauseInvalidPDUSessionIdentity
 		}
 
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(fgs.PDUSessionID(pduSessionID), reqPTI, cause)
@@ -225,13 +240,29 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	return sc.Ref, nil, nil
 }
 
-func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SMContext) {
+// by is the access establishing the replacement. A session superseded on the
+// other access leaves that one holding a routing context and a radio bearer for
+// a session that no longer exists, so it is told (TS 24.501 §6.4.1.7 c) requires
+// the release; it does not say to do it silently).
+func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SMContext, by AccessType) {
 	smCtxt.Mutex.Lock()
-	defer smCtxt.Mutex.Unlock()
+
+	var dropped *droppedSource
+	if smCtxt.Access != by {
+		dropped = &droppedSource{
+			supi:     smCtxt.Supi,
+			access:   smCtxt.Access,
+			id:       smCtxt.SessionIdentity,
+			upActive: smCtxt.upConnectionActive(),
+		}
+	}
 
 	// Stop the superseded context's outstanding procedure retransmission.
 	smCtxt.stopProcedureTimer()
 	s.RemoveSession(ctx, smCtxt.Ref)
+	smCtxt.Mutex.Unlock()
+
+	s.dropSourceRouting(ctx, smCtxt.Ref, dropped)
 }
 
 // establishmentRejectCause maps a session-policy lookup failure to the 5GSM
@@ -328,8 +359,6 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
-
-	smContext.SetPolicyData(policy)
 
 	err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
 	if err != nil {

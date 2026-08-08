@@ -14,8 +14,11 @@ import (
 const (
 	ieiESMInformationTransferFlag   uint8 = 0xD0 // type 1
 	ieiProtocolConfigurationOptions uint8 = 0x27
-	ieiAccessPointName              uint8 = 0x28
-	ieiESMCause                     uint8 = 0x58
+	// Mutually exclusive with the classic PCO: a UE that sends one sends no other
+	// (TS 24.301 §8.3.20.4).
+	ieiExtendedProtocolConfigurationOptions uint8 = 0x7B
+	ieiAccessPointName                      uint8 = 0x28
+	ieiESMCause                             uint8 = 0x58
 	// ieiNewEPSQoS and ieiRequiredTrafficFlowQoS are the same EPS quality of
 	// service element under the two names its messages give it.
 	ieiNewEPSQoS              uint8 = 0x5B
@@ -29,11 +32,13 @@ const (
 
 // PDN type values (TS 24.301).
 const (
-	PDNTypeIPv4     PDNType = 1
-	PDNTypeIPv6     PDNType = 2
-	PDNTypeIPv4v6   PDNType = 3
-	PDNTypeNonIP    PDNType = 5
-	PDNTypeEthernet PDNType = 6
+	PDNTypeIPv4   PDNType = 1
+	PDNTypeIPv6   PDNType = 2
+	PDNTypeIPv4v6 PDNType = 3
+	// PDNTypeUnusedIPv6 is unused and read as IPv6 by the network (§9.9.4.10).
+	PDNTypeUnusedIPv6 PDNType = 4
+	PDNTypeNonIP      PDNType = 5
+	PDNTypeEthernet   PDNType = 6
 )
 
 // PDNAddress is the PDN address: the IP assigned to the UE. IPv4 is

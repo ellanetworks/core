@@ -343,12 +343,13 @@ func TestModifyEPSSessionRegistersIPv6(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
-	if _, err := s.CreateEPSSession(context.Background(), epsRequest(3)); err != nil {
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(3))
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	enb := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
-	if err := s.ModifyEPSSession(context.Background(), "001010000000001", epsTestEBI, enb); err != nil {
+	if err := s.ModifyEPSSession(context.Background(), bearer.Ref, enb); err != nil {
 		t.Fatal(err)
 	}
 

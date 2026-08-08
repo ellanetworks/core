@@ -15,10 +15,7 @@ import (
 
 // handleDeactivateBearerAccept finalises an EPS bearer deactivation (TS 24.301 §6.4.4.3).
 func handleDeactivateBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, accept *eps.DeactivateEPSBearerContextAccept) nasreply.Disposition {
-	p := m.DefaultPDN(ue)
-	if named := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity)); named != nil {
-		p = named
-	}
+	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
 
 	if p == nil {
 		return nasreply.Silent(nasreply.ReasonNoContext)

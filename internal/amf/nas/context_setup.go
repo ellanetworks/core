@@ -30,6 +30,10 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	conn.RegistrationRequest = msg
 	conn.RegistrationRequestPlain = plain
 
+	if msg != nil {
+		ue.SetUECapabilities(msg.GMMCapability, msg.S1UENetworkCapability)
+	}
+
 	switch conn.RegistrationType5GS {
 	case fgs.RegistrationTypeInitial:
 		HandleInitialRegistration(ctx, amfInstance, ue)

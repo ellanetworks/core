@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -108,7 +109,7 @@ func (f *fakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef stri
 	return nil, nil
 }
 
-func (f *fakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
+func (f *fakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error) {
 	return "", nil, nil
 }
 

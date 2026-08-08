@@ -33,10 +33,10 @@ type DeleteSubscriberOptions struct {
 
 // SubscriberStatus is the lightweight status carried in list responses.
 type SubscriberStatus struct {
-	Registered      bool   `json:"registered"`
-	RadioAccessType string `json:"radio_access_type,omitempty"`
-	NumSessions     int    `json:"num_sessions"`
-	LastSeenAt      string `json:"last_seen_at,omitempty"`
+	Registered       bool     `json:"registered"`
+	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
+	NumSessions      int      `json:"num_sessions"`
+	LastSeenAt       string   `json:"last_seen_at,omitempty"`
 }
 
 // Subscriber is the summary form returned by ListSubscribers.
@@ -62,13 +62,13 @@ type ListSubscribersResponse struct {
 
 // SubscriberDetailStatus is the rich status carried in GetSubscriber responses.
 type SubscriberDetailStatus struct {
-	Registered         bool   `json:"registered"`
-	RadioAccessType    string `json:"radio_access_type,omitempty"`
-	Imei               string `json:"imei"`
-	CipheringAlgorithm string `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string `json:"integrity_algorithm"`
-	LastSeenAt         string `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
+	Registered         bool     `json:"registered"`
+	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
+	Imei               string   `json:"imei"`
+	CipheringAlgorithm string   `json:"ciphering_algorithm"`
+	IntegrityAlgorithm string   `json:"integrity_algorithm"`
+	LastSeenAt         string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
 // SubscriberDetail is the full form returned by GetSubscriber.

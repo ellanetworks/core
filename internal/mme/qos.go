@@ -32,6 +32,7 @@ type EpsQoS struct {
 	DNS        string // data-network DNS server, advertised to the UE via PCO
 	MTU        uint16
 	Allow4G    bool
+	Snssai     *models.Snssai
 }
 
 // ResolveQoS maps the subscriber's profile → policy → data network to the EPS
@@ -90,7 +91,7 @@ func ResolveQoSByAPN(ctx context.Context, m *MME, imsi, apn string) (*EpsQoS, er
 		}
 
 		if dn.Name == apn {
-			return qosForPolicyDN(profile, &policies[i], dn)
+			return qosForPolicy(ctx, m, profile, &policies[i])
 		}
 	}
 
@@ -103,12 +104,35 @@ func qosForPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Poli
 		return nil, fmt.Errorf("get data network: %w", err)
 	}
 
-	return qosForPolicyDN(profile, pol, dn)
+	snssai, err := snssaiForPolicy(ctx, m, pol)
+	if err != nil {
+		return nil, err
+	}
+
+	return qosForPolicyDN(profile, pol, dn, snssai)
+}
+
+func snssaiForPolicy(ctx context.Context, m *MME, pol *db.Policy) (*models.Snssai, error) {
+	if pol.SliceID == "" {
+		return nil, nil
+	}
+
+	slice, err := m.Bearer.GetNetworkSliceByID(ctx, pol.SliceID)
+	if err != nil {
+		return nil, fmt.Errorf("get network slice: %w", err)
+	}
+
+	snssai := &models.Snssai{Sst: slice.Sst}
+	if slice.Sd != nil {
+		snssai.Sd = *slice.Sd
+	}
+
+	return snssai, nil
 }
 
 // The configured rates are parsed here, at the edge of the policy layer, so
 // nothing downstream handles the text form.
-func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) (*EpsQoS, error) {
+func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork, snssai *models.Snssai) (*EpsQoS, error) {
 	ueAmbrDL, err := models.ParseBitRate(profile.UeAmbrDownlink)
 	if err != nil {
 		return nil, fmt.Errorf("profile UE-AMBR downlink: %w", err)
@@ -143,14 +167,17 @@ func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) (*E
 		DNS:        dn.DNS,
 		MTU:        uint16(dn.MTU),
 		Allow4G:    profile.Allow4G,
+		Snssai:     snssai,
 	}, nil
 }
 
-// DnFingerprint summarises the data-network parameters delivered to the UE at
-// bearer setup (IP pools, DNS, MTU). A change between attach and a later
-// reconcile means the UE's bearer must be re-established to pick it up.
 func (q *EpsQoS) DnFingerprint() string {
-	return fmt.Sprintf("%s|%s|%s|%d", q.IPv4Pool, q.IPv6Pool, q.DNS, q.MTU)
+	var snssai string
+	if q.Snssai != nil {
+		snssai = fmt.Sprintf("%d-%s", q.Snssai.Sst, models.NormalizeSD(q.Snssai.Sd))
+	}
+
+	return fmt.Sprintf("%s|%s|%s|%d|%s", q.IPv4Pool, q.IPv6Pool, q.DNS, q.MTU, snssai)
 }
 
 // ResolveAttachQoS resolves the default-bearer QoS for an attaching UE. It honours

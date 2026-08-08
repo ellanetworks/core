@@ -482,3 +482,48 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 
 	return id
 }
+
+func (amf *AMF) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF SessionDropped",
+		trace.WithAttributes(
+			attribute.String("supi", supi.String()),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
+		),
+	)
+	defer span.End()
+
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return
+	}
+
+	if !ue.DeleteSmContextRef(pduSessionID, ref) {
+		logger.From(ctx, logger.AmfLog).Debug("ignoring a transfer report for a session this AMF no longer routes",
+			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("ref", ref))
+
+		return
+	}
+
+	logger.From(ctx, logger.AmfLog).Info("PDU session moved to EPS; dropping the 5GS routing context",
+		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+
+	if n2Transfer == nil {
+		return
+	}
+
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		return
+	}
+
+	list := ngap.PDUSessionResourceToReleaseListRelCmd{
+		{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Transfer)},
+	}
+
+	if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, nil, list); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("failed to release the NG-RAN resources of a moved PDU session",
+			zap.Error(err), logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+	}
+}

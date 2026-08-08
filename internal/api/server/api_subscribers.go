@@ -35,10 +35,10 @@ type UpdateSubscriberParams struct {
 
 // SubscriberStatus is the lightweight status returned by the list endpoint.
 type SubscriberStatus struct {
-	Registered      bool   `json:"registered"`
-	RadioAccessType string `json:"radio_access_type,omitempty"` // "4G" | "5G", per the live connection
-	NumSessions     int    `json:"num_sessions"`
-	LastSeenAt      string `json:"last_seen_at,omitempty"`
+	Registered       bool     `json:"registered"`
+	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
+	NumSessions      int      `json:"num_sessions"`
+	LastSeenAt       string   `json:"last_seen_at,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
@@ -58,13 +58,13 @@ type ListSubscribersResponse struct {
 
 // SubscriberDetailStatus is the rich status returned by the get-single endpoint.
 type SubscriberDetailStatus struct {
-	Registered         bool   `json:"registered"`
-	RadioAccessType    string `json:"radio_access_type,omitempty"` // "4G" | "5G", per the live connection
-	Imei               string `json:"imei"`
-	CipheringAlgorithm string `json:"ciphering_algorithm"`
-	IntegrityAlgorithm string `json:"integrity_algorithm"`
-	LastSeenAt         string `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
+	Registered         bool     `json:"registered"`
+	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
+	Imei               string   `json:"imei"`
+	CipheringAlgorithm string   `json:"ciphering_algorithm"`
+	IntegrityAlgorithm string   `json:"integrity_algorithm"`
+	LastSeenAt         string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
@@ -293,31 +293,30 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				return
 			}
 
-			amf5G, registered := amf5GStatus[dbSubscriber.Imsi]
-			radioName := amf5G.RadioName
+			amf5G, on5G := amf5GStatus[dbSubscriber.Imsi]
+			mme4G, on4G := mmeStatus[dbSubscriber.Imsi]
 
-			subscriberStatus := SubscriberStatus{
-				Registered:  registered,
-				NumSessions: amf5G.NumSessions,
-			}
-			if registered {
-				subscriberStatus.RadioAccessType = "5G"
+			radioName := ""
 
-				if !amf5G.LastSeenAt.IsZero() {
-					subscriberStatus.LastSeenAt = amf5G.LastSeenAt.UTC().Format(time.RFC3339)
+			subscriberStatus := SubscriberStatus{Registered: on5G || on4G}
+
+			if on4G {
+				subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "4G")
+				subscriberStatus.NumSessions += mme4G.NumSessions
+				radioName = mme4G.RadioName
+
+				if !mme4G.LastSeenAt.IsZero() {
+					subscriberStatus.LastSeenAt = mme4G.LastSeenAt.UTC().Format(time.RFC3339)
 				}
 			}
 
-			// A subscriber attached over 4G is not in AMF state; fall back to
-			// the MME's EMM registration.
-			if st, ok := mmeStatus[dbSubscriber.Imsi]; ok && !registered {
-				subscriberStatus.Registered = true
-				subscriberStatus.RadioAccessType = "4G"
-				subscriberStatus.NumSessions = st.NumSessions
-				radioName = st.RadioName
+			if on5G {
+				subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "5G")
+				subscriberStatus.NumSessions += amf5G.NumSessions
+				radioName = amf5G.RadioName
 
-				if !st.LastSeenAt.IsZero() {
-					subscriberStatus.LastSeenAt = st.LastSeenAt.UTC().Format(time.RFC3339)
+				if !amf5G.LastSeenAt.IsZero() {
+					subscriberStatus.LastSeenAt = amf5G.LastSeenAt.UTC().Format(time.RFC3339)
 				}
 			}
 
@@ -396,30 +395,12 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			Registered: false,
 		}
 
-		if found {
-			subscriberStatus.Registered = true
-			subscriberStatus.RadioAccessType = "5G"
-			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
-			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
-			subscriberStatus.LastSeenRadio = radioName
-			subscriberStatus.Imei = snap.Imei
-
-			if !snap.LastSeenAt.IsZero() {
-				subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
-			}
-		}
-
 		sessions := make([]Session, 0, len(pduSessions))
-		for _, pdu := range pduSessions {
-			sessions = append(sessions, sessionFrom5G(pdu))
-		}
 
-		// A subscriber attached over 4G is not in AMF state; fall back to the
-		// MME's EMM registration and default EPS bearer.
-		if !subscriberStatus.Registered && mmeInstance != nil {
+		if mmeInstance != nil {
 			if cs, ok := mmeInstance.LookupSubscriber(imsi); ok {
 				subscriberStatus.Registered = true
-				subscriberStatus.RadioAccessType = "4G"
+				subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "4G")
 				subscriberStatus.Imei = cs.Imei
 				subscriberStatus.CipheringAlgorithm = cs.CipheringAlgorithm
 				subscriberStatus.IntegrityAlgorithm = cs.IntegrityAlgorithm
@@ -432,6 +413,23 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 				for i := range cs.Sessions {
 					sessions = append(sessions, sessionFrom4G(&cs.Sessions[i]))
 				}
+			}
+		}
+
+		if found {
+			subscriberStatus.Registered = true
+			subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "5G")
+			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
+			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
+			subscriberStatus.LastSeenRadio = radioName
+			subscriberStatus.Imei = snap.Imei
+
+			if !snap.LastSeenAt.IsZero() {
+				subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
+			}
+
+			for _, pdu := range pduSessions {
+				sessions = append(sessions, sessionFrom5G(pdu))
 			}
 		}
 

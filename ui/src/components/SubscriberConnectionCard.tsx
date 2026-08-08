@@ -146,8 +146,15 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
-const AccessTypeChip: React.FC<{ accessType?: string }> = ({ accessType }) =>
-  accessType ? <AccessChip label={accessType} /> : null;
+const AccessTypeChips: React.FC<{ accessTypes: string[] }> = ({
+  accessTypes,
+}) => (
+  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+    {accessTypes.map((accessType) => (
+      <AccessChip key={accessType} label={accessType} />
+    ))}
+  </Box>
+);
 
 const SecurityAlgorithmsValue: React.FC<{
   ciphering?: string;
@@ -180,6 +187,8 @@ const SecurityAlgorithmsValue: React.FC<{
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
 }) => {
+  const accessTypes = status.radio_access_types ?? [];
+
   return (
     <Card
       variant="outlined"
@@ -193,10 +202,10 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="State"
           value={<StateChip registered={status.registered} />}
         />
-        {status.radio_access_type && (
+        {accessTypes.length > 0 && (
           <InfoRow
-            label="Access Type"
-            value={<AccessTypeChip accessType={status.radio_access_type} />}
+            label={accessTypes.length > 1 ? "Access Types" : "Access Type"}
+            value={<AccessTypeChips accessTypes={accessTypes} />}
           />
         )}
         <InfoRow label="IMEI" value={status.imei} />

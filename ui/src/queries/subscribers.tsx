@@ -5,7 +5,7 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type SubscriberListStatus = {
   registered?: boolean;
-  radio_access_type?: string; // "4G" | "5G", per the live connection
+  radio_access_types?: string[];
   num_sessions?: number;
   last_seen_at?: string;
 };
@@ -26,7 +26,7 @@ export type ListSubscribersResponse = {
 
 export type SubscriberDetailStatus = {
   registered?: boolean;
-  radio_access_type?: string; // "4G" | "5G", per the live connection
+  radio_access_types?: string[];
   imei?: string;
   ciphering_algorithm?: string;
   integrity_algorithm?: string;

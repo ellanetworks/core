@@ -39,6 +39,7 @@ type bearerStore interface {
 	GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*db.Policy, error)
 	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
 	GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error)
+	GetNetworkSliceByID(ctx context.Context, id string) (*db.NetworkSlice, error)
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	// NodeID is the cluster node identity, used to make each HA node's MME Code
 	// (and hence its GUMMEI) distinct.
@@ -96,13 +97,14 @@ func (ue *UeContext) ClearPendingModify(p *PdnConnection) {
 }
 
 // BearerReleaseOnly reports whether deactivating p releases only that PDN
-// connection (an additional PDN, or a disconnect) without detaching the UE
-// (TS 24.301 §6.4.4.2/§6.5.2).
+// connection without detaching the UE. Any PDN connection may go while another
+// survives, whichever it is: TS 23.401 §5.10.3 and TS 24.301 §6.5.2.1 both key
+// this on the count, and §5.4.4.1 step 4a detaches only when the last one goes.
 func (ue *UeContext) BearerReleaseOnly(p *PdnConnection) bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return p.Ebi != ue.DefaultEBI || p.Disconnecting
+	return len(ue.Pdns) > 1
 }
 
 func (ue *UeContext) BearerDeactivating(p *PdnConnection) bool {
