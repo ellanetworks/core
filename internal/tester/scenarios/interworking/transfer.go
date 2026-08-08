@@ -111,6 +111,7 @@ func moveToEPS(ctx context.Context, env scenarios.Env) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	defer func() { _ = e.Close() }()
 
 	k, opc, err := defaultKeyAndOPc()
@@ -154,6 +155,7 @@ func establishOnEPS(ctx context.Context, env scenarios.Env) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	defer func() { _ = e.Close() }()
 
 	k, opc, err := defaultKeyAndOPc()

@@ -298,6 +298,9 @@ func (p ProtocolConfigurationOptions) DNSServers() []netip.Addr {
 	return out
 }
 
+// PDUSessionID returns the identity the MS allocated for the PDN connection.
+// Anything but the single octet TS 24.007 §11.2.3.1b defines, within the range a
+// UE may allocate, reports absent.
 func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 	if p.Direction != PCOMSToNetwork {
 		return 0, false
@@ -311,6 +314,11 @@ func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 
 	return 0, false
 }
+
+// NewSNSSAIContainer builds the network-to-MS S-NSSAI container: the value part
+// of an S-NSSAI element (TS 24.501 §9.11.2.8) followed by one PLMN identity
+// (TS 24.008 §10.5.5.36). The value part is passed already encoded, since the
+// S-NSSAI element belongs to the 5GS codec and this package sits beneath it.
 func NewSNSSAIContainer(snssaiValue []byte, plmn PLMN) (PCOContainer, error) {
 	switch len(snssaiValue) {
 	case 1, 2, 4, 5, 8:
