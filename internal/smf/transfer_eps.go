@@ -100,15 +100,6 @@ func epsBearerForSession(sc *SMContext, req models.EPSBearerRequest) (models.EPS
 	return bearer, nil
 }
 
-func (s *SMF) AbandonEPSTransfer(_ context.Context, ref string) {
-	sc := s.GetSession(ref)
-	if sc == nil {
-		return
-	}
-
-	sc.abandonTransfer()
-}
-
 // The enumerations diverge above IPv4v6 (TS 24.301 §9.9.4.10 vs TS 24.501
 // §9.11.4.11), so anything else is refused rather than cast.
 // The mirror of pdnTypeFor, applied where an EPS PDN type enters the SMF so

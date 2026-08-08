@@ -59,8 +59,6 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 			continue
 		}
 
-		m.CommitTransfer(ue, p)
-
 		logger.MmeLog.Info("additional PDN connection radio leg established",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi),
 			zap.String("enb-s1u", enbAddr.String()))

@@ -73,15 +73,10 @@ func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext) {
 	}
 }
 
-// A connection whose move has not committed names a session 5GS is still
-// serving, so it is abandoned rather than released: releasing would tear down a
-// session the UE is running and free its address.
+// The anchor decides what a release means: a connection whose move has not
+// committed names a session 5GS is still serving, and ReleaseEPSSession drops
+// only the EPS half of it.
 func (m *MME) releaseAnchorSession(ctx context.Context, ue *UeContext, p *PdnConnection) {
-	if p.PendingTransfer {
-		m.Session.AbandonEPSTransfer(ctx, p.SessionRef)
-		return
-	}
-
 	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
 		logger.MmeLog.Warn("failed to release PDN connection session",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
@@ -138,17 +133,4 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 	delete(ue.Pdns, ebi)
 
 	return p, len(ue.Pdns) == 0
-}
-
-func (m *MME) UnwindPDN(ctx context.Context, ue *UeContext, p *PdnConnection, moved bool) {
-	if !moved {
-		m.ReleasePDN(ctx, ue, p)
-		return
-	}
-
-	m.Session.AbandonEPSTransfer(ctx, p.SessionRef)
-
-	ue.mu.Lock()
-	delete(ue.Pdns, p.Ebi)
-	ue.mu.Unlock()
 }

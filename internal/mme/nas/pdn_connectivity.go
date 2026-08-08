@@ -167,14 +167,12 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	moved := ue.RequestedType == eps.RequestTypeHandover
-
-	m.FillBearer(ue, p, qos, bearer, moved)
+	m.FillBearer(ue, p, qos, bearer)
 
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to resolve the serving PLMN", zap.Error(err))
-		m.UnwindPDN(ctx, ue, p, moved)
+		m.ReleasePDN(ctx, ue, p)
 
 		return nasreply.Handled()
 	}
@@ -182,7 +180,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	esm, err := buildActivateDefaultESM(p, qos, uint8(pti), plmn)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Activate Default EPS Bearer Context Request", zap.Error(err))
-		m.UnwindPDN(ctx, ue, p, moved)
+		m.ReleasePDN(ctx, ue, p)
 
 		return nasreply.Handled()
 	}
@@ -190,7 +188,7 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	naspdu, err := ue.ProtectDownlink(esm, eps.SHTIntegrityProtectedCiphered)
 	if err != nil {
 		mme.ReportProtectFailure(ctx, ueConn, "Activate Default EPS Bearer Context Request", err)
-		m.UnwindPDN(ctx, ue, p, moved)
+		m.ReleasePDN(ctx, ue, p)
 
 		return nasreply.Handled()
 	}

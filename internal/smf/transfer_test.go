@@ -885,3 +885,112 @@ func TestTransferRegistersTheRAEntryWithTheTargetQFI(t *testing.T) {
 		t.Error("RA entry marked S1U (PSC-less) for a session now on N3")
 	}
 }
+
+// The three states a move onto EPS can be released from. Only the first names a
+// session 5GS is still serving.
+func TestReleaseEPSSessionByTransferState(t *testing.T) {
+	prepare := func(t *testing.T) (*smf.SMF, *fakeUPF, *smf.SMContext) {
+		t.Helper()
+
+		pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+		s := newTestSMF(pcf, store, upf, amfCb)
+		s.SetMME(mmeCb)
+
+		sc := establish5GS(t, s)
+
+		if _, err := s.CreateEPSSession(context.Background(), epsMove(movedPDUSessionID)); err != nil {
+			t.Fatalf("prepare the move to EPS: %v", err)
+		}
+
+		return s, upf, sc
+	}
+
+	bind := func(t *testing.T, s *smf.SMF, ref string) error {
+		t.Helper()
+
+		enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+
+		return s.ModifyEPSSession(context.Background(), ref, enb)
+	}
+
+	t.Run("prepared: 5GS is still serving it", func(t *testing.T) {
+		s, _, sc := prepare(t)
+
+		if err := s.ReleaseEPSSession(context.Background(), sc.Ref); err != nil {
+			t.Fatalf("ReleaseEPSSession: %v", err)
+		}
+
+		if s.GetSession(sc.Ref) == nil {
+			t.Fatal("the session was released though the move never began committing")
+		}
+
+		if _, err := s.CreateEPSSession(context.Background(), epsMove(movedPDUSessionID)); err != nil {
+			t.Errorf("the session cannot move again after the abandon: %v", err)
+		}
+	})
+
+	t.Run("committed: EPS owns it", func(t *testing.T) {
+		s, _, sc := prepare(t)
+
+		if err := bind(t, s, sc.Ref); err != nil {
+			t.Fatalf("ModifyEPSSession: %v", err)
+		}
+
+		if err := s.ReleaseEPSSession(context.Background(), sc.Ref); err != nil {
+			t.Fatalf("ReleaseEPSSession: %v", err)
+		}
+
+		if s.GetSession(sc.Ref) != nil {
+			t.Error("a committed EPS session was not released")
+		}
+	})
+
+	// The commit takes `pending` before it can fail, so nothing on either side is
+	// left marking the move. Declining to release here strands the session on a
+	// gNB the UE has already left, with its PFCP session and IP lease held.
+	t.Run("rolled back: nothing else would reap it", func(t *testing.T) {
+		s, upf, sc := prepare(t)
+
+		upf.err = errors.New("PFCP modify refused")
+
+		if err := bind(t, s, sc.Ref); err == nil {
+			t.Fatal("ModifyEPSSession succeeded though the UPF refused the modify")
+		}
+
+		upf.err = nil
+
+		if err := s.ReleaseEPSSession(context.Background(), sc.Ref); err != nil {
+			t.Fatalf("ReleaseEPSSession: %v", err)
+		}
+
+		if s.GetSession(sc.Ref) != nil {
+			t.Error("the session survived a rolled-back commit, leaking its PFCP session and IP lease")
+		}
+	})
+}
+
+// Buffering the downlink of a session 5GS is serving over N3 blackholes it
+// (TS 23.502 §4.11.2.2: the PDU session is released only once the move commits).
+func TestDeactivateEPSSessionLeavesAnUncommittedMoveAlone(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	sc := establish5GS(t, s)
+
+	if _, err := s.CreateEPSSession(ctx, epsMove(movedPDUSessionID)); err != nil {
+		t.Fatalf("prepare the move to EPS: %v", err)
+	}
+
+	modifies := len(upf.modifyCalls)
+
+	if err := s.DeactivateEPSSession(ctx, sc.Ref); err != nil {
+		t.Fatalf("DeactivateEPSSession: %v", err)
+	}
+
+	if len(upf.modifyCalls) != modifies {
+		t.Error("the downlink of a session still served over N3 was put into buffering")
+	}
+}

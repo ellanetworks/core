@@ -28,6 +28,10 @@ const (
 	datapathSettle = 500 * time.Millisecond
 
 	attachTimeout = 15 * time.Second
+	slaacTimeout  = 5 * time.Second
+
+	ipv4TunPrefix = "/16"
+	ipv6TunPrefix = "/64"
 
 	s1MMEPort = "36412"
 )

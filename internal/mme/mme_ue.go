@@ -78,10 +78,6 @@ type PdnConnection struct {
 	DnConfig     string     // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
 	PDUSessionID uint8
 	Snssai       *models.Snssai
-	// PendingTransfer marks a connection opened with request type "handover"
-	// whose move has not committed. Until it does, 5GS is still serving the
-	// session: releasing it would destroy one the UE is running.
-	PendingTransfer bool
 	// SessAmbrDLBps/ULBps are the per-APN Session-AMBR (bits/s), and qci/arp the
 	// E-RAB QoS (QCI, ARP priority), the bearer was set up with; a policy change
 	// triggers an in-place Modify EPS Bearer Context (QoS also an E-RAB Modify).
@@ -382,7 +378,7 @@ func (m *MME) AddDefaultPDN(ue *UeContext) *PdnConnection {
 // fillBearerLocked populates a PDN connection's addressing/QoS from a created EPS
 // bearer. The caller holds ue.mu, so a concurrent status snapshot or reconcile never
 // observes a half-written bearer (TS 24.301 §6.4; the PDN state is ue.mu-guarded).
-func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer, moved bool) {
+func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 	p.SessionRef = bearer.Ref
 	p.Apn = qos.APN
 	p.DnConfig = qos.DnFingerprint()
@@ -400,14 +396,13 @@ func fillBearerLocked(p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer, mo
 	p.SgwN3IPv6 = bearer.SGWN3IPv6
 	p.PDUSessionID = bearer.PDUSessionID
 	p.Snssai = bearer.Snssai
-	p.PendingTransfer = moved
 }
 
 // InstallDefaultBearer publishes the UE-AMBR and the default PDN connection's
 // addressing/QoS atomically under ue.mu, so a status read or reconcile never sees a
 // half-populated bearer. It returns the negotiated PDN type, DNS, and ESM cause
 // (captured under the lock) for the caller to log.
-func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPSBearer, moved bool) (pdnType uint8, dns string, esmCause eps.ESMCause) {
+func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPSBearer) (pdnType uint8, dns string, esmCause eps.ESMCause) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -418,17 +413,17 @@ func (m *MME) InstallDefaultBearer(ue *UeContext, qos *EpsQoS, bearer models.EPS
 
 	p := ue.EnsurePDN(DefaultERABID)
 
-	fillBearerLocked(p, qos, bearer, moved)
+	fillBearerLocked(p, qos, bearer)
 
 	return uint8(p.PdnType), p.Dns.String(), p.EsmCause
 }
 
 // FillBearer populates an already-created PDN connection's addressing/QoS under ue.mu.
-func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer, moved bool) {
+func (m *MME) FillBearer(ue *UeContext, p *PdnConnection, qos *EpsQoS, bearer models.EPSBearer) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	fillBearerLocked(p, qos, bearer, moved)
+	fillBearerLocked(p, qos, bearer)
 }
 
 // AddPDN allocates the lowest free EPS bearer identity and reserves a PDN

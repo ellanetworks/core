@@ -305,7 +305,37 @@ func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, 
 // Releasing by ref targets the exact instance, so superseding an old context cannot
 // tear down a newer session that reused the (IMSI, EBI) slot.
 func (s *SMF) ReleaseEPSSession(ctx context.Context, ref string) error {
+	if s.dropEPSHalf(ref) {
+		return nil
+	}
+
 	return s.ReleaseSmContext(ctx, ref)
+}
+
+// dropEPSHalf reports whether ref names a move onto EPS that has not begun
+// committing. Such a session is one 5GS is still serving, so only the move is
+// dropped — releasing would tear down a session the UE is running and free its
+// address. Once the commit has begun the session is EPS's to release whether or
+// not it completed: a rolled-back commit leaves it pinned to a gNB the UE has
+// already left, so nothing else would ever reap it. The releasing latch is set
+// under the same lock hold, so a commit racing this decision loses.
+func (s *SMF) dropEPSHalf(ref string) bool {
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return false
+	}
+
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if sc.pending == nil || sc.pending.to != Access4G {
+		sc.releasing = true
+		return false
+	}
+
+	sc.pending = nil
+
+	return true
 }
 
 func (s *SMF) FramedRoutesChanged(ctx context.Context, ref string) (bool, error) {
@@ -332,5 +362,10 @@ func (s *SMF) epsSubscriptionChanged(ctx context.Context, ref string, changed fu
 // the UE goes ECM-IDLE: the downlink FAR buffers packets, so downlink
 // data raises a paging notification and never reaches the released eNB tunnel.
 func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {
+	// Buffering the downlink of a session 5GS is serving over N3 blackholes it.
+	if sc := s.GetSession(ref); sc == nil || !sc.onEPS() {
+		return nil
+	}
+
 	return s.DeactivateSmContext(ctx, ref)
 }

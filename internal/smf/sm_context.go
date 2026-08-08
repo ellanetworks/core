@@ -168,3 +168,10 @@ func (smContext *SMContext) SetPFCPSession(seid uint64) {
 func (smContext *SMContext) CanonicalName() string {
 	return canonicalName(smContext.Supi, smContext.sessionKey())
 }
+
+func (smContext *SMContext) onEPS() bool {
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	return smContext.Access == Access4G
+}
