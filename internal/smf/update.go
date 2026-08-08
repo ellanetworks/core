@@ -236,8 +236,12 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 		return nil, fmt.Errorf("pfcp session context not found")
 	}
 
+	restoreBinding := smContext.stageAccessBinding()
+
 	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
 	if err != nil {
+		restoreBinding()
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle N2 message")
 
@@ -246,10 +250,25 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 
 	commit, err := s.beginTransferCommit(ctx, smContext, Access5G)
 	if err != nil {
+		restoreBinding()
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to move the session to 5GS")
 
 		return nil, fmt.Errorf("failed to move the session to 5GS: %w", err)
+	}
+
+	// Without a commit this is an ordinary bind, which only a session already on
+	// 5GS can take: pushing a gNB downlink onto one still recorded as EPS would
+	// leave the MME routing a session the gNB now holds.
+	if commit == nil && smContext.Access != Access5G {
+		restoreBinding()
+
+		err := fmt.Errorf("session %q is on %s, not 5GS", smContext.Ref, smContext.Access)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "session is not on 5GS")
+
+		return nil, err
 	}
 
 	var qers []*QER
@@ -266,6 +285,8 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 		policyID,
 		pdrList, farList, qers,
 	)); err != nil {
+		restoreBinding()
+
 		if commit != nil {
 			commit.restore()
 		}
@@ -361,8 +382,9 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 
 	// The RAN has no resources for the session, so a move onto it cannot commit.
 	// The session stays where it is and becomes movable again; it is not released,
-	// because the access it is still on is serving it.
-	smContext.abandonTransfer()
+	// because the access it is still on is serving it. Only a move onto 5GS is
+	// abandoned — an EPS-bound one is another procedure's to finish.
+	smContext.abandonTransferTo(Access5G)
 
 	return handlePDUSessionResourceSetupUnsuccessfulTransfer(n2Data)
 }

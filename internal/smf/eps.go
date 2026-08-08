@@ -202,6 +202,8 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 		return nil, fmt.Errorf("EPS session %q is not activated", smContext.Ref)
 	}
 
+	restoreBinding := smContext.stageAccessBinding()
+
 	dl := smContext.Tunnel.DownlinkPDR
 	ul := smContext.Tunnel.UplinkPDR
 	dl.FAR.ApplyAction = models.ApplyAction{Forw: true}
@@ -240,6 +242,8 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 		[]*FAR{dl.FAR},
 		qers,
 	)); err != nil {
+		restoreBinding()
+
 		if commit != nil {
 			commit.restore()
 		}

@@ -12,6 +12,17 @@ import (
 )
 
 func (s *SMF) epsBearerIdentityAvailable(sc *SMContext, ebi uint8) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.epsBearerIdentityAvailableLocked(sc, ebi)
+}
+
+// Caller holds s.mu, so the claim in setEPSBearerIdentity can re-check under the
+// write lock it writes the index with: two commits for different sessions of one
+// UE hold only their own sc.Mutex, so a check released before the claim lets both
+// pass and leaves the index attributing the identity to one of them.
+func (s *SMF) epsBearerIdentityAvailableLocked(sc *SMContext, ebi uint8) error {
 	if !(SessionIdentity{PDUSessionID: sc.PDUSessionID, EBI: ebi}).valid() {
 		return fmt.Errorf("%w: EPS bearer identity %d names no default bearer", ErrSessionNotMovable, ebi)
 	}
@@ -19,9 +30,6 @@ func (s *SMF) epsBearerIdentityAvailable(sc *SMContext, ebi uint8) error {
 	if sc.PDUSessionID == 0 {
 		return fmt.Errorf("%w: session %q is keyed on its EPS bearer identity", ErrSessionNotMovable, sc.Ref)
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 
 	if held := s.byKey[canonicalName(sc.Supi, epsBearerKey(ebi))]; held != nil && held != sc {
 		return fmt.Errorf("%w: EPS bearer identity %d is held by session %q", ErrSessionNotMovable, ebi, held.Ref)
@@ -35,14 +43,14 @@ func (s *SMF) setEPSBearerIdentity(sc *SMContext, ebi uint8) error {
 		return nil
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if ebi != 0 {
-		if err := s.epsBearerIdentityAvailable(sc, ebi); err != nil {
+		if err := s.epsBearerIdentityAvailableLocked(sc, ebi); err != nil {
 			return err
 		}
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	// A re-inserted key would outlive a dropped session and hold the slot forever.
 	if s.pool[sc.Ref] != sc {

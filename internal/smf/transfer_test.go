@@ -6,6 +6,7 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 	"testing"
@@ -992,5 +993,134 @@ func TestDeactivateEPSSessionLeavesAnUncommittedMoveAlone(t *testing.T) {
 
 	if len(upf.modifyCalls) != modifies {
 		t.Error("the downlink of a session still served over N3 was put into buffering")
+	}
+}
+
+// A refused PFCP modify leaves the data plane holding the source access's rules,
+// so the model must go back to describing them too.
+func TestRefusedCommitRestoresTheSourceBinding(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(1)
+	req.APN = testDNN
+	req.PDUSessionID = movedPDUSessionID
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	sc := s.GetSession(bearer.Ref)
+
+	sc.Mutex.Lock()
+	before := ohcSummary(sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation)
+	sc.Mutex.Unlock()
+
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest())
+	if err != nil || reject != nil {
+		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	upf.err = errors.New("PFCP modify refused")
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err == nil {
+		t.Fatal("the bind succeeded though the UPF refused the modify")
+	}
+
+	sc.Mutex.Lock()
+	after := ohcSummary(sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation)
+	access := sc.Access
+	sc.Mutex.Unlock()
+
+	if access != smf.Access4G {
+		t.Errorf("session on %s after a refused commit, want EPS", access)
+	}
+
+	if after != before {
+		t.Errorf("downlink outer header = %s, want the eNB's %s: the data plane still holds it", after, before)
+	}
+}
+
+func ohcSummary(o *models.OuterHeaderCreation) string {
+	if o == nil {
+		return "<none>"
+	}
+
+	return fmt.Sprintf("desc=%d teid=%#x v4=%s v6=%s s1u=%v", o.Description, o.TEID, o.IPv4Address, o.IPv6Address, o.S1U)
+}
+
+// A setup failure abandons the move, so the setup response that follows it names
+// no commit. Binding a gNB downlink onto a session still recorded as EPS would
+// leave the MME routing one the gNB now holds.
+func TestBindingTo5GSIsRefusedWithoutACommit(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(1)
+	req.APN = testDNN
+	req.PDUSessionID = movedPDUSessionID
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
+		fgs.RequestTypeExistingPDUSession, buildPDUSessionEstRequest())
+	if err != nil || reject != nil {
+		t.Fatalf("move to 5GS: %v (reject %d bytes)", err, len(reject))
+	}
+
+	fail, err := buildPDUSessionResourceSetupUnsuccessfulTransfer()
+	if err != nil {
+		t.Fatalf("build N2 setup failure: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupFail(ctx, ref, fail); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupFail: %v", err)
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err == nil {
+		t.Fatal("a gNB downlink was bound onto a session the anchor still holds on EPS")
+	}
+
+	sc := s.GetSession(ref)
+
+	sc.Mutex.Lock()
+	access := sc.Access
+	sc.Mutex.Unlock()
+
+	if access != smf.Access4G {
+		t.Errorf("session on %s, want EPS", access)
 	}
 }

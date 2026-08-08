@@ -297,3 +297,55 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 
 	return nil
 }
+
+// stageAccessBinding captures the tunnel state a downlink bind overwrites and
+// returns a restore. bindAccessTunnel replaces the outer-header pointers rather
+// than editing them, so saving the pointers is enough. Without this a refused
+// PFCP modify leaves the model describing an endpoint the data plane never
+// accepted — including a Forw apply-action on a session still buffering.
+// Caller holds Mutex.
+func (sc *SMContext) stageAccessBinding() func() {
+	if sc.Tunnel == nil {
+		return func() {}
+	}
+
+	tun := sc.Tunnel
+	an := tun.AN
+
+	var (
+		dlAction models.ApplyAction
+		dlParams *models.ForwardingParameters
+		dlOHC    *models.OuterHeaderCreation
+		ulOHR    *uint8
+	)
+
+	if dl := tun.DownlinkPDR; dl != nil && dl.FAR != nil {
+		dlAction = dl.FAR.ApplyAction
+		dlParams = dl.FAR.ForwardingParameters
+
+		if dlParams != nil {
+			dlOHC = dlParams.OuterHeaderCreation
+		}
+	}
+
+	if ul := tun.UplinkPDR; ul != nil {
+		ulOHR = ul.OuterHeaderRemoval
+	}
+
+	return func() {
+		tun.AN = an
+
+		if dl := tun.DownlinkPDR; dl != nil && dl.FAR != nil {
+			dl.FAR.ApplyAction = dlAction
+			dl.FAR.ForwardingParameters = dlParams
+
+			if dlParams != nil {
+				dlParams.OuterHeaderCreation = dlOHC
+			}
+		}
+
+		if ul := tun.UplinkPDR; ul != nil {
+			ul.OuterHeaderRemoval = ulOHR
+		}
+	}
+}

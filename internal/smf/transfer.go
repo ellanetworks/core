@@ -138,6 +138,17 @@ func (sc *SMContext) abandonTransfer() {
 	sc.pending = nil
 }
 
+// abandonTransferTo drops a pending move only if it is the one onto access, so a
+// failure reported by one access cannot cancel the other's move.
+func (sc *SMContext) abandonTransferTo(access AccessType) {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if sc.pending != nil && sc.pending.to == access {
+		sc.pending = nil
+	}
+}
+
 type transferCommit struct {
 	source   AccessType
 	sourceID SessionIdentity
