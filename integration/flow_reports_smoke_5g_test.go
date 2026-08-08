@@ -73,7 +73,7 @@ func TestIntegration5GFlowReportsSmoke(t *testing.T) {
 		scenarioName := fmt.Sprintf("%s/%s", fp.scenarioAllowed, p)
 		tr := globalReporter.Start(scenarioName)
 		QuietLogf(t, tr, "running %s", scenarioName)
-		env.RunScenario(ctx, t, fp.scenarioAllowed, tr, scenarioRunArgs(fp.scenarioAllowed, spec, pp)...)
+		env.RunScenario(ctx, t, fp.scenarioAllowed, tr, scenarioRunArgs(fp.scenarioAllowed, spec, pp, smokeProbeSourcePortBase)...)
 		finishScenarioTest(t, tr)
 	}
 
@@ -93,6 +93,7 @@ func TestIntegration5GFlowReportsSmoke(t *testing.T) {
 						Destination: apiDestinationIPFilter(direction, fp),
 						PerPage:     100,
 					},
+					probeTupleScope(direction, pp, smokeProbeSourcePortBase, len(expectedIMSIs)),
 					expectedFlowsContentPredicate(direction, "allow", expectedIMSIs, fp, pp),
 					90*time.Second,
 				)

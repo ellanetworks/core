@@ -17,15 +17,37 @@ import (
 // matches during polling.
 type FlowReportPredicate func([]client.FlowReport) bool
 
+// FlowReportScope selects the records a test is responsible for, so traffic
+// another test left on the wire cannot be counted against this one. A nil scope
+// keeps every record the filter returned.
+type FlowReportScope func(client.FlowReport) bool
+
+func (s FlowReportScope) apply(items []client.FlowReport) []client.FlowReport {
+	if s == nil {
+		return items
+	}
+
+	kept := make([]client.FlowReport, 0, len(items))
+
+	for _, f := range items {
+		if s(f) {
+			kept = append(kept, f)
+		}
+	}
+
+	return kept
+}
+
 // AssertFlowReports polls the flow-reports endpoint with the given filter
 // every 500 ms until predicate returns true or timeout elapses. Returns
-// the snapshot that satisfied predicate; fails the subtest on timeout or
-// API error.
+// the in-scope snapshot that satisfied predicate; fails the subtest on timeout
+// or API error.
 func AssertFlowReports(
 	ctx context.Context,
 	t *testing.T,
 	c *client.Client,
 	params *client.ListFlowReportsParams,
+	scope FlowReportScope,
 	predicate FlowReportPredicate,
 	timeout time.Duration,
 ) []client.FlowReport {
@@ -39,17 +61,21 @@ func AssertFlowReports(
 			t.Fatalf("list flow reports: %v", err)
 		}
 
-		if predicate(resp.Items) {
-			return resp.Items
+		items := scope.apply(resp.Items)
+
+		if predicate(items) {
+			return items
 		}
 
 		if time.Now().After(deadline) {
 			for i, f := range resp.Items {
-				t.Logf("TIMEOUT item %d imsi=%s dir=%s action=%s proto=%d sp=%d dp=%d packets=%d bytes=%d",
-					i, f.SubscriberID, f.Direction, f.Action, f.Protocol, f.SourcePort, f.DestinationPort, f.Packets, f.Bytes)
+				t.Logf("TIMEOUT item %d imsi=%s dir=%s action=%s proto=%d sp=%d dp=%d packets=%d bytes=%d in_scope=%t",
+					i, f.SubscriberID, f.Direction, f.Action, f.Protocol, f.SourcePort, f.DestinationPort, f.Packets, f.Bytes,
+					scope == nil || scope(f))
 			}
 
-			t.Fatalf("timeout waiting for flow reports matching predicate (filter=%+v, got %d items)", params, len(resp.Items))
+			t.Fatalf("timeout waiting for flow reports matching predicate (filter=%+v, got %d items, %d in scope)",
+				params, len(resp.Items), len(items))
 		}
 
 		select {
@@ -365,6 +391,52 @@ func EachTupleHasAtMost(n int) FlowReportPredicate {
 
 		for _, c := range counts {
 			if c > n {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
+func EachTuplePacketsAtMost(n uint64) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		type key struct {
+			imsi string
+			sp   uint16
+			dp   uint16
+		}
+
+		packets := make(map[key]uint64)
+		for _, f := range items {
+			packets[key{imsi: f.SubscriberID, sp: f.SourcePort, dp: f.DestinationPort}] += f.Packets
+		}
+
+		if len(packets) == 0 {
+			return false
+		}
+
+		for _, p := range packets {
+			if p > n {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
+// EachBytesPerPacketIs requires every record to account exactly size bytes for
+// each of its packets. It pins the per-packet accounting without pinning how
+// many packets a peer chose to send.
+func EachBytesPerPacketIs(size uint64) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		if len(items) == 0 {
+			return false
+		}
+
+		for _, f := range items {
+			if f.Packets == 0 || f.Bytes != f.Packets*size {
 				return false
 			}
 		}
