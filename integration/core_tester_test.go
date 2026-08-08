@@ -65,6 +65,15 @@ var scenarioIPFamilyRestrictions = map[string]IPFamily{
 	"s1enb/static_ip_ipv6":                   IPv6Only,
 }
 
+// scenarioFollowsDeploymentIPFamily lists scenarios that adapt to whichever
+// address family the deployment has, rather than testing one. They run in every
+// leg and are told the deployment's family; pinning them in
+// scenarioIPFamilyRestrictions would give them one leg instead of three.
+var scenarioFollowsDeploymentIPFamily = map[string]bool{
+	"interworking/transfer_5gs_to_eps": true,
+	"interworking/transfer_eps_to_5gs": true,
+}
+
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
 // families in which the scenario should be skipped. This is used for
 // scenarios that test a specific address family but should be skipped
@@ -199,12 +208,20 @@ func TestIntegrationTester(t *testing.T) {
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(spec)
 
-			// Only pass --ip-version to scenarios that are explicitly
-			// IPv6-specific (listed in scenarioIPFamilyRestrictions).
-			// Other scenarios should default to IPv4.
+			// The tester runs in its own container and inherits none of this
+			// process's environment, so --ip-version is the only channel the family
+			// reaches it by. Scenarios pinned to one family are told that one;
+			// family-aware scenarios are told the deployment's, so they exercise
+			// every leg. Everything else defaults to IPv4, as before.
 			var extraArgs []string
-			if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
-				extraArgs = append(extraArgs, "--ip-version", string(requiredFamily))
+
+			switch {
+			case scenarioFollowsDeploymentIPFamily[name]:
+				extraArgs = append(extraArgs, "--ip-version", string(DetectIPFamily()))
+			default:
+				if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+					extraArgs = append(extraArgs, "--ip-version", string(requiredFamily))
+				}
 			}
 
 			extraArgs = append(extraArgs, spec.ExtraArgs...)
