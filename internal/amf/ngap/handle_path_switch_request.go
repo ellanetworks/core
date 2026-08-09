@@ -85,8 +85,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	defer amfUe.EndKeyChainProc(procedure.PathSwitch)
 
-	// Tell the SMF about the sessions the target could not set up before reconciling,
-	// so it sees the gNB's own failure cause rather than only a release.
 	for _, item := range msg.PDUSessionResourceFailedToSetup {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -252,29 +253,6 @@ func TestPathSwitchFailedERABReleasesCoreNetworkResources(t *testing.T) {
 	}
 }
 
-func TestPathSwitchTotalFailureDetachesUE(t *testing.T) {
-	m := newTestMME(t)
-	ue := pathSwitchUE(t, m)
-	testPDN(ue).SessionRef = "session-ebi-5"
-
-	fsm := sessionManager(t, m)
-	fsm.failModify(mme.DefaultERABID, errAnchorRefused)
-
-	// Captured before the handler runs: an explicit detach tears the association down.
-	mmeID := ue.Conn().MMEUES1APID
-
-	target := &captureConn{}
-	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
-
-	if !releasedRef(fsm, "session-ebi-5") {
-		t.Errorf("UE was not detached after a total path-switch failure; released refs = %v", fsm.releasedRefs)
-	}
-
-	if _, stillKnown := m.LookupUe(mmeID); stillKnown {
-		t.Error("UE is still registered after a total path-switch failure; no explicit detach was performed")
-	}
-}
-
 func TestPathSwitchAckCarriesUEAMBR(t *testing.T) {
 	m := newTestMME(t)
 	ue, _, _ := pathSwitchUEWithSecondPDN(t, m)
@@ -488,5 +466,50 @@ func TestPathSwitchDuringNASSecurityModeIsRefused(t *testing.T) {
 	// the NAS SMC owns it for the duration.
 	if ue.NHForTest() != nh0 || ue.NCCForTest() != ncc0 {
 		t.Error("a refused path switch must not advance the AS key chain")
+	}
+} // TS 23.401 §5.5.1.1.2 step 6: "If none of the default EPS bearers have been
+// switched successfully in the core network ... the MME shall send a Path Switch
+// Request Failure message ... The MME performs explicit detach of the UE."
+//
+// No NAS DETACH REQUEST can reach a UE that has left the source cell, so the detach is
+// local (TS 24.301 §5.5.2.3.1). What must still happen is the deregistration and the
+// UE CONTEXT RELEASE COMMAND to the source eNB — without it the eNB keeps a UE-
+// associated S1 connection whose MME-UE-S1AP-ID the MME will hand to another UE.
+func TestPathSwitchTotalFailureDetachesUE(t *testing.T) {
+	m := newTestMME(t)
+
+	ue, source := securedUE(t, m)
+	testPDN(ue).Apn = "internet"
+	testPDN(ue).SessionRef = "session-ebi-5"
+	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xe0, EIA: 0xe0}, nil, mme.MintAuthProofForAttachRequest())
+	ue.SetNCCForTest(1)
+	ue.SetNHForTest([32]byte{})
+
+	fsm := sessionManager(t, m)
+	fsm.failModify(mme.DefaultERABID, errAnchorRefused)
+
+	target := &captureConn{}
+	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
+
+	if ue.EMMState() == mme.EMMRegistered {
+		t.Error("UE is still registered after a total path-switch failure")
+	}
+
+	if source.count() != 1 {
+		t.Fatalf("source eNB got %d messages, want one UE Context Release Command", source.count())
+	}
+
+	cmd := parseUEContextReleaseCommand(t, source.sent[0])
+	if cmd == nil {
+		t.Fatal("source eNB was not commanded to release the UE context")
+	}
+
+	// The target still gets its failure.
+	if target.count() != 1 {
+		t.Fatalf("target eNB got %d messages, want one Path Switch Request Failure", target.count())
+	}
+
+	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil {
+		t.Error("Path Switch Request Failure carries no Cause")
 	}
 }

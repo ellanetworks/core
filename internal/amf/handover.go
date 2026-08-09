@@ -40,11 +40,6 @@ type handoverContext struct {
 	// ACKNOWLEDGE); the rest are released at HANDOVER NOTIFY, since a session the
 	// target did not accept cannot continue there (TS 23.501 §5.30.3.5).
 	admitted map[uint8]struct{}
-	// {NH, NCC} advanced for the target, staged at preparation and committed to the
-	// UE only at HANDOVER NOTIFY (TS 33.501 §6.9.2.1.1); discarded if the handover is
-	// abandoned, so a failed handover never advances the live AS key chain.
-	newNH  [32]uint8
-	newNCC uint8
 }
 
 // PrepareHandover begins N2 handover preparation for the source→target pair: it claims
@@ -92,12 +87,22 @@ func (a *AMF) SuperviseHandover(ue *UeContext, source, target *UeConn) {
 		handoverGuardExpiry(a, source, target))
 }
 
-// stageHandover derives the next {NH, NCC} of the AS key chain (per-UE lock, key material)
-// and installs the handover FSM at hoPreparing (registry lock). It neither claims the
-// procedure nor arms supervision.
+// stageHandover advances the AS key chain and installs the handover FSM at
+// hoPreparing (registry lock). It neither claims the procedure nor arms supervision.
+//
+// TS 33.501 §6.9.2.3.3: "Upon reception of the NGAP HANDOVER REQUIRED message ... the
+// source AMF shall increment its locally kept NCC value by one and compute a fresh NH."
+// The increment is unconditional and committed here, not on completion: the pair is
+// sent to the target in the HANDOVER REQUEST, so rolling it back would let a later
+// handover hand the same {NH, NCC} to a second gNB — §6.9.2.1.1 NOTE 3 requires the AMF
+// to "always compute a fresh {NH, NCC} pair".
 func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8, ncc uint8, ok bool) {
 	ue.mu.Lock()
+
 	nh, ncc, err := ue.deriveNextNHLocked()
+	if err == nil {
+		ue.nh, ue.ncc = nh, ncc
+	}
 	ue.mu.Unlock()
 
 	if err != nil {
@@ -110,7 +115,7 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8
 		target.ue.Store(ue)
 	}
 
-	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target, newNH: nh, newNCC: ncc}
+	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target}
 	a.mu.Unlock()
 
 	return nh, ncc, true
@@ -238,11 +243,6 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 		a.mu.Unlock()
 		return false
 	}
-
-	ue.mu.Lock()
-	ue.nh = ue.handover.newNH
-	ue.ncc = ue.handover.newNCC
-	ue.mu.Unlock()
 
 	ue.handover = nil
 	// The source connection is managed by the handover flow, not released here.

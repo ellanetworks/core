@@ -13,10 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// pathSwitchSessions decodes the to-be-switched list into the RAN session set the
-// reconciliation primitive consumes. An item whose PDU session ID will not decode is
-// reported separately: it names nothing the core can act on. Mirrors
-// pathSwitchBearers on the EPS side.
 func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUSessionResourceToBeSwitchedDLList) (present []amf.RANSession, undecodable []uint8) {
 	present = make([]amf.RANSession, 0, len(items))
 
@@ -36,8 +32,6 @@ func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUS
 	return present, undecodable
 }
 
-// pathSwitchFailedSessions renders the gNB's failed-to-setup list as the rejected
-// set. NGAP carries this list where S1AP has none (TS 38.413 §9.2.3.8).
 func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSReq) []uint8 {
 	if len(items) == 0 {
 		return nil

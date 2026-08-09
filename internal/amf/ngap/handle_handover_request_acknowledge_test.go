@@ -17,8 +17,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// setupHandoverAckTestContext creates the AMF, source/target UEs, radios, and
-// SMF context needed for handover request acknowledge tests.
 func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
 
@@ -27,8 +25,6 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 	return targetRan, sourceNGAPSender, amfInstance
 }
 
-// setupHandoverAckTestContextWithSource is setupHandoverAckTestContext, also handing
-// back the source radio for tests that must deliver a message on it.
 func setupHandoverAckTestContextWithSource(t *testing.T) (*amf.Radio, *amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
 
@@ -91,11 +87,6 @@ func setupHandoverAckTestContextWithSource(t *testing.T) (*amf.Radio, *amf.Radio
 	return sourceRan, targetRan, sourceNGAPSender, amfInstance
 }
 
-// TestHandoverRequestAcknowledge_NotFromPreparedTarget checks an acknowledge that
-// arrives on an association other than the prepared target is dropped. Accepting it
-// would rebind the downlink tunnel through UpdateSmContextN2HandoverPrepared and draw
-// a HANDOVER COMMAND for a target the handover was never prepared for
-// (TS 38.413 §8.4.2). The AMF already makes the equivalent check on HANDOVER FAILURE.
 func TestHandoverRequestAcknowledge_NotFromPreparedTarget(t *testing.T) {
 	sourceRan, _, sourceNGAPSender, amfInstance := setupHandoverAckTestContextWithSource(t)
 
@@ -220,10 +211,6 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 	}
 }
 
-// TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached
-// verifies that when no PDU sessions are admitted and the source UE's AMF UE
-// context has been detached (e.g. due to a concurrent deregistration), the
-// handler does not panic.
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 

@@ -18,9 +18,6 @@ import (
 // Conformance tests for the Xn handover Path Switch procedure.
 var errSmfRefused = errors.New("SMF refused the path switch")
 
-// pathSwitchTestUE builds a secured UE with the given PDU sessions, its source
-// association, and an AMF wired to fakeSmf. It returns the UE and the target radio
-// the PATH SWITCH REQUEST arrives on.
 func pathSwitchTestUE(t *testing.T, fakeSmf *fakeSmfSbi, pduSessionIDs ...uint8) (*amf.AMF, *amf.UeContext, *amf.Radio) {
 	t.Helper()
 
@@ -159,9 +156,7 @@ func TestPathSwitchFailedSessionReleasesCoreResources(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.4.4.3: when no session could be switched the AMF answers with PATH
-// SWITCH REQUEST FAILURE. Unlike EPS, no detach follows — TS 23.502 §4.9.1.2 leaves
-// the UE's fate to the RAN, where TS 23.401 §5.5.1.1.2 step 6 mandates one.
+// TS 38.413 §8.4.4.3
 func TestPathSwitchNoSessionSwitchedSendsFailure(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchErr: errSmfRefused}
 	amfInstance, _, targetRan := pathSwitchTestUE(t, fakeSmf, 1)

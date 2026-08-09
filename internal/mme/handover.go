@@ -40,9 +40,6 @@ type handoverContext struct {
 	target      *UeConn // its ENBUES1APID is learned from the acknowledge
 	admitted    []AdmittedERAB
 	releaseEBIs []uint8 // bearers the target rejected, released at notify (TS 23.401 §5.5.1.2.2 step 15)
-	// {NH, NCC} for the target, advanced at preparation, committed at notify (TS 33.401 §7.2.8).
-	newNH  [32]byte
-	newNCC uint8
 }
 
 // PrepareHandover allocates a target association, advances the {NH, NCC} chain, and
@@ -60,9 +57,19 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		return 0, [32]byte{}, 0, false
 	}
 
+	// TS 33.401 §7.2.8.4.3: "Upon reception of the HANDOVER REQUIRED message the source
+	// MME shall increase its locally kept NCC value by one and compute a fresh NH from
+	// its stored data." The increment is unconditional and is committed here, not on
+	// completion: the pair goes to the target in the HANDOVER REQUEST, so rolling it
+	// back would let a later handover hand the same {NH, NCC} to a second eNB.
 	ue.mu.Lock()
+
 	newNH, err := deriveNH(ue.kasme, ue.nh[:])
-	newNCC = (ue.ncc + 1) & 0x07
+	if err == nil {
+		ue.nh = newNH
+		ue.ncc = (ue.ncc + 1) & 0x07
+		newNCC = ue.ncc
+	}
 	ue.mu.Unlock()
 
 	if err != nil {
@@ -90,8 +97,6 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		state:  hoPreparing,
 		source: ue.Conn(),
 		target: targetConn,
-		newNH:  newNH,
-		newNCC: newNCC,
 	}
 	ue.handover = ho
 
@@ -190,9 +195,9 @@ func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID
 	return ho.admitted, ho.releaseEBIs, true
 }
 
-// FinishHandoverCommit commits the {NH, NCC} chain, switches the UE's active S1
-// connection to the target, detaches the source, and clears the handover
-// (TS 36.413 §8.4.3, TS 33.401 §7.2.8). It returns the source association to
+// FinishHandoverCommit switches the UE's active S1 connection to the target, detaches
+// the source, and clears the handover (TS 36.413 §8.4.3). The {NH, NCC} chain was
+// already advanced at preparation. It returns the source association to
 // release. ok is false if a concurrent release tore the UE down during the switch.
 func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, targetMMEID s1ap.MMEUES1APID, ok bool) {
 	m.mu.Lock()
@@ -204,11 +209,6 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	}
 
 	source := ho.source
-
-	ue.mu.Lock()
-	ue.nh = ho.newNH
-	ue.ncc = ho.newNCC
-	ue.mu.Unlock()
 
 	ue.active.Store(ho.target)
 	source.ue = nil // its Release Complete removes the connection

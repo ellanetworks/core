@@ -1134,3 +1134,42 @@ func TestHandoverRequestAcknowledge_NoMatchingPreparation_DoesNotReleaseLiveUE(t
 		t.Fatalf("a stale acknowledge with no matching preparation must be dropped, but %d PDU(s) were sent (a UE Context Release would drop a live UE)", len(source.sent)-before)
 	}
 }
+
+// TestHandoverNHAdvancedAtPreparation is the EPS counterpart of
+// TestHandover_NHAdvancedAtPreparation on the 5G side.
+//
+// TS 33.401 §7.2.8.4.3: "Upon reception of the HANDOVER REQUIRED message the source
+// MME shall increase its locally kept NCC value by one and compute a fresh NH from its
+// stored data." The increment is unconditional, and the pair is sent to the target in
+// the HANDOVER REQUEST — so an abandoned handover must not roll it back, or the next
+// handover would hand the same {NH, NCC} to a second eNB.
+func TestHandoverNHAdvancedAtPreparation(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
+
+	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	if target.count() != 1 {
+		t.Fatalf("expected a HANDOVER REQUEST to the target, got %d messages", target.count())
+	}
+
+	afterPrepare, afterPrepareNCC := ue.NHForTest(), ue.NCCForTest()
+
+	if afterPrepare == nh0 {
+		t.Fatal("preparation must advance the live NH")
+	}
+
+	if afterPrepareNCC != (ncc0+1)&0x07 {
+		t.Fatalf("NCC after preparation = %d, want %d", afterPrepareNCC, (ncc0+1)&0x07)
+	}
+
+	// Abandon it; the chain must stay where preparation left it.
+	m.FireHandoverGuardForTest(ue)
+
+	if ue.NHForTest() != afterPrepare || ue.NCCForTest() != afterPrepareNCC {
+		t.Error("an abandoned handover must not roll the key chain back")
+	}
+}

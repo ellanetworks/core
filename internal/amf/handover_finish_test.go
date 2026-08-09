@@ -223,34 +223,29 @@ func TestFinishHandoverCommit(t *testing.T) {
 		}
 	})
 
-	t.Run("commits the staged NH chain only at finalize", func(t *testing.T) {
+	// TS 33.501 §6.9.2.3.3: the chain is advanced at preparation, so finalize must not
+	// touch it, and a handover that fails to finalize leaves it advanced. Rolling back
+	// would re-issue a pair already given to a gNB — see TestHandover_NHAdvancedAtPreparation.
+	t.Run("finalize does not touch the key chain", func(t *testing.T) {
 		a, ue, _, target := newPreparingHandover(t)
 
-		nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
+		nh, ncc := ue.NHForTest(), ue.NCCForTest()
 
 		commit(t, a, ue, target)
-
-		if ue.NHForTest() != nh0 || ue.NCCForTest() != ncc0 {
-			t.Fatal("the chain must not advance at the committing stage")
-		}
 
 		if !a.FinishHandoverCommit(ue, target) {
 			t.Fatal("FinishHandoverCommit")
 		}
 
-		if ue.NHForTest() == nh0 {
-			t.Error("finalize must advance the live NH")
-		}
-
-		if ue.NCCForTest() != (ncc0+1)%8 {
-			t.Errorf("live NCC = %d, want %d", ue.NCCForTest(), (ncc0+1)%8)
+		if ue.NHForTest() != nh || ue.NCCForTest() != ncc {
+			t.Error("finalize must leave the chain as preparation set it")
 		}
 	})
 
-	t.Run("a handover that fails to finalize does not advance the chain", func(t *testing.T) {
+	t.Run("a handover that fails to finalize leaves the chain advanced", func(t *testing.T) {
 		a, ue, _, target := newPreparingHandover(t)
 
-		nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
+		nh, ncc := ue.NHForTest(), ue.NCCForTest()
 
 		commit(t, a, ue, target)
 
@@ -262,8 +257,8 @@ func TestFinishHandoverCommit(t *testing.T) {
 			t.Fatal("FinishHandoverCommit must fail for a released target")
 		}
 
-		if ue.NHForTest() != nh0 || ue.NCCForTest() != ncc0 {
-			t.Error("a handover that did not finalize must not advance the live NH chain")
+		if ue.NHForTest() != nh || ue.NCCForTest() != ncc {
+			t.Error("a failed finalize must not roll the chain back")
 		}
 	})
 

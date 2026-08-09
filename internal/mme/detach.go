@@ -8,14 +8,23 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
 
-// DetachUEAfterPathSwitchFailure performs the explicit detach TS 23.401 §5.5.1.1.2
-// step 6 requires when no default EPS bearer could be switched during an X2 path
-// switch. The UE has already moved to the target cell over the radio and now has no
-// usable path there, so no association can carry a NAS DETACH REQUEST: the detach is
-// local, and the UE re-attaches (TS 24.301 §5.5.2.3.1).
+// DetachUEAfterPathSwitchFailure performs the detach TS 23.401 §5.5.1.1.2 step 6
+// requires when no default EPS bearer could be switched during an X2 path switch.
+//
+// No NAS DETACH REQUEST is sent: the UE has already left the source cell over the
+// radio, and the target has no path for it, so the message would not arrive. The
+// detach is therefore local to the MME, which TS 24.301 §5.5.2.3.1 recognises — the UE
+// is denied with EMM cause #10 "implicitly detached" at its next contact.
+//
+// The source eNB's UE-associated S1 connection is still up and must be commanded to
+// release: the UE's MME-UE-S1AP-ID is recycled, so leaving it would have the eNB
+// addressing a context the MME has deleted. Deregistering first makes that release a
+// teardown rather than a drop to ECM-IDLE; the Release Complete frees the sessions and
+// the context, and the release guard covers a Complete that never arrives.
 //
 // There is no 5G counterpart: TS 23.502 §4.9.1.2 requires only the PATH SWITCH
 // REQUEST FAILURE, leaving the UE's fate to the RAN.
@@ -28,8 +37,7 @@ func (m *MME) DetachUEAfterPathSwitchFailure(ctx context.Context, ue *UeContext)
 		zap.String("imsi", ue.IMSI()))
 
 	ue.TransitionTo(EMMDeregistered)
-	m.ReleaseAllSessions(ctx, ue)
-	m.RemoveUe(ue)
+	m.ReleaseUEContext(ctx, ue, s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach})
 }
 
 // DetachSubscriber sends a network-initiated DETACH REQUEST (TS 24.301)
