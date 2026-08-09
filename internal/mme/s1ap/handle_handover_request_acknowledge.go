@@ -71,9 +71,9 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		admitted = append(admitted, mme.AdmittedERAB{Ebi: uint8(it.ERABID), EnbFTEID: models.FTEID{TEID: uint32(it.GTPTEID), Addr: addr}})
 	}
 
-	// Each E-RAB is a PDN's default bearer, so a rejected one releases its PDN
-	// (TS 23.401 §5.5.1.2.2 step 15).
-	releaseEBIs := failedHandoverEBIs(ack, admitted)
+	// The causes the target gave for the bearers it refused, relayed per E-RAB in
+	// the HANDOVER COMMAND so the source eNB learns why (TS 36.413 §9.1.5.2).
+	targetCauses := failedERABCauses(ack)
 
 	if len(admitted) == 0 {
 		// No default bearer admitted: the handover is rejected (TS 23.401 §5.5.1.2.3).
@@ -85,7 +85,9 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted, releaseEBIs)
+	// Each E-RAB is a PDN's default bearer, so one that is not admitted releases its
+	// PDN (TS 23.401 §5.5.1.2.2 step 15).
+	releaseEBIs, sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted)
 	if !ok {
 		return
 	}
@@ -94,7 +96,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		MMEUES1APID:    sourceMMEID,
 		ENBUES1APID:    sourceENBID,
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
-		ERABToRelease:  releaseItems(releaseEBIs),
+		ERABToRelease:  releaseItems(releaseEBIs, targetCauses),
 		TargetToSource: ack.TargetToSource,
 	}
 
@@ -111,48 +113,35 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 	m.SendToRadio(ctx, sourceConn, mme.S1APProcedureHandoverCommand, b)
 }
 
-// failedHandoverEBIs returns the EPS bearer identities the target eNB reported
-// failed to set up and that are absent from the admitted set.
-func failedHandoverEBIs(ack *s1ap.HandoverRequestAcknowledge, admitted []mme.AdmittedERAB) []uint8 {
-	admittedSet := make(map[uint8]struct{}, len(admitted))
-	for _, a := range admitted {
-		admittedSet[a.Ebi] = struct{}{}
-	}
-
-	seen := make(map[uint8]struct{})
-
-	var out []uint8
-
-	add := func(ebi uint8) {
-		if _, ok := admittedSet[ebi]; ok {
-			return
-		}
-
-		if _, ok := seen[ebi]; ok {
-			return
-		}
-
-		seen[ebi] = struct{}{}
-		out = append(out, ebi)
-	}
-
+// failedERABCauses indexes the causes the target eNB gave for the E-RABs it could
+// not set up (TS 36.413 §9.1.5.5).
+func failedERABCauses(ack *s1ap.HandoverRequestAcknowledge) map[uint8]s1ap.Cause {
+	causes := make(map[uint8]s1ap.Cause, len(ack.ERABFailedToSetup))
 	for _, it := range ack.ERABFailedToSetup {
-		add(uint8(it.ERABID))
+		causes[uint8(it.ERABID)] = it.Cause
 	}
 
-	return out
+	return causes
 }
 
-// releaseItems renders EPS bearer identities as the E-RABs to Release List of a
-// HANDOVER COMMAND (TS 36.413 §9.1.5.2).
-func releaseItems(ebis []uint8) []s1ap.ERABItem {
+// releaseItems renders the E-RABs that could not be handed over as the E-RABs to
+// Release List of a HANDOVER COMMAND (TS 36.413 §9.1.5.2), relaying the target's
+// own cause where it gave one and naming the target generically where it answered
+// for the bearer in neither of its lists.
+func releaseItems(ebis []uint8, targetCauses map[uint8]s1ap.Cause) []s1ap.ERABItem {
 	if len(ebis) == 0 {
 		return nil
 	}
 
 	out := make([]s1ap.ERABItem, 0, len(ebis))
+
 	for _, ebi := range ebis {
-		out = append(out, s1ap.ERABItem{ERABID: s1ap.ERABID(ebi), Cause: causeHOFailureInTarget})
+		cause := causeHOFailureInTarget
+		if reported, ok := targetCauses[ebi]; ok {
+			cause = reported
+		}
+
+		out = append(out, s1ap.ERABItem{ERABID: s1ap.ERABID(ebi), Cause: cause})
 	}
 
 	return out

@@ -80,33 +80,56 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	sourceUe.HandOverType = msg.HandoverType
 
-	var sessions ngap.PDUSessionResourceSetupListHOReq
+	// Every PDU session the source listed is a candidate, whether or not the 5GC can
+	// offer it to the target: a candidate the target does not admit is reported to
+	// the source in the HANDOVER COMMAND's to-release list, and one the 5GC could
+	// not even offer is reported with the reason it failed here (TS 38.413 §8.4.1.2,
+	// TS 23.502 §4.9.1.3.2 step 12).
+	var (
+		sessions   ngap.PDUSessionResourceSetupListHOReq
+		candidates []amf.HandoverCandidate
+	)
+
+	notOffered := func(pduSessionID ngap.PDUSessionID, cause ngap.Cause) {
+		candidates = append(candidates, amf.HandoverCandidate{PDUSessionID: pduSessionID, Cause: &cause})
+	}
 
 	for _, item := range msg.PDUSessionResourceListHORqd {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, reporting it as not handed over", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			notOffered(item.PDUSessionID, causeUnknownPDUSessionID)
+
 			continue
 		}
 
 		smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !exist {
+			logger.WithTrace(ctx, sourceUe.Log).Error("no SM context for a PDU session the gNB asked to hand over", zap.Uint8("pduSessionID", pduSessionID))
+			notOffered(item.PDUSessionID, causeUnknownPDUSessionID)
+
 			continue
 		}
 
 		n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, item.Transfer)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			notOffered(item.PDUSessionID, causeHoFailureInTarget)
+
 			continue
 		}
 
-		item, err := amf.PDUSessionSetupItemHOReq(pduSessionID, smContext.Snssai, n2Rsp)
+		setupItem, err := amf.PDUSessionSetupItemHOReq(pduSessionID, smContext.Snssai, n2Rsp)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("could not build the handover request item", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			notOffered(item.PDUSessionID, causeHoFailureInTarget)
+
 			continue
 		}
 
-		sessions = append(sessions, item)
+		sessions = append(sessions, setupItem)
+		// No Cause: the session reaches the target, which answers for it.
+		candidates = append(candidates, amf.HandoverCandidate{PDUSessionID: item.PDUSessionID})
 	}
 
 	if len(sessions) == 0 {
@@ -129,7 +152,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	targetUe, nh, ncc, ok := amfInstance.PrepareHandover(ctx, amfUe, sourceUe, targetRan)
+	targetUe, nh, ncc, ok := amfInstance.PrepareHandover(ctx, amfUe, sourceUe, targetRan, candidates)
 	if !ok {
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
 
@@ -185,6 +208,12 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 // not complete: no session survived core-side preparation, or the AMF could not
 // stage the target context (TS 38.413 §9.3.1.2).
 var causeHoFailureInTarget = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget}
+
+// causeUnknownPDUSessionID reports a PDU session the source asked to hand over
+// that the 5GC does not hold — an identity outside the assignable range, or one
+// with no SM context (TS 38.413 §9.3.1.2). Path Switch answers the same condition
+// with the same cause.
+var causeUnknownPDUSessionID = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownPDUSessionID}
 
 // sendHandoverPreparationProtocolFailure reports a HANDOVER REQUIRED the AMF
 // rejected on criticality grounds, using the procedure's own unsuccessful

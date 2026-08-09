@@ -63,11 +63,18 @@ type fakeSmfSbi struct {
 	N2HandoverCompleteErr    error
 	ReleaseSmContextCalls    []string
 	N2HandoverPreparingCalls []string
+	N2HandoverPreparingData  []*SmfN2InfoCall
 	N2HandoverPreparingErr   error
-	N2HandoverPreparedCalls  []string
-	N2HandoverPreparedErr    error
-	N2HandoverCanceledErr    error
-	ReleaseSmContextErr      error
+	// N2HandoverPreparingErrByRef fails preparation for named SM contexts only, so a
+	// test can model one PDU session the SMF refuses while the others go through.
+	N2HandoverPreparingErrByRef map[string]error
+	N2HandoverPreparedCalls     []string
+	N2HandoverPreparedData      []*SmfN2InfoCall
+	N2HandoverPreparedErr       error
+	N2HandoverFailedCalls       []*SmfN2InfoCall
+	N2HandoverFailedErr         error
+	N2HandoverCanceledErr       error
+	ReleaseSmContextErr         error
 }
 
 func (f *fakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
@@ -101,13 +108,19 @@ func (f *fakeSmfSbi) UpdateSmContextN2ModifyIndication(ctx context.Context, smCo
 	return f.ModifyIndicationResponse, f.ModifyIndicationErr
 }
 
-func (f *fakeSmfSbi) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
+func (f *fakeSmfSbi) UpdateSmContextXnHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
 	f.HandoverFailedCalls = append(f.HandoverFailedCalls, &SmfHandoverFailedCall{
 		SmContextRef: smContextRef,
 		N2Data:       n2Data,
 	})
 
 	return f.HandoverFailedErr
+}
+
+func (f *fakeSmfSbi) UpdateSmContextN2HandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
+	f.N2HandoverFailedCalls = append(f.N2HandoverFailedCalls, &SmfN2InfoCall{SmContextRef: smContextRef, N2Data: n2Data})
+
+	return f.N2HandoverFailedErr
 }
 
 func (f *fakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error) {
@@ -142,14 +155,20 @@ func (f *fakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, smCont
 	return nil
 }
 
-func (f *fakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ context.Context, smContextRef string, _ []byte) ([]byte, error) {
+func (f *fakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	f.N2HandoverPreparingCalls = append(f.N2HandoverPreparingCalls, smContextRef)
+	f.N2HandoverPreparingData = append(f.N2HandoverPreparingData, &SmfN2InfoCall{SmContextRef: smContextRef, N2Data: n2Data})
+
+	if err, ok := f.N2HandoverPreparingErrByRef[smContextRef]; ok {
+		return nil, err
+	}
 
 	return nil, f.N2HandoverPreparingErr
 }
 
-func (f *fakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, smContextRef string, _ []byte) ([]byte, error) {
+func (f *fakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
 	f.N2HandoverPreparedCalls = append(f.N2HandoverPreparedCalls, smContextRef)
+	f.N2HandoverPreparedData = append(f.N2HandoverPreparedData, &SmfN2InfoCall{SmContextRef: smContextRef, N2Data: n2Data})
 
 	return nil, f.N2HandoverPreparedErr
 }

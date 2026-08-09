@@ -77,9 +77,10 @@ type SmfSbi interface {
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error
 	UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRef string) error
+	UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
-	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
+	UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
 	HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error

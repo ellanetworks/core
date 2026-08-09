@@ -35,18 +35,22 @@ type AdmittedERAB struct {
 // each with its own MME-UE-S1AP-ID; the UE's active connection (ue.active) stays the
 // source until HANDOVER NOTIFY switches it to the target. Guarded by MME.mu.
 type handoverContext struct {
-	state       hoState
-	source      *UeConn // the UE's source association (ue.active during preparation)
-	target      *UeConn // its ENBUES1APID is learned from the acknowledge
+	state  hoState
+	source *UeConn // the UE's source association (ue.active during preparation)
+	target *UeConn // its ENBUES1APID is learned from the acknowledge
+	// candidates is every E-RAB the MME considered for this handover, recorded at
+	// preparation. The ones the target does not admit are what TS 36.413 §8.4.1.2
+	// has the MME put in the HANDOVER COMMAND's E-RABs to Release List.
+	candidates  []uint8
 	admitted    []AdmittedERAB
-	releaseEBIs []uint8 // bearers the target rejected, released at notify (TS 23.401 §5.5.1.2.2 step 15)
+	releaseEBIs []uint8 // bearers not admitted, released at notify (TS 23.401 §5.5.1.2.2 step 15)
 }
 
 // PrepareHandover allocates a target association, advances the {NH, NCC} chain, and
 // installs the in-flight handover on the UE (TS 36.413 §8.4.1, TS 33.401 §7.2.8).
 // It refuses when the key chain is concurrently busy. reqMMEID is for logging only.
 // Supervision is armed separately (SuperviseHandover), after the HANDOVER REQUEST is sent.
-func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
+func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []uint8) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
@@ -89,9 +93,10 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	m.conns[tid] = targetConn
 
 	ho := &handoverContext{
-		state:  hoPreparing,
-		source: ue.Conn(),
-		target: targetConn,
+		state:      hoPreparing,
+		source:     ue.Conn(),
+		target:     targetConn,
+		candidates: candidates,
 	}
 	ue.handover = ho
 
@@ -129,23 +134,54 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 	return true
 }
 
-// MarkHandoverPrepared records the admitted/rejected E-RABs and advances the
-// handover to hoPrepared, returning the source association for the HANDOVER COMMAND
+// MarkHandoverPrepared records the admitted E-RABs and advances the handover to
+// hoPrepared, returning the source association for the HANDOVER COMMAND
 // (TS 36.413 §8.4.2). It re-validates the handover still matches the acknowledge.
-func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB, releaseEBIs []uint8) (sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, ok bool) {
+//
+// unadmitted is every candidate the target did not admit — the set TS 36.413
+// §8.4.1.2 has the MME put in the HANDOVER COMMAND's E-RABs to Release List, and
+// the set released at HANDOVER NOTIFY (TS 23.401 §5.5.1.2.2 step 15). Deriving it
+// from the candidates recorded at preparation rather than from the target's Failed
+// to Setup List is what makes it cover a bearer the target answered for in neither
+// list and one the MME never managed to offer; it also makes the HANDOVER
+// COMMAND's two lists disjoint by construction.
+func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB) (unadmitted []uint8, sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	ho := ue.handover
 	if ho == nil || ho.state != hoPreparing || ho.target.MMEUES1APID != ackMMEID || ho.target.Conn() != conn {
-		return nil, 0, 0, false
+		return nil, nil, 0, 0, false
+	}
+
+	admittedSet := make(map[uint8]struct{}, len(admitted))
+	for _, a := range admitted {
+		admittedSet[a.Ebi] = struct{}{}
+	}
+
+	// The candidates come from the UE's PDN connections, which are keyed by EPS
+	// bearer identity, so they are already unique; the guard keeps the list
+	// well-formed if that ever stops holding.
+	reported := make(map[uint8]struct{}, len(ho.candidates))
+
+	for _, ebi := range ho.candidates {
+		if _, isAdmitted := admittedSet[ebi]; isAdmitted {
+			continue
+		}
+
+		if _, dup := reported[ebi]; dup {
+			continue
+		}
+
+		reported[ebi] = struct{}{}
+		unadmitted = append(unadmitted, ebi)
 	}
 
 	ho.admitted = admitted
-	ho.releaseEBIs = releaseEBIs
+	ho.releaseEBIs = unadmitted
 	ho.state = hoPrepared
 
-	return ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID, true
+	return unadmitted, ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID, true
 }
 
 // HandoverTargetMatches reports whether an in-flight handover's target association

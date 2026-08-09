@@ -121,7 +121,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	}
 
 	// Handover Notify requires a prepared handover (the acknowledge step ran).
-	amfInstance.MarkHandoverPrepared(amfUe, nil)
+	_, _ = amfInstance.MarkHandoverPrepared(amfUe, nil)
 
 	msg := &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
 
@@ -187,7 +187,7 @@ func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	}
 
 	// The target admitted session 1 only; session 2 was rejected at the acknowledge.
-	amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
+	_, _ = amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	HandleHandoverNotify(context.Background(), amfInstance, targetRan, &ngap.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2})
 
@@ -243,7 +243,7 @@ func TestHandoverNotify_FromNonTarget_Dropped(t *testing.T) {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
-	amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
+	_, _ = amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	// An impostor UeConn on the target radio carrying the same AMF UE context but not
 	// the prepared target sends the notify. Adopting it releases the superseded
@@ -302,7 +302,7 @@ func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
 
 	// Handover Notify requires a prepared handover (the acknowledge step ran); the
 	// admitted session's completion is what fails below.
-	amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
+	_, _ = amfInstance.MarkHandoverPrepared(amfUe, map[uint8]struct{}{1: {}})
 
 	fakeSmf := &fakeSmfSbi{
 		N2HandoverCompleteErr: fmt.Errorf("smf unreachable"),

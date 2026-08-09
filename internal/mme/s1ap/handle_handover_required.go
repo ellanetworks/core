@@ -71,13 +71,13 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	bearers, ok := mme.HandoverBearers(ue)
+	bearers, candidates, ok := mme.HandoverBearers(ue)
 	if !ok {
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 		return
 	}
 
-	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID)
+	targetMMEID, newNH, newNCC, ok := m.PrepareHandover(ue, target.Conn, req.MMEUES1APID, candidates)
 	if !ok {
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverPrepUnspecific)
 		return

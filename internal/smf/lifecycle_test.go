@@ -1077,24 +1077,24 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_NotFound(t *testing.T) {
 }
 
 // ===========================
-// UpdateSmContextHandoverFailed tests
+// UpdateSmContextXnHandoverFailed tests
 // ===========================
 
-func TestUpdateSmContextHandoverFailed_EmptyRef(t *testing.T) {
+func TestUpdateSmContextXnHandoverFailed_EmptyRef(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	err := s.UpdateSmContextHandoverFailed(context.Background(), "", nil)
+	err := s.UpdateSmContextXnHandoverFailed(context.Background(), "", nil)
 	if err == nil {
 		t.Fatal("expected error for empty ref")
 	}
 }
 
-func TestUpdateSmContextHandoverFailed_NotFound(t *testing.T) {
+func TestUpdateSmContextXnHandoverFailed_NotFound(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	err := s.UpdateSmContextHandoverFailed(context.Background(), "nonexistent", nil)
+	err := s.UpdateSmContextXnHandoverFailed(context.Background(), "nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for non-existent session")
 	}

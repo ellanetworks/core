@@ -95,7 +95,7 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 
 	// The target has acknowledged (hoPrepared): its RAN-UE-NGAP-ID is known, so a
 	// cancel releases it with a UE Context Release Command.
-	if !amfInstance.MarkHandoverPrepared(amfUe, nil) {
+	if _, ok := amfInstance.MarkHandoverPrepared(amfUe, nil); !ok {
 		t.Fatal("MarkHandoverPrepared")
 	}
 

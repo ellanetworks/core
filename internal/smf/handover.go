@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // UpdateSmContextN2HandoverPreparing handles the handover-required N2 message
@@ -191,6 +192,49 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	return nil
 }
 
+// UpdateSmContextN2HandoverFailed takes the Handover Resource Allocation
+// Unsuccessful Transfer the target NG-RAN node returned for one PDU session
+// (TS 38.413 §8.4.2.2, §9.3.4.19): the target refused it, so it is not being
+// handed over.
+//
+// The user plane is deliberately left alone. The UE is still on the source until
+// it reaches the target, and a handover cancelled or abandoned in between must
+// leave the session exactly as it was; the session is deactivated at handover
+// completion instead, where the move is irreversible (TS 23.502 §4.9.1.3.3
+// step 7: a session the target did not accept "is considered deactivated").
+// Nothing is staged for this session at preparation either — the source access
+// tunnel is only rebound in UpdateSmContextN2HandoverPrepared — so there is
+// nothing to unwind here.
+func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
+	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_failed",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
+	if smContextRef == "" {
+		return fmt.Errorf("SM Context reference is missing")
+	}
+
+	smContext := s.GetSession(smContextRef)
+	if smContext == nil {
+		return fmt.Errorf("sm context not found: %s", smContextRef)
+	}
+
+	transfer, err := libngap.ParseHandoverResourceAllocationUnsuccessfulTransfer(n2Data)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to handle handover resource allocation unsuccessful transfer")
+
+		return fmt.Errorf("failed to unmarshall handover resource allocation unsuccessful transfer: %w", err)
+	}
+
+	logger.WithTrace(ctx, logger.SmfLog).Info("target NG-RAN node refused a PDU session at handover",
+		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
+		zap.String("cause", transfer.Cause.String()))
+
+	return nil
+}
+
 // Idempotent: a session with no prepared handover, or one already completed, is
 // a no-op.
 func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRef string) error {
@@ -331,9 +375,10 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	return nil
 }
 
-// UpdateSmContextHandoverFailed handles a path switch failure.
-func (s *SMF) UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
-	_, span := tracer.Start(ctx, "smf/update_sm_context_handover_failed",
+// UpdateSmContextXnHandoverFailed handles one PDU session an Xn handover could
+// not switch (TS 38.413 §8.4.4.3).
+func (s *SMF) UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
+	_, span := tracer.Start(ctx, "smf/update_sm_context_xn_handover_failed",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()

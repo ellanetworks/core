@@ -17,16 +17,22 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *amf.AMF) {
+func setupHandoverAckTestContext(t *testing.T, candidates ...amf.HandoverCandidate) (*amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
 
-	_, targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContextWithSource(t)
+	_, targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContextWithSource(t, candidates...)
 
 	return targetRan, sourceNGAPSender, amfInstance
 }
 
-func setupHandoverAckTestContextWithSource(t *testing.T) (*amf.Radio, *amf.Radio, *fakeNGAPSender, *amf.AMF) {
+// candidates are the PDU sessions the source asked to hand over, as
+// HANDOVER REQUIRED would have recorded them; the UE's single session by default.
+func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.HandoverCandidate) (*amf.Radio, *amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
+
+	if len(candidates) == 0 {
+		candidates = []amf.HandoverCandidate{{PDUSessionID: 1}}
+	}
 
 	const (
 		pduSessionID = uint8(1)
@@ -79,7 +85,7 @@ func setupHandoverAckTestContextWithSource(t *testing.T) (*amf.Radio, *amf.Radio
 
 	targetUe := amf.NewUeConnForTest(targetRan, 2, 1, logger.AmfLog)
 
-	err := amf.SetHandoverForTest(sourceUe, targetUe)
+	err := amf.SetHandoverForTest(sourceUe, targetUe, candidates...)
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
@@ -354,7 +360,9 @@ func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T)
 // admitted ones in the Handover List and lists the failed ones in the PDU
 // Session Resource To Release List (TS 38.413).
 func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
-	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
+	// Both sessions reached the target; it admits one and refuses the other.
+	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t,
+		amf.HandoverCandidate{PDUSessionID: 1}, amf.HandoverCandidate{PDUSessionID: 2})
 
 	admittedBytes, err := (&ngap.HandoverRequestAcknowledgeTransfer{
 		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
