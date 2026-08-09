@@ -100,7 +100,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	present, undecodable := pathSwitchBearers(ctx, ue, mmeID, req.ERABToBeSwitchedDL)
+	present, undecodable := pathSwitchBearers(ctx, mmeID, req.ERABToBeSwitchedDL)
 
 	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
 		Present:       present,
@@ -169,7 +169,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	}
 }
 
-func pathSwitchBearers(ctx context.Context, ue *mme.UeContext, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) (present []mme.RANBearer, undecodable []uint8) {
+func pathSwitchBearers(ctx context.Context, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) (present []mme.RANBearer, undecodable []uint8) {
 	present = make([]mme.RANBearer, 0, len(items))
 
 	for _, erab := range items {

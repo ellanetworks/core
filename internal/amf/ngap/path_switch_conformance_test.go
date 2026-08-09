@@ -50,16 +50,19 @@ func smContextRefFor(pduSessionID uint8) string {
 	return "imsi-001010000000001-" + string(rune('0'+pduSessionID))
 }
 
-func switchedDLItem(t *testing.T, pduSessionID uint8, teid uint32) ngap.PDUSessionResourceToBeSwitchedDLItem {
+// switchedDLItem is the to-be-switched entry for PDU session 1, the session every
+// test in this file switches. Tests that need a different identity copy it and
+// overwrite PDUSessionID.
+func switchedDLItem(t *testing.T) ngap.PDUSessionResourceToBeSwitchedDLItem {
 	t.Helper()
 
-	transfer, err := buildPathSwitchRequestTransfer(teid, []byte{10, 0, 0, 2})
+	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
 		t.Fatalf("build transfer: %v", err)
 	}
 
 	return ngap.PDUSessionResourceToBeSwitchedDLItem{
-		PDUSessionID: ngap.PDUSessionID(pduSessionID),
+		PDUSessionID: 1,
 		Transfer:     transfer,
 	}
 }
@@ -82,7 +85,7 @@ func TestPathSwitchKeepsSessionsTheGNBDidNotList(t *testing.T) {
 	msg := buildPathSwitchRequest(
 		ngap.Ptr(ngap.AMFUENGAPID(10)),
 		ngap.Ptr(ngap.RANUENGAPID(2)),
-		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t, 1, 5000)},
+		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t)},
 		nil, nil,
 	)
 
@@ -111,13 +114,13 @@ func TestPathSwitchReportsUndecodablePDUSessionID(t *testing.T) {
 		t.Fatalf("target conn is %T", targetRan.Conn)
 	}
 
-	bad := switchedDLItem(t, 1, 5000)
+	bad := switchedDLItem(t)
 	bad.PDUSessionID = 0 // outside the valid 1..15 range
 
 	msg := buildPathSwitchRequest(
 		ngap.Ptr(ngap.AMFUENGAPID(10)),
 		ngap.Ptr(ngap.RANUENGAPID(2)),
-		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t, 1, 5000), bad},
+		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t), bad},
 		nil, nil,
 	)
 
@@ -141,7 +144,7 @@ func TestPathSwitchFailedSessionReleasesCoreResources(t *testing.T) {
 	msg := buildPathSwitchRequest(
 		ngap.Ptr(ngap.AMFUENGAPID(10)),
 		ngap.Ptr(ngap.RANUENGAPID(2)),
-		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t, 1, 5000)},
+		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t)},
 		nil, nil,
 	)
 
@@ -169,7 +172,7 @@ func TestPathSwitchNoSessionSwitchedSendsFailure(t *testing.T) {
 	msg := buildPathSwitchRequest(
 		ngap.Ptr(ngap.AMFUENGAPID(10)),
 		ngap.Ptr(ngap.RANUENGAPID(2)),
-		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t, 1, 5000)},
+		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t)},
 		nil, nil,
 	)
 
