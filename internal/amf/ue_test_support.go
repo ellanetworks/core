@@ -100,6 +100,11 @@ func (r *Radio) NumUEsForTest() int {
 
 func (a *AMF) SetHandoverGuardTimeoutForTest(d time.Duration) { a.handoverGuardTimeout = d }
 
+// FireHandoverGuardForTest runs the handover guard's abandon action synchronously,
+// so a test can drive guard expiry without waiting on the timer. It reports whether
+// the handover was abandoned. Mirrors MME.FireHandoverGuardForTest.
+func (a *AMF) FireHandoverGuardForTest(ue *UeContext) bool { return a.abandonHandover(ue) }
+
 func (ue *UeContext) ArmPagingForTest(d time.Duration, maxRetransmit int32) {
 	ue.pagingTimer.Arm(d, maxRetransmit, func(int32) {}, func() {})
 }

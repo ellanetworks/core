@@ -11,6 +11,27 @@ import (
 	"go.uber.org/zap"
 )
 
+// DetachUEAfterPathSwitchFailure performs the explicit detach TS 23.401 §5.5.1.1.2
+// step 6 requires when no default EPS bearer could be switched during an X2 path
+// switch. The UE has already moved to the target cell over the radio and now has no
+// usable path there, so no association can carry a NAS DETACH REQUEST: the detach is
+// local, and the UE re-attaches (TS 24.301 §5.5.2.3.1).
+//
+// There is no 5G counterpart: TS 23.502 §4.9.1.2 requires only the PATH SWITCH
+// REQUEST FAILURE, leaving the UE's fate to the RAN.
+func (m *MME) DetachUEAfterPathSwitchFailure(ctx context.Context, ue *UeContext) {
+	if ue == nil {
+		return
+	}
+
+	logger.From(ctx, logger.MmeLog).Warn("detaching UE: no EPS bearer could be switched during path switch",
+		zap.String("imsi", ue.IMSI()))
+
+	ue.TransitionTo(EMMDeregistered)
+	m.ReleaseAllSessions(ctx, ue)
+	m.RemoveUe(ue)
+}
+
 // DetachSubscriber sends a network-initiated DETACH REQUEST (TS 24.301)
 // to the attached UE for imsi, if any, when a subscriber is deleted. The
 // request is guarded by T3422: if the UE does not reply with Detach Accept it

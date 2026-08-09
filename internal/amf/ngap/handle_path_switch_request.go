@@ -95,42 +95,8 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	defer amfUe.EndKeyChainProc(procedure.PathSwitch)
 
-	var (
-		switched ngap.PDUSessionResourceSwitchedList
-		released ngap.PDUSessionResourceReleasedListPSAck
-	)
-
-	for _, item := range msg.PDUSessionResourceToBeSwitchedDLList {
-		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
-		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
-			continue
-		}
-
-		transfer := item.Transfer
-
-		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-			appendPathSwitchReleasedItem(ctx, ueConn, &released, pduSessionID, ngap.CauseRadioNetworkUnknownPDUSessionID)
-
-			continue
-		}
-
-		n2Rsp, err := amfInstance.Session.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
-		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
-			appendPathSwitchReleasedItem(ctx, ueConn, &released, pduSessionID, ngap.CauseRadioNetworkUnspecified)
-
-			continue
-		}
-
-		switched = append(switched, ngap.PDUSessionResourceSwitchedItem{
-			PDUSessionID: ngap.PDUSessionID(pduSessionID),
-			Transfer:     ngap.TransferContainer(n2Rsp),
-		})
-	}
-
+	// Tell the SMF about the sessions the target could not set up before reconciling,
+	// so it sees the gNB's own failure cause rather than only a release.
 	for _, item := range msg.PDUSessionResourceFailedToSetup {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
@@ -138,18 +104,42 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			continue
 		}
 
-		transfer := item.Transfer
-
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
 			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
-		err := amfInstance.Session.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
-		if err != nil {
+		if err := amfInstance.Session.UpdateSmContextHandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 		}
+	}
+
+	// A PATH SWITCH REQUEST is authoritative: it names every PDU session the target
+	// gNB holds, so anything else in the UE context has been implicitly released
+	// (TS 38.413 §8.4.4.2). Same rule, same shape as the EPS path switch.
+	present, undecodable := pathSwitchSessions(ctx, ueConn, msg.PDUSessionResourceToBeSwitchedDLList)
+
+	result := amfInstance.ReconcileSessionsToRAN(ctx, amfUe, amf.RANSessions{
+		Present:       present,
+		Rejected:      pathSwitchFailedSessions(msg.PDUSessionResourceFailedToSetup),
+		Authoritative: true,
+	}, amfInstance.Session.UpdateSmContextXnHandoverPathSwitchReq)
+
+	var (
+		switched ngap.PDUSessionResourceSwitchedList
+		released ngap.PDUSessionResourceReleasedListPSAck
+	)
+
+	for _, a := range result.Applied {
+		switched = append(switched, ngap.PDUSessionResourceSwitchedItem{
+			PDUSessionID: ngap.PDUSessionID(a.PduSessionID),
+			Transfer:     ngap.TransferContainer(a.Transfer),
+		})
+	}
+
+	for _, id := range append(result.Failed, undecodable...) {
+		appendPathSwitchReleasedItem(ctx, ueConn, &released, id, ngap.CauseRadioNetworkUnspecified)
 	}
 
 	// TS 23.502: acknowledge to the target NG-RAN; if no session switched, fail the path switch.

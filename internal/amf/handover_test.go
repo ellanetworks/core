@@ -12,9 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestHandoverFSM_Lifecycle asserts the handover FSM — the single source of truth
-// for the source/target UeConn pair — is installed by SetHandoverForTest and
-// torn down by ClearHandover.
 func TestHandoverFSM_Lifecycle(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
@@ -52,9 +49,6 @@ func TestHandoverFSM_Lifecycle(t *testing.T) {
 	}
 }
 
-// TestHandover_TargetRemovalAbortsHandover verifies that removing the prepared
-// target UeConn (its gNB association reset or lost) clears the in-flight handover at
-// once, rather than leaving it dangling until the supervision guard fires.
 func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
@@ -82,9 +76,6 @@ func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 	}
 }
 
-// TestHandover_NHCommittedOnlyOnCompletion verifies the staged AS key chain is
-// committed to the UE only when the handover completes (HANDOVER NOTIFY), and an
-// abandoned handover leaves the live {NH, NCC} untouched (TS 33.501 §6.9.2.1.1).
 func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -121,11 +112,11 @@ func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 		}
 	})
 
-	t.Run("completed handover commits the staged NH chain", func(t *testing.T) {
+	t.Run("reaching the committing stage does not advance the live NH chain", func(t *testing.T) {
 		ue := makeUE()
+		nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
 
-		staged, stagedNCC, ok := amfInstance.StageHandoverForTest(ue)
-		if !ok {
+		if _, _, ok := amfInstance.StageHandoverForTest(ue); !ok {
 			t.Fatal("StageHandoverForTest failed")
 		}
 
@@ -137,8 +128,8 @@ func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 			t.Fatal("MarkHandoverCommitting returned false")
 		}
 
-		if ue.NHForTest() != staged || ue.NCCForTest() != stagedNCC {
-			t.Fatal("completed handover must commit the staged NH chain")
+		if ue.NHForTest() != nh0 || ue.NCCForTest() != ncc0 {
+			t.Fatal("the live NH chain must not advance before the handover is finalized")
 		}
 	})
 }

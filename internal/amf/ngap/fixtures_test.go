@@ -62,6 +62,15 @@ type fakeSmfSbi struct {
 	N2HandoverCanceledCalls  []string
 	N2HandoverCompleteErr    error
 	ReleaseSmContextCalls    []string
+
+	// The N2 preparation calls record their refs and can be made to fail, so the
+	// per-session error branches of the handover handlers are reachable from a test.
+	N2HandoverPreparingCalls []string
+	N2HandoverPreparingErr   error
+	N2HandoverPreparedCalls  []string
+	N2HandoverPreparedErr    error
+	N2HandoverCanceledErr    error
+	ReleaseSmContextErr      error
 }
 
 func (f *fakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
@@ -136,12 +145,16 @@ func (f *fakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, smCont
 	return nil
 }
 
-func (f *fakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
-	return nil, nil
+func (f *fakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ context.Context, smContextRef string, _ []byte) ([]byte, error) {
+	f.N2HandoverPreparingCalls = append(f.N2HandoverPreparingCalls, smContextRef)
+
+	return nil, f.N2HandoverPreparingErr
 }
 
-func (f *fakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string, _ []byte) ([]byte, error) {
-	return nil, nil
+func (f *fakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, smContextRef string, _ []byte) ([]byte, error) {
+	f.N2HandoverPreparedCalls = append(f.N2HandoverPreparedCalls, smContextRef)
+
+	return nil, f.N2HandoverPreparedErr
 }
 
 func (f *fakeSmfSbi) UpdateSmContextN2HandoverComplete(_ context.Context, smContextRef string) error {

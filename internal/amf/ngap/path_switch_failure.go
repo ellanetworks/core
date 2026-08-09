@@ -13,6 +13,47 @@ import (
 	"go.uber.org/zap"
 )
 
+// pathSwitchSessions decodes the to-be-switched list into the RAN session set the
+// reconciliation primitive consumes. An item whose PDU session ID will not decode is
+// reported separately: it names nothing the core can act on. Mirrors
+// pathSwitchBearers on the EPS side.
+func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUSessionResourceToBeSwitchedDLList) (present []amf.RANSession, undecodable []uint8) {
+	present = make([]amf.RANSession, 0, len(items))
+
+	for _, item := range items {
+		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
+		if !ok {
+			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			continue
+		}
+
+		present = append(present, amf.RANSession{PduSessionID: pduSessionID, Transfer: item.Transfer})
+	}
+
+	return present, undecodable
+}
+
+// pathSwitchFailedSessions renders the gNB's failed-to-setup list as the rejected
+// set. NGAP carries this list where S1AP has none (TS 38.413 §9.2.3.8).
+func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSReq) []amf.RANSession {
+	if len(items) == 0 {
+		return nil
+	}
+
+	out := make([]amf.RANSession, 0, len(items))
+
+	for _, item := range items {
+		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
+		if !ok {
+			continue
+		}
+
+		out = append(out, amf.RANSession{PduSessionID: pduSessionID, Transfer: item.Transfer})
+	}
+
+	return out
+}
+
 // sendPathSwitchRequestFailure refuses a path switch. TS 38.413 §9.2.3.10 has
 // no Cause IE for the message as a whole — unlike TS 36.413 §9.1.5.10 — so the
 // reason is reported per session, once for every session the request named.

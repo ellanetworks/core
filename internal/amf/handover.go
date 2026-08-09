@@ -121,11 +121,14 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8
 // aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
 func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Context) error {
 	return func(cctx context.Context) error {
-		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
-
 		amfUe := sourceUe.UeContext()
 
-		a.ClearHandover(amfUe)
+		if !a.abandonHandover(amfUe) {
+			return nil
+		}
+
+		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
+
 		a.UnbindHandoverTarget(cctx, amfUe)
 
 		targetUe.ReleaseAction = UeContextReleaseHandover
@@ -135,6 +138,29 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 
 		return nil
 	}
+}
+
+func (a *AMF) abandonHandover(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.Lock()
+
+	ho := ue.handover
+	if ho == nil || ho.state == hoCommitting {
+		a.mu.Unlock()
+		return false
+	}
+
+	detachAbandonedTargetLocked(ue, ho)
+	ue.handover = nil
+
+	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
+
+	return true
 }
 
 // SetHandoverForTest installs a preparing handover FSM for a source→target pair without
@@ -181,15 +207,6 @@ func (a *AMF) MarkHandoverCommitting(ue *UeContext, targetUe *UeConn) (admitted 
 
 	ho.state = hoCommitting
 
-	// Commit the staged AS key chain now that the UE has reached the target
-	// (TS 33.501 §6.9.2.1.1), under the per-UE lock. An abandoned handover clears the
-	// FSM without reaching here, so the live {NH, NCC} is never advanced for a
-	// handover that did not complete.
-	ue.mu.Lock()
-	ue.nh = ho.newNH
-	ue.ncc = ho.newNCC
-	ue.mu.Unlock()
-
 	return ho.admitted, true
 }
 
@@ -217,6 +234,11 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 		a.mu.Unlock()
 		return false
 	}
+
+	ue.mu.Lock()
+	ue.nh = ue.handover.newNH
+	ue.ncc = ue.handover.newNCC
+	ue.mu.Unlock()
 
 	ue.handover = nil
 	// The source connection is managed by the handover flow, not released here.
