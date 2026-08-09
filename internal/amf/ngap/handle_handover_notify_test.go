@@ -163,7 +163,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 // the sessions the target admitted are completed while a session the target did not
 // admit is released, not left leaking in the core (TS 23.501 §5.30.3.5 / TS 23.401
 // §5.5.1.2.2), mirroring the MME.
-func TestHandoverNotify_ReleasesRejectedSessions(t *testing.T) {
+func TestHandoverNotify_DeactivatesRejectedSessions(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	fakeSmf := &fakeSmfSbi{}
 	amfInstance.Session = fakeSmf
@@ -195,12 +195,21 @@ func TestHandoverNotify_ReleasesRejectedSessions(t *testing.T) {
 		t.Fatalf("expected only the admitted session ref-1 completed, got %v", fakeSmf.N2HandoverCompleteCalls)
 	}
 
-	if len(fakeSmf.ReleaseSmContextCalls) != 1 || fakeSmf.ReleaseSmContextCalls[0] != "ref-2" {
-		t.Fatalf("expected the rejected session ref-2 released, got %v", fakeSmf.ReleaseSmContextCalls)
+	if len(fakeSmf.DeactivateSmContextCalls) != 1 || fakeSmf.DeactivateSmContextCalls[0] != "ref-2" {
+		t.Fatalf("expected the rejected session ref-2 deactivated, got %v", fakeSmf.DeactivateSmContextCalls)
 	}
 
-	if _, ok := amfUe.SmContextFindByPDUSessionID(2); ok {
-		t.Fatal("the rejected session's SM context must be dropped from the UE")
+	if len(fakeSmf.ReleaseSmContextCalls) != 0 {
+		t.Fatalf("a session the target did not accept must not be released: %v", fakeSmf.ReleaseSmContextCalls)
+	}
+
+	sc, ok := amfUe.SmContextFindByPDUSessionID(2)
+	if !ok {
+		t.Fatal("the rejected session must survive as an inactive session")
+	}
+
+	if !sc.PduSessionInactive {
+		t.Error("the rejected session must be marked user-plane inactive")
 	}
 
 	if _, ok := amfUe.SmContextFindByPDUSessionID(1); !ok {

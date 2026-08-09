@@ -190,10 +190,6 @@ func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID
 	return ho.admitted, ho.releaseEBIs, true
 }
 
-// FinishHandoverCommit switches the UE's active S1 connection to the target, detaches
-// the source, and clears the handover (TS 36.413 §8.4.3). The {NH, NCC} chain was
-// already advanced at preparation. It returns the source association to
-// release. ok is false if a concurrent release tore the UE down during the switch.
 func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, targetMMEID s1ap.MMEUES1APID, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

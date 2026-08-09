@@ -10,34 +10,26 @@ import (
 	"go.uber.org/zap"
 )
 
-// RANSession is one PDU session a gNB reports it holds, with the opaque N2 transfer
-// the SMF consumes. Unlike EPS, where the MME carries the eNB S1-U endpoint itself,
-// the downlink endpoint stays inside the transfer (TS 38.413 §9.3.4).
 type RANSession struct {
 	PduSessionID uint8
 	Transfer     []byte
 }
 
 type RANSessions struct {
-	Present             []RANSession
-	Rejected            []uint8
-	Authoritative       bool
-	ReleaseOnApplyError bool
+	Present       []RANSession
+	Rejected      []uint8
+	Authoritative bool
 }
 
-// AppliedSession is a session whose downlink now points at the gNB, with the N2
-// response transfer to echo back.
 type AppliedSession struct {
 	PduSessionID uint8
 	Transfer     []byte
 }
 
-// RANSessionResult reports the outcome per PDU session. Failed is what the caller
-// reports back to the gNB so it releases the matching radio resources.
 type RANSessionResult struct {
-	Applied  []AppliedSession
-	Failed   []uint8
-	Released []uint8
+	Applied     []AppliedSession
+	Failed      []uint8
+	Deactivated []uint8
 }
 
 func (a *AMF) ReconcileSessionsToRAN(
@@ -75,10 +67,8 @@ func (a *AMF) ReconcileSessionsToRAN(
 
 			result.Failed = append(result.Failed, s.PduSessionID)
 
-			if want.ReleaseOnApplyError {
-				a.releaseSession(ctx, ue, smContext.Ref, s.PduSessionID)
-				result.Released = append(result.Released, s.PduSessionID)
-			}
+			a.deactivateSession(ctx, ue, smContext.Ref, s.PduSessionID)
+			result.Deactivated = append(result.Deactivated, s.PduSessionID)
 
 			continue
 		}
@@ -94,8 +84,8 @@ func (a *AMF) ReconcileSessionsToRAN(
 			continue
 		}
 
-		a.releaseSession(ctx, ue, smContext.Ref, id)
-		result.Released = append(result.Released, id)
+		a.deactivateSession(ctx, ue, smContext.Ref, id)
+		result.Deactivated = append(result.Deactivated, id)
 	}
 
 	if want.Authoritative {
@@ -112,23 +102,24 @@ func (a *AMF) ReconcileSessionsToRAN(
 				continue
 			}
 
-			logger.From(ctx, logger.AmfLog).Info("releasing a PDU session the RAN did not report",
+			logger.From(ctx, logger.AmfLog).Info("deactivating a PDU session the RAN did not report",
 				logger.SUPI(ue.Supi().String()), zap.Uint8("pdu-session-id", sr.PduSessionID))
 
-			a.releaseSession(ctx, ue, sr.Ref, sr.PduSessionID)
-			result.Released = append(result.Released, sr.PduSessionID)
+			a.deactivateSession(ctx, ue, sr.Ref, sr.PduSessionID)
+			result.Deactivated = append(result.Deactivated, sr.PduSessionID)
 		}
 	}
 
 	return result
 }
 
-// releaseSession frees a PDU session's core context and drops it from the UE.
-func (a *AMF) releaseSession(ctx context.Context, ue *UeContext, ref string, pduSessionID uint8) {
-	if err := a.Session.ReleaseSmContext(ctx, ref); err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to release a PDU session",
+func (a *AMF) deactivateSession(ctx context.Context, ue *UeContext, ref string, pduSessionID uint8) {
+	if err := a.Session.DeactivateSmContext(ctx, ref); err != nil {
+		logger.From(ctx, logger.AmfLog).Error("failed to deactivate a PDU session",
 			zap.String("smContextRef", ref), zap.Uint8("pdu-session-id", pduSessionID), zap.Error(err))
+
+		return
 	}
 
-	ue.DeleteSmContext(pduSessionID)
+	ue.SetSmContextInactive(pduSessionID)
 }

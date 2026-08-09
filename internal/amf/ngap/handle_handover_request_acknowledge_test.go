@@ -95,7 +95,6 @@ func TestHandoverRequestAcknowledge_NotFromPreparedTarget(t *testing.T) {
 		t.Fatalf("session is %T, want *fakeSmfSbi", amfInstance.Session)
 	}
 
-	// Address the source association (AMF-UE-NGAP-ID 100), not the prepared target.
 	msg := admittedAckMsg(t)
 	sourceAMFID := ngap.AMFUENGAPID(100)
 	msg.AMFUENGAPID = &sourceAMFID

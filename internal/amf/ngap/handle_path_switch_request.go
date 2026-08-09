@@ -122,9 +122,8 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	present, undecodable := pathSwitchSessions(ctx, ueConn, msg.PDUSessionResourceToBeSwitchedDLList)
 
 	result := amfInstance.ReconcileSessionsToRAN(ctx, amfUe, amf.RANSessions{
-		Present:             present,
-		Rejected:            pathSwitchFailedSessions(msg.PDUSessionResourceFailedToSetup),
-		ReleaseOnApplyError: true,
+		Present:  present,
+		Rejected: pathSwitchFailedSessions(msg.PDUSessionResourceFailedToSetup),
 	}, amfInstance.Session.UpdateSmContextXnHandoverPathSwitchReq)
 
 	var (

@@ -15,9 +15,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// Conformance tests for the X2 handover Path Switch procedure, derived clause by
-// clause from TS 36.413 §8.4.4 and §9.1.5.8-10, TS 23.401 §5.5.1.1.2 and
-// TS 33.401 §7.2.8.4.2.
+// Conformance tests for the X2 handover Path Switch procedure.
 
 const (
 	ieIDTAI                    = 67

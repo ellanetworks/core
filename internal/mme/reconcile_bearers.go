@@ -11,8 +11,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// RANBearer is one E-RAB the eNB reports it holds, with the downlink endpoint the
-// core must forward to.
 type RANBearer struct {
 	Ebi      uint8
 	EnbFTEID models.FTEID
@@ -37,8 +35,6 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 		return result
 	}
 
-	// Everything the eNB named, so an authoritative message can tell which of the
-	// UE's remaining bearers it left out.
 	named := make(map[uint8]struct{}, len(want.Present)+len(want.Rejected))
 
 	for _, b := range want.Present {
@@ -46,7 +42,6 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 
 		p := m.LookupPDN(ue, b.Ebi)
 		if p == nil {
-			// The eNB holds a bearer the core has no context for; it must drop it.
 			logger.From(ctx, logger.MmeLog).Warn("RAN reports an E-RAB the core does not know; not switched",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", b.Ebi))
 
@@ -59,8 +54,6 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the RAN endpoint",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", b.Ebi), zap.Error(err))
 
-			// The bearer has no usable downlink: free its core resources rather than
-			// leaving a session pointed at an eNB the UE has left.
 			m.ReleasePDN(ctx, ue, p)
 
 			result.Failed = append(result.Failed, b.Ebi)
@@ -98,28 +91,5 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 		}
 	}
 
-	m.ensureDefaultBearer(ue)
-
 	return result
-}
-
-// ensureDefaultBearer re-elects the default EPS bearer when the previous one is
-// gone, promoting the lowest surviving EBI. Without it a UE can hold bearers with
-// DefaultEBI zeroed, which silently makes every bearer look releasable on its own
-// and stops a last-bearer release from ever detaching the UE (TS 24.301).
-func (m *MME) ensureDefaultBearer(ue *UeContext) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if _, ok := ue.Pdns[ue.DefaultEBI]; ok && ue.DefaultEBI != 0 {
-		return
-	}
-
-	ue.DefaultEBI = 0
-
-	for ebi := range ue.Pdns {
-		if ue.DefaultEBI == 0 || ebi < ue.DefaultEBI {
-			ue.DefaultEBI = ebi
-		}
-	}
 }

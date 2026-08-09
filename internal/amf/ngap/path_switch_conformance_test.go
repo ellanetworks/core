@@ -50,9 +50,6 @@ func smContextRefFor(pduSessionID uint8) string {
 	return "imsi-001010000000001-" + string(rune('0'+pduSessionID))
 }
 
-// switchedDLItem is the to-be-switched entry for PDU session 1, the session every
-// test in this file switches. Tests that need a different identity copy it and
-// overwrite PDUSessionID.
 func switchedDLItem(t *testing.T) ngap.PDUSessionResourceToBeSwitchedDLItem {
 	t.Helper()
 
@@ -135,8 +132,7 @@ func TestPathSwitchReportsUndecodablePDUSessionID(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.4.4.2 / TS 23.502 §4.9.1.2.2
-func TestPathSwitchFailedSessionReleasesCoreResources(t *testing.T) {
+func TestPathSwitchFailedSessionDeactivatesUserPlane(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}, PathSwitchErr: errSmfRefused}
 	amfInstance, amfUe, targetRan := pathSwitchTestUE(t, fakeSmf, 1)
 
@@ -149,12 +145,21 @@ func TestPathSwitchFailedSessionReleasesCoreResources(t *testing.T) {
 
 	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
-	if !hasRef(fakeSmf.ReleaseSmContextCalls, smContextRefFor(1)) {
-		t.Errorf("a PDU session that failed to switch kept its core context; ReleaseSmContext calls = %v", fakeSmf.ReleaseSmContextCalls)
+	if !hasRef(fakeSmf.DeactivateSmContextCalls, smContextRefFor(1)) {
+		t.Errorf("user plane not deactivated; DeactivateSmContext calls = %v", fakeSmf.DeactivateSmContextCalls)
 	}
 
-	if _, still := amfUe.SmContextFindByPDUSessionID(1); still {
-		t.Error("a PDU session that failed to switch is still in the UE context")
+	if hasRef(fakeSmf.ReleaseSmContextCalls, smContextRefFor(1)) {
+		t.Errorf("session was released where 3GPP asks for UP deactivation: %v", fakeSmf.ReleaseSmContextCalls)
+	}
+
+	sc, still := amfUe.SmContextFindByPDUSessionID(1)
+	if !still {
+		t.Fatal("the PDU session must survive a failed switch")
+	}
+
+	if !sc.PduSessionInactive {
+		t.Error("the PDU session must be marked user-plane inactive")
 	}
 }
 
