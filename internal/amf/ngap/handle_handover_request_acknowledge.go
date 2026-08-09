@@ -13,16 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// toReleaseItemHOCmd builds the Handover Command to-release item for a session
-// the target did not admit, relaying the cause the target reported when the
-// transfer decodes and a generic one when it does not.
-func toReleaseItemHOCmd(pduSessionID ngap.PDUSessionID, unsuccessful ngap.TransferContainer) (ngap.PDUSessionResourceToReleaseItemHOCmd, error) {
-	cause := causeHoFailureInTarget
-
-	if received, err := ngap.ParseHandoverResourceAllocationUnsuccessfulTransfer(unsuccessful); err == nil {
-		cause = received.Cause
-	}
-
+func toReleaseItemHOCmd(pduSessionID ngap.PDUSessionID, cause ngap.Cause) (ngap.PDUSessionResourceToReleaseItemHOCmd, error) {
 	transfer, err := (&ngap.HandoverPreparationUnsuccessfulTransfer{Cause: cause}).Marshal()
 	if err != nil {
 		return ngap.PDUSessionResourceToReleaseItemHOCmd{}, err
@@ -32,6 +23,75 @@ func toReleaseItemHOCmd(pduSessionID ngap.PDUSessionID, unsuccessful ngap.Transf
 		PDUSessionID: pduSessionID,
 		Transfer:     transfer,
 	}, nil
+}
+
+func failedSessionCauses(failed ngap.PDUSessionResourceFailedToSetupListHOAck) map[ngap.PDUSessionID]ngap.Cause {
+	causes := make(map[ngap.PDUSessionID]ngap.Cause, len(failed))
+
+	for _, item := range failed {
+		if received, err := ngap.ParseHandoverResourceAllocationUnsuccessfulTransfer(item.Transfer); err == nil {
+			causes[item.PDUSessionID] = received.Cause
+		}
+	}
+
+	return causes
+}
+
+// TS 38.413 §8.4.2.2
+func reportFailedSessionsToSmf(ctx context.Context, amfInstance *amf.AMF, targetUe *amf.UeConn, amfUe *amf.UeContext, failed ngap.PDUSessionResourceFailedToSetupListHOAck, admitted map[uint8]struct{}) {
+	for _, item := range failed {
+		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
+		if !ok {
+			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID in the failed-to-setup list", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			continue
+		}
+
+		if _, isAdmitted := admitted[pduSessionID]; isAdmitted {
+			logger.WithTrace(ctx, targetUe.Log).Warn("PDU session reported both admitted and failed to setup; keeping it handed over", zap.Uint8("pduSessionID", pduSessionID))
+			continue
+		}
+
+		smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionID)
+		if !exist {
+			continue
+		}
+
+		if err := amfInstance.Session.UpdateSmContextN2HandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
+			logger.WithTrace(ctx, targetUe.Log).Error("failed to hand the target's handover refusal to the SMF",
+				zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+		}
+	}
+}
+
+func releaseItems(ctx context.Context, targetUe *amf.UeConn, unadmitted []amf.HandoverCandidate, targetCauses map[ngap.PDUSessionID]ngap.Cause) ngap.PDUSessionResourceToReleaseListHOCmd {
+	if len(unadmitted) == 0 {
+		return nil
+	}
+
+	out := make(ngap.PDUSessionResourceToReleaseListHOCmd, 0, len(unadmitted))
+
+	for _, c := range unadmitted {
+		cause := causeHOFailureInTarget
+
+		switch {
+		case c.Cause != nil:
+			cause = *c.Cause
+		default:
+			if reported, ok := targetCauses[c.PDUSessionID]; ok {
+				cause = reported
+			}
+		}
+
+		item, err := toReleaseItemHOCmd(c.PDUSessionID, cause)
+		if err != nil {
+			logger.WithTrace(ctx, targetUe.Log).Error("failed to build PDU session to-release item", zap.Error(err), zap.Int64("pduSessionID", int64(c.PDUSessionID)))
+			continue
+		}
+
+		out = append(out, item)
+	}
+
+	return out
 }
 
 func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverRequestAcknowledge) {
@@ -82,7 +142,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	var (
 		admitted    ngap.PDUSessionResourceHandoverList
-		toRelease   ngap.PDUSessionResourceToReleaseListHOCmd
 		admittedPDU = make(map[uint8]struct{})
 	)
 
@@ -111,22 +170,9 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		admittedPDU[pduSessionID] = struct{}{}
 	}
 
-	// Sessions the target did not admit go in the to-release list so the source
-	// frees them (TS 38.413); they stay on the source, so no SMF update.
-	for _, item := range msg.PDUSessionResourceFailedToSetup {
-		if _, ok := validPDUSessionID(int64(item.PDUSessionID)); !ok {
-			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
-			continue
-		}
+	targetCauses := failedSessionCauses(msg.PDUSessionResourceFailedToSetup)
 
-		releaseItem, err := toReleaseItemHOCmd(item.PDUSessionID, item.Transfer)
-		if err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("failed to build PDU session to-release item", zap.Error(err), zap.Int64("pduSessionID", int64(item.PDUSessionID)))
-			continue
-		}
-
-		toRelease = append(toRelease, releaseItem)
-	}
+	reportFailedSessionsToSmf(ctx, amfInstance, targetUe, amfUe, msg.PDUSessionResourceFailedToSetup, admittedPDU)
 
 	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)),
 		zap.Uint32("target-ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)))
@@ -144,22 +190,23 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
-			sourceUe.SendHandoverPreparationFailure(ctx, causeHoFailureInTarget, nil, nil)
+			sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
 		}
 
 		// The target acknowledged and so holds a reserved UE context, but no session
 		// survived core-side preparation. Its resources are reclaimed only by a
 		// CN-initiated UE Context Release (TS 38.413 §8.4.2).
 		targetUe.ReleaseAction = amf.UeContextReleaseHandover
-		targetUe.SendUEContextReleaseCommand(ctx, causeHoFailureInTarget)
+		targetUe.SendUEContextReleaseCommand(ctx, causeHOFailureInTarget)
 
 		return
 	}
 
-	if !amfInstance.MarkHandoverPrepared(amfUe, admittedPDU) {
+	unadmitted, ok := amfInstance.MarkHandoverPrepared(amfUe, admittedPDU)
+	if !ok {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge: handover advanced concurrently; dropping")
 		return
 	}
 
-	sourceUe.SendHandoverCommand(ctx, admitted, toRelease, msg.TargetToSourceTransparentContainer)
+	sourceUe.SendHandoverCommand(ctx, admitted, releaseItems(ctx, targetUe, unadmitted, targetCauses), msg.TargetToSourceTransparentContainer)
 }

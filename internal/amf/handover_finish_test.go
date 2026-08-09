@@ -42,7 +42,7 @@ func TestHandoverPreparing(t *testing.T) {
 		t.Fatal("a handover at the preparing stage must report HandoverPreparing")
 	}
 
-	if !amfInstance.MarkHandoverPrepared(ue, nil) {
+	if _, ok := amfInstance.MarkHandoverPrepared(ue, nil); !ok {
 		t.Fatal("MarkHandoverPrepared")
 	}
 
@@ -65,7 +65,7 @@ func TestCancelHandover(t *testing.T) {
 	t.Run("clears a prepared handover and returns the target to release", func(t *testing.T) {
 		a, ue, source, target := newPreparingHandover(t)
 
-		if !a.MarkHandoverPrepared(ue, nil) {
+		if _, ok := a.MarkHandoverPrepared(ue, nil); !ok {
 			t.Fatal("MarkHandoverPrepared")
 		}
 
@@ -114,7 +114,7 @@ func TestCancelHandover(t *testing.T) {
 	t.Run("does not cancel a committing handover", func(t *testing.T) {
 		a, ue, _, target := newPreparingHandover(t)
 
-		if !a.MarkHandoverPrepared(ue, nil) {
+		if _, ok := a.MarkHandoverPrepared(ue, nil); !ok {
 			t.Fatal("MarkHandoverPrepared")
 		}
 
@@ -151,7 +151,7 @@ func TestHandoverGuardDoesNotAbandonCommitting(t *testing.T) {
 	t.Run("abandons a prepared handover", func(t *testing.T) {
 		a, ue, _, _ := newPreparingHandover(t)
 
-		if !a.MarkHandoverPrepared(ue, nil) {
+		if _, ok := a.MarkHandoverPrepared(ue, nil); !ok {
 			t.Fatal("MarkHandoverPrepared")
 		}
 
@@ -167,7 +167,7 @@ func TestHandoverGuardDoesNotAbandonCommitting(t *testing.T) {
 	t.Run("leaves a committing handover to finish", func(t *testing.T) {
 		a, ue, _, target := newPreparingHandover(t)
 
-		if !a.MarkHandoverPrepared(ue, nil) {
+		if _, ok := a.MarkHandoverPrepared(ue, nil); !ok {
 			t.Fatal("MarkHandoverPrepared")
 		}
 
@@ -197,7 +197,7 @@ func TestFinishHandoverCommit(t *testing.T) {
 	commit := func(t *testing.T, a *amf.AMF, ue *amf.UeContext, target *amf.UeConn) {
 		t.Helper()
 
-		if !a.MarkHandoverPrepared(ue, nil) {
+		if _, ok := a.MarkHandoverPrepared(ue, nil); !ok {
 			t.Fatal("MarkHandoverPrepared")
 		}
 
@@ -265,7 +265,7 @@ func TestFinishHandoverCommit(t *testing.T) {
 	t.Run("does not finalize before the committing stage", func(t *testing.T) {
 		a, ue, source, target := newPreparingHandover(t)
 
-		if !a.MarkHandoverPrepared(ue, nil) {
+		if _, ok := a.MarkHandoverPrepared(ue, nil); !ok {
 			t.Fatal("MarkHandoverPrepared")
 		}
 

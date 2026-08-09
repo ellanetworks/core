@@ -25,28 +25,20 @@ const (
 	hoCommitting                // HANDOVER NOTIFY received, the N2 transfer is in progress
 )
 
-// handoverContext is the explicit N2 handover FSM for one UE: the single source of
-// truth for the source/target UeConn pair and the procedure's stage. It coordinates
-// the source and target connections — which are themselves registry state — so it is
-// guarded by AMF.mu, not the per-UE lock. The procedure registry tracks the same
-// handover for conflict and supervision and is cleared in lockstep; the SMF owns the
-// per-session N2 transfer, this FSM owns only the source/target relationship and
-// ordering.
-type handoverContext struct {
-	state  hoState
-	source *UeConn
-	target *UeConn
-	// admitted is the set of PDU session IDs the target accepted (HANDOVER REQUEST
-	// ACKNOWLEDGE); the rest are released at HANDOVER NOTIFY, since a session the
-	// target did not accept cannot continue there (TS 23.501 §5.30.3.5).
-	admitted map[uint8]struct{}
+type HandoverCandidate struct {
+	PDUSessionID ngap.PDUSessionID
+	Cause        *ngap.Cause
 }
 
-// PrepareHandover begins N2 handover preparation for the source→target pair: it claims
-// the key-chain procedure (exclusive with Security Mode / Path Switch), allocates the
-// target UeConn, and stages the {NH, NCC} of the AS key chain (TS 38.413 §8.4, TS 33.501
-// §6.9). ok is false with everything rolled back when preparation cannot begin.
-func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
+type handoverContext struct {
+	state      hoState
+	source     *UeConn
+	target     *UeConn
+	candidates []HandoverCandidate
+	admitted   map[uint8]struct{}
+}
+
+func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio, candidates []HandoverCandidate) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
 	if ue == nil {
 		return nil, [32]uint8{}, 0, false
 	}
@@ -64,7 +56,7 @@ func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn
 		return nil, [32]uint8{}, 0, false
 	}
 
-	nh, ncc, ok = a.stageHandover(ue, source, target)
+	nh, ncc, ok = a.stageHandover(ue, source, target, candidates)
 	if !ok {
 		ue.EndKeyChainProc(procedure.N2Handover)
 
@@ -84,7 +76,7 @@ func (a *AMF) SuperviseHandover(ue *UeContext, source, target *UeConn) {
 		handoverGuardExpiry(a, source, target))
 }
 
-func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8, ncc uint8, ok bool) {
+func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn, candidates []HandoverCandidate) (nh [32]uint8, ncc uint8, ok bool) {
 	ue.mu.Lock()
 
 	nh, ncc, err := ue.deriveNextNHLocked()
@@ -103,7 +95,7 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8
 		target.ue.Store(ue)
 	}
 
-	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target}
+	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target, candidates: candidates}
 	a.mu.Unlock()
 
 	return nh, ncc, true
@@ -161,8 +153,9 @@ func (a *AMF) abandonHandover(ue *UeContext) bool {
 }
 
 // SetHandoverForTest installs a preparing handover FSM for a source→target pair without
-// claiming the procedure or arming supervision. For tests only.
-func SetHandoverForTest(sourceUe, targetUe *UeConn) error {
+// claiming the procedure or arming supervision, optionally recording the PDU sessions
+// the source asked to hand over. For tests only.
+func SetHandoverForTest(sourceUe, targetUe *UeConn, candidates ...HandoverCandidate) error {
 	if sourceUe == nil || targetUe == nil {
 		return fmt.Errorf("source or target ue is nil")
 	}
@@ -172,16 +165,33 @@ func SetHandoverForTest(sourceUe, targetUe *UeConn) error {
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	if _, _, ok := sourceUe.amf.stageHandover(amfUe, sourceUe, targetUe); !ok {
+	if _, _, ok := sourceUe.amf.stageHandover(amfUe, sourceUe, targetUe, candidates); !ok {
 		return fmt.Errorf("stage handover failed")
 	}
 
 	return nil
 }
 
+func (a *AMF) ForceHandoverCommittingForTest(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if ue.handover == nil {
+		return false
+	}
+
+	ue.handover.state = hoCommitting
+
+	return true
+}
+
 // StageHandoverForTest stages the handover FSM on a bare UE, returning the {NH, NCC}. For tests only.
 func (a *AMF) StageHandoverForTest(ue *UeContext) (nh [32]uint8, ncc uint8, ok bool) {
-	return a.stageHandover(ue, nil, nil)
+	return a.stageHandover(ue, nil, nil, nil)
 }
 
 // MarkHandoverCommitting advances the FSM from hoPrepared to hoCommitting when the
@@ -334,27 +344,43 @@ func (a *AMF) ClearHandover(ue *UeContext) {
 	ue.EndKeyChainProc(procedure.N2Handover)
 }
 
-// MarkHandoverPrepared advances the FSM from hoPreparing to hoPrepared when the
-// target acknowledges (HANDOVER COMMAND about to be sent) and records the set of PDU
-// session IDs the target admitted. It returns false when there is no handover or it
-// is not at hoPreparing, so a duplicate or out-of-order HANDOVER REQUEST ACKNOWLEDGE
-// is rejected.
-func (a *AMF) MarkHandoverPrepared(ue *UeContext, admitted map[uint8]struct{}) bool {
+func (a *AMF) MarkHandoverPrepared(ue *UeContext, admitted map[uint8]struct{}) (toRelease []HandoverCandidate, ok bool) {
 	if ue == nil {
-		return false
+		return nil, false
 	}
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if ue.handover == nil || ue.handover.state != hoPreparing {
-		return false
+		return nil, false
+	}
+
+	// TS 38.413 §8.4.1.4 defines no abnormal condition for a HANDOVER REQUIRED that
+	// names the same PDU session twice, so it is carried as-is — but the list this
+	// builds must still name each session once.
+	reported := make(map[ngap.PDUSessionID]struct{}, len(ue.handover.candidates))
+
+	for _, c := range ue.handover.candidates {
+		// An out-of-range PDU session ID is never offered and so never admitted;
+		// the lookup is safe because PDUSessionID and the admitted key are both
+		// one octet.
+		if _, isAdmitted := admitted[uint8(c.PDUSessionID)]; isAdmitted {
+			continue
+		}
+
+		if _, dup := reported[c.PDUSessionID]; dup {
+			continue
+		}
+
+		reported[c.PDUSessionID] = struct{}{}
+		toRelease = append(toRelease, c)
 	}
 
 	ue.handover.admitted = admitted
 	ue.handover.state = hoPrepared
 
-	return true
+	return toRelease, true
 }
 
 // HandoverPreparing reports whether a handover is in progress and still at the

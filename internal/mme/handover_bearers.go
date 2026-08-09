@@ -10,24 +10,25 @@ import (
 	"go.uber.org/zap"
 )
 
-// HandoverBearers snapshots the UE's PDN connections into the E-RABs To Be Setup
-// list of a HANDOVER REQUEST (TS 36.413 §9.1.5.4), reporting false when the UE has
-// no usable bearer.
-func HandoverBearers(ue *UeContext) ([]s1ap.ERABToBeSetupItemHOReq, bool) {
+func HandoverBearers(ue *UeContext) (bearers []s1ap.ERABToBeSetupItemHOReq, candidates []HandoverCandidate, ok bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	bearers := make([]s1ap.ERABToBeSetupItemHOReq, 0, len(ue.Pdns))
+	bearers = make([]s1ap.ERABToBeSetupItemHOReq, 0, len(ue.Pdns))
+	candidates = make([]HandoverCandidate, 0, len(ue.Pdns))
 
 	for _, p := range ue.Pdns {
 		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 		if err != nil {
-			// imsiOrEmpty, not IMSI(): ue.mu is held and is not reentrant.
 			logger.MmeLog.Error("failed to encode S-GW transport layer address for handover",
 				zap.String("imsi", ue.imsiOrEmpty()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
 
+			candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi, Cause: &causeHandoverCNReason})
+
 			continue
 		}
+
+		candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi})
 
 		bearers = append(bearers, s1ap.ERABToBeSetupItemHOReq{
 			ERABID:                s1ap.ERABID(p.Ebi),
@@ -40,5 +41,5 @@ func HandoverBearers(ue *UeContext) ([]s1ap.ERABToBeSetupItemHOReq, bool) {
 		})
 	}
 
-	return bearers, len(bearers) > 0
+	return bearers, candidates, len(bearers) > 0
 }

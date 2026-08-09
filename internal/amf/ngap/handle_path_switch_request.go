@@ -98,7 +98,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			continue
 		}
 
-		if err := amfInstance.Session.UpdateSmContextHandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
+		if err := amfInstance.Session.UpdateSmContextXnHandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 		}
 	}

@@ -263,10 +263,6 @@ func dropNGAPIEs(t *testing.T, value []byte, ids ...uint16) []byte {
 	return append(out, kept...)
 }
 
-// XNP-17/XNP-18. TS 38.413 §9.2.3.9: the PATH SWITCH REQUEST ACKNOWLEDGE carries AMF
-// UE NGAP ID and RAN UE NGAP ID (both M), Security Context (M, reject), Allowed NSSAI
-// (M, reject), and a PDU Session Resource Switched List whose Range is 1 — so it is
-// never empty.
 func TestPathSwitchAckCarriesMandatoryIEs(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}}
 	amfInstance, _, targetRan := pathSwitchTestUE(t, fakeSmf, 1)
@@ -308,10 +304,6 @@ func TestPathSwitchAckCarriesMandatoryIEs(t *testing.T) {
 	}
 }
 
-// XNP-20. TS 38.413 §9.2.3.10: the PATH SWITCH REQUEST FAILURE carries AMF UE NGAP ID
-// and RAN UE NGAP ID (both M) and a PDU Session Resource Released List whose Range is
-// 1 — the message has no Cause IE of its own, so the reason travels per session and
-// the list can never be empty (§8.4.4.3).
 func TestPathSwitchFailureCarriesMandatoryIEs(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
@@ -359,10 +351,6 @@ func TestPathSwitchFailureCarriesMandatoryIEs(t *testing.T) {
 	}
 }
 
-// XNP-24. TS 33.501 §6.9.2.3.2: "Upon reception of the NGAP PATH SWITCH REQUEST, the
-// AMF shall increase its locally kept NCC value by one and compute a new fresh NH ...
-// The AMF shall then send the newly computed {NH, NCC} pair to the target gNB/ng-eNB in
-// the NGAP PATH SWITCH REQUEST ACKNOWLEDGE message."
 func TestPathSwitchAckCarriesFreshlyDerivedNH(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}}
 	amfInstance, amfUe, targetRan := pathSwitchTestUE(t, fakeSmf, 1)
@@ -402,7 +390,6 @@ func TestPathSwitchAckCarriesFreshlyDerivedNH(t *testing.T) {
 	}
 }
 
-// XNP-25. NCC is a 3-bit chaining counter, so the increment wraps from 7 to 0.
 func TestPathSwitchNCCWrapsToZero(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}}
 	amfInstance, amfUe, targetRan := pathSwitchTestUE(t, fakeSmf, 1)
@@ -436,9 +423,6 @@ func TestPathSwitchNCCWrapsToZero(t *testing.T) {
 	}
 }
 
-// XNP-16. TS 38.413 §9.2.3.8 lists User Location Information and UE Security
-// Capabilities as mandatory with ignore criticality. Per §10.3.5 an absent
-// ignore-criticality IE does not stop delivery, so the path switch must still complete.
 func TestPathSwitchToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}}
 	amfInstance, _, targetRan := pathSwitchTestUE(t, fakeSmf, 1)

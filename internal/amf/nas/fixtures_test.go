@@ -302,7 +302,11 @@ func (s *fakeSmf) UpdateSmContextN2ModifyIndication(ctx context.Context, smConte
 	return nil, s.Error
 }
 
-func (s *fakeSmf) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
+func (s *fakeSmf) UpdateSmContextXnHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
+	return s.Error
+}
+
+func (s *fakeSmf) UpdateSmContextN2HandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
 	return s.Error
 }
 

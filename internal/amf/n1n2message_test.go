@@ -147,7 +147,9 @@ func (f *fakeSmf) UpdateSmContextXnHandoverPathSwitchReq(context.Context, string
 func (f *fakeSmf) UpdateSmContextN2ModifyIndication(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil
 }
-func (f *fakeSmf) UpdateSmContextHandoverFailed(context.Context, string, []byte) error { return nil }
+func (f *fakeSmf) UpdateSmContextXnHandoverFailed(context.Context, string, []byte) error { return nil }
+
+func (f *fakeSmf) UpdateSmContextN2HandoverFailed(context.Context, string, []byte) error { return nil }
 
 func (f *fakeSmf) ReconcileSmContext(context.Context, *models.SessionReconcileRequest) error {
 	return nil

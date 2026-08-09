@@ -116,7 +116,11 @@ func (s *deregisterTestSmf) UpdateSmContextN2ModifyIndication(context.Context, s
 	return nil, nil
 }
 
-func (s *deregisterTestSmf) UpdateSmContextHandoverFailed(context.Context, string, []byte) error {
+func (s *deregisterTestSmf) UpdateSmContextN2HandoverFailed(context.Context, string, []byte) error {
+	return nil
+}
+
+func (s *deregisterTestSmf) UpdateSmContextXnHandoverFailed(context.Context, string, []byte) error {
 	return nil
 }
 

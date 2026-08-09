@@ -44,6 +44,7 @@ const (
 	CauseRadioNetworkUnspecified                      = 0  // unspecified
 	CauseRadioNetworkSuccessfulHandover               = 2  // successful-handover
 	CauseRadioNetworkReleaseDueToNGRANGeneratedReason = 3  // release-due-to-ngran-generated-reason
+	CauseRadioNetworkReleaseDueTo5GCGeneratedReason   = 4  // release-due-to-5gc-generated-reason
 	CauseRadioNetworkHandoverCancelled                = 5  // handover-cancelled
 	CauseRadioNetworkHOFailureInTarget                = 7  // ho-failure-in-target-5GC-ngran-node-or-target-system
 	CauseRadioNetworkHoTargetNotAllowed               = 8  // ho-target-not-allowed
