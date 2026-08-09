@@ -358,7 +358,6 @@ func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T)
 // admitted ones in the Handover List and lists the failed ones in the PDU
 // Session Resource To Release List (TS 38.413).
 func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
-	// Both sessions reached the target; it admits one and refuses the other.
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t,
 		amf.HandoverCandidate{PDUSessionID: 1}, amf.HandoverCandidate{PDUSessionID: 2})
 

@@ -35,12 +35,9 @@ type AdmittedERAB struct {
 // each with its own MME-UE-S1AP-ID; the UE's active connection (ue.active) stays the
 // source until HANDOVER NOTIFY switches it to the target. Guarded by MME.mu.
 type handoverContext struct {
-	state  hoState
-	source *UeConn // the UE's source association (ue.active during preparation)
-	target *UeConn // its ENBUES1APID is learned from the acknowledge
-	// candidates is every E-RAB the MME considered for this handover, recorded at
-	// preparation. The ones the target does not admit are what TS 36.413 §8.4.1.2
-	// has the MME put in the HANDOVER COMMAND's E-RABs to Release List.
+	state       hoState
+	source      *UeConn // the UE's source association (ue.active during preparation)
+	target      *UeConn // its ENBUES1APID is learned from the acknowledge
 	candidates  []uint8
 	admitted    []AdmittedERAB
 	releaseEBIs []uint8 // bearers not admitted, released at notify (TS 23.401 §5.5.1.2.2 step 15)
@@ -148,9 +145,6 @@ func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, con
 		admittedSet[a.Ebi] = struct{}{}
 	}
 
-	// The candidates come from the UE's PDN connections, which are keyed by EPS
-	// bearer identity, so they are already unique; the guard keeps the list
-	// well-formed if that ever stops holding.
 	reported := make(map[uint8]struct{}, len(ho.candidates))
 
 	for _, ebi := range ho.candidates {

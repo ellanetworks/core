@@ -14,18 +14,8 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// Conformance tests for the 4G S1 handover procedures: Handover Preparation
-// (TS 36.413 §8.4.1), Handover Resource Allocation (§8.4.2), Handover
-// Notification (§8.4.3), Handover Cancellation (§8.4.5) and the eNB/MME Status
-// Transfer pair (§8.4.6/§8.4.7), together with the stage-2 call flow in TS 23.401
-// §5.5.1.2 and the AS key handling in TS 33.401 §7.2.8.4.3.
-//
-// The requirements are extracted from the E-UTRAN specifications alone; nothing
-// here is carried over from the NGAP suite by analogy. Where a clause exists on
-// only one side the difference is called out in the test comment.
+// Conformance tests for the 4G S1 handover procedures
 
-// Protocol IE identifiers these tests strip from an encoded body to exercise
-// §10.3.5 absent-IE handling (TS 36.413 §9.2.x).
 const (
 	ieIDHandoverTargetID  = 4 // Target ID
 	ieIDHandoverCause     = 2 // Cause
@@ -123,18 +113,6 @@ func preparationFailureOn(t *testing.T, source *captureConn) *s1ap.HandoverPrepa
 	return fail
 }
 
-// ---------------------------------------------------------------------------
-// Batch S1P — Handover Preparation
-// ---------------------------------------------------------------------------
-
-// S1P-2/S1P-3/S1P-5. TS 36.413 §8.4.1.2: "When the preparation, including the
-// reservation of resources at the target side is ready, the MME responds with the
-// HANDOVER COMMAND message to the source eNB", and "If the Target to Source
-// Transparent Container IE has been received by the MME from the handover target
-// then the transparent container shall be included in the HANDOVER COMMAND
-// message." §9.1.5.2 makes MME UE S1AP ID, eNB UE S1AP ID, Handover Type and that
-// container mandatory — S1AP has no mandatory admitted-bearer list, unlike the
-// NGAP PDU Session Resource Handover List.
 func TestS1HandoverCommandCarriesMandatoryIEs(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -162,12 +140,6 @@ func TestS1HandoverCommandCarriesMandatoryIEs(t *testing.T) {
 	}
 }
 
-// S1P-4. TS 36.413 §8.4.1.2: "If there are any E-RABs that could not be admitted
-// in the target, they shall be indicated in the E-RABs to Release List IE."
-// §8.4.2.2 makes the target's two lists exhaustive ("The E-RABs that have not been
-// admitted in the target cell, if any, shall be included in the E-RABs Failed to
-// Setup List IE"), but the MME's own obligation covers every requested E-RAB that
-// did not come back admitted, including one the target left out of both lists.
 func TestS1HandoverCommandReportsEveryUnadmittedERAB(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
@@ -208,9 +180,6 @@ func TestS1HandoverCommandReportsEveryUnadmittedERAB(t *testing.T) {
 					cmd.ERABToRelease)
 			}
 
-			// An E-RAB cannot both be handed over and be released by the same
-			// command; TS 36.413 §9.1.5.5 keeps the target's own two lists
-			// disjoint for the same reason.
 			for _, it := range cmd.ERABToRelease {
 				if it.ERABID == s1ap.ERABID(mme.DefaultERABID) {
 					t.Errorf("the admitted E-RAB %d is also in the to-release list", it.ERABID)
@@ -220,11 +189,6 @@ func TestS1HandoverCommandReportsEveryUnadmittedERAB(t *testing.T) {
 	}
 }
 
-// S1P-6. TS 36.413 §8.4.1.3: "If the EPC or the target system is not able to
-// accept any of the bearers or a failure occurs during the Handover Preparation,
-// the MME sends the HANDOVER PREPARATION FAILURE message with an appropriate cause
-// value to the source eNB." §9.1.5.3 makes MME UE S1AP ID, eNB UE S1AP ID and
-// Cause mandatory in it.
 func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, _ := handoverUE(t, m)
@@ -253,10 +217,6 @@ func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
 	}
 }
 
-// S1P-7. TS 36.413 §9.1.5.1 makes Target ID mandatory with reject criticality in
-// the HANDOVER REQUIRED. Per §10.3.5 the message is then not acted on, and
-// §10.3.4.2 answers with the procedure's own unsuccessful outcome rather than an
-// Error Indication.
 func TestS1HandoverRequiredWithoutTargetIDIsRejected(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -275,10 +235,6 @@ func TestS1HandoverRequiredWithoutTargetIDIsRejected(t *testing.T) {
 	}
 }
 
-// S1P-8. TS 36.413 §9.1.5.1 makes Cause mandatory with ignore criticality. Per
-// §10.3.5 an absent ignore-criticality IE does not stop delivery, and the Cause
-// the MME relays onward is mandatory in the HANDOVER REQUEST (§9.1.5.4), so an
-// absent one has to become a real cause value.
 func TestS1HandoverRequiredWithoutCauseStillPrepares(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -305,11 +261,6 @@ func TestS1HandoverRequiredWithoutCauseStillPrepares(t *testing.T) {
 	}
 }
 
-// S1P-9. TS 33.401 §7.2.8.4.3: "Upon reception of the HANDOVER REQUIRED message
-// the source MME shall increase its locally kept NCC value by one and compute a
-// fresh NH from its stored data ... store that fresh pair" and send it to the
-// target eNB in the S1 HANDOVER REQUEST. NCC is a three-bit counter (§7.2.8.1.1),
-// so the increment wraps from 7 to 0.
 func TestS1HandoverRequestNCCWrapsToZero(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -328,17 +279,6 @@ func TestS1HandoverRequestNCCWrapsToZero(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Batch S1R — Handover Resource Allocation
-// ---------------------------------------------------------------------------
-
-// S1R-2/S1R-3. TS 36.413 §9.1.5.4: the HANDOVER REQUEST carries MME UE S1AP ID,
-// Handover Type, Cause, UE Aggregate Maximum Bit Rate, an E-RABs To Be Setup List
-// of Range 1, Source to Target Transparent Container, UE Security Capabilities and
-// Security Context, all mandatory. GUMMEI is optional here and there is no
-// Allowed NSSAI at all — the two IEs NGAP §9.2.3.4 makes mandatory.
-// TS 23.401 §5.5.1.2.2 step 5: "For each EPS Bearer, the Bearers to Setup includes
-// Serving GW address and uplink TEID for user plane, and EPS Bearer QoS."
 func TestS1HandoverRequestCarriesMandatoryIEs(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -386,10 +326,6 @@ func TestS1HandoverRequestCarriesMandatoryIEs(t *testing.T) {
 	}
 }
 
-// S1R-4. TS 36.413 §9.1.5.6: the HANDOVER FAILURE carries MME UE S1AP ID and
-// Cause and has **no eNB UE S1AP ID** — the target admitted nothing, so it holds no
-// context. The MME must resolve the preparation on the MME-UE-S1AP-ID alone and
-// then fail it toward the source (§8.4.1.3).
 func TestS1HandoverFailureWithoutENBUES1APIDFailsPreparation(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -418,15 +354,6 @@ func TestS1HandoverFailureWithoutENBUES1APIDFailsPreparation(t *testing.T) {
 	}
 }
 
-// S1R-5. TS 23.401 §5.5.1.2.3: "the Target MME rejects the handover request and
-// clears all resource in Target eNodeB and Target MME if the Target eNodeB accepts
-// the handover request but none of the default EPS bearers gets resources
-// allocated", and step 9 sends a Handover Preparation Failure to the source eNodeB.
-//
-// TS 36.413 §9.1.5.5 gives the E-RABs Admitted List Range 1, so the acknowledge is
-// never literally empty; the case is an acknowledge from which no usable S1-U
-// endpoint can be taken. Every E-RAB in Ella Core is a PDN connection's default
-// bearer, so that leaves no default bearer allocated.
 func TestS1AcknowledgeAdmittingNoUsableBearerRejectsTheHandover(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -463,12 +390,6 @@ func TestS1AcknowledgeAdmittingNoUsableBearerRejectsTheHandover(t *testing.T) {
 	}
 }
 
-// S1R-9. TS 36.413 §9.1.5.5 makes both UE S1AP IDs mandatory with **ignore**
-// criticality in the HANDOVER REQUEST ACKNOWLEDGE. Per §10.3.5 an absent
-// ignore-criticality IE is ignored and the procedure continues where it can — but
-// the eNB UE S1AP ID is what the MME binds to the target association, so the
-// procedure cannot continue. It must not be acted on; §10.6 lets the MME say so
-// with an Error Indication.
 func TestS1AcknowledgeWithoutENBUES1APIDIsNotActedOn(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -494,14 +415,6 @@ func TestS1AcknowledgeWithoutENBUES1APIDIsNotActedOn(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Batch S1E — execution, notification and cancellation
-// ---------------------------------------------------------------------------
-
-// S1E-3/S1E-5. TS 23.401 §5.5.1.2.2 step 15: the MME sends the "eNodeB address and
-// TEID allocated at the target eNodeB for downlink traffic on S1-U for the accepted
-// EPS bearers" only after HANDOVER NOTIFY (step 13); step 19 then releases the
-// source eNB's UE context.
 func TestS1HandoverNotifySwitchesDownlinkAndReleasesTheSource(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -534,12 +447,6 @@ func TestS1HandoverNotifySwitchesDownlinkAndReleasesTheSource(t *testing.T) {
 	}
 }
 
-// S1E-2. TS 23.401 §5.5.1.2.2 step 15: "If the default bearer of a PDN connection
-// has not been accepted by the target eNodeB and there are other PDN connections
-// active, the MME shall handle it in the same way as if all bearers of a PDN
-// connection have not been accepted. The MME releases these PDN connections by
-// triggering the MME requested PDN disconnection procedure specified in clause
-// 5.10.3."
 func TestS1HandoverNotifyReleasesTheRejectedPDNConnection(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -575,9 +482,6 @@ func TestS1HandoverNotifyReleasesTheRejectedPDNConnection(t *testing.T) {
 	}
 }
 
-// S1E-6. TS 36.413 §9.1.5.7 makes E-UTRAN CGI and TAI mandatory with **ignore**
-// criticality in the HANDOVER NOTIFY. Per §10.3.5 their absence does not stop the
-// procedure, so the handover still completes — the UE has already arrived.
 func TestS1HandoverNotifyToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -607,16 +511,6 @@ func TestS1HandoverNotifyToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 	}
 }
 
-// S1E-7/S1E-8/S1E-10. TS 36.413 §8.4.5.2: "Upon reception of a HANDOVER CANCEL
-// message, the EPC shall terminate the ongoing Handover Preparation procedure,
-// release any resources associated with the handover preparation and send a
-// HANDOVER CANCEL ACKNOWLEDGE message to the source eNB." §9.1.5.12 makes both UE
-// S1AP IDs mandatory in the acknowledge; TS 23.401 §5.5.2.5.2 step 3 adds that the
-// source EPC node "resumes operation on the resources in the source side".
-//
-// The EPC's obligations here are spelled out in S1AP; NGAP §8.4.5.2 says only that
-// the source node sends the message, and locates the same behaviour in
-// TS 23.502 §4.9.1.4.
 func TestS1HandoverCancelReleasesPreparationAndAcknowledges(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -668,8 +562,6 @@ func TestS1HandoverCancelReleasesPreparationAndAcknowledges(t *testing.T) {
 	}
 }
 
-// S1E-9. TS 36.413 §9.1.5.11 makes Cause mandatory with ignore criticality in the
-// HANDOVER CANCEL, so per §10.3.5 an absent one does not stop the cancellation.
 func TestS1HandoverCancelWithoutCauseStillCancels(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -698,16 +590,6 @@ func TestS1HandoverCancelWithoutCauseStillCancels(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Batch S1S — eNB / MME status transfer
-// ---------------------------------------------------------------------------
-
-// S1S-1/S1S-2/S1S-3. TS 23.401 §5.5.1.2.2 step 10: "The source eNodeB sends the
-// eNodeB Status Transfer message to the target eNodeB **via the MME(s)** ... the
-// source MME ... sends the information to the target eNodeB via the MME Status
-// Transfer message." TS 36.413 §9.1.5.14 makes MME UE S1AP ID, eNB UE S1AP ID and
-// the eNB Status Transfer Transparent Container mandatory in that message, and the
-// UE S1AP IDs must address the target association.
 func TestS1MMEStatusTransferAddressesTheTargetWithTheSameContainer(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -752,9 +634,6 @@ func TestS1MMEStatusTransferAddressesTheTargetWithTheSameContainer(t *testing.T)
 	}
 }
 
-// S1S-4. TS 23.401 §5.5.1.2.2 step 10: "The source eNodeB may omit sending this
-// message if none of the E-RABs of the UE shall be treated with PDCP status
-// preservation", so its absence must not gate completion.
 func TestS1HandoverCompletesWithoutAStatusTransfer(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -769,9 +648,6 @@ func TestS1HandoverCompletesWithoutAStatusTransfer(t *testing.T) {
 	}
 }
 
-// S1S-5. With no handover in progress there is no target association to relay to,
-// so the MME has nothing to send (TS 36.413 §8.4.7 exists only between a prepared
-// source and target pair).
 func TestS1StatusTransferWithNoHandoverIsNotRelayed(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -804,10 +680,7 @@ func lastSent(t *testing.T, cc *captureConn) []byte {
 	return append([]byte(nil), cc.sent[len(cc.sent)-1]...)
 }
 
-// TS 36.413 §9.1.5.2: the E-RABs to Release List is an E-RAB List, so each entry
-// carries a Cause. The target's own cause is the most informative one to relay
-// when it gave one, which is what NGAP §8.4.1.2 does with the Handover Resource
-// Allocation Unsuccessful Transfer.
+// TS 36.413 §9.1.5.2
 func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)

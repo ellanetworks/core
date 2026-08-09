@@ -10,17 +10,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// HandoverBearers snapshots the UE's PDN connections into the E-RABs To Be Setup
-// list of a HANDOVER REQUEST (TS 36.413 §9.1.5.4). Unlike NGAP, the source eNB
-// names no bearers in its HANDOVER REQUIRED (§9.1.5.1), so the MME picks the set.
-//
-// candidates is every E-RAB the MME considered, including any it could not encode
-// and therefore never offered to the target. TS 36.413 §8.4.1.2 scopes the
-// HANDOVER COMMAND's release list by outcome — "any E-RABs that could not be
-// admitted in the target" — so a bearer dropped here is still owed a report to the
-// source eNB.
-//
-// ok is false when the UE has no usable bearer.
 func HandoverBearers(ue *UeContext) (bearers []s1ap.ERABToBeSetupItemHOReq, candidates []uint8, ok bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

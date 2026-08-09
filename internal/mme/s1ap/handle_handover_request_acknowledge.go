@@ -85,8 +85,6 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	// Each E-RAB is a PDN's default bearer, so one that is not admitted releases its
-	// PDN (TS 23.401 §5.5.1.2.2 step 15).
 	releaseEBIs, sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted)
 	if !ok {
 		return
@@ -124,10 +122,6 @@ func failedERABCauses(ack *s1ap.HandoverRequestAcknowledge) map[uint8]s1ap.Cause
 	return causes
 }
 
-// releaseItems renders the E-RABs that could not be handed over as the E-RABs to
-// Release List of a HANDOVER COMMAND (TS 36.413 §9.1.5.2), relaying the target's
-// own cause where it gave one and naming the target generically where it answered
-// for the bearer in neither of its lists.
 func releaseItems(ebis []uint8, targetCauses map[uint8]s1ap.Cause) []s1ap.ERABItem {
 	if len(ebis) == 0 {
 		return nil
