@@ -57,11 +57,6 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 		return 0, [32]byte{}, 0, false
 	}
 
-	// TS 33.401 §7.2.8.4.3: "Upon reception of the HANDOVER REQUIRED message the source
-	// MME shall increase its locally kept NCC value by one and compute a fresh NH from
-	// its stored data." The increment is unconditional and is committed here, not on
-	// completion: the pair goes to the target in the HANDOVER REQUEST, so rolling it
-	// back would let a later handover hand the same {NH, NCC} to a second eNB.
 	ue.mu.Lock()
 
 	newNH, err := deriveNH(ue.kasme, ue.nh[:])

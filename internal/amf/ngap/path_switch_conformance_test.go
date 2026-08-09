@@ -81,7 +81,6 @@ func TestPathSwitchKeepsSessionsTheGNBDidNotList(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}}
 	amfInstance, amfUe, targetRan := pathSwitchTestUE(t, fakeSmf, 1, 2)
 
-	// The target gNB reports only session 1; session 2 is omitted.
 	msg := buildPathSwitchRequest(
 		ngap.Ptr(ngap.AMFUENGAPID(10)),
 		ngap.Ptr(ngap.RANUENGAPID(2)),

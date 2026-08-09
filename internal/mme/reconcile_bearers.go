@@ -18,48 +18,18 @@ type RANBearer struct {
 	EnbFTEID models.FTEID
 }
 
-// RANBearers is an eNB's view of a UE's bearer set, as carried by one S1AP message.
-//
-// Authoritative distinguishes the two kinds of message 3GPP defines. A PATH SWITCH
-// REQUEST or a completed handover names *everything* the eNB holds, so an E-RAB in
-// the UE context that appears in neither list has been implicitly released by the
-// eNB (TS 36.413 §8.4.4.2, TS 23.401 §5.5.1.1.2 step 2). An E-RAB SETUP RESPONSE
-// names only the bearers its own procedure set up and says nothing about the rest.
-// Treating the first kind as if it were the second silently strands bearers whose
-// downlink still points at the source eNB.
 type RANBearers struct {
 	Present       []RANBearer
 	Rejected      []uint8
 	Authoritative bool
 }
 
-// RANBearerResult reports the outcome per E-RAB. Failed is what the caller reports
-// back to the eNB — in the PATH SWITCH REQUEST ACKNOWLEDGE E-RAB To Be Released
-// List, for instance — so it releases the matching data radio bearers.
 type RANBearerResult struct {
 	Applied  []uint8
 	Failed   []uint8
 	Released []uint8
 }
 
-// ReconcileBearersToRAN converges a UE's PDN connections onto the bearer set an eNB
-// reports, and is the single place that does so: every S1AP message that carries a
-// bearer set drives this, so the ordering, locking and cleanup rules below hold once
-// rather than per handler.
-//
-//   - a bearer the eNB holds has its anchor downlink switched first and its stored
-//     endpoint written second, under the UE lock, only on success — so the context
-//     never claims a path the anchor does not have;
-//   - a bearer the eNB rejected, or that the core could not converge, has its
-//     core-network resources released (TS 23.401 §5.5.1.1.2 step 6) rather than only
-//     being reported;
-//   - on an authoritative message, a bearer absent from both lists is released too;
-//   - the default bearer is re-elected over the survivors, so a UE never keeps
-//     bearers with no default among them.
-//
-// The caller keeps what is procedure-specific: rejecting duplicate E-RAB IDs with
-// the right cause, choosing the response message, and deciding what a total failure
-// means.
 func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RANBearers) RANBearerResult {
 	var result RANBearerResult
 

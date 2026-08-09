@@ -1135,14 +1135,6 @@ func TestHandoverRequestAcknowledge_NoMatchingPreparation_DoesNotReleaseLiveUE(t
 	}
 }
 
-// TestHandoverNHAdvancedAtPreparation is the EPS counterpart of
-// TestHandover_NHAdvancedAtPreparation on the 5G side.
-//
-// TS 33.401 §7.2.8.4.3: "Upon reception of the HANDOVER REQUIRED message the source
-// MME shall increase its locally kept NCC value by one and compute a fresh NH from its
-// stored data." The increment is unconditional, and the pair is sent to the target in
-// the HANDOVER REQUEST — so an abandoned handover must not roll it back, or the next
-// handover would hand the same {NH, NCC} to a second eNB.
 func TestHandoverNHAdvancedAtPreparation(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)

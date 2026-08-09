@@ -78,24 +78,12 @@ func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn
 	return target, nh, ncc, true
 }
 
-// SuperviseHandover arms the guard bounding HANDOVER REQUIRED → NOTIFY. Arm it only after
-// the HANDOVER REQUEST is sent, so the guard timer cannot race the outbound request; on
-// expiry it abandons the handover and releases the target.
 func (a *AMF) SuperviseHandover(ue *UeContext, source, target *UeConn) {
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
 		handoverGuardExpiry(a, source, target))
 }
 
-// stageHandover advances the AS key chain and installs the handover FSM at
-// hoPreparing (registry lock). It neither claims the procedure nor arms supervision.
-//
-// TS 33.501 §6.9.2.3.3: "Upon reception of the NGAP HANDOVER REQUIRED message ... the
-// source AMF shall increment its locally kept NCC value by one and compute a fresh NH."
-// The increment is unconditional and committed here, not on completion: the pair is
-// sent to the target in the HANDOVER REQUEST, so rolling it back would let a later
-// handover hand the same {NH, NCC} to a second gNB — §6.9.2.1.1 NOTE 3 requires the AMF
-// to "always compute a fresh {NH, NCC} pair".
 func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8, ncc uint8, ok bool) {
 	ue.mu.Lock()
 

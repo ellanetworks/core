@@ -422,24 +422,6 @@ func TestPathSwitchToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 	}
 }
 
-// TestPathSwitchDuringNASSecurityModeIsRefused pins a deliberate design decision on a
-// point TS 33.401 does not settle.
-//
-// §7.2.10 rule 3 is conditional: while a NAS SMC is taking a new KASME into use, the
-// MME "shall continue to include AS security context parameters based on the old KASME
-// in the HANDOVER REQUEST or PATH SWITCH REQUEST ACKNOWLEDGE message". It governs the
-// contents of an acknowledge that is sent. Refusing never reaches that condition, so
-// the rule is not violated — whether refusing is permitted at all is not addressed.
-//
-// Ella Core refuses, because the two procedures would otherwise advance the same
-// {NH, NCC} chain concurrently. The UE has already moved to the target cell over the
-// radio, so it is stranded and re-attaches — recoverable, where a key desync is not.
-// Answering per rule 3 would mean keeping the pre-SMC chain usable alongside the new
-// one: two live key chains in the most security-sensitive path, for a rare race.
-//
-// Recorded as F-7 in handover_review_plan.md, with the reasoning in
-// handover_design.md §7. Revisit if a clearer clause turns up or the rejection is
-// observed in a real deployment.
 func TestPathSwitchDuringNASSecurityModeIsRefused(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
@@ -462,19 +444,11 @@ func TestPathSwitchDuringNASSecurityModeIsRefused(t *testing.T) {
 		t.Error("Path Switch Request Failure carries no Cause")
 	}
 
-	// Whatever the answer, the refusal must leave the AS key chain exactly as it was:
-	// the NAS SMC owns it for the duration.
 	if ue.NHForTest() != nh0 || ue.NCCForTest() != ncc0 {
 		t.Error("a refused path switch must not advance the AS key chain")
 	}
-} // TS 23.401 §5.5.1.1.2 step 6: "If none of the default EPS bearers have been
-// switched successfully in the core network ... the MME shall send a Path Switch
-// Request Failure message ... The MME performs explicit detach of the UE."
-//
-// No NAS DETACH REQUEST can reach a UE that has left the source cell, so the detach is
-// local (TS 24.301 §5.5.2.3.1). What must still happen is the deregistration and the
-// UE CONTEXT RELEASE COMMAND to the source eNB — without it the eNB keeps a UE-
-// associated S1 connection whose MME-UE-S1AP-ID the MME will hand to another UE.
+}
+
 func TestPathSwitchTotalFailureDetachesUE(t *testing.T) {
 	m := newTestMME(t)
 
