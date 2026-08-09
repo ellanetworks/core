@@ -25,8 +25,6 @@ func setupHandoverAckTestContext(t *testing.T, candidates ...amf.HandoverCandida
 	return targetRan, sourceNGAPSender, amfInstance
 }
 
-// candidates are the PDU sessions the source asked to hand over, as
-// HANDOVER REQUIRED would have recorded them; the UE's single session by default.
 func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.HandoverCandidate) (*amf.Radio, *amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
 

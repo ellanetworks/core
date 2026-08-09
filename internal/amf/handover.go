@@ -25,50 +25,19 @@ const (
 	hoCommitting                // HANDOVER NOTIFY received, the N2 transfer is in progress
 )
 
-// HandoverCandidate is one PDU session the source NG-RAN node asked to hand over
-// in its HANDOVER REQUIRED. Cause is set when the 5GC could not offer the session
-// to the target at all — an unknown PDU session ID, or an SMF that refused the
-// preparation — and is then the cause to report for it; nil means the session
-// reached the target, which answers for it in the HANDOVER REQUEST ACKNOWLEDGE.
-//
-// The candidate list exists because TS 38.413 §8.4.1.2 scopes the HANDOVER
-// COMMAND's to-release list by outcome, not by who reported it: "If there are any
-// PDU sessions that could not be admitted in the target, they shall be indicated
-// in the PDU Session Resource to Release List IE". TS 23.502 §4.9.1.3.2 step 12
-// spells the same set out as the target's failed list plus the "Non-accepted PDU
-// Session(s) by the SMF(s)".
 type HandoverCandidate struct {
 	PDUSessionID ngap.PDUSessionID
 	Cause        *ngap.Cause
 }
 
-// handoverContext is the explicit N2 handover FSM for one UE: the single source of
-// truth for the source/target UeConn pair and the procedure's stage. It coordinates
-// the source and target connections — which are themselves registry state — so it is
-// guarded by AMF.mu, not the per-UE lock. The procedure registry tracks the same
-// handover for conflict and supervision and is cleared in lockstep; the SMF owns the
-// per-session N2 transfer, this FSM owns only the source/target relationship and
-// ordering.
 type handoverContext struct {
-	state  hoState
-	source *UeConn
-	target *UeConn
-	// candidates is every PDU session the source asked to hand over, recorded at
-	// preparation. Only the sessions the source listed: TS 23.502 §4.9.1.3.2 step 1
-	// makes listing every session with an active user plane the source's job, and
-	// the ones it left out keep their inactive status across the handover
-	// (§4.9.1.2.2), so they are not the AMF's to release.
+	state      hoState
+	source     *UeConn
+	target     *UeConn
 	candidates []HandoverCandidate
-	// admitted is the set of PDU session IDs the target accepted (HANDOVER REQUEST
-	// ACKNOWLEDGE); the rest are released at HANDOVER NOTIFY, since a session the
-	// target did not accept cannot continue there (TS 23.501 §5.30.3.5).
-	admitted map[uint8]struct{}
+	admitted   map[uint8]struct{}
 }
 
-// PrepareHandover begins N2 handover preparation for the source→target pair: it claims
-// the key-chain procedure (exclusive with Security Mode / Path Switch), allocates the
-// target UeConn, and stages the {NH, NCC} of the AS key chain (TS 38.413 §8.4, TS 33.501
-// §6.9). ok is false with everything rolled back when preparation cannot begin.
 func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio, candidates []HandoverCandidate) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
 	if ue == nil {
 		return nil, [32]uint8{}, 0, false
@@ -203,10 +172,6 @@ func SetHandoverForTest(sourceUe, targetUe *UeConn, candidates ...HandoverCandid
 	return nil
 }
 
-// ForceHandoverCommittingForTest advances an in-flight handover to the committing
-// state without running HANDOVER NOTIFY, so a test can drive the commit/cancel
-// race that is otherwise only reachable inside the unlocked user-plane switch.
-// For tests only.
 func (a *AMF) ForceHandoverCommittingForTest(ue *UeContext) bool {
 	if ue == nil {
 		return false
@@ -379,20 +344,6 @@ func (a *AMF) ClearHandover(ue *UeContext) {
 	ue.EndKeyChainProc(procedure.N2Handover)
 }
 
-// MarkHandoverPrepared advances the FSM from hoPreparing to hoPrepared when the
-// target acknowledges (HANDOVER COMMAND about to be sent) and records the set of PDU
-// session IDs the target admitted. It returns false when there is no handover or it
-// is not at hoPreparing, so a duplicate or out-of-order HANDOVER REQUEST ACKNOWLEDGE
-// is rejected.
-//
-// toRelease is every candidate the target did not admit — the set TS 38.413
-// §8.4.1.2 has the AMF put in the HANDOVER COMMAND's PDU Session Resource to
-// Release List. Deriving it here, from the candidates recorded at preparation
-// rather than from the target's Failed to Setup list, is what makes it cover the
-// sessions the 5GC never offered and the ones the target answered for in neither
-// list; it also makes the two lists of the HANDOVER COMMAND disjoint by
-// construction. Each entry keeps its preparation-time Cause where the 5GC set one;
-// the caller supplies the target's for the rest.
 func (a *AMF) MarkHandoverPrepared(ue *UeContext, admitted map[uint8]struct{}) (toRelease []HandoverCandidate, ok bool) {
 	if ue == nil {
 		return nil, false

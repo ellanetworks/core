@@ -134,17 +134,6 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 	return true
 }
 
-// MarkHandoverPrepared records the admitted E-RABs and advances the handover to
-// hoPrepared, returning the source association for the HANDOVER COMMAND
-// (TS 36.413 §8.4.2). It re-validates the handover still matches the acknowledge.
-//
-// unadmitted is every candidate the target did not admit — the set TS 36.413
-// §8.4.1.2 has the MME put in the HANDOVER COMMAND's E-RABs to Release List, and
-// the set released at HANDOVER NOTIFY (TS 23.401 §5.5.1.2.2 step 15). Deriving it
-// from the candidates recorded at preparation rather than from the target's Failed
-// to Setup List is what makes it cover a bearer the target answered for in neither
-// list and one the MME never managed to offer; it also makes the HANDOVER
-// COMMAND's two lists disjoint by construction.
 func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB) (unadmitted []uint8, sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

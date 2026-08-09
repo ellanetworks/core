@@ -13,9 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// toReleaseItemHOCmd builds the Handover Command to-release item naming a session
-// that could not be handed over, and the cause to report for it
-// (TS 38.413 §9.2.3.2).
 func toReleaseItemHOCmd(pduSessionID ngap.PDUSessionID, cause ngap.Cause) (ngap.PDUSessionResourceToReleaseItemHOCmd, error) {
 	transfer, err := (&ngap.HandoverPreparationUnsuccessfulTransfer{Cause: cause}).Marshal()
 	if err != nil {
@@ -28,17 +25,7 @@ func toReleaseItemHOCmd(pduSessionID ngap.PDUSessionID, cause ngap.Cause) (ngap.
 	}, nil
 }
 
-// reportFailedToSetup hands each session the target refused to its SMF and
-// collects the causes the target gave.
-//
-// TS 38.413 §8.4.2.2: "Upon reception of the HANDOVER REQUEST ACKNOWLEDGE message
-// the AMF shall, for each PDU session indicated in the PDU Session ID IE, transfer
-// transparently the Handover Request Acknowledge Transfer IE or Handover Resource
-// Allocation Unsuccessful Transfer IE to the SMF associated with the concerned PDU
-// session." The unsuccessful half is what lets the SMF free whatever preparation
-// reserved for a session the target then refused (TS 23.502 §4.9.1.3.2 step 11a).
-// The user plane is not touched here: the UE is still on the source until it
-// arrives at the target, and a handover cancelled in between must leave it intact.
+// TS 38.413 §8.4.2.2
 func reportFailedToSetup(ctx context.Context, amfInstance *amf.AMF, targetUe *amf.UeConn, amfUe *amf.UeContext, failed ngap.PDUSessionResourceFailedToSetupListHOAck) map[ngap.PDUSessionID]ngap.Cause {
 	causes := make(map[ngap.PDUSessionID]ngap.Cause, len(failed))
 
@@ -58,8 +45,6 @@ func reportFailedToSetup(ctx context.Context, amfInstance *amf.AMF, targetUe *am
 			continue
 		}
 
-		// A relay: a refusal by the SMF to take the news does not change the
-		// handover, which the target has already answered.
 		if err := amfInstance.Session.UpdateSmContextN2HandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("failed to hand the target's handover refusal to the SMF",
 				zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
@@ -181,16 +166,9 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	// Every candidate the target did not admit — whether it refused it, answered for
-	// it in neither list, or the 5GC never offered it — is reported to the source so
-	// it releases the session (TS 38.413 §8.4.1.2). The set is disjoint from the
-	// admitted list by construction.
 	var toRelease ngap.PDUSessionResourceToReleaseListHOCmd
 
 	for _, c := range unadmitted {
-		// The 5GC's own reason where it could not offer the session, the target's
-		// where it refused one, and a generic one where the target answered for it
-		// in neither list.
 		cause := causeHoFailureInTarget
 
 		if reported, ok := targetCauses[c.PDUSessionID]; ok {

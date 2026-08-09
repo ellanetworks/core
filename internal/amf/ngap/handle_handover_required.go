@@ -80,11 +80,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	sourceUe.HandOverType = msg.HandoverType
 
-	// Every PDU session the source listed is a candidate, whether or not the 5GC can
-	// offer it to the target: a candidate the target does not admit is reported to
-	// the source in the HANDOVER COMMAND's to-release list, and one the 5GC could
-	// not even offer is reported with the reason it failed here (TS 38.413 §8.4.1.2,
-	// TS 23.502 §4.9.1.3.2 step 12).
 	var (
 		sessions   ngap.PDUSessionResourceSetupListHOReq
 		candidates []amf.HandoverCandidate
@@ -204,22 +199,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	amfInstance.SuperviseHandover(amfUe, sourceUe, targetUe)
 }
 
-// causeHoFailureInTarget names the target side as the reason preparation could
-// not complete: no session survived core-side preparation, or the AMF could not
-// stage the target context (TS 38.413 §9.3.1.2).
-var causeHoFailureInTarget = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget}
+var (
+	causeHoFailureInTarget   = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget}
+	causeUnknownPDUSessionID = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownPDUSessionID}
+)
 
-// causeUnknownPDUSessionID reports a PDU session the source asked to hand over
-// that the 5GC does not hold — an identity outside the assignable range, or one
-// with no SM context (TS 38.413 §9.3.1.2). Path Switch answers the same condition
-// with the same cause.
-var causeUnknownPDUSessionID = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownPDUSessionID}
-
-// sendHandoverPreparationProtocolFailure reports a HANDOVER REQUIRED the AMF
-// rejected on criticality grounds, using the procedure's own unsuccessful
-// outcome as §10.3.4.2 requires. It is sent on the radio rather than through a
-// UeConn: the message is rejected before any UE is resolved, and the UE NGAP
-// IDs the reply needs come from the rejected message itself.
 func sendHandoverPreparationProtocolFailure(ctx context.Context, ran *amf.Radio, amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, ase *ngap.AbstractSyntaxError) {
 	diagnostics := ase.OutcomeDiagnostics()
 

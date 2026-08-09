@@ -46,27 +46,25 @@ type SmfN2InfoCall struct {
 
 type fakeSmfSbi struct {
 	*smf.SMF
-	PathSwitchResponse       []byte
-	PathSwitchErr            error
-	HandoverFailedErr        error
-	PathSwitchCalls          []*SmfPathSwitchCall
-	ModifyIndicationResponse []byte
-	ModifyIndicationErr      error
-	ModifyIndicationCalls    []*SmfN2InfoCall
-	HandoverFailedCalls      []*SmfHandoverFailedCall
-	PduResSetupRspCalls      []*SmfN2InfoCall
-	PduResSetupFailCalls     []*SmfN2InfoCall
-	PduResRelRspCalls        []string
-	DeactivateSmContextCalls []string
-	N2HandoverCompleteCalls  []string
-	N2HandoverCanceledCalls  []string
-	N2HandoverCompleteErr    error
-	ReleaseSmContextCalls    []string
-	N2HandoverPreparingCalls []string
-	N2HandoverPreparingData  []*SmfN2InfoCall
-	N2HandoverPreparingErr   error
-	// N2HandoverPreparingErrByRef fails preparation for named SM contexts only, so a
-	// test can model one PDU session the SMF refuses while the others go through.
+	PathSwitchResponse          []byte
+	PathSwitchErr               error
+	HandoverFailedErr           error
+	PathSwitchCalls             []*SmfPathSwitchCall
+	ModifyIndicationResponse    []byte
+	ModifyIndicationErr         error
+	ModifyIndicationCalls       []*SmfN2InfoCall
+	HandoverFailedCalls         []*SmfHandoverFailedCall
+	PduResSetupRspCalls         []*SmfN2InfoCall
+	PduResSetupFailCalls        []*SmfN2InfoCall
+	PduResRelRspCalls           []string
+	DeactivateSmContextCalls    []string
+	N2HandoverCompleteCalls     []string
+	N2HandoverCanceledCalls     []string
+	N2HandoverCompleteErr       error
+	ReleaseSmContextCalls       []string
+	N2HandoverPreparingCalls    []string
+	N2HandoverPreparingData     []*SmfN2InfoCall
+	N2HandoverPreparingErr      error
 	N2HandoverPreparingErrByRef map[string]error
 	N2HandoverPreparedCalls     []string
 	N2HandoverPreparedData      []*SmfN2InfoCall
