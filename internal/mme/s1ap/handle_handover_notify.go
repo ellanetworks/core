@@ -30,10 +30,8 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 
 	reportDiagnostics(m, ctx, radio.Conn, s1ap.ProcHandoverNotification, s1ap.TriggeringInitiatingMessage, ueAssociated(notify.MMEUES1APID, notify.ENBUES1APID), notify.Diagnostics())
 
-	admitted, releaseEBIs, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
+	admitted, ok := m.MarkHandoverCommitting(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
-		// A pair that still resolves to the UE's active connection is a stale notify for a
-		// completed handover; an erroneous pair draws an ERROR INDICATION (TS 36.413 §10.6).
 		if _, _, valid := resolveUE(m, radio.Conn, notify.MMEUES1APID, notify.ENBUES1APID); valid {
 			logger.From(ctx, logger.MmeLog).Warn("Handover Notify with no matching prepared handover", zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
 		}
@@ -48,15 +46,11 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 
 	m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
 		Present:       present,
-		Rejected:      releaseEBIs,
 		Authoritative: true,
 	})
 
 	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {
-		// A concurrent release (e.g. the source association dropping) tore the UE
-		// down during the unlocked user-plane switch and cleared the handover; leave
-		// it released.
 		logger.From(ctx, logger.MmeLog).Warn("Handover Notify: UE released during the user-plane switch",
 			zap.Uint32("target-mme-ue-id", uint32(notify.MMEUES1APID)))
 
@@ -65,8 +59,6 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 
 	ue.TouchLastSeen()
 
-	// Re-read, not snapshotted: FinishHandoverCommit has just rebound the UE to
-	// the target association.
 	if ueConn := ue.Conn(); ueConn != nil && notify.EUTRANCGI != nil && notify.TAI != nil {
 		ueConn.UpdateLocation(*notify.EUTRANCGI, *notify.TAI)
 	}

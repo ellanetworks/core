@@ -23,31 +23,25 @@ const (
 	hoCommitting                // HANDOVER NOTIFY received, the user-plane switch is in progress
 )
 
-// AdmittedERAB is one E-RAB the target eNB admitted: its EPS bearer identity and
-// the target's S1-U downlink endpoint.
 type AdmittedERAB struct {
 	Ebi      uint8
 	EnbFTEID models.FTEID
 }
 
-// handoverContext is the MME's state for one in-flight inter-eNB S1 handover
-// (TS 36.413 §8.4). source and target are distinct UE-associated S1-connections,
-// each with its own MME-UE-S1AP-ID; the UE's active connection (ue.active) stays the
-// source until HANDOVER NOTIFY switches it to the target. Guarded by MME.mu.
-type handoverContext struct {
-	state       hoState
-	source      *UeConn // the UE's source association (ue.active during preparation)
-	target      *UeConn // its ENBUES1APID is learned from the acknowledge
-	candidates  []uint8
-	admitted    []AdmittedERAB
-	releaseEBIs []uint8 // bearers not admitted, released at notify (TS 23.401 §5.5.1.2.2 step 15)
+type HandoverCandidate struct {
+	Ebi   uint8
+	Cause *s1ap.Cause
 }
 
-// PrepareHandover allocates a target association, advances the {NH, NCC} chain, and
-// installs the in-flight handover on the UE (TS 36.413 §8.4.1, TS 33.401 §7.2.8).
-// It refuses when the key chain is concurrently busy. reqMMEID is for logging only.
-// Supervision is armed separately (SuperviseHandover), after the HANDOVER REQUEST is sent.
-func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []uint8) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
+type handoverContext struct {
+	state      hoState
+	source     *UeConn
+	target     *UeConn
+	candidates []HandoverCandidate
+	admitted   []AdmittedERAB
+}
+
+func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
 
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
@@ -103,10 +97,6 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	return targetMMEID, newNH, newNCC, true
 }
 
-// SuperviseHandover arms the guard bounding the S1 handover (HANDOVER REQUIRED →
-// completion). Armed after the HANDOVER REQUEST is sent so the timer cannot race the
-// outbound request; at TS1RELOCoverall expiry the registry runs abandonHandover while
-// S1Handover is still active (TS 36.413 §8.4).
 func (m *MME) SuperviseHandover(ue *UeContext) {
 	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
 		m.abandonHandover(ue)
@@ -115,8 +105,6 @@ func (m *MME) SuperviseHandover(ue *UeContext) {
 	})
 }
 
-// MatchAndSetTargetENB binds the target's ENB-UE-S1AP-ID to the in-flight handover
-// when the acknowledge matches the preparation (TS 36.413 §8.4.2).
 func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ackENBID s1ap.ENBUES1APID, conn S1APWriter) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -131,7 +119,7 @@ func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ack
 	return true
 }
 
-func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB) (unadmitted []uint8, sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, ok bool) {
+func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, conn S1APWriter, admitted []AdmittedERAB) (unadmitted []HandoverCandidate, sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -147,21 +135,20 @@ func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, con
 
 	reported := make(map[uint8]struct{}, len(ho.candidates))
 
-	for _, ebi := range ho.candidates {
-		if _, isAdmitted := admittedSet[ebi]; isAdmitted {
+	for _, c := range ho.candidates {
+		if _, isAdmitted := admittedSet[c.Ebi]; isAdmitted {
 			continue
 		}
 
-		if _, dup := reported[ebi]; dup {
+		if _, dup := reported[c.Ebi]; dup {
 			continue
 		}
 
-		reported[ebi] = struct{}{}
-		unadmitted = append(unadmitted, ebi)
+		reported[c.Ebi] = struct{}{}
+		unadmitted = append(unadmitted, c)
 	}
 
 	ho.admitted = admitted
-	ho.releaseEBIs = unadmitted
 	ho.state = hoPrepared
 
 	return unadmitted, ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID, true
@@ -192,21 +179,18 @@ func (m *MME) HandoverStatusTarget(ue *UeContext) (targetConn S1APWriter, target
 	return ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID, true
 }
 
-// MarkHandoverCommitting moves a prepared handover to hoCommitting, locking out a
-// concurrent CANCEL or the supervision timeout while the user-plane switch runs outside
-// the lock, and returns the admitted/rejected E-RABs (TS 36.413 §8.4.3).
-func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (admitted []AdmittedERAB, releaseEBIs []uint8, ok bool) {
+func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (admitted []AdmittedERAB, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	ho := ue.handover
 	if ho == nil || ho.state != hoPrepared || ho.target.Conn() != conn || ho.target.ENBUES1APID != notifyENBID {
-		return nil, nil, false
+		return nil, false
 	}
 
 	ho.state = hoCommitting
 
-	return ho.admitted, ho.releaseEBIs, true
+	return ho.admitted, true
 }
 
 func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s1ap.ENBUES1APID) (sourceConn S1APWriter, sourceMMEID s1ap.MMEUES1APID, sourceENBID s1ap.ENBUES1APID, targetMMEID s1ap.MMEUES1APID, ok bool) {
@@ -227,11 +211,6 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID, ue.Conn().MMEUES1APID, true
 }
 
-// CancelHandover clears a cancellable in-flight handover, returning the reserved
-// target association to release (TS 36.413 §8.4.5). The target is released whether it
-// has acknowledged (hoPrepared, pair true — its eNB-UE-S1AP-ID is known) or is still
-// preparing (hoPreparing, pair false — addressed by MME-UE-S1AP-ID alone), so a cancel
-// never orphans the target's reserved resources. A committing handover is left to finish.
 func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEID s1ap.MMEUES1APID, releaseENBID s1ap.ENBUES1APID, pair, hasTarget bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -253,9 +232,6 @@ func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEI
 	return releaseConn, releaseMMEID, releaseENBID, pair, hasTarget
 }
 
-// BeginPathSwitch claims the {NH, NCC} chain for an X2 Path Switch, refusing if a
-// Path Switch or S1 handover is concurrently advancing it (TS 33.401 §7.2.8). The
-// claim is held until ClearKeyChainBusy. mmeID is the UE's current association id.
 func (m *MME) BeginPathSwitch(ue *UeContext) (curNH [32]byte, curNCC uint8, mmeID s1ap.MMEUES1APID, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -275,21 +251,12 @@ func (m *MME) BeginPathSwitch(ue *UeContext) (curNH [32]byte, curNCC uint8, mmeI
 	return curNH, curNCC, mmeID, true
 }
 
-// ClearKeyChainBusy releases the {NH, NCC} chain claim taken by BeginPathSwitch
-// or the NAS security mode procedure. The active key-changing procedure is ended;
-// they are mutually exclusive, so at most one is cleared.
 func (m *MME) ClearKeyChainBusy(ue *UeContext) {
 	m.mu.Lock()
 	ue.clearKeyChainProc()
 	m.mu.Unlock()
 }
 
-// TryClaimKeyChain claims the {NH, NCC} key chain for the NAS security mode
-// procedure so it cannot run concurrently with a Path Switch or S1 handover and
-// desync the AS/NAS key chain (TS 33.501 §6.9.5.1, TS 33.401 §7.2.8). It returns
-// false when the chain is already claimed. The claim is released by
-// ClearKeyChainBusy, by handover/path-switch completion, or when the connection is
-// freed.
 func (m *MME) TryClaimKeyChain(ue *UeContext) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -297,8 +264,6 @@ func (m *MME) TryClaimKeyChain(ue *UeContext) bool {
 	return ue.BeginKeyChainProc(procedure.SecurityMode)
 }
 
-// AdvancePathSwitchNH derives the next hop for a Path Switch from the current NH
-// (TS 33.401 §7.2.8). kasme stays inside the kernel.
 func (m *MME) AdvancePathSwitchNH(ue *UeContext, curNH [32]byte) ([32]byte, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -306,9 +271,6 @@ func (m *MME) AdvancePathSwitchNH(ue *UeContext, curNH [32]byte) ([32]byte, erro
 	return deriveNH(ue.kasme, curNH[:])
 }
 
-// CommitPathSwitch moves the UE's active association to the target eNB and commits
-// the advanced {NH, NCC} chain (TS 36.413, TS 33.401 §7.2.8). ok is false if the UE
-// was released during the unlocked user-plane switch.
 func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBUES1APID, newNH [32]byte, curNCC uint8) (ncc uint8, ok bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -329,10 +291,6 @@ func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBU
 	return newNCC, true
 }
 
-// clearHandoverLocked drops the UE's in-flight handover context and removes the
-// target connection it allocated — unless the handover completed and the UE moved
-// onto the target (ue.active). Ending the S1Handover procedure stops its registry
-// supervision timer. The caller holds MME.mu.
 func (m *MME) clearHandoverLocked(ue *UeContext) {
 	ho := ue.handover
 	if ho == nil {
@@ -355,9 +313,6 @@ func (m *MME) ClearHandover(ue *UeContext) {
 	m.mu.Unlock()
 }
 
-// FailHandoverToSource clears the handover and sends a HANDOVER PREPARATION
-// FAILURE to the source eNB, leaving the UE on the source association. The target
-// connection allocated for the preparation is dropped by clearHandoverLocked.
 func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
 	m.mu.Lock()
 	ho := ue.handover
@@ -377,12 +332,6 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 	SendHandoverPreparationFailure(ctx, m, sourceConn, sourceMMEID, sourceENBID, cause)
 }
 
-// abandonHandover is the S1Handover supervision-timeout action (TS 36.413 §8.4): the
-// target never completed the handover, so the UE stays on the source eNB and a prepared
-// target's resources are released. The registry invokes this only while S1Handover is
-// still active (it re-checks the procedure id under its own lock), so no generation
-// counter is needed here. A handover already committing (the UE has reached the target)
-// is left to finish.
 func (m *MME) abandonHandover(ue *UeContext) {
 	m.mu.Lock()
 
@@ -392,10 +341,6 @@ func (m *MME) abandonHandover(ue *UeContext) {
 		return
 	}
 
-	// Release the reserved target whether it acknowledged (hoPrepared) or was still
-	// preparing when the guard fired: either way it holds resources reserved by the
-	// HANDOVER REQUEST that must be freed (TS 36.413 §8.4). A preparing target is
-	// addressed by its MME-UE-S1AP-ID alone (its eNB-UE-S1AP-ID never arrived).
 	releaseTarget := ho.target
 	releasePair := ho.state == hoPrepared
 	sourceMMEID := ho.source.MMEUES1APID
@@ -411,11 +356,6 @@ func (m *MME) abandonHandover(ue *UeContext) {
 	}
 }
 
-// ReleaseDetachedConn removes a UE-associated connection that holds no UE context — a
-// handover source detached at HANDOVER NOTIFY, a released target, or a superseded
-// connection — when its UE Context Release Complete arrives or its release guard fires,
-// identified by its own MME-UE-S1AP-ID (TS 36.413 §8.3, §8.4). It reports whether it
-// handled one.
 func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {
 	m.mu.Lock()
 
@@ -445,14 +385,10 @@ func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter
 	m.SendToRadio(ctx, conn, S1APProcedureHandoverPreparationFailure, b)
 }
 
-// SendUEContextRelease sends a UE Context Release Command over conn. pair selects the
-// UE S1AP IDs alternative: the full pair when the eNB-UE-S1AP-ID is known, or the
-// MME-UE-S1AP-ID alone for a still-preparing target whose eNB-UE-S1AP-ID has not yet
-// arrived in a HANDOVER REQUEST ACKNOWLEDGE (TS 36.413 §9.1.4.5).
 func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool, cause s1ap.Cause) {
 	cmd := &s1ap.UEContextReleaseCommand{
 		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Pair: pair},
-		Cause:     s1ap.Ptr(cause),
+		Cause:     new(cause),
 	}
 
 	b, err := cmd.Marshal()
@@ -465,15 +401,9 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 	m.SendToRadio(ctx, conn, S1APProcedureUEContextReleaseCommand, b)
 }
 
-// S1AP Cause Radio Network values used when releasing an eNB's UE context during a
-// handover (TS 36.413 §9.2.1.3, enumeration order). Only the source release after
-// a completed handover is "successful-handover"; abandoning a prepared handover
-// uses a cause that reflects why.
 var (
-	// CauseHandoverSuccess releases the source eNB after HANDOVER NOTIFY.
-	CauseHandoverSuccess = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 2} // successful-handover
-	// causeHandoverTS1relocExpiry releases a prepared target the supervision timeout abandons.
-	causeHandoverTS1relocExpiry = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 8} // tS1relocoverall-expiry
-	// causeHandoverEUTRANReason releases a prepared target when the source association drops.
-	causeHandoverEUTRANReason = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 3} // release-due-to-eutran-generated-reason
+	CauseHandoverSuccess        = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkSuccessfulHandover}
+	causeHandoverTS1relocExpiry = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTS1RelocOverallExpiry}
+	causeHandoverEUTRANReason   = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReleaseDueToEUTRANGeneratedReason}
+	causeHandoverCNReason       = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
 )

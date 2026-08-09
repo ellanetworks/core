@@ -17,15 +17,13 @@ import (
 // Conformance tests for the 4G S1 handover procedures
 
 const (
-	ieIDHandoverTargetID  = 4 // Target ID
-	ieIDHandoverCause     = 2 // Cause
+	ieIDHandoverTargetID  = 4
+	ieIDHandoverCause     = 2
 	ieIDHandoverEUTRANCGI = 100
 	ieIDHandoverTAI       = 67
-	ieIDHandoverENBUEID   = 8 // eNB UE S1AP ID
+	ieIDHandoverENBUEID   = 8
 )
 
-// secondPDN adds a second PDN connection on EBI 6 so partial-admission
-// requirements have something to reject.
 func secondPDN(ue *mme.UeContext) {
 	p := ue.EnsurePDN(6)
 	p.Apn = "ims"
@@ -33,13 +31,8 @@ func secondPDN(ue *mme.UeContext) {
 	p.SgwFTEID = models.FTEID{TEID: 0x2222, Addr: netip.AddrFrom4([4]byte{10, 0, 0, 2})}
 }
 
-// ackTargetENBUEID is the eNB-UE-S1AP-ID the target eNB allocates and reports in
-// its HANDOVER REQUEST ACKNOWLEDGE.
 const ackTargetENBUEID s1ap.ENBUES1APID = 55
 
-// ackWith builds a HANDOVER REQUEST ACKNOWLEDGE admitting the given EBIs and
-// reporting the ones in failed. EBIs named in neither list are simply omitted,
-// which is what §8.4.1.2's "any E-RABs that could not be admitted" has to cover.
 func ackWith(targetMME s1ap.MMEUES1APID, admitted, failed []uint8) *s1ap.HandoverRequestAcknowledge {
 	ack := &s1ap.HandoverRequestAcknowledge{
 		MMEUES1APID:    s1ap.Ptr(targetMME),
@@ -58,7 +51,7 @@ func ackWith(targetMME s1ap.MMEUES1APID, admitted, failed []uint8) *s1ap.Handove
 	for _, ebi := range failed {
 		ack.ERABFailedToSetup = append(ack.ERABFailedToSetup, s1ap.ERABItem{
 			ERABID: s1ap.ERABID(ebi),
-			Cause:  s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+			Cause:  s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable},
 		})
 	}
 
@@ -185,8 +178,58 @@ func TestS1HandoverCommandReportsEveryUnadmittedERAB(t *testing.T) {
 					t.Errorf("the admitted E-RAB %d is also in the to-release list", it.ERABID)
 				}
 			}
+
+			want := causeHOFailureInTarget
+			if tt.failed != nil {
+				want = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
+			}
+
+			assertReleaseCause(t, cmd, 6, want)
 		})
 	}
+}
+
+func assertReleaseCause(t *testing.T, cmd *s1ap.HandoverCommand, ebi uint8, want s1ap.Cause) {
+	t.Helper()
+
+	for _, it := range cmd.ERABToRelease {
+		if uint8(it.ERABID) != ebi {
+			continue
+		}
+
+		if it.Cause != want {
+			t.Errorf("release cause for E-RAB %d = %+v, want %+v", ebi, it.Cause, want)
+		}
+
+		return
+	}
+
+	t.Fatalf("E-RAB %d is not in the to-release list", ebi)
+}
+
+func TestS1HandoverCommandReportsABearerTheCoreCouldNotOffer(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	unusable := ue.EnsurePDN(6)
+	unusable.Apn = "ims"
+	unusable.Qci, unusable.Arp = 5, 7
+	unusable.SgwFTEID = models.FTEID{TEID: 0x2222}
+
+	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	req := handoverRequestOn(t, target)
+	if len(req.ERABToBeSetup) != 1 {
+		t.Fatalf("HANDOVER REQUEST asked for %d E-RABs, want only the encodable one", len(req.ERABToBeSetup))
+	}
+
+	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
+	handleHandoverRequestAcknowledge(m, context.Background(), mme.NewRadioForTest(target),
+		successfulValue(t, mustMarshal(t, ack.Marshal)))
+
+	cmd := handoverCommandOn(t, source)
+	assertReleaseCause(t, cmd, 6, s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified})
 }
 
 func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
@@ -195,7 +238,6 @@ func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
 
 	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID
 
-	// An unknown target eNB fails the preparation before any target is involved.
 	req := sampleHandoverRequired(ue)
 	req.TargetID.TargeteNBID.GlobalENBID.ENBID = s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 0x99}
 
@@ -334,7 +376,7 @@ func TestS1HandoverFailureWithoutENBUES1APIDFailsPreparation(t *testing.T) {
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	targetMME := handoverRequestOn(t, target).MMEUES1APID
-	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 27} // no-radio-resources-available-in-target-cell
+	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
 
 	fail := &s1ap.HandoverFailure{MMEUES1APID: s1ap.Ptr(targetMME), Cause: s1ap.Ptr(cause)}
 	handleHandoverFailure(m, context.Background(), mme.NewRadioForTest(target),
@@ -363,8 +405,6 @@ func TestS1AcknowledgeAdmittingNoUsableBearerRejectsTheHandover(t *testing.T) {
 
 	req := handoverRequestOn(t, target)
 
-	// A three-octet transport layer address is neither IPv4 nor IPv6, so the MME
-	// can derive no downlink endpoint for the E-RAB the target claims to admit.
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
 	ack.ERABAdmitted[0].TransportLayerAddress = s1ap.TransportLayerAddress{10, 4, 0}
 
@@ -423,7 +463,6 @@ func TestS1HandoverNotifySwitchesDownlinkAndReleasesTheSource(t *testing.T) {
 
 	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
 
-	// Before the notify the downlink still points at the source.
 	if pdn := m.LookupPDN(ue, mme.DefaultERABID); pdn == nil || pdn.EnbFTEID.TEID == 0x99 {
 		t.Fatal("the downlink was switched to the target before HANDOVER NOTIFY")
 	}
@@ -519,7 +558,7 @@ func TestS1HandoverCancelReleasesPreparationAndAcknowledges(t *testing.T) {
 
 	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}
+	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkPartialHandover}
 
 	cancel := &s1ap.HandoverCancel{MMEUES1APID: sourceMME, ENBUES1APID: sourceENB, Cause: s1ap.Ptr(cause)}
 	handleHandoverCancel(m, context.Background(), mme.NewRadioForTest(source),
@@ -574,7 +613,7 @@ func TestS1HandoverCancelWithoutCauseStillCancels(t *testing.T) {
 		(&s1ap.HandoverCancel{
 			MMEUES1APID: ue.Conn().MMEUES1APID,
 			ENBUES1APID: ue.Conn().ENBUES1APID,
-			Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}),
+			Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkPartialHandover}),
 		}).Marshal)), ieIDHandoverCause)
 
 	handleHandoverCancel(m, context.Background(), mme.NewRadioForTest(source), body)
@@ -596,7 +635,6 @@ func TestS1MMEStatusTransferAddressesTheTargetWithTheSameContainer(t *testing.T)
 
 	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
 
-	// The container is opaque to the MME (TS 36.413 §9.2.1.31).
 	container := s1ap.StatusTransferContainer{0xde, 0xad, 0xbe, 0xef}
 
 	st := &s1ap.ENBStatusTransfer{
@@ -666,7 +704,6 @@ func TestS1StatusTransferWithNoHandoverIsNotRelayed(t *testing.T) {
 	}
 }
 
-// lastSent returns the raw bytes of the most recent message captured on a conn.
 func lastSent(t *testing.T, cc *captureConn) []byte {
 	t.Helper()
 
@@ -680,7 +717,6 @@ func lastSent(t *testing.T, cc *captureConn) []byte {
 	return append([]byte(nil), cc.sent[len(cc.sent)-1]...)
 }
 
-// TS 36.413 §9.1.5.2
 func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
@@ -691,8 +727,7 @@ func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 
 	req := handoverRequestOn(t, target)
 
-	// radio-resources-not-available (TS 36.413 §9.2.1.3).
-	targetCause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 24}
+	targetCause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
 
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
 	ack.ERABFailedToSetup = []s1ap.ERABItem{{ERABID: 6, Cause: targetCause}}

@@ -192,19 +192,6 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	return nil
 }
 
-// UpdateSmContextN2HandoverFailed takes the Handover Resource Allocation
-// Unsuccessful Transfer the target NG-RAN node returned for one PDU session
-// (TS 38.413 §8.4.2.2, §9.3.4.19): the target refused it, so it is not being
-// handed over.
-//
-// The user plane is deliberately left alone. The UE is still on the source until
-// it reaches the target, and a handover cancelled or abandoned in between must
-// leave the session exactly as it was; the session is deactivated at handover
-// completion instead, where the move is irreversible (TS 23.502 §4.9.1.3.3
-// step 7: a session the target did not accept "is considered deactivated").
-// Nothing is staged for this session at preparation either — the source access
-// tunnel is only rebound in UpdateSmContextN2HandoverPrepared — so there is
-// nothing to unwind here.
 func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_failed",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
@@ -268,9 +255,6 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 		return nil
 	}
 
-	// Pushed, not just fixed in memory: a modification that landed while the
-	// target binding was in place would otherwise leave the UPF forwarding to the
-	// target until something else happens to push again.
 	dlFAR := smContext.Tunnel.DownlinkPDR.FAR
 	ulPDR := smContext.Tunnel.UplinkPDR
 
@@ -375,8 +359,6 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	return nil
 }
 
-// UpdateSmContextXnHandoverFailed handles one PDU session an Xn handover could
-// not switch (TS 38.413 §8.4.4.3).
 func (s *SMF) UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_xn_handover_failed",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),

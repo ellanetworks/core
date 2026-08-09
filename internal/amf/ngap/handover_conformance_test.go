@@ -23,6 +23,8 @@ import (
 var errSmfRefusedHandover = errors.New("SMF refused the handover")
 
 const (
+	ieIDHandoverTargetID = 105
+
 	targetRanUeNgapID = ngap.RANUENGAPID(77)
 	sourceRanUeNgapID = models.RanUeNgapID(1)
 	sourceAmfUeNgapID = models.AmfUeNgapID(4242)
@@ -270,6 +272,13 @@ func TestN2HandoverCommandReportsEveryUnadmittedSession(t *testing.T) {
 			}
 
 			assertHandoverCommandListsDisjoint(t, cmd)
+
+			want := causeHOFailureInTarget
+			if tt.failed != nil {
+				want = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable}
+			}
+
+			assertToReleaseCause(t, cmd, 2, want)
 		})
 	}
 }
@@ -320,6 +329,30 @@ func TestN2HandoverCommandReportsSessionsTheSmfRefused(t *testing.T) {
 	}
 
 	assertHandoverCommandListsDisjoint(t, cmd)
+	assertToReleaseCause(t, cmd, 2, causeHandoverCNReason)
+}
+
+func assertToReleaseCause(t *testing.T, cmd *ngap.HandoverCommand, pduSessionID ngap.PDUSessionID, want ngap.Cause) {
+	t.Helper()
+
+	for _, item := range cmd.PDUSessionResourceToReleaseList {
+		if item.PDUSessionID != pduSessionID {
+			continue
+		}
+
+		transfer, err := ngap.ParseHandoverPreparationUnsuccessfulTransfer(item.Transfer)
+		if err != nil {
+			t.Fatalf("to-release transfer for PDU session %d does not decode: %v", pduSessionID, err)
+		}
+
+		if transfer.Cause != want {
+			t.Errorf("to-release cause for PDU session %d = %+v, want %+v", pduSessionID, transfer.Cause, want)
+		}
+
+		return
+	}
+
+	t.Fatalf("PDU session %d is not in the to-release list", pduSessionID)
 }
 
 func TestN2HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
@@ -393,8 +426,7 @@ func TestN2HandoverRequiredWithoutTargetIDIsRejected(t *testing.T) {
 		t.Fatalf("expected an initiating message, got %T", pdu)
 	}
 
-	// Target ID is protocol IE 105 (TS 38.413 §9.3.1.x).
-	im.Value = dropNGAPIEs(t, im.Value, uint16(105))
+	im.Value = dropNGAPIEs(t, im.Value, ieIDHandoverTargetID)
 
 	receiveHandoverRequired(context.Background(), amf.New(nil, nil, nil), ran, nil, im,
 		trace.SpanFromContext(context.Background()))

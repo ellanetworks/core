@@ -34,11 +34,19 @@ var causeGroupRootCount = [causeRootGroups]int{
 // Root ENUMERATED values of each Cause group (TS 36.413). A value is an index
 // within its own group, so the same number differs across groups.
 const (
-	CauseRadioNetworkUnspecified               = 0  // unspecified
-	CauseRadioNetworkUnknownMMEUES1APID        = 13 // unknown-mme-ue-s1ap-id
-	CauseRadioNetworkUnknownPairUES1APID       = 15 // unknown-pair-ue-s1ap-id
-	CauseRadioNetworkRadioConnectionWithUELost = 21 // radio-connection-with-ue-lost
-	CauseRadioNetworkMultipleERABIDInstances   = 31 // multiple-E-RAB-ID-instances
+	CauseRadioNetworkUnspecified                       = 0  // unspecified
+	CauseRadioNetworkSuccessfulHandover                = 2  // successful-handover
+	CauseRadioNetworkReleaseDueToEUTRANGeneratedReason = 3  // release-due-to-eutran-generated-reason
+	CauseRadioNetworkPartialHandover                   = 5  // partial-handover
+	CauseRadioNetworkHOFailureInTarget                 = 6  // ho-failure-in-target-EPC-eNB-or-target-system
+	CauseRadioNetworkHOTargetNotAllowed                = 7  // ho-target-not-allowed
+	CauseRadioNetworkTS1RelocOverallExpiry             = 8  // tS1relocoverall-expiry
+	CauseRadioNetworkUnknownTargetID                   = 11 // unknown-targetID
+	CauseRadioNetworkUnknownMMEUES1APID                = 13 // unknown-mme-ue-s1ap-id
+	CauseRadioNetworkUnknownPairUES1APID               = 15 // unknown-pair-ue-s1ap-id
+	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
+	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
+	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances
 
 	CauseTransportResourceUnavailable = 0 // transport-resource-unavailable
 

@@ -207,8 +207,6 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 		t.Fatalf("expected no HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))
 	}
 
-	// The target acknowledged and holds a reserved UE context; it must be reclaimed
-	// with a UE Context Release Command (TS 38.413 §8.4.2).
 	if len(targetSender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected 1 UEContextReleaseCommand to the target, got %d", len(targetSender.SentUEContextReleaseCommands))
 	}
@@ -328,10 +326,6 @@ func admittedAckMsg(t *testing.T) *ngap.HandoverRequestAcknowledge {
 	}
 }
 
-// TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped verifies that a
-// duplicate/out-of-order acknowledge arriving while the handover has advanced past
-// preparation (hoPrepared) is dropped without disturbing the in-flight handover —
-// local error handling, not a release (TS 38.413 §10.4).
 func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
@@ -344,8 +338,6 @@ func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T)
 		t.Fatalf("expected 1 HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))
 	}
 
-	// Second (duplicate) acknowledge lands while the handover is legitimately in
-	// progress at hoPrepared; it must be dropped, NOT release the in-flight target.
 	HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
 
 	if len(targetSender.SentUEContextReleaseCommands) != 0 {
@@ -353,10 +345,6 @@ func TestHandoverRequestAcknowledge_DuplicateWhilePrepared_Dropped(t *testing.T)
 	}
 }
 
-// TestHandoverRequestAcknowledge_PartialAdmission verifies that when the target
-// admits some PDU sessions and fails others, the Handover Command confirms the
-// admitted ones in the Handover List and lists the failed ones in the PDU
-// Session Resource To Release List (TS 38.413).
 func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t,
 		amf.HandoverCandidate{PDUSessionID: 1}, amf.HandoverCandidate{PDUSessionID: 2})

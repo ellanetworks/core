@@ -36,10 +36,6 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 
 	ue, ok := m.LookupUe(mmeUEID)
 	if !ok {
-		// Unknown local MME-UE-S1AP-ID, e.g. a Handover Cancel freed the target
-		// reservation while this acknowledge was in flight. TS 36.413 §10.6: an Error
-		// Indication makes both nodes locally release the connection, freeing the
-		// target eNB's reserved resources without a UE Context Release.
 		sendErrorIndication(m, radio.Conn, &mmeUEID, &enbUEID, causeUnknownMMEUES1APID)
 		return
 	}
@@ -47,10 +43,6 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 	ue.TouchLastSeen()
 
 	if !m.MatchAndSetTargetENB(ue, mmeUEID, enbUEID, radio.Conn) {
-		// A UE with no matching handover preparation: a duplicate or stale acknowledge,
-		// e.g. for a UE whose association id is its active one. Releasing here would
-		// drop a live UE, so drop the message; TS 36.413 §10.4 (response incompatible
-		// with receiver state) calls for local error handling.
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge with no matching preparation; dropping",
 			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)))
 
@@ -71,12 +63,9 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		admitted = append(admitted, mme.AdmittedERAB{Ebi: uint8(it.ERABID), EnbFTEID: models.FTEID{TEID: uint32(it.GTPTEID), Addr: addr}})
 	}
 
-	// The causes the target gave for the bearers it refused, relayed per E-RAB in
-	// the HANDOVER COMMAND so the source eNB learns why (TS 36.413 §9.1.5.2).
-	targetCauses := failedERABCauses(ack)
+	targetCauses := failedERABCauses(ack.ERABFailedToSetup)
 
 	if len(admitted) == 0 {
-		// No default bearer admitted: the handover is rejected (TS 23.401 §5.5.1.2.3).
 		logger.From(ctx, logger.MmeLog).Warn("Handover Request Acknowledge admitted no E-RAB; rejecting handover",
 			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)))
 		mme.SendUEContextRelease(ctx, m, radio.Conn, mmeUEID, enbUEID, true, causeHOFailureInTarget)
@@ -85,7 +74,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	releaseEBIs, sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted)
+	unadmitted, sourceConn, sourceMMEID, sourceENBID, ok := m.MarkHandoverPrepared(ue, mmeUEID, radio.Conn, admitted)
 	if !ok {
 		return
 	}
@@ -94,7 +83,7 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		MMEUES1APID:    sourceMMEID,
 		ENBUES1APID:    sourceENBID,
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
-		ERABToRelease:  releaseItems(releaseEBIs, targetCauses),
+		ERABToRelease:  releaseItems(unadmitted, targetCauses),
 		TargetToSource: ack.TargetToSource,
 	}
 
@@ -107,35 +96,40 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 	logger.From(ctx, logger.MmeLog).Info("Handover Command",
 		zap.Uint32("mme-ue-id", uint32(sourceMMEID)),
 		zap.Int("admitted", len(admitted)),
-		zap.Int("released", len(releaseEBIs)))
+		zap.Int("released", len(unadmitted)))
 	m.SendToRadio(ctx, sourceConn, mme.S1APProcedureHandoverCommand, b)
 }
 
-// failedERABCauses indexes the causes the target eNB gave for the E-RABs it could
-// not set up (TS 36.413 §9.1.5.5).
-func failedERABCauses(ack *s1ap.HandoverRequestAcknowledge) map[uint8]s1ap.Cause {
-	causes := make(map[uint8]s1ap.Cause, len(ack.ERABFailedToSetup))
-	for _, it := range ack.ERABFailedToSetup {
+func failedERABCauses(failed []s1ap.ERABItem) map[uint8]s1ap.Cause {
+	causes := make(map[uint8]s1ap.Cause, len(failed))
+
+	for _, it := range failed {
 		causes[uint8(it.ERABID)] = it.Cause
 	}
 
 	return causes
 }
 
-func releaseItems(ebis []uint8, targetCauses map[uint8]s1ap.Cause) []s1ap.ERABItem {
-	if len(ebis) == 0 {
+func releaseItems(unadmitted []mme.HandoverCandidate, targetCauses map[uint8]s1ap.Cause) []s1ap.ERABItem {
+	if len(unadmitted) == 0 {
 		return nil
 	}
 
-	out := make([]s1ap.ERABItem, 0, len(ebis))
+	out := make([]s1ap.ERABItem, 0, len(unadmitted))
 
-	for _, ebi := range ebis {
+	for _, c := range unadmitted {
 		cause := causeHOFailureInTarget
-		if reported, ok := targetCauses[ebi]; ok {
-			cause = reported
+
+		switch {
+		case c.Cause != nil:
+			cause = *c.Cause
+		default:
+			if reported, ok := targetCauses[c.Ebi]; ok {
+				cause = reported
+			}
 		}
 
-		out = append(out, s1ap.ERABItem{ERABID: s1ap.ERABID(ebi), Cause: cause})
+		out = append(out, s1ap.ERABItem{ERABID: s1ap.ERABID(c.Ebi), Cause: cause})
 	}
 
 	return out
