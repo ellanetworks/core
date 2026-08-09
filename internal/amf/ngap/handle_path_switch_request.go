@@ -76,16 +76,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ueConn, amfUe, msg.UESecurityCapabilities)
 
-	ueConn.RanUeNgapID = models.RanUeNgapID(msg.RANUENGAPID)
-
-	if msg.UserLocationInformation != nil {
-		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
-	}
-
-	// Claim the {NH,NCC} key chain for the whole path switch: a concurrent N2 handover or
-	// NAS SMC (possibly on another gNB's dispatch goroutine) must not advance the same
-	// chain in parallel (TS 33.501 §6.9.5). Claimed before the SMF is touched so a rejected
-	// path switch changes nothing. Path switch is synchronous, so hold until return.
 	if !amfUe.BeginKeyChainProc(procedure.PathSwitch) {
 		logger.WithTrace(ctx, ueConn.Log).Warn("Path Switch rejected: a key-changing procedure is in progress")
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
@@ -95,42 +85,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 	defer amfUe.EndKeyChainProc(procedure.PathSwitch)
 
-	var (
-		switched ngap.PDUSessionResourceSwitchedList
-		released ngap.PDUSessionResourceReleasedListPSAck
-	)
-
-	for _, item := range msg.PDUSessionResourceToBeSwitchedDLList {
-		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
-		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
-			continue
-		}
-
-		transfer := item.Transfer
-
-		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-			appendPathSwitchReleasedItem(ctx, ueConn, &released, pduSessionID, ngap.CauseRadioNetworkUnknownPDUSessionID)
-
-			continue
-		}
-
-		n2Rsp, err := amfInstance.Session.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
-		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
-			appendPathSwitchReleasedItem(ctx, ueConn, &released, pduSessionID, ngap.CauseRadioNetworkUnspecified)
-
-			continue
-		}
-
-		switched = append(switched, ngap.PDUSessionResourceSwitchedItem{
-			PDUSessionID: ngap.PDUSessionID(pduSessionID),
-			Transfer:     ngap.TransferContainer(n2Rsp),
-		})
-	}
-
 	for _, item := range msg.PDUSessionResourceFailedToSetup {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
@@ -138,52 +92,85 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			continue
 		}
 
-		transfer := item.Transfer
-
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
 			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
-		err := amfInstance.Session.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
-		if err != nil {
+		if err := amfInstance.Session.UpdateSmContextHandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
 			logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 		}
 	}
 
-	// TS 23.502: acknowledge to the target NG-RAN; if no session switched, fail the path switch.
-	if len(switched) > 0 {
-		// TS 33.501: derive fresh {NH, NCC} but commit them only once the switch is
-		// confirmed, so an abandoned path switch never advances the live AS key chain.
-		nh, ncc, err := amfUe.AdvancePathSwitchNH()
-		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("error advancing NH", zap.Error(err))
-			return
-		}
-
-		snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
-		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("List Operator SNSSAI Error", zap.Error(err))
-			return
-		}
-
-		// Re-point the UE at the target radio and commit the chain atomically: a UE
-		// released during the user-plane switch fails the path switch with the chain
-		// left unadvanced.
-		if !amfInstance.CommitPathSwitch(amfUe, ueConn, ran, models.RanUeNgapID(msg.RANUENGAPID), nh, ncc) {
-			logger.WithTrace(ctx, ueConn.Log).Warn("Path Switch Request: UE released during the user-plane switch")
-			sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
-
-			return
-		}
-
-		ueConn.SendPathSwitchRequestAcknowledge(ctx, amfUe.UESecCap(), ncc, nh[:], switched, released, snssaiList)
-	} else {
-		// TS 38.413: no session switched, so the path switch fails and every requested
-		// session is released.
+	nh, ncc, err := amfUe.AdvancePathSwitchNH()
+	if err != nil {
+		logger.WithTrace(ctx, ueConn.Log).Error("error advancing NH", zap.Error(err))
 		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
+
+		return
 	}
+
+	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
+	if err != nil {
+		logger.WithTrace(ctx, ueConn.Log).Error("List Operator SNSSAI Error", zap.Error(err))
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
+
+		return
+	}
+
+	present, undecodable := pathSwitchSessions(ctx, ueConn, msg.PDUSessionResourceToBeSwitchedDLList)
+
+	result := amfInstance.ReconcileSessionsToRAN(ctx, amfUe, amf.RANSessions{
+		Present:  present,
+		Rejected: pathSwitchFailedSessions(msg.PDUSessionResourceFailedToSetup),
+	}, amfInstance.Session.UpdateSmContextXnHandoverPathSwitchReq)
+
+	var (
+		switched ngap.PDUSessionResourceSwitchedList
+		released ngap.PDUSessionResourceReleasedListPSAck
+	)
+
+	for _, a := range result.Applied {
+		switched = append(switched, ngap.PDUSessionResourceSwitchedItem{
+			PDUSessionID: ngap.PDUSessionID(a.PduSessionID),
+			Transfer:     ngap.TransferContainer(a.Transfer),
+		})
+	}
+
+	for _, id := range result.Failed {
+		appendPathSwitchReleasedItem(ctx, ueConn, &released, id, pathSwitchFailureCause(amfUe, id))
+	}
+
+	for _, id := range undecodable {
+		appendPathSwitchReleasedItem(ctx, ueConn, &released, id, ngap.CauseRadioNetworkUnknownPDUSessionID)
+	}
+
+	if len(switched) == 0 {
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
+		return
+	}
+
+	if !amfInstance.CommitPathSwitch(amfUe, ueConn, ran, models.RanUeNgapID(msg.RANUENGAPID), nh, ncc) {
+		logger.WithTrace(ctx, ueConn.Log).Warn("Path Switch Request: UE released during the user-plane switch")
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngap.CauseRadioNetworkUnspecified)
+
+		return
+	}
+
+	if msg.UserLocationInformation != nil {
+		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
+	}
+
+	ueConn.SendPathSwitchRequestAcknowledge(ctx, amfUe.UESecCap(), ncc, nh[:], switched, released, snssaiList)
+}
+
+func pathSwitchFailureCause(amfUe *amf.UeContext, pduSessionID uint8) int {
+	if _, known := amfUe.SmContextFindByPDUSessionID(pduSessionID); !known {
+		return ngap.CauseRadioNetworkUnknownPDUSessionID
+	}
+
+	return ngap.CauseRadioNetworkUnspecified
 }
 
 // verifyUESecurityCapabilitiesOnPathSwitch logs any mismatch between the UE 5G

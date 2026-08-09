@@ -40,11 +40,6 @@ type handoverContext struct {
 	// ACKNOWLEDGE); the rest are released at HANDOVER NOTIFY, since a session the
 	// target did not accept cannot continue there (TS 23.501 §5.30.3.5).
 	admitted map[uint8]struct{}
-	// {NH, NCC} advanced for the target, staged at preparation and committed to the
-	// UE only at HANDOVER NOTIFY (TS 33.501 §6.9.2.1.1); discarded if the handover is
-	// abandoned, so a failed handover never advances the live AS key chain.
-	newNH  [32]uint8
-	newNCC uint8
 }
 
 // PrepareHandover begins N2 handover preparation for the source→target pair: it claims
@@ -83,21 +78,19 @@ func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn
 	return target, nh, ncc, true
 }
 
-// SuperviseHandover arms the guard bounding HANDOVER REQUIRED → NOTIFY. Arm it only after
-// the HANDOVER REQUEST is sent, so the guard timer cannot race the outbound request; on
-// expiry it abandons the handover and releases the target.
 func (a *AMF) SuperviseHandover(ue *UeContext, source, target *UeConn) {
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
 		handoverGuardExpiry(a, source, target))
 }
 
-// stageHandover derives the next {NH, NCC} of the AS key chain (per-UE lock, key material)
-// and installs the handover FSM at hoPreparing (registry lock). It neither claims the
-// procedure nor arms supervision.
 func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8, ncc uint8, ok bool) {
 	ue.mu.Lock()
+
 	nh, ncc, err := ue.deriveNextNHLocked()
+	if err == nil {
+		ue.nh, ue.ncc = nh, ncc
+	}
 	ue.mu.Unlock()
 
 	if err != nil {
@@ -110,7 +103,7 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8
 		target.ue.Store(ue)
 	}
 
-	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target, newNH: nh, newNCC: ncc}
+	ue.handover = &handoverContext{state: hoPreparing, source: source, target: target}
 	a.mu.Unlock()
 
 	return nh, ncc, true
@@ -121,11 +114,18 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn) (nh [32]uint8
 // aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
 func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Context) error {
 	return func(cctx context.Context) error {
-		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
-
 		amfUe := sourceUe.UeContext()
 
-		a.ClearHandover(amfUe)
+		if !a.abandonHandover(amfUe) {
+			if amfUe != nil && !amfUe.BeginKeyChainProc(procedure.N2Handover) {
+				logger.WithTrace(cctx, sourceUe.Log).Error("could not re-claim the key chain for a committing handover")
+			}
+
+			return nil
+		}
+
+		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
+
 		a.UnbindHandoverTarget(cctx, amfUe)
 
 		targetUe.ReleaseAction = UeContextReleaseHandover
@@ -135,6 +135,29 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 
 		return nil
 	}
+}
+
+func (a *AMF) abandonHandover(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.Lock()
+
+	ho := ue.handover
+	if ho == nil || ho.state == hoCommitting {
+		a.mu.Unlock()
+		return false
+	}
+
+	detachAbandonedTargetLocked(ue, ho)
+	ue.handover = nil
+
+	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
+
+	return true
 }
 
 // SetHandoverForTest installs a preparing handover FSM for a source→target pair without
@@ -180,15 +203,6 @@ func (a *AMF) MarkHandoverCommitting(ue *UeContext, targetUe *UeConn) (admitted 
 	}
 
 	ho.state = hoCommitting
-
-	// Commit the staged AS key chain now that the UE has reached the target
-	// (TS 33.501 §6.9.2.1.1), under the per-UE lock. An abandoned handover clears the
-	// FSM without reaching here, so the live {NH, NCC} is never advanced for a
-	// handover that did not complete.
-	ue.mu.Lock()
-	ue.nh = ho.newNH
-	ue.ncc = ho.newNCC
-	ue.mu.Unlock()
 
 	return ho.admitted, true
 }

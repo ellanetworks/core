@@ -100,6 +100,8 @@ func (r *Radio) NumUEsForTest() int {
 
 func (a *AMF) SetHandoverGuardTimeoutForTest(d time.Duration) { a.handoverGuardTimeout = d }
 
+func (a *AMF) FireHandoverGuardForTest(ue *UeContext) bool { return a.abandonHandover(ue) }
+
 func (ue *UeContext) ArmPagingForTest(d time.Duration, maxRetransmit int32) {
 	ue.pagingTimer.Arm(d, maxRetransmit, func(int32) {}, func() {})
 }

@@ -103,12 +103,22 @@ func parseUEContextReleaseCommand(t *testing.T, pdu []byte) *s1ap.UEContextRelea
 	return cmd
 }
 
-// fakeSessionManager stands in for the SMF+PGW-C anchor.
 type fakeSessionManager struct {
-	lastRequest models.EPSBearerRequest
-	modifiedENB models.FTEID
-	released    bool
-	deactivated bool
+	lastRequest  models.EPSBearerRequest
+	modifiedENB  models.FTEID
+	released     bool
+	deactivated  bool
+	modifyErr    map[uint8]error
+	modifiedEBIs []uint8
+	releasedRefs []string
+}
+
+func (f *fakeSessionManager) failModify(ebi uint8, err error) {
+	if f.modifyErr == nil {
+		f.modifyErr = make(map[uint8]error)
+	}
+
+	f.modifyErr[ebi] = err
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -127,8 +137,13 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 	return bearer, nil
 }
 
-func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
+func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, ebi uint8, enb models.FTEID) error {
+	if err, ok := f.modifyErr[ebi]; ok {
+		return err
+	}
+
 	f.modifiedENB = enb
+	f.modifiedEBIs = append(f.modifiedEBIs, ebi)
 
 	return nil
 }
@@ -151,8 +166,9 @@ func (f *fakeSessionManager) ClearEPSPagingSuppression(_ context.Context, _ stri
 	return nil
 }
 
-func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) error {
+func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string) error {
 	f.released = true
+	f.releasedRefs = append(f.releasedRefs, ref)
 
 	return nil
 }

@@ -12,9 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestHandoverFSM_Lifecycle asserts the handover FSM — the single source of truth
-// for the source/target UeConn pair — is installed by SetHandoverForTest and
-// torn down by ClearHandover.
 func TestHandoverFSM_Lifecycle(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
@@ -52,9 +49,6 @@ func TestHandoverFSM_Lifecycle(t *testing.T) {
 	}
 }
 
-// TestHandover_TargetRemovalAbortsHandover verifies that removing the prepared
-// target UeConn (its gNB association reset or lost) clears the in-flight handover at
-// once, rather than leaving it dangling until the supervision guard fires.
 func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 	amfUe := amf.NewUeContext()
 
@@ -82,10 +76,16 @@ func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 	}
 }
 
-// TestHandover_NHCommittedOnlyOnCompletion verifies the staged AS key chain is
-// committed to the UE only when the handover completes (HANDOVER NOTIFY), and an
-// abandoned handover leaves the live {NH, NCC} untouched (TS 33.501 §6.9.2.1.1).
-func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
+// TestHandover_NHAdvancedAtPreparation verifies the AS key chain advances when the
+// handover is prepared, and stays advanced however the handover ends.
+//
+// TS 33.501 §6.9.2.3.3: "Upon reception of the NGAP HANDOVER REQUIRED message ... the
+// source AMF shall increment its locally kept NCC value by one and compute a fresh NH."
+// The increment is unconditional. The pair is handed to the target gNB in the HANDOVER
+// REQUEST, so rolling it back on abandonment would let the next handover issue the same
+// {NH, NCC} to a different gNB — two gNBs each able to derive the other's KgNB, which
+// §6.9.2.1.1 NOTE 3 ("the AMF always computes a fresh {NH, NCC} pair") rules out.
+func TestHandover_NHAdvancedAtPreparation(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	makeUE := func() *amf.UeContext {
@@ -97,7 +97,7 @@ func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 		return ue
 	}
 
-	t.Run("abandoned handover does not advance the live NH chain", func(t *testing.T) {
+	t.Run("preparation advances the live chain", func(t *testing.T) {
 		ue := makeUE()
 		nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
 
@@ -107,21 +107,19 @@ func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 		}
 
 		if staged == nh0 {
-			t.Fatal("staged NH should differ from the current NH")
+			t.Fatal("the derived NH should differ from the previous one")
 		}
 
 		if stagedNCC != (ncc0+1)%8 {
-			t.Fatalf("staged NCC = %d, want %d", stagedNCC, (ncc0+1)%8)
+			t.Fatalf("derived NCC = %d, want %d", stagedNCC, (ncc0+1)%8)
 		}
 
-		amfInstance.ClearHandover(ue)
-
-		if ue.NHForTest() != nh0 || ue.NCCForTest() != ncc0 {
-			t.Fatal("abandoned handover must not advance the live NH chain")
+		if ue.NHForTest() != staged || ue.NCCForTest() != stagedNCC {
+			t.Fatal("the pair sent to the target must be the UE's live chain")
 		}
 	})
 
-	t.Run("completed handover commits the staged NH chain", func(t *testing.T) {
+	t.Run("an abandoned handover leaves the chain advanced", func(t *testing.T) {
 		ue := makeUE()
 
 		staged, stagedNCC, ok := amfInstance.StageHandoverForTest(ue)
@@ -129,16 +127,35 @@ func TestHandover_NHCommittedOnlyOnCompletion(t *testing.T) {
 			t.Fatal("StageHandoverForTest failed")
 		}
 
-		if !amfInstance.MarkHandoverPrepared(ue, nil) {
-			t.Fatal("MarkHandoverPrepared returned false")
-		}
+		amfInstance.ClearHandover(ue)
 
-		if _, ok := amfInstance.MarkHandoverCommitting(ue, nil); !ok {
-			t.Fatal("MarkHandoverCommitting returned false")
-		}
-
+		// Rolling back here would re-issue this pair to the next target gNB.
 		if ue.NHForTest() != staged || ue.NCCForTest() != stagedNCC {
-			t.Fatal("completed handover must commit the staged NH chain")
+			t.Fatal("an abandoned handover must not roll the chain back")
+		}
+	})
+
+	t.Run("a second handover derives a different pair", func(t *testing.T) {
+		ue := makeUE()
+
+		first, firstNCC, ok := amfInstance.StageHandoverForTest(ue)
+		if !ok {
+			t.Fatal("StageHandoverForTest failed")
+		}
+
+		amfInstance.ClearHandover(ue)
+
+		second, secondNCC, ok := amfInstance.StageHandoverForTest(ue)
+		if !ok {
+			t.Fatal("StageHandoverForTest failed")
+		}
+
+		if second == first {
+			t.Error("a second handover reissued the NH already given to the first target")
+		}
+
+		if secondNCC != (firstNCC+1)%8 {
+			t.Errorf("second NCC = %d, want %d", secondNCC, (firstNCC+1)%8)
 		}
 	})
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -33,42 +32,23 @@ func HandleERABSetupResponse(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	ue.TouchLastSeen()
 	captureUserLocation(ueConn, msg.UserLocationInformation)
 
-	for _, erab := range msg.ERABSetup {
-		p := m.LookupPDN(ue, uint8(erab.ERABID))
-		if p == nil {
-			ueConn.Log.Warn("E-RAB Setup Response for an unknown E-RAB",
-				zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
+		Present:  setupBearers(ctx, ueConn.MMEUES1APID, bearerSetupBearers(msg.ERABSetup)),
+		Rejected: failedERABIDs(msg.ERABFailedToSetup),
+	})
 
-			continue
-		}
+	logger.MmeLog.Info("additional PDN connection radio legs reconciled",
+		zap.String("imsi", ue.IMSI()),
+		zap.Int("e-rabs-setup", len(result.Applied)),
+		zap.Int("e-rabs-released", len(result.Released)))
+}
 
-		enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
-		if !ok {
-			ueConn.Log.Warn("E-RAB Setup Response with an invalid eNB transport address",
-				zap.Uint8("e-rab-id", uint8(erab.ERABID)))
-
-			continue
-		}
-
-		p.EnbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
-
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, p.EnbFTEID); err != nil {
-			logger.MmeLog.Error("failed to set the eNB F-TEID on the additional EPS session",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
-
-			continue
-		}
-
-		logger.MmeLog.Info("additional PDN connection radio leg established",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi),
-			zap.String("enb-s1u", enbAddr.String()))
+// bearerSetupBearers projects an E-RAB SETUP RESPONSE setup list.
+func bearerSetupBearers(items []s1ap.ERABSetupItemBearerSURes) []setupBearer {
+	out := make([]setupBearer, 0, len(items))
+	for _, e := range items {
+		out = append(out, setupBearer{ERABID: e.ERABID, TransportLayerAddress: e.TransportLayerAddress, GTPTEID: e.GTPTEID})
 	}
 
-	for _, erab := range msg.ERABFailedToSetup {
-		if p := m.LookupPDN(ue, uint8(erab.ERABID)); p != nil {
-			logger.MmeLog.Warn("eNB failed to set up an additional E-RAB; releasing the PDN connection",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
-			m.ReleasePDN(ctx, ue, p)
-		}
-	}
+	return out
 }

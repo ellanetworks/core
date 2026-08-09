@@ -13,6 +13,44 @@ import (
 	"go.uber.org/zap"
 )
 
+func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUSessionResourceToBeSwitchedDLList) (present []amf.RANSession, undecodable []uint8) {
+	present = make([]amf.RANSession, 0, len(items))
+
+	for _, item := range items {
+		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
+		if !ok {
+			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, not switched", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+
+			undecodable = append(undecodable, uint8(item.PDUSessionID))
+
+			continue
+		}
+
+		present = append(present, amf.RANSession{PduSessionID: pduSessionID, Transfer: item.Transfer})
+	}
+
+	return present, undecodable
+}
+
+func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSReq) []uint8 {
+	if len(items) == 0 {
+		return nil
+	}
+
+	out := make([]uint8, 0, len(items))
+
+	for _, item := range items {
+		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
+		if !ok {
+			continue
+		}
+
+		out = append(out, pduSessionID)
+	}
+
+	return out
+}
+
 // sendPathSwitchRequestFailure refuses a path switch. TS 38.413 §9.2.3.10 has
 // no Cause IE for the message as a whole — unlike TS 36.413 §9.1.5.10 — so the
 // reason is reported per session, once for every session the request named.

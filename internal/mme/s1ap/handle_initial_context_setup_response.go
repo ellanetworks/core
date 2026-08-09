@@ -51,60 +51,19 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 
 	ue.TouchLastSeen()
 
-	// Tear down bearers the eNB failed to set up (TS 36.413 §8.3.1.2).
-	for _, erab := range msg.ERABFailedToSetup {
-		if p := m.LookupPDN(ue, uint8(erab.ERABID)); p != nil {
-			logger.From(ctx, logger.MmeLog).Warn("eNB failed to set up an E-RAB in Initial Context Setup; releasing the PDN connection",
-				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
-			m.ReleasePDN(ctx, ue, p)
-		}
-	}
+	// Not authoritative: an INITIAL CONTEXT SETUP RESPONSE reports the E-RABs this
+	// procedure set up and says nothing about any other bearer (TS 36.413 §8.3.1.2).
+	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
+		Present:  setupBearers(ctx, mmeUEID, ctxtSetupBearers(msg.ERABSetup)),
+		Rejected: failedERABIDs(msg.ERABFailedToSetup),
+	})
 
-	if len(msg.ERABSetup) == 0 {
-		logger.From(ctx, logger.MmeLog).Warn("Initial Context Setup Response without an E-RAB",
-			zap.Uint32("mme-ue-id", uint32(mmeUEID)))
+	setup := len(result.Applied)
 
-		return
-	}
-
-	// Record the eNB S1-U F-TEID for every confirmed E-RAB (TS 36.413). A bad or
-	// unknown E-RAB is skipped, not fatal to the rest.
-	setup := 0
-
-	for _, erab := range msg.ERABSetup {
-		enbAddr, ok := enbTransportAddress(erab.TransportLayerAddress)
-		if !ok {
-			logger.From(ctx, logger.MmeLog).Warn("Initial Context Setup Response with an invalid eNB transport address",
-				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Int("erab-id", int(erab.ERABID)))
-
-			continue
-		}
-
-		p := m.LookupPDN(ue, uint8(erab.ERABID))
-		if p == nil {
-			logger.From(ctx, logger.MmeLog).Warn("Initial Context Setup Response for an unknown E-RAB",
-				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Int("erab-id", int(erab.ERABID)))
-
-			continue
-		}
-
-		p.EnbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
-
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, p.EnbFTEID); err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to set the eNB F-TEID on the EPS session",
-				zap.String("imsi", ue.IMSI()), zap.Int("erab-id", int(erab.ERABID)), zap.Error(err))
-
-			continue
-		}
-
-		setup++
-
-		logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Response",
-			zap.Uint32("mme-ue-id", uint32(mmeUEID)),
-			zap.Int("erab-id", int(erab.ERABID)),
-			zap.String("enb-s1u", p.EnbFTEID.Addr.String()),
-		)
-	}
+	logger.From(ctx, logger.MmeLog).Info("Initial Context Setup Response",
+		zap.Uint32("mme-ue-id", uint32(mmeUEID)),
+		zap.Int("e-rabs-setup", setup),
+		zap.Int("e-rabs-released", len(result.Released)))
 
 	if setup == 0 {
 		return
@@ -117,4 +76,61 @@ func handleInitialContextSetupResponse(m *mme.MME, ctx context.Context, radio *m
 	// With the radio bearers up, a pending data-network change becomes deliverable.
 	// ReconcileUE returns early for a UE not yet EMM-REGISTERED (attach).
 	m.ReconcileUE(ctx, ue)
+}
+
+// setupBearer is the part of an E-RAB setup item the core needs. S1AP spells the item
+// differently per message (ERABSetupItemCtxtSURes, ERABSetupItemBearerSURes) with the
+// same three fields, so each caller projects onto this.
+type setupBearer struct {
+	ERABID                s1ap.ERABID
+	TransportLayerAddress s1ap.TransportLayerAddress
+	GTPTEID               s1ap.GTPTEID
+}
+
+// setupBearers decodes an E-RAB setup list into the RAN bearer set the reconciliation
+// primitive consumes. An item whose transport address will not decode names no usable
+// downlink and is dropped; it is absent from the applied set the caller reports.
+func setupBearers(ctx context.Context, mmeUEID s1ap.MMEUES1APID, items []setupBearer) []mme.RANBearer {
+	present := make([]mme.RANBearer, 0, len(items))
+
+	for _, erab := range items {
+		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
+		if !ok {
+			logger.From(ctx, logger.MmeLog).Warn("E-RAB setup item with an invalid eNB transport address",
+				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
+
+			continue
+		}
+
+		present = append(present, mme.RANBearer{
+			Ebi:      uint8(erab.ERABID),
+			EnbFTEID: models.FTEID{TEID: uint32(erab.GTPTEID), Addr: addr},
+		})
+	}
+
+	return present
+}
+
+// failedERABIDs is the EPS bearer identities of an E-RAB failed-to-setup list.
+func failedERABIDs(items []s1ap.ERABItem) []uint8 {
+	if len(items) == 0 {
+		return nil
+	}
+
+	out := make([]uint8, 0, len(items))
+	for _, erab := range items {
+		out = append(out, uint8(erab.ERABID))
+	}
+
+	return out
+}
+
+// ctxtSetupBearers projects an INITIAL CONTEXT SETUP RESPONSE setup list.
+func ctxtSetupBearers(items []s1ap.ERABSetupItemCtxtSURes) []setupBearer {
+	out := make([]setupBearer, 0, len(items))
+	for _, e := range items {
+		out = append(out, setupBearer{ERABID: e.ERABID, TransportLayerAddress: e.TransportLayerAddress, GTPTEID: e.GTPTEID})
+	}
+
+	return out
 }

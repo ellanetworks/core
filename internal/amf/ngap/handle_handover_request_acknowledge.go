@@ -48,10 +48,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	if msg.RANUENGAPID != nil {
-		amfInstance.UpdateUERanNgapID(targetUe, models.RanUeNgapID(*msg.RANUENGAPID))
-	}
-
 	targetUe.TouchLastSeen()
 	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Uint32("ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(targetUe.AmfUeNgapID)))
 
@@ -67,12 +63,21 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
+	if amfInstance.HandoverTarget(amfUe) != targetUe {
+		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge from a radio that is not the prepared target; dropping")
+		return
+	}
+
 	// A duplicate or out-of-order HANDOVER REQUEST ACKNOWLEDGE: the staleness check
 	// precedes any per-session SMF side effect, since UpdateSmContextN2HandoverPrepared
 	// rebinds the downlink tunnel (TS 38.413 §10.4).
 	if !amfInstance.HandoverPreparing(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
 		return
+	}
+
+	if msg.RANUENGAPID != nil {
+		amfInstance.UpdateUERanNgapID(targetUe, models.RanUeNgapID(*msg.RANUENGAPID))
 	}
 
 	var (

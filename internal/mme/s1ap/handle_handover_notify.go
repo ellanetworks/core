@@ -41,35 +41,16 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
-	// Switch the downlink only at notify (TS 23.401 §5.5.1.2.2 step 15).
+	present := make([]mme.RANBearer, 0, len(admitted))
 	for _, a := range admitted {
-		p := m.LookupPDN(ue, a.Ebi)
-		if p == nil {
-			continue
-		}
-
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), a.Ebi, a.EnbFTEID); err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the target eNB",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", a.Ebi), zap.Error(err))
-
-			continue
-		}
-
-		m.SetPDNEnbFTEID(ue, p, a.EnbFTEID)
+		present = append(present, mme.RANBearer(a))
 	}
 
-	for _, ebi := range releaseEBIs {
-		if p := m.LookupPDN(ue, ebi); p != nil {
-			if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
-				logger.From(ctx, logger.MmeLog).Error("failed to release a rejected PDN connection after handover",
-					zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", ebi), zap.Error(err))
-			}
-		}
-
-		m.DropPDN(ue, ebi)
-	}
-
-	mme.EnsureDefaultPDN(ue, admitted)
+	m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
+		Present:       present,
+		Rejected:      releaseEBIs,
+		Authoritative: true,
+	})
 
 	sourceConn, sourceMMEID, sourceENBID, targetMMEID, ok := m.FinishHandoverCommit(ue, radio.Conn, notify.ENBUES1APID)
 	if !ok {

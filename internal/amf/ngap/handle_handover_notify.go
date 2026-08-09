@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
-	"go.uber.org/zap"
 )
 
 func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngap.HandoverNotify) {
@@ -19,10 +18,6 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	targetUe.TouchLastSeen()
-
-	if msg.UserLocationInformation != nil {
-		targetUe.UpdateLocation(ctx, *msg.UserLocationInformation)
-	}
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
@@ -45,38 +40,35 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	// Complete the sessions the target admitted (the SMF sends N4 Session Modification
-	// to the UPF with the new AN tunnel info, TS 23.502), and release those it did not:
-	// a session the target rejected cannot continue there, so its core context is freed
-	// (TS 23.501 §5.30.3.5 / TS 23.401 §5.5.1.2.2).
+	var present []amf.RANSession
+
 	for _, sr := range amfUe.SmContextRefs() {
 		if sr.Ref == "" {
 			continue
 		}
 
 		if _, ok := admitted[sr.PduSessionID]; ok {
-			if err := amfInstance.Session.UpdateSmContextN2HandoverComplete(ctx, sr.Ref); err != nil {
-				logger.WithTrace(ctx, targetUe.Log).Error("failed to update SM context for handover completion",
-					zap.String("smContextRef", sr.Ref), zap.Error(err))
-			}
-
-			continue
+			present = append(present, amf.RANSession{PduSessionID: sr.PduSessionID})
 		}
-
-		if err := amfInstance.Session.ReleaseSmContext(ctx, sr.Ref); err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("failed to release a target-rejected PDU session after handover",
-				zap.String("smContextRef", sr.Ref), zap.Uint8("PduSessionID", sr.PduSessionID), zap.Error(err))
-		}
-
-		amfUe.DeleteSmContext(sr.PduSessionID)
 	}
 
-	// Move the UE onto the target and clear the FSM, gated on the UE still being
-	// present after the unlocked user-plane switch; only then end the procedure and
-	// release the source (TS 23.502).
+	amfInstance.ReconcileSessionsToRAN(ctx, amfUe, amf.RANSessions{
+		Present:       present,
+		Authoritative: true,
+	}, func(ctx context.Context, ref string, _ []byte) ([]byte, error) {
+		return nil, amfInstance.Session.UpdateSmContextN2HandoverComplete(ctx, ref)
+	})
+
 	if !amfInstance.FinishHandoverCommit(amfUe, targetUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify: UE released during the user-plane switch")
+
+		amfInstance.ClearHandover(amfUe)
+
 		return
+	}
+
+	if msg.UserLocationInformation != nil {
+		targetUe.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
 	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")

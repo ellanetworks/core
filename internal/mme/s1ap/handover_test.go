@@ -801,7 +801,7 @@ func TestHandoverGuardTimerAbandons(t *testing.T) {
 // TestHandoverPartialAdmissionPromotesDefault checks that when the target rejects
 // the UE's attach-default PDN but admits a secondary, the surviving PDN is promoted
 // to the default so the UE retains a default PDN connection (TS 23.401 §5.5.1.2.2).
-func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
+func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)
 
@@ -842,10 +842,17 @@ func TestHandoverPartialAdmissionPromotesDefault(t *testing.T) {
 		t.Fatal("rejected attach-default PDN not dropped")
 	}
 
-	defaultEBI := ue.DefaultEBI
+	survivor := m.LookupPDN(ue, 6)
+	if survivor == nil {
+		t.Fatal("the admitted PDN connection must survive the handover")
+	}
 
-	if defaultEBI != 6 {
-		t.Fatalf("default EBI = %d, want 6 (promoted survivor)", defaultEBI)
+	if survivor.EnbFTEID.TEID != 0x99 {
+		t.Errorf("survivor downlink not switched to the target: %+v", survivor.EnbFTEID)
+	}
+
+	if ue.BearerReleaseOnly(survivor) {
+		t.Error("releasing the last remaining PDN connection must not be treated as bearer-only")
 	}
 }
 
@@ -1132,5 +1139,36 @@ func TestHandoverRequestAcknowledge_NoMatchingPreparation_DoesNotReleaseLiveUE(t
 
 	if len(source.sent) != before {
 		t.Fatalf("a stale acknowledge with no matching preparation must be dropped, but %d PDU(s) were sent (a UE Context Release would drop a live UE)", len(source.sent)-before)
+	}
+}
+
+func TestHandoverNHAdvancedAtPreparation(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
+
+	handleHandoverRequired(m, context.Background(), mme.NewRadioForTest(source),
+		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
+
+	if target.count() != 1 {
+		t.Fatalf("expected a HANDOVER REQUEST to the target, got %d messages", target.count())
+	}
+
+	afterPrepare, afterPrepareNCC := ue.NHForTest(), ue.NCCForTest()
+
+	if afterPrepare == nh0 {
+		t.Fatal("preparation must advance the live NH")
+	}
+
+	if afterPrepareNCC != (ncc0+1)&0x07 {
+		t.Fatalf("NCC after preparation = %d, want %d", afterPrepareNCC, (ncc0+1)&0x07)
+	}
+
+	// Abandon it; the chain must stay where preparation left it.
+	m.FireHandoverGuardForTest(ue)
+
+	if ue.NHForTest() != afterPrepare || ue.NCCForTest() != afterPrepareNCC {
+		t.Error("an abandoned handover must not roll the key chain back")
 	}
 }

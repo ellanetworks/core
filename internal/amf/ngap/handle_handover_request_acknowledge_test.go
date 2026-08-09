@@ -17,9 +17,15 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// setupHandoverAckTestContext creates the AMF, source/target UEs, radios, and
-// SMF context needed for handover request acknowledge tests.
 func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *amf.AMF) {
+	t.Helper()
+
+	_, targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContextWithSource(t)
+
+	return targetRan, sourceNGAPSender, amfInstance
+}
+
+func setupHandoverAckTestContextWithSource(t *testing.T) (*amf.Radio, *amf.Radio, *fakeNGAPSender, *amf.AMF) {
 	t.Helper()
 
 	const (
@@ -78,7 +84,30 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *fakeNGAPSender, *am
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
 
-	return targetRan, sourceNGAPSender, amfInstance
+	return sourceRan, targetRan, sourceNGAPSender, amfInstance
+}
+
+func TestHandoverRequestAcknowledge_NotFromPreparedTarget(t *testing.T) {
+	sourceRan, _, sourceNGAPSender, amfInstance := setupHandoverAckTestContextWithSource(t)
+
+	smfSbi, ok := amfInstance.Session.(*fakeSmfSbi)
+	if !ok {
+		t.Fatalf("session is %T, want *fakeSmfSbi", amfInstance.Session)
+	}
+
+	msg := admittedAckMsg(t)
+	sourceAMFID := ngap.AMFUENGAPID(100)
+	msg.AMFUENGAPID = &sourceAMFID
+
+	HandleHandoverRequestAcknowledge(context.Background(), amfInstance, sourceRan, msg)
+
+	if len(sourceNGAPSender.SentHandoverCommands) != 0 {
+		t.Errorf("acknowledge from a non-target drew %d HandoverCommand(s)", len(sourceNGAPSender.SentHandoverCommands))
+	}
+
+	if len(smfSbi.N2HandoverPreparedCalls) != 0 {
+		t.Errorf("acknowledge from a non-target rebound the downlink: %v", smfSbi.N2HandoverPreparedCalls)
+	}
 }
 
 func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
@@ -181,10 +210,6 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 	}
 }
 
-// TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached
-// verifies that when no PDU sessions are admitted and the source UE's AMF UE
-// context has been detached (e.g. due to a concurrent deregistration), the
-// handler does not panic.
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceUeContextDetached(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 

@@ -147,9 +147,52 @@ func TestCancelHandover(t *testing.T) {
 	})
 }
 
-// TestFinishHandoverCommit verifies the gated finalize: the UE moves onto the
-// target only from the committing stage and only while the target is still
-// present after the (unlocked) user-plane switch (TS 23.502).
+func TestHandoverGuardDoesNotAbandonCommitting(t *testing.T) {
+	t.Run("abandons a prepared handover", func(t *testing.T) {
+		a, ue, _, _ := newPreparingHandover(t)
+
+		if !a.MarkHandoverPrepared(ue, nil) {
+			t.Fatal("MarkHandoverPrepared")
+		}
+
+		if !a.FireHandoverGuardForTest(ue) {
+			t.Fatal("the guard must abandon a handover that has not reached the committing stage")
+		}
+
+		if a.HandoverInProgress(ue) {
+			t.Error("the FSM must be cleared after the guard fires")
+		}
+	})
+
+	t.Run("leaves a committing handover to finish", func(t *testing.T) {
+		a, ue, _, target := newPreparingHandover(t)
+
+		if !a.MarkHandoverPrepared(ue, nil) {
+			t.Fatal("MarkHandoverPrepared")
+		}
+
+		if _, ok := a.MarkHandoverCommitting(ue, target); !ok {
+			t.Fatal("MarkHandoverCommitting")
+		}
+
+		if a.FireHandoverGuardForTest(ue) {
+			t.Fatal("the guard must not abandon a committing handover")
+		}
+
+		if !a.HandoverInProgress(ue) {
+			t.Fatal("the guard cleared a committing handover")
+		}
+
+		if !a.FinishHandoverCommit(ue, target) {
+			t.Fatal("a committing handover must still finalize after the guard fires")
+		}
+
+		if ue.Conn() != target {
+			t.Error("the UE must be on the target after finalize")
+		}
+	})
+}
+
 func TestFinishHandoverCommit(t *testing.T) {
 	commit := func(t *testing.T, a *amf.AMF, ue *amf.UeContext, target *amf.UeConn) {
 		t.Helper()
@@ -177,6 +220,45 @@ func TestFinishHandoverCommit(t *testing.T) {
 
 		if a.HandoverInProgress(ue) {
 			t.Error("the FSM must be cleared after finalize")
+		}
+	})
+
+	// TS 33.501 §6.9.2.3.3: the chain is advanced at preparation, so finalize must not
+	// touch it, and a handover that fails to finalize leaves it advanced. Rolling back
+	// would re-issue a pair already given to a gNB — see TestHandover_NHAdvancedAtPreparation.
+	t.Run("finalize does not touch the key chain", func(t *testing.T) {
+		a, ue, _, target := newPreparingHandover(t)
+
+		nh, ncc := ue.NHForTest(), ue.NCCForTest()
+
+		commit(t, a, ue, target)
+
+		if !a.FinishHandoverCommit(ue, target) {
+			t.Fatal("FinishHandoverCommit")
+		}
+
+		if ue.NHForTest() != nh || ue.NCCForTest() != ncc {
+			t.Error("finalize must leave the chain as preparation set it")
+		}
+	})
+
+	t.Run("a handover that fails to finalize leaves the chain advanced", func(t *testing.T) {
+		a, ue, _, target := newPreparingHandover(t)
+
+		nh, ncc := ue.NHForTest(), ue.NCCForTest()
+
+		commit(t, a, ue, target)
+
+		if err := a.RemoveUeConn(context.Background(), target); err != nil {
+			t.Fatalf("RemoveUeConn: %v", err)
+		}
+
+		if a.FinishHandoverCommit(ue, target) {
+			t.Fatal("FinishHandoverCommit must fail for a released target")
+		}
+
+		if ue.NHForTest() != nh || ue.NCCForTest() != ncc {
+			t.Error("a failed finalize must not roll the chain back")
 		}
 	})
 

@@ -100,10 +100,22 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	switched, released := switchPathBearers(m, ctx, ue, mmeID, req.ERABToBeSwitchedDL)
-	if switched == 0 {
+	present, undecodable := pathSwitchBearers(ctx, mmeID, req.ERABToBeSwitchedDL)
+
+	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{
+		Present:       present,
+		Rejected:      undecodable,
+		Authoritative: true,
+	})
+
+	released := releasedERABItems(append(result.Failed, undecodable...))
+
+	if len(result.Applied) == 0 {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request switched no E-RAB",
 			zap.Uint32("mme-ue-id", uint32(mmeID)))
+
+		m.DetachUEAfterPathSwitchFailure(ctx, ue)
+
 		sendPathSwitchFailure(m, radio.Conn, req, causePathSwitchUPFailure)
 
 		return
@@ -111,9 +123,6 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 
 	replayCaps := pathSwitchSecurityCapabilities(ue, ueLog, req.UESecurityCapabilities)
 
-	// The UE may have been released during the unlocked switch above, so the commit is
-	// gated on the connection still being present. NCC is a 3-bit chaining counter
-	// (TS 33.401).
 	ncc, ok := m.CommitPathSwitch(ue, radio.Conn, req.ENBUES1APID, newNH, curNCC)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released during the user-plane switch",
@@ -123,8 +132,6 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		return
 	}
 
-	// The commit rebound the UE to the target association; a release can still
-	// have beaten us to it.
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Path Switch Request: UE released immediately after the path switch",
@@ -137,16 +144,24 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		ueConn.UpdateLocation(*req.EUTRANCGI, *req.TAI)
 	}
 
+	var ambr *s1ap.UEAggregateMaximumBitRate
+
+	if ul, dl := ue.AmbrRates(); ul.Bps() != 0 || dl.Bps() != 0 {
+		ambr = new(handoverUEAMBR(ue))
+	}
+
 	ack := &s1ap.PathSwitchRequestAcknowledge{
-		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: ncc, NextHopParameter: s1ap.SecurityKey(newNH)},
-		UESecurityCapabilities: replayCaps,
-		ERABToBeReleased:       released,
+		SecurityContext:           s1ap.SecurityContext{NextHopChainingCount: ncc, NextHopParameter: s1ap.SecurityKey(newNH)},
+		UEAggregateMaximumBitRate: ambr,
+		UESecurityCapabilities:    replayCaps,
+		ERABToBeReleased:          released,
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Path Switch Request",
 		zap.Uint32("mme-ue-id", uint32(mmeID)),
 		zap.Uint32("enb-ue-id", uint32(req.ENBUES1APID)),
-		zap.Int("e-rabs-switched", switched),
+		zap.Int("e-rabs-switched", len(result.Applied)),
+		zap.Int("e-rabs-released", len(result.Released)),
 		zap.Uint8("ncc", ncc))
 
 	if err := ueConn.SendPathSwitchAcknowledge(ctx, ack); err != nil {
@@ -154,60 +169,42 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	}
 }
 
-// switchPathBearers switches the downlink of each listed E-RAB to the target eNB.
-// It returns the number switched and the E-RABs whose UP path it could not switch —
-// these must be reported in the PATH SWITCH REQUEST ACKNOWLEDGE E-RAB To Be Released
-// List so the eNB releases their data radio bearers (TS 36.413 §8.4.4.2); otherwise
-// the eNB keeps a radio bearer for an E-RAB with no downlink path (black-holed DL).
-func switchPathBearers(m *mme.MME, ctx context.Context, ue *mme.UeContext, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) (int, []s1ap.ERABItem) {
-	switched := 0
-
-	relCause := s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
-
-	var released []s1ap.ERABItem
+func pathSwitchBearers(ctx context.Context, mmeID s1ap.MMEUES1APID, items []s1ap.ERABToBeSwitchedDLItem) (present []mme.RANBearer, undecodable []uint8) {
+	present = make([]mme.RANBearer, 0, len(items))
 
 	for _, erab := range items {
-		p := m.LookupPDN(ue, uint8(erab.ERABID))
-		if p == nil {
-			logger.From(ctx, logger.MmeLog).Warn("Path Switch Request lists an unknown E-RAB; not switched",
-				zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
-
-			released = append(released, s1ap.ERABItem{ERABID: erab.ERABID, Cause: relCause})
-
-			continue
-		}
-
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("Path Switch Request E-RAB has an invalid eNB transport address; not switched",
 				zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
 
-			released = append(released, s1ap.ERABItem{ERABID: erab.ERABID, Cause: relCause})
+			undecodable = append(undecodable, uint8(erab.ERABID))
 
 			continue
 		}
 
-		fteid := models.FTEID{TEID: uint32(erab.GTPTEID), Addr: addr}
-
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, fteid); err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the target eNB",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)), zap.Error(err))
-
-			released = append(released, s1ap.ERABItem{ERABID: erab.ERABID, Cause: relCause})
-
-			continue
-		}
-
-		p.EnbFTEID = fteid
-		switched++
-
-		logger.From(ctx, logger.MmeLog).Debug("Path Switch: E-RAB downlink switched",
-			zap.Uint32("mme-ue-id", uint32(mmeID)),
-			zap.Uint8("e-rab-id", uint8(erab.ERABID)),
-			zap.String("enb-s1u", addr.String()))
+		present = append(present, mme.RANBearer{
+			Ebi:      uint8(erab.ERABID),
+			EnbFTEID: models.FTEID{TEID: uint32(erab.GTPTEID), Addr: addr},
+		})
 	}
 
-	return switched, released
+	return present, undecodable
+}
+
+func releasedERABItems(failed []uint8) []s1ap.ERABItem {
+	if len(failed) == 0 {
+		return nil
+	}
+
+	cause := s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
+
+	items := make([]s1ap.ERABItem, 0, len(failed))
+	for _, ebi := range failed {
+		items = append(items, s1ap.ERABItem{ERABID: s1ap.ERABID(ebi), Cause: cause})
+	}
+
+	return items
 }
 
 // sendPathSwitchFailure sends a PATH SWITCH REQUEST FAILURE on the association the

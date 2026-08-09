@@ -80,21 +80,10 @@ func handleERABModificationIndication(m *mme.MME, ctx context.Context, radio *mm
 	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureERABModificationConfirm, b)
 }
 
-// modifyBearerDownlinks relocates each listed E-RAB's downlink to the eNB S1-U
-// endpoint it names, returning the E-RABs successfully relocated. Reuses the same
-// user-plane path as a Path Switch (TS 36.413 §8.2.4.2).
 func modifyBearerDownlinks(m *mme.MME, ctx context.Context, ue *mme.UeContext, items []s1ap.ERABToBeModifiedItemBearerModInd) []s1ap.ERABID {
-	var modified []s1ap.ERABID
+	present := make([]mme.RANBearer, 0, len(items))
 
 	for _, erab := range items {
-		p := m.LookupPDN(ue, uint8(erab.ERABID))
-		if p == nil {
-			logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication lists an unknown E-RAB; skipped",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)))
-
-			continue
-		}
-
 		addr, ok := enbTransportAddress(erab.TransportLayerAddress)
 		if !ok {
 			logger.From(ctx, logger.MmeLog).Warn("E-RAB Modification Indication has an invalid eNB transport address; skipped",
@@ -103,21 +92,17 @@ func modifyBearerDownlinks(m *mme.MME, ctx context.Context, ue *mme.UeContext, i
 			continue
 		}
 
-		fteid := models.FTEID{TEID: uint32(erab.DLGTPTEID), Addr: addr}
+		present = append(present, mme.RANBearer{
+			Ebi:      uint8(erab.ERABID),
+			EnbFTEID: models.FTEID{TEID: uint32(erab.DLGTPTEID), Addr: addr},
+		})
+	}
 
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), p.Ebi, fteid); err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to relocate an E-RAB downlink",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)), zap.Error(err))
+	result := m.ReconcileBearersToRAN(ctx, ue, mme.RANBearers{Present: present})
 
-			continue
-		}
-
-		p.EnbFTEID = fteid
-
-		modified = append(modified, erab.ERABID)
-
-		logger.From(ctx, logger.MmeLog).Debug("E-RAB downlink relocated",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", uint8(erab.ERABID)), zap.String("enb-s1u", addr.String()))
+	modified := make([]s1ap.ERABID, 0, len(result.Applied))
+	for _, ebi := range result.Applied {
+		modified = append(modified, s1ap.ERABID(ebi))
 	}
 
 	return modified
