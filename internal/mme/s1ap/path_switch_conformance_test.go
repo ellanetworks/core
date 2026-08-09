@@ -444,23 +444,23 @@ func TestPathSwitchToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 	}
 }
 
-// TestPathSwitchDuringNASSecurityModeIsRefused pins a known, deliberate divergence
-// from TS 33.401 §7.2.10 rule 3.
+// TestPathSwitchDuringNASSecurityModeIsRefused pins a deliberate design decision on a
+// point TS 33.401 does not settle.
 //
-// The clause says that while a NAS SMC is taking a new KASME into use, the MME "shall
-// continue to include AS security context parameters based on the old KASME in the
-// HANDOVER REQUEST or PATH SWITCH REQUEST ACKNOWLEDGE message" — which presumes the
-// acknowledge is still sent. Rules 1-2, which enumerate the procedures the MME must
-// not run during a NAS SMC, do not list Path Switch.
+// §7.2.10 rule 3 is conditional: while a NAS SMC is taking a new KASME into use, the
+// MME "shall continue to include AS security context parameters based on the old KASME
+// in the HANDOVER REQUEST or PATH SWITCH REQUEST ACKNOWLEDGE message". It governs the
+// contents of an acknowledge that is sent. Refusing never reaches that condition, so
+// the rule is not violated — whether refusing is permitted at all is not addressed.
 //
-// Ella Core instead refuses the path switch, because the two procedures would
-// otherwise advance the same {NH, NCC} chain concurrently. The UE has already moved to
-// the target cell over the radio, so it is stranded and re-attaches. The clause never
-// literally forbids rejecting, and answering it properly would mean keeping the
-// pre-SMC chain usable alongside the new one — two live key chains in the most
-// security-sensitive path, to serve a narrow race whose failure mode is recoverable.
+// Ella Core refuses, because the two procedures would otherwise advance the same
+// {NH, NCC} chain concurrently. The UE has already moved to the target cell over the
+// radio, so it is stranded and re-attaches — recoverable, where a key desync is not.
+// Answering per rule 3 would mean keeping the pre-SMC chain usable alongside the new
+// one: two live key chains in the most security-sensitive path, for a rare race.
 //
-// Recorded as F-7 in handover_review_plan.md. Revisit if this rejection is ever
+// Recorded as F-7 in handover_review_plan.md, with the reasoning in
+// handover_design.md §7. Revisit if a clearer clause turns up or the rejection is
 // observed in a real deployment.
 func TestPathSwitchDuringNASSecurityModeIsRefused(t *testing.T) {
 	m := newTestMME(t)

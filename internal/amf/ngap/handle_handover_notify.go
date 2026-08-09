@@ -44,11 +44,6 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	// Complete the sessions the target admitted (the SMF sends N4 Session Modification
-	// to the UPF with the new AN tunnel info, TS 23.502) and release the rest. A
-	// completed handover is authoritative about what the target holds: a session it did
-	// not admit cannot continue there, so its core context is freed
-	// (TS 23.501 §5.30.3.5 / TS 23.401 §5.5.1.2.2).
 	var present []amf.RANSession
 
 	for _, sr := range amfUe.SmContextRefs() {

@@ -62,9 +62,6 @@ type fakeSmfSbi struct {
 	N2HandoverCanceledCalls  []string
 	N2HandoverCompleteErr    error
 	ReleaseSmContextCalls    []string
-
-	// The N2 preparation calls record their refs and can be made to fail, so the
-	// per-session error branches of the handover handlers are reachable from a test.
 	N2HandoverPreparingCalls []string
 	N2HandoverPreparingErr   error
 	N2HandoverPreparedCalls  []string

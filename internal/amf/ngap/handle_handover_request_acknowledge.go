@@ -63,10 +63,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	// The acknowledge must come from the radio the handover was prepared for, not
-	// merely from an association bound to this UE. UpdateSmContextN2HandoverPrepared
-	// below rebinds the downlink tunnel, so a spurious acknowledge would redirect the
-	// user plane and draw a HANDOVER COMMAND (TS 38.413 §8.4.2).
 	if amfInstance.HandoverTarget(amfUe) != targetUe {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge from a radio that is not the prepared target; dropping")
 		return
@@ -80,8 +76,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	// Only now that the acknowledge is known to come from the prepared target is the
-	// RAN-UE-NGAP-ID it assigned recorded: a rejected message must leave no state.
 	if msg.RANUENGAPID != nil {
 		amfInstance.UpdateUERanNgapID(targetUe, models.RanUeNgapID(*msg.RANUENGAPID))
 	}
