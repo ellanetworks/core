@@ -444,16 +444,29 @@ func TestPathSwitchToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 	}
 }
 
-func TestPathSwitchDuringNASSecurityModeStillAcknowledges(t *testing.T) {
+// TestPathSwitchDuringNASSecurityModeIsRefused pins a known, deliberate divergence
+// from TS 33.401 §7.2.10 rule 3.
+//
+// The clause says that while a NAS SMC is taking a new KASME into use, the MME "shall
+// continue to include AS security context parameters based on the old KASME in the
+// HANDOVER REQUEST or PATH SWITCH REQUEST ACKNOWLEDGE message" — which presumes the
+// acknowledge is still sent. Rules 1-2, which enumerate the procedures the MME must
+// not run during a NAS SMC, do not list Path Switch.
+//
+// Ella Core instead refuses the path switch, because the two procedures would
+// otherwise advance the same {NH, NCC} chain concurrently. The UE has already moved to
+// the target cell over the radio, so it is stranded and re-attaches. The clause never
+// literally forbids rejecting, and answering it properly would mean keeping the
+// pre-SMC chain usable alongside the new one — two live key chains in the most
+// security-sensitive path, to serve a narrow race whose failure mode is recoverable.
+//
+// Recorded as F-7 in handover_review_plan.md. Revisit if this rejection is ever
+// observed in a real deployment.
+func TestPathSwitchDuringNASSecurityModeIsRefused(t *testing.T) {
 	m := newTestMME(t)
 	ue := pathSwitchUE(t, m)
 
-	oldNH, oldNCC := ue.NHForTest(), ue.NCCForTest()
-
-	wantNH, err := ue.DeriveNextNHForTest()
-	if err != nil {
-		t.Fatal(err)
-	}
+	nh0, ncc0 := ue.NHForTest(), ue.NCCForTest()
 
 	if !m.TryClaimKeyChain(ue) {
 		t.Fatal("could not claim the key chain for the NAS security mode procedure")
@@ -463,12 +476,17 @@ func TestPathSwitchDuringNASSecurityModeStillAcknowledges(t *testing.T) {
 	handlePathSwitchRequest(m, context.Background(), mme.NewRadioForTest(target), pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if target.count() != 1 {
-		t.Fatalf("sent %d messages, want exactly one Path Switch Request Acknowledge", target.count())
+		t.Fatalf("sent %d messages, want exactly one Path Switch Request Failure", target.count())
 	}
 
-	ack := parsePathSwitchAck(t, target.sent[0])
+	fail := parsePathSwitchFailure(t, target.sent[0])
+	if fail.Cause == nil {
+		t.Error("Path Switch Request Failure carries no Cause")
+	}
 
-	if ack.SecurityContext.NextHopParameter != s1ap.SecurityKey(wantNH) {
-		t.Errorf("acknowledge NH is not derived from the old KASME chain (previous NH %x, NCC %d)", oldNH[:4], oldNCC)
+	// Whatever the answer, the refusal must leave the AS key chain exactly as it was:
+	// the NAS SMC owns it for the duration.
+	if ue.NHForTest() != nh0 || ue.NCCForTest() != ncc0 {
+		t.Error("a refused path switch must not advance the AS key chain")
 	}
 }
