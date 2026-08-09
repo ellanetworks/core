@@ -18,18 +18,11 @@ type RANSession struct {
 	Transfer     []byte
 }
 
-// RANSessions is a gNB's view of a UE's PDU session set, as carried by one NGAP
-// message.
-//
-// Authoritative distinguishes the two kinds of message 3GPP defines, exactly as
-// RANBearers does for EPS. A PATH SWITCH REQUEST or a completed handover names
-// everything the gNB holds, so a session in the UE context that appears in neither
-// list has been implicitly released by the gNB (TS 38.413 §8.4.4.2). A message that
-// reports only its own procedure's sessions is not authoritative.
 type RANSessions struct {
-	Present       []RANSession
-	Rejected      []RANSession
-	Authoritative bool
+	Present             []RANSession
+	Rejected            []uint8
+	Authoritative       bool
+	ReleaseOnApplyError bool
 }
 
 // AppliedSession is a session whose downlink now points at the gNB, with the N2
@@ -47,23 +40,6 @@ type RANSessionResult struct {
 	Released []uint8
 }
 
-// ReconcileSessionsToRAN converges a UE's PDU sessions onto the set a gNB reports.
-// It is the 5G counterpart of MME.ReconcileBearersToRAN and follows the same rules:
-//
-//   - a session the gNB holds is applied at the SMF, and only a successful apply
-//     counts as switched;
-//   - a session the gNB rejected, or that the SMF could not converge, has its core
-//     context released rather than only being reported;
-//   - on an authoritative message, a session absent from both lists is released too.
-//
-// apply performs the procedure-specific SMF call — path switch and handover
-// completion drive different Nsmf operations — and returns the N2 response transfer,
-// if any. The caller keeps what is procedure-specific: rejecting duplicate PDU
-// session IDs, choosing the response message, and deciding what a total failure
-// means.
-//
-// There is no default-session re-election step: EPS has a default bearer to repair,
-// 5GS has no equivalent (TS 23.501 §5.6).
 func (a *AMF) ReconcileSessionsToRAN(
 	ctx context.Context,
 	ue *UeContext,
@@ -93,15 +69,16 @@ func (a *AMF) ReconcileSessionsToRAN(
 
 		n2Rsp, err := apply(ctx, smContext.Ref, s.Transfer)
 		if err != nil {
-			logger.From(ctx, logger.AmfLog).Error("failed to switch a PDU session to the RAN endpoint",
-				zap.String("smContextRef", smContext.Ref), zap.Uint8("pdu-session-id", s.PduSessionID), zap.Error(err))
-
-			// The session has no usable downlink: free its core context rather than
-			// leaving it pointed at a gNB the UE has left.
-			a.releaseSession(ctx, ue, smContext.Ref, s.PduSessionID)
+			logger.From(ctx, logger.AmfLog).Error("failed to converge a PDU session onto the RAN endpoint",
+				logger.SUPI(ue.Supi().String()), zap.String("smContextRef", smContext.Ref),
+				zap.Uint8("pdu-session-id", s.PduSessionID), zap.Error(err))
 
 			result.Failed = append(result.Failed, s.PduSessionID)
-			result.Released = append(result.Released, s.PduSessionID)
+
+			if want.ReleaseOnApplyError {
+				a.releaseSession(ctx, ue, smContext.Ref, s.PduSessionID)
+				result.Released = append(result.Released, s.PduSessionID)
+			}
 
 			continue
 		}
@@ -109,16 +86,16 @@ func (a *AMF) ReconcileSessionsToRAN(
 		result.Applied = append(result.Applied, AppliedSession{PduSessionID: s.PduSessionID, Transfer: n2Rsp})
 	}
 
-	for _, s := range want.Rejected {
-		named[s.PduSessionID] = struct{}{}
+	for _, id := range want.Rejected {
+		named[id] = struct{}{}
 
-		smContext, ok := ue.SmContextFindByPDUSessionID(s.PduSessionID)
+		smContext, ok := ue.SmContextFindByPDUSessionID(id)
 		if !ok {
 			continue
 		}
 
-		a.releaseSession(ctx, ue, smContext.Ref, s.PduSessionID)
-		result.Released = append(result.Released, s.PduSessionID)
+		a.releaseSession(ctx, ue, smContext.Ref, id)
+		result.Released = append(result.Released, id)
 	}
 
 	if want.Authoritative {
@@ -131,8 +108,12 @@ func (a *AMF) ReconcileSessionsToRAN(
 				continue
 			}
 
-			logger.From(ctx, logger.AmfLog).Info("releasing a PDU session the RAN did not report; implicitly released",
-				zap.Uint8("pdu-session-id", sr.PduSessionID))
+			if sr.Inactive {
+				continue
+			}
+
+			logger.From(ctx, logger.AmfLog).Info("releasing a PDU session the RAN did not report",
+				logger.SUPI(ue.Supi().String()), zap.Uint8("pdu-session-id", sr.PduSessionID))
 
 			a.releaseSession(ctx, ue, sr.Ref, sr.PduSessionID)
 			result.Released = append(result.Released, sr.PduSessionID)
@@ -150,22 +131,4 @@ func (a *AMF) releaseSession(ctx context.Context, ue *UeContext, ref string, pdu
 	}
 
 	ue.DeleteSmContext(pduSessionID)
-}
-
-// DuplicatePDUSessionID reports the first PDU session identity that appears more
-// than once. Several NGAP procedures make a repeated ID an abnormal condition but
-// answer it differently, so detection is shared and the response stays with the
-// caller (TS 38.413 §8.4.4.4). Mirrors mme.DuplicateEBI.
-func DuplicatePDUSessionID(ids []uint8) (uint8, bool) {
-	seen := make(map[uint8]struct{}, len(ids))
-
-	for _, id := range ids {
-		if _, ok := seen[id]; ok {
-			return id, true
-		}
-
-		seen[id] = struct{}{}
-	}
-
-	return 0, false
 }

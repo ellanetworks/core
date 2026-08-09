@@ -19,10 +19,6 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	targetUe.TouchLastSeen()
 
-	if msg.UserLocationInformation != nil {
-		targetUe.UpdateLocation(ctx, *msg.UserLocationInformation)
-	}
-
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("UeContext is nil")
@@ -63,12 +59,16 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return nil, amfInstance.Session.UpdateSmContextN2HandoverComplete(ctx, ref)
 	})
 
-	// Move the UE onto the target and clear the FSM, gated on the UE still being
-	// present after the unlocked user-plane switch; only then end the procedure and
-	// release the source (TS 23.502).
 	if !amfInstance.FinishHandoverCommit(amfUe, targetUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify: UE released during the user-plane switch")
+
+		amfInstance.ClearHandover(amfUe)
+
 		return
+	}
+
+	if msg.UserLocationInformation != nil {
+		targetUe.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
 	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")

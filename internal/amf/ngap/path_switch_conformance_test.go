@@ -15,11 +15,7 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// Conformance tests for the Xn handover Path Switch procedure, mirroring the EPS
-// suite in internal/mme/s1ap/path_switch_conformance_test.go clause for clause. The
-// two stacks converge PDU sessions and EPS bearers with the same rules, so a
-// requirement proven on one is proven the same way on the other.
-
+// Conformance tests for the Xn handover Path Switch procedure.
 var errSmfRefused = errors.New("SMF refused the path switch")
 
 // pathSwitchTestUE builds a secured UE with the given PDU sessions, its source
@@ -81,11 +77,7 @@ func hasRef(refs []string, want string) bool {
 	return false
 }
 
-// TS 38.413 §8.4.4.2: a PDU session in the UE context that the PATH SWITCH REQUEST
-// does not list has been implicitly released by the gNB. Leaving it in place strands
-// a session whose downlink still points at the source gNB. This is the same
-// requirement as TS 36.413 §8.4.4.2 on the EPS side.
-func TestPathSwitchImplicitlyReleasesOmittedSessions(t *testing.T) {
+func TestPathSwitchKeepsSessionsTheGNBDidNotList(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}}
 	amfInstance, amfUe, targetRan := pathSwitchTestUE(t, fakeSmf, 1, 2)
 
@@ -99,12 +91,12 @@ func TestPathSwitchImplicitlyReleasesOmittedSessions(t *testing.T) {
 
 	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
-	if !hasRef(fakeSmf.ReleaseSmContextCalls, smContextRefFor(2)) {
-		t.Errorf("omitted PDU session 2 was not released; ReleaseSmContext calls = %v", fakeSmf.ReleaseSmContextCalls)
+	if hasRef(fakeSmf.ReleaseSmContextCalls, smContextRefFor(2)) {
+		t.Errorf("PDU session the gNB did not list was released; ReleaseSmContext calls = %v", fakeSmf.ReleaseSmContextCalls)
 	}
 
-	if _, still := amfUe.SmContextFindByPDUSessionID(2); still {
-		t.Error("omitted PDU session 2 is still in the UE context")
+	if _, kept := amfUe.SmContextFindByPDUSessionID(2); !kept {
+		t.Error("PDU session the gNB did not list was dropped from the UE context")
 	}
 
 	if _, kept := amfUe.SmContextFindByPDUSessionID(1); !kept {
@@ -112,9 +104,39 @@ func TestPathSwitchImplicitlyReleasesOmittedSessions(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.4.4.2 / TS 23.502 §4.9.1.2.2: a session the core could not switch is
-// reported to the gNB so it releases the radio resources — and its core context is
-// freed too, rather than left pointing at a gNB the UE has left.
+// TS 38.413 §9.2.3.8
+func TestPathSwitchReportsUndecodablePDUSessionID(t *testing.T) {
+	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}}
+	amfInstance, _, targetRan := pathSwitchTestUE(t, fakeSmf, 1)
+
+	targetSender, ok := targetRan.Conn.(*fakeNGAPSender)
+	if !ok {
+		t.Fatalf("target conn is %T", targetRan.Conn)
+	}
+
+	bad := switchedDLItem(t, 1, 5000)
+	bad.PDUSessionID = 0 // outside the valid 1..15 range
+
+	msg := buildPathSwitchRequest(
+		ngap.Ptr(ngap.AMFUENGAPID(10)),
+		ngap.Ptr(ngap.RANUENGAPID(2)),
+		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t, 1, 5000), bad},
+		nil, nil,
+	)
+
+	HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+
+	if len(targetSender.SentPathSwitchRequestAcknowledges) != 1 {
+		t.Fatalf("expected one acknowledge, got %d", len(targetSender.SentPathSwitchRequestAcknowledges))
+	}
+
+	ack := targetSender.SentPathSwitchRequestAcknowledges[0]
+	if len(ack.PDUSessionResourceReleased) != 1 {
+		t.Fatalf("released list = %+v, want the undecodable session reported", ack.PDUSessionResourceReleased)
+	}
+}
+
+// TS 38.413 §8.4.4.2 / TS 23.502 §4.9.1.2.2
 func TestPathSwitchFailedSessionReleasesCoreResources(t *testing.T) {
 	fakeSmf := &fakeSmfSbi{PathSwitchResponse: []byte{0xAA}, PathSwitchErr: errSmfRefused}
 	amfInstance, amfUe, targetRan := pathSwitchTestUE(t, fakeSmf, 1)

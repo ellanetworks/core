@@ -144,11 +144,15 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 		ueConn.UpdateLocation(*req.EUTRANCGI, *req.TAI)
 	}
 
-	ambr := handoverUEAMBR(ue)
+	var ambr *s1ap.UEAggregateMaximumBitRate
+
+	if ul, dl := ue.AmbrRates(); ul.Bps() != 0 || dl.Bps() != 0 {
+		ambr = new(handoverUEAMBR(ue))
+	}
 
 	ack := &s1ap.PathSwitchRequestAcknowledge{
 		SecurityContext:           s1ap.SecurityContext{NextHopChainingCount: ncc, NextHopParameter: s1ap.SecurityKey(newNH)},
-		UEAggregateMaximumBitRate: &ambr,
+		UEAggregateMaximumBitRate: ambr,
 		UESecurityCapabilities:    replayCaps,
 		ERABToBeReleased:          released,
 	}

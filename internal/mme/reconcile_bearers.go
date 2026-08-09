@@ -153,21 +153,3 @@ func (m *MME) ensureDefaultBearer(ue *UeContext) {
 		}
 	}
 }
-
-// DuplicateEBI reports the first EPS bearer identity that appears more than once.
-// Several S1AP procedures make a repeated E-RAB ID an abnormal condition but answer
-// it differently, so detection is shared and the response stays with the caller
-// (TS 36.413 §8.4.4.4, §8.2.4.4).
-func DuplicateEBI(ebis []uint8) (uint8, bool) {
-	seen := make(map[uint8]struct{}, len(ebis))
-
-	for _, ebi := range ebis {
-		if _, ok := seen[ebi]; ok {
-			return ebi, true
-		}
-
-		seen[ebi] = struct{}{}
-	}
-
-	return 0, false
-}

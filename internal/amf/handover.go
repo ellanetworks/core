@@ -124,6 +124,10 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 		amfUe := sourceUe.UeContext()
 
 		if !a.abandonHandover(amfUe) {
+			if amfUe != nil && !amfUe.BeginKeyChainProc(procedure.N2Handover) {
+				logger.WithTrace(cctx, sourceUe.Log).Error("could not re-claim the key chain for a committing handover")
+			}
+
 			return nil
 		}
 

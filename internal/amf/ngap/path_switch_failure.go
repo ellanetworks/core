@@ -23,7 +23,10 @@ func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUS
 	for _, item := range items {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, not switched", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+
+			undecodable = append(undecodable, uint8(item.PDUSessionID))
+
 			continue
 		}
 
@@ -35,12 +38,12 @@ func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUS
 
 // pathSwitchFailedSessions renders the gNB's failed-to-setup list as the rejected
 // set. NGAP carries this list where S1AP has none (TS 38.413 §9.2.3.8).
-func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSReq) []amf.RANSession {
+func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSReq) []uint8 {
 	if len(items) == 0 {
 		return nil
 	}
 
-	out := make([]amf.RANSession, 0, len(items))
+	out := make([]uint8, 0, len(items))
 
 	for _, item := range items {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
@@ -48,7 +51,7 @@ func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSRe
 			continue
 		}
 
-		out = append(out, amf.RANSession{PduSessionID: pduSessionID, Transfer: item.Transfer})
+		out = append(out, pduSessionID)
 	}
 
 	return out
