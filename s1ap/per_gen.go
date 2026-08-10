@@ -1008,7 +1008,7 @@ func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) UnmarshalPER(r *pe
 
 func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
-	w.WriteBit(false)
+	w.WriteBit(eRABToBeSetupItemHOReq.Extensions != nil)
 	if err := eRABToBeSetupItemHOReq.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -1021,6 +1021,11 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) MarshalPER(w *per.Writer, 
 	if err := eRABToBeSetupItemHOReq.QoS.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if eRABToBeSetupItemHOReq.Extensions != nil {
+		if err := (*eRABToBeSetupItemHOReq.Extensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1029,7 +1034,7 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) UnmarshalPER(r *per.Reader
 	if err != nil {
 		return err
 	}
-	p_f4, err := r.ReadBit()
+	p_Extensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -1045,12 +1050,12 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) UnmarshalPER(r *per.Reader
 	if err := (&eRABToBeSetupItemHOReq.QoS).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f4 {
-		var v ieExtensions
+	if p_Extensions {
+		var v ERABToBeSetupItemHOReqExtIEs
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-		_ = v
+		eRABToBeSetupItemHOReq.Extensions = &v
 	}
 	if extBit {
 		var extBits []bool

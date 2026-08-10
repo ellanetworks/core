@@ -38,6 +38,12 @@ func HandoverBearers(ue *UeContext) (bearers []s1ap.ERABToBeSetupItemHOReq, cand
 				QCI: s1ap.QCI(p.Qci),
 				ARP: BearerARP(p.Arp),
 			},
+			// Keeps the target eNB from allocating forwarding tunnels
+			// (TS 36.413 §8.4.2.2): the HANDOVER COMMAND names no forwarding
+			// endpoint.
+			Extensions: &s1ap.ERABToBeSetupItemHOReqExtIEs{
+				DataForwardingNotPossible: s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue),
+			},
 		})
 	}
 
