@@ -387,3 +387,30 @@ func boolBit(set bool, pos uint8) uint8 {
 
 	return 1 << pos
 }
+
+const (
+	n1ModeOctet = 2
+	n1ModeBit   = 1 << 5
+
+	epcoOctet = 1
+	epcoBit   = 1 << 7
+)
+
+// SupportsEPCO reports support of the Extended protocol configuration options IE
+// (octet 8, bit 8).
+func (c UENetworkCapability) SupportsEPCO() bool {
+	if len(c.Rest) <= epcoOctet {
+		return false
+	}
+
+	return c.Rest[epcoOctet]&epcoBit != 0
+}
+
+// SupportsN1Mode reports N1 mode support for 3GPP access (octet 9, bit 6).
+func (c UENetworkCapability) SupportsN1Mode() bool {
+	if len(c.Rest) <= n1ModeOctet {
+		return false
+	}
+
+	return c.Rest[n1ModeOctet]&n1ModeBit != 0
+}

@@ -103,7 +103,7 @@ type fakeSmf struct{}
 func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }
 func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext { return nil }
 func (f *fakeSmf) SessionCount() int                     { return 0 }
-func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, []byte) (string, []byte, error) {
+func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte) (string, []byte, error) {
 	return "", nil, nil
 }
 func (f *fakeSmf) ActivateSmContext(context.Context, string) ([]byte, error)   { return nil, nil }

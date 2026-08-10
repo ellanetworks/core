@@ -124,9 +124,11 @@ func scenarioSubcommand(sc scenarios.Scenario) *cobra.Command {
 				return fmt.Errorf("invalid --gnb-core-target: %w", err)
 			}
 
-			// Propagate --ip-version to the environment so scenarios can
-			// detect the address family via os.Getenv("IP_VERSION").
 			if ipVersion != "" {
+				if _, err := scenarios.ParseIPFamily(ipVersion); err != nil {
+					return fmt.Errorf("invalid --ip-version: %w", err)
+				}
+
 				_ = os.Setenv("IP_VERSION", ipVersion)
 			}
 

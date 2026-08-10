@@ -12,6 +12,7 @@ import (
 	"net"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -257,4 +258,65 @@ func tcpProbeAttempt(ctx context.Context, dialer *net.Dialer, dst string, port i
 	}
 
 	return nil
+}
+
+const ReportPortOffset = 1
+
+func ObservedSource(ctx context.Context, tun, srcIP, dst string, port, srcPort int) (string, error) {
+	src := net.ParseIP(srcIP)
+	if src == nil {
+		return "", fmt.Errorf("source address %q is not an IP", srcIP)
+	}
+
+	dialer := net.Dialer{
+		Timeout:   AttemptTimeout,
+		Control:   reusableBindToDeviceControl(tun),
+		LocalAddr: &net.TCPAddr{IP: src, Port: srcPort},
+	}
+
+	var lastErr error
+
+	for i := 0; i < AttemptCount; i++ {
+		observed, err := observedSourceOnce(ctx, dialer, dst, port+ReportPortOffset)
+		if err != nil {
+			lastErr = err
+
+			continue
+		}
+
+		return observed, nil
+	}
+
+	return "", fmt.Errorf("asking %s for the observed source via %s: %w", dst, tun, lastErr)
+}
+
+func observedSourceOnce(ctx context.Context, dialer net.Dialer, dst string, port int) (string, error) {
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(dst, strconv.Itoa(port)))
+	if err != nil {
+		return "", fmt.Errorf("dial: %w", err)
+	}
+
+	defer conn.Close() //nolint:errcheck
+
+	if err := conn.SetDeadline(time.Now().Add(AttemptTimeout)); err != nil {
+		return "", fmt.Errorf("set deadline: %w", err)
+	}
+
+	if _, err := conn.Write(DefaultPayload); err != nil {
+		return "", fmt.Errorf("write: %w", err)
+	}
+
+	buf := make([]byte, 128)
+
+	n, err := conn.Read(buf)
+	if err != nil {
+		return "", fmt.Errorf("read: %w", err)
+	}
+
+	reply := strings.TrimSpace(string(buf[:n]))
+	if !strings.HasPrefix(reply, "src=") {
+		return "", fmt.Errorf("responder answered %q, want a src= report", reply)
+	}
+
+	return strings.TrimPrefix(reply, "src="), nil
 }

@@ -219,3 +219,99 @@ func TestHandoverRequestAcknowledgeFailedListItemID(t *testing.T) {
 		t.Fatalf("encoded\n got %s\nwant %s", got, want)
 	}
 }
+
+func TestHandoverRequestDataForwardingNotPossibleRoundTrip(t *testing.T) {
+	in := &HandoverRequest{
+		MMEUES1APID:  1,
+		HandoverType: HandoverTypeIntraLTE,
+		Cause:        Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
+			ERABID:                5,
+			TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3},
+			GTPTEID:               0x01020304,
+			QoS:                   ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 15}},
+			Extensions: &ERABToBeSetupItemHOReqExtIEs{
+				DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
+			},
+		}},
+		SourceToTarget: TransparentContainer{0xaa},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	im, ok := pdu.(*InitiatingMessage)
+	if !ok {
+		t.Fatalf("got %T", pdu)
+	}
+
+	out, err := ParseHandoverRequest(im.Value)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if len(out.ERABToBeSetup) != 1 {
+		t.Fatalf("E-RAB list len = %d, want 1", len(out.ERABToBeSetup))
+	}
+
+	ext := out.ERABToBeSetup[0].Extensions
+	if ext == nil {
+		t.Fatal("iE-Extensions: got absent, want present")
+	}
+
+	if ext.DataForwardingNotPossible == nil {
+		t.Fatal("Data Forwarding Not Possible: got absent, want present")
+	}
+
+	if *ext.DataForwardingNotPossible != DataForwardingNotPossibleTrue {
+		t.Errorf("Data Forwarding Not Possible: got %d, want %d", *ext.DataForwardingNotPossible, DataForwardingNotPossibleTrue)
+	}
+}
+
+// The container is SIZE(1..maxProtocolExtensions), so a present-but-empty one
+// has no legal encoding.
+func TestERABToBeSetupItemHOReqEmptyExtensionsRejected(t *testing.T) {
+	_, err := (&HandoverRequest{
+		MMEUES1APID:    1,
+		HandoverType:   HandoverTypeIntraLTE,
+		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		ERABToBeSetup:  []ERABToBeSetupItemHOReq{{ERABID: 5, Extensions: &ERABToBeSetupItemHOReqExtIEs{}}},
+		SourceToTarget: TransparentContainer{0xaa},
+	}).Marshal()
+	if err == nil {
+		t.Fatal("expected an error encoding an empty iE-Extensions container")
+	}
+}
+
+// Verified against the Wireshark S1AP dissector, which reads the container as
+// id-Data-Forwarding-Not-Possible (143), criticality ignore, value
+// data-Forwarding-not-Possible.
+func TestHandoverRequestDataForwardingNotPossibleGolden(t *testing.T) {
+	b, err := (&HandoverRequest{
+		Cause:          new(Cause),
+		SourceToTarget: TransparentContainer{0x00},
+		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
+			ERABID: 1, TransportLayerAddress: TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 1,
+			QoS: ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 1}},
+			Extensions: &ERABToBeSetupItemHOReqExtIEs{
+				DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
+			},
+		}},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const want = "0001006d000008000000020000000100010000024002000000420004000000000035001900001b0014421f0a000001000000010009040000008f400100006800020100006b0005000000000000280021000000000000000000000000000000000000000000000000000000000000000000"
+
+	if got := hex.EncodeToString(b); got != want {
+		t.Fatalf("encoded\n got %s\nwant %s", got, want)
+	}
+}

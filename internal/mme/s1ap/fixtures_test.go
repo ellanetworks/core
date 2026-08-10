@@ -148,11 +148,11 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, ebi u
 	return nil
 }
 
-func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, _, _ models.BitRate) error {
+func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _, _ models.BitRate) error {
 	return nil
 }
 
-func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string, _ uint8) error {
+func (f *fakeSessionManager) DeactivateEPSSession(_ context.Context, _ string) error {
 	f.deactivated = true
 
 	return nil
@@ -173,11 +173,11 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string) er
 	return nil
 }
 
-func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string, _ uint8) (bool, error) {
+func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 
-func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string, _ uint8) (bool, error) {
+func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 
@@ -209,6 +209,11 @@ func (fakeBearerStore) GetDataNetworkByID(_ context.Context, id string) (*db.Dat
 	}
 
 	return &db.DataNetwork{Name: "internet"}, nil
+}
+
+func (fakeBearerStore) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
+	sd := "000001"
+	return &db.NetworkSlice{ID: id, Sst: 1, Sd: &sd, Name: "test-slice"}, nil
 }
 
 func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
@@ -321,8 +326,6 @@ func securedUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn) {
 
 // testPDN returns the UE's default PDN connection, creating it if absent.
 func testPDN(ue *mme.UeContext) *mme.PdnConnection {
-	ue.DefaultEBI = mme.DefaultERABID
-
 	return ue.EnsurePDN(mme.DefaultERABID)
 }
 

@@ -25,7 +25,7 @@ func TestDetachSubscriberUnansweredReleases(t *testing.T) {
 		return cc.count() >= 4
 	})
 
-	if !ue.Conn().releasing {
+	if !ue.ReleasingForTest() {
 		t.Fatal("UE not released after an unanswered network-initiated detach")
 	}
 }

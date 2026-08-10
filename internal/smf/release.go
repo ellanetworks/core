@@ -14,9 +14,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// ReleaseSmContext tears down a PDU session entirely: releases the IP address,
-// deletes the PFCP session on the UPF, and removes the context from the pool.
+// ReleaseSmContext tears down a PDU session entirely
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
+	if s.dropHalf(smContextRef, Access5G) {
+		return nil
+	}
+
+	return s.releaseSession(ctx, smContextRef)
+}
+
+func (s *SMF) releaseSession(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -54,17 +61,6 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	return err
 }
 
-// releaseUserPlaneThenAddresses purges the UPF session (and its NAT conntrack)
-// before releasing the IP leases: an address freed while its conntrack survives
-// can be re-leased to another subscriber that then receives the previous
-// subscriber's flows. On teardown failure the leases are kept, so the address
-// stays bound to this IMSI.
-//
-// Caller holds sc.Mutex throughout. The lease release must not be reachable
-// without it: leases are keyed by (imsi, keyID), keyID is reused by the next
-// session with the same PDU session id, and the session stays in the pool until
-// dropFromPool below — so a replacement landing mid-release adopts the row this
-// is about to delete (TS 24.301 §5.5.1.2.4 case f; see eps.go).
 func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) error {
 	if err := s.releaseTunnel(ctx, sc); err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Warn("user-plane teardown failed; keeping IP lease to prevent reuse with stale NAT conntrack",
@@ -90,9 +86,6 @@ func (s *SMF) releaseUserPlaneThenAddresses(ctx context.Context, sc *SMContext) 
 	return nil
 }
 
-// Has to run wherever the tunnel is dropped, not only on release: the responder
-// is keyed by uplink TEID alone, so an entry that outlives its tunnel answers
-// for a TEID this session no longer owns. Caller holds sc.Mutex.
 func (s *SMF) unregisterIPv6Session(ctx context.Context, smContext *SMContext) {
 	if smContext.Tunnel == nil || smContext.PDUIPV6Prefix == nil {
 		return

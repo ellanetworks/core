@@ -32,6 +32,7 @@ Ella Core is a single binary and does not expose internal 3GPP interfaces. See [
 - **Service request.** An idle UE returns to connected mode to resume its session.
 - **Paging.** Ella Core pages an idle UE when downlink data arrives for it.
 - **Handover.** 4G: S1 handover, and X2 handover via the Path Switch procedure. 5G: Xn handover, and N2 handover between radios served by Ella Core.
+- **4G/5G interworking.** A device moving between 4G and 5G keeps its IP address and its session.
 
 ### Sessions
 

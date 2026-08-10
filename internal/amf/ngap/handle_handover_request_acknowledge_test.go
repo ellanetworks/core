@@ -42,7 +42,7 @@ func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.Hando
 
 	smfInstance := smf.New(nil, nil, nil, nil)
 
-	smCtx := smfInstance.NewSession(supi, smf.Access5G, pduSessionID, dnn, &models.Snssai{Sst: 1})
+	smCtx, _ := smfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{
 		Ambr: models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")},
 		QosData: models.QosData{
@@ -56,7 +56,7 @@ func setupHandoverAckTestContextWithSource(t *testing.T, candidates ...amf.Hando
 	amfUe := amf.NewUeContext()
 	amfUe.SetSupiForTest(supi)
 	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
-		Ref:    smf.CanonicalName(supi, smf.Access5G, pduSessionID),
+		Ref:    smCtx.Ref,
 		Snssai: &models.Snssai{Sst: 1},
 	}
 

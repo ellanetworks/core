@@ -34,7 +34,7 @@ This path returns the list of network subscribers.
                 "profile_name": "default",
                 "status": {
                     "registered": true,
-                    "radio_access_type": "5G",
+                    "radio_access_types": ["5G"],
                     "num_sessions": 1
                 }
             }
@@ -115,7 +115,7 @@ None
     "profile_name": "default",
     "status": {
       "registered": true,
-      "radio_access_type": "5G",
+      "radio_access_types": ["5G"],
       "imei": "359881234567890",
       "ciphering_algorithm": "SNOW3G",
       "integrity_algorithm": "SNOW3G",

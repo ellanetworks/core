@@ -81,7 +81,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	// A framed-route change cannot be adopted in place: TS 23.501 §5.6.14 requires
 	// re-establishment. Checked before the QoS diff so a framed-only change still
 	// reactivates (framed routes are absent from the data-network fingerprint).
-	framedChanged, err := m.Session.FramedRoutesChanged(ctx, ue.IMSI(), p.Ebi)
+	framedChanged, err := m.Session.FramedRoutesChanged(ctx, p.SessionRef)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check framed routes; deferring to next sweep",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
@@ -99,7 +99,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 
 	// The UE IP is fixed for the PDN connection lifetime (TS 23.401 §5.3.1.2.1);
 	// a reservation change requires reactivation, not in-place modification.
-	staticChanged, err := m.Session.StaticIPChanged(ctx, ue.IMSI(), p.Ebi)
+	staticChanged, err := m.Session.StaticIPChanged(ctx, p.SessionRef)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check static IP; deferring to next sweep",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
@@ -163,20 +163,27 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	m.modifyBearer(ctx, ue, ueConn, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
-// dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
-// field alone (IP pools and MTU unchanged), so the bearer can be modified in
-// place without reactivation. A malformed stored fingerprint returns false,
-// so the caller falls back to the safe reactivation path. The fingerprint is
-// "ipv4pool|ipv6pool|dns|mtu" (EpsQoS.DnFingerprint).
 func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
+	const fields = 5
+
 	o := strings.Split(oldFingerprint, "|")
 	n := strings.Split(newFingerprint, "|")
 
-	if len(o) != 4 || len(n) != 4 {
+	if len(o) != fields || len(n) != fields {
 		return false
 	}
 
-	return o[2] != n[2] && o[0] == n[0] && o[1] == n[1] && o[3] == n[3]
+	if o[2] == n[2] {
+		return false
+	}
+
+	for i := range fields {
+		if i != 2 && o[i] != n[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // modifyBearer updates an active default bearer in place with a single MODIFY EPS
@@ -214,14 +221,20 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		}
 
 		pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
-		req.ProtocolConfigurationOptions = &pco
+
+		// TS 24.301 §8.3.18.9 and §8.3.18.13
+		if ue.UsesEPCO(p) {
+			req.ExtendedProtocolConfigurationOptions = &pco
+		} else {
+			req.ProtocolConfigurationOptions = &pco
+		}
 	}
 
 	if includeAMBR {
 		// Update the UPF QER (the enforcement point) before signalling the AMBR, and
 		// abort on failure: signalling anyway commits the new AMBR on UE-accept while
 		// the UPF stays behind, and reconcile then sees no diff to retry.
-		if err := m.Session.UpdateEPSSessionAMBR(ctx, ue.IMSI(), p.Ebi, qos.SessAmbrUL, qos.SessAmbrDL); err != nil {
+		if err := m.Session.UpdateEPSSessionAMBR(ctx, p.SessionRef, qos.SessAmbrUL, qos.SessAmbrDL); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to update UPF Session-AMBR; deferring EPS bearer modification to the next reconcile",
 				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
 
@@ -239,13 +252,14 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		req.APNAMBR = &apnAMBR
 	}
 
-	naspdu, err := ue.ProtectDownlinkMessage(req)
-	if err != nil {
-		ReportProtectFailure(ctx, ueConn, "Modify EPS Bearer Context Request", err)
+	ue.mu.Lock()
+
+	if p.Deactivating || p.Modifying {
+		ue.mu.Unlock()
+
 		return
 	}
 
-	ue.mu.Lock()
 	p.Modifying = true
 	p.PendingDNConfig = qos.DnFingerprint()
 	p.PendingSessAmbrDLBps = qos.SessAmbrDL.Bps()
@@ -257,6 +271,17 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		p.Dns = dns
 	}
 	ue.mu.Unlock()
+
+	naspdu, err := ue.ProtectDownlinkMessage(req)
+	if err != nil {
+		ue.mu.Lock()
+		ClearPendingModifyLocked(p)
+		ue.mu.Unlock()
+
+		ReportProtectFailure(ctx, ueConn, "Modify EPS Bearer Context Request", err)
+
+		return
+	}
 
 	if includeQoS {
 		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is

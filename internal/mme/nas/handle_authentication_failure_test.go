@@ -26,7 +26,7 @@ func TestAuthenticationFailureIgnoredWithNoAuthInProgress(t *testing.T) {
 
 	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), plain)
 
-	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
+	if ue.Conn() == nil || ue.ReleasingForTest() {
 		t.Fatal("a spurious Authentication Failure must not release the UE")
 	}
 
@@ -51,7 +51,7 @@ func TestAuthenticationFailureDuringSecurityModeIgnored(t *testing.T) {
 
 	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), authFailure(t, eps.EMMCauseMACFailure, nil))
 
-	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
+	if ue.Conn() == nil || ue.ReleasingForTest() {
 		t.Fatal("an out-of-phase Authentication Failure must not release the UE")
 	}
 
@@ -229,7 +229,7 @@ func TestAuthFailureOutOfEnumerationCauseIgnored(t *testing.T) {
 	// AUTHENTICATION FAILURE cause.
 	handleAuthenticationFailure(context.Background(), m, ue, ue.Conn(), authFailure(t, eps.EMMCauseProtocolErrorUnspecified, nil))
 
-	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
+	if ue.Conn() == nil || ue.ReleasingForTest() {
 		t.Fatal("an out-of-enumeration Authentication Failure cause must not release the UE")
 	}
 

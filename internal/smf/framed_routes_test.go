@@ -66,14 +66,14 @@ func TestFramedRoutesChanged(t *testing.T) {
 
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
-	imsi := epsRequest(1).IMSI
-	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err != nil {
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	store.framedRoutes = framedTestPrefixes(t, "192.168.11.0/24", "192.168.10.0/24")
 
-	changed, err := s.FramedRoutesChanged(context.Background(), imsi, epsTestEBI)
+	changed, err := s.FramedRoutesChanged(context.Background(), bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestFramedRoutesChanged(t *testing.T) {
 
 	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24")
 
-	changed, err = s.FramedRoutesChanged(context.Background(), imsi, epsTestEBI)
+	changed, err = s.FramedRoutesChanged(context.Background(), bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestFramedRoutesChanged(t *testing.T) {
 		t.Fatal("a changed framed-route set was not detected")
 	}
 
-	changed, err = s.FramedRoutesChanged(context.Background(), "001010000000009", epsTestEBI)
+	changed, err = s.FramedRoutesChanged(context.Background(), "no-such-session")
 	if err != nil {
 		t.Fatal(err)
 	}

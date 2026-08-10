@@ -287,3 +287,47 @@ func detachRequest(t *testing.T, ue *mme.UeContext, switchOff bool) []byte {
 
 	return wire
 }
+
+// TS 24.301 §5.5.2.2.2
+func TestDetachOfAUEHoldingAPDNStillReleasesTheContextAfterTheAccept(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	testPDN(ue)
+
+	HandleNAS(context.Background(), m, ue.Conn(), detachRequest(t, ue, false))
+
+	if len(cc.sent) != 2 {
+		t.Fatalf("sent %d messages, want Detach Accept then UE Context Release Command", len(cc.sent))
+	}
+
+	acceptWire := decodeDownlinkNAS(t, cc.sent[0])
+
+	plain, err := unprotected(eps.Unprotect(acceptWire, nas.MakeCount(0, acceptWire[5]), nas.DirectionDownlink, mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+	if err != nil {
+		t.Fatalf("Detach Accept failed integrity check: %v", err)
+	}
+
+	if _, err := eps.ParseDetachAccept(plain); err != nil {
+		t.Fatalf("first message is not a Detach Accept: %v", err)
+	}
+
+	parseUEContextReleaseCommand(t, cc.sent[1])
+}
+
+// TS 24.301 §5.5.2.3.2
+func TestDetachAcceptReleasesWithTheDetachCause(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	testPDN(ue)
+
+	handleDetachAccept(context.Background(), m, ue, ue.Conn())
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("sent %d messages, want 1 UE Context Release Command", len(cc.sent))
+	}
+
+	cmd := parseUEContextReleaseCommand(t, cc.sent[0])
+	if cmd.Cause == nil || *cmd.Cause != mme.CauseNASDetach {
+		t.Errorf("release cause = %+v, want NAS detach: releasing the last PDN first claims the release, so the detach's own cause never reaches the eNB", cmd.Cause)
+	}
+}

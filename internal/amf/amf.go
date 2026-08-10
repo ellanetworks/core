@@ -25,6 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
 )
@@ -64,7 +65,7 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error)
+	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string) error
 	ReleaseSmContext(ctx context.Context, smContextRef string) error
@@ -95,7 +96,6 @@ type NetworkFeatureSupport5GS struct {
 	ImsVoPS uint8
 	Emc     uint8
 	Emf     uint8
-	IwkN26  uint8
 	Mpsi    uint8
 	EmcN3   uint8
 	Mcsi    uint8

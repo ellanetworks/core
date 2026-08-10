@@ -21,12 +21,12 @@ func TestStaticIPChanged(t *testing.T) {
 
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
-	imsi := epsRequest(1).IMSI
-	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err != nil {
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	changed, err := s.StaticIPChanged(context.Background(), imsi, epsTestEBI)
+	changed, err := s.StaticIPChanged(context.Background(), bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestStaticIPChanged(t *testing.T) {
 	// Repin to a different address.
 	store.staticIPv4 = netip.AddrFrom4([4]byte{10, 45, 0, 8})
 
-	changed, err = s.StaticIPChanged(context.Background(), imsi, epsTestEBI)
+	changed, err = s.StaticIPChanged(context.Background(), bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestStaticIPChanged(t *testing.T) {
 	// Delete the reservation.
 	store.staticIPv4 = netip.Addr{}
 
-	changed, err = s.StaticIPChanged(context.Background(), imsi, epsTestEBI)
+	changed, err = s.StaticIPChanged(context.Background(), bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestStaticIPChanged(t *testing.T) {
 		t.Fatal("a deleted static reservation was not detected")
 	}
 
-	changed, err = s.StaticIPChanged(context.Background(), "001010000000009", epsTestEBI)
+	changed, err = s.StaticIPChanged(context.Background(), "no-such-session")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,12 +77,12 @@ func TestStaticIPChangedCreatedOnDynamicSession(t *testing.T) {
 
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
-	imsi := epsRequest(1).IMSI
-	if _, err := s.CreateEPSSession(context.Background(), epsRequest(1)); err != nil {
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	changed, err := s.StaticIPChanged(context.Background(), imsi, epsTestEBI)
+	changed, err := s.StaticIPChanged(context.Background(), bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestStaticIPChangedCreatedOnDynamicSession(t *testing.T) {
 	// Operator pins a static IP mid-session.
 	store.staticIPv4 = netip.AddrFrom4([4]byte{10, 45, 0, 9})
 
-	changed, err = s.StaticIPChanged(context.Background(), imsi, epsTestEBI)
+	changed, err = s.StaticIPChanged(context.Background(), bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

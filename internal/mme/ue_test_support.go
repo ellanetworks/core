@@ -140,7 +140,7 @@ func (ue *UeContext) KASMEForTest() []byte { return ue.kasme }
 
 func (c *UeConn) ConnForTest() S1APWriter { return c.Conn() }
 
-func (c *UeConn) ReleasingForTest() bool { return c.releasing }
+func (ue *UeContext) ReleasingForTest() bool { return ue.releasing }
 
 // NASGuardActiveForTest reports whether the UE's EMM common-procedure guard is armed.
 func (ue *UeContext) NASGuardActiveForTest() bool {

@@ -171,13 +171,22 @@ const SubscriberPage: React.FC = () => {
         flex: 0.4,
         minWidth: 90,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.radio_access_type ?? "",
+          (row?.status?.radio_access_types ?? []).join(" "),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const rat = params.row?.status?.radio_access_type;
-          if (!rat) return "—";
+          const rats = params.row?.status?.radio_access_types ?? [];
+          if (rats.length === 0) return "—";
           return (
-            <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-              <AccessChip label={rat} />
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                height: "100%",
+                gap: 0.5,
+              }}
+            >
+              {rats.map((rat) => (
+                <AccessChip key={rat} label={rat} />
+              ))}
             </Box>
           );
         },

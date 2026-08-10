@@ -82,7 +82,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	// rejected with EMM cause #9 so the UE re-attaches at once without waiting out T3430
 	// (TS 24.301 §5.5.3.2.5); any other message is dropped. The bare connection is
 	// released either way.
-	if isProtectedTrackingAreaUpdate(nas) {
+	if isTrackingAreaUpdate(nas) {
 		metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
 			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
@@ -95,10 +95,8 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	m.ReleaseBareConn(c)
 }
 
-// isProtectedTrackingAreaUpdate reports whether nas is an integrity-protected
-// TRACKING AREA UPDATE REQUEST. A ciphered body cannot be peeked, so it never matches.
-func isProtectedTrackingAreaUpdate(nas []byte) bool {
-	if len(nas) < 6 {
+func isTrackingAreaUpdate(nas []byte) bool {
+	if len(nas) < 2 {
 		return false
 	}
 
@@ -107,13 +105,21 @@ func isProtectedTrackingAreaUpdate(nas []byte) bool {
 		return false
 	}
 
+	body := nas
+
 	switch nas[0] >> 4 {
+	case uint8(eps.SHTPlain):
 	case uint8(eps.SHTIntegrityProtected), uint8(eps.SHTIntegrityProtectedNewContext):
+		if len(nas) < 6 {
+			return false
+		}
+
+		body = nas[6:]
 	default:
 		return false
 	}
 
-	mt, err := eps.PeekMessageType(nas[6:])
+	mt, err := eps.PeekMessageType(body)
 
 	return err == nil && mt == eps.MsgTrackingAreaUpdateRequest
 }

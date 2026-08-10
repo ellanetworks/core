@@ -66,6 +66,10 @@ func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest
 		out.PDUSessionStatus = makeUnsupportedIE()
 	}
 
+	if msg.UEStatus != nil {
+		out.UEStatus = makeUnsupportedIE()
+	}
+
 	if msg.AllowedPDUSessionStatus != nil {
 		out.AllowedPDUSessionStatus = makeUnsupportedIE()
 	}
@@ -90,8 +94,6 @@ func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest
 			out.S1UENetworkCapability = makeUnsupportedIE()
 		case ieiUesUsageSetting:
 			out.UesUsageSetting = makeUnsupportedIE()
-		case ieiUEStatus:
-			out.UEStatus = makeUnsupportedIE()
 		case ieiLastVisitedTAI:
 			out.LastVisitedRegisteredTAI = makeUnsupportedIE()
 		case ieiEPSBearerContextStatus:

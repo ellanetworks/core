@@ -158,14 +158,31 @@ func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 // ERABToBeSetupItemHOReq ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
 // gTP-TEID, e-RABlevelQosParameters, iE-Extensions OPTIONAL } (extensible)
-// (TS 36.413). The Data-Forwarding-Not-Possible extension is not modeled.
+// (TS 36.413).
 type ERABToBeSetupItemHOReq struct {
 	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
 	QoS                   ERABLevelQoSParameters
-	_                     ieExtensions `per:",skip"`
+	Extensions            *ERABToBeSetupItemHOReqExtIEs `per:",optional"`
+}
+
+// DataForwardingNotPossible ::= ENUMERATED { data-forwarding-not-possible,
+// ... } — TS 36.413 §9.2.1.76.
+type DataForwardingNotPossible uint8
+
+const (
+	DataForwardingNotPossibleTrue DataForwardingNotPossible = iota
+
+	dataForwardingNotPossibleRootCount = 1
+)
+
+// ERABToBeSetupItemHOReqExtIEs is the ProtocolExtensionContainer of
+// ERABToBeSetupItemHOReq. Of the extensions TS 36.413 defines for it, only
+// id-Data-Forwarding-Not-Possible (143, criticality ignore) is modeled.
+type ERABToBeSetupItemHOReqExtIEs struct {
+	DataForwardingNotPossible *DataForwardingNotPossible
 }
 
 // ERABAdmittedItem ::= SEQUENCE { e-RAB-ID, transportLayerAddress, gTP-TEID,

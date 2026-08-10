@@ -25,9 +25,15 @@ func netipToIP(addr netip.Addr) net.IP {
 	return net.IP(b[:])
 }
 
-// negotiatePDUSessionType resolves the PDU session type against the available
-// pools: a single-stack request is honored only if its pool exists, and an
-// IPv4v6 request is downgraded to whichever single stack is available.
+func normalisePDUSessionType(requested uint8) uint8 {
+	switch requested {
+	case 0, 6:
+		return uint8(fgs.PDUSessionTypeIPv4v6)
+	default:
+		return requested
+	}
+}
+
 func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy *Policy) (uint8, error) {
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
@@ -128,7 +134,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 	)
 
 	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
-		ipv4, err := dn.AllocateIP(ctx, imsi, sc.keyID())
+		ipv4, err := dn.AllocateIP(ctx, imsi, sc.sessionKey())
 		if err != nil {
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv4: %w", err)
 		}
@@ -139,7 +145,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 	}
 
 	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv6 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
-		ipv6Prefix, err := dn.AllocateIPv6(ctx, imsi, sc.keyID())
+		ipv6Prefix, err := dn.AllocateIPv6(ctx, imsi, sc.sessionKey())
 		if err != nil {
 			s.releaseAllocatedAddresses(ctx, dn, sc)
 			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv6 prefix: %w", err)
@@ -169,7 +175,7 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 // clears them, so a later rollback does not double-release.
 func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smContext *SMContext) {
 	if smContext.PDUIPV4Address != nil {
-		if _, err := dn.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.keyID()); err != nil {
+		if _, err := dn.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.sessionKey()); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
 		}
 
@@ -177,7 +183,7 @@ func (s *SMF) releaseAllocatedAddresses(ctx context.Context, dn DNNStore, smCont
 	}
 
 	if smContext.PDUIPV6Prefix != nil {
-		if _, err := dn.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.keyID()); err != nil {
+		if _, err := dn.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.sessionKey()); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
 		}
 

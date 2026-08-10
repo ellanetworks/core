@@ -179,3 +179,54 @@ func TestPCOTwoOctetLengthContainers(t *testing.T) {
 		t.Fatalf("uplink containers = %+v", up.Containers)
 	}
 }
+
+func TestPCOPDUSessionID(t *testing.T) {
+	container := func(content ...byte) ProtocolConfigurationOptions {
+		return ProtocolConfigurationOptions{
+			ConfigProtocol: PCOConfigProtocolPPP,
+			Direction:      PCOMSToNetwork,
+			Containers:     []PCOContainer{{ID: PCOContainerPDUSessionID, Content: content}},
+		}
+	}
+
+	if id, ok := container(5).PDUSessionID(); !ok || id != 5 {
+		t.Errorf("PDUSessionID() = %d, %v; want 5, true", id, ok)
+	}
+
+	downlink := container(5)
+	downlink.Direction = PCONetworkToMS
+
+	if _, ok := downlink.PDUSessionID(); ok {
+		t.Error("PDUSessionID() read an identity out of a network-to-MS element")
+	}
+
+	for _, content := range [][]byte{{0}, {16}, {64}, {}, {5, 5}} {
+		if _, ok := container(content...).PDUSessionID(); ok {
+			t.Errorf("PDUSessionID() accepted container content % x", content)
+		}
+	}
+}
+
+func TestNewSNSSAIContainer(t *testing.T) {
+	c, err := NewSNSSAIContainer([]byte{0x01, 0x00, 0x00, 0x7b}, PLMN{MCC: "001", MNC: "01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c.ID != PCOContainerSNSSAI {
+		t.Errorf("container id = %#04x, want %#04x", c.ID, PCOContainerSNSSAI)
+	}
+
+	want := []byte{0x01, 0x00, 0x00, 0x7b, 0x00, 0xf1, 0x10}
+	if !bytes.Equal(c.Content, want) {
+		t.Errorf("content = % x, want % x", c.Content, want)
+	}
+
+	if _, err := NewSNSSAIContainer([]byte{0x01, 0x02, 0x03}, PLMN{MCC: "001", MNC: "01"}); err == nil {
+		t.Error("a 3-octet S-NSSAI value part was accepted")
+	}
+
+	if _, err := NewSNSSAIContainer([]byte{0x01}, PLMN{MCC: "00", MNC: "01"}); err == nil {
+		t.Error("a malformed PLMN was accepted")
+	}
+}

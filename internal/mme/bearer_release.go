@@ -27,32 +27,41 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 		return
 	}
 
+	ue.mu.Lock()
+
+	if p.Deactivating {
+		ue.mu.Unlock()
+
+		return
+	}
+
+	p.Deactivating = true
+	p.Disconnecting = disconnecting
+	ue.mu.Unlock()
+
 	naspdu, err := ue.ProtectDownlinkMessage(&eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
 		PTI:               nas.ProcedureTransactionIdentity(pti),
 		Cause:             esmCause,
 	})
 	if err != nil {
+		ue.mu.Lock()
+		p.Deactivating = false
+		ue.mu.Unlock()
+
 		ReportProtectFailure(ctx, ueConn, "Deactivate EPS Bearer Context Request", err)
+
 		return
 	}
-
-	ue.mu.Lock()
-	p.Deactivating = true
-	p.Disconnecting = disconnecting
-	ue.mu.Unlock()
 
 	// TS 23.401 §5.4.4 (symmetric with the 5G TS 23.502 §4.3.4.2 step 2): release the
 	// UPF user plane at the start of the deactivation so it drops any remaining packets
 	// and frees the tunnel before the UE's DEACTIVATE EPS BEARER CONTEXT ACCEPT. The PDN
 	// connection is retained for the ESM handshake (T3495); its later session release is
 	// then an idempotent no-op.
-	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("failed to release EPS session on deactivation",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
-	}
+	m.releaseAnchorSession(ctx, ue, p)
 
-	if disconnecting || p.Ebi != ue.DefaultEBI {
+	if ue.BearerReleaseOnly(p) {
 		m.sendERABRelease(ctx, ueConn, p, naspdu)
 		// The eNB releases the radio bearer, but the NAS DEACTIVATE EPS BEARER
 		// CONTEXT REQUEST still needs an answer: guard it with T3495 so it is

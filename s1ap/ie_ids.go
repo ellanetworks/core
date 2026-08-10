@@ -19,6 +19,7 @@ const (
 	idERABFailedtoSetupItemHOReqAck             ProtocolIEID = 21
 	idERABAdmittedItem                          ProtocolIEID = 20
 	idERABToBeSetupItemHOReq                    ProtocolIEID = 27
+	idDataForwardingNotPossible                 ProtocolIEID = 143
 	idERABToBeSetupListBearerSUReq              ProtocolIEID = 16
 	idERABToBeSetupItemBearerSUReq              ProtocolIEID = 17
 	idERABToBeSwitchedDLList                    ProtocolIEID = 22

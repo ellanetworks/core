@@ -515,3 +515,28 @@ func TestTrackingAreaUpdateStoresAnMSCapabilityOnlyReplay(t *testing.T) {
 			uint8(got.EEA), uint8(got.EIA), uint8(held.EEA), uint8(held.EIA))
 	}
 }
+
+// TS 24.301 §5.5.3.2.4
+func TestTrackingAreaUpdateKeepsTheLastPDNReportedInactive(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	m.AddDefaultPDN(ue)
+
+	status := uint16(0)
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, &status))
+
+	if _, ok := ue.Pdns[5]; !ok {
+		t.Error("the UE's only PDN connection was released: this MME does not advertise EMM-REGISTERED without PDN connection, so §5.5.3.2.4 does not permit deactivating the last one")
+	}
+
+	if ue.EMMState() != mme.EMMRegistered {
+		t.Errorf("EMM state = %v, want EMM-REGISTERED: the UE asked for a tracking area update, not a detach", ue.EMMState())
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("sent %d messages, want only the TAU Accept", len(cc.sent))
+	}
+
+	decodeDownlinkNAS(t, cc.sent[0])
+}

@@ -26,6 +26,7 @@ func releaseDetachSessions(ctx context.Context, m *mme.MME, ue *mme.UeContext) {
 func handleDetachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
 	ueConn.StopNASGuard()
 	logger.From(ctx, logger.MmeLog).Info("Detach Accept")
+	ue.TransitionTo(mme.EMMDeregistered)
 	releaseDetachSessions(ctx, m, ue)
 	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 

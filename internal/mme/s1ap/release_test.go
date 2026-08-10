@@ -146,7 +146,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 		t.Fatalf("foreign eNB released a UE on another association: %d S1AP messages on the owning association", len(cc.sent))
 	}
 
-	if ue.Conn().ReleasingForTest() {
+	if ue.ReleasingForTest() {
 		t.Fatal("UE marked releasing by a message from a foreign association")
 	}
 

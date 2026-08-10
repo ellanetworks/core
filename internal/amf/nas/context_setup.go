@@ -30,11 +30,25 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	conn.RegistrationRequest = msg
 	conn.RegistrationRequestPlain = plain
 
+	if msg != nil {
+		ue.SetUECapabilities(msg.GMMCapability, msg.S1UENetworkCapability)
+
+		if msg.UpdateType5GS != nil && msg.UpdateType5GS.NGRANRCU {
+			ue.RadioCapability = nil
+			ue.RadioCapabilityForPaging = nil
+		}
+	}
+
 	switch conn.RegistrationType5GS {
 	case fgs.RegistrationTypeInitial:
 		HandleInitialRegistration(ctx, amfInstance, ue)
 	case fgs.RegistrationTypeMobilityUpdating:
-		fallthrough
+		if movingFromEPC(msg) {
+			HandleInitialRegistration(ctx, amfInstance, ue)
+			return
+		}
+
+		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	case fgs.RegistrationTypePeriodicUpdating:
 		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	}

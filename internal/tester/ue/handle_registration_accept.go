@@ -50,6 +50,10 @@ func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAP
 		zap.String("IMSI", ue.UeSecurity.Supi),
 	)
 
+	if ue.NoAutoPDUSession {
+		return nil
+	}
+
 	pduReq, err := BuildPduSessionEstablishmentRequest(&PduSessionEstablishmentRequestOpts{
 		PDUSessionID:   ue.PDUSessionID,
 		PDUSessionType: ue.PDUSessionType,
