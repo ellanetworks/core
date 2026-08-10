@@ -12,21 +12,15 @@ import "github.com/ellanetworks/core/nas"
 // optional IE; ProtocolConfigurationOptions carries the UE's PCO request (e.g.
 // the DNS-server request).
 type PDNConnectivityRequest struct {
-	EPSBearerIdentity            EPSBearerIdentity
-	PTI                          nas.ProcedureTransactionIdentity
-	RequestType                  RequestType
-	PDNType                      PDNType
-	AccessPointName              *APN                              // APN value part (IEI 0x28), nil if absent
-	ProtocolConfigurationOptions *nas.ProtocolConfigurationOptions // optional (IEI 0x27)
-	// ESMInformationTransferFlag is the EIT bit (IEI 0xD, TS 24.301 §9.9.4.5).
-	// Set, the UE will supply the APN and PCO in an ESM INFORMATION RESPONSE
-	// rather than in this message; clear, it will not. Both values are assigned,
-	// so nil records that the element was absent.
-	ESMInformationTransferFlag *bool
-
-	// Unrecognized carries the optional information elements this message does
-	// not model, so they survive decoding and re-encode unchanged.
-	Unrecognized []nas.RawIE
+	EPSBearerIdentity                    EPSBearerIdentity
+	PTI                                  nas.ProcedureTransactionIdentity
+	RequestType                          RequestType
+	PDNType                              PDNType
+	AccessPointName                      *APN                              // APN value part (IEI 0x28), nil if absent
+	ProtocolConfigurationOptions         *nas.ProtocolConfigurationOptions // optional (IEI 0x27)
+	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
+	ESMInformationTransferFlag           *bool
+	Unrecognized                         []nas.RawIE
 }
 
 // pdnConnectivityRequestIEs are the optional IEs Ella Core consumes from a PDN
@@ -37,6 +31,7 @@ type PDNConnectivityRequest struct {
 var pdnConnectivityRequestIEs = []nas.OptionalIE{
 	{IEI: ieiAccessPointName, Format: nas.IETLV, Name: "Access point name"},
 	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
+	{IEI: ieiExtendedProtocolConfigurationOptions, Format: nas.IETLVE, Name: "Extended protocol configuration options"},
 }
 
 // AppendBinary encodes the PDN CONNECTIVITY REQUEST message.
@@ -69,6 +64,15 @@ func (m *PDNConnectivityRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiProtocolConfigurationOptions, raw)
+	}
+
+	if m.ExtendedProtocolConfigurationOptions != nil {
+		raw, err := m.ExtendedProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiExtendedProtocolConfigurationOptions, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -124,6 +128,13 @@ func ParsePDNConnectivityRequest(b []byte) (*PDNConnectivityRequest, error) {
 			}
 
 			m.ProtocolConfigurationOptions = &parsed
+		case ieiExtendedProtocolConfigurationOptions:
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
+			if err != nil {
+				return false, err
+			}
+
+			m.ExtendedProtocolConfigurationOptions = &parsed
 		default:
 			return false, nil
 		}

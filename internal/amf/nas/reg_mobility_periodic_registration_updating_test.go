@@ -201,9 +201,10 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	ue.RadioCapability = []byte("some-capability")
 	ue.RadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 
-	ue.Conn().RegistrationRequest.UpdateType5GS = &fgs.UpdateType5GS{NGRANRCU: true}
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 
-	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+	contextSetup(context.TODO(), amfInstance, ue,
+		&fgs.RegistrationRequest{UpdateType5GS: &fgs.UpdateType5GS{NGRANRCU: true}}, nil)
 
 	if len(ue.RadioCapability) != 0 {
 		t.Fatalf("expected RadioCapability to be cleared, got %x", ue.RadioCapability)

@@ -134,20 +134,17 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	requestType := ulNasTransport.RequestType
 
-	if requestType != nil {
-		switch *requestType {
-		case fgs.RequestTypeInitialEmergencyRequest,
-			fgs.RequestTypeExistingEmergencyPDUSession:
-			logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
-			sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
+	if requestType != nil && *requestType == fgs.RequestTypeInitialEmergencyRequest {
+		logger.From(ctx, logger.AmfLog).Warn("Emergency PDU Session is not supported")
+		sendPayloadNotForwarded(ctx, ueConn, uint8(pduSessionID), smMessage)
 
-			return
-		}
+		return
 	}
 
 	if ulNasTransport.SNSSAI != nil && requestType != nil {
 		switch *requestType {
-		case fgs.RequestTypeInitialRequest, fgs.RequestTypeModificationRequest:
+		case fgs.RequestTypeInitialRequest, fgs.RequestTypeModificationRequest,
+			fgs.RequestTypeExistingPDUSession:
 			if snssai := util.SnssaiToModels(*ulNasTransport.SNSSAI); !ue.IsAllowedNssai(snssai) {
 				logger.From(ctx, logger.AmfLog).Warn("requested S-NSSAI is not in the allowed NSSAI",
 					zap.Any("snssai", snssai), logger.PDUSessionID(uint8(pduSessionID)))
@@ -188,7 +185,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return
 	}
 
-	if isInitialRequest {
+	if isInitialRequest || requestTypeReachesSMF(requestType) {
 		establishPDUSession(ctx, amfInstance, ue, ueConn, ulNasTransport, uint8(pduSessionID), smMessage)
 		return
 	}
@@ -256,7 +253,12 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		dnn = dnnResp
 	}
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, smMessage)
+	requestType := fgs.RequestTypeInitialRequest
+	if ulNasTransport.RequestType != nil {
+		requestType = *ulNasTransport.RequestType
+	}
+
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).
@@ -342,4 +344,12 @@ func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	return nasreply.Handled()
+}
+
+func requestTypeReachesSMF(t *fgs.RequestType) bool {
+	if t == nil {
+		return false
+	}
+
+	return *t == fgs.RequestTypeExistingPDUSession || *t == fgs.RequestTypeExistingEmergencyPDUSession
 }

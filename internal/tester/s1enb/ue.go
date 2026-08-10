@@ -46,6 +46,10 @@ type UE struct {
 	apn        string                 // requested APN in the Attach Request ("" = subscriber default)
 	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 
+	n1Mode       bool // gates the network's IWK N26 indication (TS 24.301 §5.5.1.2.4)
+	requestType  eps.RequestType
+	pduSessionID uint8 // sent in the PCO; 0 sends none
+
 	kasme   []byte
 	knasEnc [16]byte
 	knasInt [16]byte
@@ -63,6 +67,7 @@ func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
 	return &UE{
 		IMSI: imsi, K: k, OPc: opc, plmn: append([]byte(nil), e.plmn[:]...),
 		netCapEEA: 0xf0, netCapEIA: 0x70, pdnType: eps.PDNTypeIPv4, pti: 1,
+		requestType: eps.RequestTypeInitialRequest,
 	}
 }
 
@@ -117,11 +122,33 @@ func (ue *UE) S1APSecurityCapabilities() s1ap.UESecurityCapabilities {
 	}
 }
 
+func (ue *UE) MoveSessionFromNR(pduSessionID uint8) {
+	ue.requestType = eps.RequestTypeHandover
+	ue.pduSessionID = pduSessionID
+	ue.n1Mode = true
+}
+
+func (ue *UE) AnnounceN1Mode(pduSessionID uint8) {
+	ue.pduSessionID = pduSessionID
+	ue.n1Mode = true
+}
+
 func (ue *UE) buildAttachRequest() ([]byte, error) {
-	pc := &eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: ue.pdnType}
+	pc := &eps.PDNConnectivityRequest{PTI: 1, RequestType: ue.requestType, PDNType: ue.pdnType}
 
 	if ue.apn != "" {
 		pc.AccessPointName = new(eps.APN(ue.apn))
+	}
+
+	if ue.pduSessionID != 0 {
+		pco := nas.ProtocolConfigurationOptions{
+			ConfigProtocol: nas.PCOConfigProtocolPPP,
+			Direction:      nas.PCOMSToNetwork,
+			Containers: []nas.PCOContainer{
+				{ID: nas.PCOContainerPDUSessionID, Content: []byte{ue.pduSessionID}},
+			},
+		}
+		pc.ProtocolConfigurationOptions = &pco
 	}
 
 	esm, err := pc.MarshalBinary()
@@ -138,7 +165,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		EPSAttachType:       eps.AttachTypeEPS,
 		NASKeySetIdentifier: nas.NoKeySet,
 		EPSMobileIdentity:   identity,
-		UENetworkCapability: eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA},
+		UENetworkCapability: ue.ueNetworkCapability(),
 		ESMMessageContainer: esm,
 	}
 
@@ -395,4 +422,15 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 	copy(k[:], out[16:32])
 
 	return k, nil
+}
+
+func (ue *UE) ueNetworkCapability() eps.UENetworkCapability {
+	c := eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA}
+
+	if ue.n1Mode {
+		c.HasUMTS = true
+		c.Rest = []byte{0x00, 0x00, 0x20}
+	}
+
+	return c
 }

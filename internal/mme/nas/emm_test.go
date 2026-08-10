@@ -261,7 +261,7 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 }
 
 // TestAttachReusesContextForNativeGUTI_ReleasesOldBearers asserts TS 24.301
-// §5.5.1.2.4 case f: a genuine re-attach reuses the security context (§4.4.3, keys
+// §5.5.1.2.7 f): a genuine re-attach reuses the security context (§4.4.3, keys
 // kept) but the UE's OLD EPS bearer contexts are deleted — their anchor sessions
 // released, not preserved — before the new attach is progressed.
 func TestAttachReusesContextForNativeGUTI_ReleasesOldBearers(t *testing.T) {
@@ -635,7 +635,7 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), plain)
 
-	if !ue.Conn().ReleasingForTest() {
+	if !ue.ReleasingForTest() {
 		t.Fatal("UE not released after Security Mode Reject")
 	}
 
@@ -684,7 +684,7 @@ func TestSecurityModeRejectIgnoredOutsideExchange(t *testing.T) {
 
 	HandleNAS(context.Background(), m, ue.Conn(), plain)
 
-	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
+	if ue.Conn() == nil || ue.ReleasingForTest() {
 		t.Fatal("an out-of-order Security Mode Reject must not release the UE")
 	}
 
@@ -853,7 +853,7 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 		t.Fatalf("expected the Attach Accept resent (one downlink), got %d", cc.count())
 	}
 
-	if ue.Conn() == nil || ue.Conn().ReleasingForTest() {
+	if ue.Conn() == nil || ue.ReleasingForTest() {
 		t.Fatal("an identical duplicate Attach Request must not release the UE")
 	}
 

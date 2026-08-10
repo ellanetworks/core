@@ -126,7 +126,7 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext (IPv6) failed: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestCreateSmContext_IPv6Only_AllocationFailure(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when IPv6 pool exhausted")
 	}
@@ -222,7 +222,7 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4v6)
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext (IPv4v6) failed: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestCreateSmContext_DualStack_SendsTwoDownlinkPDRs(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4v6)
 
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext (IPv4v6) failed: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestCreateSmContext_IPv4Only_SendsOneDownlinkPDR(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4)
 
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext (IPv4) failed: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestCreateSmContext_IPv6Only_SendsOneDownlinkPDR(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext (IPv6) failed: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestCreateSmContext_DualStack_IPv6AllocationFails_RollsBackIPv4(t *testing.
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4v6)
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when IPv6 allocation fails in dual-stack")
 	}
@@ -437,7 +437,7 @@ func TestCreateSmContext_DualStack_IPv4AllocationFails(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4v6)
 
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error when IPv4 allocation fails in dual-stack")
 	}
@@ -469,10 +469,10 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	t.Helper()
 
 	supi := testSUPI()
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 
 	seid := s.AllocateSEID()
-	smCtx.SetPFCPSession(seid)
+	s.AssignPFCPSession(smCtx, seid)
 	smCtx.PFCPContext.SEID = 100
 	smCtx.PFCPContext.Established = true
 
@@ -601,7 +601,7 @@ func TestRemoveSession_IPv6Only_ReleasesIPv6(t *testing.T) {
 	supi := testSUPI()
 	ctx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 
 	removeSession(s, ctx, smCtx)
@@ -624,7 +624,7 @@ func TestRemoveSession_DualStack_ReleasesBoth(t *testing.T) {
 	supi := testSUPI()
 	ctx := context.Background()
 
-	smCtx := s.NewSession(supi, smf.Access5G, 1, testDNN, testSnssai)
+	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:abcd::").To16()
 
@@ -751,7 +751,7 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_IPv6RegistersIPv6GnbAddress(t *test
 
 	n1 := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1)
+	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1)
 	if err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -801,7 +801,7 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv6)
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}
@@ -856,7 +856,7 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 
 	n1Msg := buildPDUSessionEstRequestWithType(fgs.PDUSessionTypeIPv4v6)
 
-	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	ref, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err != nil {
 		t.Fatalf("CreateSmContext failed: %v", err)
 	}
@@ -916,7 +916,7 @@ func TestCreateSmContext_UnsupportedPDUSessionType(t *testing.T) {
 	// PDU session type 4 is "Unstructured" which is not supported.
 	n1Msg := buildPDUSessionEstRequestWithType(4)
 
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, n1Msg)
 	if err == nil {
 		t.Fatal("expected error for unsupported PDU session type")
 	}

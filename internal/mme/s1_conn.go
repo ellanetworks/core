@@ -100,8 +100,6 @@ type UeConn struct {
 	// TauReleaseOnComplete defers the S1 release of a no-active TAU until the
 	// GUTI reallocation it carried is acknowledged.
 	TauReleaseOnComplete bool
-	// releasing gates the registry op during a UE Context Release.
-	releasing bool
 
 	// EMM common-procedure guard (TS 24.301: T3450/T3460/T3470). EMM common and
 	// specific procedures are mutually exclusive, so a single guard suffices; it

@@ -4,8 +4,10 @@
 package scenarios
 
 import (
+	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 type IPFamily int
@@ -17,32 +19,33 @@ const (
 )
 
 func detectIPFamily() IPFamily {
-	switch os.Getenv("IP_VERSION") {
-	case "v6", "ipv6":
-		return IPv6Only
-	case "dual", "dualstack", "both":
-		return DualStack
-	default:
+	family, err := ParseIPFamily(os.Getenv("IP_VERSION"))
+	if err != nil {
 		return IPv4Only
+	}
+
+	return family
+}
+
+func ParseIPFamily(s string) (IPFamily, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "", "v4", "ipv4":
+		return IPv4Only, nil
+	case "v6", "ipv6":
+		return IPv6Only, nil
+	case "dual", "dualstack", "both":
+		return DualStack, nil
+	default:
+		return IPv4Only, fmt.Errorf("unknown IP family %q: want ipv4, ipv6 or dualstack", s)
 	}
 }
 
-// Env carries the common flag values to scenario runners, populated by
-// cmd/core-tester from the --ella-core-n2-address, --gnb, and
-// --gnb-core-target flag families.
 type Env struct {
-	// CoreN2Addresses holds every --ella-core-n2-address in argument order;
-	// single-core scenarios consume the first entry.
 	CoreN2Addresses []string
-
-	GNBs []GNB
-
-	// GNBCoreTargets pairs gNB name → core N2 address. When empty, scenarios
-	// pair gNB i with CoreN2Addresses[i], or all cores for multihomed ones.
-	GNBCoreTargets map[string]string
-
-	APIAddress string
-	APIToken   string
+	GNBs            []GNB
+	GNBCoreTargets  map[string]string
+	APIAddress      string
+	APIToken        string
 }
 
 type GNB struct {

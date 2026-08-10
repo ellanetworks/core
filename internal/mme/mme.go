@@ -24,63 +24,27 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-// DefaultS1MMEPort is the standard S1-MME SCTP port (TS 36.412).
 const DefaultS1MMEPort = 36412
 
-// maxMMEUES1APID is the largest MME-UE-S1AP-ID, INTEGER (0..2^32-1) (TS 36.413).
 const maxMMEUES1APID int64 = 4294967295
 
-// NASHandler is the EMM/ESM NAS layer's entry surface, implemented in
-// internal/mme/nas and injected so the S1AP layer dispatches uplink NAS without
-// the kernel importing its layers (kernel ⊅ nas).
 type NASHandler interface {
 	HandleNAS(ctx context.Context, conn *UeConn, nas []byte)
 	HandleServiceRequest(ctx context.Context, conn S1APWriter, msg *s1ap.InitialUEMessage)
 }
 
-// epsSessionManager is the converged session anchor (SMF acting as PGW-C) the
-// MME delegates EPS default-bearer establishment to: it allocates the UE IP and
-// owns the session. *smf.SMF satisfies it. Defined here (consumer side) so there
-// is no mme → smf import.
 type epsSessionManager interface {
-	// CreateEPSSession negotiates the PDN type, allocates the UE address(es), and
-	// programs the default bearer, returning the negotiated type, the addresses,
-	// and the S-GW S1-U F-TEID for the eNB to send uplink to.
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
-	// ModifyEPSSession sets the downlink endpoint to the eNB S1-U F-TEID. ebi
-	// identifies the PDN connection's default bearer.
-	ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error
-	// UpdateEPSSessionAMBR updates the Session-AMBR enforced by the UPF QER for a
-	// PDN connection's default bearer, in the "<n> <unit>" form.
-	UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink models.BitRate) error
-	// DeactivateEPSSession buffers the downlink bearer when the UE goes ECM-IDLE
-	// so downlink data triggers paging.
-	DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error
+	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error
+	UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error
+	DeactivateEPSSession(ctx context.Context, ref string) error
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error
-	// ClearEPSPagingSuppression releases the suppression once the UE is reachable
-	// again (ECM-CONNECTED), so subsequent downlink data pages it
-	// (TS 24.301 §5.3.5; TS 23.401 §5.3.4.3).
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
-	// ReleaseEPSSession releases the anchor session identified by its unique ref
-	// (as returned in models.EPSBearer.Ref and stored on the PDN connection), so a
-	// superseded context releases its own session and never a newer one that reused
-	// the same (IMSI, EBI).
 	ReleaseEPSSession(ctx context.Context, ref string) error
-
-	// FramedRoutesChanged reports whether the subscriber's framed routes for the
-	// default bearer (imsi, ebi) differ from those installed at establishment, so
-	// the reconciler reactivates the bearer on a change (TS 23.501 §5.6.14).
-	FramedRoutesChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
-
-	// StaticIPChanged reports whether the subscriber's reserved static IP for the
-	// default bearer (imsi, ebi) changed since establishment, so the reconciler
-	// reactivates the bearer on a change (TS 24.301 §6.4.4.2).
-	StaticIPChanged(ctx context.Context, imsi string, ebi uint8) (bool, error)
+	FramedRoutesChanged(ctx context.Context, ref string) (bool, error)
+	StaticIPChanged(ctx context.Context, ref string) (bool, error)
 }
 
-// credentialProvider is the UDM surface the MME requires for EPS authentication:
-// generating an EPS-AKA authentication vector for a subscriber (TS 33.401). *udm.Service
-// satisfies it. Held as an interface so the dependency is decoupled and mockable.
 type credentialProvider interface {
 	GenerateEPSVector(ctx context.Context, imsi string, plmnID []byte, resyncAuts, resyncRand string) (*udm.EPSAV, error)
 }
@@ -159,34 +123,16 @@ type MME struct {
 	handoverGuardTimeout time.Duration
 }
 
-// T3412PeriodicTAU is the periodic tracking-area-update timer the MME advertises
-// to UEs (TS 24.301). It is the single source for both the value encoded into the
-// Attach Accept and the mobile reachable timer below, so the two cannot drift if
-// it ever becomes configurable.
 const T3412PeriodicTAU = 54 * time.Minute
 
-// T3402Backoff is the value advertised in the T3402 IE of an ATTACH REJECT — the
-// back-off before the UE retries the attach. Both specs default it to 12 min
-// (TS 24.301 §10.2 “T3402 Default 12” / TS 24.501 §10.2 “T3502 Default 12”).
 const T3402Backoff = 12 * time.Minute
 
-// defaultMobileReachableTime supervises the UE's periodic tracking area updating
-// (TS 24.301 §5.3.5). defaultImplicitDetachTime is the grace period after the mobile
-// reachable timer before the MME implicitly detaches an unreachable UE
-// (network-dependent).
 const (
-	// mobileReachableMargin is added to the periodic timer (T3412) to form the mobile
-	// reachable timer: TS 24.301 §5.3.5 — "4 minutes greater than T3412".
-	mobileReachableMargin = 4 * time.Minute
-
+	mobileReachableMargin      = 4 * time.Minute
 	defaultMobileReachableTime = T3412PeriodicTAU + mobileReachableMargin
 	defaultImplicitDetachTime  = 2 * time.Minute
 )
 
-// The NAS common-procedure guard timers T3450/T3460/T3470 default to 6 s with up
-// to 4 retransmissions (TS 24.301). S1AP runs over reliable SCTP, so the
-// retransmissions rarely fire; the guard bounds a procedure the UE stops
-// answering and releases the UE.
 const (
 	defaultNASGuardTimeout       = 6 * time.Second
 	defaultNASGuardMaxRetransmit = 4
@@ -249,16 +195,16 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 	}
 }
 
-// NetworkFeatureSupport returns the EPS network feature support advertised to UEs
-// (TS 24.301 §9.9.3.12A), or the default when unset.
-func (m *MME) NetworkFeatureSupport() *eps.NetworkFeatureSupport {
+func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability) *eps.NetworkFeatureSupport {
+	nfs := eps.NetworkFeatureSupport{IMSVoPS: true}
 	if m.EPSNetworkFeatureSupport != nil {
-		nfs := *m.EPSNetworkFeatureSupport
-		return &nfs
+		nfs = *m.EPSNetworkFeatureSupport
 	}
 
-	return &eps.NetworkFeatureSupport{IMSVoPS: true}
+	nfs.IWKN26 = ueCap.SupportsN1Mode() && models.InterworkingWithoutN26
+	nfs.EPCO = ueCap.SupportsEPCO()
+
+	return &nfs
 }
 
-// Tracer instruments the MME's S1AP/EMM control plane.
 var Tracer = otel.Tracer("ella-core/mme")

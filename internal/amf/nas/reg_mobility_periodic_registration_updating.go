@@ -43,13 +43,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
-	if conn.RegistrationRequest.UpdateType5GS != nil {
-		if conn.RegistrationRequest.UpdateType5GS.NGRANRCU {
-			ue.RadioCapability = nil
-			ue.RadioCapabilityForPaging = nil
-		}
-	}
-
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		abortRegistration(ctx, amfInstance, ue, "get operator info", err)
@@ -300,4 +293,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
 		}
 	}
+}
+
+func movingFromEPC(req *fgs.RegistrationRequest) bool {
+	return req != nil && req.UEStatus != nil && req.UEStatus.S1ModeReg
 }

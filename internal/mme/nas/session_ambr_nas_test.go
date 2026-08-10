@@ -19,7 +19,7 @@ func TestBuildActivateDefaultESMSignalsAPNAMBR(t *testing.T) {
 	p := &mme.PdnConnection{Ebi: mme.DefaultERABID, PdnType: eps.PDNTypeIPv4, UeIP: netip.MustParseAddr("10.45.0.1")}
 	qos := &mme.EpsQoS{APN: "internet", QCI: 9, SessAmbrDL: models.MustParseBitRate("100 Mbps"), SessAmbrUL: models.MustParseBitRate("50 Mbps")}
 
-	wire, err := buildActivateDefaultESM(p, qos, 1)
+	wire, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, false)
 	if err != nil {
 		t.Fatalf("buildActivateDefaultESM: %v", err)
 	}

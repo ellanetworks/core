@@ -60,14 +60,12 @@ func ParseESMInformationRequest(b []byte) (*ESMInformationRequest, error) {
 // Point Name and/or Protocol Configuration Options it withheld from the PDN
 // CONNECTIVITY REQUEST.
 type ESMInformationResponse struct {
-	EPSBearerIdentity            EPSBearerIdentity
-	PTI                          nas.ProcedureTransactionIdentity
-	AccessPointName              *APN                              // APN value part (IEI 0x28), nil if absent
-	ProtocolConfigurationOptions *nas.ProtocolConfigurationOptions // optional (IEI 0x27)
-
-	// Unrecognized carries the optional information elements this message does
-	// not model, so they survive decoding and re-encode unchanged.
-	Unrecognized []nas.RawIE
+	EPSBearerIdentity                    EPSBearerIdentity
+	PTI                                  nas.ProcedureTransactionIdentity
+	AccessPointName                      *APN                              // APN value part (IEI 0x28), nil if absent
+	ProtocolConfigurationOptions         *nas.ProtocolConfigurationOptions // optional (IEI 0x27)
+	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
+	Unrecognized                         []nas.RawIE
 }
 
 // esmInformationResponseIEs are the optional IEs of an ESM INFORMATION RESPONSE
@@ -76,6 +74,7 @@ type ESMInformationResponse struct {
 var esmInformationResponseIEs = []nas.OptionalIE{
 	{IEI: ieiAccessPointName, Format: nas.IETLV, Name: "Access point name"},
 	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
+	{IEI: ieiExtendedProtocolConfigurationOptions, Format: nas.IETLVE, Name: "Extended protocol configuration options"},
 }
 
 // AppendBinary encodes the ESM INFORMATION RESPONSE message.
@@ -103,6 +102,15 @@ func (m *ESMInformationResponse) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiProtocolConfigurationOptions, raw)
+	}
+
+	if m.ExtendedProtocolConfigurationOptions != nil {
+		raw, err := m.ExtendedProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiExtendedProtocolConfigurationOptions, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -142,6 +150,13 @@ func ParseESMInformationResponse(b []byte) (*ESMInformationResponse, error) {
 			}
 
 			m.ProtocolConfigurationOptions = &parsed
+		case ieiExtendedProtocolConfigurationOptions:
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
+			if err != nil {
+				return false, err
+			}
+
+			m.ExtendedProtocolConfigurationOptions = &parsed
 		default:
 			return false, nil
 		}

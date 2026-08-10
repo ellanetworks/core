@@ -50,7 +50,7 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 		t.Fatal("abort-only finalizer not run after retransmissions exhausted")
 	}
 
-	if ue.Conn().releasing {
+	if ue.ReleasingForTest() {
 		t.Fatal("abort-only guard released the UE; expected it to stay connected")
 	}
 
@@ -136,7 +136,7 @@ func TestNASGuardStoppedByResponse(t *testing.T) {
 	// The guard is cancelled, so after the timeout window nothing mutates the UE.
 	time.Sleep(50 * time.Millisecond)
 
-	if ue.Conn().releasing {
+	if ue.ReleasingForTest() {
 		t.Fatal("UE released despite the guarded response arriving")
 	}
 

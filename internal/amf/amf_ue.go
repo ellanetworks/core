@@ -888,3 +888,17 @@ func (ue *UeContext) IsUserLocationEmpty() bool {
 		loc.NrLocation == nil &&
 		loc.N3gaLocation == nil
 }
+
+func (ue *UeContext) DeleteSmContextRef(pduSessionID uint8, ref string) bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	sc, ok := ue.SmContextList[pduSessionID]
+	if !ok || sc.Ref != ref {
+		return false
+	}
+
+	delete(ue.SmContextList, pduSessionID)
+
+	return true
+}

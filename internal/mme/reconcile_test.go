@@ -518,3 +518,71 @@ func TestReconcileUEIdleNoPanic(t *testing.T) {
 
 	m.ReconcileUE(context.Background(), ue)
 }
+
+// TS 24.301 §8.3.18.9 and §8.3.18.13
+func TestModifyBearerFollowsTheConnectionsPCOElement(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		transferred  bool
+		wantExtended bool
+	}{
+		{"transferred from a PDU session", true, true},
+		{"ordinary PDN connection", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newTestMME(t)
+			ue, cc := connectedBearerUE(t, m)
+
+			// The UE advertises ePCO support: UE network capability octet 8, bit 8.
+			ue.SetUESecurityCapability(eps.UENetworkCapability{HasUMTS: true, Rest: []byte{0x00, 0x80, 0x20}}, nil, MintAuthProofForTrackingAreaUpdate())
+
+			p := testPDN(ue)
+			p.Transferred = tc.transferred
+
+			qos, err := ResolveQoSByAPN(context.Background(), m, ue.imsiOrEmpty(), p.Apn)
+			if err != nil {
+				t.Fatalf("resolve QoS: %v", err)
+			}
+
+			before := cc.count()
+
+			m.modifyBearer(context.Background(), ue, ue.Conn(), p, qos, true, false, false)
+
+			if cc.count() == before {
+				t.Fatal("no MODIFY EPS BEARER CONTEXT REQUEST was sent")
+			}
+
+			wire := decodeDownlinkNAS(t, cc.sent[len(cc.sent)-1])
+
+			plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
+			if err != nil {
+				t.Fatalf("unprotect downlink: %v", err)
+			}
+
+			req, err := eps.ParseModifyEPSBearerContextRequest(plain)
+			if err != nil {
+				t.Fatalf("parse Modify request: %v", err)
+			}
+
+			if tc.wantExtended {
+				if req.ExtendedProtocolConfigurationOptions == nil {
+					t.Error("the modification sent the classic element to a connection that uses the extended one")
+				}
+
+				if req.ProtocolConfigurationOptions != nil {
+					t.Error("both elements were sent; §8.3.18.9/.13 make them exclusive")
+				}
+
+				return
+			}
+
+			if req.ProtocolConfigurationOptions == nil {
+				t.Error("the modification sent no classic element to a connection that uses it")
+			}
+
+			if req.ExtendedProtocolConfigurationOptions != nil {
+				t.Error("the extended element went to a connection that never took it")
+			}
+		})
+	}
+}

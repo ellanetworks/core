@@ -237,7 +237,7 @@ func TestPDUSessionTypeRejectCause(t *testing.T) {
 		typeIPv6         = fgs.PDUSessionTypeIPv6
 		typeIPv4v6       = fgs.PDUSessionTypeIPv4v6
 		typeUnstructured = uint8(4)
-		typeEthernet     = uint8(3)
+		typeEthernet     = uint8(5)
 	)
 
 	tests := []struct {
@@ -252,10 +252,11 @@ func TestPDUSessionTypeRejectCause(t *testing.T) {
 		{"IPv6 requested + no pools", uint8(typeIPv6), "", "", fgs.GSMCauseUnknownPDUSessionType},
 		{"IPv4 requested + no pools", uint8(typeIPv4), "", "", fgs.GSMCauseUnknownPDUSessionType},
 		{"IPv4v6 requested + no pools", uint8(typeIPv4v6), "", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"Unstructured requested + no pools", typeUnstructured, "", "", fgs.GSMCauseUnknownPDUSessionType},
 		{"Unstructured requested + IPv4-only pool", typeUnstructured, "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
 		{"Unstructured requested + IPv6-only pool", typeUnstructured, "", "2001:db8::/32", fgs.GSMCauseUnknownPDUSessionType},
 		{"Ethernet requested + IPv4-only pool", typeEthernet, "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
-		{"Ethernet requested + no pools", typeEthernet, "", "", fgs.GSMCauseUnknownPDUSessionType},
+		{"IPv4v6 requested + IPv4-only pool", uint8(typeIPv4v6), "10.0.0.0/24", "", fgs.GSMCauseUnknownPDUSessionType},
 	}
 
 	for _, tc := range tests {

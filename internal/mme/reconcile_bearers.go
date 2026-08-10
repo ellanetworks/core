@@ -50,7 +50,7 @@ func (m *MME) ReconcileBearersToRAN(ctx context.Context, ue *UeContext, want RAN
 			continue
 		}
 
-		if err := m.Session.ModifyEPSSession(ctx, ue.IMSI(), b.Ebi, b.EnbFTEID); err != nil {
+		if err := m.Session.ModifyEPSSession(ctx, p.SessionRef, b.Ebi, b.EnbFTEID); err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to switch an EPS session downlink to the RAN endpoint",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("e-rab-id", b.Ebi), zap.Error(err))
 

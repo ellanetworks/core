@@ -3,7 +3,11 @@
 
 package eps
 
-import "github.com/ellanetworks/core/nas"
+import (
+	"fmt"
+
+	"github.com/ellanetworks/core/nas"
+)
 
 // ModifyEPSBearerContextRequest is the MODIFY EPS BEARER CONTEXT REQUEST
 // (TS 24.301): the ESM header followed by entirely optional IEs. The
@@ -12,15 +16,13 @@ import "github.com/ellanetworks/core/nas"
 // carrying a changed DNS server (TS 24.008) — without deactivating the
 // bearer.
 type ModifyEPSBearerContextRequest struct {
-	EPSBearerIdentity            EPSBearerIdentity
-	PTI                          nas.ProcedureTransactionIdentity
-	NewEPSQoS                    *EPSQoS  // optional (IEI 0x5B)
-	APNAMBR                      *APNAMBR // optional (IEI 0x5E)
-	ProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
-
-	// Unrecognized carries the optional information elements this message does
-	// not model, so they survive decoding and re-encode unchanged.
-	Unrecognized []nas.RawIE
+	EPSBearerIdentity                    EPSBearerIdentity
+	PTI                                  nas.ProcedureTransactionIdentity
+	NewEPSQoS                            *EPSQoS  // optional (IEI 0x5B)
+	APNAMBR                              *APNAMBR // optional (IEI 0x5E)
+	ProtocolConfigurationOptions         *nas.ProtocolConfigurationOptions
+	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
+	Unrecognized                         []nas.RawIE
 }
 
 // modifyEPSBearerContextRequestIEs are the optional IEs Ella Core sends in a
@@ -30,6 +32,7 @@ var modifyEPSBearerContextRequestIEs = []nas.OptionalIE{
 	{IEI: ieiNegotiatedLLCSAPI, Format: nas.IETV3, Len: 1, Name: "Negotiated LLC SAPI"},
 	{IEI: ieiAPNAMBR, Format: nas.IETLV, Name: "APN-AMBR"},
 	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
+	{IEI: ieiExtendedProtocolConfigurationOptions, Format: nas.IETLVE, Name: "Extended protocol configuration options"},
 }
 
 // AppendBinary encodes the MODIFY EPS BEARER CONTEXT REQUEST.
@@ -66,6 +69,15 @@ func (m *ModifyEPSBearerContextRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiProtocolConfigurationOptions, raw)
+	}
+
+	if m.ExtendedProtocolConfigurationOptions != nil {
+		raw, err := m.ExtendedProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("nas/eps: encode extended protocol configuration options: %w", err)
+		}
+
+		o.TLVE(ieiExtendedProtocolConfigurationOptions, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -112,6 +124,13 @@ func ParseModifyEPSBearerContextRequest(b []byte) (*ModifyEPSBearerContextReques
 			}
 
 			m.ProtocolConfigurationOptions = &parsed
+		case ieiExtendedProtocolConfigurationOptions:
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCONetworkToMS)
+			if err != nil {
+				return false, err
+			}
+
+			m.ExtendedProtocolConfigurationOptions = &parsed
 		default:
 			return false, nil
 		}

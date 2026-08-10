@@ -24,21 +24,33 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
+	smContext.Mutex.Lock()
+
+	onEPS := smContext.Access == Access4G
+	policy, tunnel := smContext.PolicyData, smContext.Tunnel
+	pduSessionType, supi, pduSessionID, snssai := smContext.PDUSessionType, smContext.Supi, smContext.PDUSessionID, smContext.Snssai
+
+	smContext.Mutex.Unlock()
+
 	// A 4G EPS session is paged via the MME (TS 23.401).
-	if smContext.IsEPS() {
+	if onEPS {
 		if s.mme == nil {
-			return fmt.Errorf("no MME registered to page EPS UE %s", smContext.Supi.IMSI())
+			return fmt.Errorf("no MME registered to page EPS UE %s", supi.IMSI())
 		}
 
-		return s.mme.Page(ctx, smContext.Supi.IMSI())
+		return s.mme.Page(ctx, supi.IMSI())
 	}
 
-	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
+	if policy == nil || tunnel == nil {
+		return fmt.Errorf("session for seid %d has no user plane to page for", report.SEID)
+	}
+
+	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, tunnel.N3TEID, tunnel.N3IPv4, tunnel.N3IPv6, nasToNgapPDUSessionType(pduSessionType))
 	if err != nil {
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 	}
 
-	if err := s.amf.N2TransferOrPage(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n2Pdu); err != nil {
+	if err := s.amf.N2TransferOrPage(ctx, supi, pduSessionID, snssai, n2Pdu); err != nil {
 		return fmt.Errorf("failed to send N1N2MessageTransfer to AMF: %v", err)
 	}
 

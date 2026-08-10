@@ -53,6 +53,7 @@ type RegistrationRequest struct {
 	UplinkDataStatus        *PSIBitmap      // IEI 0x40
 	PDUSessionStatus        *PSIBitmap      // IEI 0x50
 	AllowedPDUSessionStatus *PSIBitmap      // IEI 0x25
+	UEStatus                *UEStatus       // IEI 0x2B
 	RequestedDRXParameters  *DRXParameter   // IEI 0x51
 	NASMessageContainer     []byte          // IEI 0x71
 	MICOIndication          *MICOIndication // IEI 0xB0 (type 1)
@@ -116,12 +117,6 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiGMMCapability, raw)
 	}
 
-	// Table order (0x17 precedes 0x2E), so a decoded message re-encodes with its
-	// elements in the order TS 24.501 table 8.2.6.1.1 lists.
-	if m.S1UENetworkCapability != nil {
-		o.TLV(ieiS1UENetworkCapability, m.S1UENetworkCapability)
-	}
-
 	if m.UESecurityCapability != nil {
 		raw, err := m.UESecurityCapability.MarshalBinary()
 		if err != nil {
@@ -138,6 +133,12 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiRequestedNSSAI, raw)
+	}
+
+	// Table 8.2.6.1.1 orders 2E, 2F, 52 then 17, so a decoded message re-encodes
+	// with its elements in the order the table lists.
+	if m.S1UENetworkCapability != nil {
+		o.TLV(ieiS1UENetworkCapability, m.S1UENetworkCapability)
 	}
 
 	if m.UplinkDataStatus != nil {
@@ -160,6 +161,10 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 
 	if m.MICOIndication != nil {
 		o.TV1(ieiMICOIndication, m.MICOIndication.Nibble())
+	}
+
+	if m.UEStatus != nil {
+		o.TLV(ieiUEStatus, m.UEStatus.MarshalBinary())
 	}
 
 	if m.AllowedPDUSessionStatus != nil {
@@ -305,6 +310,13 @@ func ParseRegistrationRequest(b []byte) (*RegistrationRequest, error) {
 			}
 
 			out.PDUSessionStatus = &bitmap
+		case ieiUEStatus:
+			parsed, err := ParseUEStatus(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.UEStatus = &parsed
 		case ieiAllowedPDUSessionStatus:
 			bitmap, err := ParsePSIBitmap(value)
 			if err != nil {
@@ -884,4 +896,28 @@ func boolBit(set bool, pos uint8) uint8 {
 	}
 
 	return 0
+}
+
+// UEStatus is the UE status information element (TS 24.501 §9.11.3.56): the
+// UE's registration state in each system, which is what tells the network a
+// registration is an inter-system move.
+type UEStatus struct {
+	// S1ModeReg reports the UE is in EMM-REGISTERED state (octet 3, bit 1).
+	S1ModeReg bool
+	// N1ModeReg reports the UE is in 5GMM-REGISTERED state (octet 3, bit 2).
+	N1ModeReg bool
+}
+
+// ParseUEStatus decodes a UE status IE value.
+func ParseUEStatus(b []byte) (UEStatus, error) {
+	if len(b) != 1 {
+		return UEStatus{}, fmt.Errorf("nas/fgs: UE status is %d octets, want 1", len(b))
+	}
+
+	return UEStatus{S1ModeReg: b[0]&0x01 != 0, N1ModeReg: b[0]&0x02 != 0}, nil
+}
+
+// MarshalBinary encodes the UE status IE value.
+func (u UEStatus) MarshalBinary() []byte {
+	return []byte{boolBit(u.S1ModeReg, 0) | boolBit(u.N1ModeReg, 1)}
 }

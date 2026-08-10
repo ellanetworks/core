@@ -3,32 +3,26 @@
 
 package eps
 
-import "github.com/ellanetworks/core/nas"
+import (
+	"fmt"
+
+	"github.com/ellanetworks/core/nas"
+)
 
 // ActivateDefaultEPSBearerContextRequest is the ACTIVATE DEFAULT EPS BEARER
 // CONTEXT REQUEST message (TS 24.301), sent by the MME to set up the
 // default bearer. PDNAddress carries the assigned UE IP.
 type ActivateDefaultEPSBearerContextRequest struct {
-	EPSBearerIdentity EPSBearerIdentity
-	PTI               nas.ProcedureTransactionIdentity
-	EPSQoS            EPSQoS
-	AccessPointName   APN
-	PDNAddress        PDNAddress
-	// APNAMBR, when set, is the APN aggregate maximum bit rate IE value (TS
-	// 24.301) — the EPS per-APN session-AMBR signaled to the UE for
-	// uplink enforcement. Encoded as the APN-AMBR TLV optional IE (IEI 0x5E).
-	APNAMBR *APNAMBR
-	// ESMCause, when set, carries the reason the network assigned a narrower PDN
-	// type than the UE requested, e.g. #50/#51 on an IPv4v6 downgrade (TS 24.301).
-	// Encoded as the ESM cause TV optional IE (IEI 0x58).
-	Cause *ESMCause
-	// ProtocolConfigurationOptions carries the network-to-UE PCO value (e.g. DNS
-	// server addresses), encoded as the PCO TLV optional IE (IEI 0x27).
-	ProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
-
-	// Unrecognized carries the optional information elements this message does
-	// not model, so they survive decoding and re-encode unchanged.
-	Unrecognized []nas.RawIE
+	EPSBearerIdentity                    EPSBearerIdentity
+	PTI                                  nas.ProcedureTransactionIdentity
+	EPSQoS                               EPSQoS
+	AccessPointName                      APN
+	PDNAddress                           PDNAddress
+	APNAMBR                              *APNAMBR
+	Cause                                *ESMCause
+	ProtocolConfigurationOptions         *nas.ProtocolConfigurationOptions
+	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
+	Unrecognized                         []nas.RawIE
 }
 
 // activateDefaultEPSBearerContextRequestIEs are the optional IEs Ella Core emits
@@ -40,6 +34,7 @@ var activateDefaultEPSBearerContextRequestIEs = []nas.OptionalIE{
 	{IEI: ieiAPNAMBR, Format: nas.IETLV, Name: "APN-AMBR"},
 	{IEI: ieiESMCause, Format: nas.IETV3, Len: 1, Name: "ESM cause"},
 	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
+	{IEI: ieiExtendedProtocolConfigurationOptions, Format: nas.IETLVE, Name: "Extended protocol configuration options"},
 }
 
 // AppendBinary encodes the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST message.
@@ -90,6 +85,15 @@ func (m *ActivateDefaultEPSBearerContextRequest) AppendBinary(b []byte) ([]byte,
 		}
 
 		o.TLV(ieiProtocolConfigurationOptions, raw)
+	}
+
+	if m.ExtendedProtocolConfigurationOptions != nil {
+		raw, err := m.ExtendedProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("nas/eps: encode extended protocol configuration options: %w", err)
+		}
+
+		o.TLVE(ieiExtendedProtocolConfigurationOptions, raw)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -166,6 +170,13 @@ func ParseActivateDefaultEPSBearerContextRequest(b []byte) (*ActivateDefaultEPSB
 			}
 
 			m.ProtocolConfigurationOptions = &parsed
+		case ieiExtendedProtocolConfigurationOptions:
+			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCONetworkToMS)
+			if err != nil {
+				return false, err
+			}
+
+			m.ExtendedProtocolConfigurationOptions = &parsed
 		default:
 			return false, nil
 		}

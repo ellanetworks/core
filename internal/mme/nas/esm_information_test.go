@@ -5,6 +5,7 @@ package nas
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
@@ -91,7 +92,7 @@ func TestESMInformationResponseResumesTheAttach(t *testing.T) {
 		t.Fatalf("message count is %d, want 2 (ESM Information Request, Initial Context Setup)", len(cc.sent))
 	}
 
-	if ue.DefaultEBI == 0 {
+	if ue.PDNCount() == 0 {
 		t.Error("no default bearer was activated after the ESM information arrived")
 	}
 }
@@ -214,7 +215,7 @@ func TestAttachWithoutESMInformationTransferFlagDoesNotRequestIt(t *testing.T) {
 		t.Error("an ESM information procedure was started for a UE that did not defer")
 	}
 
-	if ue.DefaultEBI == 0 {
+	if ue.PDNCount() == 0 {
 		t.Error("no default bearer was activated")
 	}
 
@@ -285,4 +286,27 @@ func mustPDNConnectivityRequest(t *testing.T, pti uint8, eit bool) []byte {
 	}
 
 	return b
+}
+
+// TS 24.301 §6.5.1.2 b)1)
+func TestESMInformationResponseKeepsTheAttachPDUSessionIdentity(t *testing.T) {
+	m := esmInfoTestMME()
+	ue, _ := esmInfoAttachUe(t, m, 3)
+
+	activateDefaultBearer(context.Background(), m, ue, ue.Conn())
+
+	ue.RequestedPDUSessionID = 7
+
+	dnsOnly := nas.NewProtocolConfigurationOptions(nas.DNSServers(netip.MustParseAddr("8.8.8.8")), 1400)
+
+	apn := eps.APN("internet")
+	handleESMInformationResponse(context.Background(), m, ue, ue.Conn(), &eps.ESMInformationResponse{
+		PTI:                          3,
+		AccessPointName:              &apn,
+		ProtocolConfigurationOptions: &dnsOnly,
+	})
+
+	if ue.RequestedPDUSessionID != 7 {
+		t.Errorf("PDU session identity = %d, want the 7 the attach carried: a response that names none does not withdraw it, and zeroing it costs the UE its IP preservation", ue.RequestedPDUSessionID)
+	}
 }

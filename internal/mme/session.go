@@ -22,7 +22,6 @@ func takeAllPDNs(ue *UeContext) []*PdnConnection {
 	}
 
 	ue.Pdns = nil
-	ue.DefaultEBI = 0
 
 	return out
 }
@@ -41,22 +40,29 @@ func (m *MME) SnapshotPDNs(ue *UeContext) []*PdnConnection {
 	return out
 }
 
-// ReleasePDN tears down a PDN connection's anchor session and removes it from the
-// UE, freeing its EPS bearer identity.
 func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
-	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
-		logger.MmeLog.Warn("failed to release PDN connection session",
-			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
-	}
+	m.releaseAnchorSession(ctx, ue, p)
 
 	ue.mu.Lock()
-	delete(ue.Pdns, p.Ebi)
-
-	if ue.DefaultEBI == p.Ebi {
-		ue.DefaultEBI = 0
+	if held, ok := ue.Pdns[p.Ebi]; ok && held == p {
+		delete(ue.Pdns, p.Ebi)
 	}
 
+	last := len(ue.Pdns) == 0
 	ue.mu.Unlock()
+
+	if last {
+		m.DeregisterEmptyUE(ctx, ue)
+	}
+}
+
+func (m *MME) DeregisterEmptyUE(ctx context.Context, ue *UeContext) {
+	if ue.EMMState() == EMMDeregistered {
+		return
+	}
+
+	ue.TransitionTo(EMMDeregistered)
+	m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
 }
 
 // DeactivatePDN completes p's teardown in the MME: an additional PDN or a
@@ -78,10 +84,14 @@ func (m *MME) DeactivatePDN(ctx context.Context, ue *UeContext, p *PdnConnection
 // them from the UE.
 func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext) {
 	for _, p := range takeAllPDNs(ue) {
-		if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
-			logger.MmeLog.Warn("failed to release PDN connection session",
-				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
-		}
+		m.releaseAnchorSession(ctx, ue, p)
+	}
+}
+
+func (m *MME) releaseAnchorSession(ctx context.Context, ue *UeContext, p *PdnConnection) {
+	if err := m.Session.ReleaseEPSSession(ctx, p.SessionRef); err != nil {
+		logger.MmeLog.Warn("failed to release PDN connection session",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 	}
 }
 
@@ -89,9 +99,49 @@ func (m *MME) ReleaseAllSessions(ctx context.Context, ue *UeContext) {
 // idle UE triggers paging (TS 23.401), without releasing the sessions.
 func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 	for _, p := range m.SnapshotPDNs(ue) {
-		if err := m.Session.DeactivateEPSSession(ctx, ue.IMSI(), p.Ebi); err != nil {
+		if err := m.Session.DeactivateEPSSession(ctx, p.SessionRef); err != nil {
 			logger.MmeLog.Warn("failed to deactivate PDN connection session for paging",
 				zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
 		}
 	}
+}
+
+func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string) {
+	ue, ok := m.LookupUeByIMSI(imsi)
+	if !ok {
+		return
+	}
+
+	p, last := takePDNByRef(ue, ebi, ref)
+	if p == nil {
+		logger.From(ctx, logger.MmeLog).Debug("ignoring a transfer report for a PDN connection this MME no longer holds",
+			zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.String("ref", ref))
+
+		return
+	}
+
+	m.StopESMGuard(p)
+
+	logger.From(ctx, logger.MmeLog).Info("PDN connection moved to 5GS; dropping the EPS routing context",
+		zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.Bool("last-pdn", last))
+
+	// TS 23.502 §4.11.2.3
+	if last {
+		ue.TransitionTo(EMMDeregistered)
+		m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+	}
+}
+
+func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	p, ok := ue.Pdns[ebi]
+	if !ok || p.SessionRef != ref {
+		return nil, false
+	}
+
+	delete(ue.Pdns, ebi)
+
+	return p, len(ue.Pdns) == 0
 }

@@ -42,6 +42,14 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
+	}
+
+	if smContext.PolicyData == nil {
+		return nil, fmt.Errorf("sm context has no policy: %s", smContextRef)
+	}
+
 	if err := handleHandoverRequiredTransfer(n2Data); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle handover required transfer")
@@ -145,6 +153,10 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 
 	smContext.handoverSourceAN = nil
 
+	if smContext.Tunnel == nil {
+		return fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
+	}
+
 	if smContext.Tunnel.Activated {
 		if smContext.PFCPContext == nil {
 			span.RecordError(fmt.Errorf("pfcp session context not found"))
@@ -166,7 +178,7 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 			return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 		}
 
-		s.registerIPv6SessionIfNeeded(ctx, smContext)
+		s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
 		logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
 			logger.SUPI(smContext.Supi.String()),
@@ -187,7 +199,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	source := smContext.Tunnel.AN
 	smContext.handoverSourceAN = &source
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
 
 	return nil
 }
@@ -249,7 +261,7 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 
 	smContext.handoverSourceAN = nil
 
-	smContext.bindAccessTunnel(*source)
+	smContext.bindAccessTunnel(*source, Access5G)
 
 	if !smContext.Tunnel.Activated || smContext.PFCPContext == nil {
 		return nil
@@ -298,12 +310,18 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
 	}
 
+	restoreBinding := smContext.stageAccessBinding()
+
 	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
 	if err != nil {
+		restoreBinding()
+
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
 	if smContext.PFCPContext == nil {
+		restoreBinding()
+
 		return nil, fmt.Errorf("pfcp session context not found for upf")
 	}
 
@@ -312,11 +330,13 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 		"",
 		pdrList, farList, nil,
 	)); err != nil {
+		restoreBinding()
+
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
 	// Re-register the IPv6 session with the new gNB tunnel endpoint.
-	s.registerIPv6SessionIfNeeded(ctx, smContext)
+	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -354,7 +374,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 		return err
 	}
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel))
+	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
 
 	return nil
 }

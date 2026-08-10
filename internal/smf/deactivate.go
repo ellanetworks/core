@@ -15,9 +15,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// DeactivateSmContext switches the downlink FAR to buffering when the UE goes
-// idle, via a PFCP session modification.
 func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
+	return s.deactivateSession(ctx, smContextRef, Access5G)
+}
+
+func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by AccessType) error {
 	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -37,6 +39,13 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
+
+	if smContext.Access != by {
+		logger.WithTrace(ctx, logger.SmfLog).Debug("skipping deactivation for an access that no longer serves the session",
+			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+		return nil
+	}
 
 	// Leave any network-requested procedure timer running: CM/ECM-IDLE is resolved
 	// by paging, not by abandoning the procedure (TS 24.501 §6.3.2.5/§6.3.3.5).

@@ -219,10 +219,15 @@ func TestAttachNetworkRoundTrips(t *testing.T) {
 }
 
 func TestNetworkFeatureSupportRejectsAnOverlongValue(t *testing.T) {
-	in := NetworkFeatureSupport{IMSVoPS: true, HasOctet4: true, Rest: []byte{0x00, 0x00}}
-
-	if b, err := in.MarshalBinary(); err == nil {
-		t.Fatalf("MarshalBinary = % x, nil, want an error for a %d-octet value", b, len(b))
+	for name, in := range map[string]NetworkFeatureSupport{
+		"declared": {IMSVoPS: true, HasOctet4: true, Rest: []byte{0x00, 0x00}},
+		"implied":  {IMSVoPS: true, IWKN26: true, Rest: []byte{0x00, 0x00}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if b, err := in.MarshalBinary(); err == nil {
+				t.Fatalf("MarshalBinary = % x, nil, want an error for a %d-octet value", b, len(b))
+			}
+		})
 	}
 }
 
