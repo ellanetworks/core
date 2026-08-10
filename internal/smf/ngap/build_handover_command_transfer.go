@@ -7,22 +7,14 @@ package ngap
 
 import (
 	"fmt"
-	"net/netip"
 
 	libngap "github.com/ellanetworks/core/ngap"
 )
 
-func BuildHandoverCommandTransfer(teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr) ([]byte, error) {
-	tla, err := encodeTransportLayerAddress(n3IPv4, n3IPv6)
-	if err != nil {
-		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
-	}
-
-	transfer := libngap.HandoverCommandTransfer{
-		DLForwardingUPTNLInformation: &libngap.UPTransportLayerInformation{
-			GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
-		},
-	}
+// Every IE of the transfer is optional (TS 38.413 §9.3.4.10); the core offers no
+// forwarding endpoint, so the source NG-RAN node is given none.
+func BuildHandoverCommandTransfer() ([]byte, error) {
+	transfer := libngap.HandoverCommandTransfer{}
 
 	buf, err := transfer.Marshal()
 	if err != nil {

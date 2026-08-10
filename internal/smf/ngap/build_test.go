@@ -54,6 +54,60 @@ func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
 	}
 }
 
+func TestBuildHandoverRequestTransfer(t *testing.T) {
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
+	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
+	addr := netip.MustParseAddr("10.3.0.2")
+
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, libngap.PDUSessionTypeIPv4)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	transfer, err := libngap.ParsePDUSessionResourceSetupRequestTransfer(buf)
+	if err != nil {
+		t.Fatalf("unmarshal PDUSessionResourceSetupRequestTransfer: %v", err)
+	}
+
+	if transfer.DataForwardingNotPossible == nil {
+		t.Fatal("Data Forwarding Not Possible: got absent, want present")
+	}
+
+	if *transfer.DataForwardingNotPossible != libngap.DataForwardingNotPossibleTrue {
+		t.Errorf("Data Forwarding Not Possible: got %d, want %d", *transfer.DataForwardingNotPossible, libngap.DataForwardingNotPossibleTrue)
+	}
+
+	if teid := uint32(transfer.ULNGUUPTNLInformation.GTPTunnel.GTPTEID); teid != 42 {
+		t.Errorf("TEID: got %d, want 42", teid)
+	}
+}
+
+func TestBuildHandoverRequestTransfer_NilAmbr(t *testing.T) {
+	_, err := ngap.BuildHandoverRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4)
+	if err == nil {
+		t.Fatal("expected error for nil ambr")
+	}
+}
+
+func TestBuildPDUSessionResourceSetupRequestTransfer_NoDataForwardingNotPossible(t *testing.T) {
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
+	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
+
+	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 42, netip.MustParseAddr("10.3.0.2"), netip.Addr{}, libngap.PDUSessionTypeIPv4)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	transfer, err := libngap.ParsePDUSessionResourceSetupRequestTransfer(buf)
+	if err != nil {
+		t.Fatalf("unmarshal PDUSessionResourceSetupRequestTransfer: %v", err)
+	}
+
+	if transfer.DataForwardingNotPossible != nil {
+		t.Errorf("Data Forwarding Not Possible: got %d, want absent", *transfer.DataForwardingNotPossible)
+	}
+}
+
 func TestBuildPDUSessionResourceSetupRequestTransfer_NilAmbr(t *testing.T) {
 	_, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4)
 	if err == nil {
@@ -124,9 +178,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_DualStack(t *testing.T) {
 }
 
 func TestBuildHandoverCommandTransfer(t *testing.T) {
-	addr := netip.MustParseAddr("192.168.1.100")
-
-	buf, err := ngap.BuildHandoverCommandTransfer(99, addr, netip.Addr{})
+	buf, err := ngap.BuildHandoverCommandTransfer()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -136,44 +188,16 @@ func TestBuildHandoverCommandTransfer(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	tunnel := transfer.DLForwardingUPTNLInformation.GTPTunnel
-	teid := uint32(tunnel.GTPTEID)
-
-	if teid != 99 {
-		t.Errorf("TEID: got %d, want 99", teid)
+	if transfer.DLForwardingUPTNLInformation != nil {
+		t.Errorf("DL Forwarding UP TNL Information: got %v, want absent", transfer.DLForwardingUPTNLInformation)
 	}
 
-	bs := tunnel.TransportLayerAddress
-	if len(bs)*8 != 32 {
-		t.Fatalf("BitLength: got %d, want 32", len(bs)*8)
+	if len(transfer.QosFlowToBeForwarded) != 0 {
+		t.Errorf("QoS Flow to be Forwarded List: got %d items, want 0", len(transfer.QosFlowToBeForwarded))
 	}
 
-	var ip [4]byte
-	copy(ip[:], []byte(bs))
-
-	if ip != [4]byte{192, 168, 1, 100} {
-		t.Errorf("IP: got %v, want [192 168 1 100]", ip)
-	}
-}
-
-func TestBuildHandoverCommandTransfer_DualStack(t *testing.T) {
-	ipv4 := netip.MustParseAddr("10.1.2.3")
-	ipv6 := netip.MustParseAddr("2001:db8::2")
-
-	buf, err := ngap.BuildHandoverCommandTransfer(55, ipv4, ipv6)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	transfer, err := libngap.ParseHandoverCommandTransfer(buf)
-	if err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-
-	bs := transfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress
-
-	if len(bs)*8 != 160 {
-		t.Fatalf("BitLength: got %d, want 160", len(bs)*8)
+	if len(transfer.DataForwardingResponseDRB) != 0 {
+		t.Errorf("Data Forwarding Response DRB List: got %d items, want 0", len(transfer.DataForwardingResponseDRB))
 	}
 }
 

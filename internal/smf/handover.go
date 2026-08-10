@@ -49,12 +49,12 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
+	n2Rsp, err := ngap.BuildHandoverRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
+		span.SetStatus(codes.Error, "failed to build handover request transfer")
 
-		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)
+		return nil, fmt.Errorf("build Handover Request Transfer Error: %v", err)
 	}
 
 	return n2Rsp, nil
@@ -105,7 +105,7 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6)
+	n2Rsp, err := ngap.BuildHandoverCommandTransfer()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build handover command transfer")
