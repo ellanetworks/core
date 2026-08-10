@@ -7,7 +7,6 @@ We welcome contributions from the community. This document provides guidelines f
 ### Pre-requisites
 
 You will need a Linux machine with the following software installed:
-
 - Docker
 - Go
 - Npm
