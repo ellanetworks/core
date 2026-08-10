@@ -25,6 +25,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idERABFailedtoSetupItemHOReqAck:             "ERABFailedtoSetupItemHOReqAck",
 	idERABAdmittedItem:                          "ERABAdmittedItem",
 	idERABToBeSetupItemHOReq:                    "ERABToBeSetupItemHOReq",
+	idDataForwardingNotPossible:                 "DataForwardingNotPossible",
 	idERABToBeSetupListBearerSUReq:              "ERABToBeSetupListBearerSUReq",
 	idERABToBeSetupItemBearerSUReq:              "ERABToBeSetupItemBearerSUReq",
 	idERABToBeSwitchedDLList:                    "ERABToBeSwitchedDLList",

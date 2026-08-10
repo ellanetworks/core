@@ -102,3 +102,78 @@ func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 		t.Errorf("TAI.TAC = %d, want 1", msg.TAI.TAC)
 	}
 }
+
+// erabHOReqExtensions encodes a ProtocolExtensionContainer for
+// ERABToBeSetupItemHOReq holding one unmodeled extension, optionally followed
+// by the modeled id-Data-Forwarding-Not-Possible.
+func erabHOReqExtensions(t *testing.T, unmodeledCrit Criticality, withModeled bool) []byte {
+	t.Helper()
+
+	count := int64(1)
+	if withModeled {
+		count = 2
+	}
+
+	w := per.NewWriter()
+
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxProtocolExtensions, count); err != nil {
+		t.Fatalf("ext count: %v", err)
+	}
+
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idRATType)); err != nil {
+		t.Fatalf("ext id: %v", err)
+	}
+
+	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(unmodeledCrit)); err != nil {
+		t.Fatalf("ext criticality: %v", err)
+	}
+
+	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
+		t.Fatalf("ext value: %v", err)
+	}
+
+	if withModeled {
+		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idDataForwardingNotPossible)); err != nil {
+			t.Fatalf("modeled ext id: %v", err)
+		}
+
+		if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(CriticalityIgnore)); err != nil {
+			t.Fatalf("modeled ext criticality: %v", err)
+		}
+
+		if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
+			t.Fatalf("modeled ext value: %v", err)
+		}
+	}
+
+	w.AlignToByte()
+
+	return w.Bytes()
+}
+
+func TestERABToBeSetupItemHOReqUnmodeledRejectExtension(t *testing.T) {
+	var ext ERABToBeSetupItemHOReqExtIEs
+
+	err := ext.UnmarshalPER(per.NewReader(erabHOReqExtensions(t, CriticalityReject, false)), per.Aligned)
+
+	var nc *notComprehendedIE
+	if !errors.As(err, &nc) {
+		t.Fatalf("err = %v, want the extension not comprehended", err)
+	}
+
+	if nc.ID != idRATType {
+		t.Errorf("reported id = %d, want %d", nc.ID, idRATType)
+	}
+}
+
+func TestERABToBeSetupItemHOReqUnmodeledIgnoreExtension(t *testing.T) {
+	var ext ERABToBeSetupItemHOReqExtIEs
+
+	if err := ext.UnmarshalPER(per.NewReader(erabHOReqExtensions(t, CriticalityIgnore, true)), per.Aligned); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if ext.DataForwardingNotPossible == nil {
+		t.Fatal("Data Forwarding Not Possible: got absent, want present alongside the ignored extension")
+	}
+}
