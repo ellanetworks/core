@@ -509,6 +509,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
 
+	// N26: each core is the other's peer for inter-system mobility. Ella runs both
+	// in one process, so the interface is the boundary rather than a protocol.
+	amfInstance.EPS = mmeInstance
+	mmeInstance.FiveGS = amfInstance
+
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 

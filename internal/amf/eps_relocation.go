@@ -12,18 +12,28 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// TransferableEPSSessions returns the PDU sessions that can become PDN
-// connections in EPS: those holding an EPS bearer identity
-// (TS 23.502 §4.11.1.2.1 step 2). A session without one is left behind and
-// released separately, because the UE would locally release it on arrival
-// anyway (TS 24.501 §6.1.4.1).
-func (ue *UeContext) TransferableEPSSessions() []interworking.PDNConnection {
+func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.PDNConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
+
+	var asked map[uint8]struct{}
+
+	if requested != nil {
+		asked = make(map[uint8]struct{}, len(requested))
+		for _, pduSessionID := range requested {
+			asked[pduSessionID] = struct{}{}
+		}
+	}
 
 	out := make([]interworking.PDNConnection, 0, len(ue.SmContextList))
 
 	for pduSessionID, sc := range ue.SmContextList {
+		if asked != nil {
+			if _, ok := asked[pduSessionID]; !ok {
+				continue
+			}
+		}
+
 		ebi, ok := ue.epsBearerIdentities[pduSessionID]
 		if !ok {
 			continue
@@ -40,8 +50,6 @@ func (ue *UeContext) TransferableEPSSessions() []interworking.PDNConnection {
 	return out
 }
 
-// ENBIdentityFromNGAP converts the Target ID of an NGAP Handover Required naming
-// an eNB into the neutral identity N26 carries (TS 38.413 §9.3.1.8).
 func ENBIdentityFromNGAP(target ngap.TargeteNBID) (interworking.ENBIdentity, error) {
 	bits, ok := map[ngap.NgENBIDKind]uint8{
 		ngap.NgENBIDMacro:      20,
@@ -60,13 +68,8 @@ func ENBIdentityFromNGAP(target ngap.TargeteNBID) (interworking.ENBIdentity, err
 	}, nil
 }
 
-// BuildForwardRelocationRequest assembles what the MME needs to prepare a
-// handover of this UE to EPS (TS 23.502 §4.11.1.2.1 step 3).
-//
-// It maps the security context, which consumes a downlink NAS COUNT, so it is
-// called once per handover attempt.
-func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdentity, sourceToTarget []byte) (interworking.ForwardRelocationRequest, *interworking.FiveGToEPSHandover, error) {
-	sessions := ue.TransferableEPSSessions()
+func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdentity, sourceToTarget []byte, requested []uint8) (interworking.ForwardRelocationRequest, *interworking.FiveGToEPSHandover, error) {
+	sessions := ue.TransferableEPSSessions(requested)
 	if len(sessions) == 0 {
 		return interworking.ForwardRelocationRequest{}, nil, ErrNoTransferableSessions
 	}

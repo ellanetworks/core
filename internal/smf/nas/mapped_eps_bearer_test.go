@@ -34,9 +34,7 @@ func acceptWithEBI(t *testing.T, ebi uint8) *fgs.PDUSessionEstablishmentAccept {
 	return acc
 }
 
-// A session with an EPS bearer identity tells the UE the EPS bearer context it
-// becomes on mobility to EPS, without which the UE locally releases the session
-// on moving (TS 24.501 §6.1.4.1, §9.11.4.8).
+// TS 24.501 §6.1.4.1, §9.11.4.8
 func TestEstablishmentAcceptCarriesTheMappedEPSBearerContext(t *testing.T) {
 	acc := acceptWithEBI(t, 5)
 
@@ -88,8 +86,7 @@ func TestEstablishmentAcceptCarriesTheMappedEPSBearerContext(t *testing.T) {
 	}
 }
 
-// The EBI-to-QFI mapping reaches the UE as QoS flow description parameter 07H
-// (TS 24.501 §9.11.4.12).
+// TS 24.501 §9.11.4.12
 func TestEstablishmentAcceptCarriesTheEPSBearerIdentityParameter(t *testing.T) {
 	acc := acceptWithEBI(t, 7)
 
@@ -116,7 +113,6 @@ func TestEstablishmentAcceptCarriesTheEPSBearerIdentityParameter(t *testing.T) {
 	}
 }
 
-// A session that cannot move to EPS carries neither.
 func TestEstablishmentAcceptWithoutAnEPSBearerIdentity(t *testing.T) {
 	acc := acceptWithEBI(t, 0)
 

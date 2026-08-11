@@ -215,9 +215,7 @@ func pduAddress(addrs *PDUSessionAddresses) *fgs.PDUAddress {
 	return a
 }
 
-// qosFlow builds the session's authorized QoS flow description, carrying the EPS
-// bearer identity the flow maps to when the session is EPS-interworking capable
-// (TS 24.501 §9.11.4.12).
+// TS 24.501 §9.11.4.12
 func qosFlow(qosData *models.QosData, epsBearerIdentity uint8) (fgs.QoSFlowDescription, error) {
 	flow := fgs.FiveQIQoSFlow(qosData.QFI, uint8(qosData.Var5qi), fgs.QoSFlowOpCreate)
 	if epsBearerIdentity == 0 {
@@ -234,13 +232,6 @@ func qosFlow(qosData *models.QosData, epsBearerIdentity uint8) (fgs.QoSFlowDescr
 	return flow, nil
 }
 
-// mappedEPSBearerContexts builds the default EPS bearer context the PDU session
-// becomes on mobility to EPS (TS 24.501 §9.11.4.8, TS 23.502 §4.11.1.4.1 step 9a).
-//
-// Ella carries one QoS flow per session, so the session maps to exactly one EPS
-// bearer: the default one. Its EPS QoS is the QCI the 5QI names — TS 23.502
-// Annex C makes the standardised values equal — and its APN-AMBR is the session
-// AMBR (TS 24.501 §6.1.4.1).
 func mappedEPSBearerContexts(epsBearerIdentity uint8, qosData *models.QosData, ambr *models.Ambr) (fgs.MappedEPSBearerContexts, error) {
 	epsQoS, err := eps.EPSQoS{QCI: uint8(qosData.Var5qi)}.MarshalBinary()
 	if err != nil {

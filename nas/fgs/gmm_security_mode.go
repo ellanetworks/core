@@ -109,9 +109,6 @@ func (a AdditionalSecurityInformation) MarshalBinary() ([]byte, error) { return 
 // SelectedEPSNASSecurityAlgorithms is the pair of EPS NAS algorithms carried in
 // the Selected EPS NAS security algorithms IE (TS 24.501 §9.11.3.25 → TS 24.301
 // §9.9.3.23): EPS ciphering (EEA) and EPS integrity (EIA).
-// The two fields are adjacent and would be interchangeable as bare octets, so
-// they carry the algorithm types: swapping them is then a compile error rather
-// than a security context both ends build differently.
 type SelectedEPSNASSecurityAlgorithms struct {
 	Ciphering nas.CipheringAlgorithm // EEA, bits 5-7
 	Integrity nas.IntegrityAlgorithm // EIA, bits 1-3

@@ -67,8 +67,6 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		zap.Uint32("target-mme-ue-id", uint32(targetMMEID)),
 		zap.Uint32("target-enb-ue-id", uint32(notify.ENBUES1APID)))
 
-	// No source eNB: the UE arrived from 5GS, and the source is released by the
-	// peer AMF once it is told the handover completed (TS 23.502 §4.11.1.2.1).
 	if sourceConn == nil {
 		m.CompleteRelocation(ctx, ue)
 

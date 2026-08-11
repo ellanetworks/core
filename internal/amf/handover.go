@@ -36,6 +36,7 @@ type handoverContext struct {
 	target     *UeConn
 	candidates []HandoverCandidate
 	admitted   map[uint8]struct{}
+	toEPS      bool
 }
 
 func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio, candidates []HandoverCandidate) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
@@ -70,6 +71,33 @@ func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn
 	return target, nh, ncc, true
 }
 
+func (a *AMF) stageRelocationToEPS(ue *UeContext, source *UeConn, candidates []HandoverCandidate) bool {
+	if ue == nil {
+		return false
+	}
+
+	if !ue.BeginKeyChainProc(procedure.N2Handover) {
+		return false
+	}
+
+	a.mu.Lock()
+	ue.handover = &handoverContext{state: hoPreparing, source: source, candidates: candidates, toEPS: true}
+	a.mu.Unlock()
+
+	return true
+}
+
+func (a *AMF) HandoverToEPSInProgress(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return ue.handover != nil && ue.handover.toEPS
+}
+
 func (a *AMF) SuperviseHandover(ue *UeContext, source, target *UeConn) {
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
@@ -101,9 +129,6 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn, candidates []
 	return nh, ncc, true
 }
 
-// handoverGuardExpiry abandons a stalled N2 handover when the supervision deadline elapses
-// before HANDOVER NOTIFY. It releases the half-prepared target; the source is left in place,
-// aborted on the radio by its own TNGRELOCprep/Overall timers (TS 38.413).
 func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Context) error {
 	return func(cctx context.Context) error {
 		amfUe := sourceUe.UeContext()
@@ -253,21 +278,9 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 	return true
 }
 
-// CancelHandover resolves a source-initiated HANDOVER CANCEL against the FSM,
-// atomically under the registry lock. A cancellable handover (preparing or
-// prepared) is cleared and aborted is true; a committing handover is left intact
-// for HANDOVER NOTIFY to finish (aborted false), so a cancel racing the unlocked
-// user-plane switch cannot strand the UE on a released target (TS 38.413 §8.4.5).
-//
-// target is the reserved target UeConn to release, non-nil whenever a handover is
-// aborted (hoPreparing or hoPrepared): TS 38.413 §8.4.5 requires freeing the target's
-// reserved resources on cancel. A prepared target is addressed by its full UE NGAP ID
-// pair; a still-preparing target (whose RAN-UE-NGAP-ID has not yet arrived, so it holds
-// RanUeNgapIDUnspecified) by its AMF-UE-NGAP-ID alone — ueContextReleaseCommandBytes
-// selects the alternative.
-func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
+func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, toEPS, aborted bool) {
 	if ue == nil {
-		return nil, false
+		return nil, false, false
 	}
 
 	a.mu.Lock()
@@ -280,6 +293,7 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 		// Too late to cancel: acknowledge but let the in-flight NOTIFY finish.
 	default:
 		target = ho.target
+		toEPS = ho.toEPS
 		detachAbandonedTargetLocked(ue, ho)
 		ue.handover = nil
 		aborted = true
@@ -291,16 +305,9 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 		ue.EndKeyChainProc(procedure.N2Handover)
 	}
 
-	return target, aborted
+	return target, toEPS, aborted
 }
 
-// UnbindHandoverTarget restores the source access tunnel after an abandoned N2
-// handover. It must run on every abandonment path, not just the ones that answer
-// the gNB: HANDOVER REQUEST ACKNOWLEDGE points the SMF's downlink FAR at the
-// target, and a snapshot left behind here is later restored onto a gNB the UE
-// was never on. Idempotent — the SMF no-ops when it holds no snapshot — so it is
-// safe on paths that never reached the acknowledge. Must not be called holding
-// a.mu; it calls into the SMF.
 func (a *AMF) UnbindHandoverTarget(ctx context.Context, ue *UeContext) {
 	if ue == nil {
 		return
@@ -314,12 +321,6 @@ func (a *AMF) UnbindHandoverTarget(ctx context.Context, ue *UeContext) {
 	}
 }
 
-// detachAbandonedTargetLocked unbinds the UE from a target UeConn staged for a
-// handover that will not complete. Left bound, the target's release takes the
-// "connection still carries a UE" arm of ReleaseUeConn and deactivates every PDU
-// session of a UE that never left the source — undoing the tunnel restore. The
-// success path must not use this: attachUeConnLocked moves the UE onto the
-// target and detaches the source instead. Caller holds a.mu.
 func detachAbandonedTargetLocked(ue *UeContext, ho *handoverContext) {
 	if ho == nil || ho.target == nil {
 		return

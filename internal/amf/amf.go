@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -173,6 +174,7 @@ type AMF struct {
 	Session                  SmfSbi
 	NAS                      NASHandler
 	LPPHandler               LPPHandler
+	EPS                      interworking.EPSPeer
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {

@@ -68,8 +68,6 @@ func relocationRequest(sessions ...interworking.PDNConnection) interworking.Forw
 	}
 }
 
-// relocationTarget stands in for the target eNB: it registers itself under the
-// Global eNB ID the source names and reports the HANDOVER REQUEST it receives.
 type relocationTarget struct {
 	conn *captureConn
 	m    *MME
@@ -84,8 +82,6 @@ func newRelocationTarget(t *testing.T, m *MME) *relocationTarget {
 	return &relocationTarget{conn: conn, m: m}
 }
 
-// awaitHandoverRequest waits for the HANDOVER REQUEST the relocation sends and
-// decodes it.
 func (r *relocationTarget) awaitHandoverRequest(t *testing.T) *s1ap.HandoverRequest {
 	t.Helper()
 
@@ -120,8 +116,6 @@ func (r *relocationTarget) awaitHandoverRequest(t *testing.T) *s1ap.HandoverRequ
 	return req
 }
 
-// admit answers the HANDOVER REQUEST the way the S1AP acknowledge handler does,
-// admitting every E-RAB but those named.
 func (r *relocationTarget) admit(t *testing.T, req *s1ap.HandoverRequest, refuse ...uint8) {
 	t.Helper()
 
@@ -192,8 +186,7 @@ func TestForwardRelocationHandsTheTargetENBTheMappedKeyChain(t *testing.T) {
 		t.Error("NH is not the one the peer derived")
 	}
 
-	// TS 33.501 §8.3.2 step 4: the UE EPS security capabilities the peer sent,
-	// not any the MME could have selected on its own.
+	// TS 33.501 §8.3.2 step 4
 	want := S1apSecurityCapabilities(relocatedNetworkCapability(req.SecurityContext.UESecurityCapability))
 	if hoReq.UESecurityCapabilities != want {
 		t.Errorf("UE security capabilities = %+v, want %+v", hoReq.UESecurityCapabilities, want)
@@ -251,8 +244,7 @@ func TestForwardRelocationTakesOverTheAnchorSessions(t *testing.T) {
 		t.Fatalf("ForwardRelocation: %v", err)
 	}
 
-	// TS 23.502 §4.11.1.2.1 step 4: the session moves, so the UE keeps its
-	// address and the anchor keeps its uplink tunnel.
+	// TS 23.502 §4.11.1.2.1 step 4
 	if sessions.lastRequest.RequestType != eps.RequestTypeHandover {
 		t.Errorf("request type = %v, want handover", sessions.lastRequest.RequestType)
 	}
@@ -437,7 +429,6 @@ func TestForwardRelocationRefusesASecondHandoverForTheSameSubscriber(t *testing.
 	}
 }
 
-// fakeFiveGSPeer records the completion notification the MME sends back.
 type fakeFiveGSPeer struct {
 	completed string
 	err       error

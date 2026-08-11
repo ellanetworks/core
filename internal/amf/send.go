@@ -1056,11 +1056,13 @@ func handoverCommandBytes(
 	admitted ngap.PDUSessionResourceHandoverList,
 	toRelease ngap.PDUSessionResourceToReleaseListHOCmd,
 	targetToSource ngap.TargetToSourceTransparentContainer,
+	nasSecurityParameters ngap.NASSecurityParametersFromNGRAN,
 ) ([]byte, error) {
 	msg := &ngap.HandoverCommand{
 		AMFUENGAPID:                        amfID,
 		RANUENGAPID:                        ranID,
 		HandoverType:                       handoverType,
+		NASSecurityParametersFromNGRAN:     nasSecurityParameters,
 		PDUSessionResourceHandoverList:     admitted,
 		PDUSessionResourceToReleaseList:    toRelease,
 		TargetToSourceTransparentContainer: targetToSource,
@@ -1077,10 +1079,28 @@ func (ueConn *UeConn) SendHandoverCommand(
 ) {
 	pkt, err := handoverCommandBytes(
 		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID),
-		ueConn.HandOverType, admitted, toRelease, targetToSource,
+		ueConn.HandOverType, admitted, toRelease, targetToSource, nil,
 	)
 	if err != nil {
 		logger.From(ctx, ueConn.Log).Error("failed to build Handover Command", zap.Error(err))
+		return
+	}
+
+	ueConn.SendNGAP(ctx, NGAPProcedureHandoverCommand, pkt)
+}
+
+func (ueConn *UeConn) SendHandoverCommandToEPS(
+	ctx context.Context,
+	toRelease ngap.PDUSessionResourceToReleaseListHOCmd,
+	targetToSource ngap.TargetToSourceTransparentContainer,
+	nasSecurityParameters ngap.NASSecurityParametersFromNGRAN,
+) {
+	pkt, err := handoverCommandBytes(
+		ngap.AMFUENGAPID(ueConn.AmfUeNgapID), ngap.RANUENGAPID(ueConn.RanUeNgapID),
+		ngap.HandoverTypeFiveGSToEPS, nil, toRelease, targetToSource, nasSecurityParameters,
+	)
+	if err != nil {
+		logger.From(ctx, ueConn.Log).Error("failed to build Handover Command to EPS", zap.Error(err))
 		return
 	}
 

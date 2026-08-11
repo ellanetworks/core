@@ -12,8 +12,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// InstallRelocatedSecurityContext takes into use an EPS security context the
-// peer core network node built for a handover to EPS (TS 33.501 §8.3.2 step 4).
+// TS 33.501 §8.3.2 step 4
 func (ue *UeContext) InstallRelocatedSecurityContext(in interworking.EPSSecurityContext, _ AuthProof) error {
 	knasEnc, err := epskeys.DeriveKNASEnc(in.KASME[:], in.Algorithms.Ciphering)
 	if err != nil {

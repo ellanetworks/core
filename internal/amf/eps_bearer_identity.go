@@ -49,6 +49,13 @@ func (ue *UeContext) ReleaseEPSBearerIdentity(pduSessionID uint8) {
 	delete(ue.epsBearerIdentities, pduSessionID)
 }
 
+func (ue *UeContext) ReleaseAllEPSBearerIdentities() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.epsBearerIdentities = nil
+}
+
 func (ue *UeContext) EPSBearerIdentity(pduSessionID uint8) (uint8, bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

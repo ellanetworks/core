@@ -69,7 +69,7 @@ func TestCancelHandover(t *testing.T) {
 			t.Fatal("MarkHandoverPrepared")
 		}
 
-		got, aborted := a.CancelHandover(ue)
+		got, _, aborted := a.CancelHandover(ue)
 		if !aborted {
 			t.Fatal("a prepared handover must be cancellable")
 		}
@@ -90,7 +90,7 @@ func TestCancelHandover(t *testing.T) {
 	t.Run("releases a preparing handover's reserved target", func(t *testing.T) {
 		a, ue, source, target := newPreparingHandover(t)
 
-		got, aborted := a.CancelHandover(ue)
+		got, _, aborted := a.CancelHandover(ue)
 		if !aborted {
 			t.Fatal("a preparing handover must be cancellable")
 		}
@@ -122,7 +122,7 @@ func TestCancelHandover(t *testing.T) {
 			t.Fatal("MarkHandoverCommitting")
 		}
 
-		got, aborted := a.CancelHandover(ue)
+		got, _, aborted := a.CancelHandover(ue)
 		if aborted {
 			t.Fatal("a committing handover must not be cancelled")
 		}
@@ -140,7 +140,7 @@ func TestCancelHandover(t *testing.T) {
 		a := amf.New(nil, nil, nil)
 		ue := amf.NewUeContext()
 
-		got, aborted := a.CancelHandover(ue)
+		got, _, aborted := a.CancelHandover(ue)
 		if aborted || got != nil {
 			t.Fatal("no in-flight handover: nothing to cancel or release")
 		}

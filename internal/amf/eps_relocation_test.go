@@ -35,8 +35,7 @@ func relocatableUE(t *testing.T) *amf.UeContext {
 
 var testTarget = interworking.ENBIdentity{PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"}, ID: 0x1234, Bits: 20, EPSTAC: 7}
 
-// Only sessions holding an EPS bearer identity transfer; the rest are left for
-// the source to release (TS 23.502 §4.11.1.2.1 step 2).
+// TS 23.502 §4.11.1.2.1 step 2
 func TestTransferableEPSSessions(t *testing.T) {
 	ue := relocatableUE(t)
 
@@ -44,7 +43,7 @@ func TestTransferableEPSSessions(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	got := ue.TransferableEPSSessions()
+	got := ue.TransferableEPSSessions(nil)
 	if len(got) != 1 {
 		t.Fatalf("got %d transferable sessions, want 1", len(got))
 	}
@@ -57,7 +56,7 @@ func TestTransferableEPSSessions(t *testing.T) {
 func TestBuildForwardRelocationRequest(t *testing.T) {
 	ue := relocatableUE(t)
 
-	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb})
+	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb}, nil)
 	if err != nil {
 		t.Fatalf("BuildForwardRelocationRequest: %v", err)
 	}
@@ -92,8 +91,6 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 	}
 }
 
-// A UE with nothing to transfer is refused before its security context is
-// mapped, so no downlink NAS COUNT is spent on a handover that cannot proceed.
 func TestBuildForwardRelocationRequestWithoutSessions(t *testing.T) {
 	ue := mappableUE(t)
 
@@ -102,7 +99,7 @@ func TestBuildForwardRelocationRequestWithoutSessions(t *testing.T) {
 		t.Fatalf("downlink counter: %v", err)
 	}
 
-	if _, _, err := ue.BuildForwardRelocationRequest(testTarget, nil); !errors.Is(err, amf.ErrNoTransferableSessions) {
+	if _, _, err := ue.BuildForwardRelocationRequest(testTarget, nil, nil); !errors.Is(err, amf.ErrNoTransferableSessions) {
 		t.Fatalf("error = %v, want ErrNoTransferableSessions", err)
 	}
 

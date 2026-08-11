@@ -41,6 +41,12 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
+	if msg.HandoverType == ngap.HandoverTypeFiveGSToEPS {
+		handoverRequiredToEPS(ctx, amfInstance, sourceUe, amfUe, msg)
+
+		return
+	}
+
 	if msg.HandoverType != ngap.HandoverTypeIntra5GS {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [unsupported Handover Type]",
 			zap.Uint8("handoverType", uint8(msg.HandoverType)))
@@ -50,9 +56,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	// TS 38.413 §9.2.3.1 pairs the Target ID alternative with the Handover Type,
-	// but the ASN.1 does not, so a targeteNB-ID can arrive under intra5gs. It
-	// names a target this AMF cannot reach either way.
 	if msg.TargetID.TargetRANNodeID == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Target ID is not an NG-RAN node]")
 

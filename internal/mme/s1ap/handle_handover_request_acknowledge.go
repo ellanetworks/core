@@ -79,8 +79,6 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
-	// No source eNB: the UE is arriving from 5GS, and the source gNB is commanded
-	// by the peer AMF rather than from here (TS 23.502 §4.11.1.2.1 steps 9-10).
 	if sourceConn == nil {
 		logger.From(ctx, logger.MmeLog).Info("Forward Relocation Response",
 			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)),
