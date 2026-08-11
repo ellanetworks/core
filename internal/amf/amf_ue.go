@@ -35,6 +35,9 @@ type SmContext struct {
 	Ref                string
 	Snssai             *models.Snssai
 	PduSessionInactive bool
+	// EPSBearerIdentity is the EPS bearer identity this PDU session becomes on
+	// mobility to EPS, 0 when none is assigned (TS 23.502 §4.11.1.4).
+	EPSBearerIdentity uint8
 }
 
 type UeContext struct {

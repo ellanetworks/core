@@ -242,7 +242,6 @@ func (ue *UeContext) NextDownlinkCountForTest() (nas.Count, error) {
 	return counter.Use()
 }
 
-// ForgetS1CapabilityForTest drops the stored S1 UE network capability.
 func (ue *UeContext) ForgetS1CapabilityForTest() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

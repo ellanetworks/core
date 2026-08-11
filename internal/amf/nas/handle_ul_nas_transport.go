@@ -293,7 +293,30 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		return
 	}
 
+	assignEPSBearerIdentity(ctx, amfInstance, ue, pduSessionID)
+
 	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
+}
+
+// assignEPSBearerIdentity gives a new PDU session the EPS bearer identity it
+// becomes on mobility to EPS (TS 23.502 §4.11.1.4). A UE that cannot move to EPS
+// needs none, and exhausting the space costs that session its EPS continuity
+// rather than the session itself.
+func assignEPSBearerIdentity(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, pduSessionID uint8) {
+	if !amfInstance.N26Enabled || !ue.SupportsS1Mode() {
+		return
+	}
+
+	ebi, err := ue.AllocateEPSBearerIdentity(pduSessionID)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("no EPS bearer identity for this PDU session, it will not transfer to EPS",
+			zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))
+
+		return
+	}
+
+	logger.From(ctx, logger.AmfLog).Debug("assigned EPS bearer identity",
+		zap.Uint8("pduSessionID", pduSessionID), zap.Uint8("ebi", ebi))
 }
 
 func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.ULNASTransport) nasreply.Disposition {

@@ -28,10 +28,6 @@ import (
 
 var nasSendTracer = otel.Tracer("ella-core/amf/nas/send")
 
-// armNASGuard supervises a UE-terminated NAS request: while the guard is enabled
-// it retransmits nasMsg as a downlink NAS transport on each timer expiry, up to
-// cfg.MaxRetryTimes, then runs onExhausted on the final expiry
-// (TS 24.501 §10.2 T3550/T3560/T3570 — 6 s ×4).
 func armNASGuard(conn *UeConn, ueConn *UeConn, cfg guard.TimerValue, name string, nasMsg []byte, onExhausted func()) {
 	conn.armNASGuardWith(cfg, name,
 		func(attempt int32) {
@@ -48,11 +44,6 @@ func armNASGuard(conn *UeConn, ueConn *UeConn, cfg guard.TimerValue, name string
 	)
 }
 
-// sendGmm builds a downlink 5GMM NAS message and hands it to the RAN over the
-// signalling connection. A build failure is an invariant violation logged at
-// Error (the message is dropped, failing safe); a transport failure is logged at
-// Warn — delivery assurance is owned by the procedure's retransmission timer
-// (TS 24.501), not the caller.
 func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute.KeyValue, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))
@@ -94,10 +85,6 @@ func SendDLNASTransport(ctx context.Context, ue *UeConn, payloadContainerType fg
 		})
 }
 
-// SendIdentityRequest builds and sends the IDENTITY REQUEST and arms its T3570
-// retransmission timer. On each expiry the request is retransmitted; on
-// exhaustion the identification procedure and any ongoing 5GMM procedure are
-// aborted and the UE is released (TS 24.501 §5.4.3.2).
 func SendIdentityRequest(ctx context.Context, amfInstance *AMF, ue *UeConn, typeOfIdentity fgs.MobileIdentityType) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send Identity Request: ue or amf ue is nil")
@@ -205,8 +192,6 @@ func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCa
 				return nil, err
 			}
 
-			// A secured UE discards an unprotected downlink; the plain form is for
-			// the rejects preceding security activation (TS 24.501 §4.4.4.2).
 			if !ue.SecureExchangeEstablished() {
 				return plain, nil
 			}
@@ -215,18 +200,10 @@ func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCa
 		})
 }
 
-// SendSecurityModeCommand builds and sends the SECURITY MODE COMMAND and arms
-// its T3560 retransmission timer. It returns an error only when the message
-// cannot be built (nothing goes in flight, so the caller releases the procedure);
-// a transport send failure is covered by T3560 and is not fatal.
 func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn) error {
 	return sendSecurityModeCommand(ctx, amfInstance, ue, BuildSecurityModeCommand)
 }
 
-// SendEPSNASAlgorithmsSecurityModeCommand sends the SECURITY MODE COMMAND that
-// only delivers the selected EPS NAS algorithms (TS 24.501 §5.4.2.2) and arms the
-// same T3560 timer. The UE answers with SECURITY MODE COMPLETE, which the
-// ordinary completion path handles.
 func SendEPSNASAlgorithmsSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn) error {
 	return sendSecurityModeCommand(ctx, amfInstance, ue, BuildEPSNASAlgorithmsSecurityModeCommand)
 }
@@ -579,10 +556,6 @@ func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byt
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureDownlinkNASTransport, pkt)
 }
 
-// downlinkUEAssociatedNRPPaTransportBytes builds a DOWNLINK UE-ASSOCIATED
-// NRPPa TRANSPORT (TS 38.413 §9.2.9.1). TS 38.413 §9.3.3.13 makes RoutingID an
-// OCTET STRING, so the caller's numeric id is laid out big-endian in four
-// octets — the width the LMF has always been addressed with.
 func downlinkUEAssociatedNRPPaTransportBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, routingID int64, nrppaPdu []byte) ([]byte, error) {
 	msg := &ngap.DownlinkUEAssociatedNRPPaTransport{
 		AMFUENGAPID: amfID,
@@ -596,9 +569,6 @@ func downlinkUEAssociatedNRPPaTransportBytes(amfID ngap.AMFUENGAPID, ranID ngap.
 	return msg.Marshal()
 }
 
-// SendDownlinkNRPPaTransport builds a DOWNLINK UE-ASSOCIATED NRPPa TRANSPORT carrying
-// the LMF's NRPPa PDU and sends it to this UE's gNB (TS 38.413 §8.10.2). It returns the
-// send outcome so the LMF positioning client can report a delivery failure.
 func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID int64, nrppaPdu []byte) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
@@ -617,14 +587,6 @@ func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID 
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedureDownlinkNRPPaTransport, pkt)
 }
 
-// ueContextReleaseCommandBytes builds a UE Context Release Command for the given
-// NGAP identities (TS 38.413 §9.2.2.5).
-//
-// §8.3.3.2 carries both identities only where the RAN UE NGAP ID is available,
-// and the AMF UE NGAP ID alone otherwise. A handover target reserved but not yet
-// acknowledged holds RanUeNgapIDUnspecified, which is inside the
-// INTEGER (0..4294967295) range the NG-RAN node assigns from, so naming it would
-// address whichever UE the target has at that id.
 func ueContextReleaseCommandBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause) ([]byte, error) {
 	msg := &ngap.UEContextReleaseCommand{
 		UENGAPIDs: ngap.UENGAPIDs{
@@ -670,16 +632,11 @@ func (ueConn *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause nga
 		return
 	}
 
-	// Supervise the Release Complete: if it is lost, fire once and run the same
-	// action-keyed cleanup so the UeConn + AMF-UE-NGAP-ID cannot leak (TS 38.413 §8.3
-	// mandates no CN-side timer, so this is a local robustness guard).
 	ueConn.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
 		amfInstance.ReleaseUeConn(context.Background(), ueConn)
 	})
 }
 
-// PDUSessionSetupItemSUReq builds one item for a PDU SESSION RESOURCE SETUP
-// REQUEST (TS 38.413 §9.2.1.1). The transfer is the SMF's, carried opaquely.
 func PDUSessionSetupItemSUReq(pduSessionID uint8, snssai *models.Snssai, nasPDU, transfer []byte) (ngap.PDUSessionResourceSetupItemSUReq, error) {
 	if snssai == nil {
 		return ngap.PDUSessionResourceSetupItemSUReq{}, fmt.Errorf("S-NSSAI is required")
@@ -737,8 +694,6 @@ func (ueConn *UeConn) SendPDUSessionResourceSetupRequest(ctx context.Context, am
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedurePDUSessionResourceSetupRequest, pkt)
 }
 
-// pduSessionResourceReleaseBytes builds a PDU SESSION RESOURCE RELEASE COMMAND
-// (TS 38.413 §9.2.1.3).
 func pduSessionResourceReleaseBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, nasPdu []byte, sessions ngap.PDUSessionResourceToReleaseListRelCmd) ([]byte, error) {
 	msg := &ngap.PDUSessionResourceReleaseCommand{
 		AMFUENGAPID:               amfID,
@@ -767,9 +722,6 @@ func (ueConn *UeConn) SendPDUSessionResourceReleaseCommand(ctx context.Context, 
 	return amfInstance.SendToRadio(ctx, conn, NGAPProcedurePDUSessionResourceReleaseCommand, pkt)
 }
 
-// PDUSessionSetupItem builds one PDU Session Resource Setup Request item for an
-// INITIAL CONTEXT SETUP REQUEST (TS 38.413 §9.2.2.1). The transfer is the
-// SMF's, carried opaquely.
 func PDUSessionSetupItem(pduSessionID uint8, snssai *models.Snssai, nasPDU, transfer []byte) (ngap.PDUSessionResourceSetupItemCxtReq, error) {
 	if snssai == nil {
 		return ngap.PDUSessionResourceSetupItemCxtReq{}, fmt.Errorf("S-NSSAI is required")

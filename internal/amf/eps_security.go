@@ -34,9 +34,6 @@ func (ue *UeContext) EPSNetworkCapability() (eps.UENetworkCapability, bool) {
 	return netCap, true
 }
 
-// EPSSecurityCapability is the UE's EPS security capability (TS 24.301
-// §9.9.3.36), from the S1 UE network capability the UE sent or from the MME over
-// N26.
 func (ue *UeContext) EPSSecurityCapability() (eps.UESecurityCapability, bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -48,8 +45,6 @@ func (ue *UeContext) EPSSecurityCapability() (eps.UESecurityCapability, bool) {
 	return *ue.epsSecurityCapability, true
 }
 
-// setEPSSecurityCapabilityLocked stores capability and drops any EPS NAS
-// algorithm pair chosen from a different one.
 func (ue *UeContext) setEPSSecurityCapabilityLocked(capability eps.UESecurityCapability) {
 	if ue.epsSecurityCapability != nil && *ue.epsSecurityCapability != capability {
 		ue.forgetEPSNASAlgorithmsLocked()
@@ -63,8 +58,6 @@ func (ue *UeContext) forgetEPSNASAlgorithmsLocked() {
 	ue.epsNASAlgorithms = nil
 }
 
-// NeedsEPSNASAlgorithms reports whether the AMF still owes this UE the EPS NAS
-// algorithms it is to use after mobility to EPS (TS 24.501 §5.4.2.2).
 func (ue *UeContext) NeedsEPSNASAlgorithms() bool {
 	if !ue.SupportsS1Mode() {
 		return false
@@ -76,8 +69,6 @@ func (ue *UeContext) NeedsEPSNASAlgorithms() bool {
 	return ue.epsNASAlgorithms == nil
 }
 
-// EPSNASAlgorithmsInUse returns the EPS NAS algorithms the UE holds, reporting
-// false until it has accepted the SECURITY MODE COMMAND that carried them.
 func (ue *UeContext) EPSNASAlgorithmsInUse() (interworking.EPSNASAlgorithms, bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -100,9 +91,6 @@ func (ue *UeContext) offeredEPSNASAlgorithms() (interworking.EPSNASAlgorithms, b
 	return *ue.epsNASAlgorithmsOffered, true
 }
 
-// MarkEPSNASAlgorithmsDelivered promotes the offered pair to the one in use, on
-// the UE accepting the SECURITY MODE COMMAND that carried it (TS 24.501
-// §5.4.2.4).
 func (ue *UeContext) MarkEPSNASAlgorithmsDelivered() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -115,9 +103,6 @@ func (ue *UeContext) MarkEPSNASAlgorithmsDelivered() {
 	ue.epsNASAlgorithms = &delivered
 }
 
-// SelectEPSNASAlgorithms picks the EPS NAS algorithms this UE is to use after
-// mobility to EPS and offers them, so the SECURITY MODE COMMAND about to be
-// built carries them (TS 24.501 §5.4.2.2, TS 33.501 §6.7.2).
 func (ue *UeContext) SelectEPSNASAlgorithms(intOrder []nas.IntegrityAlgorithm, encOrder []nas.CipheringAlgorithm) (interworking.EPSNASAlgorithms, bool) {
 	netCap, ok := ue.EPSNetworkCapability()
 	if !ok {
@@ -139,11 +124,6 @@ func (ue *UeContext) SelectEPSNASAlgorithms(intOrder []nas.IntegrityAlgorithm, e
 	return offered, true
 }
 
-// MapSecurityContextToEPS derives the mapped EPS security context for a handover
-// to EPS from this UE's current 5G one (TS 33.501 §8.3.2 step 2).
-//
-// It consumes the downlink 5G NAS COUNT the derivation binds K'ASME to, so the
-// same context can never be mapped twice onto one COUNT.
 func (ue *UeContext) MapSecurityContextToEPS() (interworking.FiveGToEPSHandover, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -176,8 +156,6 @@ func (ue *UeContext) MapSecurityContextToEPS() (interworking.FiveGToEPSHandover,
 	})
 }
 
-// InstallMappedSecurityContextFromEPS takes a mapped 5G security context into use
-// as this UE's current one, on a handover from EPS (TS 33.501 §8.4.2 step 3).
 func (ue *UeContext) InstallMappedSecurityContextFromEPS(mapped interworking.Mapped5GSecurityContext, _ AuthProof) error {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
