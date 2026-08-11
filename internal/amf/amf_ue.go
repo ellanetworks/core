@@ -82,6 +82,14 @@ type UeContext struct {
 	gmmCapability         *fgs.GMMCapability
 	s1UENetworkCapability []byte
 
+	// The EPS NAS algorithm pair for use after mobility to EPS, in two stages: the
+	// pair a SECURITY MODE COMMAND is offering, and the pair the UE has accepted and
+	// therefore holds. Only the latter may be put in a mapped EPS security context
+	// (TS 33.501 §6.7.2 NOTE 2a, §8.6.1); keeping them apart means a new offer does
+	// not make the AMF forget what the UE is still using.
+	epsNASAlgorithmsOffered *EPSNASAlgorithms
+	epsNASAlgorithms        *EPSNASAlgorithms
+
 	ngKsi        models.NgKsi
 	knasInt      [16]uint8
 	knasEnc      [16]uint8

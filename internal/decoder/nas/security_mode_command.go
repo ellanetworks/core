@@ -69,8 +69,8 @@ func buildSecurityModeCommand(msg *fgs.SecurityModeCommand) *SecurityModeCommand
 
 	if algs := msg.SelectedEPSNASSecurityAlgorithms; algs != nil {
 		out.SelectedEPSNASSecurityAlgorithms = &SelectedEPSNASSecurityAlgorithms{
-			Ciphering: getEPSCiphering(algs.Ciphering),
-			Integrity: getEPSIntegrity(algs.Integrity),
+			Ciphering: getEPSCiphering(uint8(algs.Ciphering)),
+			Integrity: getEPSIntegrity(uint8(algs.Integrity)),
 		}
 	}
 

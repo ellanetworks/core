@@ -41,6 +41,10 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			abortRegistration(ctx, amfInstance, ue, "update security context", err)
 			return nasreply.Handled()
 		}
+
+		// The UE accepted the command, so it has stored any Selected EPS NAS security
+		// algorithms it carried (TS 24.501 §5.4.2.3). A no-op when none were offered.
+		ue.MarkEPSNASAlgorithmsDelivered()
 	}
 
 	if msg.IMEISV != nil {
@@ -64,9 +68,13 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
-		// The container carries the complete message; it becomes the oracle a
-		// later retransmission is compared against, cloned because the message
-		// keeps a reference to it (TS 24.501 §4.4.6).
+		// The container carries the complete message: for a UE that registered with
+		// no security context this is where its non-cleartext capabilities first
+		// arrive (TS 24.501 §4.4.6).
+		ue.SetUECapabilities(fgsRR.GMMCapability, fgsRR.S1UENetworkCapability)
+
+		// It becomes the oracle a later retransmission is compared against, cloned
+		// because the message keeps a reference to it.
 		contextSetup(ctx, amfInstance, ue, fgsRR, slices.Clone(msg.NASMessageContainer))
 
 		return nasreply.Handled()

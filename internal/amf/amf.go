@@ -172,10 +172,15 @@ type AMF struct {
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
-	T3502Value               time.Duration
-	T3512Value               time.Duration
-	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
-	T3513Cfg                 guard.TimerValue
+	// N26Enabled reports whether this AMF runs the N26 interface to the MME. It
+	// drives the IWK N26 bit the AMF advertises and, with it, whether the AMF hands
+	// UEs the EPS NAS algorithms to use after mobility to EPS; the two must agree
+	// (see models.N26Supported, which is where it defaults from).
+	N26Enabled bool
+	T3502Value time.Duration
+	T3512Value time.Duration
+	TimeZone   string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
+	T3513Cfg   guard.TimerValue
 	// NASGuardCfg configures the single NAS common-procedure supervision timer
 	// (T3550/T3555/T3560/T3565/T3570/T3522 — all 6 s ×4 in TS 24.501 §10.2).
 	NASGuardCfg guard.TimerValue
@@ -643,6 +648,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		NASGuardCfg:              defaultTimerCfg,
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
+		N26Enabled:               models.N26Supported,
 	}
 
 	return a

@@ -220,6 +220,18 @@ func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCa
 // cannot be built (nothing goes in flight, so the caller releases the procedure);
 // a transport send failure is covered by T3560 and is not fatal.
 func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn) error {
+	return sendSecurityModeCommand(ctx, amfInstance, ue, BuildSecurityModeCommand)
+}
+
+// SendEPSNASAlgorithmsSecurityModeCommand sends the SECURITY MODE COMMAND that
+// only delivers the selected EPS NAS algorithms (TS 24.501 §5.4.2.2) and arms the
+// same T3560 timer. The UE answers with SECURITY MODE COMPLETE, which the
+// ordinary completion path handles.
+func SendEPSNASAlgorithmsSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn) error {
+	return sendSecurityModeCommand(ctx, amfInstance, ue, BuildEPSNASAlgorithmsSecurityModeCommand)
+}
+
+func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, build func(*UeContext) ([]byte, error)) error {
 	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("cannot send Security Mode Command: ue or amf ue is nil")
 	}
@@ -234,7 +246,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn) 
 
 	amfUe := ue.UeContext()
 
-	nasMsg, err := BuildSecurityModeCommand(amfUe)
+	nasMsg, err := build(amfUe)
 	if err != nil {
 		return fmt.Errorf("failed to build security mode command: %w", err)
 	}

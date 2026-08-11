@@ -5,6 +5,8 @@
 package amf
 
 import (
+	"bytes"
+
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -129,8 +131,12 @@ func (ue *UeContext) SetUECapabilities(gmm *fgs.GMMCapability, s1 []byte) {
 		ue.gmmCapability = gmm
 	}
 
-	if s1 != nil {
+	if s1 != nil && !bytes.Equal(ue.s1UENetworkCapability, s1) {
 		ue.s1UENetworkCapability = append([]byte(nil), s1...)
+
+		// The EPS NAS algorithms were chosen from the previous capability, so they no
+		// longer describe what this UE accepts in EPS.
+		ue.forgetEPSNASAlgorithmsLocked()
 	}
 }
 

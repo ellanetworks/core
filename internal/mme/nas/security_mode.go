@@ -42,7 +42,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return
 	}
 
-	eea, eia, ok := mme.SelectAlgorithms(ue.UeNetCap(), intOrder, encOrder)
+	eea, eia, ok := eps.SelectNASAlgorithms(ue.UeNetCap(), intOrder, encOrder)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
 			zap.Stringer("ue-network-capability", ue.UeNetCap()))
