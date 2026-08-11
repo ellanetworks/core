@@ -154,6 +154,8 @@ type AMF struct {
 
 	lcsCorrelationSeq atomic.Uint32
 
+	relocationIDs atomic.Uint64
+
 	DBInstance               DBer
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*UeContext

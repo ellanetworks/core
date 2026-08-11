@@ -21,12 +21,13 @@ import (
 const testRelocationIMSI = "001010000000001"
 
 type fakeEPSPeer struct {
-	mu        sync.Mutex
-	request   interworking.ForwardRelocationRequest
-	response  interworking.ForwardRelocationResponse
-	err       error
-	cancelled []string
-	block     chan struct{}
+	mu           sync.Mutex
+	request      interworking.ForwardRelocationRequest
+	response     interworking.ForwardRelocationResponse
+	err          error
+	cancelled    []string
+	cancelledIDs []interworking.RelocationID
+	block        chan struct{}
 }
 
 func (f *fakeEPSPeer) ForwardRelocation(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
@@ -49,11 +50,12 @@ func (f *fakeEPSPeer) ForwardRelocation(ctx context.Context, req interworking.Fo
 	return f.response, f.err
 }
 
-func (f *fakeEPSPeer) RelocationCancel(_ context.Context, supi etsi.SUPI) error {
+func (f *fakeEPSPeer) RelocationCancel(_ context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.cancelled = append(f.cancelled, supi.IMSI())
+	f.cancelledIDs = append(f.cancelledIDs, id)
 
 	return nil
 }
@@ -221,11 +223,12 @@ func TestCancelHandoverToEPSReachesThePeer(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
-	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}); err != nil {
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	if err := a.CancelRelocationToEPS(context.Background(), ue); err != nil {
+	if err := a.CancelRelocationToEPS(context.Background(), ue, prep.Request.ID); err != nil {
 		t.Fatalf("CancelRelocationToEPS: %v", err)
 	}
 
@@ -247,11 +250,12 @@ func TestRelocationCompleteReleasesTheFiveGSSide(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}); err != nil {
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), ue.Supi()); err != nil {
+	if err := a.RelocationComplete(context.Background(), ue.Supi(), prep.Request.ID); err != nil {
 		t.Fatalf("RelocationComplete: %v", err)
 	}
 
@@ -268,6 +272,45 @@ func TestRelocationCompleteReleasesTheFiveGSSide(t *testing.T) {
 	}
 }
 
+// A source gNB that cancels one attempt is free to start another as soon as it is
+// acknowledged, while the goroutine that prepared the first is still unwinding.
+// That late unwinding must leave the newer attempt — local state included —
+// untouched.
+func TestAbandoningOneAttemptSparesTheNextOne(t *testing.T) {
+	peer := &fakeEPSPeer{}
+	a, ue, source := newRelocatingAMF(t, peer)
+
+	first, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	if err != nil {
+		t.Fatalf("PrepareHandoverToEPS: %v", err)
+	}
+
+	if target, aborted := a.CancelHandover(ue); !aborted || target != nil {
+		t.Fatalf("CancelHandover = (%v, %t), want the first attempt aborted", target, aborted)
+	}
+
+	second, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	if err != nil {
+		t.Fatalf("the second PrepareHandoverToEPS: %v", err)
+	}
+
+	if second.Request.ID == first.Request.ID {
+		t.Fatal("the two attempts share an identifier")
+	}
+
+	a.AbandonHandoverToEPS(context.Background(), ue, first.Request.ID)
+
+	held, ok := a.RelocationToEPS(ue)
+	if !ok || held != second.Request.ID {
+		t.Fatalf("abandoning attempt %d unwound the AMF's attempt %d (holds %d, %t)",
+			first.Request.ID, second.Request.ID, held, ok)
+	}
+
+	if got := peer.cancels(); len(got) != 0 {
+		t.Fatalf("the peer was told to cancel %v for an attempt it was never asked about", got)
+	}
+}
+
 func TestRelocationCompleteForAUEThatIsNotMovingToEPS(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, _ := newRelocatingAMF(t, peer)
@@ -276,11 +319,11 @@ func TestRelocationCompleteForAUEThatIsNotMovingToEPS(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), ue.Supi()); !errors.Is(err, amf.ErrRelocationNotToEPS) {
+	if err := a.RelocationComplete(context.Background(), ue.Supi(), 1); !errors.Is(err, amf.ErrRelocationNotToEPS) {
 		t.Fatalf("error = %v, want ErrRelocationNotToEPS", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), mustSUPIFromIMSI(t, "001010000000009")); !errors.Is(err, amf.ErrNoRelocatingUe) {
+	if err := a.RelocationComplete(context.Background(), mustSUPIFromIMSI(t, "001010000000009"), 1); !errors.Is(err, amf.ErrNoRelocatingUe) {
 		t.Fatalf("error = %v, want ErrNoRelocatingUe", err)
 	}
 }

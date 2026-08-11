@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"slices"
 	"testing"
 	"time"
 
@@ -42,6 +43,7 @@ func relocationRequest(sessions ...interworking.PDNConnection) interworking.Forw
 	}
 
 	return interworking.ForwardRelocationRequest{
+		ID:   1,
 		SUPI: mustSUPI("001010000000001"),
 		SecurityContext: interworking.EPSSecurityContext{
 			KASME:      kasme,
@@ -86,35 +88,58 @@ func newRelocationTarget(t *testing.T, m *MME) *relocationTarget {
 func (r *relocationTarget) awaitHandoverRequest(t *testing.T) *s1ap.HandoverRequest {
 	t.Helper()
 
+	return r.awaitNthHandoverRequest(t, 0)
+}
+
+// awaitNthHandoverRequest returns the n-th Handover Request the target eNB
+// received, ignoring whatever else the MME sent it in between.
+func (r *relocationTarget) awaitNthHandoverRequest(t *testing.T, n int) *s1ap.HandoverRequest {
+	t.Helper()
+
 	deadline := time.Now().Add(2 * time.Second)
-	for r.conn.count() == 0 {
+
+	for {
+		if got := r.handoverRequests(t); len(got) > n {
+			return got[n]
+		}
+
 		if time.Now().After(deadline) {
-			t.Fatal("target eNB received no Handover Request")
+			t.Fatalf("target eNB received no Handover Request %d", n)
 		}
 
 		time.Sleep(time.Millisecond)
 	}
+}
+
+func (r *relocationTarget) handoverRequests(t *testing.T) []*s1ap.HandoverRequest {
+	t.Helper()
 
 	r.conn.mu.Lock()
-	pdu := r.conn.sent[0]
+	pdus := slices.Clone(r.conn.sent)
 	r.conn.mu.Unlock()
 
-	msg, err := s1ap.Unmarshal(pdu)
-	if err != nil {
-		t.Fatalf("unmarshal: %v", err)
+	var out []*s1ap.HandoverRequest
+
+	for _, pdu := range pdus {
+		msg, err := s1ap.Unmarshal(pdu)
+		if err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+
+		im, ok := msg.(*s1ap.InitiatingMessage)
+		if !ok || im.ProcedureCode != s1ap.ProcHandoverResourceAllocation {
+			continue
+		}
+
+		req, err := s1ap.ParseHandoverRequest(im.Value)
+		if err != nil {
+			t.Fatalf("parse Handover Request: %v", err)
+		}
+
+		out = append(out, req)
 	}
 
-	im, ok := msg.(*s1ap.InitiatingMessage)
-	if !ok || im.ProcedureCode != s1ap.ProcHandoverResourceAllocation {
-		t.Fatalf("expected a Handover Request, got %T", msg)
-	}
-
-	req, err := s1ap.ParseHandoverRequest(im.Value)
-	if err != nil {
-		t.Fatalf("parse Handover Request: %v", err)
-	}
-
-	return req
+	return out
 }
 
 func (r *relocationTarget) admit(t *testing.T, req *s1ap.HandoverRequest, refuse ...uint8) {
@@ -431,12 +456,14 @@ func TestForwardRelocationRefusesASecondHandoverForTheSameSubscriber(t *testing.
 }
 
 type fakeFiveGSPeer struct {
-	completed string
-	err       error
+	completed   string
+	completedID interworking.RelocationID
+	err         error
 }
 
-func (f *fakeFiveGSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI) error {
+func (f *fakeFiveGSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
 	f.completed = supi.IMSI()
+	f.completedID = id
 
 	return f.err
 }
@@ -490,7 +517,7 @@ func TestCompleteRelocationPublishesTheContextAndNotifiesThePeer(t *testing.T) {
 		t.Errorf("EMM state = %v, want EMM-REGISTERED", ue.EMMState())
 	}
 
-	if err := m.RelocationCancel(context.Background(), req.SUPI); !errors.Is(err, ErrNoRelocation) {
+	if err := m.RelocationCancel(context.Background(), req.SUPI, req.ID); !errors.Is(err, ErrNoRelocation) {
 		t.Errorf("cancelling an arrived UE = %v, want ErrNoRelocation", err)
 	}
 }
@@ -510,7 +537,7 @@ func TestRelocationCancelAbandonsThePreparation(t *testing.T) {
 
 	target.awaitHandoverRequest(t)
 
-	if err := m.RelocationCancel(context.Background(), req.SUPI); err != nil {
+	if err := m.RelocationCancel(context.Background(), req.SUPI, req.ID); err != nil {
 		t.Fatalf("RelocationCancel: %v", err)
 	}
 
@@ -559,15 +586,81 @@ func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 		t.Error("the expired handover left its anchor session behind")
 	}
 
-	if err := m.RelocationCancel(context.Background(), req.SUPI); !errors.Is(err, ErrNoRelocation) {
+	if err := m.RelocationCancel(context.Background(), req.SUPI, req.ID); !errors.Is(err, ErrNoRelocation) {
 		t.Errorf("the expired handover is still registered: %v", err)
+	}
+}
+
+// A source that abandons one attempt and immediately starts another for the same
+// subscriber must not have the late cancel of the first tear down the second.
+func TestRelocationCancelOfAnAbandonedAttemptSparesTheNextOne(t *testing.T) {
+	sessions := &fakeSessionManager{}
+	m := New(nil, fakeBearerStore{}, sessions)
+	target := newRelocationTarget(t, m)
+
+	first := relocationRequest()
+	first.ID = 7
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), first)
+		done <- err
+	}()
+
+	target.awaitHandoverRequest(t)
+
+	if err := m.RelocationCancel(context.Background(), first.SUPI, first.ID); err != nil {
+		t.Fatalf("RelocationCancel: %v", err)
+	}
+
+	if err := <-done; !errors.Is(err, ErrRelocationAbandoned) {
+		t.Fatalf("ForwardRelocation = %v, want ErrRelocationAbandoned", err)
+	}
+
+	second := relocationRequest()
+	second.ID = 8
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), second)
+		done <- err
+	}()
+
+	hoReq := target.awaitNthHandoverRequest(t, 1)
+
+	if err := m.RelocationCancel(context.Background(), second.SUPI, first.ID); !errors.Is(err, ErrNoRelocation) {
+		t.Fatalf("cancelling attempt %d hit the MME's attempt %d: %v", first.ID, second.ID, err)
+	}
+
+	target.admit(t, hoReq)
+
+	if err := <-done; err != nil {
+		t.Fatalf("the second attempt: %v", err)
+	}
+}
+
+// TS 24.301 §5.5.3.2.5: a UE moved into a tracking area the MME does not serve
+// would have its first TAU rejected, so the relocation is refused up front.
+func TestForwardRelocationIntoAnUnservedTrackingArea(t *testing.T) {
+	m := newTestMME(t)
+	newRelocationTarget(t, m)
+
+	req := relocationRequest()
+	req.Target.EPSTAC = 9
+
+	if _, err := m.ForwardRelocation(context.Background(), req); !errors.Is(err, ErrUnknownTargetENB) {
+		t.Fatalf("error = %v, want ErrUnknownTargetENB", err)
+	}
+
+	if _, ok := m.LookupUeBySupi(req.SUPI); ok {
+		t.Error("a refused relocation left a UE context behind")
 	}
 }
 
 func TestRelocationCancelForAnUnknownSubscriber(t *testing.T) {
 	m := newTestMME(t)
 
-	if err := m.RelocationCancel(context.Background(), mustSUPI("001010000000009")); !errors.Is(err, ErrNoRelocation) {
+	if err := m.RelocationCancel(context.Background(), mustSUPI("001010000000009"), 1); !errors.Is(err, ErrNoRelocation) {
 		t.Fatalf("error = %v, want ErrNoRelocation", err)
 	}
 }
@@ -716,7 +809,7 @@ func TestRelocationCancelAfterTheUEArrivesIsRefused(t *testing.T) {
 		t.Fatal("the Handover Notify did not match the prepared handover")
 	}
 
-	if err := m.RelocationCancel(context.Background(), req.SUPI); !errors.Is(err, ErrRelocationTooLate) {
+	if err := m.RelocationCancel(context.Background(), req.SUPI, req.ID); !errors.Is(err, ErrRelocationTooLate) {
 		t.Fatalf("error = %v, want ErrRelocationTooLate", err)
 	}
 

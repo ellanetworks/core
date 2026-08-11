@@ -39,6 +39,17 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 		return none, fmt.Errorf("%w: %s", ErrUnknownTargetENB, ENBID(globalENBID))
 	}
 
+	targetTAI := s1ap.TAI{PLMNIdentity: globalENBID.PLMNIdentity, TAC: s1ap.TAC(req.Target.EPSTAC)}
+
+	served, err := m.ServesTAI(ctx, targetTAI)
+	if err != nil {
+		return none, fmt.Errorf("mme: evaluate the target tracking area: %w", err)
+	}
+
+	if !served {
+		return none, fmt.Errorf("%w: tracking area %d is not served", ErrUnknownTargetENB, req.Target.EPSTAC)
+	}
+
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
 
@@ -52,7 +63,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 
 	ue.TransitionTo(EMMRegistrationInitiated)
 
-	if !m.beginRelocation(req.SUPI, ue) {
+	if !m.beginRelocation(req.SUPI, req.ID, ue) {
 		return none, ErrRelocationInProgress
 	}
 
@@ -230,6 +241,19 @@ func (m *MME) dropUnadmittedPDNs(ctx context.Context, ue *UeContext, accepted ma
 func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 	supi := ue.Supi()
 
+	m.mu.Lock()
+	held := m.relocating[supi]
+	m.mu.Unlock()
+
+	if held == nil || held.ue != ue {
+		logger.From(ctx, logger.MmeLog).Warn("completing a relocation the MME no longer holds",
+			logger.SUPI(supi.String()))
+
+		return
+	}
+
+	id := held.id
+
 	ue.TransitionTo(EMMRegistered)
 	m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking())
 	m.endRelocation(supi, ue)
@@ -240,20 +264,26 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	if err := m.FiveGS.RelocationComplete(ctx, supi); err != nil {
+	if err := m.FiveGS.RelocationComplete(ctx, supi, id); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("the 5GS peer refused the relocation completion notification",
 			logger.SUPI(supi.String()), zap.Error(err))
 	}
 }
 
-func (m *MME) RelocationCancel(ctx context.Context, supi etsi.SUPI) error {
+func (m *MME) RelocationCancel(ctx context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
 	m.mu.Lock()
-	ue, ok := m.relocating[supi]
+	held, ok := m.relocating[supi]
 	m.mu.Unlock()
 
 	if !ok {
 		return ErrNoRelocation
 	}
+
+	if held.id != id {
+		return fmt.Errorf("%w: %s is on relocation %d, not %d", ErrNoRelocation, supi, held.id, id)
+	}
+
+	ue := held.ue
 
 	logger.From(ctx, logger.MmeLog).Info("Relocation Cancel", logger.SUPI(supi.String()))
 
@@ -264,7 +294,12 @@ func (m *MME) RelocationCancel(ctx context.Context, supi etsi.SUPI) error {
 	return nil
 }
 
-func (m *MME) beginRelocation(supi etsi.SUPI, ue *UeContext) bool {
+type relocation struct {
+	id interworking.RelocationID
+	ue *UeContext
+}
+
+func (m *MME) beginRelocation(supi etsi.SUPI, id interworking.RelocationID, ue *UeContext) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -272,7 +307,7 @@ func (m *MME) beginRelocation(supi etsi.SUPI, ue *UeContext) bool {
 		return false
 	}
 
-	m.relocating[supi] = ue
+	m.relocating[supi] = &relocation{id: id, ue: ue}
 
 	return true
 }
@@ -281,7 +316,7 @@ func (m *MME) endRelocation(supi etsi.SUPI, ue *UeContext) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if held, ok := m.relocating[supi]; ok && held == ue {
+	if held, ok := m.relocating[supi]; ok && held.ue == ue {
 		delete(m.relocating, supi)
 	}
 }

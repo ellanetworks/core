@@ -66,7 +66,7 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	resp, err := amfInstance.ForwardRelocation(ctx, prep.Request)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("the EPS peer could not prepare the handover", zap.Error(err))
-		amfInstance.AbandonHandoverToEPS(ctx, amfUe)
+		amfInstance.AbandonHandoverToEPS(ctx, amfUe, prep.Request.ID)
 		sourceUe.SendHandoverPreparationFailure(ctx, handoverToEPSFailureCause(err), nil, nil)
 
 		return
@@ -81,7 +81,7 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	if !ok {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("the handover to EPS was abandoned while the peer prepared it")
 
-		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe); err != nil {
+		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe, prep.Request.ID); err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Info("the peer had no handover to cancel", zap.Error(err))
 		}
 
@@ -91,7 +91,7 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	container, err := prep.Container.MarshalBinary()
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("failed to encode the N1 mode to S1 mode NAS transparent container", zap.Error(err))
-		amfInstance.AbandonHandoverToEPS(ctx, amfUe)
+		amfInstance.AbandonHandoverToEPS(ctx, amfUe, prep.Request.ID)
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
 
 		return
@@ -107,7 +107,7 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 		ngap.NASSecurityParametersFromNGRAN(container),
 	)
 
-	amfInstance.SuperviseHandoverToEPS(amfUe)
+	amfInstance.SuperviseHandoverToEPS(amfUe, prep.Request.ID)
 }
 
 func handoverToEPSFailureCause(err error) ngap.Cause {

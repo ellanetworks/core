@@ -101,7 +101,7 @@ type MME struct {
 	uesByTmsi  map[etsi.TMSI]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	connIDs    *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
 
-	relocating map[etsi.SUPI]*UeContext
+	relocating map[etsi.SUPI]*relocation
 
 	tmsi *etsi.TmsiAllocator
 
@@ -177,7 +177,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		conns:                    make(map[uint32]*UeConn),
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		uesByTmsi:                make(map[etsi.TMSI]*UeContext),
-		relocating:               make(map[etsi.SUPI]*UeContext),
+		relocating:               make(map[etsi.SUPI]*relocation),
 		connIDs:                  idgenerator.NewGenerator(1, maxMMEUES1APID),
 		tmsi:                     etsi.NewTMSIAllocator(),
 

@@ -25,7 +25,10 @@ type ENBIdentity struct {
 	EPSTAC uint16
 }
 
+type RelocationID uint64
+
 type ForwardRelocationRequest struct {
+	ID              RelocationID
 	SUPI            etsi.SUPI
 	SecurityContext EPSSecurityContext
 	PDNConnections  []PDNConnection
@@ -47,9 +50,9 @@ var (
 
 type EPSPeer interface {
 	ForwardRelocation(ctx context.Context, req ForwardRelocationRequest) (ForwardRelocationResponse, error)
-	RelocationCancel(ctx context.Context, supi etsi.SUPI) error
+	RelocationCancel(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 }
 
 type FiveGSPeer interface {
-	RelocationComplete(ctx context.Context, supi etsi.SUPI) error
+	RelocationComplete(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 }

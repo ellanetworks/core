@@ -53,7 +53,14 @@ func (p *epsPeerStub) ForwardRelocation(_ context.Context, req interworking.Forw
 	}, nil
 }
 
-func (p *epsPeerStub) RelocationCancel(_ context.Context, _ etsi.SUPI) error {
+func (p *epsPeerStub) relocationID() interworking.RelocationID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.request.ID
+}
+
+func (p *epsPeerStub) RelocationCancel(_ context.Context, _ etsi.SUPI, _ interworking.RelocationID) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -349,7 +356,7 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
 	awaitCommand(t, sender)
 
-	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi()); err != nil {
+	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi(), peer.relocationID()); err != nil {
 		t.Fatalf("RelocationComplete: %v", err)
 	}
 

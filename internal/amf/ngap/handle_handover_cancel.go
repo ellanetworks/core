@@ -34,8 +34,8 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe := sourceUe.UeContext()
 
-	if amfInstance.HandoverToEPSInProgress(amfUe) {
-		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe); err != nil {
+	if id, toEPS := amfInstance.RelocationToEPS(amfUe); toEPS {
+		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe, id); err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Info("the peer would not cancel the handover to EPS; leaving it to complete",
 				zap.Error(err))
 			sourceUe.SendHandoverCancelAcknowledge(ctx)

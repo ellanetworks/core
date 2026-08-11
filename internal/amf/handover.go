@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
@@ -31,12 +32,13 @@ type HandoverCandidate struct {
 }
 
 type handoverContext struct {
-	state      hoState
-	source     *UeConn
-	target     *UeConn
-	candidates []HandoverCandidate
-	admitted   map[uint8]struct{}
-	toEPS      bool
+	state        hoState
+	source       *UeConn
+	target       *UeConn
+	candidates   []HandoverCandidate
+	admitted     map[uint8]struct{}
+	toEPS        bool
+	relocationID interworking.RelocationID
 }
 
 func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio, candidates []HandoverCandidate) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
@@ -71,20 +73,39 @@ func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn
 	return target, nh, ncc, true
 }
 
-func (a *AMF) stageRelocationToEPS(ue *UeContext, source *UeConn, candidates []HandoverCandidate) bool {
+func (a *AMF) stageRelocationToEPS(ue *UeContext, source *UeConn, candidates []HandoverCandidate) (interworking.RelocationID, bool) {
 	if ue == nil {
-		return false
+		return 0, false
 	}
 
 	if !ue.BeginKeyChainProc(procedure.N2Handover) {
-		return false
+		return 0, false
 	}
 
+	id := interworking.RelocationID(a.relocationIDs.Add(1))
+
 	a.mu.Lock()
-	ue.handover = &handoverContext{state: hoPreparing, source: source, candidates: candidates, toEPS: true}
+	ue.handover = &handoverContext{
+		state: hoPreparing, source: source, candidates: candidates, toEPS: true, relocationID: id,
+	}
 	a.mu.Unlock()
 
-	return true
+	return id, true
+}
+
+func (a *AMF) RelocationToEPS(ue *UeContext) (interworking.RelocationID, bool) {
+	if ue == nil {
+		return 0, false
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	if ue.handover == nil || !ue.handover.toEPS {
+		return 0, false
+	}
+
+	return ue.handover.relocationID, true
 }
 
 func (a *AMF) HandoverToEPSInProgress(ue *UeContext) bool {
@@ -342,6 +363,30 @@ func (a *AMF) ClearHandover(ue *UeContext) {
 	a.mu.Unlock()
 
 	ue.EndKeyChainProc(procedure.N2Handover)
+}
+
+func (a *AMF) ClearRelocationToEPS(ue *UeContext, id interworking.RelocationID) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.Lock()
+
+	ho := ue.handover
+	if ho == nil || !ho.toEPS || ho.relocationID != id {
+		a.mu.Unlock()
+
+		return false
+	}
+
+	detachAbandonedTargetLocked(ue, ho)
+	ue.handover = nil
+
+	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
+
+	return true
 }
 
 func (a *AMF) MarkHandoverPrepared(ue *UeContext, admitted map[uint8]struct{}) (toRelease []HandoverCandidate, ok bool) {

@@ -49,7 +49,8 @@ func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target inter
 		candidates = append(candidates, HandoverCandidate{PDUSessionID: ngap.PDUSessionID(pduSessionID)})
 	}
 
-	if !a.stageRelocationToEPS(ue, sourceUe, candidates) {
+	id, ok := a.stageRelocationToEPS(ue, sourceUe, candidates)
+	if !ok {
 		return nil, ErrRelocationRefused
 	}
 
@@ -59,6 +60,8 @@ func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target inter
 
 		return nil, err
 	}
+
+	req.ID = id
 
 	return &RelocationPreparation{Request: req, Container: mapped.Container}, nil
 }
@@ -74,35 +77,48 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	return a.EPS.ForwardRelocation(ctx, req)
 }
 
-func (a *AMF) AbandonHandoverToEPS(ctx context.Context, ue *UeContext) {
-	a.ClearHandover(ue)
+func (a *AMF) AbandonHandoverToEPS(ctx context.Context, ue *UeContext, id interworking.RelocationID) {
+	if !a.ClearRelocationToEPS(ue, id) {
+		logger.From(ctx, logger.AmfLog).Info("handover to EPS already unwound by whoever cancelled it",
+			zap.Uint64("relocation", uint64(id)))
 
-	if err := a.CancelRelocationToEPS(ctx, ue); err != nil {
+		return
+	}
+
+	if err := a.CancelRelocationToEPS(ctx, ue, id); err != nil {
 		logger.From(ctx, logger.AmfLog).Info("the EPS peer had no handover to cancel", zap.Error(err))
 	}
 }
 
-func (a *AMF) CancelRelocationToEPS(ctx context.Context, ue *UeContext) error {
+// CancelRelocationToEPS withdraws one named attempt. The caller names it rather
+// than the AMF reading it back off the UE, because a cancel usually follows the
+// unwinding that dropped the attempt from the UE — and because the attempt to
+// withdraw is the one the caller prepared, never whichever one is current.
+func (a *AMF) CancelRelocationToEPS(ctx context.Context, ue *UeContext, id interworking.RelocationID) error {
 	if a.EPS == nil || ue == nil {
 		return nil
 	}
 
-	return a.EPS.RelocationCancel(ctx, ue.Supi())
+	return a.EPS.RelocationCancel(ctx, ue.Supi(), id)
 }
 
-func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI) error {
+func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
 	ue, ok := a.LookupUeBySupi(supi)
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrNoRelocatingUe, supi)
 	}
 
-	if !a.HandoverToEPSInProgress(ue) {
-		return fmt.Errorf("%w: %s", ErrRelocationNotToEPS, supi)
-	}
-
 	source := a.HandoverSource(ue)
 
-	a.ClearHandover(ue)
+	if !a.ClearRelocationToEPS(ue, id) {
+		held, onEPS := a.RelocationToEPS(ue)
+		if !onEPS {
+			return fmt.Errorf("%w: %s", ErrRelocationNotToEPS, supi)
+		}
+
+		return fmt.Errorf("%w: %s reported relocation %d, this AMF holds %d",
+			ErrRelocationNotToEPS, supi, id, held)
+	}
 
 	ue.releaseSmContexts(ctx)
 	ue.ReleaseAllEPSBearerIdentities()
@@ -120,7 +136,7 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI) error {
 	return nil
 }
 
-func (a *AMF) SuperviseHandoverToEPS(ue *UeContext) {
+func (a *AMF) SuperviseHandoverToEPS(ue *UeContext, id interworking.RelocationID) {
 	if ue == nil {
 		return
 	}
@@ -135,7 +151,7 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext) {
 			logger.From(cctx, logger.AmfLog).Warn("handover to EPS abandoned: the UE did not arrive in time",
 				zap.String("imsi", ue.Supi().IMSI()))
 
-			if err := a.CancelRelocationToEPS(cctx, ue); err != nil {
+			if err := a.CancelRelocationToEPS(cctx, ue, id); err != nil {
 				logger.From(cctx, logger.AmfLog).Info("the peer had no handover to cancel", zap.Error(err))
 			}
 
