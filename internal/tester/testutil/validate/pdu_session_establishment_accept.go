@@ -112,17 +112,30 @@ func PDUSessionEstablishmentAccept(plain []byte, opts *ExpectedPDUSessionEstabli
 		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions QFI: %d", qosFlowDesc.QFI)
 	}
 
-	if len(qosFlowDesc.Parameters) != 1 {
-		return fmt.Errorf("unexpected number of AuthorizedQosFlowDescriptions Parameters: %d, expected: 1", len(qosFlowDesc.Parameters))
+	// The parameter list is keyed by identity, not position (TS 24.501
+	// §9.11.4.12): a session that carries an EPS bearer identity for interworking
+	// adds the 07H parameter alongside the 5QI, so the count is not fixed.
+	params := make(map[fgs.QoSFlowParameterID][]byte, len(qosFlowDesc.Parameters))
+	for _, p := range qosFlowDesc.Parameters {
+		params[p.ID] = p.Value
 	}
 
-	param := qosFlowDesc.Parameters[0]
-	if param.ID != fgs.QoSFlowParam5QI {
-		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions Parameter Type: %d, expected: %d", param.ID, fgs.QoSFlowParam5QI)
+	fiveQI, ok := params[fgs.QoSFlowParam5QI]
+	if !ok {
+		return fmt.Errorf("AuthorizedQosFlowDescriptions carries no 5QI parameter")
 	}
 
-	if len(param.Value) != 1 || param.Value[0] != opts.FiveQI {
-		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions FiveQI: % x, expected: %d", param.Value, opts.FiveQI)
+	if len(fiveQI) != 1 || fiveQI[0] != opts.FiveQI {
+		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions FiveQI: % x, expected: %d", fiveQI, opts.FiveQI)
+	}
+
+	// A UE supporting S1 mode is given the EPS bearer identity its QoS flow maps
+	// to, so it can keep the session on a handover to EPS; without it the UE
+	// releases the session locally (TS 24.501 §6.1.4.1).
+	if ebi, ok := params[fgs.QoSFlowParamEPSBearerID]; ok {
+		if len(ebi) != 1 || ebi[0] < 5 || ebi[0] > 15 {
+			return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions EPS bearer identity: % x", ebi)
+		}
 	}
 
 	dnn := ""

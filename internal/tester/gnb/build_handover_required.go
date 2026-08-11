@@ -11,32 +11,21 @@ import (
 )
 
 type HandoverRequiredOpts struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-
-	HandoverType ngap.HandoverType
-
-	Cause *ngap.Cause
-
-	TargetMcc   string
-	TargetMnc   string
-	TargetGnbID string
-	TargetTac   string
-
-	// TargetENBID names an eNB instead of a gNB, for a handover to EPS. The
-	// identity is 20 bits wide (a macro ng-eNB ID, TS 38.413 §9.3.1.8) and
-	// TargetGnbID is then unused.
-	TargetENBID *uint32
-
-	PDUSessions []HandoverRequiredPDUSession
-
-	// Opaque RRC container.
+	AMFUENGAPID                        int64
+	RANUENGAPID                        int64
+	HandoverType                       ngap.HandoverType
+	Cause                              *ngap.Cause
+	TargetMcc                          string
+	TargetMnc                          string
+	TargetGnbID                        string
+	TargetTac                          string
+	TargetENBID                        *uint32
+	PDUSessions                        []HandoverRequiredPDUSession
 	SourceToTargetTransparentContainer []byte
 }
 
 type HandoverRequiredPDUSession struct {
-	PDUSessionID int64
-	// PER-encoded transfer IE; a minimal default is built when nil.
+	PDUSessionID             int64
 	HandoverRequiredTransfer []byte
 }
 
@@ -87,7 +76,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 
 	container := opts.SourceToTargetTransparentContainer
 	if container == nil {
-		// Minimal opaque container (the target gNB passes it through).
 		container = []byte{0x00}
 	}
 
@@ -104,9 +92,6 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 	return msg.Marshal()
 }
 
-// handoverTargetID names the target the way its own protocol spells it: an
-// NG-RAN node for an intra-5GS handover, an eNB for one to EPS. TS 38.413
-// §9.3.1.8 gives the eNB a Selected EPS TAI, not a 5GS TAI.
 func handoverTargetID(opts *HandoverRequiredOpts, tac ngap.TAC) (ngap.TargetID, error) {
 	plmn, err := PLMNIdentity(opts.TargetMcc, opts.TargetMnc)
 	if err != nil {
@@ -134,8 +119,6 @@ func handoverTargetID(opts *HandoverRequiredOpts, tac ngap.TAC) (ngap.TargetID, 
 	}}, nil
 }
 
-// buildMinimalHandoverRequiredTransfer builds an empty transfer; the SMF decodes
-// it but requires no content for the basic flow.
 func buildMinimalHandoverRequiredTransfer() (ngap.TransferContainer, error) {
 	return (&ngap.HandoverRequiredTransfer{}).Marshal()
 }

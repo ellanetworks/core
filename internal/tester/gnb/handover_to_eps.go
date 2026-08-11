@@ -11,37 +11,22 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// HandoverToEPSOpts names the eNB a source gNB is handing a UE to.
 type HandoverToEPSOpts struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-
-	TargetMcc string
-	TargetMnc string
-	TargetTac string
-	// TargetENBID is the eNB's 20-bit macro identity.
-	TargetENBID uint32
-
+	AMFUENGAPID   int64
+	RANUENGAPID   int64
+	TargetMcc     string
+	TargetMnc     string
+	TargetTac     string
+	TargetENBID   uint32
 	PDUSessionIDs []int64
 }
 
-// HandoverToEPSCommand is what the AMF answered a handover to EPS with: the
-// container the target eNB produced, and the NAS parameters the UE needs to
-// build its mapped EPS security context (TS 33.501 §8.3.2 step 8).
 type HandoverToEPSCommand struct {
-	TargetToSource []byte
-
-	// DownlinkNASCountSequenceNumber is the 8 least significant bits of the
-	// downlink NAS COUNT the AMF derived K'ASME from.
+	TargetToSource                 []byte
 	DownlinkNASCountSequenceNumber uint8
-
-	// ReleasedPDUSessions are the sessions the target did not take over, which
-	// the source releases toward the UE (TS 23.502 §4.11.1.2.1 step 12).
-	ReleasedPDUSessions []int64
+	ReleasedPDUSessions            []int64
 }
 
-// SendHandoverRequiredToEPS asks the AMF to hand this UE to an eNB
-// (TS 23.502 §4.11.1.2.1 step 1).
 func (g *GnodeB) SendHandoverRequiredToEPS(opts *HandoverToEPSOpts) error {
 	sessions := make([]HandoverRequiredPDUSession, 0, len(opts.PDUSessionIDs))
 	for _, id := range opts.PDUSessionIDs {
@@ -62,8 +47,6 @@ func (g *GnodeB) SendHandoverRequiredToEPS(opts *HandoverToEPSOpts) error {
 	})
 }
 
-// WaitForHandoverToEPSCommand waits for the AMF's HANDOVER COMMAND and reads out
-// what the UE and the source need from it.
 func (g *GnodeB) WaitForHandoverToEPSCommand(timeout time.Duration) (*HandoverToEPSCommand, error) {
 	frame, err := g.WaitForMessage(Successful, ngap.ProcHandoverPreparation, timeout)
 	if err != nil {
@@ -79,9 +62,6 @@ func (g *GnodeB) WaitForHandoverToEPSCommand(timeout time.Duration) (*HandoverTo
 		return nil, fmt.Errorf("gnb: Handover Command handover type = %d, want fivegs-to-eps", cmd.HandoverType)
 	}
 
-	// Mandatory when the UE leaves 5GS (TS 38.413 §9.2.3.2, condition
-	// iftoEPSUTRA): without it the UE cannot rebuild the downlink NAS COUNT that
-	// seeded K'ASME, so the handover would fail on the EPS side with no diagnosis.
 	container, err := fgs.ParseN1ModeToS1ModeNASTransparentContainer(cmd.NASSecurityParametersFromNGRAN)
 	if err != nil {
 		return nil, fmt.Errorf("gnb: NAS security parameters from NG-RAN: %w", err)

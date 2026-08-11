@@ -79,6 +79,7 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byt
 	}
 
 	ue.UeSecurity.DLCount = 0
+	ue.UeSecurity.ULCount = 0
 	ue.UeSecurity.CipheringAlg = uint8(smc.CipheringAlgorithm)
 	ue.UeSecurity.IntegrityAlg = uint8(smc.IntegrityAlgorithm)
 

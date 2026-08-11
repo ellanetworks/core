@@ -21,15 +21,10 @@ import (
 )
 
 const (
-	handoverTimeout = 15 * time.Second
-
-	// movedEPSBearerIdentity is the identity the AMF allocates to the first PDU
-	// session of an S1-capable UE (the range starts at 5, TS 24.301 §6.5.0).
+	handoverTimeout        = 15 * time.Second
 	movedEPSBearerIdentity = s1ap.ERABID(5)
-
-	// targetENBUEID is the eNB-UE-S1AP-ID the target eNB allocates for the
-	// arriving UE.
-	targetENBUEID = int64(70)
+	targetENBUEID          = int64(70)
+	mobilityRANUENGAPID    = int64(scenarios.DefaultRANUENGAPID + 1)
 )
 
 func init() {
@@ -76,30 +71,16 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	// The EPS NAS algorithms belong in the security mode command (TS 33.501
-	// §6.7.2), but the S1 UE network capability they are selected from is not a
-	// cleartext IE (TS 24.501 §4.4.6): it reaches the AMF in the security mode
-	// complete, after that command was built. The AMF settles the debt with the
-	// security mode procedure of TS 24.501 §5.4.2.2 at the next registration, so
-	// the UE registers again before it can be handed over.
-	if err := newUE.SendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating)); err != nil {
-		return fmt.Errorf("mobility registration update over NR: %w", err)
+	if err := provisionEPSNASAlgorithms(gNodeB, newUE, ranUENGAPID); err != nil {
+		return err
 	}
 
-	if _, err := newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), attachTimeout); err != nil {
-		return fmt.Errorf("registration accept for the mobility registration update: %w", err)
-	}
-
-	if newUE.UeSecurity.EPSNASAlgorithms == nil {
-		return fmt.Errorf("the AMF provisioned no EPS NAS algorithms, so the UE cannot be handed over to EPS")
-	}
-
-	before, err := probeOver5GS(ctx, env, gNodeB, newUE, ranUENGAPID, "over N3 before the handover")
+	before, err := probeOver5GS(ctx, env, gNodeB, newUE, mobilityRANUENGAPID, "over N3 before the handover")
 	if err != nil {
 		return err
 	}
 
-	bearer, err := handoverToEPS(gNodeB, e, newUE, ranUENGAPID)
+	bearer, err := handoverToEPS(gNodeB, e, newUE, mobilityRANUENGAPID)
 	if err != nil {
 		return err
 	}
@@ -260,4 +241,36 @@ func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, be
 	}
 
 	return sessionFactsFor(ctx, env, addrs, enbTunIface, bearer.upfAddress, bearer.ulTEID, "S1-U after the handover")
+}
+
+func provisionEPSNASAlgorithms(gNodeB *gnb.GnodeB, u *ue.UE, ranUENGAPID int64) error {
+	var sessions [16]bool
+
+	sessions[movedPDUSessionID] = true
+
+	if err := procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
+		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:   ranUENGAPID,
+		GnodeB:        gNodeB,
+		UE:            u,
+		PDUSessionIDs: sessions,
+	}); err != nil {
+		return fmt.Errorf("release the connection before the mobility registration update: %w", err)
+	}
+
+	gNodeB.AddUE(mobilityRANUENGAPID, u)
+
+	if err := u.SendRegistrationRequest(mobilityRANUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating)); err != nil {
+		return fmt.Errorf("mobility registration update over NR: %w", err)
+	}
+
+	if _, err := u.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), attachTimeout); err != nil {
+		return fmt.Errorf("registration accept for the mobility registration update: %w", err)
+	}
+
+	if u.UeSecurity.EPSNASAlgorithms == nil {
+		return fmt.Errorf("the AMF provisioned no EPS NAS algorithms, so the UE cannot be handed over to EPS")
+	}
+
+	return nil
 }

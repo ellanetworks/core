@@ -48,9 +48,6 @@ func TestBuildHandoverRequiredRoundTrips(t *testing.T) {
 	}
 }
 
-// A handover to EPS names an eNB, and TS 38.413 §9.3.1.8 spells that identity
-// differently from an NG-RAN node's: a 20-bit macro ng-eNB ID and a Selected
-// EPS TAI rather than a 5GS TAI.
 func TestBuildHandoverRequiredToENB(t *testing.T) {
 	const enbID = uint32(0x00abc)
 

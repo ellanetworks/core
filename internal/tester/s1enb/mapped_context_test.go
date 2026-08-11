@@ -24,10 +24,6 @@ func testKAMF() []byte {
 	return k
 }
 
-// The UE and the AMF derive the same mapped EPS security context from the same
-// inputs, each with its own KDF call (TS 33.501 §8.3.2, Annex A.14.2). The
-// tester deliberately reimplements the derivation, so agreement here means both
-// sides read the spec the same way rather than sharing a bug.
 func TestMappedSecurityContextAgreesWithTheCore(t *testing.T) {
 	const (
 		dlCount = 11
@@ -66,8 +62,7 @@ func TestMappedSecurityContextAgreesWithTheCore(t *testing.T) {
 		t.Fatalf("K'ASME = % x, want the % x the AMF derived", e.MappedKASME(), mapped.Context.KASME)
 	}
 
-	// The MME derives the NAS keys from that K'ASME; the UE must land on the same
-	// pair (TS 33.401 Annex A.7).
+	// TS 33.401 Annex A.7
 	wantEnc, err := epskeys.DeriveKNASEnc(mapped.Context.KASME[:], nas.CipheringAES)
 	if err != nil {
 		t.Fatalf("DeriveKNASEnc: %v", err)
@@ -89,9 +84,7 @@ func TestMappedSecurityContextAgreesWithTheCore(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.3.2 step 8: the UE rebuilds the count from the 8 LSB the
-// container carried, and the estimate must exceed the count it holds — a
-// replayed container must not roll it back.
+// TS 33.501 §8.3.2 step 8
 func TestEstimateDownlinkNASCount(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -102,9 +95,6 @@ func TestEstimateDownlinkNASCount(t *testing.T) {
 	}{
 		{"next in the same overflow window", nas.MakeCount(0, 10), 11, 11, true},
 		{"wraps into the next window", nas.MakeCount(0, 250), 3, 0x0103, true},
-		// A sequence number at or below the stored one is a wrap, not a rollback:
-		// the estimate moves into the next overflow window, so a replayed
-		// container can never reproduce a count already used.
 		{"equal to the stored sequence number wraps", nas.MakeCount(0, 10), 10, 0x010a, true},
 		{"below the stored sequence number wraps", nas.MakeCount(0, 200), 5, 0x0105, true},
 	} {
@@ -121,8 +111,6 @@ func TestEstimateDownlinkNASCount(t *testing.T) {
 	}
 }
 
-// The container the AMF sends carries exactly the 8 LSB of the count it derived
-// K'ASME from, so a UE that estimates from it lands on the same value.
 func TestContainerSequenceNumberRebuildsTheCount(t *testing.T) {
 	const dlCount = nas.Count(0x0102fe)
 
