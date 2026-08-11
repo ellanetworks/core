@@ -11,6 +11,13 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
+// The assignable EPS bearer identity range; 1 to 4 are reserved (TS 24.301
+// §6.5.0).
+const (
+	firstEPSBearerIdentity = 5
+	lastEPSBearerIdentity  = 15
+)
+
 type ExpectedPDUSessionEstablishmentAccept struct {
 	PDUSessionID               fgs.PDUSessionID
 	PDUSessionType             fgs.PDUSessionType
@@ -112,9 +119,7 @@ func PDUSessionEstablishmentAccept(plain []byte, opts *ExpectedPDUSessionEstabli
 		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions QFI: %d", qosFlowDesc.QFI)
 	}
 
-	// The parameter list is keyed by identity, not position (TS 24.501
-	// §9.11.4.12): a session that carries an EPS bearer identity for interworking
-	// adds the 07H parameter alongside the 5QI, so the count is not fixed.
+	// TS 24.501 §9.11.4.12
 	params := make(map[fgs.QoSFlowParameterID][]byte, len(qosFlowDesc.Parameters))
 	for _, p := range qosFlowDesc.Parameters {
 		params[p.ID] = p.Value
@@ -129,12 +134,10 @@ func PDUSessionEstablishmentAccept(plain []byte, opts *ExpectedPDUSessionEstabli
 		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions FiveQI: % x, expected: %d", fiveQI, opts.FiveQI)
 	}
 
-	// A UE supporting S1 mode is given the EPS bearer identity its QoS flow maps
-	// to, so it can keep the session on a handover to EPS; without it the UE
-	// releases the session locally (TS 24.501 §6.1.4.1).
-	if ebi, ok := params[fgs.QoSFlowParamEPSBearerID]; ok {
-		if len(ebi) != 1 || ebi[0] < 5 || ebi[0] > 15 {
-			return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions EPS bearer identity: % x", ebi)
+	if _, present := params[fgs.QoSFlowParamEPSBearerID]; present {
+		ebi, ok := qosFlowDesc.EPSBearerID()
+		if !ok || ebi < firstEPSBearerIdentity || ebi > lastEPSBearerIdentity {
+			return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions EPS bearer identity: %d", ebi)
 		}
 	}
 

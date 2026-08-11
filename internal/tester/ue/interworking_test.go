@@ -12,8 +12,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// containedRegistrationRequest decodes the REGISTRATION REQUEST the UE repeats
-// inside SECURITY MODE COMPLETE.
 func containedRegistrationRequest(t *testing.T, sec *UESecurity) *fgs.RegistrationRequest {
 	t.Helper()
 
@@ -42,11 +40,7 @@ func containedRegistrationRequest(t *testing.T, sec *UESecurity) *fgs.Registrati
 	return req
 }
 
-// TS 24.501 §4.4.6 keeps the S1 UE network capability out of the cleartext
-// initial message, so it can only reach the AMF in the REGISTRATION REQUEST the
-// UE repeats inside SECURITY MODE COMPLETE. Without it the AMF has no EPS
-// algorithm support to select from and cannot provision the pair a handover to
-// EPS needs (TS 33.501 §6.7.2).
+// TS 24.501 §4.4.6
 func TestSecurityModeCompleteCarriesTheS1UENetworkCapability(t *testing.T) {
 	sec := goldenUESecurity()
 	capability := DefaultS1UENetworkCapability
@@ -68,8 +62,6 @@ func TestSecurityModeCompleteCarriesTheS1UENetworkCapability(t *testing.T) {
 			got.EEA, got.EIA, capability.EEA, capability.EIA)
 	}
 
-	// A UE claiming S1 mode with no EPS integrity algorithm could never be handed
-	// over, so the default must offer one other than the null algorithm.
 	if got.EIA&0x7f == 0 {
 		t.Error("the default S1 UE network capability offers no non-null EPS integrity algorithm")
 	}
@@ -84,9 +76,7 @@ func TestSecurityModeCompleteOmitsTheS1UENetworkCapabilityWhenUnset(t *testing.T
 	}
 }
 
-// The cleartext initial REGISTRATION REQUEST must not carry it (TS 24.501
-// §4.4.6): the AMF cannot trust an unprotected capability, which is the whole
-// reason the container exists.
+// TS 24.501 §4.4.6
 func TestInitialRegistrationRequestOmitsTheS1UENetworkCapability(t *testing.T) {
 	sec := goldenUESecurity()
 	capability := DefaultS1UENetworkCapability
@@ -111,8 +101,7 @@ func TestInitialRegistrationRequestOmitsTheS1UENetworkCapability(t *testing.T) {
 	}
 }
 
-// TS 33.501 §6.7.2: the UE holds the pair the AMF selected, because a handover
-// to EPS gives it no chance to be told again.
+// TS 33.501 §6.7.2
 func TestSecurityModeCommandStoresTheEPSNASAlgorithms(t *testing.T) {
 	sec := goldenUESecurity()
 

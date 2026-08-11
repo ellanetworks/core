@@ -68,9 +68,7 @@ func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGA
 	return nil
 }
 
-// storeEPSNASAlgorithms records the EPS NAS algorithms the AMF provisioned. The
-// UE has to hold them until a handover to EPS, where it cannot be told again
-// (TS 33.501 §6.7.2, §8.3.2).
+// TS 33.501 §6.7.2, §8.3.2
 func storeEPSNASAlgorithms(ue *UE, smc *fgs.SecurityModeCommand) {
 	if smc.SelectedEPSNASSecurityAlgorithms == nil {
 		return

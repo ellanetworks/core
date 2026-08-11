@@ -12,16 +12,12 @@ import (
 )
 
 type RegistrationRequestOpts struct {
-	RegistrationType  uint8
-	RequestedNSSAI    fgs.NSSAI
-	UplinkDataStatus  []byte
-	IncludeCapability bool
-	UESecurity        *UESecurity
-	PDUSessionStatus  *[16]bool
-
-	// S1UENetworkCapability is the UE's EPS algorithm support (TS 24.301
-	// §9.9.3.34). It is not a cleartext IE (TS 24.501 §4.4.6), so it rides only
-	// in the REGISTRATION REQUEST the UE repeats inside SECURITY MODE COMPLETE.
+	RegistrationType      uint8
+	RequestedNSSAI        fgs.NSSAI
+	UplinkDataStatus      []byte
+	IncludeCapability     bool
+	UESecurity            *UESecurity
+	PDUSessionStatus      *[16]bool
 	S1UENetworkCapability []byte
 }
 
@@ -65,10 +61,7 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 		return m.MarshalBinary()
 	}
 
-	// The UE's active PDU sessions ride in a ciphered NAS message container so the
-	// AMF can recover them before the security context is established (TS 24.501
-	// §5.5.1.2.2): the plain REGISTRATION REQUEST carrying the status IEs is
-	// ciphered and wrapped, and the outer message drops the status IEs.
+	// TS 24.501 §5.5.1.2.2
 	statusBuf := make([]byte, 2)
 	binary.LittleEndian.PutUint16(statusBuf, pduFlag)
 

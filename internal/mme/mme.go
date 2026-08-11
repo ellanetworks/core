@@ -1,12 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Package mme implements Ella Core's 4G Mobility Management Entity control
-// plane (the S1-MME interface), built on the github.com/ellanetworks/core/s1ap
-// codec. It handles eNB S1 Setup, the EPS NAS procedures (attach,
-// authentication, security mode, identity, tracking area update, service
-// request, detach), UE contexts, and default-bearer activation via the
-// SMF/PGW-C anchor.
 package mme
 
 import (
@@ -207,9 +201,6 @@ func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability) *eps.NetworkF
 
 	nfs.EPCO = ueCap.SupportsEPCO()
 
-	// IWK N26 stays clear: the bit means "interworking *without* N26 supported",
-	// and this MME supports N26 (TS 24.301 §9.9.3.12A, §5.5.1.2.4). A UE reading
-	// it clear operates in single-registration mode.
 	nfs.IWKN26 = false
 
 	return &nfs

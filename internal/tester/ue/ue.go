@@ -41,35 +41,27 @@ const (
 const ngKSINoKey = 7
 
 type UESecurity struct {
-	Supi                 string
-	Msin                 string
-	mcc                  string
-	mnc                  string
-	ULCount              nas.Count
-	DLCount              nas.Count
-	UeSecurityCapability fgs.UESecurityCapability
-	IntegrityAlg         uint8
-	CipheringAlg         uint8
-	NgKsi                models.NgKsi
-	Snn                  string
-	KnasEnc              [16]uint8
-	KnasInt              [16]uint8
-	Kamf                 []uint8
-	AuthenticationSubs   AuthenticationSubscription
-	Suci                 fgs.MobileIdentity // the UE's SUCI
-	suciPublicKey        sidf.HomeNetworkPublicKey
-	RoutingIndicator     string
-	Guti                 *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
-
-	// S1UENetworkCapability is the UE's EPS algorithm support, offered to the AMF
-	// so it can pick the EPS NAS algorithms for a later handover to EPS
-	// (TS 33.501 §6.7.2). Nil for a UE that does not support S1 mode.
+	Supi                  string
+	Msin                  string
+	mcc                   string
+	mnc                   string
+	ULCount               nas.Count
+	DLCount               nas.Count
+	UeSecurityCapability  fgs.UESecurityCapability
+	IntegrityAlg          uint8
+	CipheringAlg          uint8
+	NgKsi                 models.NgKsi
+	Snn                   string
+	KnasEnc               [16]uint8
+	KnasInt               [16]uint8
+	Kamf                  []uint8
+	AuthenticationSubs    AuthenticationSubscription
+	Suci                  fgs.MobileIdentity // the UE's SUCI
+	suciPublicKey         sidf.HomeNetworkPublicKey
+	RoutingIndicator      string
+	Guti                  *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
 	S1UENetworkCapability *eps.UENetworkCapability
-
-	// EPSNASAlgorithms is the pair the AMF selected and signalled in the security
-	// mode command. The UE needs it to build the mapped EPS security context on a
-	// handover to EPS, where it cannot be asked again (TS 33.501 §8.3.2).
-	EPSNASAlgorithms *fgs.SelectedEPSNASSecurityAlgorithms
+	EPSNASAlgorithms      *fgs.SelectedEPSNASSecurityAlgorithms
 }
 
 type Amf struct {

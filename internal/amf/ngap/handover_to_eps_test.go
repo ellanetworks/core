@@ -24,10 +24,8 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// relocationTargetENBID is a 20-bit macro ng-eNB identity.
 const relocationTargetENBID = 0x00abc
 
-// epsPeerStub answers ForwardRelocation with a fixed outcome.
 type epsPeerStub struct {
 	mu sync.Mutex
 
@@ -236,8 +234,7 @@ func TestHandoverRequiredToEPS(t *testing.T) {
 	}
 }
 
-// A session the peer did not accept is ordered released toward the source gNB
-// (TS 23.502 §4.11.1.2.1 step 12).
+// TS 23.502 §4.11.1.2.1 step 12
 func TestHandoverRequiredToEPSReleasesUnacceptedSessions(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1, 2)

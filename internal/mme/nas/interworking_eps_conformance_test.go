@@ -21,10 +21,7 @@ func TestEPSNetworkFeatureSupportNeverEncodesIWKN26(t *testing.T) {
 	)
 
 	for _, tc := range []struct {
-		name string
-		// UE network capability octets 7.. — octet 8 bit 8 is ePCO, octet 9 bit 6 is
-		// N1 mode. The IWK N26 bit (octet 4, bit 7) is never set: it means
-		// interworking *without* N26, and this MME supports N26.
+		name      string
 		rest      []byte
 		wantOctet byte
 	}{

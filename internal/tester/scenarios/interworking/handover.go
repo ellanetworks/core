@@ -36,10 +36,7 @@ func init() {
 	})
 }
 
-// runHandover5GSToEPS drives an N26 handover: the UE registers over NR with a
-// PDU session, the source gNB asks for a handover to the eNB, and the session
-// continues over S1-U with the same address and anchor tunnel
-// (TS 23.502 §4.11.1.2.1).
+// TS 23.502 §4.11.1.2.1
 func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
@@ -93,17 +90,12 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 	return assertContinuity(before, after)
 }
 
-// handoverBearer is the S1-U endpoint pair the handover established: the
-// anchor's uplink F-TEID, which the MME took from the session it moved, and the
-// downlink TEID the target eNB allocated.
 type handoverBearer struct {
 	upfAddress string
 	ulTEID     uint32
 	dlTEID     uint32
 }
 
-// handoverToEPS runs the RAN half of the handover on both sides, and has the UE
-// derive the EPS security context it arrives with.
 func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64) (handoverBearer, error) {
 	enbID, err := strconv.ParseUint(scenarios.DefaultGNBID, 16, 32)
 	if err != nil {
@@ -131,8 +123,7 @@ func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64
 		return handoverBearer{}, fmt.Errorf("the Handover Request handover type = %d, want fivegs-to-eps", req.HandoverType)
 	}
 
-	// TS 33.501 §8.3.2 step 4: the MME passes on the {NH, NCC=2} pair the AMF
-	// derived, so the target eNB and the UE compute the same K_eNB.
+	// TS 33.501 §8.3.2 step 4
 	if req.SecurityContext.NextHopChainingCount != 2 {
 		return handoverBearer{}, fmt.Errorf("the Handover Request NCC = %d, want the 2 the mapped context carries",
 			req.SecurityContext.NextHopChainingCount)
@@ -163,8 +154,6 @@ func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64
 		return handoverBearer{}, err
 	}
 
-	// The UE has reached the target; the eNB reports it, which is what commits the
-	// user plane and lets the AMF release the 5GS side.
 	if err := e.SendHandoverNotify(targetENBUEID, mmeUEID); err != nil {
 		return handoverBearer{}, fmt.Errorf("send Handover Notify: %w", err)
 	}
@@ -181,9 +170,7 @@ func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64
 	}, nil
 }
 
-// installMappedContext has the UE derive the EPS security context it will use in
-// EPS, from the K_AMF it holds and the downlink NAS COUNT the Handover Command
-// named (TS 33.501 §8.3.2 steps 8-9).
+// TS 33.501 §8.3.2 steps 8-9
 func installMappedContext(u *ue.UE, cmd *gnb.HandoverToEPSCommand) error {
 	dl, err := s1enb.EstimateDownlinkNASCount(u.UeSecurity.DLCount, cmd.DownlinkNASCountSequenceNumber)
 	if err != nil {
@@ -206,8 +193,6 @@ func installMappedContext(u *ue.UE, cmd *gnb.HandoverToEPSCommand) error {
 	return nil
 }
 
-// probeAfterHandover builds the S1-U tunnel the handover established and checks
-// the session still carries traffic, with the address the UE held in 5GS.
 func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, bearer handoverBearer, addrs ueAddresses) (sessionFacts, error) {
 	opts := &s1enb.TunnelOpts{
 		UpfAddress:       bearer.upfAddress,

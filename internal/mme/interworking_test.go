@@ -9,10 +9,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// The IWK N26 bit means "interworking *without* N26 supported". This MME
-// supports N26, so it never sets it, whether or not the UE indicated N1 mode
-// (TS 24.301 §5.5.1.2.4, §9.9.3.12A). A UE reading it clear operates in
-// single-registration mode.
+// TS 24.301 §5.5.1.2.4, §9.9.3.12A
 func TestNetworkFeatureSupportNeverAdvertisesInterworkingWithoutN26(t *testing.T) {
 	m := &MME{}
 
