@@ -622,7 +622,6 @@ func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 		t.Fatal("the relocated UE context is not reachable")
 	}
 
-	// What handleHandoverFailure does when the target eNB refuses.
 	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget}
 	m.FailHandoverToSource(context.Background(), ue, refusal)
 
@@ -641,5 +640,49 @@ func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 
 	if _, ok := m.LookupUeByIMSI(req.IMSI); ok {
 		t.Error("the refused handover left a UE context behind")
+	}
+}
+
+func TestRelocatedConnectionIsFullyEstablished(t *testing.T) {
+	peer := &fakeFiveGSPeer{}
+	m := newTestMME(t)
+	m.FiveGS = peer
+	target := newRelocationTarget(t, m)
+	req := relocationRequest()
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	hoReq := target.awaitHandoverRequest(t)
+	target.admit(t, hoReq)
+
+	if err := <-done; err != nil {
+		t.Fatalf("ForwardRelocation: %v", err)
+	}
+
+	ue, ok := m.LookupUe(hoReq.MMEUES1APID)
+	if !ok {
+		t.Fatal("the relocated UE context is gone")
+	}
+
+	if _, ok := m.MarkHandoverCommitting(ue, target.conn, 42); !ok {
+		t.Fatal("the Handover Notify did not match the prepared handover")
+	}
+
+	if _, _, _, _, ok := m.FinishHandoverCommit(ue, target.conn, 42); !ok {
+		t.Fatal("the handover did not commit")
+	}
+
+	conn := ue.Conn()
+	if conn == nil {
+		t.Fatal("the UE holds no connection after the handover")
+	}
+
+	if conn.ICS != ICSCompleted {
+		t.Errorf("connection ICS state = %v, want the bearers the handover established to count as set up", conn.ICS)
 	}
 }

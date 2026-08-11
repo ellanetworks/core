@@ -361,9 +361,7 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 }
 
-// The peer answers in neutral terms, and the AMF picks the NGAP cause that fits
-// (TS 38.413 §8.4.1.3): an eNB it cannot reach is an unknown target, anything
-// else is a failure in the target system.
+// TS 38.413 §8.4.1.3
 func TestHandoverToEPSFailureCause(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -382,8 +380,6 @@ func TestHandoverToEPSFailureCause(t *testing.T) {
 	}
 }
 
-// A UE that never reaches the target must not hold its key chain forever: the
-// guard ends the handover and tells the peer to discard what it prepared.
 func TestHandoverToEPSGuardReleasesAUEThatNeverArrives(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
@@ -409,8 +405,6 @@ func TestHandoverToEPSGuardReleasesAUEThatNeverArrives(t *testing.T) {
 		t.Errorf("the peer was told to cancel %d times, want 1", cancelled)
 	}
 
-	// The key chain has to come back, or no later handover or security procedure
-	// could ever run for this UE.
 	if !amfUe.BeginKeyChainProc(procedure.N2Handover) {
 		t.Error("the abandoned handover still holds the UE's key chain")
 	}

@@ -142,34 +142,28 @@ func (ue *UE) WaitForPDUSession(pduSessionID uint8, timeout time.Duration) (PDUS
 }
 
 type UEOpts struct {
-	PDUSessionID         uint8
-	PDUSessionType       fgs.PDUSessionType
-	Msin                 string
-	UeSecurityCapability fgs.UESecurityCapability
-	K                    string
-	OpC                  string
-	Amf                  string
-	Sqn                  string
-	Mcc                  string
-	Mnc                  string
-	HomeNetworkPublicKey sidf.HomeNetworkPublicKey
-	RoutingIndicator     string
-	DNN                  string
-	Sst                  int32
-	Sd                   string
-	IMEISV               string
-	Guti                 *fgs.MobileIdentity
-	GnodeB               air.UplinkSender
-	NoAutoPDUSession     bool
-
-	// S1UENetworkCapability overrides the EPS algorithm support the UE offers for
-	// interworking. Nil takes DefaultS1UENetworkCapability.
+	PDUSessionID          uint8
+	PDUSessionType        fgs.PDUSessionType
+	Msin                  string
+	UeSecurityCapability  fgs.UESecurityCapability
+	K                     string
+	OpC                   string
+	Amf                   string
+	Sqn                   string
+	Mcc                   string
+	Mnc                   string
+	HomeNetworkPublicKey  sidf.HomeNetworkPublicKey
+	RoutingIndicator      string
+	DNN                   string
+	Sst                   int32
+	Sd                    string
+	IMEISV                string
+	Guti                  *fgs.MobileIdentity
+	GnodeB                air.UplinkSender
+	NoAutoPDUSession      bool
 	S1UENetworkCapability *eps.UENetworkCapability
 }
 
-// DefaultS1UENetworkCapability is what a UE claiming S1 mode support offers as
-// its EPS algorithm support (TS 24.301 §9.9.3.34): EEA0-EEA3 and EIA1-EIA3. EIA0
-// is left out — a UE must not offer null integrity for EPS NAS.
 var DefaultS1UENetworkCapability = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
 
 func NewUE(opts *UEOpts) (*UE, error) {
@@ -183,9 +177,6 @@ func NewUE(opts *UEOpts) (*UE, error) {
 
 	ue.UeSecurity.UeSecurityCapability = opts.UeSecurityCapability
 
-	// The UE claims S1 mode support in its 5GMM capability, so it offers the EPS
-	// algorithm support that goes with it (TS 24.501 §4.4.6 keeps it out of the
-	// cleartext initial message; BuildSecurityModeComplete carries it).
 	s1Capability := DefaultS1UENetworkCapability
 	if opts.S1UENetworkCapability != nil {
 		s1Capability = *opts.S1UENetworkCapability

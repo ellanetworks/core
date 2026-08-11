@@ -275,6 +275,9 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	}
 
 	target := ho.target
+
+	target.ICS = ICSCompleted
+
 	ue.active.Store(target)
 
 	if source == nil {

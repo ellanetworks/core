@@ -130,10 +130,6 @@ func (a *AMF) RelocationComplete(ctx context.Context, imsi string) error {
 	return nil
 }
 
-// SuperviseHandoverToEPS arms the handover guard on a move to EPS. Nothing on
-// the 5GS side hears from the target again — the peer reports the UE's arrival —
-// so without this a UE that never arrives would hold its key chain and handover
-// context forever, blocking every later handover and security procedure.
 func (a *AMF) SuperviseHandoverToEPS(ue *UeContext) {
 	if ue == nil {
 		return
@@ -142,8 +138,6 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext) {
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
 		func(cctx context.Context) error {
-			// False means the handover already finished: RelocationComplete cleared
-			// it, and there is nothing left to abandon.
 			if !a.abandonHandover(ue) {
 				return nil
 			}

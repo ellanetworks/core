@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
@@ -84,6 +85,11 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
+	// TS 24.301 §5.5.3.2.2 case zd
+	if err := trackingAreaUpdate(e, newUE, bearer); err != nil {
+		return err
+	}
+
 	after, err := probeAfterHandover(ctx, env, e, bearer, before.addrs)
 	if err != nil {
 		return err
@@ -92,10 +98,26 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 	return assertContinuity(before, after)
 }
 
+// TS 23.003 §2.10.2.1.2
+func trackingAreaUpdate(e *s1enb.ENB, u *ue.UE, bearer handoverBearer) error {
+	if u.UeSecurity.Guti == nil || u.UeSecurity.Guti.GUTI == nil {
+		return errors.New("the UE holds no 5G-GUTI to map into a tracking area update")
+	}
+
+	if err := e.TrackingAreaUpdateAfterHandover(bearer.epsUE, bearer.mmeUEID, targetENBUEID,
+		etsi.MapGUTI5GToEPS(*u.UeSecurity.Guti.GUTI), handoverTimeout); err != nil {
+		return fmt.Errorf("tracking area update after the handover: %w", err)
+	}
+
+	return nil
+}
+
 type handoverBearer struct {
 	upfAddress string
 	ulTEID     uint32
 	dlTEID     uint32
+	mmeUEID    int64
+	epsUE      *s1enb.UE
 }
 
 func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64) (handoverBearer, error) {
@@ -152,7 +174,8 @@ func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64
 		return handoverBearer{}, fmt.Errorf("the Handover Command released PDU sessions %v, want the session handed over", cmd.ReleasedPDUSessions)
 	}
 
-	if err := installMappedContext(u, cmd); err != nil {
+	mapped, err := installMappedContext(u, cmd)
+	if err != nil {
 		return handoverBearer{}, err
 	}
 
@@ -169,14 +192,16 @@ func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64
 		upfAddress: anchor,
 		ulTEID:     uint32(req.ERABToBeSetup[0].GTPTEID),
 		dlTEID:     dlTEID,
+		mmeUEID:    mmeUEID,
+		epsUE:      mapped,
 	}, nil
 }
 
 // TS 33.501 §8.3.2 steps 8-9
-func installMappedContext(u *ue.UE, cmd *gnb.HandoverToEPSCommand) error {
+func installMappedContext(u *ue.UE, cmd *gnb.HandoverToEPSCommand) (*s1enb.UE, error) {
 	dl, err := s1enb.EstimateDownlinkNASCount(u.UeSecurity.DLCount, cmd.DownlinkNASCountSequenceNumber)
 	if err != nil {
-		return fmt.Errorf("rebuild the downlink NAS COUNT: %w", err)
+		return nil, fmt.Errorf("rebuild the downlink NAS COUNT: %w", err)
 	}
 
 	mapped := s1enb.NewUnboundUE()
@@ -189,10 +214,10 @@ func installMappedContext(u *ue.UE, cmd *gnb.HandoverToEPSCommand) error {
 		Integrity:        uint8(u.UeSecurity.EPSNASAlgorithms.Integrity),
 		EKSI:             uint8(u.UeSecurity.NgKsi.Ksi),
 	}); err != nil {
-		return fmt.Errorf("derive the mapped EPS security context: %w", err)
+		return nil, fmt.Errorf("derive the mapped EPS security context: %w", err)
 	}
 
-	return nil
+	return mapped, nil
 }
 
 func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, bearer handoverBearer, addrs ueAddresses) (sessionFacts, error) {
