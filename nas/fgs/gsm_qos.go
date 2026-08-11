@@ -482,6 +482,41 @@ type QoSFlowDescription struct {
 // content of the LV-E / TLV-E, without IEI or length (TS 24.501 §9.11.4.12).
 type QoSFlowDescriptions []QoSFlowDescription
 
+// epsBearerIDShift is the position of the EPS bearer identity in its parameter
+// octet: TS 24.501 §9.11.4.12 puts it in bits 5 to 8, with bits 1 to 4 spare, so
+// it sits in the high nibble and not the low one.
+const epsBearerIDShift = 4
+
+// EPSBearerIDQoSFlowParameter builds the EPS bearer identity parameter of a QoS
+// flow description (TS 24.501 §9.11.4.12): one octet carrying the EBI in bits 5
+// to 8, bits 1 to 4 coded as zero.
+//
+// This is where the EBI-to-QFI mapping reaches the UE. It has no counterpart
+// toward the RAN: TS 38.413 defines no EPS bearer identity information element
+// at all, so an NG-RAN node learns the mapping from the source NG-RAN node over
+// Xn rather than from the AMF (TS 23.502 §4.11.5.5). The parameter is
+// network-to-UE only — §9.11.4.12 forbids the UE from including it in any mobile
+// originated 5GSM message.
+func EPSBearerIDQoSFlowParameter(ebi uint8) (QoSFlowParameter, error) {
+	if ebi > 0x0F {
+		return QoSFlowParameter{}, fmt.Errorf("nas/fgs: EPS bearer identity %d does not fit four bits", ebi)
+	}
+
+	return QoSFlowParameter{ID: QoSFlowParamEPSBearerID, Value: []byte{ebi << epsBearerIDShift}}, nil
+}
+
+// EPSBearerID returns the EPS bearer identity the flow's parameters carry and
+// whether one was present and well formed.
+func (d QoSFlowDescription) EPSBearerID() (uint8, bool) {
+	for _, p := range d.Parameters {
+		if p.ID == QoSFlowParamEPSBearerID && len(p.Value) == 1 {
+			return p.Value[0] >> epsBearerIDShift, true
+		}
+	}
+
+	return 0, false
+}
+
 // AppendBinary encodes the authorized QoS flow descriptions IE value onto b.
 func (ds QoSFlowDescriptions) AppendBinary(b []byte) ([]byte, error) {
 	w := nas.NewWriter(b)

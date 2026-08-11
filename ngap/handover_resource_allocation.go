@@ -32,7 +32,13 @@ type HandoverRequest struct {
 	PDUSessionResourceSetupListHOReq   PDUSessionResourceSetupListHOReq
 	AllowedNSSAI                       AllowedNSSAI
 	SourceToTargetTransparentContainer SourceToTargetTransparentContainer
-	GUAMI                              GUAMI
+
+	// MobilityRestrictionList is optional in the ASN.1 and not optional in
+	// practice: TS 38.413 §8.4.2.4 has the target NG-RAN node reject the handover
+	// when the list is absent and it cannot determine the serving PLMN otherwise.
+	MobilityRestrictionList *MobilityRestrictionList
+
+	GUAMI GUAMI
 
 	messageMeta
 }
@@ -165,6 +171,27 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			}
 
 			return m.SourceToTargetTransparentContainer, true
+		},
+	},
+	{
+		id: idMobilityRestrictionList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v MobilityRestrictionList
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MobilityRestrictionList = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.MobilityRestrictionList == nil {
+				return nil, false
+			}
+
+			return m.MobilityRestrictionList, true
 		},
 	},
 	{

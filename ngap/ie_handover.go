@@ -228,6 +228,116 @@ func (n *NewSecurityContextInd) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	return nil
 }
 
+// The Mobility Restriction List vocabulary (TS 38.413 §9.3.1.85). The list is
+// optional in the ASN.1 and not optional in practice: §8.4.2.4 has the target
+// NG-RAN node "reject the procedure using the HANDOVER FAILURE message" when the
+// list is absent and it cannot determine the serving PLMN otherwise — and again
+// when the serving PLMN the list carries is one the target cell does not
+// support. Its general handling clause (§8.4.2.2) is the other half: an absent
+// list otherwise means no roaming and no access restriction apply.
+//
+// The EPS counterpart is s1ap.HandoverRestrictionList. The two agree on the
+// serving PLMN and the equivalent PLMNs and diverge after that: EPS forbids
+// tracking and location areas, 5GS forbids areas, restricts RATs and scopes a
+// service area, so neither list's remaining fields map onto the other's.
+
+// EquivalentPLMNs ::= SEQUENCE (SIZE(1..maxnoofEPLMNs)) OF PLMNIdentity.
+type EquivalentPLMNs []PLMNIdentity
+
+// ForbiddenTACs ::= SEQUENCE (SIZE(1..maxnoofForbTACs)) OF TAC. The TAC is the
+// three-octet 5GS one, not the two-octet EPS TAC of EPSTAI.
+type ForbiddenTACs []TAC
+
+// ForbiddenAreaInformation-Item ::= SEQUENCE { pLMNIdentity, forbiddenTACs,
+// iE-Extensions OPTIONAL } (extensible).
+type ForbiddenAreaInformationItem struct {
+	_             [0]struct{} `per:"extseq"`
+	PLMNIdentity  PLMNIdentity
+	ForbiddenTACs ForbiddenTACs
+	_             ieExtensions `per:",skip"`
+}
+
+// ForbiddenAreaInformation ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
+// ForbiddenAreaInformation-Item.
+type ForbiddenAreaInformation []ForbiddenAreaInformationItem
+
+// RATRestrictionInformation ::= BIT STRING (SIZE(8, ...)) — TS 38.413
+// §9.3.1.85. A bit set to 1 restricts the UE from that RAT; bit 7 is reserved.
+// The value is held as the eight bits in transmission order, with e-UTRA in the
+// most significant.
+type RATRestrictionInformation uint8
+
+// RAT restriction bit positions, counted from the first bit in transmission
+// order (TS 38.413 §9.3.1.85).
+const (
+	RATRestrictionEUTRA RATRestrictionInformation = 1 << (7 - iota)
+	RATRestrictionNR
+	RATRestrictionNRUnlicensed
+	RATRestrictionNRLEO
+	RATRestrictionNRMEO
+	RATRestrictionNRGEO
+	RATRestrictionNROtherSat
+
+	ratRestrictionInformationBits = 8
+)
+
+// RATRestrictions-Item ::= SEQUENCE { pLMNIdentity, rATRestrictionInformation,
+// iE-Extensions OPTIONAL } (extensible).
+type RATRestrictionsItem struct {
+	_                         [0]struct{} `per:"extseq"`
+	PLMNIdentity              PLMNIdentity
+	RATRestrictionInformation RATRestrictionInformation
+	_                         ieExtensions `per:",skip"`
+}
+
+// RATRestrictions ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
+// RATRestrictions-Item.
+type RATRestrictions []RATRestrictionsItem
+
+// AllowedTACs ::= SEQUENCE (SIZE(1..maxnoofAllowedAreas)) OF TAC.
+type AllowedTACs []TAC
+
+// NotAllowedTACs ::= SEQUENCE (SIZE(1..maxnoofAllowedAreas)) OF TAC.
+type NotAllowedTACs []TAC
+
+// ServiceAreaInformation-Item ::= SEQUENCE { pLMNIdentity, allowedTACs OPTIONAL,
+// notAllowedTACs OPTIONAL, iE-Extensions OPTIONAL } (extensible).
+type ServiceAreaInformationItem struct {
+	_              [0]struct{} `per:"extseq"`
+	PLMNIdentity   PLMNIdentity
+	AllowedTACs    AllowedTACs    `per:",optional"`
+	NotAllowedTACs NotAllowedTACs `per:",optional"`
+	_              ieExtensions   `per:",skip"`
+}
+
+// ServiceAreaInformation ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
+// ServiceAreaInformation-Item.
+type ServiceAreaInformation []ServiceAreaInformationItem
+
+// Range bounds of the Mobility Restriction List vocabulary (TS 38.413,
+// NGAP-Constants).
+const (
+	maxnoofEPLMNs        = 15
+	maxnoofEPLMNsPlusOne = 16
+	maxnoofForbTACs      = 4096
+	maxnoofAllowedAreas  = 16
+)
+
+// MobilityRestrictionList ::= SEQUENCE { servingPLMN, equivalentPLMNs OPTIONAL,
+// rATRestrictions OPTIONAL, forbiddenAreaInformation OPTIONAL,
+// serviceAreaInformation OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
+// TS 38.413 §9.3.1.85. Only the serving PLMN is mandatory, and it is the one
+// field §8.4.2.4 turns on.
+type MobilityRestrictionList struct {
+	_                        [0]struct{} `per:"extseq"`
+	ServingPLMN              PLMNIdentity
+	EquivalentPLMNs          EquivalentPLMNs          `per:",optional"`
+	RATRestrictions          RATRestrictions          `per:",optional"`
+	ForbiddenAreaInformation ForbiddenAreaInformation `per:",optional"`
+	ServiceAreaInformation   ServiceAreaInformation   `per:",optional"`
+	_                        ieExtensions             `per:",skip"`
+}
+
 // PDUSessionResourceItemHORqd ::= SEQUENCE { pDUSessionID,
 // handoverRequiredTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceItemHORqd struct {

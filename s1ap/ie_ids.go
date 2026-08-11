@@ -81,6 +81,7 @@ const (
 	idUERadioCapabilityForPaging                ProtocolIEID = 198
 	idRequestType                               ProtocolIEID = 98
 	idRRCEstablishmentCause                     ProtocolIEID = 134
+	idHandoverRestrictionList                   ProtocolIEID = 41
 	idNASSecurityParametersfromEUTRAN           ProtocolIEID = 135
 	idNASSecurityParameterstoEUTRAN             ProtocolIEID = 136
 	idDefaultPagingDRX                          ProtocolIEID = 137

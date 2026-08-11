@@ -414,6 +414,111 @@ func (s *SupportedTAs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 // The container holds at least one extension (SIZE(1..maxProtocolExtensions)),
 // so a caller with nothing to send leaves the field nil.
+func (l LAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 2, 2, true, true, false, []byte{byte(l >> 8), byte(l)})
+}
+
+func (l *LAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 2, 2, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*l = LAC(uint16(b[0])<<8 | uint16(b[1]))
+
+	return nil
+}
+
+func (e EPLMNs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEPLMNs, []PLMNIdentity(e))
+}
+
+func (e *EPLMNs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PLMNIdentity](r, enc, 1, maxnoofEPLMNs)
+	if err != nil {
+		return err
+	}
+
+	*e = items
+
+	return nil
+}
+
+func (f ForbiddenTACs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofForbTACs, []TAC(f))
+}
+
+func (f *ForbiddenTACs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAC](r, enc, 1, maxnoofForbTACs)
+	if err != nil {
+		return err
+	}
+
+	*f = items
+
+	return nil
+}
+
+func (f ForbiddenLACs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofForbLACs, []LAC(f))
+}
+
+func (f *ForbiddenLACs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[LAC](r, enc, 1, maxnoofForbLACs)
+	if err != nil {
+		return err
+	}
+
+	*f = items
+
+	return nil
+}
+
+func (f ForbiddenTAs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEPLMNsPlusOne, []ForbiddenTAsItem(f))
+}
+
+func (f *ForbiddenTAs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[ForbiddenTAsItem](r, enc, 1, maxnoofEPLMNsPlusOne)
+	if err != nil {
+		return err
+	}
+
+	*f = items
+
+	return nil
+}
+
+func (f ForbiddenLAs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEPLMNsPlusOne, []ForbiddenLAsItem(f))
+}
+
+func (f *ForbiddenLAs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[ForbiddenLAsItem](r, enc, 1, maxnoofEPLMNsPlusOne)
+	if err != nil {
+		return err
+	}
+
+	*f = items
+
+	return nil
+}
+
+func (f ForbiddenInterRATs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, forbiddenInterRATsRootCount, int64(f), "ForbiddenInterRATs")
+}
+
+func (f *ForbiddenInterRATs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, forbiddenInterRATsRootCount, "ForbiddenInterRATs")
+	if err != nil {
+		return err
+	}
+
+	*f = ForbiddenInterRATs(idx)
+
+	return nil
+}
+
 func (e *ERABToBeSetupItemHOReqExtIEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if e.DataForwardingNotPossible == nil {
 		return fmt.Errorf("s1ap: E-RABToBeSetupItemHOReq iE-Extensions carries no modeled extension")

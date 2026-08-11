@@ -1209,6 +1209,126 @@ func (fiveGSTAI *FiveGSTAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	return nil
 }
 
+func (forbiddenLAsItem *ForbiddenLAsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := forbiddenLAsItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := forbiddenLAsItem.ForbiddenLACs.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (forbiddenLAsItem *ForbiddenLAsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&forbiddenLAsItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&forbiddenLAsItem.ForbiddenLACs).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (forbiddenTAsItem *ForbiddenTAsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := forbiddenTAsItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := forbiddenTAsItem.ForbiddenTACs.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (forbiddenTAsItem *ForbiddenTAsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&forbiddenTAsItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&forbiddenTAsItem.ForbiddenTACs).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (gBRQosInformation *GBRQosInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -1489,6 +1609,122 @@ func (globalGNBID *GlobalGNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 		return err
 	}
 	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (handoverRestrictionList *HandoverRestrictionList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(handoverRestrictionList.EquivalentPLMNs != nil)
+	w.WriteBit(handoverRestrictionList.ForbiddenTAs != nil)
+	w.WriteBit(handoverRestrictionList.ForbiddenLAs != nil)
+	w.WriteBit(handoverRestrictionList.ForbiddenInterRATs != nil)
+	w.WriteBit(false)
+	if err := handoverRestrictionList.ServingPLMN.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if handoverRestrictionList.EquivalentPLMNs != nil {
+		if err := handoverRestrictionList.EquivalentPLMNs.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if handoverRestrictionList.ForbiddenTAs != nil {
+		if err := handoverRestrictionList.ForbiddenTAs.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if handoverRestrictionList.ForbiddenLAs != nil {
+		if err := handoverRestrictionList.ForbiddenLAs.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if handoverRestrictionList.ForbiddenInterRATs != nil {
+		if err := (*handoverRestrictionList.ForbiddenInterRATs).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (handoverRestrictionList *HandoverRestrictionList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_EquivalentPLMNs, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ForbiddenTAs, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ForbiddenLAs, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ForbiddenInterRATs, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f5, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&handoverRestrictionList.ServingPLMN).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_EquivalentPLMNs {
+		if err := (&handoverRestrictionList.EquivalentPLMNs).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ForbiddenTAs {
+		if err := (&handoverRestrictionList.ForbiddenTAs).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ForbiddenLAs {
+		if err := (&handoverRestrictionList.ForbiddenLAs).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ForbiddenInterRATs {
+		var v ForbiddenInterRATs
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		handoverRestrictionList.ForbiddenInterRATs = &v
+	}
+	if p_f5 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err

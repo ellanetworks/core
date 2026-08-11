@@ -6,6 +6,7 @@ package ngap
 import (
 	"bytes"
 	"encoding/hex"
+	"reflect"
 	"testing"
 )
 
@@ -344,5 +345,125 @@ func TestHandoverRequestCarriesNASC(t *testing.T) {
 
 	if out.NewSecurityContextInd != nil || out.NASC != nil {
 		t.Errorf("intra-5GS request carried %v / % x, want neither", out.NewSecurityContextInd, out.NASC)
+	}
+}
+
+// TestHandoverRequestCarriesMobilityRestrictionList covers the Mobility
+// Restriction List (TS 38.413 §9.3.1.85), the 5GS counterpart of S1AP's Handover
+// Restriction List. It is optional in the ASN.1 and not optional in practice:
+// §8.4.2.4 has the target NG-RAN node reject the handover with HANDOVER FAILURE
+// when the list is absent and it cannot determine the serving PLMN otherwise.
+//
+// The two lists agree only on the serving and equivalent PLMNs; EPS forbids
+// tracking and location areas where 5GS forbids areas, restricts RATs and scopes
+// a service area, so nothing below the first two fields transposes.
+func TestHandoverRequestCarriesMobilityRestrictionList(t *testing.T) {
+	serving := PLMNIdentity{0x02, 0xf8, 0x39}
+	other := PLMNIdentity{0x02, 0xf8, 0x40}
+
+	in := HandoverRequest{
+		AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,
+		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		SecurityContext:           SecurityContext{NextHopChainingCount: 1},
+		PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
+			PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: handoverSetupTransfer(t),
+		}},
+		AllowedNSSAI:                       AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1}}},
+		SourceToTargetTransparentContainer: SourceToTargetTransparentContainer{0xaa, 0xbb},
+		MobilityRestrictionList: &MobilityRestrictionList{
+			ServingPLMN:     serving,
+			EquivalentPLMNs: EquivalentPLMNs{other},
+			RATRestrictions: RATRestrictions{{
+				PLMNIdentity:              other,
+				RATRestrictionInformation: RATRestrictionEUTRA | RATRestrictionNRLEO,
+			}},
+			ForbiddenAreaInformation: ForbiddenAreaInformation{{
+				PLMNIdentity: other, ForbiddenTACs: ForbiddenTACs{0x000007, 0xabcdef},
+			}},
+			ServiceAreaInformation: ServiceAreaInformation{{
+				PLMNIdentity: serving, AllowedTACs: AllowedTACs{1}, NotAllowedTACs: NotAllowedTACs{2},
+			}},
+		},
+		GUAMI: GUAMI{PLMNIdentity: serving, AMFRegionID: 1, AMFSetID: 1},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParseHandoverRequest(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := out.MobilityRestrictionList
+	if got == nil {
+		t.Fatal("restriction list absent")
+	}
+
+	if !reflect.DeepEqual(got, in.MobilityRestrictionList) {
+		t.Fatalf("restriction list = %+v, want %+v", got, in.MobilityRestrictionList)
+	}
+
+	// The RAT restriction bitmap is a bit string, so its first bit in
+	// transmission order is the most significant octet bit — getting that
+	// backwards would restrict nR-OTHERSAT where e-UTRA was meant.
+	if want := RATRestrictionInformation(0b1001_0000); got.RATRestrictions[0].RATRestrictionInformation != want {
+		t.Errorf("RAT restriction = %08b, want %08b", got.RATRestrictions[0].RATRestrictionInformation, want)
+	}
+
+	// Serving PLMN alone is the minimum §8.4.2.4 turns on, and the optional
+	// fields have to stay absent rather than decode as empty lists.
+	in.MobilityRestrictionList = &MobilityRestrictionList{ServingPLMN: serving}
+
+	b, err = in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err = Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err = ParseHandoverRequest(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := out.MobilityRestrictionList; got == nil || got.ServingPLMN != serving ||
+		got.EquivalentPLMNs != nil || got.RATRestrictions != nil ||
+		got.ForbiddenAreaInformation != nil || got.ServiceAreaInformation != nil {
+		t.Fatalf("serving-PLMN-only list = %+v", got)
+	}
+
+	// And the whole list stays optional.
+	in.MobilityRestrictionList = nil
+
+	b, err = in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err = Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err = ParseHandoverRequest(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.MobilityRestrictionList != nil {
+		t.Fatalf("restriction list = %+v, want none", out.MobilityRestrictionList)
 	}
 }

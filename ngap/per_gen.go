@@ -685,6 +685,66 @@ func (fiveGSTMSI *FiveGSTMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 	return nil
 }
 
+func (forbiddenAreaInformationItem *ForbiddenAreaInformationItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := forbiddenAreaInformationItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := forbiddenAreaInformationItem.ForbiddenTACs.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (forbiddenAreaInformationItem *ForbiddenAreaInformationItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&forbiddenAreaInformationItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&forbiddenAreaInformationItem.ForbiddenTACs).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (gBRQosInformation *GBRQosInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(gBRQosInformation.NotificationControl != nil)
@@ -1379,6 +1439,120 @@ func (handoverResourceAllocationUnsuccessfulTransfer *HandoverResourceAllocation
 		handoverResourceAllocationUnsuccessfulTransfer.CriticalityDiagnostics = &v
 	}
 	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (mobilityRestrictionList *MobilityRestrictionList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(mobilityRestrictionList.EquivalentPLMNs != nil)
+	w.WriteBit(mobilityRestrictionList.RATRestrictions != nil)
+	w.WriteBit(mobilityRestrictionList.ForbiddenAreaInformation != nil)
+	w.WriteBit(mobilityRestrictionList.ServiceAreaInformation != nil)
+	w.WriteBit(false)
+	if err := mobilityRestrictionList.ServingPLMN.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if mobilityRestrictionList.EquivalentPLMNs != nil {
+		if err := mobilityRestrictionList.EquivalentPLMNs.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if mobilityRestrictionList.RATRestrictions != nil {
+		if err := mobilityRestrictionList.RATRestrictions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if mobilityRestrictionList.ForbiddenAreaInformation != nil {
+		if err := mobilityRestrictionList.ForbiddenAreaInformation.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if mobilityRestrictionList.ServiceAreaInformation != nil {
+		if err := mobilityRestrictionList.ServiceAreaInformation.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mobilityRestrictionList *MobilityRestrictionList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_EquivalentPLMNs, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_RATRestrictions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ForbiddenAreaInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ServiceAreaInformation, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f5, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&mobilityRestrictionList.ServingPLMN).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_EquivalentPLMNs {
+		if err := (&mobilityRestrictionList.EquivalentPLMNs).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_RATRestrictions {
+		if err := (&mobilityRestrictionList.RATRestrictions).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ForbiddenAreaInformation {
+		if err := (&mobilityRestrictionList.ForbiddenAreaInformation).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ServiceAreaInformation {
+		if err := (&mobilityRestrictionList.ServiceAreaInformation).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_f5 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -5235,6 +5409,66 @@ func (qosFlowWithCauseItem *QosFlowWithCauseItem) UnmarshalPER(r *per.Reader, en
 	return nil
 }
 
+func (rATRestrictionsItem *RATRestrictionsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := rATRestrictionsItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := rATRestrictionsItem.RATRestrictionInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (rATRestrictionsItem *RATRestrictionsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&rATRestrictionsItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&rATRestrictionsItem.RATRestrictionInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (sNSSAI *SNSSAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(sNSSAI.SD != nil)
@@ -5554,6 +5788,90 @@ func (servedGUAMIItem *ServedGUAMIItem) UnmarshalPER(r *per.Reader, enc per.Enco
 		servedGUAMIItem.BackupAMFName = &v
 	}
 	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (serviceAreaInformationItem *ServiceAreaInformationItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(serviceAreaInformationItem.AllowedTACs != nil)
+	w.WriteBit(serviceAreaInformationItem.NotAllowedTACs != nil)
+	w.WriteBit(false)
+	if err := serviceAreaInformationItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if serviceAreaInformationItem.AllowedTACs != nil {
+		if err := serviceAreaInformationItem.AllowedTACs.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if serviceAreaInformationItem.NotAllowedTACs != nil {
+		if err := serviceAreaInformationItem.NotAllowedTACs.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (serviceAreaInformationItem *ServiceAreaInformationItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AllowedTACs, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_NotAllowedTACs, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f3, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&serviceAreaInformationItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_AllowedTACs {
+		if err := (&serviceAreaInformationItem.AllowedTACs).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_NotAllowedTACs {
+		if err := (&serviceAreaInformationItem.NotAllowedTACs).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_f3 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err

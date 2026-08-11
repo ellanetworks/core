@@ -40,6 +40,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idHandoverType:                               "HandoverType",
 	idNASSecurityParametersFromNGRAN:             "NASSecurityParametersFromNGRAN",
 	idNASC:                                       "NASC",
+	idMobilityRestrictionList:                    "MobilityRestrictionList",
 	idNewSecurityContextInd:                      "NewSecurityContextInd",
 	idPDUSessionResourceHandoverList:             "PDUSessionResourceHandoverList",
 	idPDUSessionResourceListHORqd:                "PDUSessionResourceListHORqd",

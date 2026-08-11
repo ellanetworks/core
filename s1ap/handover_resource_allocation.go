@@ -16,7 +16,13 @@ type HandoverRequest struct {
 	ERABToBeSetup          []ERABToBeSetupItemHOReq
 	SourceToTarget         TransparentContainer
 	UESecurityCapabilities UESecurityCapabilities
-	SecurityContext        SecurityContext
+
+	// HandoverRestrictionList is optional in the ASN.1 and not optional in
+	// practice: TS 36.413 §8.4.2.4 has the target eNB reject the handover when
+	// the list is absent and it cannot determine the serving PLMN otherwise.
+	HandoverRestrictionList *HandoverRestrictionList
+
+	SecurityContext SecurityContext
 	// C-iffromUTRANGERAN: present exactly when Handover Type is UTRANtoLTE or
 	// GERANtoLTE (§9.1.5.4).
 	NASSecurityParameterstoEUTRAN NASSecurityParameterstoEUTRAN
@@ -107,6 +113,27 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return perIEDecode(raw, &m.UESecurityCapabilities)
 		},
 		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.UESecurityCapabilities, true },
+	},
+	{
+		id: idHandoverRestrictionList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v HandoverRestrictionList
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.HandoverRestrictionList = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.HandoverRestrictionList == nil {
+				return nil, false
+			}
+
+			return m.HandoverRestrictionList, true
+		},
 	},
 	{
 		id: idSecurityContext, presence: presenceMandatory, crit: CriticalityReject,

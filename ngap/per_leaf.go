@@ -111,6 +111,138 @@ func (n *NgENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+// RATRestrictionInformation ::= BIT STRING (SIZE(8, ...)). The size constraint
+// is extensible, so a sender may use more than eight bits; the bits beyond the
+// eight TS 38.413 §9.3.1.85 assigns carry no meaning this release can act on and
+// are dropped, which is what the reserved bit 7 and the extension marker both
+// anticipate.
+func (i RATRestrictionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeBitString(w, enc, ratRestrictionInformationBits, ratRestrictionInformationBits,
+		true, true, true, []byte{byte(i)}, ratRestrictionInformationBits)
+}
+
+func (i *RATRestrictionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, nbits, err := per.DecodeBitString(r, enc, ratRestrictionInformationBits, ratRestrictionInformationBits,
+		true, true, true)
+	if err != nil {
+		return err
+	}
+
+	if nbits < ratRestrictionInformationBits {
+		return fmt.Errorf("ngap: RAT restriction information is %d bits, want at least %d",
+			nbits, ratRestrictionInformationBits)
+	}
+
+	*i = RATRestrictionInformation(b[0])
+
+	return nil
+}
+
+func (e EquivalentPLMNs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEPLMNs, []PLMNIdentity(e))
+}
+
+func (e *EquivalentPLMNs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[PLMNIdentity](r, enc, 1, maxnoofEPLMNs)
+	if err != nil {
+		return err
+	}
+
+	*e = items
+
+	return nil
+}
+
+func (f ForbiddenTACs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofForbTACs, []TAC(f))
+}
+
+func (f *ForbiddenTACs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAC](r, enc, 1, maxnoofForbTACs)
+	if err != nil {
+		return err
+	}
+
+	*f = items
+
+	return nil
+}
+
+func (f ForbiddenAreaInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEPLMNsPlusOne, []ForbiddenAreaInformationItem(f))
+}
+
+func (f *ForbiddenAreaInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[ForbiddenAreaInformationItem](r, enc, 1, maxnoofEPLMNsPlusOne)
+	if err != nil {
+		return err
+	}
+
+	*f = items
+
+	return nil
+}
+
+func (l RATRestrictions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEPLMNsPlusOne, []RATRestrictionsItem(l))
+}
+
+func (l *RATRestrictions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[RATRestrictionsItem](r, enc, 1, maxnoofEPLMNsPlusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+func (a AllowedTACs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofAllowedAreas, []TAC(a))
+}
+
+func (a *AllowedTACs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAC](r, enc, 1, maxnoofAllowedAreas)
+	if err != nil {
+		return err
+	}
+
+	*a = items
+
+	return nil
+}
+
+func (n NotAllowedTACs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofAllowedAreas, []TAC(n))
+}
+
+func (n *NotAllowedTACs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAC](r, enc, 1, maxnoofAllowedAreas)
+	if err != nil {
+		return err
+	}
+
+	*n = items
+
+	return nil
+}
+
+func (s ServiceAreaInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEPLMNsPlusOne, []ServiceAreaInformationItem(s))
+}
+
+func (s *ServiceAreaInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[ServiceAreaInformationItem](r, enc, 1, maxnoofEPLMNsPlusOne)
+	if err != nil {
+		return err
+	}
+
+	*s = items
+
+	return nil
+}
+
 func (t FiveGTMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	var b [4]byte
 
