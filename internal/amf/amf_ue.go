@@ -35,6 +35,7 @@ type SmContext struct {
 	Ref                string
 	Snssai             *models.Snssai
 	Dnn                string
+	EBI                uint8
 	PduSessionInactive bool
 }
 
@@ -105,7 +106,6 @@ type UeContext struct {
 	RadioCapabilityForPaging *models.UERadioCapabilityForPaging
 	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
 	SmContextList            map[uint8]*SmContext
-	epsBearerIdentities      map[uint8]uint8
 
 	allow4G bool
 
@@ -570,7 +570,6 @@ func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
 	defer ue.mu.Unlock()
 
 	delete(ue.SmContextList, pduSessionID)
-	delete(ue.epsBearerIdentities, pduSessionID)
 }
 
 func (ue *UeContext) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {

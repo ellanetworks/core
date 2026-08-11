@@ -23,7 +23,7 @@ var (
 	ErrNoRelocatablePDN     = errors.New("mme: no PDN connection could be opened for the relocated UE")
 	ErrRelocationInProgress = errors.New("mme: a handover to EPS is already in progress for this subscriber")
 	ErrNoRelocation         = errors.New("mme: no handover to EPS is in progress for this subscriber")
-	ErrRelocationTooLate    = errors.New("mme: the UE has already reached the target, too late to cancel")
+	ErrRelocationTooLate    = fmt.Errorf("%w: mme", interworking.ErrRelocationTooLate)
 )
 
 func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
@@ -111,7 +111,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 	hoReq := &s1ap.HandoverRequest{
 		MMEUES1APID:  targetMMEID,
 		HandoverType: s1ap.HandoverTypeFiveGSToEPS,
-		Cause:        s1ap.Ptr(causeHandoverCNReason),
+		Cause:        s1ap.Ptr(req.Cause),
 		UEAMBR: s1ap.UEAggregateMaximumBitRate{
 			DL: s1ap.BitRate(req.UEAMBRDownlink.Bps()),
 			UL: s1ap.BitRate(req.UEAMBRUplink.Bps()),
@@ -316,6 +316,10 @@ func (m *MME) endRelocation(supi etsi.SUPI, ue *UeContext) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.endRelocationLocked(supi, ue)
+}
+
+func (m *MME) endRelocationLocked(supi etsi.SUPI, ue *UeContext) {
 	if held, ok := m.relocating[supi]; ok && held.ue == ue {
 		delete(m.relocating, supi)
 	}

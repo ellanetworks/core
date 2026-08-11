@@ -30,6 +30,7 @@ func (s *SMF) transferTo5GS(
 	requestType fgs.RequestType,
 	req *fgs.PDUSessionEstablishmentRequest,
 	pti uint8,
+	epsBearerIdentity uint8,
 ) (string, []byte, error) {
 	if requestType == fgs.RequestTypeExistingEmergencyPDUSession {
 		return "", rejectTransfer5GS(pduSessionID, pti, fgs.GSMCausePDUSessionDoesNotExist),
@@ -42,7 +43,11 @@ func (s *SMF) transferTo5GS(
 			fmt.Errorf("failed to find subscriber policy for a session move: %w", err)
 	}
 
-	move := transferRequest{Access: Access5G, Dnn: dnn, Snssai: snssai, Policy: policy}
+	// The AMF is the assigning entity for EPS bearer identities (TS 23.502
+	// §4.11.1.4.1 step 7), and "Existing PDU Session" is one of the request types it
+	// assigns for. Dropping it here left the AMF, the UE and the SMF each holding a
+	// different value for the same PDN connection.
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, Policy: policy}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
@@ -74,7 +79,7 @@ func (s *SMF) transferTo5GS(
 	logger.WithTrace(ctx, logger.SmfLog).Info("moving a PDN connection onto 5GS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("dnn", dnn))
 
-	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
+	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested), epsBearerIdentity); err != nil {
 		sc.abandonTransferTo(Access5G)
 
 		return "", nil, fmt.Errorf("failed to send the establishment accept for a moved session: %w", err)

@@ -293,6 +293,64 @@ func TestTransferEPSTo5GSKeepsTheSession(t *testing.T) {
 	}
 }
 
+// TS 23.502 §4.11.1.4.1
+func TestTransferEPSTo5GSAdoptsTheAssignedBearerIdentity(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	req := epsRequest(3)
+	req.APN = testDNN
+	req.PDUSessionID = 3
+	req.Snssai = testSnssai
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	enb := models.FTEID{TEID: 0x6001, Addr: netip.MustParseAddr("192.168.40.10")}
+	if err := s.ModifyEPSSession(ctx, bearer.Ref, epsTestEBI, enb); err != nil {
+		t.Fatalf("ModifyEPSSession: %v", err)
+	}
+
+	const assigned = epsTestEBI + 2
+
+	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), 3, testDNN, testSnssai,
+		fgs.RequestTypeExistingPDUSession, buildDualStackPDUSessionEstRequest(), assigned)
+	if err != nil {
+		t.Fatalf("move to 5GS: %v", err)
+	}
+
+	if reject != nil {
+		t.Fatalf("the move was rejected: %d-byte N1 reject", len(reject))
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatalf("build N2 setup response: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
+	}
+
+	sc := s.GetSession(ref)
+	if sc == nil {
+		t.Fatal("the moved session is gone")
+	}
+
+	sc.Mutex.Lock()
+	ebi := sc.EBI
+	sc.Mutex.Unlock()
+
+	if ebi != assigned {
+		t.Errorf("session holds EPS bearer identity %d, want the AMF-assigned %d", ebi, assigned)
+	}
+}
+
 func TestTransferRefusals(t *testing.T) {
 	t.Run("EPS: no such PDU session", func(t *testing.T) {
 		pcf, store, upf, amfCb, mmeCb := interworkingFakes()

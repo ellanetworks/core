@@ -9,9 +9,14 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.PDNConnection {
+	if !ue.TransfersToEPS() {
+		return nil
+	}
+
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -27,8 +32,8 @@ func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.P
 			continue
 		}
 
-		ebi, ok := ue.epsBearerIdentities[pduSessionID]
-		if !ok {
+		ebi := sc.EBI
+		if ebi == 0 {
 			continue
 		}
 
@@ -67,7 +72,7 @@ func ENBIdentityFromNGAP(target ngap.TargeteNBID) (interworking.ENBIdentity, err
 	}, nil
 }
 
-func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdentity, sourceToTarget []byte, requested []uint8) (interworking.ForwardRelocationRequest, *interworking.FiveGToEPSHandover, error) {
+func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdentity, sourceToTarget []byte, requested []uint8, cause *ngap.Cause) (interworking.ForwardRelocationRequest, *interworking.FiveGToEPSHandover, error) {
 	sessions := ue.TransferableEPSSessions(requested)
 	if len(sessions) == 0 {
 		return interworking.ForwardRelocationRequest{}, nil, ErrNoTransferableSessions
@@ -88,8 +93,25 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 		SecurityContext: mapped.Context,
 		PDNConnections:  sessions,
 		Target:          target,
+		Cause:           S1APHandoverCause(cause),
 		SourceToTarget:  sourceToTarget,
 		UEAMBRUplink:    ambr.Uplink,
 		UEAMBRDownlink:  ambr.Downlink,
 	}, &mapped, nil
+}
+
+// TS 29.010 §7.2, TS 29.274 §8.49
+func S1APHandoverCause(cause *ngap.Cause) s1ap.Cause {
+	if cause != nil && cause.Group == ngap.CauseGroupRadioNetwork {
+		switch cause.Value {
+		case ngap.CauseRadioNetworkHandoverDesirableForRadio:
+			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverDesirableForRadio}
+		case ngap.CauseRadioNetworkTimeCriticalHandover:
+			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTimeCriticalHandover}
+		case ngap.CauseRadioNetworkReduceLoadInServingCell:
+			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReduceLoadInServingCell}
+		}
+	}
+
+	return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkResourceOptimisationHandover}
 }

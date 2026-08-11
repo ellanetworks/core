@@ -17,6 +17,7 @@ func relocatableUE(t *testing.T) *amf.UeContext {
 	t.Helper()
 
 	ue := mappableUE(t)
+	ue.SetAllow4G(true)
 	ue.Ambr = &models.Ambr{
 		Uplink:   models.MustParseBitRate("50 Mbps"),
 		Downlink: models.MustParseBitRate("100 Mbps"),
@@ -26,8 +27,8 @@ func relocatableUE(t *testing.T) *amf.UeContext {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	if _, err := ue.AllocateEPSBearerIdentity(1); err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+	if err := assignEBI(t, ue, 1); err != nil {
+		t.Fatalf("assign an EPS bearer identity: %v", err)
 	}
 
 	return ue
@@ -53,6 +54,29 @@ func TestTransferableEPSSessions(t *testing.T) {
 	}
 }
 
+// TS 24.501 §6.1.4.1
+func TestTransferableEPSSessionsSkipsAUEThatCannotMoveToEPS(t *testing.T) {
+	ue := relocatableUE(t)
+	ue.SetAllow4G(false)
+
+	if got := ue.TransferableEPSSessions([]uint8{1}); len(got) != 0 {
+		t.Fatalf("got %d transferable sessions for a UE barred from 4G, want none", len(got))
+	}
+}
+
+func TestTransferableEPSSessionsSkipsASessionWithNoBearerIdentity(t *testing.T) {
+	ue := relocatableUE(t)
+
+	if err := ue.CreateSmContext(2, "ref-2", &models.Snssai{Sst: 2}, "ims"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	got := ue.TransferableEPSSessions([]uint8{2})
+	if len(got) != 0 {
+		t.Fatalf("got %d transferable sessions, want none for a session with no EBI", len(got))
+	}
+}
+
 func TestBuildForwardRelocationRequest(t *testing.T) {
 	ue := relocatableUE(t)
 
@@ -61,7 +85,7 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 		t.Fatalf("downlink counter: %v", err)
 	}
 
-	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb}, []uint8{1})
+	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb}, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("BuildForwardRelocationRequest: %v", err)
 	}
@@ -112,7 +136,7 @@ func TestBuildForwardRelocationRequestWithoutSessions(t *testing.T) {
 		t.Fatalf("downlink counter: %v", err)
 	}
 
-	if _, _, err := ue.BuildForwardRelocationRequest(testTarget, nil, []uint8{1}); !errors.Is(err, amf.ErrNoTransferableSessions) {
+	if _, _, err := ue.BuildForwardRelocationRequest(testTarget, nil, []uint8{1}, nil); !errors.Is(err, amf.ErrNoTransferableSessions) {
 		t.Fatalf("error = %v, want ErrNoTransferableSessions", err)
 	}
 

@@ -657,6 +657,49 @@ func TestForwardRelocationIntoAnUnservedTrackingArea(t *testing.T) {
 	}
 }
 
+func TestTargetENBDropDuringARelocationDoesNotWedgeTheSubscriber(t *testing.T) {
+	sessions := &fakeSessionManager{}
+	m := New(nil, fakeBearerStore{}, sessions)
+	target := newRelocationTarget(t, m)
+	req := relocationRequest()
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	hoReq := target.awaitHandoverRequest(t)
+	target.admit(t, hoReq)
+
+	if err := <-done; err != nil {
+		t.Fatalf("ForwardRelocation: %v", err)
+	}
+
+	m.ReclaimConns(m.ConnsOnConn(target.conn), "eNB disconnect")
+
+	if !sessions.released {
+		t.Error("the dropped relocation left its anchor session behind")
+	}
+
+	if _, ok := m.LookupUeBySupi(req.SUPI); ok {
+		t.Error("the dropped relocation left a UE context behind")
+	}
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	retry := target.awaitNthHandoverRequest(t, 1)
+	target.admit(t, retry)
+
+	if err := <-done; err != nil {
+		t.Fatalf("the relocation after the drop: %v", err)
+	}
+}
+
 func TestRelocationCancelForAnUnknownSubscriber(t *testing.T) {
 	m := newTestMME(t)
 

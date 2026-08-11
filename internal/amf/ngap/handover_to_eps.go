@@ -51,7 +51,7 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 
 	sourceUe.HandOverType = msg.HandoverType
 
-	prep, err := amfInstance.PrepareHandoverToEPS(amfUe, sourceUe, target, msg.SourceToTargetTransparentContainer, requested)
+	prep, err := amfInstance.PrepareHandoverToEPS(amfUe, sourceUe, target, msg.SourceToTargetTransparentContainer, requested, msg.Cause)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [handover to EPS could not be prepared]", zap.Error(err))
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
@@ -66,8 +66,10 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	resp, err := amfInstance.ForwardRelocation(ctx, prep.Request)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("the EPS peer could not prepare the handover", zap.Error(err))
-		amfInstance.AbandonHandoverToEPS(ctx, amfUe, prep.Request.ID)
-		sourceUe.SendHandoverPreparationFailure(ctx, handoverToEPSFailureCause(err), nil, nil)
+
+		if amfInstance.AbandonHandoverToEPS(ctx, amfUe, prep.Request.ID) {
+			sourceUe.SendHandoverPreparationFailure(ctx, handoverToEPSFailureCause(err), nil, nil)
+		}
 
 		return
 	}
@@ -91,8 +93,10 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	container, err := prep.Container.MarshalBinary()
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("failed to encode the N1 mode to S1 mode NAS transparent container", zap.Error(err))
-		amfInstance.AbandonHandoverToEPS(ctx, amfUe, prep.Request.ID)
-		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
+
+		if amfInstance.AbandonHandoverToEPS(ctx, amfUe, prep.Request.ID) {
+			sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
+		}
 
 		return
 	}

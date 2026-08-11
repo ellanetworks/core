@@ -370,7 +370,13 @@ func (m *MME) ReclaimConns(conns []*UeConn, trigger string) {
 
 			orphaned = append(orphaned, ue)
 		case ue.handover != nil && ue.handover.target == c:
+			relocating := ue.handover.source == nil
+
 			m.clearHandoverLocked(ue) // a handover target: abort, leaving the UE on its source
+
+			if relocating {
+				orphaned = append(orphaned, ue)
+			}
 		default:
 			c.ue = nil
 			m.releaseConnIDLocked(uint32(c.MMEUES1APID))

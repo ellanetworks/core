@@ -93,7 +93,7 @@ func TestPrepareHandoverToEPS(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
-	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, []byte{0xde, 0xad}, []uint8{1})
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, []byte{0xde, 0xad}, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
@@ -121,11 +121,11 @@ func TestPrepareHandoverToEPSOffersOnlyTheRequestedSessions(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	if _, err := ue.AllocateEPSBearerIdentity(2); err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+	if err := assignEBI(t, ue, 2); err != nil {
+		t.Fatalf("assign an EPS bearer identity: %v", err)
 	}
 
-	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{2})
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{2}, nil)
 	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestPrepareHandoverToEPSWithoutAPeer(t *testing.T) {
 	ue := relocatableUE(t)
 	ue.SetSupiForTest(mustSUPIFromIMSI(t, testRelocationIMSI))
 
-	if _, err := a.PrepareHandoverToEPS(ue, nil, testTarget, nil, []uint8{1}); !errors.Is(err, amf.ErrNoEPSPeer) {
+	if _, err := a.PrepareHandoverToEPS(ue, nil, testTarget, nil, []uint8{1}, nil); !errors.Is(err, amf.ErrNoEPSPeer) {
 		t.Fatalf("error = %v, want ErrNoEPSPeer", err)
 	}
 }
@@ -150,7 +150,7 @@ func TestPrepareHandoverToEPSLeavesNothingStagedOnFailure(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
-	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{9}); !errors.Is(err, amf.ErrNoTransferableSessions) {
+	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{9}, nil); !errors.Is(err, amf.ErrNoTransferableSessions) {
 		t.Fatalf("error = %v, want ErrNoTransferableSessions", err)
 	}
 
@@ -158,7 +158,7 @@ func TestPrepareHandoverToEPSLeavesNothingStagedOnFailure(t *testing.T) {
 		t.Fatal("a failed preparation left a handover staged")
 	}
 
-	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}); err != nil {
+	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil); err != nil {
 		t.Fatalf("the key chain was not released: %v", err)
 	}
 }
@@ -167,11 +167,11 @@ func TestPrepareHandoverToEPSRefusesASecondHandover(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
-	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}); err != nil {
+	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil); err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}); !errors.Is(err, amf.ErrRelocationRefused) {
+	if _, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil); !errors.Is(err, amf.ErrRelocationRefused) {
 		t.Fatalf("error = %v, want ErrRelocationRefused", err)
 	}
 }
@@ -183,7 +183,7 @@ func TestForwardRelocationReachesThePeer(t *testing.T) {
 	}}
 	a, ue, source := newRelocatingAMF(t, peer)
 
-	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, []byte{0xaa}, []uint8{1})
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, []byte{0xaa}, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestForwardRelocationIsBounded(t *testing.T) {
 	a, ue, source := newRelocatingAMF(t, peer)
 	a.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
 
-	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestCancelHandoverToEPSReachesThePeer(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
-	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestRelocationCompleteReleasesTheFiveGSSide(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestAbandoningOneAttemptSparesTheNextOne(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
-	first, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	first, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestAbandoningOneAttemptSparesTheNextOne(t *testing.T) {
 		t.Fatalf("CancelHandover = (%v, %t), want the first attempt aborted", target, aborted)
 	}
 
-	second, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1})
+	second, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil)
 	if err != nil {
 		t.Fatalf("the second PrepareHandoverToEPS: %v", err)
 	}
@@ -307,19 +307,39 @@ func TestAbandoningOneAttemptSparesTheNextOne(t *testing.T) {
 	}
 }
 
-func TestRelocationCompleteForAUEThatIsNotMovingToEPS(t *testing.T) {
+func TestRelocationCompleteForAnUnknownSubscriber(t *testing.T) {
 	peer := &fakeEPSPeer{}
-	a, ue, _ := newRelocatingAMF(t, peer)
+	a, _, _ := newRelocatingAMF(t, peer)
+
+	if err := a.RelocationComplete(context.Background(), mustSUPIFromIMSI(t, "001010000000009"), 1); !errors.Is(err, amf.ErrNoRelocatingUe) {
+		t.Fatalf("error = %v, want ErrNoRelocatingUe", err)
+	}
+}
+
+func TestRelocationCompleteReleasesAUEWhoseHandoverWasDiscarded(t *testing.T) {
+	peer := &fakeEPSPeer{}
+	a, ue, source := newRelocatingAMF(t, peer)
 
 	if err := a.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), ue.Supi(), 1); !errors.Is(err, amf.ErrRelocationNotToEPS) {
-		t.Fatalf("error = %v, want ErrRelocationNotToEPS", err)
+	prep, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil)
+	if err != nil {
+		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), mustSUPIFromIMSI(t, "001010000000009"), 1); !errors.Is(err, amf.ErrNoRelocatingUe) {
-		t.Fatalf("error = %v, want ErrNoRelocatingUe", err)
+	a.ClearHandover(ue)
+
+	if err := a.RelocationComplete(context.Background(), ue.Supi(), prep.Request.ID); err != nil {
+		t.Fatalf("RelocationComplete: %v", err)
+	}
+
+	if len(ue.SmContextRefs()) != 0 {
+		t.Error("the UE still holds SM contexts after reaching EPS")
+	}
+
+	if len(ue.EPSBearerIdentities()) != 0 {
+		t.Error("the UE still holds EPS bearer identity reservations after reaching EPS")
 	}
 }

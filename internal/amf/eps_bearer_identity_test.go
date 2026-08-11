@@ -4,6 +4,7 @@
 package amf_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -23,47 +24,62 @@ func ueWithSessions(t *testing.T, ids ...uint8) *amf.UeContext {
 	return ue
 }
 
-func TestAllocateEPSBearerIdentityStartsAtFive(t *testing.T) {
+func assignEBI(t *testing.T, ue *amf.UeContext, pduSessionID uint8) error {
+	t.Helper()
+
+	ebi, err := ue.NextEPSBearerIdentity(pduSessionID)
+	if err != nil {
+		return err
+	}
+
+	ue.SetEPSBearerIdentity(pduSessionID, ebi)
+
+	return nil
+}
+
+func TestEPSBearerIdentityStartsAtFive(t *testing.T) {
 	ue := ueWithSessions(t, 1, 2)
 
-	first, err := ue.AllocateEPSBearerIdentity(1)
-	if err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+	if err := assignEBI(t, ue, 1); err != nil {
+		t.Fatalf("assign for session 1: %v", err)
 	}
 
-	second, err := ue.AllocateEPSBearerIdentity(2)
-	if err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+	if err := assignEBI(t, ue, 2); err != nil {
+		t.Fatalf("assign for session 2: %v", err)
 	}
+
+	first, _ := ue.EPSBearerIdentity(1)
+	second, _ := ue.EPSBearerIdentity(2)
 
 	if first != 5 || second != 6 {
-		t.Fatalf("allocated (%d, %d), want (5, 6)", first, second)
+		t.Fatalf("assigned (%d, %d), want (5, 6)", first, second)
 	}
 }
 
-func TestAllocateEPSBearerIdentityIsStable(t *testing.T) {
+func TestEPSBearerIdentityIsStable(t *testing.T) {
 	ue := ueWithSessions(t, 3)
 
-	first, err := ue.AllocateEPSBearerIdentity(3)
-	if err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+	if err := assignEBI(t, ue, 3); err != nil {
+		t.Fatalf("assign: %v", err)
 	}
 
-	again, err := ue.AllocateEPSBearerIdentity(3)
+	first, _ := ue.EPSBearerIdentity(3)
+
+	again, err := ue.NextEPSBearerIdentity(3)
 	if err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+		t.Fatalf("NextEPSBearerIdentity: %v", err)
 	}
 
 	if again != first {
-		t.Fatalf("re-allocation returned %d, want the assigned %d", again, first)
+		t.Fatalf("re-assignment returned %d, want the assigned %d", again, first)
 	}
 }
 
 func TestEPSBearerIdentityIsReleasedWithTheSession(t *testing.T) {
 	ue := ueWithSessions(t, 1, 2)
 
-	if _, err := ue.AllocateEPSBearerIdentity(1); err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+	if err := assignEBI(t, ue, 1); err != nil {
+		t.Fatalf("assign: %v", err)
 	}
 
 	ue.DeleteSmContext(1)
@@ -72,46 +88,66 @@ func TestEPSBearerIdentityIsReleasedWithTheSession(t *testing.T) {
 		t.Fatal("a released session must hold no EPS bearer identity")
 	}
 
-	reused, err := ue.AllocateEPSBearerIdentity(2)
+	reused, err := ue.NextEPSBearerIdentity(2)
 	if err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+		t.Fatalf("NextEPSBearerIdentity: %v", err)
 	}
 
 	if reused != 5 {
-		t.Fatalf("allocated %d, want the released 5", reused)
+		t.Fatalf("assigned %d, want the released 5", reused)
 	}
 }
 
-func TestAllocateEPSBearerIdentityExhaustion(t *testing.T) {
-	ue := amf.NewUeContext()
+func TestEPSBearerIdentitiesAreReleasedWithTheSessionsInBulk(t *testing.T) {
+	ue := ueWithSessions(t, 1, 2, 3)
 
-	for id := uint8(1); id <= 11; id++ {
-		if _, err := ue.AllocateEPSBearerIdentity(id); err != nil {
-			t.Fatalf("AllocateEPSBearerIdentity(%d): %v", id, err)
+	for _, id := range []uint8{1, 2, 3} {
+		if err := assignEBI(t, ue, id); err != nil {
+			t.Fatalf("assign for session %d: %v", id, err)
 		}
 	}
 
-	if _, err := ue.AllocateEPSBearerIdentity(12); !errors.Is(err, amf.ErrNoEPSBearerIdentity) {
+	ue.ClearRegistrationData(context.Background())
+
+	if got := ue.EPSBearerIdentities(); len(got) != 0 {
+		t.Fatalf("EPS bearer identities survived the release: %v", got)
+	}
+}
+
+func TestEPSBearerIdentityExhaustion(t *testing.T) {
+	ue := ueWithSessions(t, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+
+	for id := uint8(1); id <= 11; id++ {
+		if err := assignEBI(t, ue, id); err != nil {
+			t.Fatalf("assign for session %d: %v", id, err)
+		}
+	}
+
+	if err := ue.CreateSmContext(12, "ref", nil, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if _, err := ue.NextEPSBearerIdentity(12); !errors.Is(err, amf.ErrNoEPSBearerIdentity) {
 		t.Fatalf("error = %v, want ErrNoEPSBearerIdentity", err)
 	}
 }
 
-func TestEPSBearerIdentityAllocatesBeforeTheSessionExists(t *testing.T) {
+func TestEPSBearerIdentityIsNotRecordedWithoutASession(t *testing.T) {
 	ue := amf.NewUeContext()
 
-	ebi, err := ue.AllocateEPSBearerIdentity(1)
+	ebi, err := ue.NextEPSBearerIdentity(1)
 	if err != nil {
-		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+		t.Fatalf("NextEPSBearerIdentity: %v", err)
 	}
 
 	if ebi != 5 {
-		t.Fatalf("allocated %d, want 5", ebi)
+		t.Fatalf("picked %d, want 5", ebi)
 	}
 
-	ue.DeleteSmContext(1)
+	ue.SetEPSBearerIdentity(1, ebi)
 
 	if _, ok := ue.EPSBearerIdentity(1); ok {
-		t.Fatal("a released identity must not remain assigned")
+		t.Fatal("an identity was recorded for a session that was never created")
 	}
 }
 
@@ -119,8 +155,8 @@ func TestEPSBearerIdentities(t *testing.T) {
 	ue := ueWithSessions(t, 1, 2, 3)
 
 	for _, id := range []uint8{1, 3} {
-		if _, err := ue.AllocateEPSBearerIdentity(id); err != nil {
-			t.Fatalf("AllocateEPSBearerIdentity(%d): %v", id, err)
+		if err := assignEBI(t, ue, id); err != nil {
+			t.Fatalf("assign for session %d: %v", id, err)
 		}
 	}
 

@@ -33,15 +33,24 @@ type epsPeerStub struct {
 
 	accepted  []uint8
 	err       error
+	cancelErr error
 	request   *interworking.ForwardRelocationRequest
 	cancelled int
+	gate      chan struct{}
 }
 
 func (p *epsPeerStub) ForwardRelocation(_ context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	p.request = &req
+	gate := p.gate
+	p.mu.Unlock()
+
+	if gate != nil {
+		<-gate
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	if p.err != nil {
 		return interworking.ForwardRelocationResponse{}, p.err
@@ -65,6 +74,10 @@ func (p *epsPeerStub) RelocationCancel(_ context.Context, _ etsi.SUPI, _ interwo
 	defer p.mu.Unlock()
 
 	p.cancelled++
+
+	if p.cancelErr != nil {
+		return p.cancelErr
+	}
 
 	return nil
 }
@@ -117,6 +130,7 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 
 	// TS 33.501 §8.3.2
 	amfUe.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, []byte{0xe0, 0xe0, 0x00, 0x00})
+	amfUe.SetAllow4G(true)
 
 	if _, ok := amfUe.SelectEPSNASAlgorithms([]nas.IntegrityAlgorithm{nas.IntegrityAES}, []nas.CipheringAlgorithm{nas.CipheringAES}); !ok {
 		t.Fatal("selecting the EPS NAS algorithms failed")
@@ -132,9 +146,12 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 			t.Fatalf("CreateSmContext: %v", err)
 		}
 
-		if _, err := amfUe.AllocateEPSBearerIdentity(pduSessionID); err != nil {
-			t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+		ebi, err := amfUe.NextEPSBearerIdentity(pduSessionID)
+		if err != nil {
+			t.Fatalf("NextEPSBearerIdentity: %v", err)
 		}
+
+		amfUe.SetEPSBearerIdentity(pduSessionID, ebi)
 	}
 
 	sender := newRelocationSender()
@@ -342,6 +359,61 @@ func TestHandoverCancelToEPS(t *testing.T) {
 
 	if amfInstance.HandoverInProgress(amfUe) {
 		t.Error("the cancelled handover was left staged")
+	}
+}
+
+func TestHandoverCancelToEPSUnwindsWhenThePeerHoldsNothing(t *testing.T) {
+	peer := &epsPeerStub{accepted: []uint8{1}, cancelErr: interworking.ErrRelocationTooLate}
+	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+	awaitCommand(t, sender)
+
+	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 1})
+
+	if !amfInstance.HandoverInProgress(amfUe) {
+		t.Error("a handover the peer reported as too late to cancel was unwound anyway")
+	}
+
+	peer2 := &epsPeerStub{accepted: []uint8{1}, cancelErr: errors.New("no such relocation")}
+	amfInstance2, amfUe2, sender2, sourceRan2 := relocatingUe(t, peer2, 1)
+
+	HandleHandoverRequired(context.Background(), amfInstance2, sourceRan2, handoverRequiredToENB(t, 1))
+	awaitCommand(t, sender2)
+
+	HandleHandoverCancel(context.Background(), amfInstance2, sourceRan2, &ngap.HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 1})
+
+	if amfInstance2.HandoverInProgress(amfUe2) {
+		t.Error("the AMF kept a handover no peer is holding, wedging the UE until its guard expires")
+	}
+
+	if len(sender2.SentHandoverCancelAcknowledges) != 1 {
+		t.Errorf("got %d Handover Cancel Acknowledges, want 1", len(sender2.SentHandoverCancelAcknowledges))
+	}
+}
+
+// TS 38.413 §8.4.1.1
+func TestNoPreparationFailureAfterACancelAcknowledge(t *testing.T) {
+	peer := &epsPeerStub{gate: make(chan struct{}), err: errors.New("abandoned")}
+	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1)
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+
+	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, &ngap.HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 1})
+
+	if len(sender.SentHandoverCancelAcknowledges) != 1 {
+		t.Fatalf("got %d Handover Cancel Acknowledges, want 1", len(sender.SentHandoverCancelAcknowledges))
+	}
+
+	close(peer.gate)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if len(sender.SentHandoverPreparationFailures) != 0 {
+			t.Fatalf("the gNB was sent a Handover Preparation Failure for a preparation it had already cancelled")
+		}
+
+		time.Sleep(time.Millisecond)
 	}
 }
 

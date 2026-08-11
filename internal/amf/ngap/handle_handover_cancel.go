@@ -5,8 +5,10 @@ package ngap
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -35,12 +37,15 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	amfUe := sourceUe.UeContext()
 
 	if id, toEPS := amfInstance.RelocationToEPS(amfUe); toEPS {
-		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe, id); err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Info("the peer would not cancel the handover to EPS; leaving it to complete",
+		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe, id); errors.Is(err, interworking.ErrRelocationTooLate) {
+			logger.WithTrace(ctx, sourceUe.Log).Info("the UE has already reached EPS; leaving the handover to complete",
 				zap.Error(err))
 			sourceUe.SendHandoverCancelAcknowledge(ctx)
 
 			return
+		} else if err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Info("the peer had no handover to cancel; unwinding locally",
+				zap.Error(err))
 		}
 	}
 

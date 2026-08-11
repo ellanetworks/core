@@ -45,6 +45,10 @@ const (
 	CauseRadioNetworkUnknownTargetID                   = 11 // unknown-targetID
 	CauseRadioNetworkUnknownMMEUES1APID                = 13 // unknown-mme-ue-s1ap-id
 	CauseRadioNetworkUnknownPairUES1APID               = 15 // unknown-pair-ue-s1ap-id
+	CauseRadioNetworkHandoverDesirableForRadio         = 16 // handover-desirable-for-radio-reason
+	CauseRadioNetworkTimeCriticalHandover              = 17 // time-critical-handover
+	CauseRadioNetworkResourceOptimisationHandover      = 18 // resource-optimisation-handover
+	CauseRadioNetworkReduceLoadInServingCell           = 19 // reduce-load-in-serving-cell
 	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
 	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances

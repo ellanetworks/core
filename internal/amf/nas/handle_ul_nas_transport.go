@@ -295,6 +295,8 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		return
 	}
 
+	ue.SetEPSBearerIdentity(pduSessionID, epsBearerIdentity)
+
 	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 }
 
@@ -303,7 +305,7 @@ func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionI
 		return 0
 	}
 
-	ebi, err := ue.AllocateEPSBearerIdentity(pduSessionID)
+	ebi, err := ue.NextEPSBearerIdentity(pduSessionID)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("no EPS bearer identity for this PDU session, it will not transfer to EPS",
 			zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))

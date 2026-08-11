@@ -31,7 +31,7 @@ type RelocationPreparation struct {
 	Container fgs.N1ModeToS1ModeNASTransparentContainer
 }
 
-func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target interworking.ENBIdentity, sourceToTarget []byte, requested []uint8) (*RelocationPreparation, error) {
+func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target interworking.ENBIdentity, sourceToTarget []byte, requested []uint8, cause *ngap.Cause) (*RelocationPreparation, error) {
 	if a.EPS == nil {
 		return nil, ErrNoEPSPeer
 	}
@@ -54,7 +54,7 @@ func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target inter
 		return nil, ErrRelocationRefused
 	}
 
-	req, mapped, err := ue.BuildForwardRelocationRequest(target, sourceToTarget, requested)
+	req, mapped, err := ue.BuildForwardRelocationRequest(target, sourceToTarget, requested, cause)
 	if err != nil {
 		a.ClearHandover(ue)
 
@@ -77,17 +77,19 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	return a.EPS.ForwardRelocation(ctx, req)
 }
 
-func (a *AMF) AbandonHandoverToEPS(ctx context.Context, ue *UeContext, id interworking.RelocationID) {
+func (a *AMF) AbandonHandoverToEPS(ctx context.Context, ue *UeContext, id interworking.RelocationID) bool {
 	if !a.ClearRelocationToEPS(ue, id) {
 		logger.From(ctx, logger.AmfLog).Info("handover to EPS already unwound by whoever cancelled it",
 			zap.Uint64("relocation", uint64(id)))
 
-		return
+		return false
 	}
 
 	if err := a.CancelRelocationToEPS(ctx, ue, id); err != nil {
 		logger.From(ctx, logger.AmfLog).Info("the EPS peer had no handover to cancel", zap.Error(err))
 	}
+
+	return true
 }
 
 func (a *AMF) CancelRelocationToEPS(ctx context.Context, ue *UeContext, id interworking.RelocationID) error {
@@ -105,19 +107,16 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 	}
 
 	source := a.HandoverSource(ue)
+	if source == nil {
+		source = ue.Conn()
+	}
 
 	if !a.ClearRelocationToEPS(ue, id) {
-		held, onEPS := a.RelocationToEPS(ue)
-		if !onEPS {
-			return fmt.Errorf("%w: %s", ErrRelocationNotToEPS, supi)
-		}
-
-		return fmt.Errorf("%w: %s reported relocation %d, this AMF holds %d",
-			ErrRelocationNotToEPS, supi, id, held)
+		logger.From(ctx, logger.AmfLog).Info("the UE reached EPS on a handover this AMF no longer tracks; releasing anyway",
+			logger.SUPI(supi.String()), zap.Uint64("relocation", uint64(id)))
 	}
 
 	ue.releaseSmContexts(ctx)
-	ue.ReleaseAllEPSBearerIdentities()
 
 	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources",
 		logger.SUPI(supi.String()))

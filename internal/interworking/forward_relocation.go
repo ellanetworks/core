@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 type PDNConnection struct {
@@ -34,6 +35,7 @@ type ForwardRelocationRequest struct {
 	PDNConnections  []PDNConnection
 	Target          ENBIdentity
 	SourceToTarget  []byte
+	Cause           s1ap.Cause
 	UEAMBRUplink    models.BitRate
 	UEAMBRDownlink  models.BitRate
 }
@@ -44,8 +46,9 @@ type ForwardRelocationResponse struct {
 }
 
 var (
-	ErrUnknownTarget = errors.New("interworking: the target is not connected")
-	ErrTargetRefused = errors.New("interworking: the target refused the handover")
+	ErrUnknownTarget     = errors.New("interworking: the target is not connected")
+	ErrTargetRefused     = errors.New("interworking: the target refused the handover")
+	ErrRelocationTooLate = errors.New("interworking: the UE has already reached the target, too late to cancel")
 )
 
 type EPSPeer interface {

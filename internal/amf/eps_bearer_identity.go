@@ -26,17 +26,17 @@ func (ue *UeContext) TransfersToEPS() bool {
 	return ue.allow4G && ue.gmmCapability != nil && ue.gmmCapability.S1Mode
 }
 
-func (ue *UeContext) AllocateEPSBearerIdentity(pduSessionID uint8) (uint8, error) {
+func (ue *UeContext) NextEPSBearerIdentity(pduSessionID uint8) (uint8, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	if existing, ok := ue.epsBearerIdentities[pduSessionID]; ok {
-		return existing, nil
+	if sc, ok := ue.SmContextList[pduSessionID]; ok && sc.EBI != 0 {
+		return sc.EBI, nil
 	}
 
-	taken := make(map[uint8]struct{}, len(ue.epsBearerIdentities))
-	for _, ebi := range ue.epsBearerIdentities {
-		taken[ebi] = struct{}{}
+	taken := make(map[uint8]struct{}, len(ue.SmContextList))
+	for _, sc := range ue.SmContextList {
+		taken[sc.EBI] = struct{}{}
 	}
 
 	for ebi := uint8(firstEPSBearerIdentity); ebi <= lastEPSBearerIdentity; ebi++ {
@@ -44,41 +44,43 @@ func (ue *UeContext) AllocateEPSBearerIdentity(pduSessionID uint8) (uint8, error
 			continue
 		}
 
-		if ue.epsBearerIdentities == nil {
-			ue.epsBearerIdentities = make(map[uint8]uint8)
-		}
-
-		ue.epsBearerIdentities[pduSessionID] = ebi
-
 		return ebi, nil
 	}
 
 	return 0, ErrNoEPSBearerIdentity
 }
 
-func (ue *UeContext) ReleaseAllEPSBearerIdentities() {
+func (ue *UeContext) SetEPSBearerIdentity(pduSessionID, ebi uint8) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.epsBearerIdentities = nil
+	if sc, ok := ue.SmContextList[pduSessionID]; ok {
+		sc.EBI = ebi
+	}
 }
 
 func (ue *UeContext) EPSBearerIdentity(pduSessionID uint8) (uint8, bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ebi, ok := ue.epsBearerIdentities[pduSessionID]
+	sc, ok := ue.SmContextList[pduSessionID]
+	if !ok || sc.EBI == 0 {
+		return 0, false
+	}
 
-	return ebi, ok
+	return sc.EBI, true
 }
 
 func (ue *UeContext) EPSBearerIdentities() map[uint8]uint8 {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	out := make(map[uint8]uint8, len(ue.epsBearerIdentities))
-	for pduSessionID, ebi := range ue.epsBearerIdentities {
-		out[pduSessionID] = ebi
+	out := make(map[uint8]uint8, len(ue.SmContextList))
+
+	for pduSessionID, sc := range ue.SmContextList {
+		if sc.EBI != 0 {
+			out[pduSessionID] = sc.EBI
+		}
 	}
 
 	return out
