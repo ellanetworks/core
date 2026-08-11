@@ -231,7 +231,7 @@ func (m *MME) SetT3489ConfigForTest(expire time.Duration, maxRetry int32) {
 func (c *UeConn) T3489ActiveForTest() bool { return c.esmInfoGuard.Active() }
 
 func (m *MME) FireHandoverGuardForTest(ue *UeContext) {
-	m.abandonHandover(context.Background(), ue)
+	m.abandonHandover(context.Background(), ue, causeHandoverTS1relocExpiry)
 }
 
 func (m *MME) ReclaimUEsOnConnLossForTest(conn S1APWriter) { m.reclaimUEsOnConnLoss(conn) }
@@ -257,8 +257,6 @@ func (ue *UeContext) ForceStateForTest(s EMMState) {
 	ue.setEMMStateLocked(s)
 }
 
-// NextDownlinkCountForTest returns the NAS COUNT the UE's next downlink message
-// would carry, without consuming it.
 func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

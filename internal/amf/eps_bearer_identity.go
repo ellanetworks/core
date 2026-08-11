@@ -12,6 +12,20 @@ const (
 
 var ErrNoEPSBearerIdentity = errors.New("amf: no EPS bearer identity available for this UE")
 
+func (ue *UeContext) SetAllow4G(v bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.allow4G = v
+}
+
+func (ue *UeContext) TransfersToEPS() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.allow4G && ue.gmmCapability != nil && ue.gmmCapability.S1Mode
+}
+
 func (ue *UeContext) AllocateEPSBearerIdentity(pduSessionID uint8) (uint8, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

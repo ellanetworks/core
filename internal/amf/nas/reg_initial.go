@@ -107,6 +107,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
 	ue.Ambr = subscriberProfile.Ambr
+	ue.SetAllow4G(subscriberProfile.Allow4G)
 
 	if conn.RegistrationRequest.MICOIndication != nil {
 		logger.From(ctx, logger.AmfLog).Warn("Receive MICO Indication Not Supported", zap.Bool("RAAI", conn.RegistrationRequest.MICOIndication.RAAI))

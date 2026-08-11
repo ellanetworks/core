@@ -81,10 +81,14 @@ func NewUnboundUE() *UE {
 func (e *ENB) TrackingAreaUpdateAfterHandover(ue *UE, mmeUEID, enbUEID int64, guti eps.GUTI, timeout time.Duration) error {
 	identity := eps.GUTIIdentity(guti)
 
+	gutiType := eps.GUTITypeNative
+
 	plain, err := (&eps.TrackingAreaUpdateRequest{
 		EPSUpdateType: eps.EPSUpdateTypeTA,
 		ActiveFlag:    true,
 		OldGUTI:       identity,
+		OldGUTIType:   &gutiType,
+		UEStatus:      &eps.UEStatus{N1ModeReg: true},
 	}).MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("s1enb: build Tracking Area Update Request: %w", err)

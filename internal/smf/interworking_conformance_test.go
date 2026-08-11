@@ -303,8 +303,8 @@ func TestInterworking5GSReleaseStillReleasesItsOwnSession(t *testing.T) {
 	}
 }
 
-// TS 24.501 §6.1.4.2
-func TestInterworkingEstablishmentAcceptCarriesNoMappedEPSBearerContexts(t *testing.T) {
+// TS 24.501 §6.1.4.1
+func TestInterworkingEstablishmentAcceptCarriesNoMappedEPSBearerContextsWithoutAnIdentity(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	s.SetMME(mmeCb)
@@ -316,15 +316,12 @@ func TestInterworkingEstablishmentAcceptCarriesNoMappedEPSBearerContexts(t *test
 		t.Fatal("no establishment accept was sent")
 	}
 
-	const ieiMappedEPSBearerContext = 0x75
-
 	for _, call := range calls {
 		accept := parseEstablishmentAccept(t, call.n1Msg)
 
-		for _, ie := range accept.Unrecognized {
-			if ie.IEI == ieiMappedEPSBearerContext {
-				t.Errorf("the establishment accept carries mapped EPS bearer contexts (IEI %#02x)", ie.IEI)
-			}
+		if len(accept.MappedEPSBearerContexts) != 0 {
+			t.Errorf("the establishment accept carries %d mapped EPS bearer contexts for a session with no EPS bearer identity",
+				len(accept.MappedEPSBearerContexts))
 		}
 	}
 }

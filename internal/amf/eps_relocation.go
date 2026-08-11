@@ -11,8 +11,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// requested names the PDU sessions the source RAN asked to hand over; a session
-// it did not name is not offered, so an empty list offers nothing.
 func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.PDNConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

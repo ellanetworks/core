@@ -216,7 +216,6 @@ func TestHandoverRequiredToEPS(t *testing.T) {
 		t.Errorf("target-to-source container = % x", cmd.TargetToSourceTransparentContainer)
 	}
 
-	// No data forwarding: the list would only name forwarding endpoints.
 	if cmd.PDUSessionResourceHandoverList != nil {
 		t.Errorf("Handover Command names data-forwarding endpoints: %+v", cmd.PDUSessionResourceHandoverList)
 	}

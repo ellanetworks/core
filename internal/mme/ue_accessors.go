@@ -253,9 +253,6 @@ func (ue *UeContext) RegistrationArea() []models.Tai {
 	return append([]models.Tai(nil), ue.registrationArea...)
 }
 
-// Eksi returns the eKSI assigned to the current EPS security context, value and
-// type of security context together: a context mapped from 5GS has to be
-// advertised as mapped wherever the identifier is signalled (TS 33.501 §8.6.1).
 func (ue *UeContext) Eksi() nas.KeySetIdentifier {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -300,10 +297,6 @@ func (ue *UeContext) MsNetCap() *eps.MSNetworkCapability {
 // VerifyServiceRequest checks a SERVICE REQUEST against the UE's security
 // context: its short MAC, and that the truncated sequence number it carries is
 // the one the next uplink message must have (TS 24.301 §5.6.1).
-//
-// It returns the expected sequence number and NAS COUNT for logging. The
-// expected short MAC is deliberately not returned: it is key-derived, and an
-// attacker who could read it from a log would not need to guess one.
 func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8, ul uint32, err error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

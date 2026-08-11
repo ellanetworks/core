@@ -37,6 +37,7 @@ const (
 	CauseRadioNetworkUnspecified                       = 0  // unspecified
 	CauseRadioNetworkSuccessfulHandover                = 2  // successful-handover
 	CauseRadioNetworkReleaseDueToEUTRANGeneratedReason = 3  // release-due-to-eutran-generated-reason
+	CauseRadioNetworkHandoverCancelled                 = 4  // handover-cancelled
 	CauseRadioNetworkPartialHandover                   = 5  // partial-handover
 	CauseRadioNetworkHOFailureInTarget                 = 6  // ho-failure-in-target-EPC-eNB-or-target-system
 	CauseRadioNetworkHOTargetNotAllowed                = 7  // ho-target-not-allowed

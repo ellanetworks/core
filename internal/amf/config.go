@@ -121,9 +121,8 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 type SubscriberProfile struct {
 	AllowedNssai []models.Snssai
 	Ambr         *models.Ambr
-	// Allow5G is the subscriber's 5G/5GC access permission (Core Network type
-	// restriction, TS 23.501).
-	Allow5G bool
+	Allow5G      bool
+	Allow4G      bool
 }
 
 func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
@@ -199,6 +198,7 @@ func (amf *AMF) SubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subscri
 			Uplink:   ambrUL,
 		},
 		Allow5G: profile.Allow5G,
+		Allow4G: profile.Allow4G,
 	}, nil
 }
 

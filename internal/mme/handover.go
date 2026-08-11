@@ -162,7 +162,7 @@ func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
 
 func (m *MME) SuperviseHandover(ue *UeContext) {
 	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(cctx context.Context) error {
-		m.abandonHandover(cctx, ue)
+		m.abandonHandover(cctx, ue, causeHandoverTS1relocExpiry)
 
 		return nil
 	})
@@ -426,7 +426,7 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 }
 
 // TS 36.413 §8.4.5.1
-func (m *MME) abandonHandover(ctx context.Context, ue *UeContext) bool {
+func (m *MME) abandonHandover(ctx context.Context, ue *UeContext, cause s1ap.Cause) bool {
 	m.mu.Lock()
 
 	ho := ue.handover
@@ -453,7 +453,7 @@ func (m *MME) abandonHandover(ctx context.Context, ue *UeContext) bool {
 	logger.From(ctx, logger.MmeLog).Warn("S1 handover abandoned",
 		zap.Uint32("target-mme-ue-id", uint32(releaseTarget.MMEUES1APID)))
 
-	SendUEContextRelease(ctx, m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, causeHandoverTS1relocExpiry)
+	SendUEContextRelease(ctx, m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, cause)
 
 	return true
 }
@@ -490,7 +490,7 @@ func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter
 func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool, cause s1ap.Cause) {
 	cmd := &s1ap.UEContextReleaseCommand{
 		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Pair: pair},
-		Cause:     new(cause),
+		Cause:     s1ap.Ptr(cause),
 	}
 
 	b, err := cmd.Marshal()
@@ -506,6 +506,9 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 var (
 	CauseHandoverSuccess        = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkSuccessfulHandover}
 	causeHandoverTS1relocExpiry = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTS1RelocOverallExpiry}
-	causeHandoverEUTRANReason   = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReleaseDueToEUTRANGeneratedReason}
-	causeHandoverCNReason       = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
+	// causeHandoverCancelled reports a handover the source gave up on, which is
+	// not the same event as a supervision timer expiring (TS 36.413 §9.2.1.3).
+	causeHandoverCancelled    = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverCancelled}
+	causeHandoverEUTRANReason = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReleaseDueToEUTRANGeneratedReason}
+	causeHandoverCNReason     = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
 )

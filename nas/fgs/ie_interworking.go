@@ -160,8 +160,8 @@ func (c S1ModeToN1ModeNASTransparentContainer) MACProtected() ([]byte, error) {
 	}
 
 	b := make([]byte, 0, 2+len(spare))
-	b = append(b, uint8(c.CipheringAlgorithm)&0x0F<<4|uint8(c.IntegrityAlgorithm)&0x0F) // octet 7
-	b = append(b, (c.NCC&0x07)<<4|c.NgKSI.HalfOctet())                                  // octet 8
+	b = append(b, uint8(c.CipheringAlgorithm)<<4|uint8(c.IntegrityAlgorithm)) // octet 7
+	b = append(b, (c.NCC&0x07)<<4|c.NgKSI.HalfOctet())                        // octet 8
 
 	return append(b, spare...), nil
 }

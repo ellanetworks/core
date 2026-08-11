@@ -32,10 +32,17 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 
 	requested := make([]uint8, 0, len(msg.PDUSessionResourceListHORqd))
 
+	var unusable []amf.HandoverCandidate
+
 	for _, item := range msg.PDUSessionResourceListHORqd {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, leaving it behind", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, reporting it as not handed over",
+				zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+
+			cause := causeUnknownPDUSessionID
+			unusable = append(unusable, amf.HandoverCandidate{PDUSessionID: item.PDUSessionID, Cause: &cause})
+
 			continue
 		}
 
@@ -52,10 +59,10 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 		return
 	}
 
-	go completeHandoverToEPS(context.WithoutCancel(ctx), amfInstance, sourceUe, amfUe, prep)
+	go completeHandoverToEPS(context.WithoutCancel(ctx), amfInstance, sourceUe, amfUe, prep, unusable)
 }
 
-func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *amf.UeConn, amfUe *amf.UeContext, prep *amf.RelocationPreparation) {
+func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *amf.UeConn, amfUe *amf.UeContext, prep *amf.RelocationPreparation, unusable []amf.HandoverCandidate) {
 	resp, err := amfInstance.ForwardRelocation(ctx, prep.Request)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("the EPS peer could not prepare the handover", zap.Error(err))
@@ -95,7 +102,7 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 		zap.Int("not-handed-over", len(notHandedOver)))
 
 	sourceUe.SendHandoverCommandToEPS(ctx,
-		releaseItems(ctx, sourceUe, notHandedOver, nil),
+		releaseItems(ctx, sourceUe, append(notHandedOver, unusable...), nil),
 		ngap.TargetToSourceTransparentContainer(resp.TargetToSource),
 		ngap.NASSecurityParametersFromNGRAN(container),
 	)

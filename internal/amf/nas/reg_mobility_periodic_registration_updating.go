@@ -81,6 +81,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	ue.Ambr = subscriberProfile.Ambr
+	ue.SetAllow4G(subscriberProfile.Allow4G)
 
 	var (
 		reactivationResult        *[16]bool

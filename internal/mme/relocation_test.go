@@ -553,7 +553,7 @@ func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 		t.Fatal("the relocated UE context is gone")
 	}
 
-	m.abandonHandover(context.Background(), ue)
+	m.abandonHandover(context.Background(), ue, causeHandoverTS1relocExpiry)
 
 	if !sessions.released {
 		t.Error("the expired handover left its anchor session behind")

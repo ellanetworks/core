@@ -141,7 +141,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 			AcceptedPDUSessions: m.dropUnadmittedPDNs(ctx, ue, accepted, out.unadmitted),
 		}, nil
 	case <-ctx.Done():
-		m.abandonHandover(ctx, ue)
+		m.abandonHandover(ctx, ue, causeHandoverTS1relocExpiry)
 
 		return none, ctx.Err()
 	}
@@ -257,7 +257,7 @@ func (m *MME) RelocationCancel(ctx context.Context, supi etsi.SUPI) error {
 
 	logger.From(ctx, logger.MmeLog).Info("Relocation Cancel", logger.SUPI(supi.String()))
 
-	if !m.abandonHandover(ctx, ue) {
+	if !m.abandonHandover(ctx, ue, causeHandoverCancelled) {
 		return fmt.Errorf("%w: %s", ErrRelocationTooLate, supi)
 	}
 

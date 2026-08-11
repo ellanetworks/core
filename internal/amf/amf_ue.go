@@ -107,6 +107,8 @@ type UeContext struct {
 	SmContextList            map[uint8]*SmContext
 	epsBearerIdentities      map[uint8]uint8
 
+	allow4G bool
+
 	mobileReachableTimer        guard.Guard
 	implicitDeregistrationTimer guard.Guard
 	idleGen                     uint64
