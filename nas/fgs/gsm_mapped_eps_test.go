@@ -248,3 +248,52 @@ func TestMappedEPSBearerContextsInMessages(t *testing.T) {
 		}
 	})
 }
+
+// TestMappedEPSBearerContextsMaximumLength pins the 65538-octet cap TS 24.501
+// §9.11.4.8 gives the element: an IEI, a two-octet length and 65535 octets of
+// value. A value past that has to refuse rather than truncate, since the
+// two-octet length would wrap and the UE would read a context boundary that is
+// not there.
+func TestMappedEPSBearerContextsMaximumLength(t *testing.T) {
+	// One context whose parameters overflow the element's own length field.
+	contexts := MappedEPSBearerContexts{{
+		EPSBearerIdentity: 5,
+		Operation:         MappedEPSBearerOpCreate,
+		EBit:              true,
+		Parameters: []EPSParameter{
+			{Identifier: EPSParameterTrafficFlowTemplate, Contents: make([]byte, 255)},
+		},
+	}}
+
+	// 15 parameters of 255 octets each is 15*(1+1+255) = 3855 octets, well
+	// inside the element; the cap is reached by repeating whole contexts.
+	for len(contexts[0].Parameters) < maxEPSParameters {
+		contexts[0].Parameters = append(contexts[0].Parameters, contexts[0].Parameters[0])
+	}
+
+	for len(contexts) < 20 {
+		contexts = append(contexts, contexts[0])
+	}
+
+	raw, err := contexts.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(raw) <= 0xFFFF {
+		t.Fatalf("built %d octets, want more than the length field holds", len(raw))
+	}
+
+	// The element value itself encodes; the framing is what refuses it, because
+	// the TLV-E length is two octets.
+	m := &PDUSessionEstablishmentAccept{
+		PDUSessionID:            1,
+		QoSRules:                QoSRules{DefaultQoSRule(1, 1)},
+		SessionAMBR:             SessionAMBR{DownlinkUnit: 6, Downlink: 1, UplinkUnit: 6, Uplink: 1},
+		MappedEPSBearerContexts: contexts,
+	}
+
+	if _, err := m.MarshalBinary(); err == nil {
+		t.Fatal("an oversized Mapped EPS bearer contexts encoded, want an error")
+	}
+}

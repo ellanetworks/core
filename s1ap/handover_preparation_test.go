@@ -615,3 +615,65 @@ func TestGlobalRANNodeIDAlternatives(t *testing.T) {
 		})
 	}
 }
+
+// TestHandoverRequiredDirectForwardingPathAvailability covers the IE
+// TS 36.413 §9.1.5.1 gives HANDOVER REQUIRED and §9.2.1.44 defines: the source
+// eNB reporting that a direct forwarding path to the target exists. It is the
+// EPS→5GS input to the forwarding decision the SMF then signals as the
+// "Direct Forwarding Path Availability" indication (TS 23.502 §4.11.1.2.2.2
+// step 4), and being optional-ignore it was silently dropped before — decoded
+// into the unmodelled-IE bucket rather than reaching the MME.
+func TestHandoverRequiredDirectForwardingPathAvailability(t *testing.T) {
+	in := &HandoverRequired{
+		MMEUES1APID:                      1,
+		ENBUES1APID:                      2,
+		HandoverType:                     HandoverTypeEPSToFiveGS,
+		Cause:                            Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		TargetID:                         sampleTargetNgRanNodeID(),
+		DirectForwardingPathAvailability: Ptr(DirectForwardingPathAvailable),
+		SourceToTarget:                   TransparentContainer{0x01},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParseHandoverRequired(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.DirectForwardingPathAvailability == nil ||
+		*out.DirectForwardingPathAvailability != DirectForwardingPathAvailable {
+		t.Fatalf("direct forwarding path availability = %v, want available", out.DirectForwardingPathAvailability)
+	}
+
+	// "Not available" is the IE's absence, not a second enumeration value, so it
+	// has to stay a nil pointer rather than decode as DirectForwardingPathAvailable.
+	in.DirectForwardingPathAvailability = nil
+
+	b, err = in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err = Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err = ParseHandoverRequired(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.DirectForwardingPathAvailability != nil {
+		t.Fatalf("availability = %v, want absent", *out.DirectForwardingPathAvailability)
+	}
+}

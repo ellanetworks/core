@@ -87,6 +87,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	idUERadioCapabilityForPaging:          "UERadioCapabilityForPaging",
 	idRequestType:                         "RequestType",
 	idRRCEstablishmentCause:               "RRCEstablishmentCause",
+	idDirectForwardingPathAvailability:    "Direct-Forwarding-Path-Availability",
 	idHandoverRestrictionList:             "HandoverRestrictionList",
 	idNASSecurityParametersfromEUTRAN:     "NASSecurityParametersfromE-UTRAN",
 	idNASSecurityParameterstoEUTRAN:       "NASSecurityParameterstoE-UTRAN",

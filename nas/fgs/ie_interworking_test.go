@@ -194,3 +194,74 @@ func TestS1ModeToN1ModeContainerRefusesUnencodableValues(t *testing.T) {
 		}
 	}
 }
+
+// TestInterworkingElementsDegradeSoftly pins TS 24.501 §7.7.1 for the elements
+// this tranche started modelling. Each was previously delimited and preserved
+// without being decoded, so a malformed one could not fail anything; now that
+// they are parsed, a syntactically incorrect optional element must still be
+// treated as not present and kept for re-encoding rather than rejecting the
+// message. None of them is a security element, so none is Critical.
+func TestInterworkingElementsDegradeSoftly(t *testing.T) {
+	tests := []struct {
+		name string
+		iei  uint8
+		tlve bool
+		bad  []byte
+	}{
+		// UE status is one octet; two is malformed.
+		{"UE status", ieiUEStatus, false, []byte{0x00, 0x00}},
+		// Type of identity 010 is the 5G-GUTI, which needs eleven octets;
+		// one is a truncated identity, not the "no identity" type 000.
+		{"Additional GUTI", ieiAdditionalGUTI, true, []byte{0x02}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var o nas.OptionalWriter
+			if tc.tlve {
+				o.TLVE(tc.iei, tc.bad)
+			} else {
+				o.TLV(tc.iei, tc.bad)
+			}
+
+			w := nas.NewWriter(nil)
+			writeGMMHeader(w, MsgRegistrationRequest)
+			w.U8(registrationHeader{RegistrationType: RegistrationTypeMobilityUpdating}.octet())
+
+			mi, err := GUTIIdentity(GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}}).MarshalBinary()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			w.LVE(mi)
+			o.WriteTo(w)
+
+			raw, err := w.Bytes()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			msg, err := ParseRegistrationRequest(raw)
+			if err == nil {
+				t.Fatal("a malformed element decoded without even a soft error")
+			}
+
+			if !nas.SoftOnly(err) {
+				t.Fatalf("err = %v, want a soft error so §7.7.1 leaves the element absent", err)
+			}
+
+			if msg == nil {
+				t.Fatal("no message returned for a soft error")
+			}
+
+			if msg.UEStatus != nil || msg.AdditionalGUTI != nil {
+				t.Errorf("a malformed element was decoded anyway: %+v", msg)
+			}
+
+			// Preserved, so the element still re-encodes.
+			if len(msg.Unrecognized) != 1 || msg.Unrecognized[0].IEI != tc.iei {
+				t.Fatalf("unrecognized = %+v, want the malformed element preserved", msg.Unrecognized)
+			}
+		})
+	}
+}

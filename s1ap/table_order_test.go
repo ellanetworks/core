@@ -33,7 +33,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"HandoverCancel", tableIDs(handoverCancelIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCause}},
 		{"HandoverCancelAcknowledge", tableIDs(handoverCancelAcknowledgeIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCriticalityDiagnostics}},
 		{"HandoverNotify", tableIDs(handoverNotifyIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idEUTRANCGI, idTAI}},
-		{"HandoverRequired", tableIDs(handoverRequiredIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idHandoverType, idCause, idTargetID, idSourceToTargetTransparentContainer}},
+		{"HandoverRequired", tableIDs(handoverRequiredIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idHandoverType, idCause, idTargetID, idDirectForwardingPathAvailability, idSourceToTargetTransparentContainer}},
 		{"HandoverCommand", tableIDs(handoverCommandIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idHandoverType, idNASSecurityParametersfromEUTRAN, idERABSubjecttoDataForwardingList, idERABtoReleaseListHOCmd, idTargetToSourceTransparentContainer, idCriticalityDiagnostics}},
 		{"HandoverPreparationFailure", tableIDs(handoverPreparationFailureIEs), []ProtocolIEID{idMMEUES1APID, idENBUES1APID, idCause, idCriticalityDiagnostics}},
 		{"HandoverRequest", tableIDs(handoverRequestIEs), []ProtocolIEID{idMMEUES1APID, idHandoverType, idCause, idUEAggregateMaximumBitrate, idERABToBeSetupListHOReq, idSourceToTargetTransparentContainer, idUESecurityCapabilities, idHandoverRestrictionList, idSecurityContext, idNASSecurityParameterstoEUTRAN}},

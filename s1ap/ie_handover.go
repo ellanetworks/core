@@ -66,6 +66,36 @@ func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+// Direct-Forwarding-Path-Availability ::= ENUMERATED { directPathAvailable,
+// ... } (TS 36.413 §9.2.1.44). The source eNB sets it in HANDOVER REQUIRED to
+// report that a direct forwarding path to the target is available; absent means
+// it is not. It is what the core needs to choose between direct and indirect
+// forwarding, and on an EPS to 5GS handover it is what the SMF turns into the
+// "Direct Forwarding Path Availability" indication of the N2 SM information
+// (TS 23.502 §4.11.1.2.2.2 step 4).
+type DirectForwardingPathAvailability uint8
+
+const (
+	DirectForwardingPathAvailable DirectForwardingPathAvailability = iota
+
+	directForwardingPathAvailabilityRootCount = 1
+)
+
+func (d DirectForwardingPathAvailability) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, directForwardingPathAvailabilityRootCount, int64(d), "DirectForwardingPathAvailability")
+}
+
+func (d *DirectForwardingPathAvailability) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, directForwardingPathAvailabilityRootCount, "DirectForwardingPathAvailability")
+	if err != nil {
+		return err
+	}
+
+	*d = DirectForwardingPathAvailability(idx)
+
+	return nil
+}
+
 // TransparentContainer ::= OCTET STRING, relayed opaquely; the bytes are RAN
 // RRC information (TS 36.300).
 type TransparentContainer []byte
