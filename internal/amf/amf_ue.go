@@ -568,8 +568,6 @@ func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
 	defer ue.mu.Unlock()
 
 	delete(ue.SmContextList, pduSessionID)
-	// The EPS bearer identity is the session's, so it goes with it: leaving it
-	// behind would exhaust the 5..15 range over a UE's lifetime.
 	delete(ue.epsBearerIdentities, pduSessionID)
 }
 

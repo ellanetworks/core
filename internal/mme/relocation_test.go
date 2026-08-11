@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
@@ -41,7 +42,7 @@ func relocationRequest(sessions ...interworking.PDNConnection) interworking.Forw
 	}
 
 	return interworking.ForwardRelocationRequest{
-		IMSI: "001010000000001",
+		SUPI: mustSUPI("001010000000001"),
 		SecurityContext: interworking.EPSSecurityContext{
 			KASME:      kasme,
 			EKSI:       nas.KeySetIdentifier{Value: 4, Mapped: true},
@@ -305,7 +306,7 @@ func TestForwardRelocationInstallsTheRelocatedSecurityContext(t *testing.T) {
 		t.Errorf("EMM state = %v; the UE is not in EPS until it arrives", ue.EMMState())
 	}
 
-	if _, ok := m.LookupUeByIMSI(req.IMSI); ok {
+	if _, ok := m.LookupUeBySupi(req.SUPI); ok {
 		t.Error("a preparation that has not completed must not be the MME's context for the subscriber")
 	}
 }
@@ -434,8 +435,8 @@ type fakeFiveGSPeer struct {
 	err       error
 }
 
-func (f *fakeFiveGSPeer) RelocationComplete(_ context.Context, imsi string) error {
-	f.completed = imsi
+func (f *fakeFiveGSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI) error {
+	f.completed = supi.IMSI()
 
 	return f.err
 }
@@ -476,11 +477,11 @@ func TestCompleteRelocationPublishesTheContextAndNotifiesThePeer(t *testing.T) {
 
 	m.CompleteRelocation(context.Background(), ue)
 
-	if peer.completed != req.IMSI {
-		t.Errorf("the 5GS peer was told %q completed, want %q", peer.completed, req.IMSI)
+	if peer.completed != req.SUPI.IMSI() {
+		t.Errorf("the 5GS peer was told %q completed, want %q", peer.completed, req.SUPI)
 	}
 
-	held, ok := m.LookupUeByIMSI(req.IMSI)
+	held, ok := m.LookupUeBySupi(req.SUPI)
 	if !ok || held != ue {
 		t.Error("the arrived UE is not the MME's context for the subscriber")
 	}
@@ -489,7 +490,7 @@ func TestCompleteRelocationPublishesTheContextAndNotifiesThePeer(t *testing.T) {
 		t.Errorf("EMM state = %v, want EMM-REGISTERED", ue.EMMState())
 	}
 
-	if err := m.RelocationCancel(context.Background(), req.IMSI); !errors.Is(err, ErrNoRelocation) {
+	if err := m.RelocationCancel(context.Background(), req.SUPI); !errors.Is(err, ErrNoRelocation) {
 		t.Errorf("cancelling an arrived UE = %v, want ErrNoRelocation", err)
 	}
 }
@@ -509,7 +510,7 @@ func TestRelocationCancelAbandonsThePreparation(t *testing.T) {
 
 	target.awaitHandoverRequest(t)
 
-	if err := m.RelocationCancel(context.Background(), req.IMSI); err != nil {
+	if err := m.RelocationCancel(context.Background(), req.SUPI); err != nil {
 		t.Fatalf("RelocationCancel: %v", err)
 	}
 
@@ -521,7 +522,7 @@ func TestRelocationCancelAbandonsThePreparation(t *testing.T) {
 		t.Error("a cancelled handover left its anchor session behind")
 	}
 
-	if _, ok := m.LookupUeByIMSI(req.IMSI); ok {
+	if _, ok := m.LookupUeBySupi(req.SUPI); ok {
 		t.Error("a cancelled handover left a UE context behind")
 	}
 }
@@ -558,7 +559,7 @@ func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 		t.Error("the expired handover left its anchor session behind")
 	}
 
-	if err := m.RelocationCancel(context.Background(), req.IMSI); !errors.Is(err, ErrNoRelocation) {
+	if err := m.RelocationCancel(context.Background(), req.SUPI); !errors.Is(err, ErrNoRelocation) {
 		t.Errorf("the expired handover is still registered: %v", err)
 	}
 }
@@ -566,7 +567,7 @@ func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 func TestRelocationCancelForAnUnknownSubscriber(t *testing.T) {
 	m := newTestMME(t)
 
-	if err := m.RelocationCancel(context.Background(), "001010000000009"); !errors.Is(err, ErrNoRelocation) {
+	if err := m.RelocationCancel(context.Background(), mustSUPI("001010000000009")); !errors.Is(err, ErrNoRelocation) {
 		t.Fatalf("error = %v, want ErrNoRelocation", err)
 	}
 }
@@ -635,7 +636,7 @@ func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 		t.Error("the refused handover left its anchor session behind")
 	}
 
-	if _, ok := m.LookupUeByIMSI(req.IMSI); ok {
+	if _, ok := m.LookupUeBySupi(req.SUPI); ok {
 		t.Error("the refused handover left a UE context behind")
 	}
 }
@@ -715,7 +716,7 @@ func TestRelocationCancelAfterTheUEArrivesIsRefused(t *testing.T) {
 		t.Fatal("the Handover Notify did not match the prepared handover")
 	}
 
-	if err := m.RelocationCancel(context.Background(), req.IMSI); !errors.Is(err, ErrRelocationTooLate) {
+	if err := m.RelocationCancel(context.Background(), req.SUPI); !errors.Is(err, ErrRelocationTooLate) {
 		t.Fatalf("error = %v, want ErrRelocationTooLate", err)
 	}
 
@@ -725,5 +726,39 @@ func TestRelocationCancelAfterTheUEArrivesIsRefused(t *testing.T) {
 
 	if m.LookupPDN(ue, 5) == nil {
 		t.Error("a late cancel dropped the PDN connection of a UE that had already arrived")
+	}
+}
+
+func TestForwardRelocationTakesTheSliceFromTheSource(t *testing.T) {
+	sessions := &fakeSessionManager{}
+	m := New(nil, fakeBearerStore{}, sessions)
+	target := newRelocationTarget(t, m)
+
+	onAnotherSlice := models.Snssai{Sst: 3, Sd: "0000ff"}
+
+	req := relocationRequest(interworking.PDNConnection{
+		PDUSessionID:      1,
+		EPSBearerIdentity: 5,
+		APN:               "internet",
+		Snssai:            onAnotherSlice,
+	})
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	hoReq := target.awaitHandoverRequest(t)
+	target.admit(t, hoReq)
+
+	if err := <-done; err != nil {
+		t.Fatalf("ForwardRelocation: %v", err)
+	}
+
+	got := sessions.lastRequest.Snssai
+	if got == nil || *got != onAnotherSlice {
+		t.Fatalf("session created on slice %+v, want the %+v the source named", got, onAnotherSlice)
 	}
 }

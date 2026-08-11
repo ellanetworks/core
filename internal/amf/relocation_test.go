@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
@@ -48,11 +49,11 @@ func (f *fakeEPSPeer) ForwardRelocation(ctx context.Context, req interworking.Fo
 	return f.response, f.err
 }
 
-func (f *fakeEPSPeer) RelocationCancel(_ context.Context, imsi string) error {
+func (f *fakeEPSPeer) RelocationCancel(_ context.Context, supi etsi.SUPI) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.cancelled = append(f.cancelled, imsi)
+	f.cancelled = append(f.cancelled, supi.IMSI())
 
 	return nil
 }
@@ -194,7 +195,7 @@ func TestForwardRelocationReachesThePeer(t *testing.T) {
 		t.Fatalf("accepted PDU sessions = %v", resp.AcceptedPDUSessions)
 	}
 
-	if got := peer.forwarded(); got.IMSI != ue.Supi().IMSI() || got.Target != testTarget {
+	if got := peer.forwarded(); got.SUPI != ue.Supi() || got.Target != testTarget {
 		t.Fatalf("the peer received %+v", got)
 	}
 }
@@ -250,7 +251,7 @@ func TestRelocationCompleteReleasesTheFiveGSSide(t *testing.T) {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), ue.Supi().IMSI()); err != nil {
+	if err := a.RelocationComplete(context.Background(), ue.Supi()); err != nil {
 		t.Fatalf("RelocationComplete: %v", err)
 	}
 
@@ -275,11 +276,11 @@ func TestRelocationCompleteForAUEThatIsNotMovingToEPS(t *testing.T) {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), ue.Supi().IMSI()); !errors.Is(err, amf.ErrRelocationNotToEPS) {
+	if err := a.RelocationComplete(context.Background(), ue.Supi()); !errors.Is(err, amf.ErrRelocationNotToEPS) {
 		t.Fatalf("error = %v, want ErrRelocationNotToEPS", err)
 	}
 
-	if err := a.RelocationComplete(context.Background(), "001010000000009"); !errors.Is(err, amf.ErrNoRelocatingUe) {
+	if err := a.RelocationComplete(context.Background(), mustSUPIFromIMSI(t, "001010000000009")); !errors.Is(err, amf.ErrNoRelocatingUe) {
 		t.Fatalf("error = %v, want ErrNoRelocatingUe", err)
 	}
 }

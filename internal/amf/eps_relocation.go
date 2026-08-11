@@ -11,26 +11,22 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
+// requested names the PDU sessions the source RAN asked to hand over; a session
+// it did not name is not offered, so an empty list offers nothing.
 func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.PDNConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	var asked map[uint8]struct{}
-
-	if requested != nil {
-		asked = make(map[uint8]struct{}, len(requested))
-		for _, pduSessionID := range requested {
-			asked[pduSessionID] = struct{}{}
-		}
+	asked := make(map[uint8]struct{}, len(requested))
+	for _, pduSessionID := range requested {
+		asked[pduSessionID] = struct{}{}
 	}
 
-	out := make([]interworking.PDNConnection, 0, len(ue.SmContextList))
+	out := make([]interworking.PDNConnection, 0, len(requested))
 
 	for pduSessionID, sc := range ue.SmContextList {
-		if asked != nil {
-			if _, ok := asked[pduSessionID]; !ok {
-				continue
-			}
+		if _, ok := asked[pduSessionID]; !ok {
+			continue
 		}
 
 		ebi, ok := ue.epsBearerIdentities[pduSessionID]
@@ -38,11 +34,17 @@ func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.P
 			continue
 		}
 
+		if sc.Snssai == nil {
+			continue
+		}
+
+		snssai := *sc.Snssai
+
 		out = append(out, interworking.PDNConnection{
 			PDUSessionID:      pduSessionID,
 			EPSBearerIdentity: ebi,
 			APN:               sc.Dnn,
-			Snssai:            sc.Snssai,
+			Snssai:            snssai,
 		})
 	}
 
@@ -84,7 +86,7 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 	}
 
 	return interworking.ForwardRelocationRequest{
-		IMSI:            interworking.SUPIToIMSI(ue.Supi()),
+		SUPI:            ue.Supi(),
 		SecurityContext: mapped.Context,
 		PDNConnections:  sessions,
 		Target:          target,

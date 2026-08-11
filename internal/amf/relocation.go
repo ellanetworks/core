@@ -87,27 +87,17 @@ func (a *AMF) CancelRelocationToEPS(ctx context.Context, ue *UeContext) error {
 		return nil
 	}
 
-	imsi := ue.Supi().IMSI()
-	if imsi == "" {
-		return nil
-	}
-
-	return a.EPS.RelocationCancel(ctx, imsi)
+	return a.EPS.RelocationCancel(ctx, ue.Supi())
 }
 
-func (a *AMF) RelocationComplete(ctx context.Context, imsi string) error {
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return fmt.Errorf("amf: relocation complete for %q: %w", imsi, err)
-	}
-
+func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI) error {
 	ue, ok := a.LookupUeBySupi(supi)
 	if !ok {
-		return fmt.Errorf("%w: %s", ErrNoRelocatingUe, imsi)
+		return fmt.Errorf("%w: %s", ErrNoRelocatingUe, supi)
 	}
 
 	if !a.HandoverToEPSInProgress(ue) {
-		return fmt.Errorf("%w: %s", ErrRelocationNotToEPS, imsi)
+		return fmt.Errorf("%w: %s", ErrRelocationNotToEPS, supi)
 	}
 
 	source := a.HandoverSource(ue)
@@ -118,7 +108,7 @@ func (a *AMF) RelocationComplete(ctx context.Context, imsi string) error {
 	ue.ReleaseAllEPSBearerIdentities()
 
 	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources",
-		zap.String("imsi", imsi))
+		logger.SUPI(supi.String()))
 
 	if source == nil {
 		return nil

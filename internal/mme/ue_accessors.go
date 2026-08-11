@@ -34,6 +34,20 @@ func (ue *UeContext) OldTmsi() etsi.TMSI {
 	return ue.oldTmsi
 }
 
+func (ue *UeContext) Supi() etsi.SUPI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.supi
+}
+
+func (ue *UeContext) SetSupi(supi etsi.SUPI) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.supi = supi
+}
+
 // IMSI returns the UE's IMSI, or "" when the identity is unset.
 func (ue *UeContext) IMSI() string {
 	if ue == nil {

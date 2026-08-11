@@ -15,7 +15,7 @@ type PDNConnection struct {
 	PDUSessionID      uint8
 	EPSBearerIdentity uint8
 	APN               string
-	Snssai            *models.Snssai
+	Snssai            models.Snssai
 }
 
 type ENBIdentity struct {
@@ -26,7 +26,7 @@ type ENBIdentity struct {
 }
 
 type ForwardRelocationRequest struct {
-	IMSI            string
+	SUPI            etsi.SUPI
 	SecurityContext EPSSecurityContext
 	PDNConnections  []PDNConnection
 	Target          ENBIdentity
@@ -47,11 +47,9 @@ var (
 
 type EPSPeer interface {
 	ForwardRelocation(ctx context.Context, req ForwardRelocationRequest) (ForwardRelocationResponse, error)
-	RelocationCancel(ctx context.Context, imsi string) error
+	RelocationCancel(ctx context.Context, supi etsi.SUPI) error
 }
 
 type FiveGSPeer interface {
-	RelocationComplete(ctx context.Context, imsi string) error
+	RelocationComplete(ctx context.Context, supi etsi.SUPI) error
 }
-
-func SUPIToIMSI(supi etsi.SUPI) string { return supi.IMSI() }

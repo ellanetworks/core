@@ -43,7 +43,7 @@ func TestTransferableEPSSessions(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	got := ue.TransferableEPSSessions(nil)
+	got := ue.TransferableEPSSessions([]uint8{1, 2})
 	if len(got) != 1 {
 		t.Fatalf("got %d transferable sessions, want 1", len(got))
 	}
@@ -61,13 +61,13 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 		t.Fatalf("downlink counter: %v", err)
 	}
 
-	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb}, nil)
+	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb}, []uint8{1})
 	if err != nil {
 		t.Fatalf("BuildForwardRelocationRequest: %v", err)
 	}
 
-	if req.IMSI != ue.Supi().IMSI() {
-		t.Fatalf("IMSI = %q, want %q", req.IMSI, ue.Supi().IMSI())
+	if req.SUPI != ue.Supi() {
+		t.Fatalf("SUPI = %v, want %v", req.SUPI, ue.Supi())
 	}
 
 	if len(req.PDNConnections) != 1 {
@@ -112,7 +112,7 @@ func TestBuildForwardRelocationRequestWithoutSessions(t *testing.T) {
 		t.Fatalf("downlink counter: %v", err)
 	}
 
-	if _, _, err := ue.BuildForwardRelocationRequest(testTarget, nil, nil); !errors.Is(err, amf.ErrNoTransferableSessions) {
+	if _, _, err := ue.BuildForwardRelocationRequest(testTarget, nil, []uint8{1}); !errors.Is(err, amf.ErrNoTransferableSessions) {
 		t.Fatalf("error = %v, want ErrNoTransferableSessions", err)
 	}
 

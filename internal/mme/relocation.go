@@ -29,11 +29,6 @@ var (
 func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	var none interworking.ForwardRelocationResponse
 
-	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
-	if err != nil {
-		return none, fmt.Errorf("mme: forward relocation for %q: %w", req.IMSI, err)
-	}
-
 	globalENBID, err := targetGlobalENBID(req.Target)
 	if err != nil {
 		return none, err
@@ -45,7 +40,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	}
 
 	ue := NewUeContext()
-	m.SetIMSI(ue, req.IMSI)
+	ue.SetSupi(req.SUPI)
 
 	if err := ue.InstallRelocatedSecurityContext(req.SecurityContext, MintAuthProofForInterworking()); err != nil {
 		return none, err
@@ -57,7 +52,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 
 	ue.TransitionTo(EMMRegistrationInitiated)
 
-	if !m.beginRelocation(supi, ue) {
+	if !m.beginRelocation(req.SUPI, ue) {
 		return none, ErrRelocationInProgress
 	}
 
@@ -76,10 +71,7 @@ func (m *MME) dropRelocation(ctx context.Context, ue *UeContext) {
 
 	m.ReleaseAllSessions(ctx, ue)
 	m.RemoveUe(ue)
-
-	if supi, err := etsi.NewSUPIFromIMSI(ue.IMSI()); err == nil {
-		m.endRelocation(supi, ue)
-	}
+	m.endRelocation(ue.Supi(), ue)
 }
 
 func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, targetID string, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
@@ -178,7 +170,7 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 			IMSI:              ue.IMSI(),
 			EPSBearerIdentity: c.EPSBearerIdentity,
 			PDUSessionID:      c.PDUSessionID,
-			Snssai:            qos.Snssai,
+			Snssai:            &c.Snssai,
 			PolicyID:          qos.PolicyID,
 			APN:               qos.APN,
 			AMBRUplink:        qos.SessAmbrUL,
@@ -236,36 +228,25 @@ func (m *MME) dropUnadmittedPDNs(ctx context.Context, ue *UeContext, accepted ma
 }
 
 func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
-	imsi := ue.IMSI()
-
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("relocated UE has no usable identity", zap.Error(err))
-		return
-	}
+	supi := ue.Supi()
 
 	ue.TransitionTo(EMMRegistered)
 	m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking())
 	m.endRelocation(supi, ue)
 
-	logger.From(ctx, logger.MmeLog).Info("handover from 5GS complete", zap.String("imsi", imsi))
+	logger.From(ctx, logger.MmeLog).Info("handover from 5GS complete", logger.SUPI(supi.String()))
 
 	if m.FiveGS == nil {
 		return
 	}
 
-	if err := m.FiveGS.RelocationComplete(ctx, imsi); err != nil {
+	if err := m.FiveGS.RelocationComplete(ctx, supi); err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("the 5GS peer refused the relocation completion notification",
-			zap.String("imsi", imsi), zap.Error(err))
+			logger.SUPI(supi.String()), zap.Error(err))
 	}
 }
 
-func (m *MME) RelocationCancel(ctx context.Context, imsi string) error {
-	supi, err := etsi.NewSUPIFromIMSI(imsi)
-	if err != nil {
-		return fmt.Errorf("mme: relocation cancel for %q: %w", imsi, err)
-	}
-
+func (m *MME) RelocationCancel(ctx context.Context, supi etsi.SUPI) error {
 	m.mu.Lock()
 	ue, ok := m.relocating[supi]
 	m.mu.Unlock()
@@ -274,10 +255,10 @@ func (m *MME) RelocationCancel(ctx context.Context, imsi string) error {
 		return ErrNoRelocation
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("Relocation Cancel", zap.String("imsi", imsi))
+	logger.From(ctx, logger.MmeLog).Info("Relocation Cancel", logger.SUPI(supi.String()))
 
 	if !m.abandonHandover(ctx, ue) {
-		return fmt.Errorf("%w: %s", ErrRelocationTooLate, imsi)
+		return fmt.Errorf("%w: %s", ErrRelocationTooLate, supi)
 	}
 
 	return nil
