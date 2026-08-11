@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         ip_version: [ipv4, ipv6]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout

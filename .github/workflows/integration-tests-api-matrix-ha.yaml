@@ -12,7 +12,7 @@ jobs:
     # 3-node cluster. Like the standalone matrix it has no NGAP/NAS/UPF
     # data plane, so a single architecture and the IPv4 compose are
     # sufficient — cross-family is already covered by integration-tests-ha.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout

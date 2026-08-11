@@ -22,7 +22,7 @@ body:
       description: >
         Include any relevant information about your environment. For example:
           - Ella Core version: 1.2.1
-          - OS: Ubuntu 24.04
+          - OS: Ubuntu 26.04
     validations:
       required: true
   - type: textarea

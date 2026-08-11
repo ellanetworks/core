@@ -12,6 +12,6 @@ Ella Core runs on major Linux distributions including **Ubuntu**, **Ubuntu Core*
 | **Memory** | 1 GB RAM | 8 GB RAM |
 | **Storage** | 10 GB disk space | 50 GB disk space |
 | **Network** | 1 interface with XDP support and appropriate MTU (see the official [XDP documentation][xdp] for driver support and the [connectivity reference](connectivity.md)) | 4 interfaces with XDP support and appropriate MTU (see the official [XDP documentation][xdp] for driver support and the [connectivity reference](connectivity.md)) |
-| **Operating System** | — | Ubuntu 24.04 LTS |
+| **Operating System** | — | Ubuntu 26.04 LTS |
 
 [xdp]: https://docs.ebpf.io/linux/program-type/BPF_PROG_TYPE_XDP/

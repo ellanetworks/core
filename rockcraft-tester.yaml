@@ -1,6 +1,6 @@
 name: ella-core-tester
-base: ubuntu@24.04
-build-base: ubuntu@24.04
+base: ubuntu@26.04
+build-base: ubuntu@26.04
 version: '0.1.0'
 summary: Ella Core Tester - a 5G gNB/UE simulator for testing Ella Core.
 description: |

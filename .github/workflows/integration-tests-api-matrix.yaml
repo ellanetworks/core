@@ -12,7 +12,7 @@ jobs:
     # plane — so a single architecture and the IPv4 compose are sufficient.
     # Running cross-arch / cross-family would duplicate identical REST
     # coverage for no added signal.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
