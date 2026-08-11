@@ -164,7 +164,6 @@ type AMF struct {
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
-	N26Enabled               bool
 	T3502Value               time.Duration
 	T3512Value               time.Duration
 	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
@@ -609,31 +608,25 @@ func (amf *AMF) NetworkFeatureSupport() NetworkFeatureSupport5GS {
 // New creates a fully initialized AMF. Call Start to open the N2 listener.
 func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
-		UEs:              make(map[etsi.SUPI]*UeContext),
-		uesByTmsi:        make(map[etsi.TMSI]*UeContext),
-		conns:            make(map[int64]*UeConn),
-		radios:           make(map[NGAPWriter]*Radio),
-		radiosByID:       make(map[string]*Radio),
-		DBInstance:       db,
-		Ausf:             ausf,
-		Session:          smf,
-		tmsi:             etsi.NewTMSIAllocator(),
-		connIDs:          idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
-		Name:             "amf",
-		RelativeCapacity: 0xff,
-		TimeZone:         localTimeZone(time.Now()),
-		T3502Value:       720 * time.Second,
-		// Periodic-registration timer. The spec default of 54 min (TS 24.501 §10.2)
-		// is not representable in the GPRS Timer 3 IE — above 31 min it steps in
-		// 10-min units (TS 24.008 §10.5.7.4a) — so 54 min encodes down to 50 min and
-		// the signalled value diverges from the T3512+4 min mobile-reachable timer.
-		// One hour encodes exactly, keeping the two consistent.
+		UEs:                      make(map[etsi.SUPI]*UeContext),
+		uesByTmsi:                make(map[etsi.TMSI]*UeContext),
+		conns:                    make(map[int64]*UeConn),
+		radios:                   make(map[NGAPWriter]*Radio),
+		radiosByID:               make(map[string]*Radio),
+		DBInstance:               db,
+		Ausf:                     ausf,
+		Session:                  smf,
+		tmsi:                     etsi.NewTMSIAllocator(),
+		connIDs:                  idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
+		Name:                     "amf",
+		RelativeCapacity:         0xff,
+		TimeZone:                 localTimeZone(time.Now()),
+		T3502Value:               720 * time.Second,
 		T3512Value:               3600 * time.Second,
 		T3513Cfg:                 defaultTimerCfg,
 		NASGuardCfg:              defaultTimerCfg,
 		handoverGuardTimeout:     defaultHandoverGuardTimeout,
 		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
-		N26Enabled:               models.N26Supported,
 	}
 
 	return a

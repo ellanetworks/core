@@ -85,7 +85,6 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 		t.Fatal("the UE-AMBR must be the UE's")
 	}
 
-	// The container that reaches the UE names the COUNT the derivation used.
 	if mapped == nil || mapped.Container.SequenceNumber == 0 && req.SecurityContext.DLNASCount != 0 {
 		t.Fatal("the NAS transparent container must accompany the request")
 	}

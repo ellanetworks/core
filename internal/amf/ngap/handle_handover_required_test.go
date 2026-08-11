@@ -525,7 +525,9 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
 	)
 
-	for _, ht := range []ngap.HandoverType{ngap.HandoverTypeFiveGSToEPS, ngap.HandoverTypeEPSToFiveGS} {
+	// fivegs-to-eps is supported; eps-to-5gs is the mirror this AMF cannot yet
+	// terminate, so it is refused.
+	for _, ht := range []ngap.HandoverType{ngap.HandoverTypeEPSToFiveGS} {
 		t.Run(fmt.Sprintf("handoverType %d", ht), func(t *testing.T) {
 			supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 

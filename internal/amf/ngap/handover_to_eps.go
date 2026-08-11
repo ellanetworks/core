@@ -13,13 +13,6 @@ import (
 )
 
 func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *amf.UeConn, amfUe *amf.UeContext, msg *ngap.HandoverRequired) {
-	if !amfInstance.N26Enabled {
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [handover to EPS is not enabled]")
-		sourceUe.SendHandoverPreparationFailure(ctx, causeHOTargetNotAllowed, nil, nil)
-
-		return
-	}
-
 	if msg.TargetID.TargeteNBID == nil {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Target ID is not an eNB]")
 		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)

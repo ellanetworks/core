@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-func epsInterworkingAMF(n26 bool) *amf.AMF {
+func epsInterworkingAMF() *amf.AMF {
 	a := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
@@ -25,7 +25,6 @@ func epsInterworkingAMF(n26 bool) *amf.AMF {
 			Integrity:     `["AES"]`,
 		},
 	}, nil, nil)
-	a.N26Enabled = n26
 
 	return a
 }
@@ -83,7 +82,7 @@ func registeredS1UE(t *testing.T) (*amf.UeContext, *fakeNGAPSender) {
 func TestSecurityMode_DeliversEPSNASAlgorithmsOnValidContext(t *testing.T) {
 	ue, ngapSender := registeredS1UE(t)
 
-	securityMode(context.Background(), epsInterworkingAMF(true), ue)
+	securityMode(context.Background(), epsInterworkingAMF(), ue)
 
 	if got := securityModeCommandsIn(t, ngapSender.SentDownlinkNASTransport); got != 1 {
 		t.Fatalf("sent %d SECURITY MODE COMMANDs, want 1", got)
@@ -109,24 +108,9 @@ func TestSecurityMode_DeliversEPSNASAlgorithmsOnValidContext(t *testing.T) {
 	}
 }
 
-// TS 24.501 §8.2.25.4, §9.11.3.5
-func TestSecurityMode_NoEPSNASAlgorithmsWithoutN26(t *testing.T) {
-	ue, ngapSender := registeredS1UE(t)
-
-	securityMode(context.Background(), epsInterworkingAMF(false), ue)
-
-	if got := securityModeCommandsIn(t, ngapSender.SentDownlinkNASTransport); got != 0 {
-		t.Fatalf("sent %d SECURITY MODE COMMANDs, want none", got)
-	}
-
-	if ue.Procedures().Active(procedure.SecurityMode) {
-		t.Error("no security mode procedure must be claimed")
-	}
-}
-
 func TestSecurityMode_EPSNASAlgorithmsDeliveredOnlyOnce(t *testing.T) {
 	ue, ngapSender := registeredS1UE(t)
-	amfInstance := epsInterworkingAMF(true)
+	amfInstance := epsInterworkingAMF()
 
 	securityMode(context.Background(), amfInstance, ue)
 	ue.MarkEPSNASAlgorithmsDelivered()

@@ -305,11 +305,14 @@ func BuildRegistrationAccept(
 	}
 
 	if nfs := amfInstance.NetworkFeatureSupport(); nfs.Enable {
+		// IWK N26 stays clear: the bit means "interworking *without* N26
+		// supported", and this AMF supports N26 (TS 24.501 §5.5.1.2.4). A UE
+		// supporting S1 mode reading it clear operates in single-registration
+		// mode.
 		m.NetworkFeatureSupport = &fgs.NetworkFeatureSupport{
 			IMSVoPS3GPP: nfs.ImsVoPS != 0,
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
-			IWKN26:      ue.SupportsS1Mode() && !amfInstance.N26Enabled,
 			MPSI:        nfs.Mpsi != 0,
 			HasOctet4:   true,
 			EMCN3:       nfs.EmcN3 != 0,

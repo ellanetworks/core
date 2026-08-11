@@ -72,7 +72,23 @@ func startGNB(env scenarios.Env) (*gnb.GnodeB, error) {
 	return gNodeB, nil
 }
 
+// startENBOnSecondaryN3 starts the eNB on the gNB's secondary N3 address, for a
+// scenario that runs both radios at once: they would otherwise contend for the
+// GTP-U port on one address, and a handover needs source and target up together.
+func startENBOnSecondaryN3(env scenarios.Env) (*s1enb.ENB, error) {
+	g := env.FirstGNB()
+	if g.N3Secondary == "" {
+		return nil, fmt.Errorf("this scenario needs a secondary N3 address so the eNB and the gNB can both hold one")
+	}
+
+	return startENBOn(env, g.N3Secondary)
+}
+
 func startENB(env scenarios.Env) (*s1enb.ENB, error) {
+	return startENBOn(env, env.FirstGNB().N3Address)
+}
+
+func startENBOn(env scenarios.Env, n3Address string) (*s1enb.ENB, error) {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
 		return nil, err
@@ -93,7 +109,7 @@ func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 		Name:             s1enbNodeName,
 		CoreS1MMEAddress: s1mme,
 		ENBAddress:       g.N2Address,
-		ENBN3Address:     g.N3Address,
+		ENBN3Address:     n3Address,
 		EnableDatapath:   true,
 	})
 	if err != nil {

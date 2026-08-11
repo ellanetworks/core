@@ -18,6 +18,11 @@ type RegistrationRequestOpts struct {
 	IncludeCapability bool
 	UESecurity        *UESecurity
 	PDUSessionStatus  *[16]bool
+
+	// S1UENetworkCapability is the UE's EPS algorithm support (TS 24.301
+	// §9.9.3.34). It is not a cleartext IE (TS 24.501 §4.4.6), so it rides only
+	// in the REGISTRATION REQUEST the UE repeats inside SECURITY MODE COMPLETE.
+	S1UENetworkCapability []byte
 }
 
 func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
@@ -42,6 +47,7 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 	}
 
 	m.UESecurityCapability = &opts.UESecurity.UeSecurityCapability
+	m.S1UENetworkCapability = opts.S1UENetworkCapability
 
 	if opts.RequestedNSSAI != nil {
 		m.RequestedNSSAI = opts.RequestedNSSAI

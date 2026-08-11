@@ -205,8 +205,12 @@ func (m *MME) NetworkFeatureSupport(ueCap eps.UENetworkCapability) *eps.NetworkF
 		nfs = *m.EPSNetworkFeatureSupport
 	}
 
-	nfs.IWKN26 = ueCap.SupportsN1Mode() && models.InterworkingWithoutN26
 	nfs.EPCO = ueCap.SupportsEPCO()
+
+	// IWK N26 stays clear: the bit means "interworking *without* N26 supported",
+	// and this MME supports N26 (TS 24.301 §9.9.3.12A, §5.5.1.2.4). A UE reading
+	// it clear operates in single-registration mode.
+	nfs.IWKN26 = false
 
 	return &nfs
 }

@@ -75,7 +75,6 @@ func newRelocatingAMF(t *testing.T, peer *fakeEPSPeer) (*amf.AMF, *amf.UeContext
 	t.Helper()
 
 	a := amf.New(nil, nil, nil)
-	a.N26Enabled = true
 	a.EPS = peer
 
 	ue := relocatableUE(t)
@@ -135,7 +134,6 @@ func TestPrepareHandoverToEPSOffersOnlyTheRequestedSessions(t *testing.T) {
 
 func TestPrepareHandoverToEPSWithoutAPeer(t *testing.T) {
 	a := amf.New(nil, nil, nil)
-	a.N26Enabled = true
 
 	ue := relocatableUE(t)
 	ue.SetSupiForTest(mustSUPIFromIMSI(t, testRelocationIMSI))

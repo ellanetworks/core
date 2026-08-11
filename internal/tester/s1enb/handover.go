@@ -154,3 +154,14 @@ func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
 
 	return e.SendMessage(b, true)
 }
+
+// AnchorAddress resolves the anchor's S1-U endpoint from an E-RAB Transport
+// Layer Address, picking the family of this eNB's own N3 socket.
+func (e *ENB) AnchorAddress(tla s1ap.TransportLayerAddress) (string, error) {
+	addr, err := e.selectUpfAddr(tla)
+	if err != nil {
+		return "", err
+	}
+
+	return addr.Unmap().String(), nil
+}

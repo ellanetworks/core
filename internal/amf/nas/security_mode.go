@@ -42,7 +42,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 	}
 
 	if ue.SecurityContextIsValid() {
-		if amfInstance.N26Enabled && ue.NeedsEPSNASAlgorithms() && provideEPSNASAlgorithms(ctx, amfInstance, ue, conn) {
+		if ue.NeedsEPSNASAlgorithms() && provideEPSNASAlgorithms(ctx, amfInstance, ue, conn) {
 			return
 		}
 
@@ -103,7 +103,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		return
 	}
 
-	selectEPSNASAlgorithms(ctx, amfInstance, ue, integrityOrder, cipheringOrder)
+	selectEPSNASAlgorithms(ctx, ue, integrityOrder, cipheringOrder)
 
 	if err := amf.SendSecurityModeCommand(ctx, amfInstance, ueConn); err != nil {
 		abortSecurityMode(ctx, ue, ueConn, "send security mode command", err)
@@ -113,8 +113,8 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 	committed = true
 }
 
-func selectEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, intOrder []nas.IntegrityAlgorithm, encOrder []nas.CipheringAlgorithm) bool {
-	if !amfInstance.N26Enabled || !ue.NeedsEPSNASAlgorithms() {
+func selectEPSNASAlgorithms(ctx context.Context, ue *amf.UeContext, intOrder []nas.IntegrityAlgorithm, encOrder []nas.CipheringAlgorithm) bool {
+	if !ue.NeedsEPSNASAlgorithms() {
 		return false
 	}
 
@@ -142,7 +142,7 @@ func provideEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false
 	}
 
-	if !selectEPSNASAlgorithms(ctx, amfInstance, ue, intOrder, encOrder) {
+	if !selectEPSNASAlgorithms(ctx, ue, intOrder, encOrder) {
 		return false
 	}
 

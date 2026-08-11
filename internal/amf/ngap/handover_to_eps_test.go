@@ -134,7 +134,6 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 	sourceRan := &amf.Radio{Log: logger.AmfLog, Conn: sender}
 
 	amfInstance := amf.New(&fakeDBInstance{Operator: &db.Operator{Mcc: "001", Mnc: "01"}}, nil, &fakeSmfSbi{SMF: smfInstance})
-	amfInstance.N26Enabled = true
 	amfInstance.EPS = peer
 
 	sourceRan.BindAMFForTest(amfInstance)
@@ -145,9 +144,6 @@ func relocatingUe(t *testing.T, peer *epsPeerStub, pduSessionIDs ...uint8) (*amf
 	return amfInstance, amfUe, sender, sourceRan
 }
 
-// relocationSignalSender closes outcome once the relocation goroutine has
-// answered the source gNB, giving the test a happens-before edge to it. Polling
-// the captured slices instead would race the goroutine that fills them.
 type relocationSignalSender struct {
 	*fakeNGAPSender
 	outcome chan struct{}
@@ -168,8 +164,6 @@ func newRelocationSender() *relocationSignalSender {
 	return &relocationSignalSender{fakeNGAPSender: &fakeNGAPSender{}, outcome: make(chan struct{})}
 }
 
-// awaitCommand waits for the Handover Command or Preparation Failure the
-// relocation goroutine sends.
 func awaitCommand(t *testing.T, sender *relocationSignalSender) {
 	t.Helper()
 
@@ -281,24 +275,6 @@ func TestHandoverRequiredToEPSPeerRefuses(t *testing.T) {
 	}
 }
 
-func TestHandoverRequiredToEPSWithoutN26(t *testing.T) {
-	peer := &epsPeerStub{accepted: []uint8{1}}
-	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1)
-	amfInstance.N26Enabled = false
-
-	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
-
-	if len(sender.SentHandoverPreparationFailures) != 1 {
-		t.Fatalf("got %d Handover Preparation Failures, want 1", len(sender.SentHandoverPreparationFailures))
-	}
-
-	if peer.forwarded() != nil {
-		t.Error("the peer was asked to prepare a handover that is not enabled")
-	}
-}
-
-// TS 38.413 §9.2.3.1 pairs the Target ID alternative with the Handover Type, but
-// the ASN.1 does not.
 func TestHandoverRequiredToEPSWithARANNodeTarget(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, _, sender, sourceRan := relocatingUe(t, peer, 1)

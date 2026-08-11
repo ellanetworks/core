@@ -258,7 +258,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		requestType = *ulNasTransport.RequestType
 	}
 
-	epsBearerIdentity := assignEPSBearerIdentity(ctx, amfInstance, ue, pduSessionID)
+	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID)
 
 	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
 
@@ -298,8 +298,8 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 }
 
-func assignEPSBearerIdentity(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, pduSessionID uint8) uint8 {
-	if !amfInstance.N26Enabled || !ue.SupportsS1Mode() {
+func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionID uint8) uint8 {
+	if !ue.SupportsS1Mode() {
 		return 0
 	}
 

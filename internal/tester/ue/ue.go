@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -59,6 +60,16 @@ type UESecurity struct {
 	suciPublicKey        sidf.HomeNetworkPublicKey
 	RoutingIndicator     string
 	Guti                 *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
+
+	// S1UENetworkCapability is the UE's EPS algorithm support, offered to the AMF
+	// so it can pick the EPS NAS algorithms for a later handover to EPS
+	// (TS 33.501 §6.7.2). Nil for a UE that does not support S1 mode.
+	S1UENetworkCapability *eps.UENetworkCapability
+
+	// EPSNASAlgorithms is the pair the AMF selected and signalled in the security
+	// mode command. The UE needs it to build the mapped EPS security context on a
+	// handover to EPS, where it cannot be asked again (TS 33.501 §8.3.2).
+	EPSNASAlgorithms *fgs.SelectedEPSNASSecurityAlgorithms
 }
 
 type Amf struct {
@@ -158,7 +169,16 @@ type UEOpts struct {
 	Guti                 *fgs.MobileIdentity
 	GnodeB               air.UplinkSender
 	NoAutoPDUSession     bool
+
+	// S1UENetworkCapability overrides the EPS algorithm support the UE offers for
+	// interworking. Nil takes DefaultS1UENetworkCapability.
+	S1UENetworkCapability *eps.UENetworkCapability
 }
+
+// DefaultS1UENetworkCapability is what a UE claiming S1 mode support offers as
+// its EPS algorithm support (TS 24.301 §9.9.3.34): EEA0-EEA3 and EIA1-EIA3. EIA0
+// is left out — a UE must not offer null integrity for EPS NAS.
+var DefaultS1UENetworkCapability = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
 
 func NewUE(opts *UEOpts) (*UE, error) {
 	ue := UE{}
@@ -170,6 +190,16 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.NoAutoPDUSession = opts.NoAutoPDUSession
 
 	ue.UeSecurity.UeSecurityCapability = opts.UeSecurityCapability
+
+	// The UE claims S1 mode support in its 5GMM capability, so it offers the EPS
+	// algorithm support that goes with it (TS 24.501 §4.4.6 keeps it out of the
+	// cleartext initial message; BuildSecurityModeComplete carries it).
+	s1Capability := DefaultS1UENetworkCapability
+	if opts.S1UENetworkCapability != nil {
+		s1Capability = *opts.S1UENetworkCapability
+	}
+
+	ue.UeSecurity.S1UENetworkCapability = &s1Capability
 
 	integAlg, CipherAlg := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
 

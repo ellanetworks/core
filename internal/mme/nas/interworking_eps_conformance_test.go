@@ -15,22 +15,23 @@ import (
 )
 
 // Conformance tests for interworking without N26
-func TestEPSNetworkFeatureSupportEncodesIWKN26(t *testing.T) {
+func TestEPSNetworkFeatureSupportNeverEncodesIWKN26(t *testing.T) {
 	const (
-		iwkN26Octet4 = 0x40 // octet 4, bit 7
-		epcoOctet4   = 0x08 // octet 4, bit 4
+		epcoOctet4 = 0x08 // octet 4, bit 4
 	)
 
 	for _, tc := range []struct {
 		name string
-		// UE network capability octets 7.. — octet 8 bit 8 is ePCO, octet 9 bit 6 is N1 mode.
+		// UE network capability octets 7.. — octet 8 bit 8 is ePCO, octet 9 bit 6 is
+		// N1 mode. The IWK N26 bit (octet 4, bit 7) is never set: it means
+		// interworking *without* N26, and this MME supports N26.
 		rest      []byte
 		wantOctet byte
 	}{
 		{"neither indicated", []byte{0x00, 0x00, 0x00}, 0x00},
-		{"N1 mode only", []byte{0x00, 0x00, 0x20}, iwkN26Octet4},
+		{"N1 mode only", []byte{0x00, 0x00, 0x20}, 0x00},
 		{"ePCO only", []byte{0x00, 0x80, 0x00}, epcoOctet4},
-		{"both", []byte{0x00, 0x80, 0x20}, iwkN26Octet4 | epcoOctet4},
+		{"both", []byte{0x00, 0x80, 0x20}, epcoOctet4},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := &mme.MME{}

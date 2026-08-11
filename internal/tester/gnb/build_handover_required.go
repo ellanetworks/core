@@ -23,6 +23,11 @@ type HandoverRequiredOpts struct {
 	TargetGnbID string
 	TargetTac   string
 
+	// TargetENBID names an eNB instead of a gNB, for a handover to EPS. The
+	// identity is 20 bits wide (a macro ng-eNB ID, TS 38.413 §9.3.1.8) and
+	// TargetGnbID is then unused.
+	TargetENBID *uint32
+
 	PDUSessions []HandoverRequiredPDUSession
 
 	// Opaque RRC container.
@@ -40,18 +45,22 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 		return nil, fmt.Errorf("HandoverRequiredOpts is nil")
 	}
 
-	if opts.TargetMcc == "" || opts.TargetMnc == "" || opts.TargetGnbID == "" || opts.TargetTac == "" {
+	if opts.TargetMcc == "" || opts.TargetMnc == "" || opts.TargetTac == "" {
 		return nil, fmt.Errorf("target identity fields are required")
 	}
 
-	node, err := GNBNodeID(opts.TargetMcc, opts.TargetMnc, opts.TargetGnbID)
-	if err != nil {
-		return nil, fmt.Errorf("target gNB: %w", err)
+	if opts.TargetENBID == nil && opts.TargetGnbID == "" {
+		return nil, fmt.Errorf("target identity fields are required")
 	}
 
 	tac, err := TACValue(opts.TargetTac)
 	if err != nil {
 		return nil, fmt.Errorf("target TAC: %w", err)
+	}
+
+	targetID, err := handoverTargetID(opts, tac)
+	if err != nil {
+		return nil, err
 	}
 
 	cause := opts.Cause
@@ -83,19 +92,46 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 	}
 
 	msg := &ngap.HandoverRequired{
-		AMFUENGAPID:  ngap.AMFUENGAPID(opts.AMFUENGAPID),
-		RANUENGAPID:  ngap.RANUENGAPID(opts.RANUENGAPID),
-		HandoverType: opts.HandoverType,
-		Cause:        cause,
-		TargetID: ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
-			GlobalRANNodeID: node,
-			SelectedTAI:     ngap.TAI{PLMNIdentity: node.PLMNIdentity, TAC: tac},
-		}},
+		AMFUENGAPID:                        ngap.AMFUENGAPID(opts.AMFUENGAPID),
+		RANUENGAPID:                        ngap.RANUENGAPID(opts.RANUENGAPID),
+		HandoverType:                       opts.HandoverType,
+		Cause:                              cause,
+		TargetID:                           targetID,
 		PDUSessionResourceListHORqd:        sessions,
 		SourceToTargetTransparentContainer: container,
 	}
 
 	return msg.Marshal()
+}
+
+// handoverTargetID names the target the way its own protocol spells it: an
+// NG-RAN node for an intra-5GS handover, an eNB for one to EPS. TS 38.413
+// §9.3.1.8 gives the eNB a Selected EPS TAI, not a 5GS TAI.
+func handoverTargetID(opts *HandoverRequiredOpts, tac ngap.TAC) (ngap.TargetID, error) {
+	plmn, err := PLMNIdentity(opts.TargetMcc, opts.TargetMnc)
+	if err != nil {
+		return ngap.TargetID{}, fmt.Errorf("target PLMN: %w", err)
+	}
+
+	if opts.TargetENBID != nil {
+		return ngap.TargetID{TargeteNBID: &ngap.TargeteNBID{
+			GlobalENBID: ngap.GlobalNgENBID{
+				PLMNIdentity: plmn,
+				NgENBID:      ngap.NgENBID{Kind: ngap.NgENBIDMacro, Value: *opts.TargetENBID},
+			},
+			SelectedEPSTAI: ngap.EPSTAI{PLMNIdentity: plmn, TAC: ngap.EPSTAC(tac)},
+		}}, nil
+	}
+
+	node, err := GNBNodeID(opts.TargetMcc, opts.TargetMnc, opts.TargetGnbID)
+	if err != nil {
+		return ngap.TargetID{}, fmt.Errorf("target gNB: %w", err)
+	}
+
+	return ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
+		GlobalRANNodeID: node,
+		SelectedTAI:     ngap.TAI{PLMNIdentity: node.PLMNIdentity, TAC: tac},
+	}}, nil
 }
 
 // buildMinimalHandoverRequiredTransfer builds an empty transfer; the SMF decodes

@@ -9,7 +9,11 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-func TestNetworkFeatureSupportAdvertisesInterworking(t *testing.T) {
+// The IWK N26 bit means "interworking *without* N26 supported". This MME
+// supports N26, so it never sets it, whether or not the UE indicated N1 mode
+// (TS 24.301 §5.5.1.2.4, §9.9.3.12A). A UE reading it clear operates in
+// single-registration mode.
+func TestNetworkFeatureSupportNeverAdvertisesInterworkingWithoutN26(t *testing.T) {
 	m := &MME{}
 
 	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{}); nfs.IWKN26 {
@@ -18,8 +22,8 @@ func TestNetworkFeatureSupportAdvertisesInterworking(t *testing.T) {
 
 	// Octet 9 bit 6 is N1 mode; octet 8 bit 8 is ePCO.
 	nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x80, 0x20}})
-	if !nfs.IWKN26 {
-		t.Error("IWK N26 not advertised to a UE that indicated N1 mode")
+	if nfs.IWKN26 {
+		t.Error("IWK N26 advertised by an MME that supports N26")
 	}
 
 	if !nfs.EPCO {
@@ -30,7 +34,6 @@ func TestNetworkFeatureSupportAdvertisesInterworking(t *testing.T) {
 		t.Error("the IMS VoPS indication was lost")
 	}
 
-	// TS 24.301 §5.5.1.2.4
 	if nfs := m.NetworkFeatureSupport(eps.UENetworkCapability{Rest: []byte{0x00, 0x00, 0x20}}); nfs.EPCO {
 		t.Error("ePCO advertised to a UE that did not indicate support for the IE")
 	}
