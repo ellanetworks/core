@@ -90,10 +90,6 @@ func (a *AMF) AbandonHandoverToEPS(ctx context.Context, ue *UeContext, id interw
 	}
 }
 
-// CancelRelocationToEPS withdraws one named attempt. The caller names it rather
-// than the AMF reading it back off the UE, because a cancel usually follows the
-// unwinding that dropped the attempt from the UE — and because the attempt to
-// withdraw is the one the caller prepared, never whichever one is current.
 func (a *AMF) CancelRelocationToEPS(ctx context.Context, ue *UeContext, id interworking.RelocationID) error {
 	if a.EPS == nil || ue == nil {
 		return nil

@@ -272,10 +272,6 @@ func TestRelocationCompleteReleasesTheFiveGSSide(t *testing.T) {
 	}
 }
 
-// A source gNB that cancels one attempt is free to start another as soon as it is
-// acknowledged, while the goroutine that prepared the first is still unwinding.
-// That late unwinding must leave the newer attempt — local state included —
-// untouched.
 func TestAbandoningOneAttemptSparesTheNextOne(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
