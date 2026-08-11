@@ -191,6 +191,8 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 
 	ue.MarkSecured()
 
+	ue.ResetNASCounts()
+
 	payload, err := ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedNewContext))
 	if err != nil {
 		ue.ClearSecured()
@@ -225,7 +227,7 @@ func BuildEPSNASAlgorithmsSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		return nil, err
 	}
 
-	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtected))
+	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedNewContext))
 }
 
 func addEPSNASSecurityAlgorithms(ue *UeContext, smc *fgs.SecurityModeCommand) {

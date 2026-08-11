@@ -568,6 +568,8 @@ func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
 	defer ue.mu.Unlock()
 
 	delete(ue.SmContextList, pduSessionID)
+	// The EPS bearer identity is the session's, so it goes with it: leaving it
+	// behind would exhaust the 5..15 range over a UE's lifetime.
 	delete(ue.epsBearerIdentities, pduSessionID)
 }
 
@@ -631,6 +633,14 @@ func (ue *UeContext) EncodeNASMessagePlain(plain []byte, securityHeaderType uint
 	return ue.wrapSecuredLocked(plain, securityHeaderType)
 }
 
+func (ue *UeContext) ResetNASCounts() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.ulCount.Reset()
+	ue.dlCount.Reset()
+}
+
 // wrapSecuredLocked ciphers (when the header type requires it), integrity
 // protects, and frames a plain 5GMM message as a security-protected 5GS NAS
 // message (TS 24.501 §4.4.4, §9.1.1). The caller must hold ue.mu and have a
@@ -639,10 +649,7 @@ func (ue *UeContext) wrapSecuredLocked(plain []byte, sht uint8) ([]byte, error) 
 	headerType := fgs.SecurityHeaderType(sht)
 
 	switch headerType {
-	case fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered:
-	case fgs.SHTIntegrityProtectedNewContext:
-		ue.ulCount.Reset()
-		ue.dlCount.Reset()
+	case fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered, fgs.SHTIntegrityProtectedNewContext:
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", sht)
 	}

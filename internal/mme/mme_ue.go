@@ -164,7 +164,7 @@ type UeContext struct {
 	dlCount      nas.DownlinkCounter
 	sc           *nas.SecurityContext
 	secured      bool
-	eksi         uint8
+	eksi         nas.KeySetIdentifier
 
 	// X2-handover key chain (TS 33.401)
 	nh  [32]byte

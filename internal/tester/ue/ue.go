@@ -41,27 +41,28 @@ const (
 const ngKSINoKey = 7
 
 type UESecurity struct {
-	Supi                  string
-	Msin                  string
-	mcc                   string
-	mnc                   string
-	ULCount               nas.Count
-	DLCount               nas.Count
-	UeSecurityCapability  fgs.UESecurityCapability
-	IntegrityAlg          uint8
-	CipheringAlg          uint8
-	NgKsi                 models.NgKsi
-	Snn                   string
-	KnasEnc               [16]uint8
-	KnasInt               [16]uint8
-	Kamf                  []uint8
-	AuthenticationSubs    AuthenticationSubscription
-	Suci                  fgs.MobileIdentity // the UE's SUCI
-	suciPublicKey         sidf.HomeNetworkPublicKey
-	RoutingIndicator      string
-	Guti                  *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
-	S1UENetworkCapability *eps.UENetworkCapability
-	EPSNASAlgorithms      *fgs.SelectedEPSNASSecurityAlgorithms
+	Supi                      string
+	Msin                      string
+	mcc                       string
+	mnc                       string
+	ULCount                   nas.Count
+	DLCount                   nas.Count
+	UeSecurityCapability      fgs.UESecurityCapability
+	IntegrityAlg              uint8
+	CipheringAlg              uint8
+	NgKsi                     models.NgKsi
+	Snn                       string
+	KnasEnc                   [16]uint8
+	KnasInt                   [16]uint8
+	Kamf                      []uint8
+	AuthenticationSubs        AuthenticationSubscription
+	Suci                      fgs.MobileIdentity // the UE's SUCI
+	suciPublicKey             sidf.HomeNetworkPublicKey
+	RoutingIndicator          string
+	Guti                      *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
+	S1UENetworkCapability     *eps.UENetworkCapability
+	EPSNASAlgorithms          *fgs.SelectedEPSNASSecurityAlgorithms
+	contextFromAuthentication bool
 }
 
 type Amf struct {
@@ -398,6 +399,8 @@ func (ue *UE) DeriveRESstarAndSetKey(authSubs AuthenticationSubscription, RAND [
 }
 
 func (ue *UE) DerivateKamf(key []byte, snName string, SQN, AK []byte) error {
+	ue.UeSecurity.contextFromAuthentication = true
+
 	FC := ueauth.FCForKausfDerivation
 	P0 := []byte(snName)
 	SQNxorAK := make([]byte, 6)

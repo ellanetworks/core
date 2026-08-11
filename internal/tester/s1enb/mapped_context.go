@@ -59,6 +59,7 @@ func (ue *UE) InstallMappedSecurityContext(in MappedFrom5GS) error {
 	}
 
 	ue.ulCount = in.UplinkNASCount.SQN()
+	ue.dlCount.seed(in.DownlinkNASCount)
 
 	return nil
 }
@@ -77,18 +78,9 @@ func NewUnboundUE() *UE {
 	return &UE{netCapEEA: 0xf0, netCapEIA: 0x70, pti: 1}
 }
 
-// TrackingAreaUpdateAfterHandover performs the tracking area update a UE always
-// makes on arriving from 5GS in connected mode (TS 24.301 §5.5.3.2.2 case zd).
-//
-// It goes on the connection the handover established, and is integrity protected
-// with the mapped EPS security context but left unciphered — the message that
-// establishes secure exchange in EPS, so nothing is ciphered until the network
-// has accepted it (TS 24.301 §4.4.2.3).
 func (e *ENB) TrackingAreaUpdateAfterHandover(ue *UE, mmeUEID, enbUEID int64, guti eps.GUTI, timeout time.Duration) error {
 	identity := eps.GUTIIdentity(guti)
 
-	// The UE has a PDN connection, so it asks to keep the user plane up
-	// (TS 24.301 §5.5.3.2.2).
 	plain, err := (&eps.TrackingAreaUpdateRequest{
 		EPSUpdateType: eps.EPSUpdateTypeTA,
 		ActiveFlag:    true,

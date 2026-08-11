@@ -76,9 +76,13 @@ func TestMapToEPSDerivesKASMEFromTheDownlinkCount(t *testing.T) {
 		t.Fatalf("eKSI = %+v, want value 5 of a mapped context", got.Context.EKSI)
 	}
 
-	// The EPS NAS COUNTs are the 5G ones, not a reset pair (§8.6.1).
-	if got.Context.ULNASCount != nas.MakeCount(0, 9) || got.Context.DLNASCount != dl {
-		t.Fatalf("EPS NAS COUNTs = (%d, %d), want the 5G context's", got.Context.ULNASCount, got.Context.DLNASCount)
+	if got.Context.ULNASCount != nas.MakeCount(0, 9) {
+		t.Fatalf("EPS uplink NAS COUNT = %d, want the 5G context's", got.Context.ULNASCount)
+	}
+
+	if got.Context.DLNASCount != dl.Next() {
+		t.Fatalf("EPS downlink NAS COUNT = %d, want the count after the %d consumed deriving K'ASME",
+			got.Context.DLNASCount, dl)
 	}
 }
 

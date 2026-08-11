@@ -206,8 +206,10 @@ func TestHandoverRequiredToEPS(t *testing.T) {
 		t.Fatal("the EPS peer was never asked to prepare the handover")
 	}
 
-	if container.SequenceNumber != req.SecurityContext.DLNASCount.SQN() {
-		t.Errorf("container sequence number = %d, want %d", container.SequenceNumber, req.SecurityContext.DLNASCount.SQN())
+	// TS 33.501 §8.3.2 step 2, §8.6.1
+	if want := req.SecurityContext.DLNASCount; container.SequenceNumber != uint8(want-1) {
+		t.Errorf("container sequence number = %d, want one below the mapped downlink COUNT %d",
+			container.SequenceNumber, want)
 	}
 
 	if string(cmd.TargetToSourceTransparentContainer) != string([]byte{0x0a, 0x0b}) {

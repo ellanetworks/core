@@ -75,7 +75,7 @@ func MapToEPSOnHandover(in FiveGToEPSInput) (FiveGToEPSHandover, error) {
 			KASME:                  kasme,
 			EKSI:                   mappedKSI(in.NgKSI),
 			ULNASCount:             in.ULNASCount,
-			DLNASCount:             in.DLNASCount,
+			DLNASCount:             in.DLNASCount.Next(),
 			Algorithms:             in.Algorithms,
 			UESecurityCapability:   in.UESecurityCapability,
 			UE5GSecurityCapability: in.UE5GSecurityCapability,

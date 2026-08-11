@@ -42,13 +42,6 @@ func (ue *UeContext) AllocateEPSBearerIdentity(pduSessionID uint8) (uint8, error
 	return 0, ErrNoEPSBearerIdentity
 }
 
-func (ue *UeContext) ReleaseEPSBearerIdentity(pduSessionID uint8) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	delete(ue.epsBearerIdentities, pduSessionID)
-}
-
 func (ue *UeContext) ReleaseAllEPSBearerIdentities() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

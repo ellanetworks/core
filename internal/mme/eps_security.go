@@ -28,7 +28,7 @@ func (ue *UeContext) InstallRelocatedSecurityContext(in interworking.EPSSecurity
 	defer ue.mu.Unlock()
 
 	ue.kasme = append([]byte(nil), in.KASME[:]...)
-	ue.eksi = in.EKSI.Value
+	ue.eksi = in.EKSI
 	ue.cipheringAlg, ue.integrityAlg = in.Algorithms.Ciphering, in.Algorithms.Integrity
 	ue.knasEnc, ue.knasInt = knasEnc, knasInt
 

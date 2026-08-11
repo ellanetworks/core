@@ -598,10 +598,7 @@ func TestTargetGlobalENBIDWidths(t *testing.T) {
 	}
 }
 
-// A target that refuses must be distinguishable from one that never answered:
-// the 5GS side turns the first into "failure in the target system" and has no
-// reason to retry, while a timeout says nothing about the target
-// (TS 36.413 §8.4.2.3, TS 38.413 §8.4.1.3).
+// TS 36.413 §8.4.2.3, TS 38.413 §8.4.1.3
 func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 	sessions := &fakeSessionManager{}
 	m := New(nil, fakeBearerStore{}, sessions)

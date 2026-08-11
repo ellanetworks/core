@@ -108,7 +108,9 @@ func TestEPSBearerIdentityAllocatesBeforeTheSessionExists(t *testing.T) {
 		t.Fatalf("allocated %d, want 5", ebi)
 	}
 
-	ue.ReleaseEPSBearerIdentity(1)
+	// Releasing the session releases its identity: the range is 5..15, so leaking
+	// one per session would exhaust it.
+	ue.DeleteSmContext(1)
 
 	if _, ok := ue.EPSBearerIdentity(1); ok {
 		t.Fatal("a released identity must not remain assigned")

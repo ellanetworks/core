@@ -57,6 +57,7 @@ type UE struct {
 	eea     uint8
 	eia     uint8
 	ulCount uint8                            // uplink NAS COUNT for protected uplink messages
+	dlCount downlinkCounter                  // largest downlink NAS COUNT accepted
 	pti     nas.ProcedureTransactionIdentity // last ESM procedure transaction identity used (attach uses 1)
 }
 
@@ -255,17 +256,47 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 	return out, nil
 }
 
-// unprotectDownlink deciphers and integrity-checks a protected downlink NAS PDU
-// using the sequence number carried in the message.
 func (ue *UE) unprotectDownlink(wire []byte) ([]byte, error) {
 	m, err := eps.ParseSecurityProtectedMessage(wire)
 	if err != nil {
 		return nil, fmt.Errorf("parse protected downlink NAS: %w", err)
 	}
 
-	plain, _, err := eps.Unprotect(wire, nas.MakeCount(0, m.SequenceNumber), nas.DirectionDownlink, ue.sc)
+	count := ue.dlCount.estimate(m.SequenceNumber)
 
-	return plain, err
+	plain, _, err := eps.Unprotect(wire, count, nas.DirectionDownlink, ue.sc)
+	if err != nil {
+		return nil, err
+	}
+
+	ue.dlCount.accept(count)
+
+	return plain, nil
+}
+
+type downlinkCounter struct {
+	last     nas.Count
+	accepted bool
+}
+
+func (d downlinkCounter) estimate(sqn uint8) nas.Count {
+	if !d.accepted {
+		return nas.MakeCount(0, sqn)
+	}
+
+	if sqn > d.last.SQN() {
+		return nas.MakeCount(d.last.Overflow(), sqn)
+	}
+
+	return nas.MakeCount(d.last.Overflow()+1, sqn)
+}
+
+func (d *downlinkCounter) accept(c nas.Count) {
+	d.last, d.accepted = c, true
+}
+
+func (d *downlinkCounter) seed(c nas.Count) {
+	d.last, d.accepted = c, true
 }
 
 // buildAttachComplete acknowledges the default EPS bearer carried in the Attach

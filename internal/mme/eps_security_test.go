@@ -59,8 +59,8 @@ func TestInstallRelocatedSecurityContext(t *testing.T) {
 		t.Fatal("the relocated context must be current")
 	}
 
-	if ue.Eksi() != 4 {
-		t.Fatalf("eKSI = %d, want the peer's 4", ue.Eksi())
+	if got := ue.Eksi(); got != (nas.KeySetIdentifier{Value: 4, Mapped: true}) {
+		t.Fatalf("eKSI = %+v, want value 4 of a mapped context", got)
 	}
 
 	if ue.EEA() != nas.CipheringAES || ue.EIA() != nas.IntegrityAES {

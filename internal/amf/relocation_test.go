@@ -104,9 +104,9 @@ func TestPrepareHandoverToEPS(t *testing.T) {
 	}
 
 	// TS 33.501 §8.3.2 step 7
-	if prep.Container.SequenceNumber != prep.Request.SecurityContext.DLNASCount.SQN() {
-		t.Fatalf("container sequence number = %d, want the SQN of the mapped downlink COUNT %d",
-			prep.Container.SequenceNumber, prep.Request.SecurityContext.DLNASCount.SQN())
+	if want := prep.Request.SecurityContext.DLNASCount; prep.Container.SequenceNumber != uint8(want-1) {
+		t.Fatalf("container sequence number = %d, want one below the mapped downlink COUNT %d",
+			prep.Container.SequenceNumber, want)
 	}
 }
 

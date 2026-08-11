@@ -25,6 +25,7 @@ import (
 
 const (
 	handoverTimeout        = 15 * time.Second
+	releaseSettle          = 500 * time.Millisecond
 	movedEPSBearerIdentity = s1ap.ERABID(5)
 	targetENBUEID          = int64(70)
 	mobilityRANUENGAPID    = int64(scenarios.DefaultRANUENGAPID + 1)
@@ -88,6 +89,10 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 	// TS 24.301 §5.5.3.2.2 case zd
 	if err := trackingAreaUpdate(e, newUE, bearer); err != nil {
 		return err
+	}
+
+	if _, err := gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceRelease, releaseSettle); err == nil {
+		return errors.New("the source gNB was told to release the moved PDU session's resources during the handover")
 	}
 
 	after, err := probeAfterHandover(ctx, env, e, bearer, before.addrs)

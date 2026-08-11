@@ -56,6 +56,11 @@ func TestTransferableEPSSessions(t *testing.T) {
 func TestBuildForwardRelocationRequest(t *testing.T) {
 	ue := relocatableUE(t)
 
+	consumed, err := ue.NextDownlinkCountForTest()
+	if err != nil {
+		t.Fatalf("downlink counter: %v", err)
+	}
+
 	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb}, nil)
 	if err != nil {
 		t.Fatalf("BuildForwardRelocationRequest: %v", err)
@@ -85,8 +90,17 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 		t.Fatal("the UE-AMBR must be the UE's")
 	}
 
-	if mapped == nil || mapped.Container.SequenceNumber == 0 && req.SecurityContext.DLNASCount != 0 {
+	if mapped == nil {
 		t.Fatal("the NAS transparent container must accompany the request")
+	}
+
+	// TS 33.501 §8.3.2 step 2, §8.6.1
+	if got, want := mapped.Container.SequenceNumber, consumed.SQN(); got != want {
+		t.Fatalf("container sequence number = %d, want the consumed count's %d", got, want)
+	}
+
+	if got, want := req.SecurityContext.DLNASCount, consumed.Next(); got != want {
+		t.Fatalf("mapped downlink NAS COUNT = %d, want the one after the consumed %d", got, want)
 	}
 }
 

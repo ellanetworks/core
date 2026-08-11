@@ -239,8 +239,10 @@ func (ue *UeContext) RegistrationArea() []models.Tai {
 	return append([]models.Tai(nil), ue.registrationArea...)
 }
 
-// Eksi returns the eKSI assigned to the current EPS security context.
-func (ue *UeContext) Eksi() uint8 {
+// Eksi returns the eKSI assigned to the current EPS security context, value and
+// type of security context together: a context mapped from 5GS has to be
+// advertised as mapped wherever the identifier is signalled (TS 33.501 §8.6.1).
+func (ue *UeContext) Eksi() nas.KeySetIdentifier {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -248,7 +250,7 @@ func (ue *UeContext) Eksi() uint8 {
 }
 
 // SetEksi records the eKSI assigned to the current EPS security context.
-func (ue *UeContext) SetEksi(v uint8) {
+func (ue *UeContext) SetEksi(v nas.KeySetIdentifier) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 

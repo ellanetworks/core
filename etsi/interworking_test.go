@@ -11,8 +11,7 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TS 23.003 §2.10.2.1.2 pins where each field lands, so the cases below drive one
-// bit group at a time rather than a whole identity at once.
+// TS 23.003 §2.10.2.1.2
 func TestMapGUTI5GToEPS(t *testing.T) {
 	plmn := nas.PLMN{MCC: "001", MNC: "01"}
 	tmsi := [4]byte{0xde, 0xad, 0xbe, 0xef}
@@ -24,29 +23,21 @@ func TestMapGUTI5GToEPS(t *testing.T) {
 		wantMMECod uint8
 	}{
 		{
-			// "8 bits of the AMF Region ID starting at bit 7 and down to bit 0 are
-			// mapped into bit 15 and down to bit 8 of the MME Group ID"
 			name:      "region id fills the top of the group id",
 			in:        fgs.GUTI{PLMN: plmn, AMFRegionID: 0xAB, TMSI: tmsi},
 			wantGroup: 0xAB00,
 		},
 		{
-			// "8 bits of the AMF Set ID starting at bit 9 and down to bit 2 are
-			// mapped into bit 7 and down to bit 0 of the MME Group ID"
 			name:      "set id's high 8 bits fill the bottom of the group id",
 			in:        fgs.GUTI{PLMN: plmn, AMFSetID: 0x3FC, TMSI: tmsi}, // 0b11_1111_1100
 			wantGroup: 0x00FF,
 		},
 		{
-			// "2 bits of the AMF Set ID starting at bit 1 and down to bit 0 are
-			// mapped into bit 7 and down to bit 6 of the MME Code"
 			name:       "set id's low 2 bits top the mme code",
 			in:         fgs.GUTI{PLMN: plmn, AMFSetID: 0x003, TMSI: tmsi},
 			wantMMECod: 0xC0,
 		},
 		{
-			// "6 bits of the AMF Pointer starting at bit 5 and down to bit 0 are
-			// mapped into bit 5 and down to bit 0 of the MME Code"
 			name:       "pointer fills the bottom of the mme code",
 			in:         fgs.GUTI{PLMN: plmn, AMFPointer: 0x3F, TMSI: tmsi},
 			wantMMECod: 0x3F,
@@ -81,8 +72,6 @@ func TestMapGUTI5GToEPS(t *testing.T) {
 	}
 }
 
-// The AMF Set ID is 10 bits and the AMF Pointer 6; anything wider would corrupt a
-// neighbouring field rather than being dropped.
 func TestMapGUTI5GToEPSMasksOverwideFields(t *testing.T) {
 	got := etsi.MapGUTI5GToEPS(fgs.GUTI{AMFPointer: 0xFF})
 
