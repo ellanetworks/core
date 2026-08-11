@@ -78,3 +78,17 @@ func (g *GnodeB) WaitForHandoverToEPSCommand(timeout time.Duration) (*HandoverTo
 		ReleasedPDUSessions:            released,
 	}, nil
 }
+
+func (g *GnodeB) WaitForHandoverPreparationFailure(timeout time.Duration) (*ngap.HandoverPreparationFailure, error) {
+	frame, err := g.WaitForMessage(Unsuccessful, ngap.ProcHandoverPreparation, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("gnb: await Handover Preparation Failure: %w", err)
+	}
+
+	fail, err := ngap.ParseHandoverPreparationFailure(frame.Value)
+	if err != nil {
+		return nil, fmt.Errorf("gnb: parse Handover Preparation Failure: %w", err)
+	}
+
+	return fail, nil
+}

@@ -6,9 +6,11 @@ package mme
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ellanetworks/core/internal/epskeys"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
@@ -401,6 +403,9 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 	}
 
 	if ho.source == nil {
+		deliverRelocationLocked(ho, relocationOutcome{
+			err: fmt.Errorf("%w: %s", interworking.ErrTargetRefused, S1apCauseName(&cause)),
+		})
 		m.clearHandoverLocked(ue)
 		m.mu.Unlock()
 

@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	ErrUnknownTargetENB     = errors.New("mme: the target eNB is not connected")
+	ErrUnknownTargetENB     = fmt.Errorf("%w: mme: the target eNB is not connected", interworking.ErrUnknownTarget)
 	ErrNoRelocatablePDN     = errors.New("mme: no PDN connection could be opened for the relocated UE")
 	ErrRelocationInProgress = errors.New("mme: a handover to EPS is already in progress for this subscriber")
 	ErrNoRelocation         = errors.New("mme: no handover to EPS is in progress for this subscriber")

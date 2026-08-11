@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -126,4 +128,31 @@ func (a *AMF) RelocationComplete(ctx context.Context, imsi string) error {
 	source.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 
 	return nil
+}
+
+// SuperviseHandoverToEPS arms the handover guard on a move to EPS. Nothing on
+// the 5GS side hears from the target again — the peer reports the UE's arrival —
+// so without this a UE that never arrives would hold its key chain and handover
+// context forever, blocking every later handover and security procedure.
+func (a *AMF) SuperviseHandoverToEPS(ue *UeContext) {
+	if ue == nil {
+		return
+	}
+
+	ue.SuperviseKeyChainProc(procedure.N2Handover,
+		time.Now().Add(a.handoverGuardTimeout),
+		func(cctx context.Context) error {
+			// False means the handover already finished: RelocationComplete cleared
+			// it, and there is nothing left to abandon.
+			if !a.abandonHandover(ue) {
+				return nil
+			}
+
+			logger.From(cctx, logger.AmfLog).Warn("handover to EPS abandoned: the UE did not arrive in time",
+				zap.String("imsi", ue.Supi().IMSI()))
+
+			a.CancelRelocationToEPS(cctx, ue)
+
+			return nil
+		})
 }

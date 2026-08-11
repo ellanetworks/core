@@ -597,3 +597,49 @@ func TestTargetGlobalENBIDWidths(t *testing.T) {
 		}
 	}
 }
+
+// A target that refuses must be distinguishable from one that never answered:
+// the 5GS side turns the first into "failure in the target system" and has no
+// reason to retry, while a timeout says nothing about the target
+// (TS 36.413 §8.4.2.3, TS 38.413 §8.4.1.3).
+func TestForwardRelocationReportsATargetRejection(t *testing.T) {
+	sessions := &fakeSessionManager{}
+	m := New(nil, fakeBearerStore{}, sessions)
+	target := newRelocationTarget(t, m)
+	req := relocationRequest()
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	hoReq := target.awaitHandoverRequest(t)
+
+	ue, ok := m.LookupUe(hoReq.MMEUES1APID)
+	if !ok {
+		t.Fatal("the relocated UE context is not reachable")
+	}
+
+	// What handleHandoverFailure does when the target eNB refuses.
+	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget}
+	m.FailHandoverToSource(context.Background(), ue, refusal)
+
+	err := <-done
+	if !errors.Is(err, interworking.ErrTargetRefused) {
+		t.Fatalf("error = %v, want ErrTargetRefused", err)
+	}
+
+	if errors.Is(err, ErrRelocationAbandoned) {
+		t.Error("a refusal was reported as an abandonment")
+	}
+
+	if !sessions.released {
+		t.Error("the refused handover left its anchor session behind")
+	}
+
+	if _, ok := m.LookupUeByIMSI(req.IMSI); ok {
+		t.Error("the refused handover left a UE context behind")
+	}
+}

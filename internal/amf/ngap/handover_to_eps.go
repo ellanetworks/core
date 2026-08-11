@@ -5,8 +5,10 @@ package ngap
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -58,7 +60,7 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("the EPS peer could not prepare the handover", zap.Error(err))
 		amfInstance.AbandonHandoverToEPS(ctx, amfUe)
-		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, handoverToEPSFailureCause(err), nil, nil)
 
 		return
 	}
@@ -94,4 +96,14 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 		ngap.TargetToSourceTransparentContainer(resp.TargetToSource),
 		ngap.NASSecurityParametersFromNGRAN(container),
 	)
+
+	amfInstance.SuperviseHandoverToEPS(amfUe)
+}
+func handoverToEPSFailureCause(err error) ngap.Cause {
+	switch {
+	case errors.Is(err, interworking.ErrUnknownTarget):
+		return causeUnknownTargetID
+	default:
+		return causeHOFailureInTarget
+	}
 }

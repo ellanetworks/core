@@ -6,6 +6,7 @@ package ngap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
@@ -356,5 +358,60 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 
 	if len(amfUe.SmContextRefs()) != 0 {
 		t.Error("the UE still holds SM contexts after moving to EPS")
+	}
+}
+
+// The peer answers in neutral terms, and the AMF picks the NGAP cause that fits
+// (TS 38.413 §8.4.1.3): an eNB it cannot reach is an unknown target, anything
+// else is a failure in the target system.
+func TestHandoverToEPSFailureCause(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want ngap.Cause
+	}{
+		{"unknown target", fmt.Errorf("wrapped: %w", interworking.ErrUnknownTarget), causeUnknownTargetID},
+		{"target refused", fmt.Errorf("wrapped: %w", interworking.ErrTargetRefused), causeHOFailureInTarget},
+		{"anything else", errors.New("boom"), causeHOFailureInTarget},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := handoverToEPSFailureCause(tc.err); got != tc.want {
+				t.Errorf("cause = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+// A UE that never reaches the target must not hold its key chain forever: the
+// guard ends the handover and tells the peer to discard what it prepared.
+func TestHandoverToEPSGuardReleasesAUEThatNeverArrives(t *testing.T) {
+	peer := &epsPeerStub{accepted: []uint8{1}}
+	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
+	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+	awaitCommand(t, sender)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for amfInstance.HandoverInProgress(amfUe) {
+		if time.Now().After(deadline) {
+			t.Fatal("the handover outlived its guard")
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	peer.mu.Lock()
+	cancelled := peer.cancelled
+	peer.mu.Unlock()
+
+	if cancelled != 1 {
+		t.Errorf("the peer was told to cancel %d times, want 1", cancelled)
+	}
+
+	// The key chain has to come back, or no later handover or security procedure
+	// could ever run for this UE.
+	if !amfUe.BeginKeyChainProc(procedure.N2Handover) {
+		t.Error("the abandoned handover still holds the UE's key chain")
 	}
 }

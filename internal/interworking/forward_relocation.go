@@ -5,6 +5,7 @@ package interworking
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
@@ -38,6 +39,11 @@ type ForwardRelocationResponse struct {
 	TargetToSource      []byte
 	AcceptedPDUSessions []uint8
 }
+
+var (
+	ErrUnknownTarget = errors.New("interworking: the target is not connected")
+	ErrTargetRefused = errors.New("interworking: the target refused the handover")
+)
 
 type EPSPeer interface {
 	ForwardRelocation(ctx context.Context, req ForwardRelocationRequest) (ForwardRelocationResponse, error)

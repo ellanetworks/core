@@ -5,6 +5,7 @@ package interworking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/s1ap"
 	"github.com/spf13/pflag"
 )
@@ -255,6 +257,113 @@ func provisionEPSNASAlgorithms(gNodeB *gnb.GnodeB, u *ue.UE, ranUENGAPID int64) 
 
 	if u.UeSecurity.EPSNASAlgorithms == nil {
 		return fmt.Errorf("the AMF provisioned no EPS NAS algorithms, so the UE cannot be handed over to EPS")
+	}
+
+	return nil
+}
+
+func init() {
+	scenarios.Register(scenarios.Scenario{
+		Name:      "interworking/handover_5gs_to_eps_target_refuses",
+		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
+		Run:       runHandover5GSToEPSTargetRefuses,
+		Fixture:   fixture,
+	})
+}
+
+func runHandover5GSToEPSTargetRefuses(ctx context.Context, env scenarios.Env, _ any) error {
+	gNodeB, err := startGNB(env)
+	if err != nil {
+		return err
+	}
+	defer gNodeB.Close()
+
+	e, err := startENBOnSecondaryN3(env)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = e.Close() }()
+
+	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
+
+	newUE, err := newInterworkingUE(gNodeB, true)
+	if err != nil {
+		return err
+	}
+
+	gNodeB.AddUE(ranUENGAPID, newUE)
+
+	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
+		RANUENGAPID:  ranUENGAPID,
+		PDUSessionID: movedPDUSessionID,
+		UE:           newUE,
+	}); err != nil {
+		return fmt.Errorf("initial registration over NR: %w", err)
+	}
+
+	if err := provisionEPSNASAlgorithms(gNodeB, newUE, ranUENGAPID); err != nil {
+		return err
+	}
+
+	before, err := probeOver5GS(ctx, env, gNodeB, newUE, mobilityRANUENGAPID, "over N3 before the refused handover")
+	if err != nil {
+		return err
+	}
+
+	if err := refuseHandoverToEPS(gNodeB, e, mobilityRANUENGAPID); err != nil {
+		return err
+	}
+
+	after, err := sessionFactsFor(ctx, env, before.addrs, gnbTunIface, before.anchorAddr, before.anchorTEID,
+		"over N3 after the refused handover")
+	if err != nil {
+		return err
+	}
+
+	return assertContinuity(before, after)
+}
+
+func refuseHandoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, ranUENGAPID int64) error {
+	enbID, err := strconv.ParseUint(scenarios.DefaultGNBID, 16, 32)
+	if err != nil {
+		return fmt.Errorf("parse eNB ID %q: %w", scenarios.DefaultGNBID, err)
+	}
+
+	if err := gNodeB.SendHandoverRequiredToEPS(&gnb.HandoverToEPSOpts{
+		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:   ranUENGAPID,
+		TargetMcc:     scenarios.DefaultMCC,
+		TargetMnc:     scenarios.DefaultMNC,
+		TargetTac:     scenarios.DefaultTAC,
+		TargetENBID:   uint32(enbID),
+		PDUSessionIDs: []int64{movedPDUSessionID},
+	}); err != nil {
+		return fmt.Errorf("send Handover Required for a handover to EPS: %w", err)
+	}
+
+	req, err := e.WaitForHandoverRequest(handoverTimeout)
+	if err != nil {
+		return fmt.Errorf("the target eNB got no Handover Request: %w", err)
+	}
+
+	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget}
+	if err := e.SendHandoverFailure(int64(req.MMEUES1APID), refusal); err != nil {
+		return fmt.Errorf("refuse the handover at the target eNB: %w", err)
+	}
+
+	fail, err := gNodeB.WaitForHandoverPreparationFailure(handoverTimeout)
+	if err != nil {
+		return fmt.Errorf("the source gNB was not told the preparation failed: %w", err)
+	}
+
+	if fail.Cause == nil {
+		return errors.New("the Handover Preparation Failure carries no cause")
+	}
+
+	// TS 38.413 §9.3.1.2
+	if fail.Cause.Group != ngap.CauseGroupRadioNetwork || fail.Cause.Value != ngap.CauseRadioNetworkHOFailureInTarget {
+		return fmt.Errorf("the Handover Preparation Failure cause = %+v, want a radio-network failure in the target", *fail.Cause)
 	}
 
 	return nil

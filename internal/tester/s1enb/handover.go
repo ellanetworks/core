@@ -147,3 +147,17 @@ func (e *ENB) AnchorAddress(tla s1ap.TransportLayerAddress) (string, error) {
 
 	return addr.Unmap().String(), nil
 }
+
+func (e *ENB) SendHandoverFailure(mmeUEID int64, cause s1ap.Cause) error {
+	fail := &s1ap.HandoverFailure{
+		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
+		Cause:       &cause,
+	}
+
+	b, err := fail.Marshal()
+	if err != nil {
+		return fmt.Errorf("s1enb: build Handover Failure: %w", err)
+	}
+
+	return e.SendMessage(b, true)
+}
