@@ -387,3 +387,231 @@ func TestHandoverRequestNASSecurityParametersCondition(t *testing.T) {
 		})
 	}
 }
+
+// TestHandoverTypeInterSystemValues pins the two values TS 36.413 §9.2.1.13 adds
+// after its extension marker. They are extension additions here and root values
+// in TS 38.413 §9.3.1.22, so the two enumerations share no wire form and a value
+// copied across without re-encoding names a different handover.
+func TestHandoverTypeInterSystemValues(t *testing.T) {
+	tests := []struct {
+		name string
+		typ  HandoverType
+		want []byte
+	}{
+		// Extension bit set, then a normally-small index into the additions.
+		{"eps-to-5gs", HandoverTypeEPSToFiveGS, []byte{0x80}},
+		{"fivegs-to-eps", HandoverTypeFiveGSToEPS, []byte{0x81}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := per.NewWriter()
+			if err := tc.typ.MarshalPER(w, per.Aligned); err != nil {
+				t.Fatal(err)
+			}
+
+			w.AlignToByte()
+
+			if raw := w.Bytes(); !bytes.Equal(raw, tc.want) {
+				t.Fatalf("%s = %x, want %x", tc.name, raw, tc.want)
+			}
+
+			var back HandoverType
+			if err := back.UnmarshalPER(per.NewReader(tc.want), per.Aligned); err != nil {
+				t.Fatal(err)
+			}
+
+			if back != tc.typ {
+				t.Fatalf("round trip = %d, want %d", back, tc.typ)
+			}
+		})
+	}
+
+	// The root values still encode as they did, unshifted by the additions.
+	w := per.NewWriter()
+	if err := HandoverTypeIntraLTE.MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	w.AlignToByte()
+
+	if raw := w.Bytes(); !bytes.Equal(raw, []byte{0x00}) {
+		t.Fatalf("intralte = %x, want 00", raw)
+	}
+
+	// An addition a later release makes is refused rather than narrowed onto a
+	// value this one knows (§10.3.1 case 6).
+	for _, k := range []int64{2, 3, 255} {
+		var v HandoverType
+
+		err := v.UnmarshalPER(per.NewReader(extensionEnum(t, handoverTypeRootCount, k)), per.Aligned)
+		if err == nil {
+			t.Errorf("extension %d decoded as %d, want it refused", k, v)
+
+			continue
+		}
+
+		if !errors.Is(err, errNotComprehended) {
+			t.Errorf("extension %d: err = %v, want errNotComprehended", k, err)
+		}
+	}
+
+	for _, v := range []HandoverType{handoverTypeCount, handoverTypeCount + 1} {
+		w := per.NewWriter()
+		if err := v.MarshalPER(w, per.Aligned); err == nil {
+			t.Errorf("unassigned value %d encoded as %x, want an error", v, w.Bytes())
+		}
+	}
+}
+
+func sampleTargetNgRanNodeID() TargetID {
+	return TargetID{TargetNgRanNodeID: &TargetNgRanNodeID{
+		GlobalRANNodeID: GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
+			PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
+			GNBID:        GNBID{Value: 0x00101, Bits: 22},
+		}}},
+		SelectedTAI: FiveGSTAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 0x000007},
+	}}
+}
+
+// TestHandoverRequiredTargetsNGRAN covers the targetgNgRanNode-ID extension
+// alternative TS 36.413 adds to TargetID, which is what an eps-to-5gs HANDOVER
+// REQUIRED names its target with. Before this the whole extension branch was
+// refused, so the message could not be read at all.
+func TestHandoverRequiredTargetsNGRAN(t *testing.T) {
+	in := &HandoverRequired{
+		MMEUES1APID:    0x020000bf,
+		ENBUES1APID:    2,
+		HandoverType:   HandoverTypeEPSToFiveGS,
+		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		TargetID:       sampleTargetNgRanNodeID(),
+		SourceToTarget: TransparentContainer{0x01, 0x02, 0x03, 0x04},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := pdu.(*InitiatingMessage)
+	if !ok || im.ProcedureCode != ProcHandoverPreparation {
+		t.Fatalf("got %T procedureCode %d", pdu, pdu.procedureCode())
+	}
+
+	out, err := ParseHandoverRequired(im.Value)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if out.HandoverType != HandoverTypeEPSToFiveGS {
+		t.Errorf("handover type = %d, want eps-to-5gs", out.HandoverType)
+	}
+
+	node := out.TargetID.TargetNgRanNodeID
+	if node == nil {
+		t.Fatalf("target = %+v, want a targetgNgRanNode-ID", out.TargetID)
+	}
+
+	if node.GlobalRANNodeID.GNB == nil {
+		t.Fatalf("global RAN node = %+v, want a gNB", node.GlobalRANNodeID)
+	}
+
+	if got := node.GlobalRANNodeID.GNB.GlobalGNBID.GNBID; got != (GNBID{Value: 0x00101, Bits: 22}) {
+		t.Errorf("gNB-ID = %+v, want {0x00101 22}", got)
+	}
+
+	if node.SelectedTAI.TAC != 0x000007 {
+		t.Errorf("selected 5GS TAC = %d, want 7", node.SelectedTAI.TAC)
+	}
+
+	// The eNB alternative still reads, so adding the extension did not shift the
+	// root.
+	if _, err := ParseHandoverRequired(mustMarshalHandoverRequired(t, sampleTargetID())); err != nil {
+		t.Fatalf("targeteNB-ID: %v", err)
+	}
+}
+
+func mustMarshalHandoverRequired(t *testing.T, target TargetID) []byte {
+	t.Helper()
+
+	m := &HandoverRequired{
+		MMEUES1APID:    1,
+		ENBUES1APID:    2,
+		HandoverType:   HandoverTypeIntraLTE,
+		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		TargetID:       target,
+		SourceToTarget: TransparentContainer{0x01},
+	}
+
+	b, err := m.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return pdu.(*InitiatingMessage).Value
+}
+
+// TestGlobalRANNodeIDAlternatives covers the ng-eNB half of the CHOICE and the
+// states that name no node at all.
+func TestGlobalRANNodeIDAlternatives(t *testing.T) {
+	ngENB := GlobalRANNodeID{NgENB: &NgENB{GlobalNgENBID: GlobalENBID{
+		PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
+		ENBID:        ENBID{Kind: ENBIDLongMacro, Value: 0x1F0FF},
+	}}}
+
+	w := per.NewWriter()
+	if err := ngENB.MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	w.AlignToByte()
+
+	var back GlobalRANNodeID
+	if err := back.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	if back.NgENB == nil || back.GNB != nil {
+		t.Fatalf("round trip = %+v, want an ng-eNB", back)
+	}
+
+	if back.NgENB.GlobalNgENBID.ENBID != ngENB.NgENB.GlobalNgENBID.ENBID {
+		t.Fatalf("ng-eNB id = %+v, want %+v", back.NgENB.GlobalNgENBID.ENBID, ngENB.NgENB.GlobalNgENBID.ENBID)
+	}
+
+	bad := []struct {
+		name string
+		id   GlobalRANNodeID
+	}{
+		{"no alternative", GlobalRANNodeID{}},
+		{"both alternatives", GlobalRANNodeID{GNB: &GNB{}, NgENB: &NgENB{}}},
+		{"gNB-ID narrower than 22 bits", GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
+			GNBID: GNBID{Value: 1, Bits: 21},
+		}}}},
+		{"gNB-ID wider than 32 bits", GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
+			GNBID: GNBID{Value: 1, Bits: 33},
+		}}}},
+		{"gNB id wider than its own bits", GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
+			GNBID: GNBID{Value: 1 << 23, Bits: 22},
+		}}}},
+	}
+
+	for _, tc := range bad {
+		t.Run(tc.name, func(t *testing.T) {
+			w := per.NewWriter()
+			if err := tc.id.MarshalPER(w, per.Aligned); err == nil {
+				t.Errorf("encoded as %x, want an error", w.Bytes())
+			}
+		})
+	}
+}

@@ -68,6 +68,8 @@ const (
 	idDirectForwardingPathAvailability           ProtocolIEID = 22
 	idHandoverType                               ProtocolIEID = 29
 	idNASSecurityParametersFromNGRAN             ProtocolIEID = 39
+	idNASC                                       ProtocolIEID = 37
+	idNewSecurityContextInd                      ProtocolIEID = 41
 	idPDUSessionResourceHandoverList             ProtocolIEID = 59
 	idPDUSessionResourceListHORqd                ProtocolIEID = 61
 	idPDUSessionResourceToReleaseListHOCmd       ProtocolIEID = 78

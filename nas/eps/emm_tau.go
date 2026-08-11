@@ -40,6 +40,14 @@ type TrackingAreaUpdateRequest struct {
 	UENetworkCapability    *UENetworkCapability // §9.9.3.34
 	MSNetworkCapability    *MSNetworkCapability // §9.9.3.20
 
+	// The three elements a TAU after an inter-system handover from 5GS carries
+	// (TS 24.301 §5.5.3.2.2 case zd): the native 4G-GUTI when the UE holds one,
+	// the type of the Old GUTI above — "native" there, since the mapped 5G-GUTI
+	// is what Old GUTI carries — and the UE's registration state in each system.
+	AdditionalGUTI *EPSMobileIdentity // IEI 0x50, §8.2.29.3
+	OldGUTIType    *GUTIType          // IEI 0xE-, §8.2.29.19
+	UEStatus       *UEStatus          // IEI 0x6D, §8.2.29.28
+
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
@@ -102,6 +110,15 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 
 	w.LV(oldGUTI)
 
+	if m.AdditionalGUTI != nil {
+		raw, err := m.AdditionalGUTI.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiAdditionalGUTI, raw)
+	}
+
 	if m.UENetworkCapability != nil {
 		raw, err := m.UENetworkCapability.MarshalBinary()
 		if err != nil {
@@ -127,6 +144,14 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiMSNetworkCapability, raw)
+	}
+
+	if m.OldGUTIType != nil {
+		o.TV1(ieiOldGUTIType, uint8(*m.OldGUTIType)&0x01)
+	}
+
+	if m.UEStatus != nil {
+		o.TLV(ieiUEStatus, m.UEStatus.MarshalBinary())
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -199,6 +224,31 @@ func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error
 			}
 
 			m.MSNetworkCapability = &parsed
+
+			return true, nil
+		case ieiAdditionalGUTI:
+			parsed, err := ParseEPSMobileIdentity(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.AdditionalGUTI = &parsed
+
+			return true, nil
+		case ieiOldGUTIType:
+			if v := tv1Value(value); v != nil {
+				t := GUTIType(*v & 0x01)
+				m.OldGUTIType = &t
+			}
+
+			return true, nil
+		case ieiUEStatus:
+			parsed, err := ParseUEStatus(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.UEStatus = &parsed
 
 			return true, nil
 		}

@@ -49,15 +49,23 @@ type RegistrationRequest struct {
 	// so an element with no case there can never fire it.
 	S1UENetworkCapability []byte // IEI 0x17
 
-	RequestedNSSAI          NSSAI           // IEI 0x2F
-	UplinkDataStatus        *PSIBitmap      // IEI 0x40
-	PDUSessionStatus        *PSIBitmap      // IEI 0x50
-	AllowedPDUSessionStatus *PSIBitmap      // IEI 0x25
-	UEStatus                *UEStatus       // IEI 0x2B
-	RequestedDRXParameters  *DRXParameter   // IEI 0x51
-	NASMessageContainer     []byte          // IEI 0x71
-	MICOIndication          *MICOIndication // IEI 0xB0 (type 1)
-	UpdateType5GS           *UpdateType5GS  // IEI 0x53
+	RequestedNSSAI          NSSAI         // IEI 0x2F
+	UplinkDataStatus        *PSIBitmap    // IEI 0x40
+	PDUSessionStatus        *PSIBitmap    // IEI 0x50
+	AllowedPDUSessionStatus *PSIBitmap    // IEI 0x25
+	UEStatus                *UEStatus     // IEI 0x2B
+	RequestedDRXParameters  *DRXParameter // IEI 0x51
+
+	// AdditionalGUTI is the UE's native 5G-GUTI (IEI 0x77), which it includes
+	// when registering after an inter-system change from S1 mode in
+	// single-registration mode (TS 24.501 §8.2.6.12 a). The 5GS mobile identity
+	// IE of the message itself then carries the 5G-GUTI mapped from the 4G-GUTI,
+	// so this is what names the context the AMF can still recover
+	// (§5.5.1.3.2 case e).
+	AdditionalGUTI      *MobileIdentity
+	NASMessageContainer []byte          // IEI 0x71
+	MICOIndication      *MICOIndication // IEI 0xB0 (type 1)
+	UpdateType5GS       *UpdateType5GS  // IEI 0x53
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -86,7 +94,7 @@ var registrationRequestIEs = []nas.OptionalIE{
 	{IEI: ieiEPSNASMessageContainer, Format: nas.IETLVE, Name: "EPS NAS message container"},
 	{IEI: ieiNASMessageContainer, Format: nas.IETLVE, Critical: true, Name: "NAS message container"},
 	{IEI: ieiLADNIndication, Format: nas.IETLVE, Name: "LADN indication"},
-	{IEI: ieiGUTI5G, Format: nas.IETLVE, Name: "5G-GUTI"}, // additional GUTI
+	{IEI: ieiAdditionalGUTI, Format: nas.IETLVE, Name: "Additional GUTI"},
 	{IEI: ieiPayloadContainer, Format: nas.IETLVE, Name: "Payload container"},
 }
 
@@ -165,6 +173,15 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 
 	if m.UEStatus != nil {
 		o.TLV(ieiUEStatus, m.UEStatus.MarshalBinary())
+	}
+
+	if m.AdditionalGUTI != nil {
+		raw, err := m.AdditionalGUTI.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiAdditionalGUTI, raw)
 	}
 
 	if m.AllowedPDUSessionStatus != nil {
@@ -317,6 +334,13 @@ func ParseRegistrationRequest(b []byte) (*RegistrationRequest, error) {
 			}
 
 			out.UEStatus = &parsed
+		case ieiAdditionalGUTI:
+			parsed, err := ParseMobileIdentity(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.AdditionalGUTI = &parsed
 		case ieiAllowedPDUSessionStatus:
 			bitmap, err := ParsePSIBitmap(value)
 			if err != nil {

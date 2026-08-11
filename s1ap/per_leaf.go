@@ -49,6 +49,143 @@ func (t *MTMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (t FiveGSTAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if t > fiveGSTACMax {
+		return fmt.Errorf("s1ap: FiveGSTAC %d exceeds three octets", uint32(t))
+	}
+
+	return per.EncodeOctetString(w, enc, 3, 3, true, true, false, []byte{byte(t >> 16), byte(t >> 8), byte(t)})
+}
+
+func (t *FiveGSTAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 3, 3, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*t = FiveGSTAC(uint32(b[0])<<16 | uint32(b[1])<<8 | uint32(b[2]))
+
+	return nil
+}
+
+// GNB-Identity ::= CHOICE { gNB-ID, ... }: one root alternative, a bit string
+// whose width the sender chooses within SIZE(22..32).
+func (g GNBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if g.Bits < gnbIDMinBits || g.Bits > gnbIDMaxBits {
+		return fmt.Errorf("s1ap: gNB-ID of %d bits, want %d..%d", g.Bits, gnbIDMinBits, gnbIDMaxBits)
+	}
+
+	if g.Bits < 32 && uint64(g.Value) >= 1<<uint(g.Bits) {
+		return fmt.Errorf("s1ap: gNB id %d exceeds its own %d bits", g.Value, g.Bits)
+	}
+
+	w.WriteBit(false)
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 0, 0); err != nil {
+		return err
+	}
+
+	return per.EncodeBitString(w, enc, gnbIDMinBits, gnbIDMaxBits, true, true, false,
+		uintToBits(uint64(g.Value), g.Bits), g.Bits)
+}
+
+func (g *GNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	if isExt {
+		return fmt.Errorf("%w: GNB-Identity extension alternative", errNotComprehended)
+	}
+
+	if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 0); err != nil {
+		return err
+	}
+
+	b, nbits, err := per.DecodeBitString(r, enc, gnbIDMinBits, gnbIDMaxBits, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*g = GNBID{Value: uint32(bitsToUint(b, nbits)), Bits: nbits}
+
+	return nil
+}
+
+// Global-RAN-NODE-ID ::= CHOICE { gNB, ng-eNB, ... }.
+const (
+	globalRANNodeIDGNB = iota
+	globalRANNodeIDNgENB
+
+	globalRANNodeIDRootCount = 2
+)
+
+func (g GlobalRANNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	var (
+		idx   int64
+		value per.Marshaler
+	)
+
+	switch {
+	case g.GNB != nil && g.NgENB != nil:
+		return fmt.Errorf("s1ap: Global-RAN-NODE-ID carries both a gNB and an ng-eNB")
+	case g.GNB != nil:
+		idx, value = globalRANNodeIDGNB, g.GNB
+	case g.NgENB != nil:
+		idx, value = globalRANNodeIDNgENB, g.NgENB
+	default:
+		return fmt.Errorf("s1ap: Global-RAN-NODE-ID carries no alternative")
+	}
+
+	w.WriteBit(false)
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, globalRANNodeIDRootCount-1, idx); err != nil {
+		return err
+	}
+
+	return value.MarshalPER(w, enc)
+}
+
+func (g *GlobalRANNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+
+	if isExt {
+		return fmt.Errorf("%w: Global-RAN-NODE-ID extension alternative", errNotComprehended)
+	}
+
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, globalRANNodeIDRootCount-1)
+	if err != nil {
+		return err
+	}
+
+	switch idx {
+	case globalRANNodeIDGNB:
+		var v GNB
+		if err := v.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+
+		*g = GlobalRANNodeID{GNB: &v}
+
+		return nil
+	case globalRANNodeIDNgENB:
+		var v NgENB
+		if err := v.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+
+		*g = GlobalRANNodeID{NgENB: &v}
+
+		return nil
+	default:
+		return fmt.Errorf("%w: Global-RAN-NODE-ID alternative %d", errNotComprehended, idx)
+	}
+}
+
 func (t TAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeOctetString(w, enc, 2, 2, true, true, false, []byte{byte(t >> 8), byte(t)})
 }

@@ -50,6 +50,17 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
+	// TS 38.413 §9.2.3.1 pairs the Target ID alternative with the Handover Type,
+	// but the ASN.1 does not, so a targeteNB-ID can arrive under intra5gs. It
+	// names a target this AMF cannot reach either way.
+	if msg.TargetID.TargetRANNodeID == nil {
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Target ID is not an NG-RAN node]")
+
+		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)
+
+		return
+	}
+
 	targetRanNodeID := util.RANNodeIDToModels(msg.TargetID.TargetRANNodeID.GlobalRANNodeID)
 
 	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)

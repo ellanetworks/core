@@ -55,6 +55,62 @@ func (t *TAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (t EPSTAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 2, 2, true, true, false, []byte{byte(t >> 8), byte(t)})
+}
+
+func (t *EPSTAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 2, 2, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*t = EPSTAC(uint16(b[0])<<8 | uint16(b[1]))
+
+	return nil
+}
+
+// NgENB-ID ::= CHOICE { macroNgENB-ID, shortMacroNgENB-ID, longMacroNgENB-ID,
+// choice-Extensions }: three fixed-width bit strings and an open container.
+func (n NgENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	bits, ok := ngENBIDBits[n.Kind]
+	if !ok {
+		return fmt.Errorf("ngap: invalid NgENB-ID kind %d", n.Kind)
+	}
+
+	if uint64(n.Value) >= 1<<uint(bits) {
+		return fmt.Errorf("ngap: ng-eNB id %d exceeds its own %d bits", n.Value, bits)
+	}
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ngENBIDAlternatives-1, int64(n.Kind)); err != nil {
+		return err
+	}
+
+	return per.EncodeBitString(w, enc, int64(bits), int64(bits), true, true, false,
+		uintToBits(uint64(n.Value), bits), bits)
+}
+
+func (n *NgENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, ngENBIDAlternatives-1)
+	if err != nil {
+		return err
+	}
+
+	bits, ok := ngENBIDBits[NgENBIDKind(idx)]
+	if !ok {
+		return decodeChoiceExtension(r, enc, "NgENB-ID")
+	}
+
+	b, _, err := per.DecodeBitString(r, enc, int64(bits), int64(bits), true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*n = NgENBID{Kind: NgENBIDKind(idx), Value: uint32(bitsToUint(b, bits))}
+
+	return nil
+}
+
 func (t FiveGTMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	var b [4]byte
 

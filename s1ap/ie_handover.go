@@ -10,8 +10,15 @@ import (
 )
 
 // HandoverType ::= ENUMERATED { intralte, ltetoutran, ltetogeran, utrantolte,
-// gerantolte, ..., eps-to-5gs, fivegs-to-eps } (extensible). Only intralte is
-// in scope (TS 36.413).
+// gerantolte, ..., eps-to-5gs, fivegs-to-eps } (extensible) (TS 36.413
+// §9.2.1.13).
+//
+// The two inter-system values are *extension additions* here, where TS 38.413
+// §9.3.1.22 has its own as root values — the enumerations are not symmetric, and
+// neither their members nor their wire encodings correspond. An extension
+// addition is encoded as the extension bit followed by a normally-small index
+// into the additions, so eps-to-5gs and fivegs-to-eps do not share a wire form
+// with any root value.
 type HandoverType uint8
 
 const (
@@ -21,17 +28,37 @@ const (
 	HandoverTypeUTRANtoLTE
 	HandoverTypeGERANtoLTE
 
+	// The extension additions, numbered on from the root as PER numbers them:
+	// the k-th addition is handoverTypeRootCount+k.
+	HandoverTypeEPSToFiveGS
+	HandoverTypeFiveGSToEPS
+)
+
+const (
 	handoverTypeRootCount = 5
+	// handoverTypeCount is every value 3GPP has assigned, root and extension
+	// together. A value beyond it names no handover this release defines.
+	handoverTypeCount = 7
 )
 
 func (t HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, handoverTypeRootCount, int64(t), "HandoverType")
+	if t >= handoverTypeCount {
+		return fmt.Errorf("s1ap: HandoverType %d outside the assigned values", t)
+	}
+
+	return per.EncodeEnumerated(w, enc, handoverTypeRootCount, true, int64(t))
 }
 
 func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, handoverTypeRootCount, "HandoverType")
+	idx, err := per.DecodeEnumerated(r, enc, handoverTypeRootCount, true)
 	if err != nil {
 		return err
+	}
+
+	// §10.3.1 case 6, handled on the IE's criticality: an addition a later
+	// release makes is refused rather than narrowed onto a root value.
+	if idx >= handoverTypeCount {
+		return fmt.Errorf("%w: HandoverType extension value %d", errNotComprehended, idx)
 	}
 
 	*t = HandoverType(idx)
@@ -116,15 +143,58 @@ type TargeteNBID struct {
 	_           ieExtensions `per:",skip"`
 }
 
-// TargetID ::= CHOICE { targeteNB-ID, targetRNC-ID, cGI, ..., targetgNgRanNode-ID }.
-// Only targeteNB-ID is modeled (TS 36.413).
-type TargetID struct {
-	TargeteNBID TargeteNBID
+// TargetNgRanNode-ID ::= SEQUENCE { global-RAN-NODE-ID, selected-TAI FiveGSTAI,
+// iE-Extensions OPTIONAL } (extensible) (TS 36.413). It names an NG-RAN node an
+// EPS to 5GS handover targets, so the tracking area it carries is a 5GS one.
+type TargetNgRanNodeID struct {
+	_               [0]struct{} `per:"extseq"`
+	GlobalRANNodeID GlobalRANNodeID
+	SelectedTAI     FiveGSTAI
+	_               ieExtensions `per:",skip"`
 }
 
-const targetIDRootCount = 3 // targeteNB-ID, targetRNC-ID, cGI
+// TargetID ::= CHOICE { targeteNB-ID, targetRNC-ID, cGI, ...,
+// targetgNgRanNode-ID } (TS 36.413). Two alternatives are modelled: targeteNB-ID
+// for an intra-LTE handover and the targetgNgRanNode-ID extension addition for
+// the EPS to 5GS one. targetRNC-ID and cGI name targets Ella cannot reach.
+//
+// Which alternative is present is not free: TS 36.413 §9.1.5.1 pairs it with the
+// Handover Type IE, so an eps-to-5gs Handover Required carries the NG-RAN target
+// and an intralte one the eNB target. The CHOICE does not enforce that — the
+// message handler does.
+type TargetID struct {
+	TargeteNBID       TargeteNBID
+	TargetNgRanNodeID *TargetNgRanNodeID
+}
+
+const (
+	targetIDRootCount = 3 // targeteNB-ID, targetRNC-ID, cGI
+
+	// targetIDExtTargetNgRanNodeID is the extension addition's index: the first,
+	// and so far only, addition TS 36.413 makes to the CHOICE.
+	targetIDExtTargetNgRanNodeID = 0
+)
 
 func (t TargetID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if t.TargetNgRanNodeID != nil {
+		w.WriteBit(true)
+
+		if err := per.EncodeNormallySmall(w, enc, targetIDExtTargetNgRanNodeID); err != nil {
+			return err
+		}
+
+		// An extension alternative travels as an open type, so a receiver that
+		// does not know it can step over it (X.691 §23).
+		inner := per.NewWriter()
+		if err := t.TargetNgRanNodeID.MarshalPER(inner, enc); err != nil {
+			return err
+		}
+
+		inner.AlignToByte()
+
+		return per.EncodeOpenTypeBytes(w, enc, inner.Bytes())
+	}
+
 	w.WriteBit(false)
 
 	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, targetIDRootCount-1, 0); err != nil {
@@ -141,7 +211,7 @@ func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	if isExt {
-		return fmt.Errorf("%w: TargetID extension alternative", errNotComprehended)
+		return t.unmarshalExtension(r, enc)
 	}
 
 	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, targetIDRootCount-1)
@@ -154,6 +224,34 @@ func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	}
 
 	return t.TargeteNBID.UnmarshalPER(r, enc)
+}
+
+func (t *TargetID) unmarshalExtension(r *per.Reader, enc per.Encoding) error {
+	extIdx, err := per.DecodeNormallySmall(r, enc)
+	if err != nil {
+		return err
+	}
+
+	// The open type is read whatever it turns out to hold, so an addition a later
+	// release makes leaves the reader positioned after the alternative it could
+	// not decode.
+	raw, err := per.DecodeOpenTypeBytes(r, enc)
+	if err != nil {
+		return err
+	}
+
+	if extIdx != targetIDExtTargetNgRanNodeID {
+		return fmt.Errorf("%w: TargetID extension alternative %d", errNotComprehended, extIdx)
+	}
+
+	var node TargetNgRanNodeID
+	if err := node.UnmarshalPER(per.NewReader(raw), enc); err != nil {
+		return err
+	}
+
+	t.TargetNgRanNodeID = &node
+
+	return nil
 }
 
 // ERABToBeSetupItemHOReq ::= SEQUENCE { e-RAB-ID, transportLayerAddress,

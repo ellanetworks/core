@@ -1149,6 +1149,66 @@ func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) UnmarshalPER(r *per.Reader
 	return nil
 }
 
+func (fiveGSTAI *FiveGSTAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := fiveGSTAI.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := fiveGSTAI.TAC.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (fiveGSTAI *FiveGSTAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&fiveGSTAI.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&fiveGSTAI.TAC).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (gBRQosInformation *GBRQosInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -1189,6 +1249,60 @@ func (gBRQosInformation *GBRQosInformation) UnmarshalPER(r *per.Reader, enc per.
 		return err
 	}
 	if p_f4 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (gNB *GNB) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := gNB.GlobalGNBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (gNB *GNB) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&gNB.GlobalGNBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -1315,6 +1429,120 @@ func (globalENBID *GlobalENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 		return err
 	}
 	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (globalGNBID *GlobalGNBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := globalGNBID.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := globalGNBID.GNBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (globalGNBID *GlobalGNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&globalGNBID.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&globalGNBID.GNBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (ngENB *NgENB) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := ngENB.GlobalNgENBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ngENB *NgENB) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&ngENB.GlobalNgENBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -1744,6 +1972,66 @@ func (tAI *TAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 	if err := (&tAI.TAC).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (targetNgRanNodeID *TargetNgRanNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := targetNgRanNodeID.GlobalRANNodeID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := targetNgRanNodeID.SelectedTAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (targetNgRanNodeID *TargetNgRanNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&targetNgRanNodeID.GlobalRANNodeID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&targetNgRanNodeID.SelectedTAI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
 	if p_f2 {
