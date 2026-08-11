@@ -34,6 +34,7 @@ import (
 type SmContext struct {
 	Ref                string
 	Snssai             *models.Snssai
+	Dnn                string
 	PduSessionInactive bool
 }
 
@@ -43,15 +44,10 @@ type UeContext struct {
 	state   StateType
 	regStep RegStep
 
-	PlmnID models.PlmnID
-	Suci   string
-	supi   etsi.SUPI
-	Imei   etsi.IMEI // PEI equipment identity, carrying the IMEI/IMEISV (TS 23.501 §5.9.3)
-	// tmsi is the UE's current 5G-TMSI, oldTmsi the in-flight previous one during a
-	// reallocation window. The full 5G-GUTI is rebuilt on demand from the invariant
-	// serving GUAMI, so the node identifier is not duplicated per UE. Both are
-	// Written under AMF.mu (which also guards the uesByTmsi index, so field and
-	// index stay in step) and ue.mu.
+	PlmnID  models.PlmnID
+	Suci    string
+	supi    etsi.SUPI
+	Imei    etsi.IMEI // PEI equipment identity, carrying the IMEI/IMEISV (TS 23.501 §5.9.3)
 	tmsi    etsi.TMSI
 	oldTmsi etsi.TMSI
 
@@ -102,26 +98,15 @@ type UeContext struct {
 	kamf         []uint8
 	abba         []uint8
 
-	Ambr             *models.Ambr
-	AllowedNssai     []models.Snssai
-	RegistrationArea []models.Tai
-	RadioCapability  []byte
-	// RadioCapabilityForPaging is the NG-RAN-reported paging-specific capability,
-	// included in PAGING so the node can apply paging optimisations
-	// (TS 38.413 §9.3.1.68). NGAP splits it into NR and E-UTRA where S1AP carries
-	// one opaque string, so the MME's counterpart is a plain []byte.
+	Ambr                     *models.Ambr
+	AllowedNssai             []models.Snssai
+	RegistrationArea         []models.Tai
+	RadioCapability          []byte
 	RadioCapabilityForPaging *models.UERadioCapabilityForPaging
 	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
 	SmContextList            map[uint8]*SmContext
-	// epsBearerIdentities maps a PDU session to the EPS bearer identity it becomes
-	// on mobility to EPS (TS 23.502 §4.11.1.4). UE-scoped, so it outlives an
-	// individual SM context and is allocated before one exists.
-	epsBearerIdentities map[uint8]uint8
+	epsBearerIdentities      map[uint8]uint8
 
-	// Idle-mode supervision (TS 24.501): the mobile reachable timer escalates to
-	// implicit deregistration. idleGen bumps on every (re)arm/stop so an expiry
-	// that fired just as the UE reconnected is ignored when it re-checks. All three
-	// are guarded by AMF.mu (the registry lock).
 	mobileReachableTimer        guard.Guard
 	implicitDeregistrationTimer guard.Guard
 	idleGen                     uint64
@@ -131,20 +116,11 @@ type UeContext struct {
 
 	nrppaMu       sync.RWMutex
 	nrppaMessages []NRPPaMessage
-	// Routing IDs this AMF has addressed an LMF with for this UE. TS 38.413
-	// §8.10.4 has the AMF ignore an uplink transport naming any other.
+
 	nrppaRoutingIDs map[int64]struct{}
 
-	// pagingTimer supervises a paging procedure for an idle UE (T3513, TS 24.501
-	// §5.4.3). It is per-UE and persistent — paging targets a UE with no NAS
-	// connection, and it survives the idle→connected transition.
 	pagingTimer guard.Guard
 
-	// n1n2Message buffers an SMF-pushed N1N2 message awaiting delivery to an idle
-	// UE. Like pagingTimer it lives on the persistent UeContext — the message is
-	// stored precisely while the UE has no connection, and is read/cleared on the
-	// new connection established when the UE answers paging. Atomic: written on the
-	// SMF push path, read/cleared on the reconnect goroutine.
 	n1n2Message atomic.Pointer[models.N1N2MessageTransferRequest]
 }
 
@@ -570,7 +546,7 @@ func (ue *UeContext) ClearRegistrationData(ctx context.Context) {
 	ue.releaseSmContexts(ctx)
 }
 
-func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) error {
+func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai, dnn string) error {
 	if pduSessionID < 1 || pduSessionID > 15 {
 		return fmt.Errorf("invalid PDU session ID %d: must be in range 1-15 per TS 24.501", pduSessionID)
 	}
@@ -581,6 +557,7 @@ func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *mod
 	ue.SmContextList[pduSessionID] = &SmContext{
 		Ref:    ref,
 		Snssai: snssai,
+		Dnn:    dnn,
 	}
 
 	return nil

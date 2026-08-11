@@ -15,7 +15,7 @@ func ueWithSessions(t *testing.T, ids ...uint8) *amf.UeContext {
 
 	ue := amf.NewUeContext()
 	for _, id := range ids {
-		if err := ue.CreateSmContext(id, "ref", nil); err != nil {
+		if err := ue.CreateSmContext(id, "ref", nil, "internet"); err != nil {
 			t.Fatalf("CreateSmContext(%d): %v", id, err)
 		}
 	}

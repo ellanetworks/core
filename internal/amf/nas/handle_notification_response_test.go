@@ -82,11 +82,11 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 
 	ue.ForceStateForTest(amf.Registered)
 	ue.Conn().NASGuardForTest().Arm(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	_ = ue.CreateSmContext(1, "1", &models.Snssai{})
-	_ = ue.CreateSmContext(5, "5", &models.Snssai{})
-	_ = ue.CreateSmContext(8, "8", &models.Snssai{})
-	_ = ue.CreateSmContext(11, "11", &models.Snssai{})
-	_ = ue.CreateSmContext(15, "15", &models.Snssai{})
+	_ = ue.CreateSmContext(1, "1", &models.Snssai{}, "internet")
+	_ = ue.CreateSmContext(5, "5", &models.Snssai{}, "internet")
+	_ = ue.CreateSmContext(8, "8", &models.Snssai{}, "internet")
+	_ = ue.CreateSmContext(11, "11", &models.Snssai{}, "internet")
+	_ = ue.CreateSmContext(15, "15", &models.Snssai{}, "internet")
 
 	// Only PSI 11 is active, so the inactive sessions 1, 5, 8, 15 are released.
 	var psi [16]bool

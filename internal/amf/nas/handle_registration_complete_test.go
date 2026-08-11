@@ -203,7 +203,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 	ue.Conn().RegistrationRequest.FOR = false
 	ue.Conn().RegistrationRequest.UplinkDataStatus = nil
-	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{})
+	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{}, "internet")
 
 	amfInstance := newTestAMF()
 

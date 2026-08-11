@@ -290,7 +290,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		return
 	}
 
-	if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
+	if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai, dnn); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error creating SM context", zap.Error(err))
 		return
 	}
@@ -298,10 +298,6 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 }
 
-// assignEPSBearerIdentity gives a new PDU session the EPS bearer identity it
-// becomes on mobility to EPS (TS 23.502 §4.11.1.4). A UE that cannot move to EPS
-// needs none, and exhausting the space costs that session its EPS continuity
-// rather than the session itself.
 func assignEPSBearerIdentity(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, pduSessionID uint8) uint8 {
 	if !amfInstance.N26Enabled || !ue.SupportsS1Mode() {
 		return 0

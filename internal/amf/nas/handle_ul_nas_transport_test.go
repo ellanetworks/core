@@ -251,7 +251,7 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 	// SM context carries a different NSSAI (SST=2) than the UE's allowed SST=1.
 	var pduSessionID uint8 = 5
 
-	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 2, Sd: "040506"})
+	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 2, Sd: "040506"}, "internet")
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
@@ -317,7 +317,7 @@ func TestTransport5GSMMessage_ModificationRequest_NotAllowedNssai_NotForwarded(t
 
 	var pduSessionID uint8 = 5
 
-	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 1, Sd: "010203"})
+	_ = ue.CreateSmContext(pduSessionID, "testref", &models.Snssai{Sst: 1, Sd: "010203"}, "internet")
 
 	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
 
@@ -449,7 +449,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 	var pduSessionID uint8 = 3
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	_ = ue.CreateSmContext(pduSessionID, "testref", snssai)
+	_ = ue.CreateSmContext(pduSessionID, "testref", snssai, "internet")
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 
@@ -717,7 +717,7 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 
 	var pduSessionID uint8 = 5
 
-	_ = ue.CreateSmContext(pduSessionID, "test-ref", &models.Snssai{Sst: 1, Sd: "010203"})
+	_ = ue.CreateSmContext(pduSessionID, "test-ref", &models.Snssai{Sst: 1, Sd: "010203"}, "internet")
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
@@ -752,10 +752,10 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	var pduSessionID uint8 = 3
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	_ = ue.CreateSmContext(pduSessionID, "dup-ref", snssai)
+	_ = ue.CreateSmContext(pduSessionID, "dup-ref", snssai, "internet")
 
 	// A second SM context confirms only the duplicate's context is deleted.
-	_ = ue.CreateSmContext(7, "other-ref", snssai)
+	_ = ue.CreateSmContext(7, "other-ref", snssai, "internet")
 
 	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
 
@@ -811,7 +811,7 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 
 	var pduSessionID uint8 = 5
 
-	_ = ue.CreateSmContext(pduSessionID, "existing-ref", snssai)
+	_ = ue.CreateSmContext(pduSessionID, "existing-ref", snssai, "internet")
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
@@ -843,7 +843,7 @@ func TestTransport5GSMMessage_SmContextExists_DefaultRequestType_ForwardsToSMF(t
 
 	var pduSessionID uint8 = 5
 
-	_ = ue.CreateSmContext(pduSessionID, "default-ref", &models.Snssai{Sst: 1, Sd: "010203"})
+	_ = ue.CreateSmContext(pduSessionID, "default-ref", &models.Snssai{Sst: 1, Sd: "010203"}, "internet")
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
@@ -1046,7 +1046,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 	// SM context uses the second allowed slice
 	var pduSessionID uint8 = 5
 
-	_ = ue.CreateSmContext(pduSessionID, "existing-ref", &models.Snssai{Sst: 2, Sd: "aabbcc"})
+	_ = ue.CreateSmContext(pduSessionID, "existing-ref", &models.Snssai{Sst: 2, Sd: "aabbcc"}, "internet")
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 
@@ -1085,7 +1085,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_NotInLis
 
 	var pduSessionID uint8 = 5
 
-	_ = ue.CreateSmContext(pduSessionID, "existing-ref", &models.Snssai{Sst: 9, Sd: "ffffff"})
+	_ = ue.CreateSmContext(pduSessionID, "existing-ref", &models.Snssai{Sst: 9, Sd: "ffffff"}, "internet")
 
 	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
 

@@ -321,7 +321,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 
 	snssai := &models.Snssai{Sst: 1}
 
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	// UplinkDataStatus: PSI 2 has uplink data (bit 2 in byte 0 = 0x04)
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
@@ -353,7 +353,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
@@ -380,7 +380,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
@@ -407,7 +407,7 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	// PDUSessionStatus: PSI 2 is NOT active (bit 2 unset = 0x00)
 	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]uint8{0x00, 0x00})
@@ -440,7 +440,7 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	// PDUSessionStatus: PSI 2 IS active (bit 2 set = 0x04)
 	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
@@ -465,7 +465,7 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	ue.Conn().RegistrationRequest.PDUSessionStatus = mustBitmap([]byte{0x00, 0x00}) // PSI 2 inactive → triggers release
 
@@ -491,7 +491,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	// UplinkDataStatus with PSI 2 + no UeContextRequest → populates suList
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
@@ -595,7 +595,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(3, "ref-3", snssai)
+	_ = ue.CreateSmContext(3, "ref-3", snssai, "internet")
 
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]byte{0x08, 0x00}) // PSI 3
 
@@ -648,7 +648,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
-	_ = ue.CreateSmContext(2, "ref-2", snssai)
+	_ = ue.CreateSmContext(2, "ref-2", snssai, "internet")
 
 	ue.Conn().RegistrationRequest.UplinkDataStatus = mustBitmap([]uint8{0x04, 0x00})
 
