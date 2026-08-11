@@ -34,6 +34,12 @@ func MintAuthProofForAttachRequest() AuthProof {
 	return AuthProof{}
 }
 
+// MintAuthProofForInterworking returns an AuthProof. It must only be called when
+// installing an EPS security context received over N26 (TS 33.501 §8.3.2).
+func MintAuthProofForInterworking() AuthProof {
+	return AuthProof{}
+}
+
 func MintAuthProofForTrackingAreaUpdate() AuthProof {
 	return AuthProof{}
 }

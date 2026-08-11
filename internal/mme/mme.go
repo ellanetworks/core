@@ -16,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
@@ -87,6 +88,7 @@ type MME struct {
 	Bearer  bearerStore
 	Session epsSessionManager
 	NAS     NASHandler
+	FiveGS  interworking.FiveGSPeer
 
 	// EPSNetworkFeatureSupport is advertised in Attach/TAU Accept (TS 24.301
 	// §9.9.3.12A); nil falls back to the default.
@@ -104,8 +106,9 @@ type MME struct {
 	UEs        map[etsi.SUPI]*UeContext // persistent UE contexts keyed by SUPI; survives the connection across ECM-IDLE
 	uesByTmsi  map[etsi.TMSI]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	connIDs    *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
-	// tmsi allocates an unpredictable M-TMSI (TS 23.401 privacy): random MSBs
-	// with allocate/free.
+
+	relocating map[etsi.SUPI]*UeContext
+
 	tmsi *etsi.TmsiAllocator
 
 	// Supervision timers are fields, not constants, so tests can shorten them.
@@ -180,6 +183,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		conns:                    make(map[uint32]*UeConn),
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		uesByTmsi:                make(map[etsi.TMSI]*UeContext),
+		relocating:               make(map[etsi.SUPI]*UeContext),
 		connIDs:                  idgenerator.NewGenerator(1, maxMMEUES1APID),
 		tmsi:                     etsi.NewTMSIAllocator(),
 

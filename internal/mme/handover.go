@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/ellanetworks/core/internal/epskeys"
@@ -40,7 +41,16 @@ type handoverContext struct {
 	target     *UeConn
 	candidates []HandoverCandidate
 	admitted   []AdmittedERAB
+	relocation chan relocationOutcome
 }
+
+type relocationOutcome struct {
+	targetToSource []byte
+	unadmitted     []HandoverCandidate
+	err            error
+}
+
+var ErrRelocationAbandoned = errors.New("mme: handover preparation abandoned")
 
 func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MMEUES1APID, candidates []HandoverCandidate) (targetMMEID s1ap.MMEUES1APID, newNH [32]byte, newNCC uint8, ok bool) {
 	m.mu.Lock()
@@ -98,6 +108,56 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	return targetMMEID, newNH, newNCC, true
 }
 
+func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []HandoverCandidate) (targetMMEID s1ap.MMEUES1APID, outcome <-chan relocationOutcome, ok bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if !ue.BeginKeyChainProc(procedure.S1Handover) {
+		return 0, nil, false
+	}
+
+	tid, idOK := m.allocConnIDLocked()
+	if !idOK {
+		ue.EndKeyChainProc(procedure.S1Handover)
+
+		return 0, nil, false
+	}
+
+	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
+	targetConn.setConn(target)
+	targetConn.Log = m.nodeLogLocked(target).With(logger.MMEUeS1apID(uint32(targetConn.MMEUES1APID)))
+	m.conns[tid] = targetConn
+
+	delivery := make(chan relocationOutcome, 1)
+	ue.handover = &handoverContext{
+		state:      hoPreparing,
+		target:     targetConn,
+		candidates: candidates,
+		relocation: delivery,
+	}
+
+	return targetConn.MMEUES1APID, delivery, true
+}
+
+func (m *MME) FinishRelocationPreparation(ue *UeContext, targetToSource []byte, unadmitted []HandoverCandidate) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if ho := ue.handover; ho != nil {
+		deliverRelocationLocked(ho, relocationOutcome{targetToSource: targetToSource, unadmitted: unadmitted})
+	}
+}
+
+func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
+	if ho.relocation == nil {
+		return
+	}
+
+	ho.relocation <- out
+
+	ho.relocation = nil
+}
+
 func (m *MME) SuperviseHandover(ue *UeContext) {
 	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
 		m.abandonHandover(ue)
@@ -152,6 +212,10 @@ func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, con
 	ho.admitted = admitted
 	ho.state = hoPrepared
 
+	if ho.source == nil {
+		return unadmitted, nil, 0, 0, true
+	}
+
 	return unadmitted, ho.source.Conn(), ho.source.MMEUES1APID, ho.source.ENBUES1APID, true
 }
 
@@ -199,17 +263,28 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	defer m.mu.Unlock()
 
 	ho := ue.handover
-	if ho == nil || ho.state != hoCommitting || ho.target.Conn() != conn || ho.target.ENBUES1APID != notifyENBID || ue.Conn() == nil {
+	if ho == nil || ho.state != hoCommitting || ho.target.Conn() != conn || ho.target.ENBUES1APID != notifyENBID {
 		return nil, 0, 0, 0, false
 	}
 
 	source := ho.source
+	if source != nil && ue.Conn() == nil {
+		return nil, 0, 0, 0, false
+	}
 
-	ue.active.Store(ho.target)
+	target := ho.target
+	ue.active.Store(target)
+
+	if source == nil {
+		m.clearHandoverLocked(ue)
+
+		return nil, 0, 0, target.MMEUES1APID, true
+	}
+
 	source.ue = nil // its Release Complete removes the connection
 	m.clearHandoverLocked(ue)
 
-	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID, ue.Conn().MMEUES1APID, true
+	return source.Conn(), source.MMEUES1APID, source.ENBUES1APID, target.MMEUES1APID, true
 }
 
 func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEID s1ap.MMEUES1APID, releaseENBID s1ap.ENBUES1APID, pair, hasTarget bool) {
@@ -298,6 +373,8 @@ func (m *MME) clearHandoverLocked(ue *UeContext) {
 		return
 	}
 
+	deliverRelocationLocked(ho, relocationOutcome{err: ErrRelocationAbandoned})
+
 	if ho.target != nil && ho.target != ue.Conn() {
 		ho.target.ue = nil
 		m.releaseConnIDLocked(uint32(ho.target.MMEUES1APID))
@@ -323,6 +400,13 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 		return
 	}
 
+	if ho.source == nil {
+		m.clearHandoverLocked(ue)
+		m.mu.Unlock()
+
+		return
+	}
+
 	sourceConn := ho.source.Conn()
 	sourceMMEID := ho.source.MMEUES1APID
 	sourceENBID := ho.source.ENBUES1APID
@@ -344,17 +428,23 @@ func (m *MME) abandonHandover(ue *UeContext) {
 
 	releaseTarget := ho.target
 	releasePair := ho.state == hoPrepared
-	sourceMMEID := ho.source.MMEUES1APID
+	relocated := ho.source == nil
 
 	m.clearHandoverLocked(ue)
 	m.mu.Unlock()
 
-	logger.MmeLog.Warn("S1 handover abandoned: target did not complete it in time",
-		zap.Uint32("mme-ue-id", uint32(sourceMMEID)))
-
-	if releaseTarget != nil {
-		SendUEContextRelease(context.Background(), m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, causeHandoverTS1relocExpiry)
+	if relocated {
+		m.dropRelocation(context.Background(), ue)
 	}
+
+	if releaseTarget == nil {
+		return
+	}
+
+	logger.MmeLog.Warn("S1 handover abandoned: target did not complete it in time",
+		zap.Uint32("target-mme-ue-id", uint32(releaseTarget.MMEUES1APID)))
+
+	SendUEContextRelease(context.Background(), m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, causeHandoverTS1relocExpiry)
 }
 
 func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {

@@ -253,3 +253,15 @@ func (ue *UeContext) ForceStateForTest(s EMMState) {
 
 	ue.setEMMStateLocked(s)
 }
+
+// NextDownlinkCountForTest returns the NAS COUNT the UE's next downlink message
+// would carry, without consuming it.
+func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	counter := ue.dlCount
+	count, _ := counter.Use()
+
+	return count
+}
