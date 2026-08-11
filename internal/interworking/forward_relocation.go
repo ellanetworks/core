@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -20,14 +21,9 @@ type PDNConnection struct {
 }
 
 type ENBIdentity struct {
-	PlmnID models.PlmnID
-	ID     uint32
-	Bits   uint8
-	// SelectedEPSTAI is the tracking area the source NG-RAN chose in the target
-	// network, PLMN included: "the source NG-RAN shall indicate the selected PLMN ID
-	// to be used in the target network to the AMF as part of the TAI sent in the HO
-	// Required message" (TS 23.502 §4.11.1.2.1). On a shared RAN that PLMN is not the
-	// eNB's, so the two cannot be collapsed.
+	PlmnID         models.PlmnID
+	ID             uint32
+	Bits           uint8
 	SelectedEPSTAI EPSTAI
 }
 
@@ -35,6 +31,26 @@ type ENBIdentity struct {
 type EPSTAI struct {
 	PlmnID models.PlmnID
 	TAC    uint16
+}
+
+type FiveGSTAI struct {
+	PlmnID models.PlmnID
+	TAC    uint32
+}
+
+type NGRANNodeKind uint8
+
+const (
+	NGRANNodeGNB NGRANNodeKind = iota
+	NGRANNodeNgENB
+)
+
+type NGRANIdentity struct {
+	Kind        NGRANNodeKind
+	PlmnID      models.PlmnID
+	ID          uint32
+	Bits        uint8
+	SelectedTAI FiveGSTAI
 }
 
 type RelocationID uint64
@@ -56,6 +72,23 @@ type ForwardRelocationResponse struct {
 	AcceptedPDUSessions []uint8
 }
 
+type FiveGSRelocationRequest struct {
+	ID              RelocationID
+	SUPI            etsi.SUPI
+	SecurityContext EPSSecurityContext
+	PDNConnections  []PDNConnection
+	Target          NGRANIdentity
+	SourceToTarget  []byte
+	Cause           ngap.Cause
+	UEAMBRUplink    models.BitRate
+	UEAMBRDownlink  models.BitRate
+}
+
+type FiveGSRelocationResponse struct {
+	TargetToSource     []byte
+	AcceptedEPSBearers []uint8
+}
+
 var (
 	ErrUnknownTarget     = errors.New("interworking: the target is not connected")
 	ErrTargetRefused     = errors.New("interworking: the target refused the handover")
@@ -68,5 +101,7 @@ type EPSPeer interface {
 }
 
 type FiveGSPeer interface {
+	ForwardRelocation(ctx context.Context, req FiveGSRelocationRequest) (FiveGSRelocationResponse, error)
+	RelocationCancel(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 	RelocationComplete(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 }

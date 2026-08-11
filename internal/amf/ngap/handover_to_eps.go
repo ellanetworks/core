@@ -63,7 +63,7 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 }
 
 func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *amf.UeConn, amfUe *amf.UeContext, prep *amf.RelocationPreparation, unusable []amf.HandoverCandidate) {
-	resp, err := amfInstance.ForwardRelocation(ctx, prep.Request)
+	resp, err := amfInstance.RequestRelocationToEPS(ctx, prep.Request)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("the EPS peer could not prepare the handover", zap.Error(err))
 
