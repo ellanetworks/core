@@ -498,23 +498,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
 	amfInstance.NAS = &nasAdapter{amf: amfInstance}
 	smfAMF.amf = amfInstance
-
-	// 4G MME control-plane NF; constructed here so the API can expose connected
-	// eNBs. Its S1-MME listener is started after the AMF's NGAP server below. It
-	// consumes the shared credential authority (over the same subscriber store as
-	// the AUSF) for EPS-AKA vectors and the shared SQN.
 	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
 	mmeInstance.NAS = &mmeNASAdapter{mme: mmeInstance}
-
-	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
+	amfInstance.EPS = mmeInstance
+	mmeInstance.FiveGS = amfInstance
 
 	metrics.RegisterMetrics()
 	metrics.RegisterRadioGauges(amfInstance.CountRadios, amfInstance.CountRegisteredSubscribers, mmeInstance.CountRadios, mmeInstance.CountRegisteredSubscribers)
 
 	lmfInstance := lmf.New(amfInstance, mmeInstance, dbInstance)
 
-	// Wire AMF→LMF LPP transport: AMF forwards UL NAS LPP payloads to LMF.
 	lmfAMF := &lmfBridge{amf: amfInstance, lmf: lmfInstance}
 	lmfInstance.SetLPPHandler(lmfAMF)
 	amfInstance.LPPHandler = lmfAMF

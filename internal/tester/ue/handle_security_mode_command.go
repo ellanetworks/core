@@ -40,6 +40,8 @@ func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGA
 		zap.String("TSC", string(tsc)),
 	)
 
+	storeEPSNASAlgorithms(ue, smc)
+
 	securityModeComplete, err := BuildSecurityModeComplete(&SecurityModeCompleteOpts{
 		UESecurity: ue.UeSecurity,
 		IMEISV:     ue.IMEISV,
@@ -64,4 +66,17 @@ func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGA
 	)
 
 	return nil
+}
+
+// TS 33.501 §6.7.2, §8.3.2
+func storeEPSNASAlgorithms(ue *UE, smc *fgs.SecurityModeCommand) {
+	if smc.SelectedEPSNASSecurityAlgorithms == nil {
+		return
+	}
+
+	ue.UeSecurity.EPSNASAlgorithms = smc.SelectedEPSNASSecurityAlgorithms
+
+	logger.UeLogger.Debug("Stored the selected EPS NAS security algorithms",
+		zap.Uint8("EEA", uint8(smc.SelectedEPSNASSecurityAlgorithms.Ciphering)),
+		zap.Uint8("EIA", uint8(smc.SelectedEPSNASSecurityAlgorithms.Integrity)))
 }

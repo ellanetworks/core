@@ -11,6 +11,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -456,12 +457,12 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	smcWire := decodeDownlinkNAS(t, cc.sent[1])
 
-	knasEnc, err := mme.DeriveKNASEnc(kasme, 2)
+	knasEnc, err := epskeys.DeriveKNASEnc(kasme, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	knasInt, err := mme.DeriveKNASInt(kasme, 2)
+	knasInt, err := epskeys.DeriveKNASInt(kasme, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +537,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	// K_eNB uses the uplink NAS COUNT of the Security Mode Complete (one less
 	// than the next-expected count).
-	wantKeNB, err := mme.DeriveKeNB(kasme, ue.ULCount()-1)
+	wantKeNB, err := epskeys.DeriveKeNB(kasme, ue.ULCount()-1)
 	if err != nil {
 		t.Fatal(err)
 	}

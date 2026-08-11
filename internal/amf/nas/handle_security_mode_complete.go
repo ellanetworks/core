@@ -41,6 +41,8 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			abortRegistration(ctx, amfInstance, ue, "update security context", err)
 			return nasreply.Handled()
 		}
+
+		ue.MarkEPSNASAlgorithmsDelivered()
 	}
 
 	if msg.IMEISV != nil {
@@ -64,9 +66,8 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
-		// The container carries the complete message; it becomes the oracle a
-		// later retransmission is compared against, cloned because the message
-		// keeps a reference to it (TS 24.501 §4.4.6).
+		ue.SetUECapabilities(fgsRR.GMMCapability, fgsRR.S1UENetworkCapability)
+
 		contextSetup(ctx, amfInstance, ue, fgsRR, slices.Clone(msg.NASMessageContainer))
 
 		return nasreply.Handled()

@@ -164,7 +164,7 @@ type UeContext struct {
 	dlCount      nas.DownlinkCounter
 	sc           *nas.SecurityContext
 	secured      bool
-	eksi         uint8
+	eksi         nas.KeySetIdentifier
 
 	// X2-handover key chain (TS 33.401)
 	nh  [32]byte
@@ -716,6 +716,7 @@ func (m *MME) removeContextLocked(ue *UeContext) {
 	m.stopPagingLocked(ue)
 	m.releaseMTMSIsLocked(ue)
 	m.freeUeConnLocked(ue)
+	m.endRelocationLocked(ue.supi, ue)
 
 	if supi := ue.supi; supi.IsIMSI() && m.UEs[supi] == ue {
 		delete(m.UEs, supi)

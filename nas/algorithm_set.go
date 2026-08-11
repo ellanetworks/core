@@ -75,3 +75,16 @@ func (s AlgorithmSet) String() string {
 
 	return string(out)
 }
+
+// SelectAlgorithm returns the first algorithm in the network's order of
+// preference that supported reports the UE can use, and false when they share
+// none.
+func SelectAlgorithm[T ~uint8](preference []T, supported func(uint8) bool) (T, bool) {
+	for _, v := range preference {
+		if supported(uint8(v)) {
+			return v, true
+		}
+	}
+
+	return 0, false
+}

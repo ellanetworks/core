@@ -102,6 +102,9 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	conn.RegistrationRequest = req
+
+	ue.SetUECapabilities(req.GMMCapability, req.S1UENetworkCapability)
+
 	conn.RegistrationRequestPlain = slices.Clone(plain)
 	conn.RegistrationRequestReplayRequired = arrivedPlain
 	conn.SetRegistrationType5GS(uint8(req.RegistrationType))

@@ -1,14 +1,11 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-//
 // SPDX-License-Identifier: BUSL-1.1
 
 package amf
 
 import "testing"
 
-// TestNASUplinkReplayRejected checks that a protected uplink NAS message is
-// accepted once and a byte-identical replay is rejected, not re-accepted
-// (TS 24.501 §4.4.3.2, TS 33.501 §6.4.3).
+// TS 24.501 §4.4.3.2, TS 33.501 §6.4.3
 func TestNASUplinkReplayRejected(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)
@@ -28,8 +25,6 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 		t.Fatalf("after the accepted message ulCount = %d, want 1", ue.ULCount())
 	}
 
-	// The replay estimates to a NAS COUNT past the accepted one, so its MAC does
-	// not verify and the message is discarded.
 	if _, err := DecodeNASMessage(ue, msg); err == nil {
 		t.Fatal("replay accepted: a NAS COUNT must be accepted at most one time")
 	}
@@ -39,9 +34,7 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 	}
 }
 
-// TestNASUplinkCountWrap checks the 16-bit overflow is maintained across a
-// sequence-number wrap (TS 24.501 §4.4.3.1): a message whose sequence wrapped to
-// 0 verifies against NAS COUNT (overflow 1, sequence 0), not (0, 0).
+// TS 24.501 §4.4.3.1
 func TestNASUplinkCountWrap(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(255)
@@ -54,7 +47,6 @@ func TestNASUplinkCountWrap(t *testing.T) {
 		t.Fatalf("after sequence 255 ulCount = %d, want 256", ue.ULCount())
 	}
 
-	// The UE's sequence wraps 255->0 and its overflow becomes 1.
 	if _, err := DecodeNASMessage(ue, wrapProtected(t, ue, encodePlainULNasTransport(t), 0)); err != nil {
 		t.Fatalf("wrapped message not accepted: %v", err)
 	}

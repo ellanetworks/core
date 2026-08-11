@@ -152,7 +152,7 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 	return nil
 }
 
-var transferSupervision = 10 * time.Second
+var transferSupervision = 30 * time.Second
 
 func (sc *SMContext) clearPendingLocked() {
 	sc.pending = nil

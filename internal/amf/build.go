@@ -173,19 +173,25 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 
 	ngksi := ue.NgKsi()
 
-	plain, err := (&fgs.SecurityModeCommand{
+	smc := &fgs.SecurityModeCommand{
 		CipheringAlgorithm:            ue.NEA(),
 		IntegrityAlgorithm:            ue.NIA(),
 		NgKSI:                         ngKsi(ngksi),
 		ReplayedUESecurityCapability:  *ueSecCap,
 		IMEISVRequested:               &imeisv,
 		AdditionalSecurityInformation: &addInfo,
-	}).MarshalBinary()
+	}
+
+	addEPSNASSecurityAlgorithms(ue, smc)
+
+	plain, err := smc.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
 	ue.MarkSecured()
+
+	ue.ResetNASCounts()
 
 	payload, err := ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedNewContext))
 	if err != nil {
@@ -195,6 +201,56 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	}
 
 	return payload, nil
+}
+
+func BuildEPSNASAlgorithmsSecurityModeCommand(ue *UeContext) ([]byte, error) {
+	ueSecCap := ue.UESecCap()
+	if ueSecCap == nil {
+		return nil, fmt.Errorf("UE security capability not available, cannot build SecurityModeCommand")
+	}
+
+	smc := &fgs.SecurityModeCommand{
+		CipheringAlgorithm:           ue.NEA(),
+		IntegrityAlgorithm:           ue.NIA(),
+		NgKSI:                        ngKsi(ue.NgKsi()),
+		ReplayedUESecurityCapability: *ueSecCap,
+	}
+
+	addEPSNASSecurityAlgorithms(ue, smc)
+
+	if smc.SelectedEPSNASSecurityAlgorithms == nil {
+		return nil, fmt.Errorf("no EPS NAS security algorithms selected, cannot build SecurityModeCommand")
+	}
+
+	plain, err := smc.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedNewContext))
+}
+
+func addEPSNASSecurityAlgorithms(ue *UeContext, smc *fgs.SecurityModeCommand) {
+	offered, ok := ue.offeredEPSNASAlgorithms()
+	if !ok {
+		return
+	}
+
+	replayed, ok := ue.EPSSecurityCapability()
+	if !ok {
+		return
+	}
+
+	encoded, err := replayed.MarshalBinary()
+	if err != nil {
+		return
+	}
+
+	smc.SelectedEPSNASSecurityAlgorithms = &fgs.SelectedEPSNASSecurityAlgorithms{
+		Ciphering: offered.Ciphering,
+		Integrity: offered.Integrity,
+	}
+	smc.ReplayedS1UESecurityCapability = encoded
 }
 
 func BuildDeregistrationAccept() ([]byte, error) {
@@ -255,12 +311,10 @@ func BuildRegistrationAccept(
 			IMSVoPS3GPP: nfs.ImsVoPS != 0,
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
-			IWKN26:      ue.SupportsS1Mode() && models.InterworkingWithoutN26,
 			MPSI:        nfs.Mpsi != 0,
-			// EMCN3 and MCSI are dropped unless octet 4 is asked for.
-			HasOctet4: true,
-			EMCN3:     nfs.EmcN3 != 0,
-			MCSI:      nfs.Mcsi != 0,
+			HasOctet4:   true,
+			EMCN3:       nfs.EmcN3 != 0,
+			MCSI:        nfs.Mcsi != 0,
 		}
 	}
 

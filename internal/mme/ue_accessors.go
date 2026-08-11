@@ -1,5 +1,4 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-//
 // SPDX-License-Identifier: BUSL-1.1
 
 package mme
@@ -8,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -32,6 +32,20 @@ func (ue *UeContext) OldTmsi() etsi.TMSI {
 	defer ue.mu.Unlock()
 
 	return ue.oldTmsi
+}
+
+func (ue *UeContext) Supi() etsi.SUPI {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.supi
+}
+
+func (ue *UeContext) SetSupi(supi etsi.SUPI) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.supi = supi
 }
 
 // IMSI returns the UE's IMSI, or "" when the identity is unset.
@@ -198,12 +212,12 @@ func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia n
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	knasEnc, err := DeriveKNASEnc(ue.kasme, eea)
+	knasEnc, err := epskeys.DeriveKNASEnc(ue.kasme, eea)
 	if err != nil {
 		return err
 	}
 
-	knasInt, err := DeriveKNASInt(ue.kasme, eia)
+	knasInt, err := epskeys.DeriveKNASInt(ue.kasme, eia)
 	if err != nil {
 		return err
 	}
@@ -239,8 +253,7 @@ func (ue *UeContext) RegistrationArea() []models.Tai {
 	return append([]models.Tai(nil), ue.registrationArea...)
 }
 
-// Eksi returns the eKSI assigned to the current EPS security context.
-func (ue *UeContext) Eksi() uint8 {
+func (ue *UeContext) Eksi() nas.KeySetIdentifier {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -248,7 +261,7 @@ func (ue *UeContext) Eksi() uint8 {
 }
 
 // SetEksi records the eKSI assigned to the current EPS security context.
-func (ue *UeContext) SetEksi(v uint8) {
+func (ue *UeContext) SetEksi(v nas.KeySetIdentifier) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -284,10 +297,6 @@ func (ue *UeContext) MsNetCap() *eps.MSNetworkCapability {
 // VerifyServiceRequest checks a SERVICE REQUEST against the UE's security
 // context: its short MAC, and that the truncated sequence number it carries is
 // the one the next uplink message must have (TS 24.301 §5.6.1).
-//
-// It returns the expected sequence number and NAS COUNT for logging. The
-// expected short MAC is deliberately not returned: it is key-derived, and an
-// attacker who could read it from a log would not need to guess one.
 func (ue *UeContext) VerifyServiceRequest(sr *eps.ServiceRequest) (expSeq uint8, ul uint32, err error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -331,12 +340,12 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 
 	kenbCount = ue.kenbCount
 
-	kenb, err = DeriveKeNB(ue.kasme, kenbCount)
+	kenb, err = epskeys.DeriveKeNB(ue.kasme, kenbCount)
 	if err != nil {
 		return [32]byte{}, kenbCount, err
 	}
 
-	nh, err := deriveNH(ue.kasme, kenb[:])
+	nh, err := epskeys.DeriveNH(ue.kasme, kenb[:])
 	if err != nil {
 		return [32]byte{}, kenbCount, err
 	}

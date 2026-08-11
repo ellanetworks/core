@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -40,25 +41,28 @@ const (
 const ngKSINoKey = 7
 
 type UESecurity struct {
-	Supi                 string
-	Msin                 string
-	mcc                  string
-	mnc                  string
-	ULCount              nas.Count
-	DLCount              nas.Count
-	UeSecurityCapability fgs.UESecurityCapability
-	IntegrityAlg         uint8
-	CipheringAlg         uint8
-	NgKsi                models.NgKsi
-	Snn                  string
-	KnasEnc              [16]uint8
-	KnasInt              [16]uint8
-	Kamf                 []uint8
-	AuthenticationSubs   AuthenticationSubscription
-	Suci                 fgs.MobileIdentity // the UE's SUCI
-	suciPublicKey        sidf.HomeNetworkPublicKey
-	RoutingIndicator     string
-	Guti                 *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
+	Supi                      string
+	Msin                      string
+	mcc                       string
+	mnc                       string
+	ULCount                   nas.Count
+	DLCount                   nas.Count
+	UeSecurityCapability      fgs.UESecurityCapability
+	IntegrityAlg              uint8
+	CipheringAlg              uint8
+	NgKsi                     models.NgKsi
+	Snn                       string
+	KnasEnc                   [16]uint8
+	KnasInt                   [16]uint8
+	Kamf                      []uint8
+	AuthenticationSubs        AuthenticationSubscription
+	Suci                      fgs.MobileIdentity // the UE's SUCI
+	suciPublicKey             sidf.HomeNetworkPublicKey
+	RoutingIndicator          string
+	Guti                      *fgs.MobileIdentity // the assigned 5G-GUTI, nil until the network allocates one
+	S1UENetworkCapability     *eps.UENetworkCapability
+	EPSNASAlgorithms          *fgs.SelectedEPSNASSecurityAlgorithms
+	contextFromAuthentication bool
 }
 
 type Amf struct {
@@ -139,26 +143,29 @@ func (ue *UE) WaitForPDUSession(pduSessionID uint8, timeout time.Duration) (PDUS
 }
 
 type UEOpts struct {
-	PDUSessionID         uint8
-	PDUSessionType       fgs.PDUSessionType
-	Msin                 string
-	UeSecurityCapability fgs.UESecurityCapability
-	K                    string
-	OpC                  string
-	Amf                  string
-	Sqn                  string
-	Mcc                  string
-	Mnc                  string
-	HomeNetworkPublicKey sidf.HomeNetworkPublicKey
-	RoutingIndicator     string
-	DNN                  string
-	Sst                  int32
-	Sd                   string
-	IMEISV               string
-	Guti                 *fgs.MobileIdentity
-	GnodeB               air.UplinkSender
-	NoAutoPDUSession     bool
+	PDUSessionID          uint8
+	PDUSessionType        fgs.PDUSessionType
+	Msin                  string
+	UeSecurityCapability  fgs.UESecurityCapability
+	K                     string
+	OpC                   string
+	Amf                   string
+	Sqn                   string
+	Mcc                   string
+	Mnc                   string
+	HomeNetworkPublicKey  sidf.HomeNetworkPublicKey
+	RoutingIndicator      string
+	DNN                   string
+	Sst                   int32
+	Sd                    string
+	IMEISV                string
+	Guti                  *fgs.MobileIdentity
+	GnodeB                air.UplinkSender
+	NoAutoPDUSession      bool
+	S1UENetworkCapability *eps.UENetworkCapability
 }
+
+var DefaultS1UENetworkCapability = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}
 
 func NewUE(opts *UEOpts) (*UE, error) {
 	ue := UE{}
@@ -170,6 +177,13 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.NoAutoPDUSession = opts.NoAutoPDUSession
 
 	ue.UeSecurity.UeSecurityCapability = opts.UeSecurityCapability
+
+	s1Capability := DefaultS1UENetworkCapability
+	if opts.S1UENetworkCapability != nil {
+		s1Capability = *opts.S1UENetworkCapability
+	}
+
+	ue.UeSecurity.S1UENetworkCapability = &s1Capability
 
 	integAlg, CipherAlg := SelectAlgorithms(ue.UeSecurity.UeSecurityCapability)
 
@@ -385,6 +399,8 @@ func (ue *UE) DeriveRESstarAndSetKey(authSubs AuthenticationSubscription, RAND [
 }
 
 func (ue *UE) DerivateKamf(key []byte, snName string, SQN, AK []byte) error {
+	ue.UeSecurity.contextFromAuthentication = true
+
 	FC := ueauth.FCForKausfDerivation
 	P0 := []byte(snName)
 	SQNxorAK := make([]byte, 6)

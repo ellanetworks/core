@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -41,6 +42,10 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 	}
 
 	if ue.SecurityContextIsValid() {
+		if ue.NeedsEPSNASAlgorithms() && provideEPSNASAlgorithms(ctx, amfInstance, ue, conn) {
+			return
+		}
+
 		logger.From(ctx, logger.AmfLog).Debug("UE has a valid security context - skip security mode control procedure")
 		contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest, conn.RegistrationRequestPlain)
 
@@ -98,10 +103,68 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		return
 	}
 
+	selectEPSNASAlgorithms(ctx, ue, integrityOrder, cipheringOrder)
+
 	if err := amf.SendSecurityModeCommand(ctx, amfInstance, ueConn); err != nil {
 		abortSecurityMode(ctx, ue, ueConn, "send security mode command", err)
 		return
 	}
 
 	committed = true
+}
+
+func selectEPSNASAlgorithms(ctx context.Context, ue *amf.UeContext, intOrder []nas.IntegrityAlgorithm, encOrder []nas.CipheringAlgorithm) bool {
+	if !ue.NeedsEPSNASAlgorithms() {
+		return false
+	}
+
+	if _, ok := ue.EPSNetworkCapability(); !ok {
+		logger.From(ctx, logger.AmfLog).Debug("UE has sent no usable S1 UE network capability, not signalling EPS NAS algorithms")
+		return false
+	}
+
+	selected, ok := ue.SelectEPSNASAlgorithms(intOrder, encOrder)
+	if !ok {
+		logger.From(ctx, logger.AmfLog).Warn("no EPS NAS security algorithm common to the UE and the operator policy, not signalling EPS NAS algorithms")
+		return false
+	}
+
+	logger.From(ctx, logger.AmfLog).Debug("selected EPS NAS security algorithms for mobility to EPS",
+		zap.Stringer("eea", selected.Ciphering), zap.Stringer("eia", selected.Integrity))
+
+	return true
+}
+
+func provideEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn) bool {
+	intOrder, encOrder, err := amfInstance.SecurityAlgorithms(ctx)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not read the operator security policy, not signalling EPS NAS algorithms", zap.Error(err))
+		return false
+	}
+
+	if !selectEPSNASAlgorithms(ctx, ue, intOrder, encOrder) {
+		return false
+	}
+
+	if !ue.BeginKeyChainProc(procedure.SecurityMode) {
+		logger.From(ctx, logger.AmfLog).Warn("EPS NAS algorithm delivery blocked by a conflicting key-changing procedure")
+		return false
+	}
+
+	committed := false
+
+	defer func() {
+		if !committed {
+			ue.EndKeyChainProc(procedure.SecurityMode)
+		}
+	}()
+
+	if err := amf.SendEPSNASAlgorithmsSecurityModeCommand(ctx, amfInstance, ueConn); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not send the security mode command carrying the EPS NAS algorithms", zap.Error(err))
+		return false
+	}
+
+	committed = true
+
+	return true
 }

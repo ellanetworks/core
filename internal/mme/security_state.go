@@ -1,5 +1,4 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-//
 // SPDX-License-Identifier: BUSL-1.1
 
 package mme
@@ -32,6 +31,12 @@ func MintAuthProofForAttachCommit() AuthProof {
 // one audited path. Downgrade protection itself is the HashMME replay check
 // (TS 24.301 §5.4.3.2).
 func MintAuthProofForAttachRequest() AuthProof {
+	return AuthProof{}
+}
+
+// MintAuthProofForInterworking returns an AuthProof. It must only be called when
+// installing an EPS security context received over N26 (TS 33.501 §8.3.2).
+func MintAuthProofForInterworking() AuthProof {
 	return AuthProof{}
 }
 

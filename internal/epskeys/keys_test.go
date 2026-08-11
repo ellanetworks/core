@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+package epskeys
 
 import (
 	"encoding/hex"
@@ -59,8 +59,7 @@ func TestDeriveNHChain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// First NH (NCC=1) is keyed on the initial K_eNB.
-	nh1, err := deriveNH(kasme, kenb[:])
+	nh1, err := DeriveNH(kasme, kenb[:])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,13 +68,12 @@ func TestDeriveNHChain(t *testing.T) {
 		t.Fatal("NH(1) must be non-zero and differ from K_eNB")
 	}
 
-	again, err := deriveNH(kasme, kenb[:])
+	again, err := DeriveNH(kasme, kenb[:])
 	if err != nil || again != nh1 {
 		t.Fatalf("NH derivation not deterministic: %v", err)
 	}
 
-	// Each subsequent NH (NCC=2..) is keyed on the previous NH; the chain advances.
-	nh2, err := deriveNH(kasme, nh1[:])
+	nh2, err := DeriveNH(kasme, nh1[:])
 	if err != nil {
 		t.Fatal(err)
 	}

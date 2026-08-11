@@ -347,7 +347,7 @@ func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, im
 	pduSessionID := uint8(1)
 	sc, _ := testSmfInstance.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: pduSessionID}, dnn, nil)
 
-	err = ue.CreateSmContext(pduSessionID, sc.Ref, nil)
+	err = ue.CreateSmContext(pduSessionID, sc.Ref, nil, "internet")
 	if err != nil {
 		return fmt.Errorf("failed to create SmContext: %w", err)
 	}

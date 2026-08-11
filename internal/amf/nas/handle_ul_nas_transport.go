@@ -258,7 +258,9 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		requestType = *ulNasTransport.RequestType
 	}
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage)
+	epsBearerIdentity := assignEPSBearerIdentity(ctx, ue, pduSessionID)
+
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).
@@ -288,12 +290,33 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		return
 	}
 
-	if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
+	if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai, dnn); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error creating SM context", zap.Error(err))
 		return
 	}
 
+	ue.SetEPSBearerIdentity(pduSessionID, epsBearerIdentity)
+
 	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
+}
+
+func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionID uint8) uint8 {
+	if !ue.TransfersToEPS() {
+		return 0
+	}
+
+	ebi, err := ue.NextEPSBearerIdentity(pduSessionID)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("no EPS bearer identity for this PDU session, it will not transfer to EPS",
+			zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))
+
+		return 0
+	}
+
+	logger.From(ctx, logger.AmfLog).Debug("assigned EPS bearer identity",
+		zap.Uint8("pduSessionID", pduSessionID), zap.Uint8("ebi", ebi))
+
+	return ebi
 }
 
 func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.ULNASTransport) nasreply.Disposition {

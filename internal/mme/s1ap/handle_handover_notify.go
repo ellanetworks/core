@@ -67,5 +67,11 @@ func handleHandoverNotify(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		zap.Uint32("target-mme-ue-id", uint32(targetMMEID)),
 		zap.Uint32("target-enb-ue-id", uint32(notify.ENBUES1APID)))
 
+	if sourceConn == nil {
+		m.CompleteRelocation(ctx, ue)
+
+		return
+	}
+
 	mme.SendUEContextRelease(ctx, m, sourceConn, sourceMMEID, sourceENBID, true, mme.CauseHandoverSuccess)
 }

@@ -11,27 +11,21 @@ import (
 )
 
 type HandoverRequiredOpts struct {
-	AMFUENGAPID int64
-	RANUENGAPID int64
-
-	HandoverType ngap.HandoverType
-
-	Cause *ngap.Cause
-
-	TargetMcc   string
-	TargetMnc   string
-	TargetGnbID string
-	TargetTac   string
-
-	PDUSessions []HandoverRequiredPDUSession
-
-	// Opaque RRC container.
+	AMFUENGAPID                        int64
+	RANUENGAPID                        int64
+	HandoverType                       ngap.HandoverType
+	Cause                              *ngap.Cause
+	TargetMcc                          string
+	TargetMnc                          string
+	TargetGnbID                        string
+	TargetTac                          string
+	TargetENBID                        *uint32
+	PDUSessions                        []HandoverRequiredPDUSession
 	SourceToTargetTransparentContainer []byte
 }
 
 type HandoverRequiredPDUSession struct {
-	PDUSessionID int64
-	// PER-encoded transfer IE; a minimal default is built when nil.
+	PDUSessionID             int64
 	HandoverRequiredTransfer []byte
 }
 
@@ -40,18 +34,22 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 		return nil, fmt.Errorf("HandoverRequiredOpts is nil")
 	}
 
-	if opts.TargetMcc == "" || opts.TargetMnc == "" || opts.TargetGnbID == "" || opts.TargetTac == "" {
+	if opts.TargetMcc == "" || opts.TargetMnc == "" || opts.TargetTac == "" {
 		return nil, fmt.Errorf("target identity fields are required")
 	}
 
-	node, err := GNBNodeID(opts.TargetMcc, opts.TargetMnc, opts.TargetGnbID)
-	if err != nil {
-		return nil, fmt.Errorf("target gNB: %w", err)
+	if opts.TargetENBID == nil && opts.TargetGnbID == "" {
+		return nil, fmt.Errorf("target identity fields are required")
 	}
 
 	tac, err := TACValue(opts.TargetTac)
 	if err != nil {
 		return nil, fmt.Errorf("target TAC: %w", err)
+	}
+
+	targetID, err := handoverTargetID(opts, tac)
+	if err != nil {
+		return nil, err
 	}
 
 	cause := opts.Cause
@@ -78,19 +76,15 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 
 	container := opts.SourceToTargetTransparentContainer
 	if container == nil {
-		// Minimal opaque container (the target gNB passes it through).
 		container = []byte{0x00}
 	}
 
 	msg := &ngap.HandoverRequired{
-		AMFUENGAPID:  ngap.AMFUENGAPID(opts.AMFUENGAPID),
-		RANUENGAPID:  ngap.RANUENGAPID(opts.RANUENGAPID),
-		HandoverType: opts.HandoverType,
-		Cause:        cause,
-		TargetID: ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
-			GlobalRANNodeID: node,
-			SelectedTAI:     ngap.TAI{PLMNIdentity: node.PLMNIdentity, TAC: tac},
-		}},
+		AMFUENGAPID:                        ngap.AMFUENGAPID(opts.AMFUENGAPID),
+		RANUENGAPID:                        ngap.RANUENGAPID(opts.RANUENGAPID),
+		HandoverType:                       opts.HandoverType,
+		Cause:                              cause,
+		TargetID:                           targetID,
 		PDUSessionResourceListHORqd:        sessions,
 		SourceToTargetTransparentContainer: container,
 	}
@@ -98,8 +92,33 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 	return msg.Marshal()
 }
 
-// buildMinimalHandoverRequiredTransfer builds an empty transfer; the SMF decodes
-// it but requires no content for the basic flow.
+func handoverTargetID(opts *HandoverRequiredOpts, tac ngap.TAC) (ngap.TargetID, error) {
+	plmn, err := PLMNIdentity(opts.TargetMcc, opts.TargetMnc)
+	if err != nil {
+		return ngap.TargetID{}, fmt.Errorf("target PLMN: %w", err)
+	}
+
+	if opts.TargetENBID != nil {
+		return ngap.TargetID{TargeteNBID: &ngap.TargeteNBID{
+			GlobalENBID: ngap.GlobalNgENBID{
+				PLMNIdentity: plmn,
+				NgENBID:      ngap.NgENBID{Kind: ngap.NgENBIDMacro, Value: *opts.TargetENBID},
+			},
+			SelectedEPSTAI: ngap.EPSTAI{PLMNIdentity: plmn, TAC: ngap.EPSTAC(tac)},
+		}}, nil
+	}
+
+	node, err := GNBNodeID(opts.TargetMcc, opts.TargetMnc, opts.TargetGnbID)
+	if err != nil {
+		return ngap.TargetID{}, fmt.Errorf("target gNB: %w", err)
+	}
+
+	return ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
+		GlobalRANNodeID: node,
+		SelectedTAI:     ngap.TAI{PLMNIdentity: node.PLMNIdentity, TAC: tac},
+	}}, nil
+}
+
 func buildMinimalHandoverRequiredTransfer() (ngap.TransferContainer, error) {
 	return (&ngap.HandoverRequiredTransfer{}).Marshal()
 }

@@ -47,3 +47,64 @@ func TestBuildHandoverRequiredRoundTrips(t *testing.T) {
 		t.Fatalf("nested transfer: %v", err)
 	}
 }
+
+func TestBuildHandoverRequiredToENB(t *testing.T) {
+	const enbID = uint32(0x00abc)
+
+	target := enbID
+
+	raw, err := BuildHandoverRequired(&HandoverRequiredOpts{
+		AMFUENGAPID:  1,
+		RANUENGAPID:  1,
+		HandoverType: ngap.HandoverTypeFiveGSToEPS,
+		TargetMcc:    "001",
+		TargetMnc:    "01",
+		TargetTac:    "000001",
+		TargetENBID:  &target,
+		PDUSessions:  []HandoverRequiredPDUSession{{PDUSessionID: 1}},
+	})
+	if err != nil {
+		t.Fatalf("BuildHandoverRequired: %v", err)
+	}
+
+	pdu, err := ngap.Unmarshal(raw)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	im, ok := pdu.(*ngap.InitiatingMessage)
+	if !ok || im.ProcedureCode != ngap.ProcHandoverPreparation {
+		t.Fatalf("decoded %T", pdu)
+	}
+
+	msg, err := ngap.ParseHandoverRequired(im.Value)
+	if err != nil {
+		t.Fatalf("parse Handover Required: %v", err)
+	}
+
+	if msg.HandoverType != ngap.HandoverTypeFiveGSToEPS {
+		t.Errorf("handover type = %d, want fivegs-to-eps", msg.HandoverType)
+	}
+
+	if msg.TargetID.TargeteNBID == nil {
+		t.Fatal("Target ID does not name an eNB")
+	}
+
+	got := msg.TargetID.TargeteNBID.GlobalENBID.NgENBID
+	if got.Kind != ngap.NgENBIDMacro || got.Value != enbID {
+		t.Errorf("ng-eNB ID = kind %d value %#x, want a macro %#x", got.Kind, got.Value, enbID)
+	}
+
+	if msg.TargetID.TargetRANNodeID != nil {
+		t.Error("Target ID names an NG-RAN node as well as an eNB")
+	}
+}
+
+func TestBuildHandoverRequiredRejectsAnUnnamedTarget(t *testing.T) {
+	if _, err := BuildHandoverRequired(&HandoverRequiredOpts{
+		AMFUENGAPID: 1, RANUENGAPID: 1,
+		TargetMcc: "001", TargetMnc: "01", TargetTac: "000001",
+	}); err == nil {
+		t.Fatal("a Handover Required naming neither a gNB nor an eNB was built")
+	}
+}

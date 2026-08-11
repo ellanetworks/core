@@ -25,7 +25,7 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	// A new authentication carries an eKSI distinct from the stored one, so the UE keeps
 	// its current context usable until the new one is taken into use (TS 24.301 §5.4.2.4).
-	ue.SetEksi(mme.NextEksi(ue.Eksi()))
+	ue.SetEksi(nas.KeySetIdentifier{Value: mme.NextEksi(ue.Eksi().Value)})
 
 	if err := sendAuthRequest(ctx, m, ue, ueConn, "", ""); err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
@@ -55,7 +55,7 @@ func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn 
 	c.AuthVector = vec
 
 	logger.From(ctx, logger.MmeLog).Info("Authentication Request")
-	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: nas.KeySetIdentifier{Value: ue.Eksi()}, RAND: vec.RAND, AUTN: vec.AUTN})
+	c.SendGuardedMessage(ctx, "Authentication Request", &eps.AuthenticationRequest{NASKeySetIdentifier: ue.Eksi(), RAND: vec.RAND, AUTN: vec.AUTN})
 
 	return nil
 }

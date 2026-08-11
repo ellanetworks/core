@@ -293,6 +293,37 @@ func (sc *SecurityContext) MAC(msg []byte, count Count, bearer Bearer, dir Direc
 	return sc.integ.MAC(sc.kNASint, count.Value(), bearer, dir, msg)
 }
 
+// MaxCount is the COUNT value 2³²−1, which both specs use in place of a
+// real NAS COUNT where a derivation or a MAC must be unable to collide with one
+// a genuine message has already used: NAS COUNT proper is 24 bits, so this value
+// lies outside its range by construction (TS 33.501 §6.9.2.3.3 and Annex A.9,
+// TS 33.401 Annex A.3).
+const MaxCount uint32 = 0xFFFFFFFF
+
+// MACAtMaxCount computes the NAS-MAC over msg at COUNT = [MaxCount].
+func (sc *SecurityContext) MACAtMaxCount(msg []byte, bearer Bearer, dir Direction) ([4]byte, error) {
+	if sc == nil {
+		return [4]byte{}, ErrNoSecurityContext
+	}
+
+	return sc.integ.MAC(sc.kNASint, MaxCount, bearer, dir, msg)
+}
+
+// VerifyMACAtMaxCount checks a received NAS-MAC computed at
+// [MaxCount] against the one msg produces, in constant time.
+func (sc *SecurityContext) VerifyMACAtMaxCount(msg []byte, got [4]byte, bearer Bearer, dir Direction) error {
+	want, err := sc.MACAtMaxCount(msg, bearer, dir)
+	if err != nil {
+		return err
+	}
+
+	if subtle.ConstantTimeCompare(want[:], got[:]) != 1 {
+		return ErrMACMismatch
+	}
+
+	return nil
+}
+
 // VerifyMAC checks a received NAS-MAC against the one msg produces, in constant
 // time. It returns [ErrMACMismatch] when they differ.
 func (sc *SecurityContext) VerifyMAC(msg []byte, got [4]byte, count Count, bearer Bearer, dir Direction) error {

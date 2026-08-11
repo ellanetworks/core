@@ -513,6 +513,10 @@ func (amf *AMF) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID
 		return
 	}
 
+	if amf.HandoverToEPSInProgress(ue) {
+		return
+	}
+
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		return

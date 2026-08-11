@@ -10,7 +10,6 @@ package amf
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -18,12 +17,15 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/fivegskeys"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -32,6 +34,8 @@ import (
 type SmContext struct {
 	Ref                string
 	Snssai             *models.Snssai
+	Dnn                string
+	EBI                uint8
 	PduSessionInactive bool
 }
 
@@ -41,15 +45,10 @@ type UeContext struct {
 	state   StateType
 	regStep RegStep
 
-	PlmnID models.PlmnID
-	Suci   string
-	supi   etsi.SUPI
-	Imei   etsi.IMEI // PEI equipment identity, carrying the IMEI/IMEISV (TS 23.501 §5.9.3)
-	// tmsi is the UE's current 5G-TMSI, oldTmsi the in-flight previous one during a
-	// reallocation window. The full 5G-GUTI is rebuilt on demand from the invariant
-	// serving GUAMI, so the node identifier is not duplicated per UE. Both are
-	// Written under AMF.mu (which also guards the uesByTmsi index, so field and
-	// index stay in step) and ue.mu.
+	PlmnID  models.PlmnID
+	Suci    string
+	supi    etsi.SUPI
+	Imei    etsi.IMEI // PEI equipment identity, carrying the IMEI/IMEISV (TS 23.501 §5.9.3)
 	tmsi    etsi.TMSI
 	oldTmsi etsi.TMSI
 
@@ -82,6 +81,10 @@ type UeContext struct {
 	gmmCapability         *fgs.GMMCapability
 	s1UENetworkCapability []byte
 
+	epsNASAlgorithmsOffered *interworking.EPSNASAlgorithms
+	epsNASAlgorithms        *interworking.EPSNASAlgorithms
+	epsSecurityCapability   *eps.UESecurityCapability
+
 	ngKsi        models.NgKsi
 	knasInt      [16]uint8
 	knasEnc      [16]uint8
@@ -96,22 +99,16 @@ type UeContext struct {
 	kamf         []uint8
 	abba         []uint8
 
-	Ambr             *models.Ambr
-	AllowedNssai     []models.Snssai
-	RegistrationArea []models.Tai
-	RadioCapability  []byte
-	// RadioCapabilityForPaging is the NG-RAN-reported paging-specific capability,
-	// included in PAGING so the node can apply paging optimisations
-	// (TS 38.413 §9.3.1.68). NGAP splits it into NR and E-UTRA where S1AP carries
-	// one opaque string, so the MME's counterpart is a plain []byte.
+	Ambr                     *models.Ambr
+	AllowedNssai             []models.Snssai
+	RegistrationArea         []models.Tai
+	RadioCapability          []byte
 	RadioCapabilityForPaging *models.UERadioCapabilityForPaging
 	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
 	SmContextList            map[uint8]*SmContext
 
-	// Idle-mode supervision (TS 24.501): the mobile reachable timer escalates to
-	// implicit deregistration. idleGen bumps on every (re)arm/stop so an expiry
-	// that fired just as the UE reconnected is ignored when it re-checks. All three
-	// are guarded by AMF.mu (the registry lock).
+	allow4G bool
+
 	mobileReachableTimer        guard.Guard
 	implicitDeregistrationTimer guard.Guard
 	idleGen                     uint64
@@ -121,20 +118,11 @@ type UeContext struct {
 
 	nrppaMu       sync.RWMutex
 	nrppaMessages []NRPPaMessage
-	// Routing IDs this AMF has addressed an LMF with for this UE. TS 38.413
-	// §8.10.4 has the AMF ignore an uplink transport naming any other.
+
 	nrppaRoutingIDs map[int64]struct{}
 
-	// pagingTimer supervises a paging procedure for an idle UE (T3513, TS 24.501
-	// §5.4.3). It is per-UE and persistent — paging targets a UE with no NAS
-	// connection, and it survives the idle→connected transition.
 	pagingTimer guard.Guard
 
-	// n1n2Message buffers an SMF-pushed N1N2 message awaiting delivery to an idle
-	// UE. Like pagingTimer it lives on the persistent UeContext — the message is
-	// stored precisely while the UE has no connection, and is read/cleared on the
-	// new connection established when the UE answers paging. Atomic: written on the
-	// SMF push path, read/cleared on the reconnect goroutine.
 	n1n2Message atomic.Pointer[models.N1N2MessageTransferRequest]
 }
 
@@ -411,29 +399,17 @@ func (ue *UeContext) InstallNASSecurityContext(nea nas.CipheringAlgorithm, nia n
 
 // deriveAlgKeyLocked derives the NAS algorithm keys per TS 33.501. Caller holds ue.mu.
 func (ue *UeContext) deriveAlgKeyLocked() error {
-	P0 := []byte{nnasEncAlgDistinguisher}
-	L0 := ueauth.KDFLen(P0)
-	P1 := []byte{uint8(ue.cipheringAlg)}
-	L1 := ueauth.KDFLen(P1)
-
-	kenc, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kenc, err := fivegskeys.DeriveKNASEnc(ue.kamf, ue.cipheringAlg)
 	if err != nil {
-		return fmt.Errorf("get kdf value error: %v", err)
+		return err
 	}
 
-	copy(ue.knasEnc[:], kenc[16:32])
-
-	P0 = []byte{nnasIntAlgDistinguisher}
-	L0 = ueauth.KDFLen(P0)
-	P1 = []byte{uint8(ue.integrityAlg)}
-	L1 = ueauth.KDFLen(P1)
-
-	kint, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kint, err := fivegskeys.DeriveKNASInt(ue.kamf, ue.integrityAlg)
 	if err != nil {
-		return fmt.Errorf("get kdf value error: %v", err)
+		return err
 	}
 
-	copy(ue.knasInt[:], kint[16:32])
+	ue.knasEnc, ue.knasInt = kenc, kint
 
 	return ue.installSecurityContextLocked()
 }
@@ -467,18 +443,12 @@ func (ue *UeContext) installSecurityContextLocked() error {
 func (ue *UeContext) deriveAnKeyLocked() error {
 	// The AN key is derived from the uplink NAS COUNT of the most recently
 	// accepted uplink NAS message (TS 33.501 §A.9).
-	P0 := make([]byte, 4)
-	binary.BigEndian.PutUint32(P0, ue.ulCount.LastAccepted().Value())
-	L0 := ueauth.KDFLen(P0)
-	P1 := []byte{anKeyAccessType3GPP}
-	L1 := ueauth.KDFLen(P1)
-
-	key, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
+	key, err := fivegskeys.DeriveKgNB(ue.kamf, ue.ulCount.LastAccepted().Value())
 	if err != nil {
-		return fmt.Errorf("could not get kdf value: %v", err)
+		return err
 	}
 
-	ue.kgnb = key
+	ue.kgnb = key[:]
 
 	return nil
 }
@@ -493,19 +463,12 @@ func (ue *UeContext) DeriveNH(syncInput []byte) error {
 
 // deriveNHLocked derives the AS key-chain Next Hop. Caller holds ue.mu.
 func (ue *UeContext) deriveNHLocked(syncInput []byte) error {
-	P0 := syncInput
-	L0 := ueauth.KDFLen(P0)
-
-	nh, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, P0, L0)
+	nh, err := fivegskeys.DeriveNH(ue.kamf, syncInput)
 	if err != nil {
-		return fmt.Errorf("could not get kdf value: %v", err)
+		return err
 	}
 
-	if len(nh) != len(ue.nh) {
-		return fmt.Errorf("unexpected NH length %d, want %d", len(nh), len(ue.nh))
-	}
-
-	ue.nh = [32]uint8(nh)
+	ue.nh = nh
 
 	return nil
 }
@@ -543,16 +506,12 @@ func (ue *UeContext) AdvancePathSwitchNH() (nh [32]uint8, ncc uint8, err error) 
 // deriveNextNHLocked returns the next {NH, NCC} of the AS key chain (TS 33.501
 // §6.9.2.1.1) without committing them to the UE. Caller holds ue.mu.
 func (ue *UeContext) deriveNextNHLocked() ([32]uint8, uint8, error) {
-	out, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, ue.nh[:], ueauth.KDFLen(ue.nh[:]))
+	nh, err := fivegskeys.DeriveNH(ue.kamf, ue.nh[:])
 	if err != nil {
-		return [32]uint8{}, 0, fmt.Errorf("could not get kdf value: %v", err)
+		return [32]uint8{}, 0, err
 	}
 
-	if len(out) != len(ue.nh) {
-		return [32]uint8{}, 0, fmt.Errorf("unexpected NH length %d, want %d", len(out), len(ue.nh))
-	}
-
-	return [32]uint8(out), (ue.ncc + 1) % 8, nil
+	return nh, (ue.ncc + 1) % 8, nil
 }
 
 // ClearRegistrationRequestData clears transient registration fields and
@@ -589,7 +548,7 @@ func (ue *UeContext) ClearRegistrationData(ctx context.Context) {
 	ue.releaseSmContexts(ctx)
 }
 
-func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) error {
+func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai, dnn string) error {
 	if pduSessionID < 1 || pduSessionID > 15 {
 		return fmt.Errorf("invalid PDU session ID %d: must be in range 1-15 per TS 24.501", pduSessionID)
 	}
@@ -600,6 +559,7 @@ func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *mod
 	ue.SmContextList[pduSessionID] = &SmContext{
 		Ref:    ref,
 		Snssai: snssai,
+		Dnn:    dnn,
 	}
 
 	return nil
@@ -672,6 +632,14 @@ func (ue *UeContext) EncodeNASMessagePlain(plain []byte, securityHeaderType uint
 	return ue.wrapSecuredLocked(plain, securityHeaderType)
 }
 
+func (ue *UeContext) ResetNASCounts() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.ulCount.Reset()
+	ue.dlCount.Reset()
+}
+
 // wrapSecuredLocked ciphers (when the header type requires it), integrity
 // protects, and frames a plain 5GMM message as a security-protected 5GS NAS
 // message (TS 24.501 §4.4.4, §9.1.1). The caller must hold ue.mu and have a
@@ -680,10 +648,7 @@ func (ue *UeContext) wrapSecuredLocked(plain []byte, sht uint8) ([]byte, error) 
 	headerType := fgs.SecurityHeaderType(sht)
 
 	switch headerType {
-	case fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered:
-	case fgs.SHTIntegrityProtectedNewContext:
-		ue.ulCount.Reset()
-		ue.dlCount.Reset()
+	case fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered, fgs.SHTIntegrityProtectedNewContext:
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", sht)
 	}

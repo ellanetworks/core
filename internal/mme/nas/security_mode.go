@@ -8,7 +8,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
-	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -42,7 +41,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return
 	}
 
-	eea, eia, ok := mme.SelectAlgorithms(ue.UeNetCap(), intOrder, encOrder)
+	eea, eia, ok := eps.SelectNASAlgorithms(ue.UeNetCap(), intOrder, encOrder)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
 			zap.Stringer("ue-network-capability", ue.UeNetCap()))
@@ -61,7 +60,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	smc := &eps.SecurityModeCommand{
 		CipheringAlgorithm:           eea,
 		IntegrityAlgorithm:           eia,
-		NASKeySetIdentifier:          nas.KeySetIdentifier{Value: ue.Eksi()},
+		NASKeySetIdentifier:          ue.Eksi(),
 		ReplayedUESecurityCapability: eps.ReplayedUESecurityCapability(ue.UeNetCap(), ue.MsNetCap()),
 		IMEISVRequested:              &imeisvRequested,
 		HASHMME:                      mme.HashMME(ue.HashmmeInput),

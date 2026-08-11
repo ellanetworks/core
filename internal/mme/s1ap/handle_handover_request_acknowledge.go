@@ -79,6 +79,16 @@ func handleHandoverRequestAcknowledge(m *mme.MME, ctx context.Context, radio *mm
 		return
 	}
 
+	if sourceConn == nil {
+		logger.From(ctx, logger.MmeLog).Info("Forward Relocation Response",
+			zap.Uint32("target-mme-ue-id", uint32(mmeUEID)),
+			zap.Int("admitted", len(admitted)),
+			zap.Int("not-admitted", len(unadmitted)))
+		m.FinishRelocationPreparation(ue, ack.TargetToSource, unadmitted)
+
+		return
+	}
+
 	cmd := &s1ap.HandoverCommand{
 		MMEUES1APID:    sourceMMEID,
 		ENBUES1APID:    sourceENBID,

@@ -26,10 +26,14 @@ type SecurityModeCommand struct {
 
 	AdditionalSecurityInformation *AdditionalSecurityInformation // optional (IEI 0x36)
 
-	// Optional IEs Ella never sends, exposed for decoding.
+	// SelectedEPSNASSecurityAlgorithms carries the EPS NAS algorithms the UE is to
+	// use after mobility to EPS over N26 (TS 24.501 §8.2.25.4). Sending it obliges
+	// the sender to send ReplayedS1UESecurityCapability too (§8.2.25.8).
 	SelectedEPSNASSecurityAlgorithms *SelectedEPSNASSecurityAlgorithms // optional (IEI 0x57)
-	ABBA                             []byte                            // optional (IEI 0x38)
-	EAP                              []byte                            // optional (IEI 0x78)
+
+	// Optional IEs Ella never sends, exposed for decoding.
+	ABBA []byte // optional (IEI 0x38)
+	EAP  []byte // optional (IEI 0x78)
 	// ReplayedS1UESecurityCapability is the S1 UE security capability the AMF
 	// replays (TS 24.501 §9.11.3.48A, which defers to TS 24.301 §9.9.3.36). It
 	// stays opaque deliberately: the UE compares it byte-for-byte against what it
@@ -106,8 +110,8 @@ func (a AdditionalSecurityInformation) MarshalBinary() ([]byte, error) { return 
 // the Selected EPS NAS security algorithms IE (TS 24.501 §9.11.3.25 → TS 24.301
 // §9.9.3.23): EPS ciphering (EEA) and EPS integrity (EIA).
 type SelectedEPSNASSecurityAlgorithms struct {
-	Ciphering uint8 // EEA, bits 5-7
-	Integrity uint8 // EIA, bits 1-3
+	Ciphering nas.CipheringAlgorithm // EEA, bits 5-7
+	Integrity nas.IntegrityAlgorithm // EIA, bits 1-3
 }
 
 // ParseSelectedEPSNASSecurityAlgorithms decodes the information element value
@@ -118,14 +122,14 @@ func ParseSelectedEPSNASSecurityAlgorithms(v []byte) (SelectedEPSNASSecurityAlgo
 	}
 
 	return SelectedEPSNASSecurityAlgorithms{
-		Ciphering: v[0] >> 4 & 0x07,
-		Integrity: v[0] & 0x07,
+		Ciphering: nas.CipheringAlgorithm(v[0] >> 4 & 0x07),
+		Integrity: nas.IntegrityAlgorithm(v[0] & 0x07),
 	}, nil
 }
 
 // AppendBinary encodes the information element value onto b.
 func (s SelectedEPSNASSecurityAlgorithms) AppendBinary(b []byte) ([]byte, error) {
-	return append(b, (s.Ciphering&0x07)<<4|s.Integrity&0x07), nil
+	return append(b, (uint8(s.Ciphering)&0x07)<<4|uint8(s.Integrity)&0x07), nil
 }
 
 // MarshalBinary encodes the information element value.

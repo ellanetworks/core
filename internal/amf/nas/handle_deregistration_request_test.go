@@ -66,10 +66,10 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 	}
 
 	ue.ForceStateForTest(amf.Registered)
-	_ = ue.CreateSmContext(1, "testref1", &snssai)
-	_ = ue.CreateSmContext(2, "testref2", &snssai)
-	_ = ue.CreateSmContext(3, "testref3", &snssai)
-	_ = ue.CreateSmContext(4, "testref4", &snssai)
+	_ = ue.CreateSmContext(1, "testref1", &snssai, "internet")
+	_ = ue.CreateSmContext(2, "testref2", &snssai, "internet")
+	_ = ue.CreateSmContext(3, "testref3", &snssai, "internet")
+	_ = ue.CreateSmContext(4, "testref4", &snssai, "internet")
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistration()
 

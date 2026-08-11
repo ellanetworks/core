@@ -5,8 +5,10 @@ package ngap
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -34,9 +36,26 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe := sourceUe.UeContext()
 
-	// A committing handover (HANDOVER NOTIFY in flight) is too late to cancel:
-	// CancelHandover reports aborted=false and leaves the target for the NOTIFY, so it
-	// is not released out from under the UE moving onto it (TS 38.413 §8.4.5).
+	if target := amfInstance.HandoverTarget(amfUe); target != nil && target == sourceUe {
+		logger.WithTrace(ctx, sourceUe.Log).Info("ignoring a Handover Cancel from the prepared target")
+		sourceUe.SendHandoverCancelAcknowledge(ctx)
+
+		return
+	}
+
+	if id, toEPS := amfInstance.RelocationToEPS(amfUe); toEPS {
+		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe, id); errors.Is(err, interworking.ErrRelocationTooLate) {
+			logger.WithTrace(ctx, sourceUe.Log).Info("the UE has already reached EPS; leaving the handover to complete",
+				zap.Error(err))
+			sourceUe.SendHandoverCancelAcknowledge(ctx)
+
+			return
+		} else if err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Info("the peer had no handover to cancel; unwinding locally",
+				zap.Error(err))
+		}
+	}
+
 	target, aborted := amfInstance.CancelHandover(amfUe)
 	if aborted && target != nil {
 		target.ReleaseAction = amf.UeContextReleaseHandover
@@ -48,10 +67,5 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		amfInstance.UnbindHandoverTarget(ctx, amfUe)
 	}
 
-	// Sent after the unbind, not before: TS 36.413 §8.4.5.2 has the core release
-	// the handover-preparation resources and then acknowledge, so the source is
-	// not told the UE is back on it while the downlink still points at the target.
-	// A missing acknowledge is not fatal either way — the source treats it as
-	// success (TS 38.413 §8.4.5.4).
 	sourceUe.SendHandoverCancelAcknowledge(ctx)
 }

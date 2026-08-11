@@ -30,6 +30,7 @@ func (s *SMF) transferTo5GS(
 	requestType fgs.RequestType,
 	req *fgs.PDUSessionEstablishmentRequest,
 	pti uint8,
+	epsBearerIdentity uint8,
 ) (string, []byte, error) {
 	if requestType == fgs.RequestTypeExistingEmergencyPDUSession {
 		return "", rejectTransfer5GS(pduSessionID, pti, fgs.GSMCausePDUSessionDoesNotExist),
@@ -42,7 +43,7 @@ func (s *SMF) transferTo5GS(
 			fmt.Errorf("failed to find subscriber policy for a session move: %w", err)
 	}
 
-	move := transferRequest{Access: Access5G, Dnn: dnn, Snssai: snssai, Policy: policy}
+	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, Policy: policy}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)
 	if err != nil {
@@ -74,7 +75,7 @@ func (s *SMF) transferTo5GS(
 	logger.WithTrace(ctx, logger.SmfLog).Info("moving a PDN connection onto 5GS",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("dnn", dnn))
 
-	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested)); err != nil {
+	if err := s.sendPduSessionEstablishmentAccept(ctx, sc, policy, pco, addrs, pti, nil, alwaysOnIndication(req.AlwaysOnRequested), epsBearerIdentity); err != nil {
 		sc.abandonTransferTo(Access5G)
 
 		return "", nil, fmt.Errorf("failed to send the establishment accept for a moved session: %w", err)

@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/nas"
-	"github.com/ellanetworks/core/nas/eps"
 )
 
 // HashMME returns the 8-octet HashMME for the SECURITY MODE COMMAND — the 64 most
@@ -23,18 +22,6 @@ func HashMME(input []byte) []byte {
 	sum := sha256.Sum256(input)
 
 	return sum[:8]
-}
-
-// SelectAlgorithms picks the EPS NAS algorithms allowed by both the UE network
-// capability and the operator policy (TS 33.401), in the operator's order of
-// preference (EPS algorithm codes as returned by SecurityAlgorithms). It reports
-// false when the UE and operator share no algorithm, so the caller rejects the
-// attach without falling back to the null algorithm.
-func SelectAlgorithms(uecap eps.UENetworkCapability, integrity []nas.IntegrityAlgorithm, ciphering []nas.CipheringAlgorithm) (eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, ok bool) {
-	eea, eok := selectEPSAlgorithm(ciphering, uecap.SupportsEEA)
-	eia, iok := selectEPSAlgorithm(integrity, uecap.SupportsEIA)
-
-	return eea, eia, eok && iok
 }
 
 // epsAlgorithmValue maps an operator algorithm identity to its EPS algorithm
@@ -96,18 +83,4 @@ func (m *MME) SecurityAlgorithms(ctx context.Context) ([]nas.IntegrityAlgorithm,
 	}
 
 	return intOrder, encOrder, nil
-}
-
-// selectEPSAlgorithm returns the first operator-preferred algorithm the UE
-// advertises support for, reporting false when none is nas. The null
-// algorithm is selected only when the operator lists it and the UE advertises it
-// (TS 33.401 §5: EIA0 is not an implicit fallback for a non-emergency UE).
-func selectEPSAlgorithm[T ~uint8](preference []T, supported func(uint8) bool) (T, bool) {
-	for _, v := range preference {
-		if supported(uint8(v)) {
-			return v, true
-		}
-	}
-
-	return 0, false
 }

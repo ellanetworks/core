@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
@@ -65,7 +66,7 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error)
+	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string) error
 	ReleaseSmContext(ctx context.Context, smContextRef string) error
@@ -85,9 +86,6 @@ type SmfSbi interface {
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
 	HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
-	// ClearPagingSuppression releases the suppression once the UE is reachable
-	// again (CM-CONNECTED), so subsequent downlink data pages it
-	// (TS 23.502 §4.2.3.3 step 3c).
 	ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
 
@@ -116,11 +114,7 @@ type DBer interface {
 
 type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *UeConn, nasPdu []byte)
-	// IsServiceRequest reports whether an initial NAS PDU is a SERVICE REQUEST, so the NGAP
-	// layer routes it to HandleServiceRequest before minting a context.
 	IsServiceRequest(nasPdu []byte) bool
-	// HandleServiceRequest resolves-or-rejects an initial SERVICE REQUEST without minting a
-	// context (TS 24.501 §5.6.1.5, §4.4.4.3).
 	HandleServiceRequest(ctx context.Context, ue *UeConn, nasPdu []byte)
 }
 
@@ -158,9 +152,9 @@ type AMF struct {
 	tmsi    *etsi.TmsiAllocator
 	connIDs *idgenerator.IDGenerator
 
-	// lcsCorrelationSeq issues the LCS correlation identifiers the AMF assigns
-	// to LPP transfers (TS 24.501 §5.4.5.3.2 case c, NOTE 2).
 	lcsCorrelationSeq atomic.Uint32
+
+	relocationIDs atomic.Uint64
 
 	DBInstance               DBer
 	Ausf                     Authenticator
@@ -176,15 +170,12 @@ type AMF struct {
 	T3512Value               time.Duration
 	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
 	T3513Cfg                 guard.TimerValue
-	// NASGuardCfg configures the single NAS common-procedure supervision timer
-	// (T3550/T3555/T3560/T3565/T3570/T3522 — all 6 s ×4 in TS 24.501 §10.2).
-	NASGuardCfg guard.TimerValue
-	// handoverGuardTimeout bounds an N2 handover (HANDOVER REQUIRED → NOTIFY); see
-	// defaultHandoverGuardTimeout.
-	handoverGuardTimeout time.Duration
-	Session              SmfSbi
-	NAS                  NASHandler
-	LPPHandler           LPPHandler
+	NASGuardCfg              guard.TimerValue
+	handoverGuardTimeout     time.Duration
+	Session                  SmfSbi
+	NAS                      NASHandler
+	LPPHandler               LPPHandler
+	EPS                      interworking.EPSPeer
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {
@@ -619,25 +610,20 @@ func (amf *AMF) NetworkFeatureSupport() NetworkFeatureSupport5GS {
 // New creates a fully initialized AMF. Call Start to open the N2 listener.
 func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 	a := &AMF{
-		UEs:              make(map[etsi.SUPI]*UeContext),
-		uesByTmsi:        make(map[etsi.TMSI]*UeContext),
-		conns:            make(map[int64]*UeConn),
-		radios:           make(map[NGAPWriter]*Radio),
-		radiosByID:       make(map[string]*Radio),
-		DBInstance:       db,
-		Ausf:             ausf,
-		Session:          smf,
-		tmsi:             etsi.NewTMSIAllocator(),
-		connIDs:          idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
-		Name:             "amf",
-		RelativeCapacity: 0xff,
-		TimeZone:         localTimeZone(time.Now()),
-		T3502Value:       720 * time.Second,
-		// Periodic-registration timer. The spec default of 54 min (TS 24.501 §10.2)
-		// is not representable in the GPRS Timer 3 IE — above 31 min it steps in
-		// 10-min units (TS 24.008 §10.5.7.4a) — so 54 min encodes down to 50 min and
-		// the signalled value diverges from the T3512+4 min mobile-reachable timer.
-		// One hour encodes exactly, keeping the two consistent.
+		UEs:                      make(map[etsi.SUPI]*UeContext),
+		uesByTmsi:                make(map[etsi.TMSI]*UeContext),
+		conns:                    make(map[int64]*UeConn),
+		radios:                   make(map[NGAPWriter]*Radio),
+		radiosByID:               make(map[string]*Radio),
+		DBInstance:               db,
+		Ausf:                     ausf,
+		Session:                  smf,
+		tmsi:                     etsi.NewTMSIAllocator(),
+		connIDs:                  idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
+		Name:                     "amf",
+		RelativeCapacity:         0xff,
+		TimeZone:                 localTimeZone(time.Now()),
+		T3502Value:               720 * time.Second,
 		T3512Value:               3600 * time.Second,
 		T3513Cfg:                 defaultTimerCfg,
 		NASGuardCfg:              defaultTimerCfg,

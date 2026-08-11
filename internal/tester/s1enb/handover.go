@@ -17,8 +17,6 @@ func (e *ENB) GlobalENBID() s1ap.GlobalENBID {
 	}
 }
 
-// SendHandoverRequired starts an S1 handover from this (source) eNB toward target
-// (TS 36.413 §8.4.1).
 func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENBID) error {
 	req := &s1ap.HandoverRequired{
 		MMEUES1APID:    s1ap.MMEUES1APID(mmeUEID),
@@ -37,9 +35,6 @@ func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENB
 	return e.SendMessage(b, true)
 }
 
-// WaitForHandoverRequest waits for the MME's HANDOVER REQUEST to this (target)
-// eNB. The message carries no eNB-UE-S1AP-ID (this eNB allocates one), so it is
-// keyed by NoUEID.
 func (e *ENB) WaitForHandoverRequest(timeout time.Duration) (*s1ap.HandoverRequest, error) {
 	f, err := e.WaitForMessage(NoUEID, Initiating, s1ap.ProcHandoverResourceAllocation, timeout)
 	if err != nil {
@@ -54,9 +49,6 @@ func (e *ENB) WaitForHandoverRequest(timeout time.Duration) (*s1ap.HandoverReque
 	return req, nil
 }
 
-// SendHandoverRequestAcknowledge admits the handover at this (target) eNB,
-// reporting its S1-U downlink endpoint for the bearer (TS 36.413 §8.4.2). It
-// returns the downlink TEID so the caller can build the target GTP tunnel.
 func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabID s1ap.ERABID) (dlTEID uint32, err error) {
 	addr := e.n3Addr.To4()
 	if addr == nil {
@@ -88,8 +80,6 @@ func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabI
 	return dlTEID, nil
 }
 
-// WaitForHandoverCommand waits for the MME's HANDOVER COMMAND to this (source)
-// eNB (TS 36.413 §8.4.1).
 func (e *ENB) WaitForHandoverCommand(enbUEID int64, timeout time.Duration) (*s1ap.HandoverCommand, error) {
 	f, err := e.WaitForMessage(enbUEID, Successful, s1ap.ProcHandoverPreparation, timeout)
 	if err != nil {
@@ -104,8 +94,6 @@ func (e *ENB) WaitForHandoverCommand(enbUEID int64, timeout time.Duration) (*s1a
 	return cmd, nil
 }
 
-// SendENBStatusTransfer conveys the source eNB's PDCP status to the target via the
-// MME (TS 36.413 §8.4.6). The container content is opaque to the MME.
 func (e *ENB) SendENBStatusTransfer(mmeUEID, enbUEID int64) error {
 	st := &s1ap.ENBStatusTransfer{
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
@@ -121,8 +109,6 @@ func (e *ENB) SendENBStatusTransfer(mmeUEID, enbUEID int64) error {
 	return e.SendMessage(b, true)
 }
 
-// WaitForMMEStatusTransfer waits for the MME STATUS TRANSFER relayed to this
-// (target) eNB (TS 36.413 §8.4.7).
 func (e *ENB) WaitForMMEStatusTransfer(enbUEID int64, timeout time.Duration) (*s1ap.MMEStatusTransfer, error) {
 	f, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcMMEStatusTransfer, timeout)
 	if err != nil {
@@ -137,8 +123,6 @@ func (e *ENB) WaitForMMEStatusTransfer(enbUEID int64, timeout time.Duration) (*s
 	return mst, nil
 }
 
-// SendHandoverNotify reports the UE has arrived at this (target) eNB, completing
-// the S1 handover (TS 36.413 §8.4.3).
 func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
 	notify := &s1ap.HandoverNotify{
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
@@ -150,6 +134,29 @@ func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
 	b, err := notify.Marshal()
 	if err != nil {
 		return fmt.Errorf("s1enb: build Handover Notify: %w", err)
+	}
+
+	return e.SendMessage(b, true)
+}
+
+func (e *ENB) AnchorAddress(tla s1ap.TransportLayerAddress) (string, error) {
+	addr, err := e.selectUpfAddr(tla)
+	if err != nil {
+		return "", err
+	}
+
+	return addr.Unmap().String(), nil
+}
+
+func (e *ENB) SendHandoverFailure(mmeUEID int64, cause s1ap.Cause) error {
+	fail := &s1ap.HandoverFailure{
+		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
+		Cause:       &cause,
+	}
+
+	b, err := fail.Marshal()
+	if err != nil {
+		return fmt.Errorf("s1enb: build Handover Failure: %w", err)
 	}
 
 	return e.SendMessage(b, true)

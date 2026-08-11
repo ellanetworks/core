@@ -16,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -52,6 +53,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	cause *fgs.GSMCause,
 	addrs *PDUSessionAddresses,
 	alwaysOn *bool,
+	epsBearerIdentity uint8,
 ) ([]byte, error) {
 	pduSessionType := fgs.PDUSessionTypeIPv4
 	if addrs != nil {
@@ -74,6 +76,11 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		dnnIE = new(fgs.DNN(dnn))
 	}
 
+	flow, err := qosFlow(qosData, epsBearerIdentity)
+	if err != nil {
+		return nil, err
+	}
+
 	m := &fgs.PDUSessionEstablishmentAccept{
 		PDUSessionID:        fgs.PDUSessionID(pduSessionID),
 		PTI:                 nas.ProcedureTransactionIdentity(pti),
@@ -83,13 +90,22 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		SessionAMBR:         sessAMBR,
 		Cause:               cause,
 		SNSSAI:              &fgs.SNSSAI{SST: uint8(snssai.Sst), SD: sd},
-		QoSFlowDescriptions: fgs.QoSFlowDescriptions{fgs.FiveQIQoSFlow(qosData.QFI, uint8(qosData.Var5qi), fgs.QoSFlowOpCreate)},
+		QoSFlowDescriptions: fgs.QoSFlowDescriptions{flow},
 		AlwaysOn:            alwaysOn,
 		DNN:                 dnnIE,
 	}
 
 	if addrs != nil {
 		m.PDUAddress = pduAddress(addrs)
+	}
+
+	if epsBearerIdentity != 0 {
+		mapped, err := mappedEPSBearerContexts(epsBearerIdentity, qosData, ambr)
+		if err != nil {
+			return nil, err
+		}
+
+		m.MappedEPSBearerContexts = mapped
 	}
 
 	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
@@ -197,4 +213,48 @@ func pduAddress(addrs *PDUSessionAddresses) *fgs.PDUAddress {
 	copy(a.IPv4[:], addrs.IPv4Address.To4())
 
 	return a
+}
+
+// TS 24.501 §9.11.4.12
+func qosFlow(qosData *models.QosData, epsBearerIdentity uint8) (fgs.QoSFlowDescription, error) {
+	flow := fgs.FiveQIQoSFlow(qosData.QFI, uint8(qosData.Var5qi), fgs.QoSFlowOpCreate)
+	if epsBearerIdentity == 0 {
+		return flow, nil
+	}
+
+	param, err := fgs.EPSBearerIDQoSFlowParameter(epsBearerIdentity)
+	if err != nil {
+		return flow, fmt.Errorf("EPS bearer identity parameter: %w", err)
+	}
+
+	flow.Parameters = append(flow.Parameters, param)
+
+	return flow, nil
+}
+
+func mappedEPSBearerContexts(epsBearerIdentity uint8, qosData *models.QosData, ambr *models.Ambr) (fgs.MappedEPSBearerContexts, error) {
+	epsQoS, err := eps.EPSQoS{QCI: uint8(qosData.Var5qi)}.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("mapped EPS QoS: %w", err)
+	}
+
+	apnAMBR, err := eps.APNAMBRFromKbps(ambr.Downlink.Kbps(), ambr.Uplink.Kbps())
+	if err != nil {
+		return nil, fmt.Errorf("APN-AMBR: %w", err)
+	}
+
+	apnAMBRValue, err := apnAMBR.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("APN-AMBR: %w", err)
+	}
+
+	return fgs.MappedEPSBearerContexts{{
+		EPSBearerIdentity: epsBearerIdentity,
+		Operation:         fgs.MappedEPSBearerOpCreate,
+		EBit:              true,
+		Parameters: []fgs.EPSParameter{
+			{Identifier: fgs.EPSParameterMappedEPSQoS, Contents: epsQoS},
+			{Identifier: fgs.EPSParameterAPNAMBR, Contents: apnAMBRValue},
+		},
+	}}, nil
 }

@@ -78,7 +78,12 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byt
 		return nil, fmt.Errorf("received %T with security header \"Integrity protected with new 5G NAS security context\", which is reserved for a SECURITY MODE COMMAND", msg)
 	}
 
-	ue.UeSecurity.DLCount = 0
+	if ue.UeSecurity.contextFromAuthentication {
+		ue.UeSecurity.DLCount = 0
+		ue.UeSecurity.ULCount = 0
+		ue.UeSecurity.contextFromAuthentication = false
+	}
+
 	ue.UeSecurity.CipheringAlg = uint8(smc.CipheringAlgorithm)
 	ue.UeSecurity.IntegrityAlg = uint8(smc.IntegrityAlgorithm)
 

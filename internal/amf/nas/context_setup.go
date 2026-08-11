@@ -31,8 +31,6 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	conn.RegistrationRequestPlain = plain
 
 	if msg != nil {
-		ue.SetUECapabilities(msg.GMMCapability, msg.S1UENetworkCapability)
-
 		if msg.UpdateType5GS != nil && msg.UpdateType5GS.NGRANRCU {
 			ue.RadioCapability = nil
 			ue.RadioCapabilityForPaging = nil

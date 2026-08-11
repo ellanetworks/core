@@ -11,6 +11,13 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
+// The assignable EPS bearer identity range; 1 to 4 are reserved (TS 24.301
+// §6.5.0).
+const (
+	firstEPSBearerIdentity = 5
+	lastEPSBearerIdentity  = 15
+)
+
 type ExpectedPDUSessionEstablishmentAccept struct {
 	PDUSessionID               fgs.PDUSessionID
 	PDUSessionType             fgs.PDUSessionType
@@ -112,17 +119,26 @@ func PDUSessionEstablishmentAccept(plain []byte, opts *ExpectedPDUSessionEstabli
 		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions QFI: %d", qosFlowDesc.QFI)
 	}
 
-	if len(qosFlowDesc.Parameters) != 1 {
-		return fmt.Errorf("unexpected number of AuthorizedQosFlowDescriptions Parameters: %d, expected: 1", len(qosFlowDesc.Parameters))
+	// TS 24.501 §9.11.4.12
+	params := make(map[fgs.QoSFlowParameterID][]byte, len(qosFlowDesc.Parameters))
+	for _, p := range qosFlowDesc.Parameters {
+		params[p.ID] = p.Value
 	}
 
-	param := qosFlowDesc.Parameters[0]
-	if param.ID != fgs.QoSFlowParam5QI {
-		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions Parameter Type: %d, expected: %d", param.ID, fgs.QoSFlowParam5QI)
+	fiveQI, ok := params[fgs.QoSFlowParam5QI]
+	if !ok {
+		return fmt.Errorf("AuthorizedQosFlowDescriptions carries no 5QI parameter")
 	}
 
-	if len(param.Value) != 1 || param.Value[0] != opts.FiveQI {
-		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions FiveQI: % x, expected: %d", param.Value, opts.FiveQI)
+	if len(fiveQI) != 1 || fiveQI[0] != opts.FiveQI {
+		return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions FiveQI: % x, expected: %d", fiveQI, opts.FiveQI)
+	}
+
+	if _, present := params[fgs.QoSFlowParamEPSBearerID]; present {
+		ebi, ok := qosFlowDesc.EPSBearerID()
+		if !ok || ebi < firstEPSBearerIdentity || ebi > lastEPSBearerIdentity {
+			return fmt.Errorf("unexpected AuthorizedQosFlowDescriptions EPS bearer identity: %d", ebi)
+		}
 	}
 
 	dnn := ""

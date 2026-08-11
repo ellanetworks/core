@@ -230,4 +230,22 @@ func (ue *UeContext) ULCountForTest() nas.UplinkCounter { return ue.ulCount }
 func (ue *UeContext) SetDLCountForTest(c nas.Count) {
 	ue.dlCount = nas.NewDownlinkCounter(c)
 }
+
 func (ue *UeContext) DLCountForTest() nas.Count { return ue.dlCount.Next() }
+
+func (ue *UeContext) NextDownlinkCountForTest() (nas.Count, error) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	counter := ue.dlCount
+
+	return counter.Use()
+}
+
+func (ue *UeContext) ForgetS1CapabilityForTest() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.s1UENetworkCapability = nil
+	ue.epsSecurityCapability = nil
+}

@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-//
 // SPDX-License-Identifier: BUSL-1.1
 
 package amf
 
 import (
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -13,13 +13,17 @@ import (
 // a precondition for calling setters like SetUESecurityCapability.
 //
 // AuthProof has no exported constructor. It may only be minted from
-// within the amf package, at exactly two authorized call sites:
+// within the amf package, at the authorized call sites below:
 //
 //   - the Security Mode procedure: installing the NAS security context at
 //     command time and adopting the UE security capability after MAC
 //     verification at complete time (MintAuthProofForSecurityMode).
 //   - Registration Request handling, during request parsing
 //     (MintAuthProofForRegistrationRequest).
+//   - Registration commit, after the registration is authenticated
+//     (MintAuthProofForRegistrationCommit).
+//   - installing a mapped 5G security context received over N26
+//     (MintAuthProofForInterworking).
 //
 // Grepping for the two Mint* function names gives the full set of mint
 // call sites outside this file — see TestAuthProofMintSites for the
@@ -65,6 +69,10 @@ func MintAuthProofForRegistrationRequest() AuthProof {
 // ensures an unauthenticated registration citing a victim's identity can never index
 // itself or tear down the victim's context (TS 24.501 §4.4.4.3).
 func MintAuthProofForRegistrationCommit() AuthProof {
+	return AuthProof{}
+}
+
+func MintAuthProofForInterworking() AuthProof {
 	return AuthProof{}
 }
 
@@ -131,6 +139,10 @@ func (ue *UeContext) SetUECapabilities(gmm *fgs.GMMCapability, s1 []byte) {
 
 	if s1 != nil {
 		ue.s1UENetworkCapability = append([]byte(nil), s1...)
+
+		if netCap, err := eps.ParseUENetworkCapability(s1); err == nil {
+			ue.setEPSSecurityCapabilityLocked(eps.ReplayedUESecurityCapability(netCap, nil))
+		}
 	}
 }
 

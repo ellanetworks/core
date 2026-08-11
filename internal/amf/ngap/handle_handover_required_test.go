@@ -525,7 +525,7 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
 	)
 
-	for _, ht := range []ngap.HandoverType{ngap.HandoverTypeFiveGSToEPS, ngap.HandoverTypeEPSToFiveGS} {
+	for _, ht := range []ngap.HandoverType{ngap.HandoverTypeEPSToFiveGS} {
 		t.Run(fmt.Sprintf("handoverType %d", ht), func(t *testing.T) {
 			supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 

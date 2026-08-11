@@ -25,6 +25,15 @@ func BuildSecurityModeComplete(opts *SecurityModeCompleteOpts) ([]byte, error) {
 		PDUSessionStatus:  opts.PDUSessionStatus,
 	}
 
+	if opts.UESecurity.S1UENetworkCapability != nil {
+		s1, err := opts.UESecurity.S1UENetworkCapability.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("encode S1 UE network capability: %w", err)
+		}
+
+		regReqOpts.S1UENetworkCapability = s1
+	}
+
 	registrationRequest, err := BuildRegistrationRequest(regReqOpts)
 	if err != nil {
 		return nil, fmt.Errorf("error encoding %s IMSI UE  NAS Registration Request message: %v", opts.UESecurity.Supi, err)

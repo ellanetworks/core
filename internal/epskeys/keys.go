@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package mme
+// Package epskeys is the EPS key hierarchy of TS 33.401 Annex A: the
+// derivations that hang off K_ASME.
+package epskeys
 
 import (
 	"encoding/binary"
@@ -11,23 +13,17 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// EPS key-derivation FC values (TS 33.401), as hex strings for
-// ueauth.GetKDFValue.
 const (
-	fcKeNB            = "11"
-	fcNextHop         = "12" // NH (next hop), the X2-handover key chain
-	fcEPSAlgorithmKey = "15" // NAS/RRC/UP algorithm keys
+	fcKeNB            = "11" // A.3
+	fcNextHop         = "12" // A.4: NH, the handover key chain
+	fcEPSAlgorithmKey = "15" // A.7: NAS/RRC/UP algorithm keys
 )
 
-// NAS algorithm type distinguishers (TS 33.401).
 const (
 	nasEncAlgDistinguisher byte = 0x01
 	nasIntAlgDistinguisher byte = 0x02
 )
 
-// deriveNASKey derives a 128-bit NAS key from K_ASME for the given algorithm
-// type distinguisher and algorithm identity (TS 33.401); the key is the
-// 128 least-significant bits of the KDF output.
 func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 	var k [16]byte
 
@@ -38,12 +34,16 @@ func deriveNASKey(kasme []byte, distinguisher, algID byte) ([16]byte, error) {
 		return k, fmt.Errorf("derive NAS key: %w", err)
 	}
 
-	copy(k[:], out[16:32])
+	// TS 33.401 §A.7 takes the 128 least significant bits of the 256-bit output.
+	if len(out) != 2*len(k) {
+		return k, fmt.Errorf("unexpected NAS key length %d, want %d", len(out), 2*len(k))
+	}
+
+	copy(k[:], out[len(k):])
 
 	return k, nil
 }
 
-// DeriveKNASEnc derives the NAS ciphering key for the given EEA algorithm id.
 func DeriveKNASEnc(kasme []byte, alg nas.CipheringAlgorithm) ([16]byte, error) {
 	return deriveNASKey(kasme, nasEncAlgDistinguisher, uint8(alg))
 }
@@ -53,7 +53,6 @@ func DeriveKNASInt(kasme []byte, alg nas.IntegrityAlgorithm) ([16]byte, error) {
 	return deriveNASKey(kasme, nasIntAlgDistinguisher, uint8(alg))
 }
 
-// DeriveKeNB derives K_eNB from K_ASME and the uplink NAS COUNT (TS 33.401).
 func DeriveKeNB(kasme []byte, ulNASCount uint32) ([32]byte, error) {
 	var k [32]byte
 
@@ -65,21 +64,25 @@ func DeriveKeNB(kasme []byte, ulNASCount uint32) ([32]byte, error) {
 		return k, fmt.Errorf("derive K_eNB: %w", err)
 	}
 
+	if len(out) != len(k) {
+		return k, fmt.Errorf("unexpected K_eNB length %d, want %d", len(out), len(k))
+	}
+
 	copy(k[:], out)
 
 	return k, nil
 }
 
-// deriveNH derives a Next Hop value from K_ASME and a synchronisation input
-// (TS 33.401): the initial K_eNB for the first NH (NCC=1), then the previous NH
-// for each subsequent one. Advancing this {NH, NCC} chain gives the target eNB a
-// fresh K_eNB with forward security on handover.
-func deriveNH(kasme, syncInput []byte) ([32]byte, error) {
+func DeriveNH(kasme, syncInput []byte) ([32]byte, error) {
 	var nh [32]byte
 
 	out, err := ueauth.GetKDFValue(kasme, fcNextHop, syncInput, ueauth.KDFLen(syncInput))
 	if err != nil {
 		return nh, fmt.Errorf("derive NH: %w", err)
+	}
+
+	if len(out) != len(nh) {
+		return nh, fmt.Errorf("unexpected NH length %d, want %d", len(out), len(nh))
 	}
 
 	copy(nh[:], out)

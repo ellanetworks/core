@@ -4,9 +4,11 @@
 package mme
 
 import (
+	"context"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
@@ -97,12 +99,12 @@ func (ue *UeContext) KnasEncForTest() [16]byte { return ue.knasEnc }
 // SetSecurityContextForTest installs a NAS security context (deriving K_NASint/enc
 // from kasme) and marks the UE secured, for external test setup.
 func (ue *UeContext) SetSecurityContextForTest(kasme []byte, eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm) error {
-	ke, err := DeriveKNASEnc(kasme, eea)
+	ke, err := epskeys.DeriveKNASEnc(kasme, eea)
 	if err != nil {
 		return err
 	}
 
-	ki, err := DeriveKNASInt(kasme, eia)
+	ki, err := epskeys.DeriveKNASInt(kasme, eia)
 	if err != nil {
 		return err
 	}
@@ -191,7 +193,7 @@ func (ue *UeContext) ForceHandoverCommittingForTest() {
 // DeriveNextNHForTest computes the next {NH} from the UE's current kasme and NH,
 // so a test can assert the committed key chain (TS 33.401 §7.2.8).
 func (ue *UeContext) DeriveNextNHForTest() ([32]byte, error) {
-	return deriveNH(ue.kasme, ue.nh[:])
+	return epskeys.DeriveNH(ue.kasme, ue.nh[:])
 }
 
 func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
@@ -228,7 +230,9 @@ func (m *MME) SetT3489ConfigForTest(expire time.Duration, maxRetry int32) {
 
 func (c *UeConn) T3489ActiveForTest() bool { return c.esmInfoGuard.Active() }
 
-func (m *MME) FireHandoverGuardForTest(ue *UeContext) { m.abandonHandover(ue) }
+func (m *MME) FireHandoverGuardForTest(ue *UeContext) {
+	m.abandonHandover(context.Background(), ue, causeHandoverTS1relocExpiry)
+}
 
 func (m *MME) ReclaimUEsOnConnLossForTest(conn S1APWriter) { m.reclaimUEsOnConnLoss(conn) }
 
@@ -251,4 +255,14 @@ func (ue *UeContext) ForceStateForTest(s EMMState) {
 	defer ue.mu.Unlock()
 
 	ue.setEMMStateLocked(s)
+}
+
+func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	counter := ue.dlCount
+	count, _ := counter.Use()
+
+	return count
 }
