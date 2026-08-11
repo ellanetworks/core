@@ -99,3 +99,59 @@ func TestDecodeMMEStatusTransfer(t *testing.T) {
 		t.Fatalf("container = %v, want deadbeef", containerIE.Value)
 	}
 }
+
+// TestDecodeHandoverRequiredNGRANTarget covers the targetgNgRanNode-ID
+// alternative an eps-to-5gs HANDOVER REQUIRED carries. Rendering the eNB fields
+// unconditionally would show an all-zero eNB target for exactly the message
+// inter-system handover introduces.
+func TestDecodeHandoverRequiredNGRANTarget(t *testing.T) {
+	b, err := (&lib.HandoverRequired{
+		MMEUES1APID:  7,
+		ENBUES1APID:  2,
+		HandoverType: lib.HandoverTypeEPSToFiveGS,
+		Cause:        lib.Ptr(lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16}),
+		TargetID: lib.TargetID{TargetNgRanNodeID: &lib.TargetNgRanNodeID{
+			GlobalRANNodeID: lib.GlobalRANNodeID{GNB: &lib.GNB{GlobalGNBID: lib.GlobalGNBID{
+				PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10},
+				GNBID:        lib.GNBID{Value: 0x2a, Bits: 22},
+			}}},
+			SelectedTAI: lib.FiveGSTAI{PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 0x000101},
+		}},
+		DirectForwardingPathAvailability: lib.Ptr(lib.DirectForwardingPathAvailable),
+		SourceToTarget:                   lib.TransparentContainer{0xab, 0xcd},
+	}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msg := DecodeS1APMessage(b)
+	if msg.Value.Error != "" {
+		t.Fatalf("decode error: %s", msg.Value.Error)
+	}
+
+	raw, ok := findIE(msg.Value.IEs, idTargetID)
+	if !ok {
+		t.Fatal("no Target ID rendered")
+	}
+
+	target, ok := raw.Value.(TargetID)
+	if !ok {
+		t.Fatalf("Target ID rendered as %T", raw.Value)
+	}
+
+	if target.GlobalENBID != nil || target.SelectedTAI != nil {
+		t.Errorf("eNB fields rendered for an NG-RAN target: %+v", target)
+	}
+
+	if target.NgRanNode == nil || target.NgRanNode.GlobalGNBID == nil {
+		t.Fatalf("target = %+v, want a gNB", target)
+	}
+
+	if got := *target.NgRanNode.GlobalGNBID; got.GNBID != 0x2a || got.Bits != 22 {
+		t.Errorf("gNB id = %+v, want {0x2a 22}", got)
+	}
+
+	if target.NgRanNode.SelectedTAI.TAC != 0x000101 {
+		t.Errorf("selected 5GS TAC = %#x, want 0x000101", target.NgRanNode.SelectedTAI.TAC)
+	}
+}

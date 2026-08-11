@@ -11,9 +11,65 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
+// TargetID renders whichever alternative of TS 36.413 §9.2.1.24 the message
+// carried. An eps-to-5gs HANDOVER REQUIRED names an NG-RAN node instead of an
+// eNB, so rendering the eNB fields unconditionally would show an all-zero eNB
+// target for exactly the message inter-system handover introduces.
 type TargetID struct {
-	GlobalENBID GlobalENBID `json:"global_enb_id"`
-	SelectedTAI TAI         `json:"selected_tai"`
+	GlobalENBID *GlobalENBID     `json:"global_enb_id,omitempty"`
+	SelectedTAI *TAI             `json:"selected_tai,omitempty"`
+	NgRanNode   *TargetNgRanNode `json:"target_ng_ran_node,omitempty"`
+}
+
+// TargetNgRanNode is the targetgNgRanNode-ID alternative: an NG-RAN node and the
+// 5GS tracking area it serves, whose TAC is three octets where the EPS one is
+// two.
+type TargetNgRanNode struct {
+	GlobalGNBID   *GlobalGNBID `json:"global_gnb_id,omitempty"`
+	GlobalNgENBID *GlobalENBID `json:"global_ng_enb_id,omitempty"`
+	SelectedTAI   FiveGSTAI    `json:"selected_tai"`
+}
+
+// GlobalGNBID is a gNB identity: a PLMN and a gNB ID whose width the sender
+// chose within SIZE(22..32), so the width is rendered beside the value.
+type GlobalGNBID struct {
+	PLMNID PLMNID `json:"plmn_id"`
+	GNBID  uint32 `json:"gnb_id"`
+	Bits   int    `json:"gnb_id_bits"`
+}
+
+// FiveGSTAI is a 5GS tracking area identity (TS 36.413 §9.2.1.121).
+type FiveGSTAI struct {
+	PLMNID PLMNID `json:"plmn_id"`
+	TAC    uint32 `json:"tac"`
+}
+
+func targetID(t s1ap.TargetID) TargetID {
+	if n := t.TargetNgRanNodeID; n != nil {
+		node := &TargetNgRanNode{
+			SelectedTAI: FiveGSTAI{PLMNID: plmnToID(n.SelectedTAI.PLMNIdentity), TAC: uint32(n.SelectedTAI.TAC)},
+		}
+
+		if g := n.GlobalRANNodeID.GNB; g != nil {
+			node.GlobalGNBID = &GlobalGNBID{
+				PLMNID: plmnToID(g.GlobalGNBID.PLMNIdentity),
+				GNBID:  g.GlobalGNBID.GNBID.Value,
+				Bits:   g.GlobalGNBID.GNBID.Bits,
+			}
+		}
+
+		if e := n.GlobalRANNodeID.NgENB; e != nil {
+			id := globalENBID(e.GlobalNgENBID)
+			node.GlobalNgENBID = &id
+		}
+
+		return TargetID{NgRanNode: node}
+	}
+
+	enb := globalENBID(t.TargeteNBID.GlobalENBID)
+	selected := tai(t.TargeteNBID.SelectedTAI)
+
+	return TargetID{GlobalENBID: &enb, SelectedTAI: &selected}
 }
 
 type SecurityContext struct {
@@ -86,7 +142,7 @@ func buildHandoverRequired(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies = append(ies,
-		ie(idTargetID, s1ap.CriticalityReject, TargetID{GlobalENBID: globalENBID(m.TargetID.TargeteNBID.GlobalENBID), SelectedTAI: tai(m.TargetID.TargeteNBID.SelectedTAI)}),
+		ie(idTargetID, s1ap.CriticalityReject, targetID(m.TargetID)),
 		ie(idSourceToTargetContainer, s1ap.CriticalityReject, hex.EncodeToString(m.SourceToTarget)),
 	)
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

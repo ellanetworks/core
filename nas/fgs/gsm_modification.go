@@ -23,6 +23,10 @@ type PDUSessionModificationRequest struct {
 	RequestedQoSFlows QoSFlowDescriptions               // optional (IEI 0x79)
 	ExtendedPCO       *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
 
+	// MappedEPSBearerContexts is present when the UE asks to delete one or more
+	// mapped EPS bearer contexts (TS 24.501 §8.3.7.10).
+	MappedEPSBearerContexts MappedEPSBearerContexts // optional (IEI 0x75)
+
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
@@ -93,6 +97,15 @@ func (m *PDUSessionModificationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLVE(ieiQoSFlowDescription, raw)
 	}
 
+	if m.MappedEPSBearerContexts != nil {
+		raw, err := m.MappedEPSBearerContexts.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiMappedEPSBearerContext, raw)
+	}
+
 	if m.ExtendedPCO != nil {
 		raw, err := m.ExtendedPCO.MarshalBinary()
 		if err != nil {
@@ -157,6 +170,13 @@ func ParsePDUSessionModificationRequest(b []byte) (*PDUSessionModificationReques
 			}
 
 			out.RequestedQoSFlows = parsed
+		case ieiMappedEPSBearerContext:
+			parsed, err := ParseMappedEPSBearerContexts(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.MappedEPSBearerContexts = parsed
 		case ieiExtendedPCO:
 			parsed, err := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
 			if err != nil {
@@ -292,9 +312,16 @@ func ParsePDUSessionModificationReject(b []byte) (*PDUSessionModificationReject,
 // (TS 24.501 §8.3.9). All information elements are optional; they are emitted in
 // the message's IE order when set.
 type PDUSessionModificationCommand struct {
-	PDUSessionID        PDUSessionID
-	PTI                 nas.ProcedureTransactionIdentity
-	SessionAMBR         *SessionAMBR                      // optional (IEI 0x2A)
+	PDUSessionID PDUSessionID
+	PTI          nas.ProcedureTransactionIdentity
+	SessionAMBR  *SessionAMBR // optional (IEI 0x2A)
+
+	// MappedEPSBearerContexts carries the EPS bearer contexts the session's QoS
+	// flows map to (IEI 0x75). TS 24.501 §6.1.4.2 has the SMF provide them only
+	// when the network supports N26; it is also how an EBI revocation strips the
+	// mapped parameters from the UE (TS 23.502 §4.11.1.4.3).
+	MappedEPSBearerContexts MappedEPSBearerContexts
+
 	QoSFlowDescriptions QoSFlowDescriptions               // optional (IEI 0x79)
 	ExtendedPCO         *nas.ProtocolConfigurationOptions // optional (IEI 0x7B)
 
@@ -319,6 +346,15 @@ func (m *PDUSessionModificationCommand) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiSessionAMBR, raw)
+	}
+
+	if m.MappedEPSBearerContexts != nil {
+		raw, err := m.MappedEPSBearerContexts.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiMappedEPSBearerContext, raw)
 	}
 
 	if m.QoSFlowDescriptions != nil {
@@ -368,6 +404,13 @@ func ParsePDUSessionModificationCommand(b []byte) (*PDUSessionModificationComman
 			}
 
 			out.SessionAMBR = &parsed
+		case ieiMappedEPSBearerContext:
+			parsed, err := ParseMappedEPSBearerContexts(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.MappedEPSBearerContexts = parsed
 		case ieiQoSFlowDescription:
 			parsed, err := ParseQoSFlowDescriptions(value)
 			if err != nil {

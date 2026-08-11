@@ -408,6 +408,10 @@ func TestNGAPConstantsMatchSpec(t *testing.T) {
 		{"maxnoofPDUSessions", maxnoofPDUSessions, 256},
 		{"maxnoofAllowedSNSSAIs", maxnoofAllowedSNSSAIs, 8},
 		{"maxnoofSliceItems", maxnoofSliceItems, 1024},
+		{"maxnoofEPLMNs", maxnoofEPLMNs, 15},
+		{"maxnoofEPLMNsPlusOne", maxnoofEPLMNsPlusOne, 16},
+		{"maxnoofForbTACs", maxnoofForbTACs, 4096},
+		{"maxnoofAllowedAreas", maxnoofAllowedAreas, 16},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s is %d, TS 38.413 NGAP-Constants says %d", c.name, c.got, c.want)

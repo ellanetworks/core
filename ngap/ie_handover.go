@@ -106,6 +106,19 @@ type TargetRANNodeID struct {
 	_               ieExtensions `per:",skip"`
 }
 
+// TargeteNB-ID ::= SEQUENCE { globalENB-ID GlobalNgENB-ID, selected-EPS-TAI
+// EPS-TAI, iE-Extensions OPTIONAL } (extensible) (TS 38.413 §9.3.1.25). It names
+// the E-UTRAN node a 5GS to EPS handover targets, so its tracking area is an EPS
+// one — two octets of TAC, not three. The node identity is a GlobalNgENB-ID
+// despite naming an eNB attached to the EPC: TS 38.413 has no other shape for an
+// E-UTRAN node.
+type TargeteNBID struct {
+	_              [0]struct{} `per:"extseq"`
+	GlobalENBID    GlobalNgENBID
+	SelectedEPSTAI EPSTAI
+	_              ieExtensions `per:",skip"`
+}
+
 // TargetID CHOICE alternatives. The CHOICE is not extensible, so
 // choice-Extensions is a plain alternative index.
 const (
@@ -117,20 +130,43 @@ const (
 )
 
 // TargetID ::= CHOICE { targetRANNodeID, targeteNB-ID, choice-Extensions } —
-// TS 38.413 §9.3.1.25. Only targetRANNodeID is modelled: Ella hands over within
-// 5GS, so a targeteNB-ID names a target it cannot reach. It is refused rather
-// than misread. TS 36.413's TargetID is a different CHOICE entirely
-// (targeteNB-ID, targetRNC-ID, cGI).
+// TS 38.413 §9.3.1.25. Two alternatives are modelled: targetRANNodeID for a
+// handover within 5GS and targeteNB-ID for the 5GS to EPS one, which is what a
+// source gNB names its target with when Handover Type is fivegs-to-eps.
+// TS 36.413's TargetID is a different CHOICE entirely (targeteNB-ID,
+// targetRNC-ID, cGI) whose alternatives do not correspond to these.
+//
+// Exactly one alternative is set; which one is derived from the pointers rather
+// than stored, so the two can never disagree. Which one belongs is not free:
+// TS 38.413 §9.2.3.1 pairs it with the Handover Type IE, and the message handler
+// is what holds them together.
 type TargetID struct {
-	TargetRANNodeID TargetRANNodeID
+	TargetRANNodeID *TargetRANNodeID
+	TargeteNBID     *TargeteNBID
 }
 
 func (t TargetID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, targetIDAlternatives-1, targetIDTargetRANNodeID); err != nil {
+	var (
+		idx   int64
+		value per.Marshaler
+	)
+
+	switch {
+	case t.TargetRANNodeID != nil && t.TargeteNBID != nil:
+		return fmt.Errorf("ngap: TargetID names both an NG-RAN node and an eNB")
+	case t.TargetRANNodeID != nil:
+		idx, value = targetIDTargetRANNodeID, t.TargetRANNodeID
+	case t.TargeteNBID != nil:
+		idx, value = targetIDTargetENBID, t.TargeteNBID
+	default:
+		return fmt.Errorf("ngap: TargetID names no target")
+	}
+
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, targetIDAlternatives-1, idx); err != nil {
 		return err
 	}
 
-	return t.TargetRANNodeID.MarshalPER(w, enc)
+	return value.MarshalPER(w, enc)
 }
 
 func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -141,12 +177,165 @@ func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 	switch idx {
 	case targetIDTargetRANNodeID:
-		return t.TargetRANNodeID.UnmarshalPER(r, enc)
+		var v TargetRANNodeID
+		if err := v.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+
+		*t = TargetID{TargetRANNodeID: &v}
+
+		return nil
+	case targetIDTargetENBID:
+		var v TargeteNBID
+		if err := v.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+
+		*t = TargetID{TargeteNBID: &v}
+
+		return nil
 	case targetIDChoiceExtensions:
 		return decodeChoiceExtension(r, enc, "TargetID")
 	default:
-		return fmt.Errorf("%w: TargetID targeteNB-ID", errNotComprehended)
+		return fmt.Errorf("%w: TargetID alternative %d", errNotComprehended, idx)
 	}
+}
+
+// NewSecurityContextInd ::= ENUMERATED { true, ... } — TS 38.413 §9.3.1.55. The
+// AMF sets it in a HANDOVER REQUEST that hands the target a security context the
+// UE has not used yet, which is every EPS to 5GS handover: the mapped 5G context
+// is new by construction (TS 33.501 §8.4.2).
+type NewSecurityContextInd uint8
+
+const (
+	NewSecurityContextIndTrue NewSecurityContextInd = iota
+
+	newSecurityContextIndRootCount = 1
+)
+
+func (n NewSecurityContextInd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, newSecurityContextIndRootCount, int64(n), "NewSecurityContextInd")
+}
+
+func (n *NewSecurityContextInd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, newSecurityContextIndRootCount, "NewSecurityContextInd")
+	if err != nil {
+		return err
+	}
+
+	*n = NewSecurityContextInd(idx)
+
+	return nil
+}
+
+// The Mobility Restriction List vocabulary (TS 38.413 §9.3.1.85). The list is
+// optional in the ASN.1 and not optional in practice: §8.4.2.4 has the target
+// NG-RAN node "reject the procedure using the HANDOVER FAILURE message" when the
+// list is absent and it cannot determine the serving PLMN otherwise — and again
+// when the serving PLMN the list carries is one the target cell does not
+// support. Its general handling clause (§8.4.2.2) is the other half: an absent
+// list otherwise means no roaming and no access restriction apply.
+//
+// The EPS counterpart is s1ap.HandoverRestrictionList. The two agree on the
+// serving PLMN and the equivalent PLMNs and diverge after that: EPS forbids
+// tracking and location areas, 5GS forbids areas, restricts RATs and scopes a
+// service area, so neither list's remaining fields map onto the other's.
+
+// EquivalentPLMNs ::= SEQUENCE (SIZE(1..maxnoofEPLMNs)) OF PLMNIdentity.
+type EquivalentPLMNs []PLMNIdentity
+
+// ForbiddenTACs ::= SEQUENCE (SIZE(1..maxnoofForbTACs)) OF TAC. The TAC is the
+// three-octet 5GS one, not the two-octet EPS TAC of EPSTAI.
+type ForbiddenTACs []TAC
+
+// ForbiddenAreaInformation-Item ::= SEQUENCE { pLMNIdentity, forbiddenTACs,
+// iE-Extensions OPTIONAL } (extensible).
+type ForbiddenAreaInformationItem struct {
+	_             [0]struct{} `per:"extseq"`
+	PLMNIdentity  PLMNIdentity
+	ForbiddenTACs ForbiddenTACs
+	_             ieExtensions `per:",skip"`
+}
+
+// ForbiddenAreaInformation ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
+// ForbiddenAreaInformation-Item.
+type ForbiddenAreaInformation []ForbiddenAreaInformationItem
+
+// RATRestrictionInformation ::= BIT STRING (SIZE(8, ...)) — TS 38.413
+// §9.3.1.85. A bit set to 1 restricts the UE from that RAT; bit 7 is reserved.
+// The value is held as the eight bits in transmission order, with e-UTRA in the
+// most significant.
+type RATRestrictionInformation uint8
+
+// RAT restriction bit positions, counted from the first bit in transmission
+// order (TS 38.413 §9.3.1.85).
+const (
+	RATRestrictionEUTRA RATRestrictionInformation = 1 << (7 - iota)
+	RATRestrictionNR
+	RATRestrictionNRUnlicensed
+	RATRestrictionNRLEO
+	RATRestrictionNRMEO
+	RATRestrictionNRGEO
+	RATRestrictionNROtherSat
+
+	ratRestrictionInformationBits = 8
+)
+
+// RATRestrictions-Item ::= SEQUENCE { pLMNIdentity, rATRestrictionInformation,
+// iE-Extensions OPTIONAL } (extensible).
+type RATRestrictionsItem struct {
+	_                         [0]struct{} `per:"extseq"`
+	PLMNIdentity              PLMNIdentity
+	RATRestrictionInformation RATRestrictionInformation
+	_                         ieExtensions `per:",skip"`
+}
+
+// RATRestrictions ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
+// RATRestrictions-Item.
+type RATRestrictions []RATRestrictionsItem
+
+// AllowedTACs ::= SEQUENCE (SIZE(1..maxnoofAllowedAreas)) OF TAC.
+type AllowedTACs []TAC
+
+// NotAllowedTACs ::= SEQUENCE (SIZE(1..maxnoofAllowedAreas)) OF TAC.
+type NotAllowedTACs []TAC
+
+// ServiceAreaInformation-Item ::= SEQUENCE { pLMNIdentity, allowedTACs OPTIONAL,
+// notAllowedTACs OPTIONAL, iE-Extensions OPTIONAL } (extensible).
+type ServiceAreaInformationItem struct {
+	_              [0]struct{} `per:"extseq"`
+	PLMNIdentity   PLMNIdentity
+	AllowedTACs    AllowedTACs    `per:",optional"`
+	NotAllowedTACs NotAllowedTACs `per:",optional"`
+	_              ieExtensions   `per:",skip"`
+}
+
+// ServiceAreaInformation ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
+// ServiceAreaInformation-Item.
+type ServiceAreaInformation []ServiceAreaInformationItem
+
+// Range bounds of the Mobility Restriction List vocabulary (TS 38.413,
+// NGAP-Constants).
+const (
+	maxnoofEPLMNs        = 15
+	maxnoofEPLMNsPlusOne = 16
+	maxnoofForbTACs      = 4096
+	maxnoofAllowedAreas  = 16
+)
+
+// MobilityRestrictionList ::= SEQUENCE { servingPLMN, equivalentPLMNs OPTIONAL,
+// rATRestrictions OPTIONAL, forbiddenAreaInformation OPTIONAL,
+// serviceAreaInformation OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
+// TS 38.413 §9.3.1.85. Only the serving PLMN is mandatory, and it is the one
+// field §8.4.2.4 turns on.
+type MobilityRestrictionList struct {
+	_                        [0]struct{} `per:"extseq"`
+	ServingPLMN              PLMNIdentity
+	EquivalentPLMNs          EquivalentPLMNs          `per:",optional"`
+	RATRestrictions          RATRestrictions          `per:",optional"`
+	ForbiddenAreaInformation ForbiddenAreaInformation `per:",optional"`
+	ServiceAreaInformation   ServiceAreaInformation   `per:",optional"`
+	_                        ieExtensions             `per:",skip"`
 }
 
 // PDUSessionResourceItemHORqd ::= SEQUENCE { pDUSessionID,

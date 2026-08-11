@@ -106,7 +106,7 @@ func TestHandoverRequiredGolden(t *testing.T) {
 		AMFUENGAPID: 1, RANUENGAPID: 2,
 		HandoverType: HandoverTypeIntra5GS,
 		Cause:        &cause,
-		TargetID: TargetID{TargetRANNodeID: TargetRANNodeID{
+		TargetID: TargetID{TargetRANNodeID: &TargetRANNodeID{
 			GlobalRANNodeID: GlobalRANNodeID{Kind: RANNodeIDGNB, PLMNIdentity: plmn, Value: 1, Bits: 24},
 			SelectedTAI:     TAI{PLMNIdentity: plmn, TAC: 1},
 		}},
@@ -144,11 +144,72 @@ func TestHandoverRequiredGolden(t *testing.T) {
 	}
 }
 
-// Ella hands over within 5GS, so a targeteNB-ID names a target it cannot
-// reach; it must be refused rather than misread as a targetRANNodeID.
-func TestTargetIDRejectsTargetENBID(t *testing.T) {
+// TestTargetIDTargetENBID covers the targeteNB-ID alternative, which is what a
+// source gNB names its target with when Handover Type is fivegs-to-eps. Its
+// tracking area is an EPS one — two octets of TAC where the 5GS TAI carries
+// three — so it cannot be read as a targetRANNodeID and back again.
+func TestTargetIDTargetENBID(t *testing.T) {
+	in := TargetID{TargeteNBID: &TargeteNBID{
+		GlobalENBID: GlobalNgENBID{
+			PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
+			NgENBID:      NgENBID{Kind: NgENBIDMacro, Value: 0x00101},
+		},
+		SelectedEPSTAI: EPSTAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
+	}}
+
 	w := per.NewWriter()
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, targetIDAlternatives-1, targetIDTargetENBID); err != nil {
+	if err := in.MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	w.AlignToByte()
+
+	var out TargetID
+	if err := out.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	if out.TargeteNBID == nil || out.TargetRANNodeID != nil {
+		t.Fatalf("round trip = %+v, want a targeteNB-ID", out)
+	}
+
+	if out.TargeteNBID.SelectedEPSTAI.TAC != 7 {
+		t.Errorf("selected EPS TAC = %d, want 7", out.TargeteNBID.SelectedEPSTAI.TAC)
+	}
+
+	if got := out.TargeteNBID.GlobalENBID.NgENBID; got != in.TargeteNBID.GlobalENBID.NgENBID {
+		t.Errorf("ng-eNB id = %+v, want %+v", got, in.TargeteNBID.GlobalENBID.NgENBID)
+	}
+
+	// The states that name no target, or two.
+	for name, bad := range map[string]TargetID{
+		"no alternative":    {},
+		"both alternatives": {TargetRANNodeID: &TargetRANNodeID{}, TargeteNBID: &TargeteNBID{}},
+	} {
+		w := per.NewWriter()
+		if err := bad.MarshalPER(w, per.Aligned); err == nil {
+			t.Errorf("%s: encoded as %x, want an error", name, w.Bytes())
+		}
+	}
+}
+
+// choice-Extensions still names a target this AMF cannot reach, and is refused
+// rather than misread.
+func TestTargetIDRejectsChoiceExtensions(t *testing.T) {
+	w := per.NewWriter()
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, targetIDAlternatives-1, targetIDChoiceExtensions); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idTargetID)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(CriticalityReject)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -158,7 +219,7 @@ func TestTargetIDRejectsTargetENBID(t *testing.T) {
 
 	err := v.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned)
 	if err == nil {
-		t.Fatal("targeteNB-ID decoded")
+		t.Fatal("choice-Extensions decoded")
 	}
 
 	if !errors.Is(err, errNotComprehended) {

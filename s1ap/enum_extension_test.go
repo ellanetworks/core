@@ -46,10 +46,10 @@ func TestEnumExtensionIsNotComprehended(t *testing.T) {
 			var v RRCEstablishmentCause
 			return v.UnmarshalPER(r, per.Aligned)
 		}, "a root establishment cause"},
-		{"HandoverType", handoverTypeRootCount, func(r *per.Reader) error {
-			var v HandoverType
-			return v.UnmarshalPER(r, per.Aligned)
-		}, "a root handover type"},
+		// HandoverType is absent deliberately: its first two extension additions
+		// are values TS 36.413 §9.2.1.13 assigns and Ella decodes.
+		// TestHandoverTypeInterSystemValues covers both those and the additions
+		// beyond them, which are refused the same way.
 	}
 
 	for _, tt := range tests {
