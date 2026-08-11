@@ -8,7 +8,7 @@ on:
 
 jobs:
   snap-build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         attach_mode: [xdp-generic, tcx]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Download the snap
         uses: actions/download-artifact@v8

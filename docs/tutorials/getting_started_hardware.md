@@ -16,7 +16,7 @@ To complete this tutorial, you will need the following:
 
 **Computer**
 
-- A Linux machine running Ubuntu 24.04 LTS
+- A Linux machine running Ubuntu 26.04 LTS
 - 2 network interfaces:
     - One for the radio connection (N2/N3 — control and user plane)
     - One for internet connectivity (N6 — data network) and the API/UI
