@@ -19,11 +19,13 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/fivegskeys"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -82,13 +84,9 @@ type UeContext struct {
 	gmmCapability         *fgs.GMMCapability
 	s1UENetworkCapability []byte
 
-	// The EPS NAS algorithm pair for use after mobility to EPS, in two stages: the
-	// pair a SECURITY MODE COMMAND is offering, and the pair the UE has accepted and
-	// therefore holds. Only the latter may be put in a mapped EPS security context
-	// (TS 33.501 §6.7.2 NOTE 2a, §8.6.1); keeping them apart means a new offer does
-	// not make the AMF forget what the UE is still using.
-	epsNASAlgorithmsOffered *EPSNASAlgorithms
-	epsNASAlgorithms        *EPSNASAlgorithms
+	epsNASAlgorithmsOffered *interworking.EPSNASAlgorithms
+	epsNASAlgorithms        *interworking.EPSNASAlgorithms
+	epsSecurityCapability   *eps.UESecurityCapability
 
 	ngKsi        models.NgKsi
 	knasInt      [16]uint8

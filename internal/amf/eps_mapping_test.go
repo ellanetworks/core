@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -226,5 +227,95 @@ func TestMappedContextRoundTrip(t *testing.T) {
 
 	if !ue.SecurityContextIsValid() {
 		t.Fatal("the round-tripped context must be current")
+	}
+
+	if _, ok := ue.EPSNASAlgorithmsInUse(); !ok {
+		t.Fatal("the EPS NAS algorithms must survive the round trip")
+	}
+
+	if _, err := ue.MapSecurityContextToEPS(); err != nil {
+		t.Fatalf("a UE that arrived over N26 must be able to go back: %v", err)
+	}
+}
+
+// A UE arriving from EPS holds the capability the MME sent, so it can be handed
+// back without having re-registered, and its real 5G capability survives the trip
+// out rather than being replaced by the assumed default (TS 33.501 §8.3.2 step 3,
+// §8.4.2 step 2).
+func TestMappedContextCarriesBothCapabilities(t *testing.T) {
+	ue := mappableUE(t)
+	real5G := &fgs.UESecurityCapability{EA: 0x40, IA: 0x40}
+	ue.SetUESecurityCapabilityForTest(real5G)
+
+	toEPS, err := ue.MapSecurityContextToEPS()
+	if err != nil {
+		t.Fatalf("MapSecurityContextToEPS: %v", err)
+	}
+
+	if toEPS.Context.UE5GSecurityCapability == nil || !toEPS.Context.UE5GSecurityCapability.Equal(*real5G) {
+		t.Fatal("the UE 5G security capability must travel to the MME")
+	}
+
+	back, err := interworking.MapTo5GSOnHandover(interworking.EPSSecurityContext{
+		KASME:                  toEPS.Context.KASME,
+		EKSI:                   toEPS.Context.EKSI,
+		Algorithms:             toEPS.Context.Algorithms,
+		UESecurityCapability:   toEPS.Context.UESecurityCapability,
+		UE5GSecurityCapability: toEPS.Context.UE5GSecurityCapability,
+		NH:                     toEPS.Context.NH,
+		NCC:                    toEPS.Context.NCC,
+	}, []nas.IntegrityAlgorithm{nas.IntegrityAES, nas.IntegritySNOW3G},
+		[]nas.CipheringAlgorithm{nas.CipheringAES, nas.CipheringSNOW3G})
+	if err != nil {
+		t.Fatalf("MapTo5GSOnHandover: %v", err)
+	}
+
+	if back.Context.Ciphering != nas.CipheringSNOW3G {
+		t.Fatalf("selected %s, want the algorithm the UE really supports", back.Context.Ciphering)
+	}
+
+	fresh := amf.NewUeContext()
+	if err := fresh.InstallMappedSecurityContextFromEPS(back.Context, amf.MintAuthProofForInterworking()); err != nil {
+		t.Fatalf("InstallMappedSecurityContextFromEPS: %v", err)
+	}
+
+	got, ok := fresh.EPSSecurityCapability()
+	if !ok || got != toEPS.Context.UESecurityCapability {
+		t.Fatalf("EPS security capability = (%v, %+v), want the MME's", ok, got)
+	}
+
+	if _, err := fresh.MapSecurityContextToEPS(); err != nil {
+		t.Fatalf("a UE that has never sent an S1 capability to this AMF must still map back: %v", err)
+	}
+}
+
+// Learning the S1 capability for the first time must not discard a pair the UE
+// already holds from the MME (TS 24.501 §5.4.2.3).
+func TestFirstS1CapabilityKeepsTheMMEAlgorithms(t *testing.T) {
+	ue := amf.NewUeContext()
+
+	mapped := interworking.Mapped5GSecurityContext{
+		NgKSI:                 nas.KeySetIdentifier{Value: 1, Mapped: true},
+		Ciphering:             nas.CipheringAES,
+		Integrity:             nas.IntegrityAES,
+		UESecurityCapability:  interworking.DefaultUE5GSecurityCapability,
+		EPSAlgorithms:         interworking.EPSNASAlgorithms{Ciphering: nas.CipheringSNOW3G, Integrity: nas.IntegritySNOW3G},
+		EPSSecurityCapability: eps.UESecurityCapability{EEA: 0xe0, EIA: 0xe0},
+	}
+	for i := range mapped.KAMF {
+		mapped.KAMF[i] = byte(i)
+		mapped.KNASInt[i%16] = byte(i + 1)
+		mapped.KNASEnc[i%16] = byte(i + 2)
+	}
+
+	if err := ue.InstallMappedSecurityContextFromEPS(mapped, amf.MintAuthProofForInterworking()); err != nil {
+		t.Fatalf("InstallMappedSecurityContextFromEPS: %v", err)
+	}
+
+	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, s1NetworkCapability(0xe0, 0xe0, 0x00, 0x00))
+
+	got, ok := ue.EPSNASAlgorithmsInUse()
+	if !ok || got != mapped.EPSAlgorithms {
+		t.Fatalf("EPS NAS algorithms = (%v, %+v), want the MME's %+v", ok, got, mapped.EPSAlgorithms)
 	}
 }

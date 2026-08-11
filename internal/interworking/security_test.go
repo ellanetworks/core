@@ -321,7 +321,7 @@ func TestMapTo5GSContainerMAC(t *testing.T) {
 		t.Fatalf("MACProtected: %v", err)
 	}
 
-	if err := sc.VerifyMACAtCountOutOfRange(protected, got.Container.MessageAuthenticationCode, nas.Bearer3GPP, nas.DirectionDownlink); err != nil {
+	if err := sc.VerifyMACAtMaxCount(protected, got.Container.MessageAuthenticationCode, nas.Bearer3GPP, nas.DirectionDownlink); err != nil {
 		t.Fatalf("the container does not verify against the mapped context: %v", err)
 	}
 

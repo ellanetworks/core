@@ -201,17 +201,6 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	return payload, nil
 }
 
-// BuildEPSNASAlgorithmsSecurityModeCommand builds the SECURITY MODE COMMAND whose
-// only purpose is to hand the UE the EPS NAS algorithms it is to use after
-// mobility to EPS (TS 24.501 §5.4.2.1 case c, §5.4.2.2). The UE's 5G NAS security
-// context is already current, so the message re-signals the algorithms and ngKSI
-// already in force and takes no new context into use.
-//
-// It is protected as "integrity protected", not "integrity protected with new 5G
-// NAS security context": the UE resets its uplink NAS COUNT only for a context
-// created by a primary authentication (§5.4.2.3), so the new-context header type
-// would reset the AMF's counters alone and desynchronise the pair. For the same
-// reason no horizontal derivation parameter is sent — K_AMF does not change here.
 func BuildEPSNASAlgorithmsSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	ueSecCap := ue.UESecCap()
 	if ueSecCap == nil {
@@ -239,10 +228,6 @@ func BuildEPSNASAlgorithmsSecurityModeCommand(ue *UeContext) ([]byte, error) {
 	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtected))
 }
 
-// addEPSNASSecurityAlgorithms attaches the Selected EPS NAS security algorithms
-// IE, and with it the replayed S1 UE security capability that TS 24.501 §8.2.25.8
-// makes conditional on it. Both are left out when nothing is on offer, which is
-// the case until the UE has told the AMF what it supports in EPS.
 func addEPSNASSecurityAlgorithms(ue *UeContext, smc *fgs.SecurityModeCommand) {
 	offered, ok := ue.offeredEPSNASAlgorithms()
 	if !ok {
@@ -324,16 +309,11 @@ func BuildRegistrationAccept(
 			IMSVoPS3GPP: nfs.ImsVoPS != 0,
 			EMC:         nfs.Emc,
 			EMF:         nfs.Emf,
-			// TS 24.501 §5.5.1.2.4: an AMF supporting interworking with EPS tells an
-			// S1-capable UE which of the two it offers. This has to agree with whether
-			// the AMF hands out EPS NAS algorithms — the bit is what puts the UE in the
-			// single-registration mode those are defined for (§5.4.2.3).
-			IWKN26: ue.SupportsS1Mode() && !amfInstance.N26Enabled,
-			MPSI:   nfs.Mpsi != 0,
-			// EMCN3 and MCSI are dropped unless octet 4 is asked for.
-			HasOctet4: true,
-			EMCN3:     nfs.EmcN3 != 0,
-			MCSI:      nfs.Mcsi != 0,
+			IWKN26:      ue.SupportsS1Mode() && !amfInstance.N26Enabled,
+			MPSI:        nfs.Mpsi != 0,
+			HasOctet4:   true,
+			EMCN3:       nfs.EmcN3 != 0,
+			MCSI:        nfs.Mcsi != 0,
 		}
 	}
 

@@ -85,9 +85,6 @@ type SmfSbi interface {
 	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
 	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
 	HandlePagingFailure(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
-	// ClearPagingSuppression releases the suppression once the UE is reachable
-	// again (CM-CONNECTED), so subsequent downlink data pages it
-	// (TS 23.502 §4.2.3.3 step 3c).
 	ClearPagingSuppression(ctx context.Context, supi etsi.SUPI, pduSessionID uint8) error
 }
 
@@ -116,11 +113,7 @@ type DBer interface {
 
 type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *UeConn, nasPdu []byte)
-	// IsServiceRequest reports whether an initial NAS PDU is a SERVICE REQUEST, so the NGAP
-	// layer routes it to HandleServiceRequest before minting a context.
 	IsServiceRequest(nasPdu []byte) bool
-	// HandleServiceRequest resolves-or-rejects an initial SERVICE REQUEST without minting a
-	// context (TS 24.501 §5.6.1.5, §4.4.4.3).
 	HandleServiceRequest(ctx context.Context, ue *UeConn, nasPdu []byte)
 }
 
@@ -158,8 +151,6 @@ type AMF struct {
 	tmsi    *etsi.TmsiAllocator
 	connIDs *idgenerator.IDGenerator
 
-	// lcsCorrelationSeq issues the LCS correlation identifiers the AMF assigns
-	// to LPP transfers (TS 24.501 §5.4.5.3.2 case c, NOTE 2).
 	lcsCorrelationSeq atomic.Uint32
 
 	DBInstance               DBer
@@ -172,24 +163,16 @@ type AMF struct {
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
-	// N26Enabled reports whether this AMF runs the N26 interface to the MME. It
-	// drives the IWK N26 bit the AMF advertises and, with it, whether the AMF hands
-	// UEs the EPS NAS algorithms to use after mobility to EPS; the two must agree
-	// (see models.N26Supported, which is where it defaults from).
-	N26Enabled bool
-	T3502Value time.Duration
-	T3512Value time.Duration
-	TimeZone   string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
-	T3513Cfg   guard.TimerValue
-	// NASGuardCfg configures the single NAS common-procedure supervision timer
-	// (T3550/T3555/T3560/T3565/T3570/T3522 — all 6 s ×4 in TS 24.501 §10.2).
-	NASGuardCfg guard.TimerValue
-	// handoverGuardTimeout bounds an N2 handover (HANDOVER REQUIRED → NOTIFY); see
-	// defaultHandoverGuardTimeout.
-	handoverGuardTimeout time.Duration
-	Session              SmfSbi
-	NAS                  NASHandler
-	LPPHandler           LPPHandler
+	N26Enabled               bool
+	T3502Value               time.Duration
+	T3512Value               time.Duration
+	TimeZone                 string // "[+-]HH:MM[+][1-2]", Refer to TS 29.571 Simple Data Types
+	T3513Cfg                 guard.TimerValue
+	NASGuardCfg              guard.TimerValue
+	handoverGuardTimeout     time.Duration
+	Session                  SmfSbi
+	NAS                      NASHandler
+	LPPHandler               LPPHandler
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {

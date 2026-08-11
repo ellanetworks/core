@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// epsInterworkingAMF is an AMF running N26, with an AES-only operator policy.
 func epsInterworkingAMF(n26 bool) *amf.AMF {
 	a := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
@@ -31,17 +30,13 @@ func epsInterworkingAMF(n26 bool) *amf.AMF {
 	return a
 }
 
-// securityModeCommandsIn counts the SECURITY MODE COMMANDs among the downlink
-// messages sent. A registration that skips the security mode procedure still
-// answers with a REGISTRATION ACCEPT, so the count matters, not the total.
 func securityModeCommandsIn(t *testing.T, sent []*ngap.DownlinkNASTransport) int {
 	t.Helper()
 
 	n := 0
 
 	for _, pdu := range sent {
-		// The command is integrity protected and not ciphered (TS 24.501 §4.4.5),
-		// so the plain message it wraps is readable without keys.
+		// TS 24.501 §4.4.5
 		spm, err := fgs.ParseSecurityProtectedMessage(pdu.NASPDU)
 		if err != nil {
 			continue
@@ -60,9 +55,6 @@ func securityModeCommandsIn(t *testing.T, sent []*ngap.DownlinkNASTransport) int
 	return n
 }
 
-// registeredS1UE is a UE holding a current 5G NAS security context that has just
-// sent a protected REGISTRATION REQUEST disclosing S1 mode support and its EPS
-// algorithms — the state TS 24.501 §5.4.2.2 addresses.
 func registeredS1UE(t *testing.T) (*amf.UeContext, *fakeNGAPSender) {
 	t.Helper()
 
@@ -78,7 +70,6 @@ func registeredS1UE(t *testing.T) (*amf.UeContext, *fakeNGAPSender) {
 	ue.SetNgKsiForTest(ng)
 
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
-	// 128-EEA1/2/3 and 128-EIA1/2/3 in EPS; no UMTS algorithms.
 	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, []byte{0x70, 0x70, 0x00, 0x00})
 
 	conn := ue.Conn()
@@ -88,9 +79,7 @@ func registeredS1UE(t *testing.T) (*amf.UeContext, *fakeNGAPSender) {
 	return ue, ngapSender
 }
 
-// A UE whose security context needs no change, but which has never been told its
-// EPS NAS algorithms, gets the security mode command that carries them; the
-// registration then continues from SECURITY MODE COMPLETE (TS 24.501 §5.4.2.2).
+// TS 24.501 §5.4.2.2
 func TestSecurityMode_DeliversEPSNASAlgorithmsOnValidContext(t *testing.T) {
 	ue, ngapSender := registeredS1UE(t)
 
@@ -104,7 +93,6 @@ func TestSecurityMode_DeliversEPSNASAlgorithmsOnValidContext(t *testing.T) {
 		t.Error("the security mode procedure must stay claimed until SECURITY MODE COMPLETE")
 	}
 
-	// Offered, not yet in use: the UE has not answered.
 	if _, ok := ue.EPSNASAlgorithmsInUse(); ok {
 		t.Error("the algorithms must not count as held before the UE accepts them")
 	}
@@ -121,9 +109,7 @@ func TestSecurityMode_DeliversEPSNASAlgorithmsOnValidContext(t *testing.T) {
 	}
 }
 
-// Nothing is offered and no extra round trip is spent while the AMF has no N26
-// interface to offer: the IWK N26 bit it advertises says the same thing, and the
-// two must not disagree (TS 24.501 §8.2.25.4, §9.11.3.5).
+// TS 24.501 §8.2.25.4, §9.11.3.5
 func TestSecurityMode_NoEPSNASAlgorithmsWithoutN26(t *testing.T) {
 	ue, ngapSender := registeredS1UE(t)
 
@@ -138,7 +124,6 @@ func TestSecurityMode_NoEPSNASAlgorithmsWithoutN26(t *testing.T) {
 	}
 }
 
-// A UE that has already been given its algorithms is not asked again.
 func TestSecurityMode_EPSNASAlgorithmsDeliveredOnlyOnce(t *testing.T) {
 	ue, ngapSender := registeredS1UE(t)
 	amfInstance := epsInterworkingAMF(true)

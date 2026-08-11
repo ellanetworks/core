@@ -3,7 +3,6 @@
 
 // Package epskeys is the EPS key hierarchy of TS 33.401 Annex A: the
 // derivations that hang off K_ASME.
-
 package epskeys
 
 import (

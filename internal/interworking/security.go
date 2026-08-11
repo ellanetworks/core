@@ -3,7 +3,6 @@
 
 // Package interworking maps a UE's security context between EPS and 5GS for
 // N26-based inter-system mobility (TS 33.501 §8).
-
 package interworking
 
 import (
@@ -31,30 +30,20 @@ type EPSNASAlgorithms struct {
 	Integrity nas.IntegrityAlgorithm // EIA
 }
 
-type MappedEPSSecurityContext struct {
-	KASME                [keyLen]byte
-	EKSI                 nas.KeySetIdentifier
-	ULNASCount           nas.Count
-	DLNASCount           nas.Count
-	Algorithms           EPSNASAlgorithms
-	UESecurityCapability eps.UESecurityCapability
-	NH                   [keyLen]byte
-	NCC                  uint8
-}
-
 type FiveGToEPSHandover struct {
-	Context   MappedEPSSecurityContext
+	Context   EPSSecurityContext
 	Container fgs.N1ModeToS1ModeNASTransparentContainer
 }
 
 // FiveGToEPSInput is the 5G security context a handover to EPS maps from.
 type FiveGToEPSInput struct {
-	KAMF                 []byte
-	NgKSI                nas.KeySetIdentifier
-	ULNASCount           nas.Count
-	DLNASCount           nas.Count
-	Algorithms           EPSNASAlgorithms
-	UESecurityCapability eps.UESecurityCapability
+	KAMF                   []byte
+	NgKSI                  nas.KeySetIdentifier
+	ULNASCount             nas.Count
+	DLNASCount             nas.Count
+	Algorithms             EPSNASAlgorithms
+	UESecurityCapability   eps.UESecurityCapability
+	UE5GSecurityCapability *fgs.UESecurityCapability
 }
 
 // MapToEPSOnHandover derives the mapped EPS security context for a 5GS to EPS
@@ -72,7 +61,7 @@ func MapToEPSOnHandover(in FiveGToEPSInput) (FiveGToEPSHandover, error) {
 
 	// TS 33.401 A.3 with the uplink NAS COUNT parameter set to 2³²−1. The value is
 	// a placeholder for a COUNT, never a COUNT: neither side's counters move.
-	kenb, err := epskeys.DeriveKeNB(kasme[:], nas.CountOutOfRange)
+	kenb, err := epskeys.DeriveKeNB(kasme[:], nas.MaxCount)
 	if err != nil {
 		return FiveGToEPSHandover{}, fmt.Errorf("derive initial K_eNB: %w", err)
 	}
@@ -92,24 +81,24 @@ func MapToEPSOnHandover(in FiveGToEPSInput) (FiveGToEPSHandover, error) {
 	}
 
 	return FiveGToEPSHandover{
-		Context: MappedEPSSecurityContext{
-			KASME:                kasme,
-			EKSI:                 mappedKSI(in.NgKSI),
-			ULNASCount:           in.ULNASCount,
-			DLNASCount:           in.DLNASCount,
-			Algorithms:           in.Algorithms,
-			UESecurityCapability: in.UESecurityCapability,
-			NH:                   nh2,
-			NCC:                  2,
+		Context: EPSSecurityContext{
+			KASME:                  kasme,
+			EKSI:                   mappedKSI(in.NgKSI),
+			ULNASCount:             in.ULNASCount,
+			DLNASCount:             in.DLNASCount,
+			Algorithms:             in.Algorithms,
+			UESecurityCapability:   in.UESecurityCapability,
+			UE5GSecurityCapability: in.UE5GSecurityCapability,
+			NH:                     nh2,
+			NCC:                    2,
 		},
 		Container: fgs.NewN1ModeToS1ModeNASTransparentContainer(in.DLNASCount),
 	}, nil
 }
 
-// EPSSecurityContext is the EPS security context the MME sends the AMF in the
-// Forward Relocation Request (TS 33.501 §8.4.2 step 2). It is the MME's own
-// context, not a mapped one, and the AMF reads it without ever sending a 5G
-// parameter back the other way.
+// EPSSecurityContext is an EPS security context crossing N26 in either
+// direction: mapped from a 5G one by the AMF (TS 33.501 §8.3.2 step 3, §8.6.1),
+// or the MME's own on the way back (§8.4.2 step 2).
 type EPSSecurityContext struct {
 	KASME [keyLen]byte
 	EKSI  nas.KeySetIdentifier
@@ -163,6 +152,8 @@ type Mapped5GSecurityContext struct {
 	// EPSAlgorithms are the EPS NAS algorithms received from the MME, stored so a
 	// later move back to EPS names the pair the UE already holds (§8.4.2 step 3).
 	EPSAlgorithms EPSNASAlgorithms
+
+	EPSSecurityCapability eps.UESecurityCapability
 
 	// TemporaryKgNB is sent to the target gNB as the NH of a {NCC=0, NH} pair,
 	// with the New Security Context Indicator. It is derived from K'AMF rather
@@ -239,7 +230,7 @@ func MapTo5GSOnHandover(in EPSSecurityContext, intOrder []nas.IntegrityAlgorithm
 	// A.9 with the uplink NAS COUNT parameter set to 2³²−1, for the same reason as
 	// the initial K_eNB in the other direction: the value can never be one a real
 	// message used, so this K_gNB can never be derived twice (§8.4.2 NOTE 3).
-	temporaryKgNB, err := fivegskeys.DeriveKgNB(kamf[:], nas.CountOutOfRange)
+	temporaryKgNB, err := fivegskeys.DeriveKgNB(kamf[:], nas.MaxCount)
 	if err != nil {
 		return EPSTo5GSHandover{}, fmt.Errorf("derive temporary K_gNB: %w", err)
 	}
@@ -272,19 +263,20 @@ func MapTo5GSOnHandover(in EPSSecurityContext, intOrder []nas.IntegrityAlgorithm
 
 	return EPSTo5GSHandover{
 		Context: Mapped5GSecurityContext{
-			KAMF:                 kamf,
-			NgKSI:                ngKSI,
-			ULNASCount:           0,
-			DLNASCount:           nas.Count(0).Next(), // the container consumed COUNT 0
-			Ciphering:            nea,
-			Integrity:            nia,
-			KNASEnc:              knasEnc,
-			KNASInt:              knasInt,
-			UESecurityCapability: capability,
-			EPSAlgorithms:        in.Algorithms,
-			TemporaryKgNB:        temporaryKgNB,
-			NH:                   nh,
-			NCC:                  1,
+			KAMF:                  kamf,
+			NgKSI:                 ngKSI,
+			ULNASCount:            0,
+			DLNASCount:            nas.Count(0).Next(), // the container consumed COUNT 0
+			Ciphering:             nea,
+			Integrity:             nia,
+			KNASEnc:               knasEnc,
+			KNASInt:               knasInt,
+			UESecurityCapability:  capability,
+			EPSAlgorithms:         in.Algorithms,
+			EPSSecurityCapability: in.UESecurityCapability,
+			TemporaryKgNB:         temporaryKgNB,
+			NH:                    nh,
+			NCC:                   1,
 		},
 		Container: container,
 	}, nil
@@ -317,7 +309,7 @@ func macForContainer(c fgs.S1ModeToN1ModeNASTransparentContainer, knasInt nas.In
 		return [4]byte{}, fmt.Errorf("interworking: NAS container security context: %w", err)
 	}
 
-	mac, err := sc.MACAtCountOutOfRange(protected, nas.Bearer3GPP, nas.DirectionDownlink)
+	mac, err := sc.MACAtMaxCount(protected, nas.Bearer3GPP, nas.DirectionDownlink)
 	if err != nil {
 		return [4]byte{}, fmt.Errorf("interworking: NAS container MAC: %w", err)
 	}

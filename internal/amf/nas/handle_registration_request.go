@@ -103,11 +103,6 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	conn.RegistrationRequest = req
 
-	// req is the complete message wherever the UE had a context to protect it with,
-	// so this is the first point the non-cleartext capabilities can be read. The
-	// security mode procedure decides on them, so they are ingested here rather than
-	// deeper in the registration (TS 24.501 §4.4.6, §5.5.1.3.4). A cleartext-only
-	// first registration carries neither element and leaves the stored ones alone.
 	ue.SetUECapabilities(req.GMMCapability, req.S1UENetworkCapability)
 
 	conn.RegistrationRequestPlain = slices.Clone(plain)

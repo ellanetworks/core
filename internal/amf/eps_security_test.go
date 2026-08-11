@@ -13,14 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// s1NetworkCapability is a UE network capability value (TS 24.301 §9.9.3.34):
-// octet 3 EEA, octet 4 EIA, octet 5 UEA, octet 6 UCS2 + UIA.
 func s1NetworkCapability(eea, eia, uea, uia byte) []byte {
 	return []byte{eea, eia, uea, uia}
 }
 
-// attachTestConn gives the UE the active NAS connection the security mode command
-// builder reads its registration context from.
 func attachTestConn(t *testing.T, ue *amf.UeContext) {
 	t.Helper()
 
@@ -30,8 +26,6 @@ func attachTestConn(t *testing.T, ue *amf.UeContext) {
 	amfInstance.AttachUeConn(ue, amf.NewUeConnForTest(radio, 1, 1, zap.NewNop()))
 }
 
-// epsCapableUE is a UE that has completed a registration: it supports S1 mode and
-// has disclosed the EPS algorithms it accepts.
 func epsCapableUE(t *testing.T, s1 []byte) *amf.UeContext {
 	t.Helper()
 
@@ -41,14 +35,9 @@ func epsCapableUE(t *testing.T, s1 []byte) *amf.UeContext {
 	return ue
 }
 
-// The operator's preference order decides, filtered by what the UE advertises for
-// EPS — not by what it advertises for 5GS.
 func TestSelectEPSNASAlgorithmsUsesTheS1Capability(t *testing.T) {
-	// EEA0 and 128-EEA2; 128-EIA2 only. No UMTS algorithms.
 	ue := epsCapableUE(t, s1NetworkCapability(0b1010_0000, 0b0010_0000, 0x00, 0x00))
 
-	// The 5GS capability advertises SNOW 3G for N1 mode. It must not leak into the
-	// EPS choice, which the UE does not support there.
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0b0100_0000, IA: 0b0100_0000})
 
 	selected, ok := ue.SelectEPSNASAlgorithms(
@@ -64,9 +53,6 @@ func TestSelectEPSNASAlgorithmsUsesTheS1Capability(t *testing.T) {
 	}
 }
 
-// A UE that has not disclosed its EPS capability is owed nothing: the S1 UE
-// network capability is not a cleartext IE, so a first registration reaches the
-// security mode procedure without it.
 func TestNeedsEPSNASAlgorithms(t *testing.T) {
 	noS1Mode := amf.NewUeContext()
 	noS1Mode.SetUECapabilities(&fgs.GMMCapability{}, s1NetworkCapability(0xe0, 0xe0, 0, 0))
@@ -75,8 +61,6 @@ func TestNeedsEPSNASAlgorithms(t *testing.T) {
 		t.Error("a UE that does not support S1 mode is owed no EPS NAS algorithms")
 	}
 
-	// A UE that supports S1 mode but has sent no S1 UE network capability is still
-	// owed a pair — it is just not yet possible to choose one.
 	noCapability := amf.NewUeContext()
 	noCapability.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, nil)
 
@@ -97,8 +81,6 @@ func TestNeedsEPSNASAlgorithms(t *testing.T) {
 		t.Fatal("selection failed")
 	}
 
-	// Selecting is not delivering: until the UE accepts the SECURITY MODE COMMAND
-	// the two sides do not agree, so the debt stands.
 	if !ue.NeedsEPSNASAlgorithms() {
 		t.Error("a selection the UE has not accepted must not settle the debt")
 	}
@@ -119,7 +101,6 @@ func TestNeedsEPSNASAlgorithms(t *testing.T) {
 	}
 }
 
-// Accepting a security mode procedure that carried no selection changes nothing.
 func TestAcceptEPSNASAlgorithmsWithoutSelection(t *testing.T) {
 	ue := epsCapableUE(t, s1NetworkCapability(0xe0, 0xe0, 0, 0))
 	ue.MarkEPSNASAlgorithmsDelivered()
@@ -133,8 +114,6 @@ func TestAcceptEPSNASAlgorithmsWithoutSelection(t *testing.T) {
 	}
 }
 
-// mustReplayed renders the UE's EPS security capability the way the security mode
-// command replays it.
 func mustReplayed(t *testing.T, ue *amf.UeContext) []byte {
 	t.Helper()
 
@@ -151,9 +130,6 @@ func mustReplayed(t *testing.T, ue *amf.UeContext) []byte {
 	return raw
 }
 
-// The EPS security capability is derived from the UE's own S1 UE network
-// capability: bit 8 of octet 6 is UCS2 support there and spare here, and 5GS
-// carries no MS network capability, so no GERAN octet follows.
 func TestEPSSecurityCapability(t *testing.T) {
 	ue := epsCapableUE(t, s1NetworkCapability(0xe0, 0xc0, 0x80, 0xC0))
 
@@ -175,9 +151,7 @@ func TestEPSSecurityCapability(t *testing.T) {
 	}
 }
 
-// The selection is a function of the S1 UE network capability, so a UE that
-// re-registers with a different one is owed a fresh choice (TS 24.501 §5.5.1.3.2
-// case g).
+// TS 24.501 §5.5.1.3.2
 func TestChangedS1CapabilityForgetsTheEPSNASAlgorithms(t *testing.T) {
 	ue := epsCapableUE(t, s1NetworkCapability(0xe0, 0xe0, 0, 0))
 
@@ -206,8 +180,6 @@ func TestChangedS1CapabilityForgetsTheEPSNASAlgorithms(t *testing.T) {
 	}
 }
 
-// A new offer must not make the AMF forget what the UE is still using: until the
-// UE accepts the replacement, the old pair is the one both sides hold.
 func TestNewOfferKeepsTheDeliveredEPSNASAlgorithms(t *testing.T) {
 	ue := epsCapableUE(t, s1NetworkCapability(0xe0, 0xe0, 0, 0))
 
@@ -233,8 +205,7 @@ func TestNewOfferKeepsTheDeliveredEPSNASAlgorithms(t *testing.T) {
 	}
 }
 
-// The security mode command carries the selected EPS NAS algorithms and, with
-// them, the replayed S1 UE security capability (TS 24.501 §8.2.25.4, §8.2.25.8).
+// TS 24.501 §8.2.25.4, §8.2.25.8
 func TestBuildSecurityModeCommandCarriesEPSNASAlgorithms(t *testing.T) {
 	ue := buildTestUE(t)
 	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{2}, []uint8{2}))
@@ -268,7 +239,6 @@ func TestBuildSecurityModeCommandCarriesEPSNASAlgorithms(t *testing.T) {
 	}
 }
 
-// A UE that has told the AMF nothing about EPS gets neither IE.
 func TestBuildSecurityModeCommandWithoutEPSNASAlgorithms(t *testing.T) {
 	ue := buildTestUE(t)
 	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{2}, []uint8{2}))
@@ -289,9 +259,7 @@ func TestBuildSecurityModeCommandWithoutEPSNASAlgorithms(t *testing.T) {
 	}
 }
 
-// The follow-up command re-signals the current context: no new-context header
-// type, no IMEISV request and no horizontal derivation parameter, so the NAS
-// COUNTs on both sides carry on undisturbed (TS 24.501 §5.4.2.2, §5.4.2.3).
+// TS 24.501 §5.4.2.2, §5.4.2.3
 func TestBuildEPSNASAlgorithmsSecurityModeCommand(t *testing.T) {
 	ue := buildTestUE(t)
 	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{2}, []uint8{2}))

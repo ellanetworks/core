@@ -42,10 +42,6 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 	}
 
 	if ue.SecurityContextIsValid() {
-		// TS 24.501 §5.4.2.2: a UE that supports S1 mode and has not yet been given its
-		// EPS NAS algorithms gets a security mode command carrying them, even though the
-		// 5G NAS security context needs no change. Registration continues from the
-		// SECURITY MODE COMPLETE as it does for any other security mode procedure.
 		if amfInstance.N26Enabled && ue.NeedsEPSNASAlgorithms() && provideEPSNASAlgorithms(ctx, amfInstance, ue, conn) {
 			return
 		}
@@ -117,17 +113,6 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 	committed = true
 }
 
-// selectEPSNASAlgorithms offers the EPS NAS algorithms this UE is to use after
-// mobility to EPS, so the SECURITY MODE COMMAND about to be sent carries them
-// (TS 24.501 §5.4.2.2, TS 33.501 §6.7.2). The orders are the operator's, the same
-// ones the MME applies; only the capability they are matched against is
-// EPS-specific. It reports whether anything is on offer.
-//
-// A UE registering for the first time has not yet disclosed its EPS capability —
-// it is not a cleartext IE — so nothing is offered here, and the algorithms are
-// delivered by their own security mode procedure at its next registration. Failing
-// to select costs that UE N26 mobility and nothing else, so it never fails the
-// registration.
 func selectEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, intOrder []nas.IntegrityAlgorithm, encOrder []nas.CipheringAlgorithm) bool {
 	if !amfInstance.N26Enabled || !ue.NeedsEPSNASAlgorithms() {
 		return false
@@ -150,14 +135,7 @@ func selectEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.U
 	return true
 }
 
-// provideEPSNASAlgorithms runs the security mode control procedure whose only
-// purpose is to deliver the EPS NAS algorithms to a UE whose 5G NAS security
-// context is already current (TS 24.501 §5.4.2.2). It reports whether the procedure
-// is in flight; when it is not, the caller carries on with the registration as
-// though nothing had been owed.
 func provideEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn) bool {
-	// Settle what there is to say before claiming anything, so a UE with nothing to
-	// be told does not hold the key chain for the length of a database read.
 	intOrder, encOrder, err := amfInstance.SecurityAlgorithms(ctx)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("could not read the operator security policy, not signalling EPS NAS algorithms", zap.Error(err))
@@ -168,8 +146,6 @@ func provideEPSNASAlgorithms(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false
 	}
 
-	// The message re-signals the current NAS algorithms, so it must not race a
-	// procedure that is changing them (TS 33.501 §6.9.5.1).
 	if !ue.BeginKeyChainProc(procedure.SecurityMode) {
 		logger.From(ctx, logger.AmfLog).Warn("EPS NAS algorithm delivery blocked by a conflicting key-changing procedure")
 		return false

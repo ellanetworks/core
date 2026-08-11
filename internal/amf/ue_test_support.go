@@ -248,4 +248,5 @@ func (ue *UeContext) ForgetS1CapabilityForTest() {
 	defer ue.mu.Unlock()
 
 	ue.s1UENetworkCapability = nil
+	ue.epsSecurityCapability = nil
 }

@@ -5,8 +5,7 @@
 package amf
 
 import (
-	"bytes"
-
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -74,9 +73,6 @@ func MintAuthProofForRegistrationCommit() AuthProof {
 	return AuthProof{}
 }
 
-// MintAuthProofForInterworking returns an AuthProof. It must only be called when
-// installing a 5G security context mapped from an EPS one received over N26
-// (TS 33.501 §8.4.2, §8.6.2).
 func MintAuthProofForInterworking() AuthProof {
 	return AuthProof{}
 }
@@ -142,12 +138,12 @@ func (ue *UeContext) SetUECapabilities(gmm *fgs.GMMCapability, s1 []byte) {
 		ue.gmmCapability = gmm
 	}
 
-	if s1 != nil && !bytes.Equal(ue.s1UENetworkCapability, s1) {
+	if s1 != nil {
 		ue.s1UENetworkCapability = append([]byte(nil), s1...)
 
-		// The EPS NAS algorithms were chosen from the previous capability, so they no
-		// longer describe what this UE accepts in EPS.
-		ue.forgetEPSNASAlgorithmsLocked()
+		if netCap, err := eps.ParseUENetworkCapability(s1); err == nil {
+			ue.setEPSSecurityCapabilityLocked(eps.ReplayedUESecurityCapability(netCap, nil))
+		}
 	}
 }
 
