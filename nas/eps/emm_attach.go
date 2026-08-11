@@ -57,6 +57,10 @@ type AttachRequest struct {
 	// MSNetworkFeatureSupport reports whether the UE supports the extended
 	// periodic timer (IEI 0xC-, §8.2.4.16).
 	MSNetworkFeatureSupport *bool
+	// UEStatus reports the UE's registration state in each system (IEI 0x6D,
+	// §8.2.4.22), which is how an attach that is really an inter-system move from
+	// 5GS identifies itself.
+	UEStatus *UEStatus
 
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
@@ -129,6 +133,10 @@ func (m *AttachRequest) AppendBinary(b []byte) ([]byte, error) {
 	}
 
 	tv1(ieiMSNetworkFeatureSupport, m.MSNetworkFeatureSupport)
+
+	if m.UEStatus != nil {
+		o.TLV(ieiUEStatus, m.UEStatus.MarshalBinary())
+	}
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -208,6 +216,13 @@ func ParseAttachRequest(b []byte) (*AttachRequest, error) {
 			}
 		case ieiMSNetworkFeatureSupport:
 			m.MSNetworkFeatureSupport = tv1Flag(value)
+		case ieiUEStatus:
+			parsed, err := ParseUEStatus(value)
+			if err != nil {
+				return false, err
+			}
+
+			m.UEStatus = &parsed
 		default:
 			return false, nil
 		}

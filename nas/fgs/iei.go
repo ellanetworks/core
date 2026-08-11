@@ -67,6 +67,7 @@ const (
 	ieiRequestType             uint8 = 0x80 // UL NAS TRANSPORT: request type (type 1, walker-emitted IEI)
 	ieiMICOIndication          uint8 = 0xB0 // REGISTRATION REQUEST: MICO indication (type 1)
 	ieiIMEISV                  uint8 = 0x77 // SECURITY MODE COMPLETE: IMEISV (same octet as the additional GUTI)
+	ieiAdditionalGUTI          uint8 = 0x77 // REGISTRATION REQUEST: additional GUTI (same octet as the 5G-GUTI)
 
 	// REGISTRATION ACCEPT optional IEs (TS 24.501 §8.2.7).
 	ieiRejectedNSSAI          uint8 = 0x11 // rejected NSSAI

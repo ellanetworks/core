@@ -80,7 +80,7 @@ func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *
 		RANUENGAPID:  ranID,
 		HandoverType: ngap.HandoverTypeIntra5GS,
 		Cause:        &cause,
-		TargetID: ngap.TargetID{TargetRANNodeID: ngap.TargetRANNodeID{
+		TargetID: ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
 			GlobalRANNodeID: ngap.GlobalRANNodeID{
 				Kind:         ngap.RANNodeIDGNB,
 				PLMNIdentity: operatorPLMN,

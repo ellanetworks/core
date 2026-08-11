@@ -6,6 +6,7 @@ package s1ap
 import (
 	"bytes"
 	"encoding/hex"
+	"reflect"
 	"testing"
 )
 
@@ -313,5 +314,126 @@ func TestHandoverRequestDataForwardingNotPossibleGolden(t *testing.T) {
 
 	if got := hex.EncodeToString(b); got != want {
 		t.Fatalf("encoded\n got %s\nwant %s", got, want)
+	}
+}
+
+// TestHandoverRequestCarriesRestrictionList covers the Handover Restriction List
+// (TS 36.413 §9.2.1.22). It is optional in the ASN.1 and not optional in
+// practice: §8.4.2.4 has the target eNB reject the handover with HANDOVER
+// FAILURE when the list is absent and it cannot determine the serving PLMN
+// otherwise, which an inter-system handover from 5GS cannot rely on it doing.
+func TestHandoverRequestCarriesRestrictionList(t *testing.T) {
+	serving := PLMNIdentity{0x00, 0xf1, 0x10}
+	other := PLMNIdentity{0x00, 0xf1, 0x20}
+	interRAT := ForbiddenInterRATsAll
+
+	in := &HandoverRequest{
+		MMEUES1APID:  1,
+		HandoverType: HandoverTypeIntraLTE,
+		Cause:        Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+		UEAMBR:       UEAggregateMaximumBitRate{DL: 1000, UL: 1000},
+		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
+			ERABID:                5,
+			TransportLayerAddress: TransportLayerAddress{192, 0, 2, 1},
+			GTPTEID:               1,
+			QoS:                   ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 1}},
+		}},
+		SourceToTarget:         TransparentContainer{0x01},
+		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000},
+		HandoverRestrictionList: &HandoverRestrictionList{
+			ServingPLMN:        serving,
+			EquivalentPLMNs:    EPLMNs{other},
+			ForbiddenTAs:       ForbiddenTAs{{PLMNIdentity: other, ForbiddenTACs: ForbiddenTACs{7, 8}}},
+			ForbiddenLAs:       ForbiddenLAs{{PLMNIdentity: other, ForbiddenLACs: ForbiddenLACs{9}}},
+			ForbiddenInterRATs: &interRAT,
+		},
+		SecurityContext: SecurityContext{NextHopChainingCount: 1},
+	}
+
+	b, err := in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParseHandoverRequest(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := out.HandoverRestrictionList
+	if got == nil {
+		t.Fatal("restriction list absent")
+	}
+
+	if got.ServingPLMN != serving {
+		t.Errorf("serving PLMN = % x, want % x", got.ServingPLMN, serving)
+	}
+
+	if len(got.EquivalentPLMNs) != 1 || got.EquivalentPLMNs[0] != other {
+		t.Errorf("equivalent PLMNs = %+v, want [% x]", got.EquivalentPLMNs, other)
+	}
+
+	if len(got.ForbiddenTAs) != 1 || !reflect.DeepEqual(got.ForbiddenTAs[0].ForbiddenTACs, ForbiddenTACs{7, 8}) {
+		t.Errorf("forbidden TAs = %+v, want one item with TACs [7 8]", got.ForbiddenTAs)
+	}
+
+	if len(got.ForbiddenLAs) != 1 || !reflect.DeepEqual(got.ForbiddenLAs[0].ForbiddenLACs, ForbiddenLACs{9}) {
+		t.Errorf("forbidden LAs = %+v, want one item with LACs [9]", got.ForbiddenLAs)
+	}
+
+	if got.ForbiddenInterRATs == nil || *got.ForbiddenInterRATs != ForbiddenInterRATsAll {
+		t.Errorf("forbidden inter-RATs = %v, want all", got.ForbiddenInterRATs)
+	}
+
+	// Serving PLMN alone is the minimum §8.4.2.4 turns on, and the optional
+	// fields have to stay absent rather than decode as empty lists.
+	in.HandoverRestrictionList = &HandoverRestrictionList{ServingPLMN: serving}
+
+	b, err = in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err = Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err = ParseHandoverRequest(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := out.HandoverRestrictionList; got == nil || got.ServingPLMN != serving ||
+		got.EquivalentPLMNs != nil || got.ForbiddenTAs != nil || got.ForbiddenLAs != nil ||
+		got.ForbiddenInterRATs != nil {
+		t.Fatalf("serving-PLMN-only list = %+v", got)
+	}
+
+	// And the whole list stays optional.
+	in.HandoverRestrictionList = nil
+
+	b, err = in.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err = Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err = ParseHandoverRequest(pdu.(*InitiatingMessage).Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if out.HandoverRestrictionList != nil {
+		t.Fatalf("restriction list = %+v, want none", out.HandoverRestrictionList)
 	}
 }

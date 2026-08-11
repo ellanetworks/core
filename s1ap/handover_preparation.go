@@ -9,11 +9,18 @@ import (
 
 // TS 36.413 §9.1.5.1.
 type HandoverRequired struct {
-	MMEUES1APID    MMEUES1APID
-	ENBUES1APID    ENBUES1APID
-	HandoverType   HandoverType
-	Cause          *Cause
-	TargetID       TargetID
+	MMEUES1APID  MMEUES1APID
+	ENBUES1APID  ENBUES1APID
+	HandoverType HandoverType
+	Cause        *Cause
+	TargetID     TargetID
+
+	// DirectForwardingPathAvailability reports that a direct forwarding path to
+	// the target is available. Absent means it is not, which is why it is a
+	// pointer rather than a bool: TS 36.413 §9.2.1.44 gives the enumeration one
+	// root value and carries "not available" as the IE's absence.
+	DirectForwardingPathAvailability *DirectForwardingPathAvailability
+
 	SourceToTarget TransparentContainer
 
 	messageMeta
@@ -68,6 +75,27 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 			return perIEDecode(raw, &m.TargetID)
 		},
 		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.TargetID, true },
+	},
+	{
+		id: idDirectForwardingPathAvailability, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
+			var v DirectForwardingPathAvailability
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.DirectForwardingPathAvailability = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequired) (per.Marshaler, bool) {
+			if m.DirectForwardingPathAvailability == nil {
+				return nil, false
+			}
+
+			return m.DirectForwardingPathAvailability, true
+		},
 	},
 	{
 		id: idSourceToTargetTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,

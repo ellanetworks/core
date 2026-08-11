@@ -87,7 +87,7 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 		RANUENGAPID:  ngap.RANUENGAPID(opts.RANUENGAPID),
 		HandoverType: opts.HandoverType,
 		Cause:        cause,
-		TargetID: ngap.TargetID{TargetRANNodeID: ngap.TargetRANNodeID{
+		TargetID: ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
 			GlobalRANNodeID: node,
 			SelectedTAI:     ngap.TAI{PLMNIdentity: node.PLMNIdentity, TAC: tac},
 		}},
