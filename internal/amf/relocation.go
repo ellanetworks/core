@@ -76,23 +76,23 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 
 func (a *AMF) AbandonHandoverToEPS(ctx context.Context, ue *UeContext) {
 	a.ClearHandover(ue)
-	a.CancelRelocationToEPS(ctx, ue)
+
+	if err := a.CancelRelocationToEPS(ctx, ue); err != nil {
+		logger.From(ctx, logger.AmfLog).Info("the EPS peer had no handover to cancel", zap.Error(err))
+	}
 }
 
-func (a *AMF) CancelRelocationToEPS(ctx context.Context, ue *UeContext) {
+func (a *AMF) CancelRelocationToEPS(ctx context.Context, ue *UeContext) error {
 	if a.EPS == nil || ue == nil {
-		return
+		return nil
 	}
 
 	imsi := ue.Supi().IMSI()
 	if imsi == "" {
-		return
+		return nil
 	}
 
-	if err := a.EPS.RelocationCancel(ctx, imsi); err != nil {
-		logger.From(ctx, logger.AmfLog).Info("the EPS peer had no handover to cancel",
-			zap.String("imsi", imsi), zap.Error(err))
-	}
+	return a.EPS.RelocationCancel(ctx, imsi)
 }
 
 func (a *AMF) RelocationComplete(ctx context.Context, imsi string) error {
@@ -145,7 +145,9 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext) {
 			logger.From(cctx, logger.AmfLog).Warn("handover to EPS abandoned: the UE did not arrive in time",
 				zap.String("imsi", ue.Supi().IMSI()))
 
-			a.CancelRelocationToEPS(cctx, ue)
+			if err := a.CancelRelocationToEPS(cctx, ue); err != nil {
+				logger.From(cctx, logger.AmfLog).Info("the peer had no handover to cancel", zap.Error(err))
+			}
 
 			return nil
 		})

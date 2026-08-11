@@ -552,7 +552,7 @@ func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 		t.Fatal("the relocated UE context is gone")
 	}
 
-	m.abandonHandover(ue)
+	m.abandonHandover(context.Background(), ue)
 
 	if !sessions.released {
 		t.Error("the expired handover left its anchor session behind")
@@ -681,5 +681,49 @@ func TestRelocatedConnectionIsFullyEstablished(t *testing.T) {
 
 	if conn.ICS != ICSCompleted {
 		t.Errorf("connection ICS state = %v, want the bearers the handover established to count as set up", conn.ICS)
+	}
+}
+
+// TS 36.413 §8.4.5.1
+func TestRelocationCancelAfterTheUEArrivesIsRefused(t *testing.T) {
+	sessions := &fakeSessionManager{}
+	m := New(nil, fakeBearerStore{}, sessions)
+	m.FiveGS = &fakeFiveGSPeer{}
+	target := newRelocationTarget(t, m)
+	req := relocationRequest()
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := m.ForwardRelocation(context.Background(), req)
+		done <- err
+	}()
+
+	hoReq := target.awaitHandoverRequest(t)
+	target.admit(t, hoReq)
+
+	if err := <-done; err != nil {
+		t.Fatalf("ForwardRelocation: %v", err)
+	}
+
+	ue, ok := m.LookupUe(hoReq.MMEUES1APID)
+	if !ok {
+		t.Fatal("the relocated UE context is gone")
+	}
+
+	if _, ok := m.MarkHandoverCommitting(ue, target.conn, 42); !ok {
+		t.Fatal("the Handover Notify did not match the prepared handover")
+	}
+
+	if err := m.RelocationCancel(context.Background(), req.IMSI); !errors.Is(err, ErrRelocationTooLate) {
+		t.Fatalf("error = %v, want ErrRelocationTooLate", err)
+	}
+
+	if sessions.released {
+		t.Error("a late cancel released the anchor sessions of a UE that had already arrived")
+	}
+
+	if m.LookupPDN(ue, 5) == nil {
+		t.Error("a late cancel dropped the PDN connection of a UE that had already arrived")
 	}
 }

@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -229,7 +230,9 @@ func (m *MME) SetT3489ConfigForTest(expire time.Duration, maxRetry int32) {
 
 func (c *UeConn) T3489ActiveForTest() bool { return c.esmInfoGuard.Active() }
 
-func (m *MME) FireHandoverGuardForTest(ue *UeContext) { m.abandonHandover(ue) }
+func (m *MME) FireHandoverGuardForTest(ue *UeContext) {
+	m.abandonHandover(context.Background(), ue)
+}
 
 func (m *MME) ReclaimUEsOnConnLossForTest(conn S1APWriter) { m.reclaimUEsOnConnLoss(conn) }
 

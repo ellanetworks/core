@@ -23,6 +23,7 @@ var (
 	ErrNoRelocatablePDN     = errors.New("mme: no PDN connection could be opened for the relocated UE")
 	ErrRelocationInProgress = errors.New("mme: a handover to EPS is already in progress for this subscriber")
 	ErrNoRelocation         = errors.New("mme: no handover to EPS is in progress for this subscriber")
+	ErrRelocationTooLate    = errors.New("mme: the UE has already reached the target, too late to cancel")
 )
 
 func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
@@ -71,6 +72,8 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 }
 
 func (m *MME) dropRelocation(ctx context.Context, ue *UeContext) {
+	ctx = context.WithoutCancel(ctx)
+
 	m.ReleaseAllSessions(ctx, ue)
 	m.RemoveUe(ue)
 
@@ -146,7 +149,7 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 			AcceptedPDUSessions: m.dropUnadmittedPDNs(ctx, ue, accepted, out.unadmitted),
 		}, nil
 	case <-ctx.Done():
-		m.abandonHandover(ue)
+		m.abandonHandover(ctx, ue)
 
 		return none, ctx.Err()
 	}
@@ -273,8 +276,9 @@ func (m *MME) RelocationCancel(ctx context.Context, imsi string) error {
 
 	logger.From(ctx, logger.MmeLog).Info("Relocation Cancel", zap.String("imsi", imsi))
 
-	m.abandonHandover(ue)
-	m.dropRelocation(ctx, ue)
+	if !m.abandonHandover(ctx, ue) {
+		return fmt.Errorf("%w: %s", ErrRelocationTooLate, imsi)
+	}
 
 	return nil
 }

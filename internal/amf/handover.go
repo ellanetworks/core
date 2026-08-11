@@ -278,9 +278,9 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 	return true
 }
 
-func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, toEPS, aborted bool) {
+func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 	if ue == nil {
-		return nil, false, false
+		return nil, false
 	}
 
 	a.mu.Lock()
@@ -293,7 +293,6 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, toEPS, aborted bool
 		// Too late to cancel: acknowledge but let the in-flight NOTIFY finish.
 	default:
 		target = ho.target
-		toEPS = ho.toEPS
 		detachAbandonedTargetLocked(ue, ho)
 		ue.handover = nil
 		aborted = true
@@ -305,7 +304,7 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, toEPS, aborted bool
 		ue.EndKeyChainProc(procedure.N2Handover)
 	}
 
-	return target, toEPS, aborted
+	return target, aborted
 }
 
 func (a *AMF) UnbindHandoverTarget(ctx context.Context, ue *UeContext) {
@@ -357,15 +356,9 @@ func (a *AMF) MarkHandoverPrepared(ue *UeContext, admitted map[uint8]struct{}) (
 		return nil, false
 	}
 
-	// TS 38.413 §8.4.1.4 defines no abnormal condition for a HANDOVER REQUIRED that
-	// names the same PDU session twice, so it is carried as-is — but the list this
-	// builds must still name each session once.
 	reported := make(map[ngap.PDUSessionID]struct{}, len(ue.handover.candidates))
 
 	for _, c := range ue.handover.candidates {
-		// An out-of-range PDU session ID is never offered and so never admitted;
-		// the lookup is safe because PDUSessionID and the admitted key are both
-		// one octet.
 		if _, isAdmitted := admitted[uint8(c.PDUSessionID)]; isAdmitted {
 			continue
 		}
@@ -384,10 +377,6 @@ func (a *AMF) MarkHandoverPrepared(ue *UeContext, admitted map[uint8]struct{}) (
 	return toRelease, true
 }
 
-// HandoverPreparing reports whether a handover is in progress and still at the
-// preparing stage, without advancing it. It lets HANDOVER REQUEST ACKNOWLEDGE
-// drop a duplicate before validating the admitted-session list, so a duplicate
-// cannot tear down an already-prepared handover.
 func (a *AMF) HandoverPreparing(ue *UeContext) bool {
 	if ue == nil {
 		return false

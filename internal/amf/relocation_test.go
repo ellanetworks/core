@@ -224,15 +224,17 @@ func TestCancelHandoverToEPSReachesThePeer(t *testing.T) {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	target, toEPS, aborted := a.CancelHandover(ue)
-	if !aborted || !toEPS || target != nil {
-		t.Fatalf("CancelHandover = (%v, %t, %t), want an aborted move to EPS with no target gNB", target, toEPS, aborted)
+	if err := a.CancelRelocationToEPS(context.Background(), ue); err != nil {
+		t.Fatalf("CancelRelocationToEPS: %v", err)
 	}
-
-	a.CancelRelocationToEPS(context.Background(), ue)
 
 	if got := peer.cancels(); len(got) != 1 || got[0] != ue.Supi().IMSI() {
 		t.Fatalf("the peer was told to cancel %v", got)
+	}
+
+	target, aborted := a.CancelHandover(ue)
+	if !aborted || target != nil {
+		t.Fatalf("CancelHandover = (%v, %t), want an aborted handover with no target gNB", target, aborted)
 	}
 }
 

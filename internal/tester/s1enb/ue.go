@@ -29,42 +29,32 @@ const (
 // MME requests it.
 const defaultIMEISV eps.IMEISV = "3536083123456780"
 
-// UE is a simulated 4G UE: its identity, USIM credentials, and the EPS NAS
-// security state it derives during attach. It is single-threaded — used by one
-// attach/procedure goroutine at a time.
 type UE struct {
-	IMSI string
-	K    [16]byte
-	OPc  [16]byte
-
-	plmn []byte // serving-network PLMN octets, for K_ASME derivation
-
-	netCapEEA nas.AlgorithmSet // advertised EPS ciphering bitmap (UE network capability octet 3)
-	netCapEIA nas.AlgorithmSet // advertised EPS integrity bitmap (octet 4)
-
-	pdnType    eps.PDNType            // requested PDN type (eps.PDNTypeIPv4 / IPv6 / IPv4v6)
-	apn        string                 // requested APN in the Attach Request ("" = subscriber default)
-	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
-
-	n1Mode       bool // gates the network's IWK N26 indication (TS 24.301 §5.5.1.2.4)
-	requestType  eps.RequestType
-	pduSessionID uint8 // sent in the PCO; 0 sends none
-
-	kasme   []byte
-	knasEnc [16]byte
-	knasInt [16]byte
-	sc      *nas.SecurityContext
-	eea     uint8
-	eia     uint8
-	ulCount uint8                            // uplink NAS COUNT for protected uplink messages
-	dlCount downlinkCounter                  // largest downlink NAS COUNT accepted
-	pti     nas.ProcedureTransactionIdentity // last ESM procedure transaction identity used (attach uses 1)
+	IMSI                      string
+	K                         [16]byte
+	OPc                       [16]byte
+	plmn                      []byte                 // serving-network PLMN octets, for K_ASME derivation
+	netCapEEA                 nas.AlgorithmSet       // advertised EPS ciphering bitmap (UE network capability octet 3)
+	netCapEIA                 nas.AlgorithmSet       // advertised EPS integrity bitmap (octet 4)
+	pdnType                   eps.PDNType            // requested PDN type (eps.PDNTypeIPv4 / IPv6 / IPv4v6)
+	apn                       string                 // requested APN in the Attach Request ("" = subscriber default)
+	attachGUTI                *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
+	n1Mode                    bool                   // gates the network's IWK N26 indication (TS 24.301 §5.5.1.2.4)
+	requestType               eps.RequestType
+	pduSessionID              uint8 // sent in the PCO; 0 sends none
+	kasme                     []byte
+	knasEnc                   [16]byte
+	knasInt                   [16]byte
+	sc                        *nas.SecurityContext
+	eea                       uint8
+	eia                       uint8
+	ulCount                   uint8           // uplink NAS COUNT for protected uplink messages
+	dlCount                   downlinkCounter // largest downlink NAS COUNT accepted
+	contextFromAuthentication bool
+	pti                       nas.ProcedureTransactionIdentity // last ESM procedure transaction identity used (attach uses 1)
 }
 
-// NewUE creates a UE bound to this eNB's serving PLMN (the network used in the
-// K_ASME derivation, TS 33.401 §A.2).
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
-	// EEA0-3 supported; EIA1-3 supported (no EIA0) — drives an EEA2/EIA2 selection.
 	return &UE{
 		IMSI: imsi, K: k, OPc: opc, plmn: append([]byte(nil), e.plmn[:]...),
 		netCapEEA: 0xf0, netCapEIA: 0x70, pdnType: eps.PDNTypeIPv4, pti: 1,
@@ -212,6 +202,7 @@ func (ue *UE) handleAuthenticationRequest(plain []byte) ([]byte, error) {
 	}
 
 	ue.kasme = kasme
+	ue.contextFromAuthentication = true
 
 	return (&eps.AuthenticationResponse{RES: res}).MarshalBinary()
 }
@@ -233,6 +224,12 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 
 	ue.eea = uint8(smc.CipheringAlgorithm)
 	ue.eia = uint8(smc.IntegrityAlgorithm)
+
+	if ue.contextFromAuthentication {
+		ue.ulCount = 0
+		ue.dlCount = downlinkCounter{}
+		ue.contextFromAuthentication = false
+	}
 
 	if err := ue.deriveNASKeys(); err != nil {
 		return nil, err
@@ -264,6 +261,10 @@ func (ue *UE) unprotectDownlink(wire []byte) ([]byte, error) {
 
 	count := ue.dlCount.estimate(m.SequenceNumber)
 
+	if err := ue.dlCount.admissible(count); err != nil {
+		return nil, err
+	}
+
 	plain, _, err := eps.Unprotect(wire, count, nas.DirectionDownlink, ue.sc)
 	if err != nil {
 		return nil, err
@@ -277,30 +278,44 @@ func (ue *UE) unprotectDownlink(wire []byte) ([]byte, error) {
 type downlinkCounter struct {
 	last     nas.Count
 	accepted bool
+	floor    nas.Count
+	hasFloor bool
 }
+
+const sequenceHalfWindow = 128
 
 func (d downlinkCounter) estimate(sqn uint8) nas.Count {
 	if !d.accepted {
 		return nas.MakeCount(0, sqn)
 	}
 
-	if sqn > d.last.SQN() {
-		return nas.MakeCount(d.last.Overflow(), sqn)
+	if int(sqn)-int(d.last.SQN()) < -sequenceHalfWindow {
+		return nas.MakeCount(d.last.Overflow()+1, sqn)
 	}
 
-	return nas.MakeCount(d.last.Overflow()+1, sqn)
+	return nas.MakeCount(d.last.Overflow(), sqn)
+}
+
+func (d downlinkCounter) admissible(c nas.Count) error {
+	if d.hasFloor && c.Value() <= d.floor.Value() {
+		return fmt.Errorf("s1enb: downlink NAS COUNT %d was already spent when the security context was taken over (floor %d)",
+			c.Value(), d.floor.Value())
+	}
+
+	return nil
 }
 
 func (d *downlinkCounter) accept(c nas.Count) {
-	d.last, d.accepted = c, true
+	if !d.accepted || c.Value() > d.last.Value() {
+		d.last, d.accepted = c, true
+	}
 }
 
 func (d *downlinkCounter) seed(c nas.Count) {
 	d.last, d.accepted = c, true
+	d.floor, d.hasFloor = c, true
 }
 
-// buildAttachComplete acknowledges the default EPS bearer carried in the Attach
-// Accept's ESM container and returns the protected ATTACH COMPLETE.
 func (ue *UE) buildAttachComplete(acceptESM []byte) ([]byte, error) {
 	activate, err := eps.ParseActivateDefaultEPSBearerContextRequest(acceptESM)
 	if err != nil {

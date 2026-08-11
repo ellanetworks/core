@@ -161,8 +161,8 @@ func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
 }
 
 func (m *MME) SuperviseHandover(ue *UeContext) {
-	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(context.Context) error {
-		m.abandonHandover(ue)
+	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(cctx context.Context) error {
+		m.abandonHandover(cctx, ue)
 
 		return nil
 	})
@@ -425,13 +425,14 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 	SendHandoverPreparationFailure(ctx, m, sourceConn, sourceMMEID, sourceENBID, cause)
 }
 
-func (m *MME) abandonHandover(ue *UeContext) {
+// TS 36.413 §8.4.5.1
+func (m *MME) abandonHandover(ctx context.Context, ue *UeContext) bool {
 	m.mu.Lock()
 
 	ho := ue.handover
 	if ho == nil || ho.state == hoCommitting {
 		m.mu.Unlock()
-		return
+		return false
 	}
 
 	releaseTarget := ho.target
@@ -442,17 +443,19 @@ func (m *MME) abandonHandover(ue *UeContext) {
 	m.mu.Unlock()
 
 	if relocated {
-		m.dropRelocation(context.Background(), ue)
+		m.dropRelocation(ctx, ue)
 	}
 
 	if releaseTarget == nil {
-		return
+		return true
 	}
 
-	logger.MmeLog.Warn("S1 handover abandoned: target did not complete it in time",
+	logger.From(ctx, logger.MmeLog).Warn("S1 handover abandoned",
 		zap.Uint32("target-mme-ue-id", uint32(releaseTarget.MMEUES1APID)))
 
-	SendUEContextRelease(context.Background(), m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, causeHandoverTS1relocExpiry)
+	SendUEContextRelease(ctx, m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, causeHandoverTS1relocExpiry)
+
+	return true
 }
 
 func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {

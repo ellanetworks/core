@@ -73,7 +73,10 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	notHandedOver, ok := amfInstance.MarkHandoverPrepared(amfUe, admitted)
 	if !ok {
 		logger.WithTrace(ctx, sourceUe.Log).Warn("the handover to EPS was abandoned while the peer prepared it")
-		amfInstance.CancelRelocationToEPS(ctx, amfUe)
+
+		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Info("the peer had no handover to cancel", zap.Error(err))
+		}
 
 		return
 	}
