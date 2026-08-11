@@ -12,16 +12,33 @@ import (
 // AllowedNSSAI and GUAMI, both 5G-only, and orders the security IEs before the
 // session list where S1AP orders them after.
 type HandoverRequest struct {
-	AMFUENGAPID                        AMFUENGAPID
-	HandoverType                       HandoverType
-	Cause                              *Cause
-	UEAggregateMaximumBitRate          UEAggregateMaximumBitRate
-	UESecurityCapabilities             UESecurityCapabilities
-	SecurityContext                    SecurityContext
+	AMFUENGAPID               AMFUENGAPID
+	HandoverType              HandoverType
+	Cause                     *Cause
+	UEAggregateMaximumBitRate UEAggregateMaximumBitRate
+	UESecurityCapabilities    UESecurityCapabilities
+	SecurityContext           SecurityContext
+
+	// The two elements an EPS to 5GS handover adds. NewSecurityContextInd tells
+	// the target the context is one the UE has not used yet, and NASC carries the
+	// S1 mode to N1 mode NAS transparent container the target embeds in the
+	// Target-to-Source container for the UE (TS 33.501 §8.4.2, TS 24.501
+	// §9.11.2.9). Both are optional in the ASN.1 and neither is optional in
+	// practice for that direction: without them the UE cannot take the mapped 5G
+	// context into use.
+	NewSecurityContextInd *NewSecurityContextInd
+	NASC                  NASPDU
+
 	PDUSessionResourceSetupListHOReq   PDUSessionResourceSetupListHOReq
 	AllowedNSSAI                       AllowedNSSAI
 	SourceToTargetTransparentContainer SourceToTargetTransparentContainer
-	GUAMI                              GUAMI
+
+	// MobilityRestrictionList is optional in the ASN.1 and not optional in
+	// practice: TS 38.413 §8.4.2.4 has the target NG-RAN node reject the handover
+	// when the list is absent and it cannot determine the serving PLMN otherwise.
+	MobilityRestrictionList *MobilityRestrictionList
+
+	GUAMI GUAMI
 
 	messageMeta
 }
@@ -84,6 +101,40 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.SecurityContext, true },
 	},
 	{
+		id: idNewSecurityContextInd, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v NewSecurityContextInd
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.NewSecurityContextInd = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.NewSecurityContextInd == nil {
+				return nil, false
+			}
+
+			return m.NewSecurityContextInd, true
+		},
+	},
+	{
+		id: idNASC, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.NASC)
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.NASC == nil {
+				return nil, false
+			}
+
+			return m.NASC, true
+		},
+	},
+	{
 		id: idPDUSessionResourceSetupListHOReq, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceSetupListHOReq)
@@ -120,6 +171,27 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			}
 
 			return m.SourceToTargetTransparentContainer, true
+		},
+	},
+	{
+		id: idMobilityRestrictionList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v MobilityRestrictionList
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MobilityRestrictionList = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.MobilityRestrictionList == nil {
+				return nil, false
+			}
+
+			return m.MobilityRestrictionList, true
 		},
 	},
 	{

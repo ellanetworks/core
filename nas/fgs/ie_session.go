@@ -109,6 +109,7 @@ var modificationCommandIEs = []nas.OptionalIE{
 	{IEI: ieiRQTimerValue, Format: nas.IETV3, Len: 1, Name: "RQ timer value"}, // TV — must be tabled so the 5GS walker never mis-skips it as a TLV
 	{IEI: ieiSessionAMBR, Format: nas.IETLV, Name: "Session AMBR"},
 	{IEI: ieiAuthorizedQoSRules, Format: nas.IETLVE, Name: "Authorized QoS rules"},
+	{IEI: ieiMappedEPSBearerContext, Format: nas.IETLVE, Name: "Mapped EPS bearer contexts"},
 	{IEI: ieiQoSFlowDescription, Format: nas.IETLVE, Name: "QoS flow descriptions"},
 	{IEI: ieiExtendedPCO, Format: nas.IETLVE, Name: "Extended PCO"},
 	{IEI: ieiProtoDescCommand, Format: nas.IETLVE, Name: "Protocol description"},

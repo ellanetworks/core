@@ -78,6 +78,10 @@ func TestS1APConstantsMatchSpec(t *testing.T) {
 		{"maxnoofPLMNsPerMME", maxnoofPLMNsPerMME, 32},
 		{"maxnoofGroupIDs", maxnoofGroupIDs, 65535},
 		{"maxnoofMMECs", maxnoofMMECs, 256},
+		{"maxnoofEPLMNs", maxnoofEPLMNs, 15},
+		{"maxnoofEPLMNsPlusOne", maxnoofEPLMNsPlusOne, 16},
+		{"maxnoofForbTACs", maxnoofForbTACs, 4096},
+		{"maxnoofForbLACs", maxnoofForbLACs, 4096},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s is %d, TS 36.413 S1AP-Constants says %d", c.name, c.got, c.want)

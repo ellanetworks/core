@@ -35,9 +35,10 @@ type PDUSessionEstablishmentAccept struct {
 	ExtendedProtocolConfigurationOptions *ExtendedProtocolConfigurationOptions `json:"extended_protocol_configuration_options,omitempty"`
 	DNN                                  *string                               `json:"dnn,omitempty"`
 
+	MappedEPSBearerContexts []MappedEPSBearerContext `json:"mapped_eps_bearer_contexts,omitempty"`
+
 	RQTimerValue                 *UnsupportedIE `json:"rq_timer_value,omitempty"`
 	AlwaysonPDUSessionIndication *UnsupportedIE `json:"alwayson_pdu_session_indication,omitempty"`
-	MappedEPSBearerContexts      *UnsupportedIE `json:"mapped_eps_bearer_contexts,omitempty"`
 	EAPMessage                   *UnsupportedIE `json:"eap_message,omitempty"`
 }
 
@@ -77,8 +78,8 @@ func buildPDUSessionEstablishmentAccept(msg *fgs.PDUSessionEstablishmentAccept) 
 		estAcc.AlwaysonPDUSessionIndication = makeUnsupportedIE()
 	}
 
-	if hasPreservedIE(msg.Unrecognized, ieiMappedEPSBearerContexts) {
-		estAcc.MappedEPSBearerContexts = makeUnsupportedIE()
+	if msg.MappedEPSBearerContexts != nil {
+		estAcc.MappedEPSBearerContexts = MappedEPSBearerContextsFromNAS(msg.MappedEPSBearerContexts)
 	}
 
 	if msg.EAP != nil {

@@ -296,6 +296,12 @@ type PDUSessionEstablishmentAccept struct {
 	ExtendedPCO         *nas.ProtocolConfigurationOptions // optional
 	DNN                 *DNN                              // optional
 
+	// MappedEPSBearerContexts is the EPS bearer contexts the session's QoS flows
+	// map to (IEI 0x75). The SMF provides them only for an N26 network:
+	// TS 24.501 §6.1.4.2 states that without an N26 interface it does not give
+	// the UE a mapped EPS bearer context at all.
+	MappedEPSBearerContexts MappedEPSBearerContexts
+
 	// Optional IEs Ella never sends, exposed for decoding (nil = absent).
 	RQTimer *nas.GPRSTimer2 // optional (IEI 0x56), a GPRS timer
 	EAP     []byte          // optional (IEI 0x78)
@@ -366,6 +372,15 @@ func (m *PDUSessionEstablishmentAccept) AppendBinary(b []byte) ([]byte, error) {
 
 	if m.AlwaysOn != nil {
 		o.TV1(ieiAlwaysOnIndication, boolBit(*m.AlwaysOn, 0))
+	}
+
+	if m.MappedEPSBearerContexts != nil {
+		raw, err := m.MappedEPSBearerContexts.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiMappedEPSBearerContext, raw)
 	}
 
 	if m.EAP != nil {
@@ -506,6 +521,13 @@ func ParsePDUSessionEstablishmentAccept(b []byte) (*PDUSessionEstablishmentAccep
 			out.RQTimer = &timer
 		case ieiEAPMessageSession:
 			out.EAP = value
+		case ieiMappedEPSBearerContext:
+			parsed, err := ParseMappedEPSBearerContexts(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.MappedEPSBearerContexts = parsed
 		default:
 			return false, nil
 		}

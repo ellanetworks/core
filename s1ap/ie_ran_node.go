@@ -87,6 +87,76 @@ func (e ENBID) SplitCellIdentity(eci uint32) (cellID uint32, ok bool) {
 	return eci & (1<<uint(cellBits) - 1), true
 }
 
+// The NG-RAN node vocabulary TS 36.413 carries so an EPS to 5GS handover can
+// name its target. It is the only reason these types appear in an S1AP
+// specification at all.
+
+// GNB-Identity ::= CHOICE { gNB-ID BIT STRING (SIZE(22..32)), ... }
+// (TS 36.413). Unlike ENB-ID this is one alternative over a range of widths, so
+// the width travels with the value rather than being implied by the alternative.
+type GNBID struct {
+	Value uint32
+	Bits  int
+}
+
+// gnbIDBits bounds GNB-ID ::= BIT STRING (SIZE(22..32)).
+const (
+	gnbIDMinBits = 22
+	gnbIDMaxBits = 32
+)
+
+// Global-GNB-ID ::= SEQUENCE { pLMN-Identity, gNB-ID GNB-Identity,
+// iE-Extensions OPTIONAL } (extensible) (TS 36.413).
+type GlobalGNBID struct {
+	_            [0]struct{} `per:"extseq"`
+	PLMNIdentity PLMNIdentity
+	GNBID        GNBID
+	_            ieExtensions `per:",skip"`
+}
+
+// GNB ::= SEQUENCE { global-gNB-ID, iE-Extensions OPTIONAL } (extensible)
+// (TS 36.413).
+type GNB struct {
+	_           [0]struct{} `per:"extseq"`
+	GlobalGNBID GlobalGNBID
+	_           ieExtensions `per:",skip"`
+}
+
+// NG-eNB ::= SEQUENCE { global-ng-eNB-ID Global-ENB-ID, iE-Extensions OPTIONAL }
+// (extensible) (TS 36.413). An ng-eNB is identified by the same Global-ENB-ID an
+// eNB is, so this alternative reuses S1AP's own type rather than a 5GS one.
+type NgENB struct {
+	_             [0]struct{} `per:"extseq"`
+	GlobalNgENBID GlobalENBID
+	_             ieExtensions `per:",skip"`
+}
+
+// Global-RAN-NODE-ID ::= CHOICE { gNB, ng-eNB, ... } (TS 36.413). Exactly one
+// alternative is set; which one is derived from the pointers rather than stored,
+// so the two can never disagree.
+type GlobalRANNodeID struct {
+	GNB   *GNB
+	NgENB *NgENB
+}
+
+// FiveGSTAC ::= OCTET STRING (SIZE(3)) (TS 36.413), held as the 24-bit number
+// those octets carry. It is the 5GS tracking area code, three octets wide where
+// the EPS TAC is two.
+type FiveGSTAC uint32
+
+// fiveGSTACMax is the widest value three octets hold.
+const fiveGSTACMax = 1<<24 - 1
+
+// FiveGSTAI ::= SEQUENCE { pLMNidentity, fiveGSTAC, iE-Extensions OPTIONAL }
+// (extensible) (TS 36.413). The 5GS counterpart of TAI, which S1AP needs only to
+// name the tracking area an EPS to 5GS handover targets.
+type FiveGSTAI struct {
+	_            [0]struct{} `per:"extseq"`
+	PLMNIdentity PLMNIdentity
+	TAC          FiveGSTAC
+	_            ieExtensions `per:",skip"`
+}
+
 // Hex renders the eNB identifier as the hex digits its bit length covers,
 // left-aligned in the bit string as the wire carries it.
 func (e ENBID) Hex() string {

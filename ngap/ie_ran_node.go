@@ -91,6 +91,60 @@ type GlobalRANNodeID struct {
 	Bits int
 }
 
+// NgENBIDKind selects an NgENB-ID CHOICE alternative (TS 38.413 §9.3.1.6). The
+// flattened GlobalRANNodeID above covers the same three alternatives as part of
+// its own CHOICE; GlobalNgENB-ID is the standalone SEQUENCE TargeteNB-ID uses,
+// which no GlobalRANNodeID sits inside.
+type NgENBIDKind uint8
+
+const (
+	NgENBIDMacro      NgENBIDKind = iota // macroNgENB-ID: BIT STRING (SIZE(20))
+	NgENBIDShortMacro                    // shortMacroNgENB-ID: SIZE(18)
+	NgENBIDLongMacro                     // longMacroNgENB-ID: SIZE(21)
+
+	// ngENBIDAlternatives counts the three above plus choice-Extensions. The
+	// CHOICE is not extensible, so choice-Extensions is a plain alternative
+	// index.
+	ngENBIDAlternatives = 4
+)
+
+var ngENBIDBits = map[NgENBIDKind]int{
+	NgENBIDMacro:      20,
+	NgENBIDShortMacro: 18,
+	NgENBIDLongMacro:  21,
+}
+
+// NgENB-ID ::= CHOICE { macroNgENB-ID, shortMacroNgENB-ID, longMacroNgENB-ID,
+// choice-Extensions } — TS 38.413 §9.3.1.6. Each alternative fixes its own
+// width, so the kind is what the width is read from.
+type NgENBID struct {
+	Kind  NgENBIDKind
+	Value uint32
+}
+
+// GlobalNgENB-ID ::= SEQUENCE { pLMNIdentity, ngENB-ID, iE-Extensions OPTIONAL }
+// (extensible) — TS 38.413 §9.3.1.8.
+type GlobalNgENBID struct {
+	_            [0]struct{} `per:"extseq"`
+	PLMNIdentity PLMNIdentity
+	NgENBID      NgENBID
+	_            ieExtensions `per:",skip"`
+}
+
+// EPS-TAC ::= OCTET STRING (SIZE(2)) — TS 38.413 §9.3.3.32, held as the 16-bit
+// number those octets carry. It is the EPS tracking area code, two octets where
+// the 5GS TAC is three, which is the whole reason EPS-TAI exists beside TAI.
+type EPSTAC uint16
+
+// EPS-TAI ::= SEQUENCE { pLMNIdentity, ePS-TAC, iE-Extensions OPTIONAL }
+// (extensible) — TS 38.413 §9.3.3.31.
+type EPSTAI struct {
+	_            [0]struct{} `per:"extseq"`
+	PLMNIdentity PLMNIdentity
+	TAC          EPSTAC
+	_            ieExtensions `per:",skip"`
+}
+
 // The library owns every conversion between a wire field and the sub-fields
 // 3GPP defines it as, so a caller never shifts or masks a value the library
 // encodes. The cell-identity widths and the node-id width both live here, and
