@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -14,6 +15,10 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
+
+// errPagingSkipped reports a deliberate no-op: the UE is already ECM-CONNECTED or already
+// being paged. Entry points decide whether that is a success or a failure.
+var errPagingSkipped = errors.New("paging skipped")
 
 // Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes
 // the S1 connection and buffered downlink data is delivered, within the UE's
@@ -27,14 +32,26 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
 	}
 
+	if err := m.page(ctx, ue, nil); err != nil && !errors.Is(err, errPagingSkipped) {
+		return err
+	}
+
+	return nil
+}
+
+// page is the build-and-send path behind Page and PageAndRetryLPPa. arm runs immediately
+// before the Paging is sent, because the UE may answer on another goroutine the moment it
+// leaves the MME. No undo is needed: pageRadios reports send failures at the chokepoint.
+func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 	m.mu.RLock()
 
 	skip := ue.Connected() || ue.pagingTimer.Active()
+	imsi := ue.imsiOrEmpty()
 
 	m.mu.RUnlock()
 
 	if skip {
-		return nil
+		return errPagingSkipped
 	}
 
 	paging, err := m.buildPaging(ue)
@@ -45,6 +62,10 @@ func (m *MME) Page(ctx context.Context, imsi string) error {
 	b, err := paging.Marshal()
 	if err != nil {
 		return fmt.Errorf("paging: marshal: %w", err)
+	}
+
+	if arm != nil {
+		arm()
 	}
 
 	m.pageRadios(ctx, ue, b)
@@ -108,6 +129,11 @@ func (m *MME) abandonPaging(ue *UeContext) {
 	m.mu.RUnlock()
 
 	logger.MmeLog.Info("paging unanswered, abandoning procedure", zap.String("imsi", imsi))
+
+	// Backstop for a payload whose requester went away without cancelling.
+	if !ue.Connected() {
+		ue.ClearLPPaBuffered()
+	}
 
 	if m.Session == nil {
 		return
@@ -233,4 +259,52 @@ func radioServesAnyLocked(radio *Radio, area []models.Tai) bool {
 	}
 
 	return false
+}
+
+// PageAndRetryLPPa buffers an LPPa payload on an ECM-IDLE UE and pages it, for delivery
+// when the UE answers (TS 23.273 §6.11.2 step 2). Unlike Page, a UE that needs no page is
+// reported as an error so the LMF can fall back to a coarser method immediately.
+func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64, lppaPayload []byte) error {
+	ue, ok := m.LookupUeBySupi(supi)
+	if !ok {
+		return fmt.Errorf("UE not found: %s", supi)
+	}
+
+	m.mu.RLock()
+
+	handover := ue.handover
+
+	m.mu.RUnlock()
+
+	if handover != nil {
+		return fmt.Errorf("temporary reject: handover ongoing")
+	}
+
+	if ue.EMMState() != EMMRegistered {
+		return fmt.Errorf("UE is not in registered state")
+	}
+
+	if err := m.page(ctx, ue, func() { ue.SetLPPaBuffered(measID, lppaPayload) }); err != nil {
+		return fmt.Errorf("failed to page ECM-IDLE UE: %w", err)
+	}
+
+	logger.MmeLog.Info("LPPa message buffered, paging ECM-IDLE UE",
+		zap.String("imsi", ue.imsiOrEmpty()),
+		zap.Int64("measurement_id", measID),
+		zap.Int("lppa_len", len(lppaPayload)),
+	)
+
+	return nil
+}
+
+// CancelBufferedLPPa discards the LPPa payload buffered under measID, once the LMF stops
+// waiting. Paging supervision outlives the LMF's timeout, so a UE answering late would
+// otherwise be sent a request nobody awaits. The paging procedure is left running.
+func (m *MME) CancelBufferedLPPa(supi etsi.SUPI, measID int64) {
+	ue, ok := m.LookupUeBySupi(supi)
+	if !ok {
+		return
+	}
+
+	ue.ClearLPPaBufferedIf(measID)
 }

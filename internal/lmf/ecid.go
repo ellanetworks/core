@@ -107,6 +107,7 @@ func (l *LMF) determineECIDLocation(ctx context.Context, supi etsi.SUPI) (*model
 type ecidMeasurementClient interface {
 	RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error)
 	WaitForMeasurements(ctx context.Context, supi etsi.SUPI, measurementID int64, notBefore time.Time) (*models.RadioMeasurements, error)
+	CancelMeasurements(supi etsi.SUPI, measurementID int64)
 }
 
 // measurementClient selects the positioning protocol by the access that owns the
@@ -133,6 +134,9 @@ func (l *LMF) measurementClient(supi etsi.SUPI) ecidMeasurementClient {
 // the matching response. It returns nil (so the caller falls back to Cell ID)
 // whenever the request can't be sent or no response arrives within
 // ecidMeasurementTimeout.
+//
+// A request for an idle UE pages it and may still be pending on return; the deferred
+// cancel discards it, since paging supervision outlives ecidMeasurementTimeout.
 func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *models.RadioMeasurements {
 	ctx, cancel := context.WithTimeout(context.Background(), ecidMeasurementTimeout)
 	defer cancel()
@@ -150,6 +154,8 @@ func (l *LMF) fetchECIDMeasurements(supi etsi.SUPI) *models.RadioMeasurements {
 
 		return nil
 	}
+
+	defer client.CancelMeasurements(supi, measID)
 
 	measurements, err := client.WaitForMeasurements(ctx, supi, measID, requestedAt)
 	if err != nil {

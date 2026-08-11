@@ -11,7 +11,6 @@ package amf
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -127,50 +126,19 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 	return nil
 }
 
-// storeN1N2AndPage buffers an SMF-pushed N1N2 message on the idle UE's persistent
-// context and pages it (TS 23.502 §4.2.3.3). The buffer is delivered on the new
-// connection the UE establishes when it answers the page.
+// storeN1N2AndPage buffers a downlink request and pages the idle UE
+// (TS 23.502 §4.2.3.3). An earlier request already being paged for is not displaced; the
+// caller is told to retry (HIGHER_PRIORITY_REQUEST_ONGOING, TS 29.518 §6.1.7.3).
 func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
 	if ue.PagingActive() {
 		return fmt.Errorf("higher priority request ongoing")
 	}
 
-	if ue.State() == RegistrationInitiated {
-		return fmt.Errorf("temporary reject registration ongoing")
+	if err := guardIdlePaging(ue); err != nil {
+		return err
 	}
 
-	if ue.Procedures().Active(procedure.N2Handover) {
-		return fmt.Errorf("temporary reject handover ongoing")
-	}
-
-	if ue.State() != Registered {
-		return fmt.Errorf("ue is not in registered state")
-	}
-
-	ue.SetN1N2Message(&req)
-
-	operatorInfo, err := amf.OperatorInfo(ctx)
-	if err != nil {
-		return fmt.Errorf("get operator info error: %v", err)
-	}
-
-	// Paging supervision is armed per-UE by SendPaging; there is no per-session
-	// paging to track in the procedure registry.
-	paging, err := amf.buildPaging(operatorInfo.Guami, ue)
-	if err != nil {
-		return fmt.Errorf("build paging error: %v", err)
-	}
-
-	pkg, err := paging.Marshal()
-	if err != nil {
-		return fmt.Errorf("marshal paging error: %v", err)
-	}
-
-	if err := amf.SendPaging(ctx, ue, pkg); err != nil {
-		return fmt.Errorf("send paging error: %v", err)
-	}
-
-	return nil
+	return amf.pageIdleUE(ctx, ue, &req)
 }
 
 // ModifyN1N2Message delivers a PDU Session Modification Command (N1) to the
@@ -315,10 +283,6 @@ func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req
 		return amf.storeN1N2AndPage(ctx, ue, req)
 	}
 
-	if ue.PagingActive() {
-		return fmt.Errorf("higher priority request ongoing")
-	}
-
 	if ue.State() == RegistrationInitiated {
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
@@ -422,11 +386,8 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 	})
 }
 
-// TransferN1LPPMsg wraps an LPP payload in a DL NAS Transport message and
-// sends it to the UE via the RAN. Per TS 24.501 §5.4.5.3.1 case c), LPP
-// payloads are carried in DL NAS Transport with PayloadContainerTypeLPP.
-//
-// pduSessionID must be 0 for LPP messages — LPP is not PDU-session-scoped.
+// TransferN1LPPMsg transfers a DL Positioning message to the UE (TS 23.273 §6.11.1
+// step 1), paging it first when CM-IDLE (step 2).
 func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlationID, lppMsg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -442,45 +403,56 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 		return fmt.Errorf("ue context not found")
 	}
 
-	ueConn := ue.Conn()
-	if ueConn == nil {
-		return fmt.Errorf("ue is not connected to RAN")
-	}
-
-	// TS 24.501 §5.4.5.3.1 case c): the Additional information IE carries the LCS
-	// correlation identifier, which the UE hands to its location services
-	// application and echoes back on the uplink (§5.4.5.2.1 case c). The caller
-	// passes the identifier held for the positioning session so every message
-	// shares it (TS 23.273 §6.11.1 NOTE 11); a transfer with none is assigned a
-	// fresh 4-octet, AMF-assigned identifier (NOTE 2).
+	// A transfer with no correlation identifier is assigned a fresh 4-octet one
+	// (TS 24.501 §5.4.5.3.1 NOTE 2).
 	if len(correlationID) == 0 {
 		correlationID = amf.nextLCSCorrelationID()
 	}
 
-	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeLPP, lppMsg, nil, nil, correlationID)
-	if err != nil {
-		return fmt.Errorf("build DL NAS Transport (LPP) error: %v", err)
+	req := models.N1N2MessageTransferRequest{
+		N1Class:             models.N1ClassLPP,
+		BinaryDataN1Message: lppMsg,
+		LCSCorrelationID:    correlationID,
 	}
 
-	if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
-		if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
-			return fmt.Errorf("send downlink nas transport (LPP): %w", err)
-		}
+	return amf.transferOrPageStandalone(ctx, ue, req)
+}
 
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE",
-		logger.SUPI(supi.String()),
-		zap.Uint8("payload_container_type", uint8(fgs.PayloadContainerTypeLPP)),
-		zap.Int("lpp_len", len(lppMsg)),
-		zap.String("lpp_hex", hex.EncodeToString(lppMsg)),
-		zap.String("lcs_correlation_id", hex.EncodeToString(correlationID)),
+// TransferN2NRPPaMsg transfers a Network Positioning message to the serving NG-RAN node
+// (TS 23.273 §6.11.2 step 1), paging the UE first when CM-IDLE (step 2).
+func (amf *AMF) TransferN2NRPPaMsg(ctx context.Context, supi etsi.SUPI, routingID int64, nrppaPdu []byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF N2 NRPPa Transfer",
+		trace.WithAttributes(
+			attribute.String("supi", supi.String()),
+		),
 	)
+	defer span.End()
 
-	return nil
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return fmt.Errorf("ue context not found")
+	}
+
+	req := models.N1N2MessageTransferRequest{
+		N2Class:                 models.N2ClassNRPPa,
+		BinaryDataN2Information: nrppaPdu,
+		RoutingID:               routingID,
+	}
+
+	return amf.transferOrPageStandalone(ctx, ue, req)
+}
+
+// transferOrPageStandalone delivers a request that is not PDU-session scoped, buffering it
+// and paging the UE when it is CM-IDLE (TS 23.502 §4.2.3.3).
+func (amf *AMF) transferOrPageStandalone(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
+	conn := ue.Conn()
+	if conn == nil {
+		return amf.storeN1N2AndPage(ctx, ue, req)
+	}
+
+	return DeliverStandaloneN1N2(ctx, ue, conn, &req)
 }
 
 // AllocateLCSCorrelationID assigns the LCS correlation identifier for a

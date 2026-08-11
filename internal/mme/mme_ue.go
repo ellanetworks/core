@@ -190,6 +190,10 @@ type UeContext struct {
 	lppaMessages      []LPPaMessage
 	radioMu           sync.RWMutex
 	radioMeasurements *lmfmodels.RadioMeasurements
+
+	// lppaBuf holds an LPPa message for delivery when the UE answers a page.
+	lppaBufMu sync.RWMutex
+	lppaBuf   *LPPaBuffered
 }
 
 // TouchLastSeen records the current time as the UE's most recent uplink NAS

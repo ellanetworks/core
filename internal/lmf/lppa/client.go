@@ -73,7 +73,25 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 
 	conn := ue.Conn()
 	if conn == nil {
-		return 0, fmt.Errorf("UE has no active S1 connection: %s", supi)
+		// ECM-IDLE: the MME buffers the request and pages the UE (TS 23.273 §6.11.2 step 2).
+		measID := c.nextMeasurementID()
+
+		payload, err := lppa.BuildECIDMeasurementInitiationRequest(measID, ecidMeasurementQuantities)
+		if err != nil {
+			return 0, fmt.Errorf("failed to build LPPa E-CID request: %w", err)
+		}
+
+		if err := c.mme.PageAndRetryLPPa(ctx, supi, measID, payload); err != nil {
+			return 0, fmt.Errorf("failed to page UE for LPPa: %w", err)
+		}
+
+		logger.LmfLog.Debug("LPPa E-CID measurement request buffered, paging ECM-IDLE UE",
+			zap.String("supi", supi.String()),
+			zap.String("method", method),
+			zap.Int64("esmlcMeasurementID", measID),
+		)
+
+		return measID, nil
 	}
 
 	measID := c.nextMeasurementID()
@@ -94,6 +112,13 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 	)
 
 	return measID, nil
+}
+
+// CancelMeasurements discards a request buffered for a paged UE, once the LMF stops
+// waiting. Safe to call unconditionally: a delivered or never-buffered request leaves
+// nothing to discard.
+func (c *Client) CancelMeasurements(supi etsi.SUPI, measurementID int64) {
+	c.mme.CancelBufferedLPPa(supi, measurementID)
 }
 
 // WaitForMeasurements blocks until an LPPa E-CIDMeasurementInitiationResponse or

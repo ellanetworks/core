@@ -123,11 +123,12 @@ func (fdb *fakeDBInstance) NodeID() int { return 0 }
 // struct the library hands a real peer. internal/amf/ngap and internal/mme/s1ap
 // do the same.
 type fakeNGAPSender struct {
-	SentDownlinkNASTransport             []*ngap.DownlinkNASTransport
-	SentPDUSessionResourceSetupRequest   []*ngap.PDUSessionResourceSetupRequest
-	SentInitialContextSetupRequest       []*ngap.InitialContextSetupRequest
-	SentUEContextReleaseCommand          []*ngap.UEContextReleaseCommand
-	SentPDUSessionResourceReleaseCommand []*ngap.PDUSessionResourceReleaseCommand
+	SentDownlinkNASTransport               []*ngap.DownlinkNASTransport
+	SentPDUSessionResourceSetupRequest     []*ngap.PDUSessionResourceSetupRequest
+	SentInitialContextSetupRequest         []*ngap.InitialContextSetupRequest
+	SentUEContextReleaseCommand            []*ngap.UEContextReleaseCommand
+	SentPDUSessionResourceReleaseCommand   []*ngap.PDUSessionResourceReleaseCommand
+	SentDownlinkUEAssociatedNRPPaTransport []*ngap.DownlinkUEAssociatedNRPPaTransport
 }
 
 // capture parses one message body into its bucket. A parse failure means the
@@ -164,6 +165,8 @@ func (fng *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 		capture(&fng.SentPDUSessionResourceReleaseCommand, ngap.ParsePDUSessionResourceReleaseCommand, m.Value, "PDU Session Resource Release Command")
 	case ngap.ProcUEContextRelease:
 		capture(&fng.SentUEContextReleaseCommand, ngap.ParseUEContextReleaseCommand, m.Value, "UE Context Release Command")
+	case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
+		capture(&fng.SentDownlinkUEAssociatedNRPPaTransport, ngap.ParseDownlinkUEAssociatedNRPPaTransport, m.Value, "Downlink UE-Associated NRPPa Transport")
 	}
 
 	return len(b), nil

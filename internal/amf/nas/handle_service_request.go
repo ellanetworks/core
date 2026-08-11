@@ -270,7 +270,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	if requestData := ue.N1N2Message(); requestData != nil {
-		if requestData.BinaryDataN2Information != nil {
+		if requestData.N2Class == models.N2ClassSM && requestData.BinaryDataN2Information != nil {
 			targetPduSessionID = requestData.PduSessionID
 		}
 	}
@@ -352,9 +352,22 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			n1Msg := requestData.BinaryDataN1Message
 			n2Info := requestData.BinaryDataN2Information
 
+			switch {
+			case requestData.Standalone():
+				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami); err != nil {
+					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
+					return
+				}
+
+				if err := amf.DeliverStandaloneN1N2(ctx, ue, ueConn, requestData); err != nil {
+					logger.From(ctx, logger.AmfLog).Warn("failed to deliver buffered downlink message", zap.Error(err))
+				}
+
+				ue.ClearN1N2Message()
+
 			// Paging was triggered for downlink signaling only
-			if n2Info == nil && n1Msg != nil {
-				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
+			case n2Info == nil && n1Msg != nil:
+				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami); err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 					return
 				}
@@ -364,7 +377,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 				logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
 
 				ue.ClearN1N2Message()
-			} else {
+			default:
 				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
 					ue.ClearN1N2Message()

@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -86,6 +87,12 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
+	// Backstop for standalone signalling whose consumer went away without cancelling. A
+	// session-scoped buffer is left alone: it stays valid if the UE returns on its own.
+	if req := ue.N1N2Message(); req != nil && req.Standalone() && ue.Conn() == nil {
+		ue.ClearN1N2Message()
+	}
+
 	if amf.Session == nil {
 		return
 	}
@@ -100,8 +107,68 @@ func (amf *AMF) abandonPaging(ue *UeContext) {
 	}
 }
 
-// pageRadios sends the paging PDU to every radio whose supported TAIs intersect
-// the UE's registration area.
+// pageIdleUE pages an idle UE and starts paging supervision (TS 23.502 §4.2.3.3). A
+// non-nil req is buffered for delivery when the UE answers. Callers guard first, via
+// guardIdlePaging.
+func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *models.N1N2MessageTransferRequest) error {
+	if amf.DBInstance == nil {
+		return fmt.Errorf("AMF not configured with database, cannot page")
+	}
+
+	operatorInfo, err := amf.OperatorInfo(ctx)
+	if err != nil {
+		return fmt.Errorf("get operator info: %w", err)
+	}
+
+	paging, err := amf.buildPaging(operatorInfo.Guami, ue)
+	if err != nil {
+		return fmt.Errorf("build paging: %w", err)
+	}
+
+	pkg, err := paging.Marshal()
+	if err != nil {
+		return fmt.Errorf("marshal paging: %w", err)
+	}
+
+	// Buffer immediately before the send: the UE may answer on another goroutine the
+	// moment the Paging leaves the AMF.
+	if req != nil {
+		ue.SetN1N2Message(req)
+	}
+
+	if err := amf.SendPaging(ctx, ue, pkg); err != nil {
+		if req != nil {
+			ue.ClearN1N2Message()
+		}
+
+		return fmt.Errorf("send paging: %w", err)
+	}
+
+	return nil
+}
+
+// guardIdlePaging rejects paging a UE that is already connected, mid-registration,
+// mid-handover, or not registered. Paging already in progress is left to the callers,
+// which answer it differently.
+func guardIdlePaging(ue *UeContext) error {
+	if ue.Conn() != nil {
+		return fmt.Errorf("ue is already CM-CONNECTED")
+	}
+
+	if ue.State() == RegistrationInitiated {
+		return fmt.Errorf("temporary reject: registration ongoing")
+	}
+
+	if ue.Procedures().Active(procedure.N2Handover) {
+		return fmt.Errorf("temporary reject: handover ongoing")
+	}
+
+	if ue.State() != Registered {
+		return fmt.Errorf("ue is not in registered state")
+	}
+
+	return nil
+}
 
 // buildPaging assembles the Paging message for a UE (TS 38.413 §9.2.4.1). The
 // TAI list for paging is the UE's registration area. Mirrors the MME's
