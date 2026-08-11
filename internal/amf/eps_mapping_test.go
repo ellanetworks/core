@@ -123,6 +123,37 @@ func TestMapSecurityContextToEPSNeedsASecurityContext(t *testing.T) {
 	}
 }
 
+func TestInstallMappedSecurityContextFromEPSKeepsTheMMEsAlgorithms(t *testing.T) {
+	ue := amf.NewUeContext()
+	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, s1NetworkCapability(0xe0, 0xe0, 0x00, 0x00))
+
+	mapped := interworking.Mapped5GSecurityContext{
+		NgKSI:                 nas.KeySetIdentifier{Value: 6, Mapped: true},
+		DLNASCount:            1,
+		Ciphering:             nas.CipheringAES,
+		Integrity:             nas.IntegrityAES,
+		UESecurityCapability:  interworking.DefaultUE5GSecurityCapability,
+		EPSAlgorithms:         interworking.EPSNASAlgorithms{Ciphering: nas.CipheringSNOW3G, Integrity: nas.IntegritySNOW3G},
+		EPSSecurityCapability: eps.UESecurityCapability{EEA: 0xc0, EIA: 0xc0},
+		NCC:                   1,
+	}
+	for i := range mapped.KAMF {
+		mapped.KAMF[i] = byte(i)
+		mapped.KNASEnc[i%16] = byte(i + 1)
+		mapped.KNASInt[i%16] = byte(i + 2)
+		mapped.NH[i] = byte(i + 3)
+	}
+
+	if err := ue.InstallMappedSecurityContextFromEPS(mapped, amf.MintAuthProofForInterworking()); err != nil {
+		t.Fatalf("InstallMappedSecurityContextFromEPS: %v", err)
+	}
+
+	got, ok := ue.EPSNASAlgorithmsInUse()
+	if !ok || got != mapped.EPSAlgorithms {
+		t.Fatalf("EPS NAS algorithms = (%v, %+v), want the MME's %+v", ok, got, mapped.EPSAlgorithms)
+	}
+}
+
 func TestInstallMappedSecurityContextFromEPS(t *testing.T) {
 	ue := amf.NewUeContext()
 

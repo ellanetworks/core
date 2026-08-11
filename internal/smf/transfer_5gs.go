@@ -43,10 +43,6 @@ func (s *SMF) transferTo5GS(
 			fmt.Errorf("failed to find subscriber policy for a session move: %w", err)
 	}
 
-	// The AMF is the assigning entity for EPS bearer identities (TS 23.502
-	// §4.11.1.4.1 step 7), and "Existing PDU Session" is one of the request types it
-	// assigns for. Dropping it here left the AMF, the UE and the SMF each holding a
-	// different value for the same PDN connection.
 	move := transferRequest{Access: Access5G, EBI: epsBearerIdentity, Dnn: dnn, Snssai: snssai, Policy: policy}
 
 	sc, err := s.findTransferable(supi, pduSessionID, move)

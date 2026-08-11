@@ -34,7 +34,12 @@ func relocatableUE(t *testing.T) *amf.UeContext {
 	return ue
 }
 
-var testTarget = interworking.ENBIdentity{PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"}, ID: 0x1234, Bits: 20, EPSTAC: 7}
+var testTarget = interworking.ENBIdentity{
+	PlmnID:         models.PlmnID{Mcc: "001", Mnc: "01"},
+	ID:             0x1234,
+	Bits:           20,
+	SelectedEPSTAI: interworking.EPSTAI{PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"}, TAC: 7},
+}
 
 // TS 23.502 §4.11.1.2.1 step 2
 func TestTransferableEPSSessions(t *testing.T) {
@@ -155,23 +160,33 @@ func TestENBIdentityFromNGAP(t *testing.T) {
 
 	plmn[0], plmn[1], plmn[2] = 0x00, 0xf1, 0x10
 
+	var sharedPLMN ngap.PLMNIdentity
+
+	sharedPLMN[0], sharedPLMN[1], sharedPLMN[2] = 0x00, 0xf2, 0x10
+
 	got, err := amf.ENBIdentityFromNGAP(ngap.TargeteNBID{
 		GlobalENBID: ngap.GlobalNgENBID{
 			PLMNIdentity: plmn,
 			NgENBID:      ngap.NgENBID{Kind: ngap.NgENBIDMacro, Value: 0x1234},
 		},
-		SelectedEPSTAI: ngap.EPSTAI{PLMNIdentity: plmn, TAC: 7},
+		SelectedEPSTAI: ngap.EPSTAI{PLMNIdentity: sharedPLMN, TAC: 7},
 	})
 	if err != nil {
 		t.Fatalf("ENBIdentityFromNGAP: %v", err)
 	}
 
-	if got.ID != 0x1234 || got.Bits != 20 || got.EPSTAC != 7 {
+	if got.ID != 0x1234 || got.Bits != 20 || got.SelectedEPSTAI.TAC != 7 {
 		t.Fatalf("identity = %+v, want macro 0x1234 in TAC 7", got)
 	}
 
 	if got.PlmnID.Mcc != "001" || got.PlmnID.Mnc != "01" {
 		t.Fatalf("PLMN = %+v, want 001/01", got.PlmnID)
+	}
+
+	// TS 23.502 §4.11.1.2.1: the selected PLMN travels in the TAI, and on a shared
+	// RAN it is not the eNB's own.
+	if got.SelectedEPSTAI.PlmnID.Mcc != "002" || got.SelectedEPSTAI.PlmnID.Mnc != "01" {
+		t.Fatalf("selected TAI PLMN = %+v, want the 002/01 the source chose", got.SelectedEPSTAI.PlmnID)
 	}
 }
 

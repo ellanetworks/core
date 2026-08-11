@@ -234,10 +234,6 @@ func TestMapTo5GSResetsTheNASCounts(t *testing.T) {
 		t.Fatalf("MapTo5GSOnHandover: %v", err)
 	}
 
-	if got.Context.ULNASCount != 0 {
-		t.Fatalf("uplink 5G NAS COUNT = %d, want 0", got.Context.ULNASCount)
-	}
-
 	if got.Context.DLNASCount != 1 {
 		t.Fatalf("downlink 5G NAS COUNT = %d, want 1 after the NAS container", got.Context.DLNASCount)
 	}

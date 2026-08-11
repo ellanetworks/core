@@ -63,7 +63,10 @@ func relocationRequest(sessions ...interworking.PDNConnection) interworking.Forw
 			PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"},
 			ID:     0x00abc,
 			Bits:   20,
-			EPSTAC: 1,
+			SelectedEPSTAI: interworking.EPSTAI{
+				PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"},
+				TAC:    1,
+			},
 		},
 		SourceToTarget: []byte{0xde, 0xad, 0xbe, 0xef},
 		UEAMBRUplink:   models.MustParseBitRate("1 Gbps"),
@@ -91,8 +94,6 @@ func (r *relocationTarget) awaitHandoverRequest(t *testing.T) *s1ap.HandoverRequ
 	return r.awaitNthHandoverRequest(t, 0)
 }
 
-// awaitNthHandoverRequest returns the n-th Handover Request the target eNB
-// received, ignoring whatever else the MME sent it in between.
 func (r *relocationTarget) awaitNthHandoverRequest(t *testing.T, n int) *s1ap.HandoverRequest {
 	t.Helper()
 
@@ -591,8 +592,6 @@ func TestPreparedRelocationExpiryReleasesEverything(t *testing.T) {
 	}
 }
 
-// A source that abandons one attempt and immediately starts another for the same
-// subscriber must not have the late cancel of the first tear down the second.
 func TestRelocationCancelOfAnAbandonedAttemptSparesTheNextOne(t *testing.T) {
 	sessions := &fakeSessionManager{}
 	m := New(nil, fakeBearerStore{}, sessions)
@@ -639,14 +638,13 @@ func TestRelocationCancelOfAnAbandonedAttemptSparesTheNextOne(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.5: a UE moved into a tracking area the MME does not serve
-// would have its first TAU rejected, so the relocation is refused up front.
+// TS 24.301 §5.5.3.2.5
 func TestForwardRelocationIntoAnUnservedTrackingArea(t *testing.T) {
 	m := newTestMME(t)
 	newRelocationTarget(t, m)
 
 	req := relocationRequest()
-	req.Target.EPSTAC = 9
+	req.Target.SelectedEPSTAI.TAC = 9
 
 	if _, err := m.ForwardRelocation(context.Background(), req); !errors.Is(err, ErrUnknownTargetENB) {
 		t.Fatalf("error = %v, want ErrUnknownTargetENB", err)

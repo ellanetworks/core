@@ -152,15 +152,6 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 	return nil
 }
 
-// transferSupervision bounds how long a staged move waits for the target access to
-// bind its downlink. It has to outlive the procedure that staged it: an inter-system
-// handover stages the move while the MME prepares the target eNB and only binds it
-// when the UE arrives (HANDOVER NOTIFY), which the MME supervises for 10s of its own
-// after a preparation the AMF already allows 10s for. Expiring inside that window
-// drops sc.pending with no report on the EPS direction, so the commit at arrival
-// fails and ReconcileBearersToRAN releases a PDN connection the UE has just moved
-// onto. A pending record that lives too long is only a stale staging entry; one that
-// expires too early destroys a live session.
 var transferSupervision = 30 * time.Second
 
 func (sc *SMContext) clearPendingLocked() {

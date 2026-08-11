@@ -68,7 +68,10 @@ func ENBIdentityFromNGAP(target ngap.TargeteNBID) (interworking.ENBIdentity, err
 		PlmnID: util.PLMNToModels(target.GlobalENBID.PLMNIdentity),
 		ID:     target.GlobalENBID.NgENBID.Value,
 		Bits:   bits,
-		EPSTAC: uint16(target.SelectedEPSTAI.TAC),
+		SelectedEPSTAI: interworking.EPSTAI{
+			PlmnID: util.PLMNToModels(target.SelectedEPSTAI.PLMNIdentity),
+			TAC:    uint16(target.SelectedEPSTAI.TAC),
+		},
 	}, nil
 }
 

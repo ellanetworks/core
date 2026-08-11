@@ -162,7 +162,14 @@ func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
 
 func (m *MME) SuperviseHandover(ue *UeContext) {
 	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(cctx context.Context) error {
-		m.abandonHandover(cctx, ue, causeHandoverTS1relocExpiry)
+		// Expiry clears the registry's active procedure before calling back, so a
+		// handover that was already committing — and therefore not abandoned here — has
+		// to re-claim the chain, or a concurrent path switch could advance {NH, NCC}
+		// while the commit is still running.
+		if !m.abandonHandover(cctx, ue, causeHandoverTS1relocExpiry) && !ue.BeginKeyChainProc(procedure.S1Handover) {
+			logger.From(cctx, logger.MmeLog).Error("could not re-claim the key chain for a committing handover",
+				logger.SUPI(ue.Supi().String()))
+		}
 
 		return nil
 	})

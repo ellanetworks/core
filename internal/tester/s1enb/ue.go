@@ -278,11 +278,15 @@ func (ue *UE) unprotectDownlink(wire []byte) ([]byte, error) {
 type downlinkCounter struct {
 	last     nas.Count
 	accepted bool
+	seen     uint64
 	floor    nas.Count
 	hasFloor bool
 }
 
-const sequenceHalfWindow = 128
+const (
+	sequenceHalfWindow = 128
+	replayWindow       = 64
+)
 
 func (d downlinkCounter) estimate(sqn uint8) nas.Count {
 	if !d.accepted {
@@ -302,17 +306,50 @@ func (d downlinkCounter) admissible(c nas.Count) error {
 			c.Value(), d.floor.Value())
 	}
 
+	if !d.accepted || c.Value() > d.last.Value() {
+		return nil
+	}
+
+	behind := d.last.Value() - c.Value()
+	if behind >= replayWindow {
+		return fmt.Errorf("s1enb: downlink NAS COUNT %d is further behind %d than the replay window",
+			c.Value(), d.last.Value())
+	}
+
+	if d.seen&(1<<behind) != 0 {
+		return fmt.Errorf("s1enb: downlink NAS COUNT %d was already accepted (TS 24.301 §4.4.3.2)", c.Value())
+	}
+
 	return nil
 }
 
 func (d *downlinkCounter) accept(c nas.Count) {
-	if !d.accepted || c.Value() > d.last.Value() {
-		d.last, d.accepted = c, true
+	if !d.accepted {
+		d.last, d.accepted, d.seen = c, true, 1
+
+		return
+	}
+
+	if ahead := c.Value(); ahead > d.last.Value() {
+		if shift := ahead - d.last.Value(); shift < replayWindow {
+			d.seen <<= shift
+		} else {
+			d.seen = 0
+		}
+
+		d.seen |= 1
+		d.last = c
+
+		return
+	}
+
+	if behind := d.last.Value() - c.Value(); behind < replayWindow {
+		d.seen |= 1 << behind
 	}
 }
 
 func (d *downlinkCounter) seed(c nas.Count) {
-	d.last, d.accepted = c, true
+	d.last, d.accepted, d.seen = c, true, 1
 	d.floor, d.hasFloor = c, true
 }
 

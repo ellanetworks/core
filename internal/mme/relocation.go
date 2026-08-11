@@ -39,7 +39,14 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 		return none, fmt.Errorf("%w: %s", ErrUnknownTargetENB, ENBID(globalENBID))
 	}
 
-	targetTAI := s1ap.TAI{PLMNIdentity: globalENBID.PLMNIdentity, TAC: s1ap.TAC(req.Target.EPSTAC)}
+	// The tracking area is the one the source RAN selected, PLMN included — on a
+	// shared RAN that is not the eNB's own PLMN.
+	selectedPLMN, err := EncodePLMN(req.Target.SelectedEPSTAI.PlmnID)
+	if err != nil {
+		return none, err
+	}
+
+	targetTAI := s1ap.TAI{PLMNIdentity: selectedPLMN, TAC: s1ap.TAC(req.Target.SelectedEPSTAI.TAC)}
 
 	served, err := m.ServesTAI(ctx, targetTAI)
 	if err != nil {
@@ -47,7 +54,8 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	}
 
 	if !served {
-		return none, fmt.Errorf("%w: tracking area %d is not served", ErrUnknownTargetENB, req.Target.EPSTAC)
+		return none, fmt.Errorf("%w: tracking area %s-%d is not served", ErrUnknownTargetENB,
+			req.Target.SelectedEPSTAI.PlmnID, req.Target.SelectedEPSTAI.TAC)
 	}
 
 	ue := NewUeContext()

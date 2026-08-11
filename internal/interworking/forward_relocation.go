@@ -23,7 +23,18 @@ type ENBIdentity struct {
 	PlmnID models.PlmnID
 	ID     uint32
 	Bits   uint8
-	EPSTAC uint16
+	// SelectedEPSTAI is the tracking area the source NG-RAN chose in the target
+	// network, PLMN included: "the source NG-RAN shall indicate the selected PLMN ID
+	// to be used in the target network to the AMF as part of the TAI sent in the HO
+	// Required message" (TS 23.502 §4.11.1.2.1). On a shared RAN that PLMN is not the
+	// eNB's, so the two cannot be collapsed.
+	SelectedEPSTAI EPSTAI
+}
+
+// EPSTAI is an E-UTRAN Tracking Area Identity: a PLMN and a TAC (TS 23.003).
+type EPSTAI struct {
+	PlmnID models.PlmnID
+	TAC    uint16
 }
 
 type RelocationID uint64

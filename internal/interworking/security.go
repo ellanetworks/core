@@ -101,7 +101,6 @@ type EPSSecurityContext struct {
 type Mapped5GSecurityContext struct {
 	KAMF                  [keyLen]byte
 	NgKSI                 nas.KeySetIdentifier
-	ULNASCount            nas.Count
 	DLNASCount            nas.Count
 	Ciphering             nas.CipheringAlgorithm
 	Integrity             nas.IntegrityAlgorithm
@@ -181,7 +180,6 @@ func MapTo5GSOnHandover(in EPSSecurityContext, intOrder []nas.IntegrityAlgorithm
 		Context: Mapped5GSecurityContext{
 			KAMF:                  kamf,
 			NgKSI:                 ngKSI,
-			ULNASCount:            0,
 			DLNASCount:            nas.Count(0).Next(), // the container consumed COUNT 0
 			Ciphering:             nea,
 			Integrity:             nia,

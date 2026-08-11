@@ -36,6 +36,13 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe := sourceUe.UeContext()
 
+	if target := amfInstance.HandoverTarget(amfUe); target != nil && target == sourceUe {
+		logger.WithTrace(ctx, sourceUe.Log).Info("ignoring a Handover Cancel from the prepared target")
+		sourceUe.SendHandoverCancelAcknowledge(ctx)
+
+		return
+	}
+
 	if id, toEPS := amfInstance.RelocationToEPS(amfUe); toEPS {
 		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe, id); errors.Is(err, interworking.ErrRelocationTooLate) {
 			logger.WithTrace(ctx, sourceUe.Log).Info("the UE has already reached EPS; leaving the handover to complete",

@@ -106,3 +106,58 @@ func TestHandleAuthenticationRequest(t *testing.T) {
 		t.Fatalf("RES length = %d, want 8", len(resp.RES))
 	}
 }
+
+// TS 24.301 §4.4.3.2
+func TestDownlinkCounterRejectsAReplay(t *testing.T) {
+	var d downlinkCounter
+
+	for _, sqn := range []uint8{1, 2, 3} {
+		c := d.estimate(sqn)
+		if err := d.admissible(c); err != nil {
+			t.Fatalf("count %d: %v", c.Value(), err)
+		}
+
+		d.accept(c)
+	}
+
+	replayed := d.estimate(2)
+	if err := d.admissible(replayed); err == nil {
+		t.Fatal("a downlink NAS COUNT was accepted twice")
+	}
+
+	if err := d.admissible(d.estimate(3)); err == nil {
+		t.Fatal("the most recent downlink NAS COUNT was accepted twice")
+	}
+}
+
+func TestDownlinkCounterAcceptsOutOfOrderDelivery(t *testing.T) {
+	var d downlinkCounter
+
+	for _, sqn := range []uint8{1, 3, 2, 4} {
+		c := d.estimate(sqn)
+		if err := d.admissible(c); err != nil {
+			t.Fatalf("count %d out of order: %v", c.Value(), err)
+		}
+
+		d.accept(c)
+	}
+
+	if err := d.admissible(d.estimate(2)); err == nil {
+		t.Fatal("an out-of-order count was accepted twice")
+	}
+}
+
+func TestDownlinkCounterKeepsTheHandoverFloor(t *testing.T) {
+	var d downlinkCounter
+
+	d.seed(nas.MakeCount(0, 8))
+
+	if err := d.admissible(d.estimate(8)); err == nil {
+		t.Fatal("the count the mapped context was taken over with was accepted again")
+	}
+
+	next := d.estimate(9)
+	if err := d.admissible(next); err != nil {
+		t.Fatalf("the count after the floor was refused: %v", err)
+	}
+}
