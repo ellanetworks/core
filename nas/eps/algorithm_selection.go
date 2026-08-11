@@ -16,22 +16,8 @@ import "github.com/ellanetworks/core/nas"
 // it hands the UE for use after mobility to EPS, TS 33.501 §6.7.2) call it, so
 // a UE that moves between the two systems is offered a consistent choice.
 func SelectNASAlgorithms(uecap UENetworkCapability, integrity []nas.IntegrityAlgorithm, ciphering []nas.CipheringAlgorithm) (eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, ok bool) {
-	eea, eok := selectAlgorithm(ciphering, uecap.SupportsEEA)
-	eia, iok := selectAlgorithm(integrity, uecap.SupportsEIA)
+	eea, eok := nas.SelectAlgorithm(ciphering, uecap.SupportsEEA)
+	eia, iok := nas.SelectAlgorithm(integrity, uecap.SupportsEIA)
 
 	return eea, eia, eok && iok
-}
-
-// selectAlgorithm returns the first operator-preferred algorithm the UE
-// advertises support for, reporting false when none is. The null algorithm is
-// selected only when the operator lists it and the UE advertises it
-// (TS 33.401 §5: EIA0 is not an implicit fallback for a non-emergency UE).
-func selectAlgorithm[T ~uint8](preference []T, supported func(uint8) bool) (T, bool) {
-	for _, v := range preference {
-		if supported(uint8(v)) {
-			return v, true
-		}
-	}
-
-	return 0, false
 }

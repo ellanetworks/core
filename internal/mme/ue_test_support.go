@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
@@ -97,12 +98,12 @@ func (ue *UeContext) KnasEncForTest() [16]byte { return ue.knasEnc }
 // SetSecurityContextForTest installs a NAS security context (deriving K_NASint/enc
 // from kasme) and marks the UE secured, for external test setup.
 func (ue *UeContext) SetSecurityContextForTest(kasme []byte, eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm) error {
-	ke, err := DeriveKNASEnc(kasme, eea)
+	ke, err := epskeys.DeriveKNASEnc(kasme, eea)
 	if err != nil {
 		return err
 	}
 
-	ki, err := DeriveKNASInt(kasme, eia)
+	ki, err := epskeys.DeriveKNASInt(kasme, eia)
 	if err != nil {
 		return err
 	}
@@ -191,7 +192,7 @@ func (ue *UeContext) ForceHandoverCommittingForTest() {
 // DeriveNextNHForTest computes the next {NH} from the UE's current kasme and NH,
 // so a test can assert the committed key chain (TS 33.401 §7.2.8).
 func (ue *UeContext) DeriveNextNHForTest() ([32]byte, error) {
-	return deriveNH(ue.kasme, ue.nh[:])
+	return epskeys.DeriveNH(ue.kasme, ue.nh[:])
 }
 
 func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {

@@ -293,6 +293,45 @@ func (sc *SecurityContext) MAC(msg []byte, count Count, bearer Bearer, dir Direc
 	return sc.integ.MAC(sc.kNASint, count.Value(), bearer, dir, msg)
 }
 
+// CountOutOfRange is the COUNT value 2³²−1, which both specs use in place of a
+// real NAS COUNT where a derivation or a MAC must be unable to collide with one
+// a genuine message has already used: NAS COUNT proper is 24 bits, so this value
+// lies outside its range by construction (TS 33.501 §6.9.2.3.3 and Annex A.9,
+// TS 33.401 Annex A.3).
+//
+// It is not a NAS COUNT and never becomes one — using it does not set either
+// side's counters.
+const CountOutOfRange uint32 = 0xFFFFFFFF
+
+// MACAtCountOutOfRange computes the NAS-MAC over msg at COUNT = [CountOutOfRange].
+//
+// It exists because the inter-system and intra-system NAS containers are MAC'd
+// at that value rather than at a NAS COUNT (TS 33.501 §6.9.2.3.3), which [Count]
+// cannot hold: it masks to the 24 bits a real COUNT occupies. Every other
+// message goes through [SecurityContext.MAC] or the generation packages' Protect.
+func (sc *SecurityContext) MACAtCountOutOfRange(msg []byte, bearer Bearer, dir Direction) ([4]byte, error) {
+	if sc == nil {
+		return [4]byte{}, ErrNoSecurityContext
+	}
+
+	return sc.integ.MAC(sc.kNASint, CountOutOfRange, bearer, dir, msg)
+}
+
+// VerifyMACAtCountOutOfRange checks a received NAS-MAC computed at
+// [CountOutOfRange] against the one msg produces, in constant time.
+func (sc *SecurityContext) VerifyMACAtCountOutOfRange(msg []byte, got [4]byte, bearer Bearer, dir Direction) error {
+	want, err := sc.MACAtCountOutOfRange(msg, bearer, dir)
+	if err != nil {
+		return err
+	}
+
+	if subtle.ConstantTimeCompare(want[:], got[:]) != 1 {
+		return ErrMACMismatch
+	}
+
+	return nil
+}
+
 // VerifyMAC checks a received NAS-MAC against the one msg produces, in constant
 // time. It returns [ErrMACMismatch] when they differ.
 func (sc *SecurityContext) VerifyMAC(msg []byte, got [4]byte, count Count, bearer Bearer, dir Direction) error {

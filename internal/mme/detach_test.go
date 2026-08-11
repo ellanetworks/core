@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/epskeys"
 )
 
 func TestDetachSubscriberUnansweredReleases(t *testing.T) {
@@ -57,11 +58,11 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	ue.cipheringAlg, ue.integrityAlg = 2, 2
 
 	var err error
-	if ue.knasEnc, err = DeriveKNASEnc(kasme, 2); err != nil {
+	if ue.knasEnc, err = epskeys.DeriveKNASEnc(kasme, 2); err != nil {
 		t.Fatal(err)
 	}
 
-	if ue.knasInt, err = DeriveKNASInt(kasme, 2); err != nil {
+	if ue.knasInt, err = epskeys.DeriveKNASInt(kasme, 2); err != nil {
 		t.Fatal(err)
 	}
 

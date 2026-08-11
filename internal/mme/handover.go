@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme/procedure"
 	"github.com/ellanetworks/core/internal/models"
@@ -54,7 +55,7 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 
 	ue.mu.Lock()
 
-	newNH, err := deriveNH(ue.kasme, ue.nh[:])
+	newNH, err := epskeys.DeriveNH(ue.kasme, ue.nh[:])
 	if err == nil {
 		ue.nh = newNH
 		ue.ncc = (ue.ncc + 1) & 0x07
@@ -268,7 +269,7 @@ func (m *MME) AdvancePathSwitchNH(ue *UeContext, curNH [32]byte) ([32]byte, erro
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return deriveNH(ue.kasme, curNH[:])
+	return epskeys.DeriveNH(ue.kasme, curNH[:])
 }
 
 func (m *MME) CommitPathSwitch(ue *UeContext, conn S1APWriter, enbUEID s1ap.ENBUES1APID, newNH [32]byte, curNCC uint8) (ncc uint8, ok bool) {

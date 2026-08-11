@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -198,12 +199,12 @@ func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia n
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	knasEnc, err := DeriveKNASEnc(ue.kasme, eea)
+	knasEnc, err := epskeys.DeriveKNASEnc(ue.kasme, eea)
 	if err != nil {
 		return err
 	}
 
-	knasInt, err := DeriveKNASInt(ue.kasme, eia)
+	knasInt, err := epskeys.DeriveKNASInt(ue.kasme, eia)
 	if err != nil {
 		return err
 	}
@@ -331,12 +332,12 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 
 	kenbCount = ue.kenbCount
 
-	kenb, err = DeriveKeNB(ue.kasme, kenbCount)
+	kenb, err = epskeys.DeriveKeNB(ue.kasme, kenbCount)
 	if err != nil {
 		return [32]byte{}, kenbCount, err
 	}
 
-	nh, err := deriveNH(ue.kasme, kenb[:])
+	nh, err := epskeys.DeriveNH(ue.kasme, kenb[:])
 	if err != nil {
 		return [32]byte{}, kenbCount, err
 	}

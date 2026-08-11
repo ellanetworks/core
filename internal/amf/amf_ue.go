@@ -10,7 +10,6 @@ package amf
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/procedure"
+	"github.com/ellanetworks/core/internal/fivegskeys"
 	"github.com/ellanetworks/core/internal/guard"
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
@@ -419,29 +419,17 @@ func (ue *UeContext) InstallNASSecurityContext(nea nas.CipheringAlgorithm, nia n
 
 // deriveAlgKeyLocked derives the NAS algorithm keys per TS 33.501. Caller holds ue.mu.
 func (ue *UeContext) deriveAlgKeyLocked() error {
-	P0 := []byte{nnasEncAlgDistinguisher}
-	L0 := ueauth.KDFLen(P0)
-	P1 := []byte{uint8(ue.cipheringAlg)}
-	L1 := ueauth.KDFLen(P1)
-
-	kenc, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kenc, err := fivegskeys.DeriveKNASEnc(ue.kamf, ue.cipheringAlg)
 	if err != nil {
-		return fmt.Errorf("get kdf value error: %v", err)
+		return err
 	}
 
-	copy(ue.knasEnc[:], kenc[16:32])
-
-	P0 = []byte{nnasIntAlgDistinguisher}
-	L0 = ueauth.KDFLen(P0)
-	P1 = []byte{uint8(ue.integrityAlg)}
-	L1 = ueauth.KDFLen(P1)
-
-	kint, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForAlgorithmKeyDerivation, P0, L0, P1, L1)
+	kint, err := fivegskeys.DeriveKNASInt(ue.kamf, ue.integrityAlg)
 	if err != nil {
-		return fmt.Errorf("get kdf value error: %v", err)
+		return err
 	}
 
-	copy(ue.knasInt[:], kint[16:32])
+	ue.knasEnc, ue.knasInt = kenc, kint
 
 	return ue.installSecurityContextLocked()
 }
@@ -475,18 +463,12 @@ func (ue *UeContext) installSecurityContextLocked() error {
 func (ue *UeContext) deriveAnKeyLocked() error {
 	// The AN key is derived from the uplink NAS COUNT of the most recently
 	// accepted uplink NAS message (TS 33.501 §A.9).
-	P0 := make([]byte, 4)
-	binary.BigEndian.PutUint32(P0, ue.ulCount.LastAccepted().Value())
-	L0 := ueauth.KDFLen(P0)
-	P1 := []byte{anKeyAccessType3GPP}
-	L1 := ueauth.KDFLen(P1)
-
-	key, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForKgnbKn3iwfDerivation, P0, L0, P1, L1)
+	key, err := fivegskeys.DeriveKgNB(ue.kamf, ue.ulCount.LastAccepted().Value())
 	if err != nil {
-		return fmt.Errorf("could not get kdf value: %v", err)
+		return err
 	}
 
-	ue.kgnb = key
+	ue.kgnb = key[:]
 
 	return nil
 }
@@ -501,19 +483,12 @@ func (ue *UeContext) DeriveNH(syncInput []byte) error {
 
 // deriveNHLocked derives the AS key-chain Next Hop. Caller holds ue.mu.
 func (ue *UeContext) deriveNHLocked(syncInput []byte) error {
-	P0 := syncInput
-	L0 := ueauth.KDFLen(P0)
-
-	nh, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, P0, L0)
+	nh, err := fivegskeys.DeriveNH(ue.kamf, syncInput)
 	if err != nil {
-		return fmt.Errorf("could not get kdf value: %v", err)
+		return err
 	}
 
-	if len(nh) != len(ue.nh) {
-		return fmt.Errorf("unexpected NH length %d, want %d", len(nh), len(ue.nh))
-	}
-
-	ue.nh = [32]uint8(nh)
+	ue.nh = nh
 
 	return nil
 }
@@ -551,16 +526,12 @@ func (ue *UeContext) AdvancePathSwitchNH() (nh [32]uint8, ncc uint8, err error) 
 // deriveNextNHLocked returns the next {NH, NCC} of the AS key chain (TS 33.501
 // §6.9.2.1.1) without committing them to the UE. Caller holds ue.mu.
 func (ue *UeContext) deriveNextNHLocked() ([32]uint8, uint8, error) {
-	out, err := ueauth.GetKDFValue(ue.kamf, ueauth.FCForNhDerivation, ue.nh[:], ueauth.KDFLen(ue.nh[:]))
+	nh, err := fivegskeys.DeriveNH(ue.kamf, ue.nh[:])
 	if err != nil {
-		return [32]uint8{}, 0, fmt.Errorf("could not get kdf value: %v", err)
+		return [32]uint8{}, 0, err
 	}
 
-	if len(out) != len(ue.nh) {
-		return [32]uint8{}, 0, fmt.Errorf("unexpected NH length %d, want %d", len(out), len(ue.nh))
-	}
-
-	return [32]uint8(out), (ue.ncc + 1) % 8, nil
+	return nh, (ue.ncc + 1) % 8, nil
 }
 
 // ClearRegistrationRequestData clears transient registration fields and

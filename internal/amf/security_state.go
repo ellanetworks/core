@@ -15,13 +15,17 @@ import (
 // a precondition for calling setters like SetUESecurityCapability.
 //
 // AuthProof has no exported constructor. It may only be minted from
-// within the amf package, at exactly two authorized call sites:
+// within the amf package, at the authorized call sites below:
 //
 //   - the Security Mode procedure: installing the NAS security context at
 //     command time and adopting the UE security capability after MAC
 //     verification at complete time (MintAuthProofForSecurityMode).
 //   - Registration Request handling, during request parsing
 //     (MintAuthProofForRegistrationRequest).
+//   - Registration commit, after the registration is authenticated
+//     (MintAuthProofForRegistrationCommit).
+//   - installing a mapped 5G security context received over N26
+//     (MintAuthProofForInterworking).
 //
 // Grepping for the two Mint* function names gives the full set of mint
 // call sites outside this file — see TestAuthProofMintSites for the
@@ -67,6 +71,13 @@ func MintAuthProofForRegistrationRequest() AuthProof {
 // ensures an unauthenticated registration citing a victim's identity can never index
 // itself or tear down the victim's context (TS 24.501 §4.4.4.3).
 func MintAuthProofForRegistrationCommit() AuthProof {
+	return AuthProof{}
+}
+
+// MintAuthProofForInterworking returns an AuthProof. It must only be called when
+// installing a 5G security context mapped from an EPS one received over N26
+// (TS 33.501 §8.4.2, §8.6.2).
+func MintAuthProofForInterworking() AuthProof {
 	return AuthProof{}
 }
 
