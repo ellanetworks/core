@@ -65,7 +65,7 @@ const (
 
 type SmfSbi interface {
 	smf.SessionQuerier
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error)
+	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error)
 	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string) error
 	ReleaseSmContext(ctx context.Context, smContextRef string) error

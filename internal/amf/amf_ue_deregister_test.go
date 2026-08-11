@@ -1,5 +1,4 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-//
 // SPDX-License-Identifier: BUSL-1.1
 
 package amf
@@ -41,7 +40,7 @@ func (s *deregisterTestSmf) SessionsByDNN(string) []*smf.SMContext { return nil 
 
 func (s *deregisterTestSmf) SessionCount() int { return 0 }
 
-func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte) (string, []byte, error) {
+func (s *deregisterTestSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8) (string, []byte, error) {
 	return "", nil, nil
 }
 

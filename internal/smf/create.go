@@ -37,7 +37,7 @@ func nasToNgapPDUSessionType(nasType uint8) libngap.PDUSessionType {
 
 // CreateSmContext establishes a new 5G PDU session from the UE's NAS
 // establishment request, returning the SM context ref or a NAS reject message.
-func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error) {
+func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, epsBearerIdentity uint8) (string, []byte, error) {
 	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -177,7 +177,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	sc, _, err := s.establishSession(ctx, SessionRequest{
 		Supi:     supi,
-		Identity: SessionIdentity{PDUSessionID: pduSessionID},
+		Identity: SessionIdentity{PDUSessionID: pduSessionID, EBI: epsBearerIdentity},
 		Dnn:      dnn,
 		Snssai:   snssai,
 		Access:   Access5G,
@@ -339,7 +339,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	smContext.establishmentOutstanding = true
 	smContext.Mutex.Unlock()
 
-	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
+	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn, smContext.EBI)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session establishment accept")

@@ -258,7 +258,9 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		requestType = *ulNasTransport.RequestType
 	}
 
-	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage)
+	epsBearerIdentity := assignEPSBearerIdentity(ctx, amfInstance, ue, pduSessionID)
+
+	smContextRef, errResponse, err := amfInstance.Session.CreateSmContext(ctx, ue.Supi(), pduSessionID, dnn, snssai, requestType, smMessage, epsBearerIdentity)
 
 	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
 	// not a 5GMM protocol error (TS 24.501).
@@ -293,8 +295,6 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 		return
 	}
 
-	assignEPSBearerIdentity(ctx, amfInstance, ue, pduSessionID)
-
 	logger.From(ctx, logger.AmfLog).Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 }
 
@@ -302,9 +302,9 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 // becomes on mobility to EPS (TS 23.502 §4.11.1.4). A UE that cannot move to EPS
 // needs none, and exhausting the space costs that session its EPS continuity
 // rather than the session itself.
-func assignEPSBearerIdentity(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, pduSessionID uint8) {
+func assignEPSBearerIdentity(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, pduSessionID uint8) uint8 {
 	if !amfInstance.N26Enabled || !ue.SupportsS1Mode() {
-		return
+		return 0
 	}
 
 	ebi, err := ue.AllocateEPSBearerIdentity(pduSessionID)
@@ -312,11 +312,13 @@ func assignEPSBearerIdentity(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		logger.From(ctx, logger.AmfLog).Warn("no EPS bearer identity for this PDU session, it will not transfer to EPS",
 			zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))
 
-		return
+		return 0
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("assigned EPS bearer identity",
 		zap.Uint8("pduSessionID", pduSessionID), zap.Uint8("ebi", ebi))
+
+	return ebi
 }
 
 func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, msg *fgs.ULNASTransport) nasreply.Disposition {

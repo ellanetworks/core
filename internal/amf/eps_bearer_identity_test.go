@@ -83,14 +83,9 @@ func TestEPSBearerIdentityIsReleasedWithTheSession(t *testing.T) {
 }
 
 func TestAllocateEPSBearerIdentityExhaustion(t *testing.T) {
-	ids := make([]uint8, 0, 12)
-	for id := uint8(1); id <= 12; id++ {
-		ids = append(ids, id)
-	}
+	ue := amf.NewUeContext()
 
-	ue := ueWithSessions(t, ids...)
-
-	for _, id := range ids[:11] {
+	for id := uint8(1); id <= 11; id++ {
 		if _, err := ue.AllocateEPSBearerIdentity(id); err != nil {
 			t.Fatalf("AllocateEPSBearerIdentity(%d): %v", id, err)
 		}
@@ -101,9 +96,22 @@ func TestAllocateEPSBearerIdentityExhaustion(t *testing.T) {
 	}
 }
 
-func TestAllocateEPSBearerIdentityNeedsASession(t *testing.T) {
-	if _, err := amf.NewUeContext().AllocateEPSBearerIdentity(1); !errors.Is(err, amf.ErrNoSmContext) {
-		t.Fatal("a PDU session that does not exist has no EPS bearer identity")
+func TestEPSBearerIdentityAllocatesBeforeTheSessionExists(t *testing.T) {
+	ue := amf.NewUeContext()
+
+	ebi, err := ue.AllocateEPSBearerIdentity(1)
+	if err != nil {
+		t.Fatalf("AllocateEPSBearerIdentity: %v", err)
+	}
+
+	if ebi != 5 {
+		t.Fatalf("allocated %d, want 5", ebi)
+	}
+
+	ue.ReleaseEPSBearerIdentity(1)
+
+	if _, ok := ue.EPSBearerIdentity(1); ok {
+		t.Fatal("a released identity must not remain assigned")
 	}
 }
 

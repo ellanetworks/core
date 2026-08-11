@@ -242,6 +242,7 @@ func deriveKey(key []byte, fc string, p0 []byte) ([keyLen]byte, error) {
 
 	return out, nil
 }
+
 func count32(v uint32) []byte {
 	p := make([]byte, 4)
 	binary.BigEndian.PutUint32(p, v)

@@ -1,5 +1,4 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-//
 // SPDX-License-Identifier: BUSL-1.1
 
 package amf
@@ -11,39 +10,19 @@ const (
 	lastEPSBearerIdentity  = 15
 )
 
-var (
-	// ErrNoEPSBearerIdentity reports that the UE's EPS bearer identity space is
-	// exhausted (TS 23.502 §4.11.1.4.1).
-	ErrNoEPSBearerIdentity = errors.New("amf: no EPS bearer identity available for this UE")
-	ErrNoSmContext         = errors.New("amf: no SM context for that PDU session")
-)
+var ErrNoEPSBearerIdentity = errors.New("amf: no EPS bearer identity available for this UE")
 
-// AllocateEPSBearerIdentity assigns an EPS bearer identity to a PDU session, so
-// that the session can become a PDN connection on mobility to EPS
-// (TS 23.502 §4.11.1.4). The AMF owns the identity space, UE-scoped across every
-// PDU session; identities 1 to 4 stay reserved because the MME does not advertise
-// the 15-bearer capability (TS 24.301 §6.5.0).
-//
-// A session that already holds one keeps it, so re-establishing the same session
-// does not renumber a bearer the UE has been told about.
 func (ue *UeContext) AllocateEPSBearerIdentity(pduSessionID uint8) (uint8, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	sc, ok := ue.SmContextList[pduSessionID]
-	if !ok {
-		return 0, ErrNoSmContext
+	if existing, ok := ue.epsBearerIdentities[pduSessionID]; ok {
+		return existing, nil
 	}
 
-	if sc.EPSBearerIdentity != 0 {
-		return sc.EPSBearerIdentity, nil
-	}
-
-	taken := make(map[uint8]struct{}, len(ue.SmContextList))
-	for _, other := range ue.SmContextList {
-		if other.EPSBearerIdentity != 0 {
-			taken[other.EPSBearerIdentity] = struct{}{}
-		}
+	taken := make(map[uint8]struct{}, len(ue.epsBearerIdentities))
+	for _, ebi := range ue.epsBearerIdentities {
+		taken[ebi] = struct{}{}
 	}
 
 	for ebi := uint8(firstEPSBearerIdentity); ebi <= lastEPSBearerIdentity; ebi++ {
@@ -51,7 +30,11 @@ func (ue *UeContext) AllocateEPSBearerIdentity(pduSessionID uint8) (uint8, error
 			continue
 		}
 
-		sc.EPSBearerIdentity = ebi
+		if ue.epsBearerIdentities == nil {
+			ue.epsBearerIdentities = make(map[uint8]uint8)
+		}
+
+		ue.epsBearerIdentities[pduSessionID] = ebi
 
 		return ebi, nil
 	}
@@ -59,31 +42,29 @@ func (ue *UeContext) AllocateEPSBearerIdentity(pduSessionID uint8) (uint8, error
 	return 0, ErrNoEPSBearerIdentity
 }
 
-// EPSBearerIdentity returns the identity assigned to a PDU session, reporting
-// false when it has none.
+func (ue *UeContext) ReleaseEPSBearerIdentity(pduSessionID uint8) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	delete(ue.epsBearerIdentities, pduSessionID)
+}
+
 func (ue *UeContext) EPSBearerIdentity(pduSessionID uint8) (uint8, bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	sc, ok := ue.SmContextList[pduSessionID]
-	if !ok || sc.EPSBearerIdentity == 0 {
-		return 0, false
-	}
+	ebi, ok := ue.epsBearerIdentities[pduSessionID]
 
-	return sc.EPSBearerIdentity, true
+	return ebi, ok
 }
 
-// EPSBearerIdentities returns every assigned identity, keyed by PDU session.
 func (ue *UeContext) EPSBearerIdentities() map[uint8]uint8 {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	out := make(map[uint8]uint8, len(ue.SmContextList))
-
-	for pduSessionID, sc := range ue.SmContextList {
-		if sc.EPSBearerIdentity != 0 {
-			out[pduSessionID] = sc.EPSBearerIdentity
-		}
+	out := make(map[uint8]uint8, len(ue.epsBearerIdentities))
+	for pduSessionID, ebi := range ue.epsBearerIdentities {
+		out[pduSessionID] = ebi
 	}
 
 	return out

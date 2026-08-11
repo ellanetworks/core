@@ -40,11 +40,8 @@ type EMMMessage interface {
 // without a type switch.
 type ESMMessage interface {
 	Message
-
 	MessageType() ESMMessageType
-	// BearerIdentity is the EPS bearer the message concerns.
 	BearerIdentity() EPSBearerIdentity
-	// TransactionIdentity is the procedure transaction the message belongs to.
 	TransactionIdentity() nas.ProcedureTransactionIdentity
 }
 

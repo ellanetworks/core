@@ -126,7 +126,7 @@ func (f *fakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef stri
 	return nil, nil
 }
 
-func (f *fakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte) (string, []byte, error) {
+func (f *fakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, requestType fgs.RequestType, n1Msg []byte, _ uint8) (string, []byte, error) {
 	return "", nil, nil
 }
 

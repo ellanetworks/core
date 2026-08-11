@@ -35,9 +35,6 @@ type SmContext struct {
 	Ref                string
 	Snssai             *models.Snssai
 	PduSessionInactive bool
-	// EPSBearerIdentity is the EPS bearer identity this PDU session becomes on
-	// mobility to EPS, 0 when none is assigned (TS 23.502 §4.11.1.4).
-	EPSBearerIdentity uint8
 }
 
 type UeContext struct {
@@ -116,6 +113,10 @@ type UeContext struct {
 	RadioCapabilityForPaging *models.UERadioCapabilityForPaging
 	DRXParameter             fgs.DRXValue // 5GS DRX cycle (TS 24.501 §9.11.3.2A); the 4G MME's DRXParameter is the 2-octet IE (TS 24.301 §9.9.3.8)
 	SmContextList            map[uint8]*SmContext
+	// epsBearerIdentities maps a PDU session to the EPS bearer identity it becomes
+	// on mobility to EPS (TS 23.502 §4.11.1.4). UE-scoped, so it outlives an
+	// individual SM context and is allocated before one exists.
+	epsBearerIdentities map[uint8]uint8
 
 	// Idle-mode supervision (TS 24.501): the mobile reachable timer escalates to
 	// implicit deregistration. idleGen bumps on every (re)arm/stop so an expiry
@@ -590,6 +591,7 @@ func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
 	defer ue.mu.Unlock()
 
 	delete(ue.SmContextList, pduSessionID)
+	delete(ue.epsBearerIdentities, pduSessionID)
 }
 
 func (ue *UeContext) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {

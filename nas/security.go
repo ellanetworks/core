@@ -298,17 +298,9 @@ func (sc *SecurityContext) MAC(msg []byte, count Count, bearer Bearer, dir Direc
 // a genuine message has already used: NAS COUNT proper is 24 bits, so this value
 // lies outside its range by construction (TS 33.501 §6.9.2.3.3 and Annex A.9,
 // TS 33.401 Annex A.3).
-//
-// It is not a NAS COUNT and never becomes one — using it does not set either
-// side's counters.
 const MaxCount uint32 = 0xFFFFFFFF
 
 // MACAtMaxCount computes the NAS-MAC over msg at COUNT = [MaxCount].
-//
-// It exists because the inter-system and intra-system NAS containers are MAC'd
-// at that value rather than at a NAS COUNT (TS 33.501 §6.9.2.3.3), which [Count]
-// cannot hold: it masks to the 24 bits a real COUNT occupies. Every other
-// message goes through [SecurityContext.MAC] or the generation packages' Protect.
 func (sc *SecurityContext) MACAtMaxCount(msg []byte, bearer Bearer, dir Direction) ([4]byte, error) {
 	if sc == nil {
 		return [4]byte{}, ErrNoSecurityContext

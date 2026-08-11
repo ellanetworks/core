@@ -155,8 +155,6 @@ func TestMapToEPSRejectsAShortKAMF(t *testing.T) {
 	}
 }
 
-// The UE's EPS security capability and the already-signalled EPS algorithms are
-// carried through untouched: the MME must receive what the UE already holds.
 func TestMapToEPSCarriesTheEPSParameters(t *testing.T) {
 	algorithms := interworking.EPSNASAlgorithms{Ciphering: nas.CipheringSNOW3G, Integrity: nas.IntegrityAES}
 	capability := eps.UESecurityCapability{EEA: 0xe0, EIA: 0x60}
@@ -266,15 +264,12 @@ func TestMapTo5GSDerivesTheASKeyChain(t *testing.T) {
 		t.Fatalf("stored NCC = %d, want 1", got.Context.NCC)
 	}
 
-	// The temporary K_gNB must not be the EPS NH the MME sent.
 	if bytes.Equal(got.Context.TemporaryKgNB[:], in.NH[:]) {
 		t.Fatal("the EPS NH was handed to the gNB instead of a K_gNB derived from K'AMF")
 	}
 }
 
-// The container's NCC is the EPS one the MME sent — the NH that K'AMF came from
-// — and not either of the two 5G values the same procedure produces. Getting this
-// wrong fails the MAC for every UE (§8.4.2 step 3, TS 33.401 §7.2.8.4.4).
+// TS 33.401 §7.2.8.4.4
 func TestMapTo5GSContainerCarriesTheEPSNCC(t *testing.T) {
 	in := epsContext(t)
 
@@ -298,9 +293,7 @@ func TestMapTo5GSContainerCarriesTheEPSNCC(t *testing.T) {
 	}
 }
 
-// The container's MAC is the selected NIA over its protected octets, keyed with
-// the mapped context's K_NASint, at COUNT 2³²−1 downlink on the 3GPP NAS
-// connection (TS 33.501 §6.9.2.3.3).
+// TS 33.501 §6.9.2.3.3
 func TestMapTo5GSContainerMAC(t *testing.T) {
 	got, err := interworking.MapTo5GSOnHandover(epsContext(t), aesInt, aesEnc)
 	if err != nil {
@@ -325,13 +318,10 @@ func TestMapTo5GSContainerMAC(t *testing.T) {
 		t.Fatalf("the container does not verify against the mapped context: %v", err)
 	}
 
-	// A MAC computed at a normal COUNT must not verify, or the sentinel is not
-	// reaching the algorithm.
 	if err := sc.VerifyMAC(protected, got.Container.MessageAuthenticationCode, 0, nas.Bearer3GPP, nas.DirectionDownlink); err == nil {
 		t.Fatal("the container MAC was computed at COUNT 0")
 	}
 
-	// The container re-encodes to the octets that were signed.
 	if raw, err := got.Container.MarshalBinary(); err != nil {
 		t.Fatalf("MarshalBinary: %v", err)
 	} else if !bytes.Equal(raw[4:], protected) {
@@ -339,8 +329,7 @@ func TestMapTo5GSContainerMAC(t *testing.T) {
 	}
 }
 
-// With no UE 5G security capability from the MME, the AMF assumes the set
-// TS 33.501 §8.4.2 names — which does not include NIA0.
+// TS 33.501
 func TestMapTo5GSDefaultCapability(t *testing.T) {
 	got, err := interworking.MapTo5GSOnHandover(epsContext(t), aesInt, aesEnc)
 	if err != nil {
@@ -367,11 +356,9 @@ func TestMapTo5GSDefaultCapability(t *testing.T) {
 	}
 }
 
-// A forwarded capability is used instead of the default, and it alone decides the
-// algorithms: the EPS pair travelling beside it is stored, never selected from.
 func TestMapTo5GSUsesTheForwardedCapability(t *testing.T) {
 	in := epsContext(t)
-	// The UE supports 128-NEA1/128-NIA1 in N1 mode, while its EPS context runs AES.
+
 	in.UE5GSecurityCapability = &fgs.UESecurityCapability{EA: 0x40, IA: 0x40}
 
 	got, err := interworking.MapTo5GSOnHandover(in,
@@ -391,7 +378,6 @@ func TestMapTo5GSUsesTheForwardedCapability(t *testing.T) {
 	}
 }
 
-// No common algorithm is a refusal, not a fall back to the null pair.
 func TestMapTo5GSRejectsWhenNoAlgorithmIsCommon(t *testing.T) {
 	in := epsContext(t)
 	in.UE5GSecurityCapability = &fgs.UESecurityCapability{EA: 0x40, IA: 0x40} // SNOW 3G only
@@ -401,7 +387,7 @@ func TestMapTo5GSRejectsWhenNoAlgorithmIsCommon(t *testing.T) {
 	}
 }
 
-// The NAS keys come from K'AMF and the selected algorithms (TS 33.501 A.8).
+// TS 33.501 A.8
 func TestMapTo5GSDerivesNASKeys(t *testing.T) {
 	in := epsContext(t)
 
@@ -423,9 +409,6 @@ func TestMapTo5GSDerivesNASKeys(t *testing.T) {
 	}
 }
 
-// The container follows the operator's NAS integrity policy like any other NAS
-// message: where that policy is NIA0 the handover still maps, rather than failing
-// for a reason the operator has already chosen and cannot observe here.
 func TestMapTo5GSFollowsTheOperatorIntegrityPolicy(t *testing.T) {
 	in := epsContext(t)
 	in.UE5GSecurityCapability = &fgs.UESecurityCapability{EA: 0x80, IA: 0x80} // NEA0/NIA0 only

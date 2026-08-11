@@ -20,7 +20,7 @@ func buildAccept(t *testing.T, snssai *models.Snssai, pco *smfNas.ProtocolConfig
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Gbps"), Downlink: models.MustParseBitRate("1 Gbps")}
 	qos := &models.QosData{QFI: 1, Var5qi: 9}
 
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qos, 5, 1, snssai, "internet", pco, dns, 0, cause, addrs, alwaysOn)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qos, 5, 1, snssai, "internet", pco, dns, 0, cause, addrs, alwaysOn, 0)
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_LinkMTUGatedOnPDUSessionType(t *t
 			addrs := &smfNas.PDUSessionAddresses{PDUSessionType: tc.sessionType}
 
 			raw, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(
-				ambr, qos, 5, 1, &models.Snssai{Sst: 1}, "internet", pco, nil, mtu, nil, addrs, nil)
+				ambr, qos, 5, 1, &models.Snssai{Sst: 1}, "internet", pco, nil, mtu, nil, addrs, nil, 0)
 			if err != nil {
 				t.Fatalf("build failed: %v", err)
 			}
