@@ -11,6 +11,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
+	"github.com/ellanetworks/core/etsi"
 )
 
 type HomeNetworkPublicKey struct {
@@ -110,8 +112,8 @@ func profileBEncrypt(msin string, hnPubkey *ecdh.PublicKey) (string, error) {
 }
 
 func CipherSuci(msin, mcc, mnc string, routingIndicator string, profile HomeNetworkPublicKey) (*Suci, error) {
-	if len(msin)+len(mcc)+len(mnc) < 14 {
-		return nil, errors.New("supi length must be 15")
+	if n := len(msin) + len(mcc) + len(mnc); n < etsi.MinIMSIDigits || n > etsi.MaxIMSIDigits {
+		return nil, fmt.Errorf("supi length must be %d to %d digits, got %d", etsi.MinIMSIDigits, etsi.MaxIMSIDigits, n)
 	}
 
 	var schemeOutput string

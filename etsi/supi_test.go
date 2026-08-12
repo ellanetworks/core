@@ -20,6 +20,9 @@ func TestNewSUPIFromIMSI(t *testing.T) {
 		{"FifteenDigits", "001019756139935", "imsi-001019756139935"},
 		{"AllZeros", "000000000000000", "imsi-000000000000000"},
 		{"AllNines", "999999999999999", "imsi-999999999999999"},
+		{"SixDigits", "001011", "imsi-001011"},
+		{"TenDigits", "0010112345", "imsi-0010112345"},
+		{"FourteenDigits", "00101975613993", "imsi-00101975613993"},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -47,9 +50,10 @@ func TestNewSUPIFromIMSIInvalid(t *testing.T) {
 	}
 
 	testcases := []Testcase{
-		{"Empty", "", "invalid IMSI length: 0 (must be 15 digits)"},
-		{"TooShort", "0010", "invalid IMSI length: 4 (must be 15 digits)"},
-		{"TooLong", "0010197561399350", "invalid IMSI length: 16 (must be 15 digits)"},
+		{"Empty", "", "invalid IMSI length: 0 (must be 6 to 15 digits)"},
+		{"TooShort", "0010", "invalid IMSI length: 4 (must be 6 to 15 digits)"},
+		{"FiveDigits", "00101", "invalid IMSI length: 5 (must be 6 to 15 digits)"},
+		{"TooLong", "0010197561399350", "invalid IMSI length: 16 (must be 6 to 15 digits)"},
 		{"ContainsLetters", "0010a9756130000", "invalid IMSI: contains non-digit characters: 0010a9756130000"},
 		{"ContainsHyphen", "001-01-97560000", "invalid IMSI: contains non-digit characters: 001-01-97560000"},
 		{"ContainsSpace", "00101 975610000", "invalid IMSI: contains non-digit characters: 00101 975610000"},
@@ -103,11 +107,11 @@ func TestNewSUPIFromPrefixedInvalid(t *testing.T) {
 
 	testcases := []Testcase{
 		{"NaiPrefix", "nai-user@realm1", "invalid IMSI: contains non-digit characters: nai-user@realm1"},
-		{"SuciPrefix", "suci-0-001-01-0000-0-0-001019756139935", "invalid IMSI length: 38 (must be 15 digits)"},
+		{"SuciPrefix", "suci-0-001-01-0000-0-0-001019756139935", "invalid IMSI length: 38 (must be 6 to 15 digits)"},
 		{"Garbage", "not-a-supi-str-", "invalid IMSI: contains non-digit characters: not-a-supi-str-"},
-		{"ImsiPrefixNoDigits", "imsi-", "invalid IMSI length: 0 (must be 15 digits)"},
-		{"ImsiPrefixTooShort", "imsi-001", "invalid IMSI length: 3 (must be 15 digits)"},
-		{"EmptyString", "", "invalid IMSI length: 0 (must be 15 digits)"},
+		{"ImsiPrefixNoDigits", "imsi-", "invalid IMSI length: 0 (must be 6 to 15 digits)"},
+		{"ImsiPrefixTooShort", "imsi-001", "invalid IMSI length: 3 (must be 6 to 15 digits)"},
+		{"EmptyString", "", "invalid IMSI length: 0 (must be 6 to 15 digits)"},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/netip"
 	"runtime"
-	"strconv"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -340,12 +339,12 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) (N3N6EntrypointPdrInfo, error) 
 	pdrToStore.UrrId = defaultPdr.UrrID
 	pdrToStore.QerId = defaultPdr.QerID
 
-	imsiUint64, err := strconv.ParseUint(defaultPdr.IMSI, 10, 64)
+	imsiTag, err := EncodeIMSITag(defaultPdr.IMSI)
 	if err != nil {
 		return N3N6EntrypointPdrInfo{}, fmt.Errorf("parse IMSI %q: %w", defaultPdr.IMSI, err)
 	}
 
-	pdrToStore.Imsi = imsiUint64
+	pdrToStore.Imsi = imsiTag
 
 	pdrToStore.Far.Action = defaultPdr.Far.Action
 	pdrToStore.Far.OuterHeaderCreation = defaultPdr.Far.OuterHeaderCreation

@@ -134,7 +134,7 @@ func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool
 		return false
 	}
 
-	return true
+	return len(imsi) > 3+mncLength
 }
 
 func isHexOfLength(input string, byteLength int) bool {
@@ -529,7 +529,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		if !isImsiValid(r.Context(), params.Imsi, dbInstance) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.", errors.New("validation error"), logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`.", errors.New("validation error"), logger.APILog)
 			return
 		}
 

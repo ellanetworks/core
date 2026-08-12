@@ -3360,8 +3360,8 @@ components:
       required: true
       schema:
         type: string
-        pattern: "^[0-9]{15}$"
-      description: "15-digit IMSI (International Mobile Subscriber Identity)."
+        pattern: "^[0-9]{6,15}$"
+      description: "IMSI (International Mobile Subscriber Identity), 6 to 15 digits."
     PolicyNamePath:
       name: name
       in: path
@@ -3821,7 +3821,7 @@ components:
       properties:
         imsi:
           type: string
-          description: "15-digit International Mobile Subscriber Identity."
+          description: "International Mobile Subscriber Identity, 6 to 15 digits."
         profile_name:
           type: string
           description: Name of the assigned profile.
@@ -3981,8 +3981,8 @@ components:
       properties:
         imsi:
           type: string
-          pattern: "^[0-9]{15}$"
-          description: "15-digit IMSI. Must start with the operator's MCC+MNC."
+          pattern: "^[0-9]{6,15}$"
+          description: "IMSI of 6 to 15 digits. Must start with the operator's MCC+MNC."
         key:
           type: string
           pattern: "^[0-9a-fA-F]{32}$"
@@ -4770,7 +4770,7 @@ components:
       properties:
         imsi:
           type: string
-          description: "15-digit IMSI of the subscriber to pin."
+          description: "IMSI of the subscriber to pin, 6 to 15 digits."
         address:
           type: string
           description: "IPv4 address or /64-aligned IPv6 prefix within the data network pool."
@@ -4828,7 +4828,7 @@ components:
       properties:
         imsi:
           type: string
-          description: "15-digit IMSI of the subscriber."
+          description: "IMSI of the subscriber, 6 to 15 digits."
         ipv4:
           type: array
           items:

@@ -37,10 +37,10 @@ func TestFlowReportUplink(t *testing.T) {
 		t.Fatalf("no flow_stats entry recorded (iterate err=%v)", it.Err())
 	}
 
-	const wantIMSI = 1010000000001 // "001010000000001"
+	const wantIMSI = "001010000000001"
 
-	if key.Imsi != wantIMSI {
-		t.Errorf("flow IMSI = %d, want %d", key.Imsi, uint64(wantIMSI))
+	if got := DecodeIMSITag(key.Imsi); got != wantIMSI {
+		t.Errorf("flow IMSI = %q, want %q", got, wantIMSI)
 	}
 
 	if key.Proto != 17 {
@@ -154,10 +154,10 @@ func TestFlowReportDownlink(t *testing.T) {
 		t.Fatalf("no flow_stats entry recorded (iterate err=%v)", it.Err())
 	}
 
-	const wantIMSI = 1010000000001 // "001010000000001"
+	const wantIMSI = "001010000000001"
 
-	if key.Imsi != wantIMSI {
-		t.Errorf("flow IMSI = %d, want %d", key.Imsi, uint64(wantIMSI))
+	if got := DecodeIMSITag(key.Imsi); got != wantIMSI {
+		t.Errorf("flow IMSI = %q, want %q", got, wantIMSI)
 	}
 
 	if key.Proto != 17 {

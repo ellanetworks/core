@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
@@ -29,8 +30,8 @@ type subscriber struct {
 }
 
 func incrementIMSI(base string, offset int) string {
-	if len(base) != 15 {
-		panic("incrementIMSI: base must be 15 digits")
+	if len(base) < etsi.MinIMSIDigits || len(base) > etsi.MaxIMSIDigits {
+		panic(fmt.Sprintf("incrementIMSI: base must be %d to %d digits", etsi.MinIMSIDigits, etsi.MaxIMSIDigits))
 	}
 
 	var n uint64
@@ -45,8 +46,8 @@ func incrementIMSI(base string, offset int) string {
 
 	n += uint64(offset)
 
-	out := make([]byte, 15)
-	for i := 14; i >= 0; i-- {
+	out := make([]byte, len(base))
+	for i := len(base) - 1; i >= 0; i-- {
 		out[i] = byte('0' + n%10)
 		n /= 10
 	}
@@ -64,7 +65,7 @@ func buildSubscribers(numSubscribers int, startIMSI string) ([]subscriber, error
 		}
 
 		newIMSI := intBaseIMSI + i
-		imsi := fmt.Sprintf("%015d", newIMSI)
+		imsi := fmt.Sprintf("%0*d", len(startIMSI), newIMSI)
 
 		subs = append(subs, subscriber{
 			IMSI:           imsi,

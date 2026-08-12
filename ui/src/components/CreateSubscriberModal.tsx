@@ -54,7 +54,17 @@ type Operator = {
   };
 };
 
-const getMSINLength = (mnc: string) => (mnc?.length === 3 ? 9 : 10);
+const MCC_DIGITS = 3;
+const IMSI_MIN_DIGITS = 6;
+const IMSI_MAX_DIGITS = 15;
+
+const getMSINBounds = (mncLength: number) => {
+  const prefixLength = MCC_DIGITS + mncLength;
+  return {
+    min: Math.max(1, IMSI_MIN_DIGITS - prefixLength),
+    max: Math.max(1, IMSI_MAX_DIGITS - prefixLength),
+  };
+};
 
 const schema = yup.object().shape({
   msin: yup
@@ -62,12 +72,15 @@ const schema = yup.object().shape({
     .matches(/^\d+$/, "MSIN must be numeric.")
     .test("msin-len", function (value) {
       const mncLength = this.options?.context?.mncLength ?? 2;
-      const len = mncLength === 3 ? 9 : 10;
+      const { min, max } = getMSINBounds(mncLength);
       if (!value) return this.createError({ message: "MSIN is required." });
       return (
-        value.length === len ||
+        (value.length >= min && value.length <= max) ||
         this.createError({
-          message: `MSIN must be exactly ${len} digits long.`,
+          message:
+            min === max
+              ? `MSIN must be exactly ${min} digits long.`
+              : `MSIN must be between ${min} and ${max} digits long.`,
         })
       );
     })
@@ -257,25 +270,23 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   ) => {
     const digits = sanitizeDigits(raw);
     const prefix = `${operatorMcc}${operatorMnc}`;
-    const msinLen = 15 - (operatorMcc.length + operatorMnc.length);
-    const fullLen = prefix.length + msinLen;
+    const { max } = getMSINBounds(operatorMnc.length);
 
-    if (digits.length <= msinLen) {
+    if (digits.length <= max) {
       return { msin: digits, mismatchMsg: null };
     }
 
-    if (digits.length >= fullLen) {
-      if (digits.startsWith(prefix)) {
-        const msin = digits.slice(prefix.length, prefix.length + msinLen);
-        return { msin, mismatchMsg: null };
-      }
+    if (digits.startsWith(prefix)) {
       return {
-        msin: null,
-        mismatchMsg: `IMSI prefix does not match MCC ${operatorMcc} / MNC ${operatorMnc}.`,
+        msin: digits.slice(prefix.length, prefix.length + max),
+        mismatchMsg: null,
       };
     }
 
-    return { msin: digits.slice(-msinLen), mismatchMsg: null };
+    return {
+      msin: null,
+      mismatchMsg: `IMSI prefix does not match MCC ${operatorMcc} / MNC ${operatorMnc}.`,
+    };
   };
 
   const handleIMSIishInput = (raw: string) => {
@@ -293,8 +304,8 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
 
   const generateRandomMSIN = () => {
-    const len = getMSINLength(mnc);
-    const randomMSIN = randomDigits(len);
+    const { max } = getMSINBounds(mnc.length);
+    const randomMSIN = randomDigits(max);
     handleChange("msin", randomMSIN);
   };
 

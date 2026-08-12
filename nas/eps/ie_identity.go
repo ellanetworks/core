@@ -240,9 +240,6 @@ type IMSI string
 
 func (i IMSI) String() string { return "imsi-" + string(i) }
 
-// Valid reports whether the identity has a length TS 23.003 §2.2 permits.
-func (i IMSI) Valid() bool { return len(i) >= 6 && len(i) <= 15 }
-
 // AppendBinary encodes the IMSI as an EPS mobile identity value onto b.
 func (i IMSI) AppendBinary(b []byte) ([]byte, error) {
 	return appendPackedDigits(b, uint8(IdentityIMSI), IdentityIMSI, string(i))

@@ -41,9 +41,18 @@ func makePortUint16(port uint16) uint16 {
 	return (port >> 8) | (port << 8)
 }
 
+var testIMSITag = func() uint64 {
+	tag, err := ebpf.EncodeIMSITag("001019756139935")
+	if err != nil {
+		panic(err)
+	}
+
+	return tag
+}()
+
 func TestBuildFlowReportRequestBasic(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
-		Imsi:  1019756139935,
+		Imsi:  testIMSITag,
 		Saddr: makeIPV4Mapped(192, 168, 1, 100),
 		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
@@ -103,7 +112,7 @@ func TestBuildFlowReportRequestDifferentProtocols(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			flow := ebpf.N3N6EntrypointFlow{
-				Imsi:  1019756139935,
+				Imsi:  testIMSITag,
 				Saddr: makeIPV4Mapped(192, 168, 1, 100),
 				Daddr: makeIPV4Mapped(8, 8, 8, 8),
 				Sport: makePortUint16(12345),
@@ -133,7 +142,7 @@ func TestBuildFlowReportRequestDifferentProtocols(t *testing.T) {
 
 func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
-		Imsi:  1019756139935,
+		Imsi:  testIMSITag,
 		Saddr: makeIPV4Mapped(192, 168, 1, 100),
 		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
@@ -173,7 +182,7 @@ func TestBuildFlowReportRequestTimestampAccuracy(t *testing.T) {
 	now := time.Now()
 
 	flow := ebpf.N3N6EntrypointFlow{
-		Imsi:  1019756139935,
+		Imsi:  testIMSITag,
 		Saddr: makeIPV4Mapped(192, 168, 1, 100),
 		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
@@ -257,7 +266,7 @@ func TestBuildFlowReportRequestIPAddressConversion(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			flow := ebpf.N3N6EntrypointFlow{
-				Imsi:  1019756139935,
+				Imsi:  testIMSITag,
 				Saddr: tc.saddr,
 				Daddr: tc.daddr,
 				Sport: makePortUint16(12345),
@@ -287,7 +296,7 @@ func TestBuildFlowReportRequestIPAddressConversion(t *testing.T) {
 
 func TestBuildFlowReportRequestImsiFormatting(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
-		Imsi:  1019756139935,
+		Imsi:  testIMSITag,
 		Saddr: makeIPV4Mapped(192, 168, 1, 100),
 		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
@@ -312,7 +321,7 @@ func TestBuildFlowReportRequestImsiFormatting(t *testing.T) {
 func TestBuildFlowReportRequestIPv6Addresses(t *testing.T) {
 	// Test that IPv6 addresses are correctly converted without the IPv4-mapped prefix
 	flow := ebpf.N3N6EntrypointFlow{
-		Imsi:  1019756139935,
+		Imsi:  testIMSITag,
 		Saddr: makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
 		Daddr: makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
 		Sport: makePortUint16(54321),
@@ -353,7 +362,7 @@ func TestBuildFlowReportRequestIPv6Addresses(t *testing.T) {
 func TestBuildFlowReportRequestMixedIPv4IPv6(t *testing.T) {
 	// Test that IPv4 addresses are correctly identified as IPv4-mapped
 	flow := ebpf.N3N6EntrypointFlow{
-		Imsi:  1019756139935,
+		Imsi:  testIMSITag,
 		Saddr: makeIPV4Mapped(10, 0, 0, 1),
 		Daddr: makeIPV4Mapped(172, 16, 0, 1),
 		Sport: makePortUint16(8080),
