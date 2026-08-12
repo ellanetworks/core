@@ -114,7 +114,7 @@ func (a *AMF) stageRelocationToEPS(ue *UeContext, source *UeConn, candidates []H
 	return id, true
 }
 
-func (a *AMF) prepareRelocationFromEPS(ue *UeContext, targetRan *Radio, candidates []HandoverCandidate) (*UeConn, <-chan relocationOutcome, bool) {
+func (a *AMF) prepareRelocationFromEPS(ctx context.Context, ue *UeContext, targetRan *Radio, candidates []HandoverCandidate) (*UeConn, <-chan relocationOutcome, bool) {
 	if ue == nil {
 		return nil, nil, false
 	}
@@ -134,6 +134,21 @@ func (a *AMF) prepareRelocationFromEPS(ue *UeContext, targetRan *Radio, candidat
 	delivery := make(chan relocationOutcome, 1)
 
 	a.mu.Lock()
+
+	held, ok := a.relocatingFromEPS[ue.Supi()]
+	if !ok || held.ue != ue || held.cancelled {
+		a.mu.Unlock()
+		ue.EndKeyChainProc(procedure.N2Handover)
+
+		if rerr := a.RemoveUeConn(ctx, target); rerr != nil {
+			logger.From(ctx, logger.AmfLog).Error("error removing the target ue after a cancelled handover from EPS", zap.Error(rerr))
+		}
+
+		return nil, nil, false
+	}
+
+	held.prepared = true
+
 	target.ue.Store(ue)
 	ue.handover = &handoverContext{
 		state:      hoPreparing,

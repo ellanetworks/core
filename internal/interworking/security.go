@@ -133,6 +133,14 @@ func MapTo5GSOnHandover(in EPSSecurityContext, intOrder []nas.IntegrityAlgorithm
 	capability := DefaultUE5GSecurityCapability
 	if in.UE5GSecurityCapability != nil {
 		capability = *in.UE5GSecurityCapability
+	} else {
+		// TS 33.501 §8.4.2 step 3 defaults the 5G algorithms only; octets 5-6 of
+		// the IE the target NG-RAN selects from are the UE's own E-UTRA set, which
+		// the source MME forwarded. TS 24.301 §9.9.3.36 octet 4 bit 1 is EPS-UPIP,
+		// not EIA7, so it does not carry over.
+		capability.HasEPS = true
+		capability.EEA = in.UESecurityCapability.EEA
+		capability.EIA = in.UESecurityCapability.EIA &^ 1
 	}
 
 	nea, nia, ok := fgs.SelectNASAlgorithms(capability, intOrder, encOrder)

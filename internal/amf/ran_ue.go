@@ -109,6 +109,11 @@ type UeConn struct {
 	RegistrationType5GS               fgs.RegistrationType
 	IdentityTypeUsedForRegistration   uint8
 	RetransmissionOfInitialNASMsg     bool
+	// ArrivedFromEPS marks the mobility registration update that follows an
+	// inter-system change from S1 mode to N1 mode, which is the condition on the
+	// EPS bearer context status IE of the REGISTRATION ACCEPT (TS 24.501
+	// §5.5.1.3.4, §8.2.7.31).
+	ArrivedFromEPS bool
 
 	// RegistrationAcceptPlain is the plain REGISTRATION ACCEPT last sent, kept to
 	// resend on a duplicate REGISTRATION REQUEST with identical IEs while awaiting

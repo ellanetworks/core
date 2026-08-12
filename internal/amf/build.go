@@ -315,6 +315,18 @@ func BuildRegistrationAccept(
 		m.NegotiatedDRX = &fgs.DRXParameter{Value: ue.DRXParameter}
 	}
 
+	if conn := ue.Conn(); conn != nil && conn.ArrivedFromEPS && amfInstance.EPS != nil {
+		var status nas.EPSBearerContextStatus
+
+		for _, ebi := range ue.EPSBearerIdentities() {
+			if int(ebi) < len(status.Active) {
+				status.Active[ebi] = true
+			}
+		}
+
+		m.EPSBearerContextStatus = &status
+	}
+
 	return m.MarshalBinary()
 }
 

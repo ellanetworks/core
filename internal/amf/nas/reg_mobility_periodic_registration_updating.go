@@ -36,11 +36,15 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	// (TS 33.501 §6.9.2.1.1). The NAS SMC that would otherwise re-derive both is
 	// skipped whenever the UE holds a valid security context — the normal case
 	// here — so deriving the key alone leaves every later handover handing the
-	// target an {NH, NCC} the UE cannot reproduce (§6.9.2.3.4).
-	err := ue.UpdateSecurityContext()
-	if err != nil {
-		abortRegistration(ctx, amfInstance, ue, "update security context", err)
-		return
+	// target an {NH, NCC} the UE cannot reproduce (§6.9.2.3.4). Only a
+	// registration that may itself establish radio bearers derives at all
+	// (§6.8.1.3): on a connection that already carries an AS context — the one a
+	// handover created, above all — the RAN and the UE keep the keys they hold.
+	if ueConn.ICS() == amf.ICSNotStarted {
+		if err := ue.UpdateSecurityContext(); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "update security context", err)
+			return
+		}
 	}
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)

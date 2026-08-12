@@ -19,6 +19,20 @@ func MappedFiveGSQoSContainers(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, erro
 		return nil, fmt.Errorf("encode the mapped QoS rules: %w", err)
 	}
 
+	rulesContainer, err := nas.NewQoSRulesContainer(rules, false)
+	if err != nil {
+		return nil, err
+	}
+
+	refresh, err := MappedFiveGSQoSRefresh(ebi, qos)
+	if err != nil {
+		return nil, err
+	}
+
+	return append([]nas.PCOContainer{rulesContainer}, refresh...), nil
+}
+
+func MappedFiveGSQoSRefresh(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, error) {
 	flow := fgs.FiveQIQoSFlow(models.DefaultQFI, qos.QCI, fgs.QoSFlowOpCreate)
 
 	param, err := fgs.EPSBearerIDQoSFlowParameter(ebi)
@@ -43,11 +57,6 @@ func MappedFiveGSQoSContainers(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, erro
 		return nil, fmt.Errorf("encode the mapped Session-AMBR: %w", err)
 	}
 
-	rulesContainer, err := nas.NewQoSRulesContainer(rules, false)
-	if err != nil {
-		return nil, err
-	}
-
 	flowsContainer, err := nas.NewQoSFlowDescriptionsContainer(flows, false)
 	if err != nil {
 		return nil, err
@@ -58,5 +67,5 @@ func MappedFiveGSQoSContainers(ebi uint8, qos *EpsQoS) ([]nas.PCOContainer, erro
 		return nil, err
 	}
 
-	return []nas.PCOContainer{rulesContainer, ambrContainer, flowsContainer}, nil
+	return []nas.PCOContainer{ambrContainer, flowsContainer}, nil
 }

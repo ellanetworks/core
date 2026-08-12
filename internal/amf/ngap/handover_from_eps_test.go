@@ -127,7 +127,16 @@ func arrivingAMF(t *testing.T, peer *epsPeerStub) (*amf.AMF, *amf.Radio, *arriva
 	sender := newArrivalSender()
 	smfSbi := &fakeSmfSbi{PrepareFromEPSResponse: []byte{0x09, 0x08}}
 
-	amfInstance := amf.New(&fakeDBInstance{Operator: arrivingOperator()}, nil, smfSbi)
+	// The operator runs a slice the subscriber is not on, so an Allowed NSSAI
+	// taken from the slice table rather than the subscription is visible on the
+	// wire (TS 23.501 §5.15.5.2.1).
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: arrivingOperator(),
+		Slices: []db.NetworkSlice{
+			{ID: "slice-1", Name: "default", Sst: 1},
+			{ID: "slice-2", Name: "other", Sst: 2},
+		},
+	}, nil, smfSbi)
 	amfInstance.EPS = peer
 
 	radio := &amf.Radio{Log: logger.AmfLog, Conn: sender}
@@ -248,6 +257,22 @@ func TestForwardRelocationSendsAnInterSystemHandoverRequest(t *testing.T) {
 
 	if hoReq.MobilityRestrictionList == nil {
 		t.Error("no Mobility Restriction List, so the target cannot determine the serving PLMN")
+	}
+
+	// TS 38.413 §9.3.1.86: the E-UTRA bitmaps are what an ng-eNB target selects
+	// its AS algorithms from, and all-zero reads as "EEA0/EIA0 only". The
+	// forwarded 0xe0 is EEA0/EEA1/EEA2, and EEA0 is implicit in NGAP, so 128-EEA1
+	// and 128-EEA2 land in the first two bits.
+	if got := hoReq.UESecurityCapabilities.EUTRAEncryptionAlgorithms; got != 0xc000 {
+		t.Errorf("E-UTRA encryption algorithms = %#04x, want the forwarded 0xc000", got)
+	}
+
+	if got := hoReq.UESecurityCapabilities.EUTRAIntegrityProtectionAlgorithms; got != 0xc000 {
+		t.Errorf("E-UTRA integrity algorithms = %#04x, want the forwarded 0xc000", got)
+	}
+
+	if len(hoReq.AllowedNSSAI) != 1 || hoReq.AllowedNSSAI[0].SNSSAI.SST != 1 {
+		t.Errorf("Allowed NSSAI = %+v, want the subscriber's single slice", hoReq.AllowedNSSAI)
 	}
 
 	if len(hoReq.PDUSessionResourceSetupListHOReq) != 1 {

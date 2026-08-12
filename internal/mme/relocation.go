@@ -280,18 +280,31 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 
 func (m *MME) RelocationCancel(ctx context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
 	m.mu.Lock()
-	held, ok := m.relocating[supi]
-	m.mu.Unlock()
 
+	held, ok := m.relocating[supi]
 	if !ok {
+		m.mu.Unlock()
+
 		return ErrNoRelocation
 	}
 
 	if held.id != id {
+		m.mu.Unlock()
+
 		return fmt.Errorf("%w: %s is on relocation %d, not %d", ErrNoRelocation, supi, held.id, id)
 	}
 
+	if !held.prepared {
+		held.cancelled = true
+		m.mu.Unlock()
+
+		logger.From(ctx, logger.MmeLog).Info("Relocation Cancel", logger.SUPI(supi.String()))
+
+		return nil
+	}
+
 	ue := held.ue
+	m.mu.Unlock()
 
 	logger.From(ctx, logger.MmeLog).Info("Relocation Cancel", logger.SUPI(supi.String()))
 
@@ -305,6 +318,11 @@ func (m *MME) RelocationCancel(ctx context.Context, supi etsi.SUPI, id interwork
 type relocation struct {
 	id interworking.RelocationID
 	ue *UeContext
+	// prepared and cancelled are read and written under MME.mu, which is also
+	// what installs ue.handover. A cancel that lands before the handover context
+	// exists is still a cancel the target must honour (TS 23.502 §4.11.1.2.3).
+	prepared  bool
+	cancelled bool
 }
 
 func (m *MME) beginRelocation(supi etsi.SUPI, id interworking.RelocationID, ue *UeContext) bool {

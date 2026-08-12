@@ -204,6 +204,11 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	held, heldOK := m.relocating[ue.Supi()]
+	if !heldOK || held.ue != ue || held.cancelled {
+		return 0, nil, false
+	}
+
 	if !ue.BeginKeyChainProc(procedure.S1Handover) {
 		return 0, nil, false
 	}
@@ -214,6 +219,8 @@ func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []H
 
 		return 0, nil, false
 	}
+
+	held.prepared = true
 
 	targetConn := &UeConn{m: m, MMEUES1APID: s1ap.MMEUES1APID(tid), ue: ue}
 	targetConn.setConn(target)

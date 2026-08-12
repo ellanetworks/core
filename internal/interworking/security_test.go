@@ -336,7 +336,10 @@ func TestMapTo5GSDefaultCapability(t *testing.T) {
 		t.Fatalf("MapTo5GSOnHandover: %v", err)
 	}
 
-	if !got.Context.UESecurityCapability.Equal(interworking.DefaultUE5GSecurityCapability) {
+	want := interworking.DefaultUE5GSecurityCapability
+	want.HasEPS = true
+
+	if !got.Context.UESecurityCapability.Equal(want) {
 		t.Fatalf("UE security capability = %s, want the default set", got.Context.UESecurityCapability)
 	}
 
@@ -353,6 +356,55 @@ func TestMapTo5GSDefaultCapability(t *testing.T) {
 	if !got.Context.UESecurityCapability.SupportsIA(uint8(nas.IntegritySNOW3G)) ||
 		!got.Context.UESecurityCapability.SupportsIA(uint8(nas.IntegrityAES)) {
 		t.Error("the default set must include 128-NIA1 and 128-NIA2")
+	}
+}
+
+// TS 38.413 §9.3.1.86, TS 33.501 §8.4.2 step 3: the default set covers the 5G
+// algorithms only, so octets 5-6 stay the UE's own E-UTRA set. TS 24.301
+// §9.9.3.36 octet 4 bit 1 is EPS-UPIP, which is not EIA7.
+func TestMapTo5GSCarriesTheEPSAlgorithmsIntoTheDefaultCapability(t *testing.T) {
+	in := epsContext(t)
+	in.UESecurityCapability = eps.UESecurityCapability{EEA: 0xe0, EIA: 0xe1}
+
+	got, err := interworking.MapTo5GSOnHandover(in, aesInt, aesEnc)
+	if err != nil {
+		t.Fatalf("MapTo5GSOnHandover: %v", err)
+	}
+
+	capability := got.Context.UESecurityCapability
+
+	if !capability.HasEPS {
+		t.Fatal("the mapped capability carries no EPS algorithms, so the target NG-RAN reads EEA0/EIA0 only")
+	}
+
+	if capability.EEA != 0xe0 {
+		t.Errorf("EEA = %08b, want the forwarded 11100000", capability.EEA)
+	}
+
+	if capability.EIA != 0xe0 {
+		t.Errorf("EIA = %08b, want the forwarded 11100000 with EPS-UPIP dropped", capability.EIA)
+	}
+
+	if !capability.Equal(got.Context.UESecurityCapability) {
+		t.Error("the capability does not compare equal to itself")
+	}
+}
+
+// A capability the source MME really forwarded is the UE's own statement, so an
+// absent EPS half means the UE supports no AS algorithm over E-UTRA connected to
+// 5GC (TS 24.501 §9.11.3.54) and must not be filled in.
+func TestMapTo5GSLeavesAForwardedCapabilityAlone(t *testing.T) {
+	in := epsContext(t)
+	in.UESecurityCapability = eps.UESecurityCapability{EEA: 0xe0, EIA: 0xe0}
+	in.UE5GSecurityCapability = &fgs.UESecurityCapability{EA: 0x60, IA: 0x60}
+
+	got, err := interworking.MapTo5GSOnHandover(in, aesInt, aesEnc)
+	if err != nil {
+		t.Fatalf("MapTo5GSOnHandover: %v", err)
+	}
+
+	if !got.Context.UESecurityCapability.Equal(*in.UE5GSecurityCapability) {
+		t.Fatalf("UE security capability = %s, want the forwarded one unmodified", got.Context.UESecurityCapability)
 	}
 }
 

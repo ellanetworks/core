@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -881,4 +882,126 @@ func TestMobilityReg_ReanchorsASKeyChain(t *testing.T) {
 	if ncc := ue.NCCForTest(); ncc != 1 {
 		t.Errorf("NCC = %d, want 1: a fresh K_gNB starts a fresh chain", ncc)
 	}
+}
+
+// A registration that establishes no radio bearers derives no AS key
+// (TS 33.501 §6.8.1.3). On the connection an EPS→5GS handover created, the
+// target gNB was already keyed from the stored {NCC=1, NH} (§8.4.2 steps 4-5),
+// so re-anchoring the chain here hands every later handover an NH the UE
+// cannot reproduce.
+func TestMobilityReg_KeepsTheMappedKeyChainOnAHandoverConnection(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	ue.SetKamfForTest("0f0e0d0c0b0a09080706050403020100f0e0d0c0b0a090807060504030201000")
+
+	mapped := make([]uint8, 32)
+	for i := range mapped {
+		mapped[i] = 0xAA
+	}
+
+	ue.SetNHForTest(mapped)
+	ue.SetNCCForTest(1)
+	ue.SetKgnbForTest(nil)
+	ue.Conn().MarkICSCompleted()
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if nh := ue.NHForTest(); nh != [32]uint8(mapped) {
+		t.Error("the {NH, NCC} the target gNB was keyed from was overwritten: the next handover or path switch would desynchronise the AS key chain")
+	}
+
+	if ncc := ue.NCCForTest(); ncc != 1 {
+		t.Errorf("NCC = %d, want the stored 1", ncc)
+	}
+
+	if len(ue.KgnbForTest()) != 0 {
+		t.Error("a K_gNB was derived on a connection that already carries an AS context")
+	}
+}
+
+// TS 24.501 §5.5.1.3.4: after an inter-system change from S1 mode to N1 mode an
+// AMF that supports N26 shall tell the UE which mapped EPS bearer contexts are
+// still active, so the UE deletes the QoS flow descriptions and QoS rules of the
+// PDN connections that did not transfer.
+func TestMobilityReg_ReportsTheEPSBearerContextStatusAfterAnArrivalFromEPS(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	if err := ue.CreateSmContext(5, "ref-5", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(5, 6)
+	ue.Conn().ArrivedFromEPS = true
+	ue.Conn().MarkICSCompleted()
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.EPSBearerContextStatus == nil {
+		t.Fatal("no EPS bearer context status: a UE whose PDN connection did not transfer keeps its QoS flow descriptions and rules for ever")
+	}
+
+	for ebi := 1; ebi < 16; ebi++ {
+		want := ebi == 6
+		if got := regAccept.EPSBearerContextStatus.Active[ebi]; got != want {
+			t.Errorf("EBI(%d) = %v, want %v", ebi, got, want)
+		}
+	}
+}
+
+// The IE is conditional on the inter-system change (TS 24.501 §8.2.7.31), so an
+// ordinary mobility registration must not carry it.
+func TestMobilityReg_OmitsTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	if err := ue.CreateSmContext(5, "ref-5", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(5, 6)
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.EPSBearerContextStatus != nil {
+		t.Error("the EPS bearer context status went out on a registration that is not an inter-system change")
+	}
+}
+
+type fakeEPSPeer struct{}
+
+func (fakeEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
+	return interworking.ForwardRelocationResponse{}, nil
+}
+
+func (fakeEPSPeer) RelocationCancel(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+func (fakeEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
 }

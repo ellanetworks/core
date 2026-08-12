@@ -229,7 +229,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
 
 		if refreshMappedQoS {
-			mapped, err := MappedFiveGSQoSContainers(p.Ebi, qos)
+			mapped, err := MappedFiveGSQoSRefresh(p.Ebi, qos)
 			if err != nil {
 				logger.From(ctx, logger.MmeLog).Error("failed to encode the mapped 5GS QoS parameters; deferring EPS bearer modification to the next reconcile",
 					zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))

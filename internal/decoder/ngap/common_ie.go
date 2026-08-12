@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/netip"
-	"strings"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -111,17 +111,12 @@ func unmodeledIEs(raw []ngap.RawIE) []IE {
 
 // plmnIDToDecoder splits a PLMN identity into MCC/MNC digit strings.
 func plmnIDToDecoder(id ngap.PLMNIdentity) PLMNID {
-	h := strings.Split(hex.EncodeToString(id[:]), "")
-
-	out := PLMNID{Mcc: h[1] + h[0] + h[3]}
-
-	if h[2] == "f" {
-		out.Mnc = h[5] + h[4]
-	} else {
-		out.Mnc = h[2] + h[5] + h[4]
+	p, err := nas.ParsePLMN([3]byte(id))
+	if err != nil {
+		return PLMNID{}
 	}
 
-	return out
+	return PLMNID{Mcc: p.MCC, Mnc: p.MNC}
 }
 
 func criticalityDiagnostics(cd ngap.CriticalityDiagnostics) CriticalityDiagnostics {

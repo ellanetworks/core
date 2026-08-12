@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/netip"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -36,32 +37,12 @@ func GetSliceInBytes(sst int32, sd string) ([]byte, []byte, error) {
 }
 
 func GetMccAndMncInOctets(mccStr string, mncStr string) ([]byte, error) {
-	var res string
-
-	mcc := reverse(mccStr)
-	mnc := reverse(mncStr)
-
-	if len(mnc) == 2 {
-		res = fmt.Sprintf("%c%cf%c%c%c", mcc[1], mcc[2], mcc[0], mnc[0], mnc[1])
-	} else {
-		res = fmt.Sprintf("%c%c%c%c%c%c", mcc[1], mcc[2], mnc[2], mcc[0], mnc[0], mnc[1])
-	}
-
-	resu, err := hex.DecodeString(res)
+	octets, err := nas.PLMN{MCC: mccStr, MNC: mncStr}.Octets()
 	if err != nil {
-		return nil, fmt.Errorf("could not decode mcc/mnc to octets: %v", err)
+		return nil, fmt.Errorf("could not encode mcc/mnc to octets: %w", err)
 	}
 
-	return resu, nil
-}
-
-func reverse(s string) string {
-	var aux string
-	for _, valor := range s {
-		aux = string(valor) + aux
-	}
-
-	return aux
+	return octets[:], nil
 }
 
 func GetGnbIdInBytes(gnbId string) ([]byte, error) {

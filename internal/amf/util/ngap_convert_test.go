@@ -101,7 +101,10 @@ func TestGUAMIToNGAP(t *testing.T) {
 }
 
 // The BCD encoding of a PLMN differs between two- and three-digit MNCs
-// (TS 38.413 §9.3.3.5), and a wrong filler nibble makes a gNB unreachable.
+// (TS 38.413 §9.3.3.5, TS 24.008 §10.5.1.3 figure 10.5.3: octet 2 is
+// MCC2|MCC1, octet 3 is MNC3|MCC3, octet 4 is MNC2|MNC1), and a wrong nibble
+// order makes a gNB unreachable. The decode leg is checked against the literal
+// vector rather than the encoder's output: a rotation round-trips with itself.
 // Expectations produced out-of-band as above.
 func TestPLMNRoundTrip(t *testing.T) {
 	tests := []struct {
@@ -110,7 +113,9 @@ func TestPLMNRoundTrip(t *testing.T) {
 	}{
 		{models.PlmnID{Mcc: "208", Mnc: "93"}, ngap.PLMNIdentity{0x02, 0xf8, 0x39}},
 		{models.PlmnID{Mcc: "001", Mnc: "01"}, ngap.PLMNIdentity{0x00, 0xf1, 0x10}},
-		{models.PlmnID{Mcc: "310", Mnc: "260"}, ngap.PLMNIdentity{0x13, 0x20, 0x06}},
+		{models.PlmnID{Mcc: "310", Mnc: "260"}, ngap.PLMNIdentity{0x13, 0x00, 0x62}},
+		{models.PlmnID{Mcc: "310", Mnc: "410"}, ngap.PLMNIdentity{0x13, 0x00, 0x14}},
+		{models.PlmnID{Mcc: "302", Mnc: "720"}, ngap.PLMNIdentity{0x03, 0x02, 0x27}},
 	}
 
 	for _, tt := range tests {
@@ -124,8 +129,17 @@ func TestPLMNRoundTrip(t *testing.T) {
 				t.Fatalf("encoded %x, want %x", got, tt.want)
 			}
 
-			if back := util.PLMNToModels(got); back != tt.plmn {
-				t.Errorf("round trip = %+v, want %+v", back, tt.plmn)
+			if back := util.PLMNToModels(tt.want); back != tt.plmn {
+				t.Errorf("decoded %+v, want %+v", back, tt.plmn)
+			}
+
+			octets, err := nas.PLMN{MCC: tt.plmn.Mcc, MNC: tt.plmn.Mnc}.Octets()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if [3]byte(got) != octets {
+				t.Errorf("NGAP %x and NAS %x disagree on the same PLMN", got, octets)
 			}
 		})
 	}

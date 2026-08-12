@@ -96,9 +96,14 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 			req.Target.SelectedTAI.PlmnID, req.Target.SelectedTAI.TAC)
 	}
 
-	snssaiList, err := a.ListOperatorSnssai(ctx)
+	subscriberProfile, err := a.SubscriberProfile(ctx, req.SUPI)
 	if err != nil {
-		return none, fmt.Errorf("amf: list the operator slices: %w", err)
+		return none, fmt.Errorf("amf: resolve the subscriber profile: %w", err)
+	}
+
+	snssaiList := subscriberProfile.AllowedNssai
+	if len(snssaiList) == 0 {
+		return none, fmt.Errorf("amf: %s is subscribed to no network slice", req.SUPI)
 	}
 
 	intOrder, encOrder, err := a.SecurityAlgorithms(ctx)
@@ -158,7 +163,7 @@ func (a *AMF) relocateFromEPS(
 		return none, fmt.Errorf("amf: encode the S1 mode to N1 mode NAS transparent container: %w", err)
 	}
 
-	targetUe, outcome, ok := a.prepareRelocationFromEPS(ue, radio, candidates)
+	targetUe, outcome, ok := a.prepareRelocationFromEPS(ctx, ue, radio, candidates)
 	if !ok {
 		return none, fmt.Errorf("amf: could not prepare a handover from EPS for %s", ue.Supi())
 	}
@@ -368,18 +373,31 @@ func (a *AMF) CompleteRelocationFromEPS(ctx context.Context, ue *UeContext) {
 
 func (a *AMF) RelocationCancel(ctx context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
 	a.mu.Lock()
-	held, ok := a.relocatingFromEPS[supi]
-	a.mu.Unlock()
 
+	held, ok := a.relocatingFromEPS[supi]
 	if !ok {
+		a.mu.Unlock()
+
 		return ErrNoRelocationFromEPS
 	}
 
 	if held.id != id {
+		a.mu.Unlock()
+
 		return fmt.Errorf("%w: %s is on relocation %d, not %d", ErrNoRelocationFromEPS, supi, held.id, id)
 	}
 
+	if !held.prepared {
+		held.cancelled = true
+		a.mu.Unlock()
+
+		logger.From(ctx, logger.AmfLog).Info("Relocation Cancel", logger.SUPI(supi.String()))
+
+		return nil
+	}
+
 	ue := held.ue
+	a.mu.Unlock()
 
 	logger.From(ctx, logger.AmfLog).Info("Relocation Cancel", logger.SUPI(supi.String()))
 
@@ -410,6 +428,12 @@ func (ue *UeContext) TakeArrivedFromEPSHandover() bool {
 type fromEPSRelocation struct {
 	id interworking.RelocationID
 	ue *UeContext
+	// prepared and cancelled are read and written under AMF.mu, which is also
+	// what installs ue.handover. A cancel that lands before the handover context
+	// exists is still a cancel the EPC must honour (TS 36.413 §8.4.5.2), so it is
+	// recorded here and taken by prepareRelocationFromEPS.
+	prepared  bool
+	cancelled bool
 }
 
 func (a *AMF) beginRelocationFromEPS(supi etsi.SUPI, id interworking.RelocationID, ue *UeContext) bool {

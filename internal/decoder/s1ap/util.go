@@ -4,9 +4,8 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -217,14 +216,10 @@ type PLMNID struct {
 // plmnToID decodes a PLMN identity (TS 24.008 §10.5.1.3 / TS 23.003 BCD nibble
 // packing) into its MCC/MNC digits.
 func plmnToID(p s1ap.PLMNIdentity) PLMNID {
-	mcc := fmt.Sprintf("%d%d%d", p[0]&0x0f, p[0]>>4, p[1]&0x0f)
-
-	var mnc string
-	if p[1]>>4 == 0x0f { // 2-digit MNC: the third digit is filler
-		mnc = fmt.Sprintf("%d%d", p[2]&0x0f, p[2]>>4)
-	} else {
-		mnc = fmt.Sprintf("%d%d%d", p[1]>>4, p[2]&0x0f, p[2]>>4)
+	plmn, err := nas.ParsePLMN([3]byte(p))
+	if err != nil {
+		return PLMNID{}
 	}
 
-	return PLMNID{Mcc: mcc, Mnc: mnc}
+	return PLMNID{Mcc: plmn.MCC, Mnc: plmn.MNC}
 }

@@ -630,16 +630,34 @@ func TestReconcileSessionAMBRRefreshesTheMappedFiveGSQoS(t *testing.T) {
 		t.Fatal("the modification carries no protocol configuration options, so the UE keeps its stale mapped 5GS QoS")
 	}
 
-	var ambrValue []byte
+	var ambrValue, flowsValue []byte
 
 	for _, c := range req.ProtocolConfigurationOptions.Containers {
-		if c.ID == nas.PCOContainerSessionAMBR {
+		switch c.ID {
+		case nas.PCOContainerSessionAMBR:
 			ambrValue = c.Content
+		case nas.PCOContainerQoSFlowDescriptions:
+			flowsValue = c.Content
+		case nas.PCOContainerQoSRules:
+			t.Error("the modification re-sends the default QoS rule, which the UE rejects with 5GSM cause #83 (TS 24.501 §6.1.4.1 case a)7)")
 		}
 	}
 
 	if ambrValue == nil {
 		t.Fatal("no mapped Session-AMBR container in the modification")
+	}
+
+	if flowsValue == nil {
+		t.Fatal("no mapped QoS flow descriptions container in the modification")
+	}
+
+	flows, err := fgs.ParseQoSFlowDescriptions(flowsValue)
+	if err != nil {
+		t.Fatalf("parse the mapped QoS flow descriptions: %v", err)
+	}
+
+	if len(flows) != 1 || flows[0].QFI != models.DefaultQFI || flows[0].OperationCode != fgs.QoSFlowOpCreate {
+		t.Errorf("mapped QoS flow descriptions = %+v, want one create for QFI %d", flows, models.DefaultQFI)
 	}
 
 	ambr, err := fgs.ParseSessionAMBR(ambrValue)

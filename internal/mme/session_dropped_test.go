@@ -126,3 +126,33 @@ func TestSessionDroppedReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 		t.Error("the UE context outlived its last PDN connection: it has left E-UTRAN, so nothing else will ever release it and its M-TMSI stays allocated")
 	}
 }
+
+// TS 23.401 §5.5.1.2.2 steps 14 and 19: the source eNB is released once, after
+// Forward Relocation Complete and with the successful-handover cause. Releasing
+// again from the user-plane switch (step 8) draws an S1AP ERROR INDICATION for a
+// UE-associated logical connection the eNB has already torn down
+// (TS 36.413 §10.6).
+func TestSessionDroppedLeavesTheReleaseToACommittingRelocationToFiveGS(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	ue.TransitionTo(EMMRegistered)
+
+	p := testPDN(ue)
+	p.SessionRef = "imsi-001010000000001-3#1"
+
+	if _, ok := m.stageRelocationToFiveGS(ue, ue.Conn(), nil); !ok {
+		t.Fatal("could not stage a relocation to 5GS")
+	}
+
+	sent := len(cc.sent)
+
+	m.SessionDropped(context.Background(), ue.IMSI(), DefaultERABID, p.SessionRef)
+
+	if len(cc.sent) != sent {
+		t.Errorf("sent %d S1AP messages, want 0: the relocation owns the source eNB release", len(cc.sent)-sent)
+	}
+
+	if ue.EMMState() == EMMDeregistered {
+		t.Error("the UE was detached mid-relocation, so Relocation Complete has no context left to release")
+	}
+}
