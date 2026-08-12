@@ -207,20 +207,38 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		dnsValid bool
 	)
 
-	if includeDNS {
-		var dnsServers [][]byte
+	refreshMappedQoS := (includeQoS || includeAMBR) && p.Snssai != nil && p.PDUSessionID != 0
 
-		if parsed, err := netip.ParseAddr(qos.DNS); err == nil {
-			dns, dnsValid = parsed, true
-			dnsServers = nas.DNSServers(dns)
-		}
+	if includeDNS || refreshMappedQoS {
+		var (
+			dnsServers  [][]byte
+			ipv4LinkMTU uint16
+		)
 
-		var ipv4LinkMTU uint16
-		if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {
-			ipv4LinkMTU = qos.MTU
+		if includeDNS {
+			if parsed, err := netip.ParseAddr(qos.DNS); err == nil {
+				dns, dnsValid = parsed, true
+				dnsServers = nas.DNSServers(dns)
+			}
+
+			if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {
+				ipv4LinkMTU = qos.MTU
+			}
 		}
 
 		pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+
+		if refreshMappedQoS {
+			mapped, err := MappedFiveGSQoSContainers(p.Ebi, qos)
+			if err != nil {
+				logger.From(ctx, logger.MmeLog).Error("failed to encode the mapped 5GS QoS parameters; deferring EPS bearer modification to the next reconcile",
+					zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+
+				return
+			}
+
+			pco.Containers = append(pco.Containers, mapped...)
+		}
 
 		// TS 24.301 §8.3.18.9 and §8.3.18.13
 		if ue.UsesEPCO(p) {

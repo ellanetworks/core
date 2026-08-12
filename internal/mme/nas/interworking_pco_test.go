@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestActivateDefaultCarriesTheSNSSAI(t *testing.T) {
@@ -186,5 +187,124 @@ func TestActivateDefaultCarriesTheSNSSAIInEPCOOnATransferredPDN(t *testing.T) {
 
 	if !found {
 		t.Error("the S-NSSAI container did not move into the extended element")
+	}
+}
+
+func containerContent(t *testing.T, pco *nas.ProtocolConfigurationOptions, id uint16) []byte {
+	t.Helper()
+
+	var content []byte
+
+	for _, c := range pco.Containers {
+		if c.ID != id {
+			continue
+		}
+
+		if content != nil {
+			t.Fatalf("more than one container %#04x", id)
+		}
+
+		content = c.Content
+	}
+
+	return content
+}
+
+func TestActivateDefaultCarriesTheMappedFiveGSQoS(t *testing.T) {
+	p := &mme.PdnConnection{
+		Ebi:          mme.DefaultERABID,
+		PdnType:      eps.PDNTypeIPv4,
+		UeIP:         netip.MustParseAddr("10.45.0.1"),
+		Snssai:       &models.Snssai{Sst: 1},
+		PDUSessionID: 5,
+	}
+	qos := &mme.EpsQoS{
+		APN: "internet", QCI: 9,
+		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
+		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
+	}
+
+	act := buildActivate(t, p, qos)
+
+	if act.ProtocolConfigurationOptions == nil {
+		t.Fatal("no protocol configuration options in the Activate Default EPS Bearer Context Request")
+	}
+
+	pco := act.ProtocolConfigurationOptions
+
+	rules, err := fgs.ParseQoSRules(containerContent(t, pco, nas.PCOContainerQoSRules))
+	if err != nil {
+		t.Fatalf("parse the mapped QoS rules: %v", err)
+	}
+
+	if len(rules) != 1 {
+		t.Fatalf("mapped QoS rules = %d, want 1", len(rules))
+	}
+
+	if rules[0].DQR != 1 || rules[0].OperationCode != fgs.QoSRuleOpCreate {
+		t.Errorf("mapped QoS rule = %+v, want a created default rule", rules[0])
+	}
+
+	if rules[0].Parameters == nil || rules[0].Parameters.QFI != models.DefaultQFI {
+		t.Errorf("mapped QoS rule QFI = %+v, want %d", rules[0].Parameters, models.DefaultQFI)
+	}
+
+	flows, err := fgs.ParseQoSFlowDescriptions(containerContent(t, pco, nas.PCOContainerQoSFlowDescriptions))
+	if err != nil {
+		t.Fatalf("parse the mapped QoS flow descriptions: %v", err)
+	}
+
+	if len(flows) != 1 {
+		t.Fatalf("mapped QoS flow descriptions = %d, want 1", len(flows))
+	}
+
+	if flows[0].QFI != models.DefaultQFI || flows[0].OperationCode != fgs.QoSFlowOpCreate {
+		t.Errorf("mapped QoS flow = %+v, want a created flow on QFI %d", flows[0], models.DefaultQFI)
+	}
+
+	if ebi, ok := flows[0].EPSBearerID(); !ok || ebi != mme.DefaultERABID {
+		t.Errorf("mapped QoS flow EPS bearer identity = %d/%t, want %d: the UE drops a flow naming another bearer",
+			ebi, ok, mme.DefaultERABID)
+	}
+
+	ambr, err := fgs.ParseSessionAMBR(containerContent(t, pco, nas.PCOContainerSessionAMBR))
+	if err != nil {
+		t.Fatalf("parse the mapped Session-AMBR: %v", err)
+	}
+
+	dl, ul, ok := ambr.Kbps()
+	if !ok || dl != qos.SessAmbrDL.Kbps() || ul != qos.SessAmbrUL.Kbps() {
+		t.Errorf("mapped Session-AMBR = %d/%d kbps, want %d/%d", dl, ul, qos.SessAmbrDL.Kbps(), qos.SessAmbrUL.Kbps())
+	}
+
+	for _, id := range []uint16{nas.PCOContainerQoSRulesTwoOctet, nas.PCOContainerQoSFlowDescriptionsTwoOctet} {
+		if containerContent(t, pco, id) != nil {
+			t.Errorf("container %#04x was sent alongside its one-octet form; the UE accepts only one", id)
+		}
+	}
+}
+
+func TestActivateDefaultOmitsTheMappedFiveGSQoSWithoutAPDUSessionIdentity(t *testing.T) {
+	p := &mme.PdnConnection{
+		Ebi:     mme.DefaultERABID,
+		PdnType: eps.PDNTypeIPv4,
+		UeIP:    netip.MustParseAddr("10.45.0.1"),
+		Snssai:  &models.Snssai{Sst: 1},
+	}
+	qos := &mme.EpsQoS{
+		APN: "internet", QCI: 9,
+		SessAmbrDL: models.MustParseBitRate("100 Mbps"),
+		SessAmbrUL: models.MustParseBitRate("50 Mbps"),
+	}
+
+	act := buildActivate(t, p, qos)
+	if act.ProtocolConfigurationOptions == nil {
+		return
+	}
+
+	for _, id := range []uint16{nas.PCOContainerQoSRules, nas.PCOContainerSessionAMBR, nas.PCOContainerQoSFlowDescriptions} {
+		if containerContent(t, act.ProtocolConfigurationOptions, id) != nil {
+			t.Errorf("container %#04x was sent for a PDN connection the UE gave no PDU session identity", id)
+		}
 	}
 }

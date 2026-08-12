@@ -410,6 +410,13 @@ func buildActivateDefaultESM(p *mme.PdnConnection, qos *mme.EpsQoS, pti uint8, p
 		}
 
 		pco.Containers = append(pco.Containers, container)
+
+		mapped, err := mme.MappedFiveGSQoSContainers(p.Ebi, qos)
+		if err != nil {
+			return nil, err
+		}
+
+		pco.Containers = append(pco.Containers, mapped...)
 	}
 
 	if useEPCO {
