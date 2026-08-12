@@ -125,28 +125,23 @@ type LPPHandler interface {
 	ForwardLPP(ctx context.Context, supi etsi.SUPI, correlationID, lppData []byte) error
 }
 
-// Concurrency model — a registry lock, a per-UE lock, and atomics:
+// Concurrency model:
 //
-//   - AMF.mu guards the registry and connection lifecycle: the UEs/uesByTmsi maps,
-//     the radios/radiosByID maps, the conns index (UE-associated NGAP connections by
-//     AMF-UE-NGAP-ID, plus their identity fields RanUeNgapID/owning radio), the
-//     handover FSM (ue.handover), and the UE's 5G-GUTI/5G-TMSI identity keys.
-//   - UeContext.Mutex guards that UE's data: the security context (keys, NAS COUNTs,
-//     the NH/NCC key chain), the mobility state, the SM contexts, and the UeConn
-//     binding (ue.active).
-//   - Hot non-security fields are atomics: last-seen and the active NAS connection
-//     pointer.
+//   - AMF.mu guards the registry and connection lifecycle: the UE, radio and conn
+//     maps, the handover FSM, and the UE's GUTI/TMSI identity keys.
+//   - UeContext.Mutex guards one UE's data: security context (keys, uplink NAS COUNT,
+//     NH/NCC chain), mobility state, SM contexts, and the UeConn binding.
+//   - UeContext.dl (nas.DownlinkSender) owns the downlink NAS COUNT under its own
+//     lock. SendDownlinkNAS takes a COUNT, protects the message and writes it as one
+//     step, so messages reach the UE in COUNT order (TS 24.501 §4.4.3.1, §4.4.3.3).
 //
-// Shared invariant: security key material — the keys, NAS
-// COUNTs, and the NH/NCC key chain — is derived, read, and committed only under
-// UeContext.Mutex, never under the registry lock.
+// Lock order, never reversed: UeContext.dl → AMF.mu → UeContext.Mutex.
 //
-// Lock ordering (acquire in this order, never reverse):
-//
-//	AMF.mu  →  UeContext.Mutex
-//
-// Never hold UeContext.Mutex while acquiring AMF.mu. Never hold any lock across an
-// external call (SMF, DB, NGAP send): snapshot, release, then call.
+// Never hold AMF.mu or UeContext.Mutex across an external call (SMF, DB, NGAP send):
+// snapshot, release, then call. The exception is UeContext.dl, whose lock is held
+// across the write callback; that callback must not block, take UeContext.Mutex, or
+// call out to SMF, DB or the peer RAT, and one goroutine must never enter the sender
+// twice.
 type AMF struct {
 	mu sync.RWMutex
 

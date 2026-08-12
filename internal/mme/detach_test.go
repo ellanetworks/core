@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/epskeys"
+	"github.com/ellanetworks/core/nas"
 )
 
 func TestDetachSubscriberUnansweredReleases(t *testing.T) {
@@ -58,6 +59,7 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	ue.cipheringAlg, ue.integrityAlg = 2, 2
 
 	var err error
+
 	if ue.knasEnc, err = epskeys.DeriveKNASEnc(kasme, 2); err != nil {
 		t.Fatal(err)
 	}
@@ -66,9 +68,12 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 		t.Fatal(err)
 	}
 
-	if err := ue.installSecurityContextLocked(); err != nil {
+	sc, err := ue.installSecurityContextLocked()
+	if err != nil {
 		t.Fatal(err)
 	}
+
+	ue.downlink().Install(sc, nas.DownlinkCounter{})
 
 	ue.secured = true
 	ue.Conn().secureExchangeEstablished = true

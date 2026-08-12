@@ -473,7 +473,7 @@ func TestHandleRegistrationRequest_ContextSetup_IdenticalIEs_ResendsAccept(t *te
 	conn := ue.Conn()
 	conn.RegistrationRequest = regReqFgs(t, m)
 	conn.RegistrationRequestPlain = m
-	conn.RegistrationAcceptPdu = []byte{0x7e, 0x00, 0x42}
+	conn.RegistrationAcceptPlain = []byte{0x7e, 0x00, 0x42}
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
@@ -567,7 +567,7 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 	conn := ue.Conn()
 	conn.RegistrationRequest = regReqFgs(t, m)
 	conn.RegistrationRequestPlain = m
-	conn.RegistrationAcceptPdu = []byte{0x7e, 0x00, 0x42}
+	conn.RegistrationAcceptPlain = []byte{0x7e, 0x00, 0x42}
 
 	// Requested mapped NSSAI (0x35): the message preserves it without modelling
 	// it, so the two differ in bytes while every field the AMF reads is equal.
@@ -1402,7 +1402,7 @@ func TestHandleRegistrationRequest_ContextSetup_AfterSecurityModeContainer_Resen
 	conn := ue.Conn()
 	conn.RegistrationRequest = regReqFgs(t, opener)
 	conn.RegistrationRequestPlain = opener
-	conn.RegistrationAcceptPdu = []byte{0x7e, 0x00, 0x42}
+	conn.RegistrationAcceptPlain = []byte{0x7e, 0x00, 0x42}
 
 	contextSetup(ctx, amfInstance, ue, regReqFgs(t, complete), complete)
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)

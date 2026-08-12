@@ -126,39 +126,50 @@ func (ue *UeContext) SelectEPSNASAlgorithms(intOrder []nas.IntegrityAlgorithm, e
 
 func (ue *UeContext) MapSecurityContextToEPS() (interworking.FiveGToEPSHandover, error) {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
 
 	if !ue.secured || ue.sc == nil {
+		ue.mu.Unlock()
+
 		return interworking.FiveGToEPSHandover{}, ErrNo5GSecurityContext
 	}
 
 	if ue.epsNASAlgorithms == nil {
+		ue.mu.Unlock()
+
 		return interworking.FiveGToEPSHandover{}, ErrNoEPSNASAlgorithms
 	}
 
 	if ue.epsSecurityCapability == nil {
+		ue.mu.Unlock()
+
 		return interworking.FiveGToEPSHandover{}, ErrNoEPSSecurityCapability
 	}
 
-	dl, err := ue.dlCount.Use()
+	in := interworking.FiveGToEPSInput{
+		KAMF:                   ue.kamf,
+		NgKSI:                  ngKsi(ue.ngKsi),
+		ULNASCount:             ue.ulCount.LastAccepted(),
+		Algorithms:             *ue.epsNASAlgorithms,
+		UESecurityCapability:   *ue.epsSecurityCapability,
+		UE5GSecurityCapability: ue.ueSecurityCapability,
+	}
+	ue.mu.Unlock()
+
+	// The inter-system NAS transparent container spends a downlink NAS COUNT
+	// without a NAS message carrying it (TS 33.501 §8.6.1), so it is taken from
+	// the sender rather than around it.
+	dl, err := ue.dl.UseForMappedContext()
 	if err != nil {
 		return interworking.FiveGToEPSHandover{}, fmt.Errorf("amf: downlink NAS COUNT: %w", err)
 	}
 
-	return interworking.MapToEPSOnHandover(interworking.FiveGToEPSInput{
-		KAMF:                   ue.kamf,
-		NgKSI:                  ngKsi(ue.ngKsi),
-		ULNASCount:             ue.ulCount.LastAccepted(),
-		DLNASCount:             dl,
-		Algorithms:             *ue.epsNASAlgorithms,
-		UESecurityCapability:   *ue.epsSecurityCapability,
-		UE5GSecurityCapability: ue.ueSecurityCapability,
-	})
+	in.DLNASCount = dl
+
+	return interworking.MapToEPSOnHandover(in)
 }
 
 func (ue *UeContext) InstallMappedSecurityContextFromEPS(mapped interworking.Mapped5GSecurityContext, _ AuthProof) error {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
 
 	ue.kamf = mapped.KAMF[:]
 	ue.ngKsi = models.NgKsi{Ksi: int32(mapped.NgKSI.Value), Tsc: models.ScTypeMapped}
@@ -166,7 +177,6 @@ func (ue *UeContext) InstallMappedSecurityContextFromEPS(mapped interworking.Map
 	ue.knasEnc, ue.knasInt = mapped.KNASEnc, mapped.KNASInt
 
 	ue.ulCount = nas.UplinkCounter{}
-	ue.dlCount = nas.NewDownlinkCounter(mapped.DLNASCount)
 
 	capability := mapped.UESecurityCapability
 	ue.ueSecurityCapability = &capability
@@ -182,11 +192,21 @@ func (ue *UeContext) InstallMappedSecurityContextFromEPS(mapped interworking.Map
 
 	ue.secured = true
 
-	if err := ue.installSecurityContextLocked(); err != nil {
+	err := ue.installSecurityContextLocked()
+	if err != nil {
 		ue.secured = false
+	}
+
+	sc := ue.sc
+	ue.mu.Unlock()
+
+	if err != nil {
+		ue.dl.Clear()
 
 		return fmt.Errorf("amf: install mapped 5G NAS security context: %w", err)
 	}
+
+	ue.dl.Install(sc, nas.NewDownlinkCounter(mapped.DLNASCount))
 
 	return nil
 }

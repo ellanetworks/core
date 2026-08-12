@@ -53,7 +53,7 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 // forbidden from mutating. New security-relevant fields should be added here as
 // they are introduced.
 //
-// Explicitly excluded: ulCount/dlCount. The decoder legitimately advances the
+// Explicitly excluded: the uplink and downlink NAS COUNTs. The decoder legitimately advances the
 // uplink NAS COUNT on a verified MAC as protocol plumbing, so the counters are
 // not security-policy fields and are not snapshotted.
 type securityStateSnapshot struct {

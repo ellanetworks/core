@@ -846,7 +846,7 @@ func TestAttachDuplicateIdenticalIEsResendsAccept(t *testing.T) {
 
 	// The attach being served, and the accept last sent.
 	ue.Conn().AttachRequestPlain = plain
-	ue.Conn().AttachAcceptPdu = []byte{0x07, 0x42, 0x01}
+	ue.Conn().AttachAcceptPlain = []byte{0x07, 0x42, 0x01}
 
 	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 
@@ -949,7 +949,7 @@ func TestAttachDuplicateDifferingIEsProgresses(t *testing.T) {
 
 	// A different prior request, so the incoming one differs and the attach progresses.
 	ue.Conn().AttachRequestPlain = []byte{0x07, 0x41, 0x99}
-	ue.Conn().AttachAcceptPdu = []byte{0x07, 0x42, 0x01}
+	ue.Conn().AttachAcceptPlain = []byte{0x07, 0x42, 0x01}
 
 	handleAttachRequest(context.Background(), m, ue, ue.Conn(), attach, plain, false)
 

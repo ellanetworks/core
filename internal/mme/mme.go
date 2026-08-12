@@ -47,7 +47,7 @@ type credentialProvider interface {
 
 // Concurrency model. A UE's state is touched by several goroutines: the eNB
 // dispatch loop (serial per SCTP association), the data-network reconcile
-// backstop, the status and detach API, and timer callbacks. Two locks, with a
+// backstop, the status and detach API, and timer callbacks. Three locks, with a
 // fixed ordering, plus two atomics:
 //
 //   - MME.mu guards the registry and lifecycle: the UEs/uesByTmsi/radios maps,
@@ -57,13 +57,21 @@ type credentialProvider interface {
 //     S1-connection *pointer* itself (ue.active) is swapped under MME.mu on bind/release
 //     but is an atomic.Pointer so the hot path reads it lock-free via Conn().
 //   - UeContext.mu guards that UE's data: the EMM registration state (emmState),
-//     the EPS NAS security context (keys, NAS COUNTs, and the NH/NCC key chain),
-//     the PDN/bearer state (the pdns map, defaultEBI, and each connection's
+//     the EPS NAS security context (keys, the uplink NAS COUNT, and the NH/NCC key
+//     chain), the PDN/bearer state (the pdns map, defaultEBI, and each connection's
 //     in-flight modification flags), and imsi. The security context is reached only
-//     through chokepoint methods (installNASSecurityContext, protectDownlink,
-//     tryUnprotectUplink, deriveInitialKeNB, markSecured, Snapshot) so the keys
-//     never leave the kernel and the COUNT invariant is auditable in one place. The
-//     ECM state is derived from whether the UE holds an S1-connection (ue.active).
+//     through chokepoint methods (installNASSecurityContext, tryUnprotectUplink,
+//     deriveInitialKeNB, markSecured, Snapshot) and the downlink sender below, so the
+//     keys never leave the kernel and the COUNT invariant is auditable in one place.
+//     The ECM state is derived from whether the UE holds an S1-connection (ue.active).
+//   - The lock inside the UE's nas.DownlinkSender (ue.downlink()) makes taking a
+//     downlink NAS COUNT and writing the message that carries it one step, so two
+//     senders for the same UE cannot write in an order other than the one they took
+//     their COUNTs in. The UE estimates the NAS COUNT of a downlink message from its
+//     sequence number and its own stored COUNT, so a message arriving after a higher
+//     COUNT fails integrity verification (TS 24.301 §4.4.3.1, §4.4.3.3). It is the
+//     outermost lock, so the security context is built under UeContext.mu and only
+//     then handed to the sender, never installed with UeContext.mu held.
 //
 // Shared invariant: a UE's registration state and security
 // key material — the keys, NAS COUNTs, and the NH/NCC key chain — are read and
@@ -71,10 +79,16 @@ type credentialProvider interface {
 //
 // Lock ordering (acquire in this order, never reverse):
 //
-//	MME.mu  →  UeContext.mu
+//	DownlinkSender  →  MME.mu  →  UeContext.mu
 //
-// Never hold a lock across an external call (SMF, DB, SCTP send): snapshot the
-// state, release, then send. A reader that observes emmState == EMM-REGISTERED
+// Never hold MME.mu or UeContext.mu across an external call (SMF, DB, SCTP send):
+// snapshot the state, release, then send. The DownlinkSender's lock is the one
+// exception: it is held across the S1AP send — a non-blocking enqueue on the
+// association's writer — so the write closure passed to SendProtected must do no
+// more than frame and write the protected PDU. It reaches MME.mu only through that
+// send chokepoint, and must not take UeContext.mu, call the SMF, DB or a peer RAT,
+// or send a second protected message (the sender's lock is not reentrant).
+// A reader that observes emmState == EMM-REGISTERED
 // under UeContext.mu (status, reconcile) may then read the UE's other registered
 // data — the mutex is the publication barrier that carries the happens-before from
 // the TransitionTo at registration.

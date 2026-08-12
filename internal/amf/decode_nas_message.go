@@ -284,8 +284,8 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		// uplink count back to zero under unchanged keys, and every message
 		// captured after it would replay in turn.
 		//
-		// No reset accompanies it. Sending the command already reset both counts
-		// (wrapSecuredLocked), so the genuine answer verifies at count zero, and
+		// No reset accompanies it. Building the command already reset both counts
+		// (BuildSecurityModeCommand), so the genuine answer verifies at count zero, and
 		// resetting on receipt is what made the rollback reachable.
 		if ue.regStepLocked() != RegStepSecurityMode {
 			return nil, silentDecode(nasreply.ReasonOutOfState,

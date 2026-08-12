@@ -197,6 +197,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	oldAmbr := smContext.PolicyData.Ambr
 
 	hasQoSChange := false
+	has5QIChange := false
 	hasAmbrChange := false
 	hasDNSChange := false
 
@@ -206,7 +207,9 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 			oldArp = oldQoS.Arp.PriorityLevel
 		}
 
-		if oldQoS.Var5qi != req.NewPolicy.Var5qi || oldArp != req.NewPolicy.Arp {
+		has5QIChange = oldQoS.Var5qi != req.NewPolicy.Var5qi
+
+		if has5QIChange || oldArp != req.NewPolicy.Arp {
 			hasQoSChange = true
 		}
 
@@ -285,7 +288,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	ueIdle := false
 
 	if (hasAmbrChange || hasQoSChange || hasDNSChange) && req.NewPolicy != nil {
-		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, hasDNSChange); err != nil {
+		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, has5QIChange, hasDNSChange); err != nil {
 			if errors.Is(err, ErrUENotReachable) {
 				ueIdle = true
 
@@ -330,7 +333,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 // UE) and the PDU Session Resource Modify Request Transfer (N2, to gNB), each
 // carrying only the changed AMBR/QoS IEs (TS 24.501). A DNS-only change sends N1
 // alone, since DNS travels in the NAS Extended PCO and does not affect the gNB.
-func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext, policy *Policy, hasAmbrChange, hasQoSChange, hasDNSChange bool) error {
+func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext, policy *Policy, hasAmbrChange, hasQoSChange, has5QIChange, hasDNSChange bool) error {
 	var n1Ambr *models.Ambr
 	if hasAmbrChange {
 		n1Ambr = &policy.Ambr
@@ -346,7 +349,12 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		n1DNS = policy.DNS
 	}
 
-	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, n1Ambr, n1QoS, n1DNS)
+	var mappedEPSQoS *nas.MappedEPSQoS
+	if smContext.EBI != 0 && (has5QIChange || hasAmbrChange) {
+		mappedEPSQoS = &nas.MappedEPSQoS{QosData: policy.QosData, Ambr: policy.Ambr}
+	}
+
+	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, n1Ambr, n1QoS, n1DNS, smContext.EBI, mappedEPSQoS)
 	if err != nil {
 		return fmt.Errorf("build PDU Session Modification Command (N1): %w", err)
 	}
@@ -404,6 +412,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		zap.Bool("ambrChange", hasAmbrChange),
 		zap.Bool("qosChange", hasQoSChange),
 		zap.Bool("dnsChange", hasDNSChange),
+		zap.Bool("mappedEPSBearerRefresh", mappedEPSQoS != nil),
 	)
 
 	return nil

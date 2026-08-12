@@ -223,7 +223,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 func TestAuthFailureOutOfEnumerationCauseIgnored(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
-	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52})
+	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTPlain)
 
 	// #111 "protocol error, unspecified" is a valid EMM cause but not an
 	// AUTHENTICATION FAILURE cause.

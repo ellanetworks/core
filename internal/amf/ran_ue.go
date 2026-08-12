@@ -110,10 +110,11 @@ type UeConn struct {
 	IdentityTypeUsedForRegistration   uint8
 	RetransmissionOfInitialNASMsg     bool
 
-	// RegistrationAcceptPdu is the REGISTRATION ACCEPT last sent, kept to resend on a
-	// duplicate REGISTRATION REQUEST with identical IEs while awaiting REGISTRATION
-	// COMPLETE (TS 24.501 §5.5.1.2.8 case d).
-	RegistrationAcceptPdu []byte
+	// RegistrationAcceptPlain is the plain REGISTRATION ACCEPT last sent, kept to
+	// resend on a duplicate REGISTRATION REQUEST with identical IEs while awaiting
+	// REGISTRATION COMPLETE (TS 24.501 §5.5.1.2.8 case d). It is held unprotected so
+	// the resend takes a fresh downlink NAS COUNT (TS 24.501 §4.4.3.1).
+	RegistrationAcceptPlain []byte
 }
 
 // Parent returns the UeContext this connection is bound to, or nil when bare.

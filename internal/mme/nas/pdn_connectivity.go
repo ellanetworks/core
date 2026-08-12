@@ -6,6 +6,7 @@ package nas
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
@@ -185,9 +186,9 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	naspdu, err := ue.ProtectDownlink(esm, eps.SHTIntegrityProtectedCiphered)
+	req, err := buildERABSetup(p, qos)
 	if err != nil {
-		mme.ReportProtectFailure(ctx, ueConn, "Activate Default EPS Bearer Context Request", err)
+		logger.From(ctx, logger.MmeLog).Error("failed to build E-RAB Setup Request", zap.Error(err))
 		m.ReleasePDN(ctx, ue, p)
 
 		return nasreply.Handled()
@@ -195,7 +196,33 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	logger.From(ctx, logger.MmeLog).Info("opening additional PDN connection",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", apn), zap.Uint8("ebi", p.Ebi))
-	sendERABSetup(ctx, m, ue, ueConn, p, qos, naspdu)
+
+	var writeErr error
+
+	if err := ueConn.SendProtected(esm, eps.SHTIntegrityProtectedCiphered, func(wire []byte) error {
+		req.ERABToBeSetup[0].NASPDU = s1ap.NASPDU(wire)
+		writeErr = ueConn.SendERABSetup(ctx, req)
+
+		return writeErr
+	}); err != nil {
+		if writeErr == nil {
+			mme.ReportProtectFailure(ctx, ueConn, "Activate Default EPS Bearer Context Request", err)
+		} else {
+			logger.From(ctx, logger.MmeLog).Error("failed to send E-RAB Setup Request", zap.Error(writeErr))
+		}
+
+		m.ReleasePDN(ctx, ue, p)
+
+		return nasreply.Handled()
+	}
+
+	// The S1AP send chokepoint swallows write failures, so without T3485 supervision a
+	// failed or unanswered activation would leak the committed PDN and its S-GW session.
+	// The guard retransmits, then releases the PDN once the budget is spent
+	// (TS 24.301 §6.4.1.6).
+	m.ArmESMGuardAbortOnly(ue, p, "Activate Default EPS Bearer Context Request", esm, eps.SHTIntegrityProtectedCiphered, func() {
+		m.ReleasePDN(context.Background(), ue, p)
+	})
 
 	return nasreply.Handled()
 }
@@ -204,21 +231,18 @@ func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	openPDNConnection(ctx, m, ue, ueConn, ue.RequestedAPN, pending.PTI, eps.PDNType(pending.PDNType))
 }
 
-// sendERABSetup asks the eNB to set up the radio leg of a new PDN connection,
-// carrying the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST to the UE (TS 36.413
-// §8.2.1).
-func sendERABSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, p *mme.PdnConnection, qos *mme.EpsQoS, naspdu []byte) {
+// buildERABSetup assembles the E-RAB Setup Request that sets up the radio leg of a
+// new PDN connection; the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST is stamped
+// into its NAS-PDU once protected (TS 36.413 §8.2.1).
+func buildERABSetup(p *mme.PdnConnection, qos *mme.EpsQoS) (*s1ap.ERABSetupRequest, error) {
 	sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", zap.Error(err))
-		m.ReleasePDN(ctx, ue, p)
-
-		return
+		return nil, fmt.Errorf("failed to encode S-GW transport layer address: %w", err)
 	}
 
 	ambr := s1ap.UEAggregateMaximumBitRate{DL: s1ap.BitRate(qos.AMBRDL.Bps()), UL: s1ap.BitRate(qos.AMBRUL.Bps())}
 
-	reqMsg := &s1ap.ERABSetupRequest{
+	return &s1ap.ERABSetupRequest{
 		UEAggregateMaximumBitRate: &ambr,
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemBearerSUReq{{
 			ERABID: s1ap.ERABID(p.Ebi),
@@ -228,24 +252,8 @@ func sendERABSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *m
 			},
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
-			NASPDU:                s1ap.NASPDU(naspdu),
 		}},
-	}
-
-	if err := ueConn.SendERABSetup(ctx, reqMsg); err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to send E-RAB Setup Request", zap.Error(err))
-		m.ReleasePDN(ctx, ue, p)
-
-		return
-	}
-
-	// The S1AP send chokepoint swallows write failures, so without T3485 supervision a
-	// failed or unanswered activation would leak the committed PDN and its S-GW session.
-	// The guard retransmits, then releases the PDN once the budget is spent
-	// (TS 24.301 §6.4.1.6).
-	m.ArmESMGuardAbortOnly(ue, p, "Activate Default EPS Bearer Context Request", naspdu, func() {
-		m.ReleasePDN(context.Background(), ue, p)
-	})
+	}, nil
 }
 
 // handlePDNDisconnectRequest releases one of a UE's PDN connections at its request

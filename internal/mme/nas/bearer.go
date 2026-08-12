@@ -116,7 +116,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		zap.Stringer("esm-cause", esmCause),
 	)
 
-	naspdu, err := buildProtectedAttachAccept(ctx, m, ue, qos)
+	plain, err := buildAttachAccept(ctx, m, ue, qos)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Attach Accept", zap.Error(err))
 
@@ -138,29 +138,49 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	// Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.RadioCapability = nil
 
+	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, qos)
+	if !ok {
+		if p := m.DefaultPDN(ue); p != nil {
+			m.ReleasePDN(ctx, ue, p)
+		}
+
+		return
+	}
+
+	if err := ueConn.SendProtected(plain, eps.SHTIntegrityProtectedCiphered, func(wire []byte) error {
+		return sendInitialContextSetup(ctx, ueConn, ics, carrier, wire)
+	}); err != nil {
+		mme.ReportProtectFailure(ctx, ueConn, "Attach Accept", err)
+
+		if p := m.DefaultPDN(ue); p != nil {
+			m.ReleasePDN(ctx, ue, p)
+		}
+
+		return
+	}
+
 	ue.AdvanceRegStep(mme.RegStepContextSetup)
 
 	// Keep the sent Attach Accept so a duplicate Attach Request with identical IEs
 	// can be answered by resending it (TS 24.301 §5.5.1.2.7 case d).
-	ueConn.AttachAcceptPdu = naspdu
-
-	sendInitialContextSetup(ctx, m, ue, ueConn, qos, naspdu)
+	ueConn.AttachAcceptPlain = plain
 
 	// T3450 retransmits the Attach Accept, then releases the UE, if no Attach
 	// Complete arrives (TS 24.301).
-	ueConn.ArmNASGuard("Attach Accept", naspdu)
+	ueConn.ArmNASGuard("Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
-// sendInitialContextSetup establishes the UE's S1 context and default E-RAB at the
-// eNB (TS 36.413). naspdu carries the Attach Accept on attach; it is nil on a
-// Service Request, where only the radio and S1 bearers are re-established.
-func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS, naspdu []byte) {
+// buildInitialContextSetup assembles the Initial Context Setup Request that
+// establishes the UE's S1 context and default E-RAB at the eNB (TS 36.413),
+// returning it with the E-RAB identity that carries the NAS PDU. Everything that
+// reads UE state happens here, so the send itself is pure framing.
+func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS) (*s1ap.InitialContextSetupRequest, uint8, bool) {
 	// Derive K_eNB and seed the X2-handover key chain (NH for NCC=1). Re-seeded on
 	// every context setup, so a Service Request restarts the chain (TS 33.401).
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to derive AS keys", zap.Error(err))
-		return
+		return nil, 0, false
 	}
 
 	uecap := ue.UeNetCap()
@@ -186,7 +206,7 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 			continue
 		}
 
-		item := s1ap.ERABToBeSetupItemCtxtSUReq{
+		erabs = append(erabs, s1ap.ERABToBeSetupItemCtxtSUReq{
 			ERABID: s1ap.ERABID(p.Ebi),
 			QoS: s1ap.ERABLevelQoSParameters{
 				QCI: s1ap.QCI(p.Qci),
@@ -194,18 +214,12 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 			},
 			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
-		}
-
-		if len(naspdu) > 0 && p.Ebi == carrier {
-			item.NASPDU = s1ap.NASPDU(naspdu)
-		}
-
-		erabs = append(erabs, item)
+		})
 	}
 
 	if len(erabs) == 0 {
 		logger.From(ctx, logger.MmeLog).Error("Initial Context Setup with no encodable E-RAB", zap.String("imsi", ue.IMSI()))
-		return
+		return nil, 0, false
 	}
 
 	ics := &s1ap.InitialContextSetupRequest{
@@ -227,15 +241,33 @@ func sendInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext,
 		zap.Stringer("eia", ue.EIA()),
 	)
 
+	return ics, carrier, true
+}
+
+// sendInitialContextSetup stamps the protected NAS PDU onto the E-RAB that carries
+// it and sends the Initial Context Setup Request (TS 36.413). wire is nil on a
+// Service Request, where only the radio and S1 bearers are re-established.
+func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.InitialContextSetupRequest, carrier uint8, wire []byte) error {
+	if len(wire) > 0 {
+		for i := range ics.ERABToBeSetup {
+			if uint8(ics.ERABToBeSetup[i].ERABID) == carrier {
+				ics.ERABToBeSetup[i].NASPDU = s1ap.NASPDU(wire)
+			}
+		}
+	}
+
 	if err := ueConn.SendInitialContextSetup(ctx, ics); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to send Initial Context Setup Request", zap.Error(err))
-		return
+
+		return err
 	}
 
 	ueConn.ICS = mme.ICSPending
+
+	return nil
 }
 
-func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
+func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
 	p := m.DefaultPDN(ue)
 	if p == nil {
 		return nil, fmt.Errorf("attach accept with no active PDN")
@@ -296,17 +328,7 @@ func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		accept.Cause = &cause
 	}
 
-	plain, err := accept.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	wire, err := ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedCiphered)
-	if err != nil {
-		return nil, err
-	}
-
-	return wire, nil
+	return accept.MarshalBinary()
 }
 
 func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {

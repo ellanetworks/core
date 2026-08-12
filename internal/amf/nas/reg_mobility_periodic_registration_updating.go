@@ -93,6 +93,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		suList  ngap.PDUSessionResourceSetupListSUReq
 	)
 
+	appendPendingN1 := func(uint8) error { return nil }
+
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := conn.RegistrationRequest.UplinkDataStatus.PSI
 		reactivationResult = new([16]bool)
@@ -175,27 +177,30 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 			if n2Info == nil {
 				if len(suList) != 0 {
-					nasPdu, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
+					plain, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
 					if err != nil {
 						logger.From(ctx, logger.AmfLog).Warn("failed to build registration accept", zap.Error(err))
+
 						return
 					}
 
 					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-					err = ueConn.SendPDUSessionResourceSetupRequest(
-						ctx,
-						ue.Ambr.Uplink,
-						ue.Ambr.Downlink,
-						nasPdu,
-						suList,
-					)
-					if err != nil {
+					if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+						return ueConn.SendPDUSessionResourceSetupRequest(
+							ctx,
+							ue.Ambr.Uplink,
+							ue.Ambr.Downlink,
+							wire,
+							suList,
+						)
+					}); err != nil {
 						abortRegistration(ctx, amfInstance, ue, "send PDU session resource setup request", err)
+
 						return
 					}
 
-					amf.ArmRegistrationAcceptGuard(amfInstance, ue, nasPdu)
+					amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
 
 					logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 				} else {
@@ -223,24 +228,30 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				return
 			}
 
-			var (
-				nasPdu []byte
-				err    error
-			)
+			appendPendingN1 = func(sht uint8) error {
+				stage := func(nasPdu []byte) error {
+					item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					if err != nil {
+						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
 
-			if n1Msg != nil {
-				nasPdu, err = amf.BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(requestData.PduSessionID)), nil, nil)
-				if err != nil {
-					logger.From(ctx, logger.AmfLog).Warn("failed to build DL NAS transport", zap.Error(err))
-					return
+						return nil
+					}
+
+					suList = append(suList, item)
+
+					return nil
 				}
-			}
 
-			item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
-			if err != nil {
-				logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
-			} else {
-				suList = append(suList, item)
+				if n1Msg == nil {
+					return stage(nil)
+				}
+
+				plain, err := amf.BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(requestData.PduSessionID)), nil, nil)
+				if err != nil {
+					return err
+				}
+
+				return ue.SendDownlinkNAS(plain, sht, stage)
 			}
 		}
 	}
@@ -256,43 +267,48 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 		return
 	} else {
-		nasPdu, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
-		if err != nil {
-			abortRegistration(ctx, amfInstance, ue, "build registration accept", err)
+		sht := uint8(fgs.SHTIntegrityProtectedCiphered)
+
+		// The buffered N1 SM message and the REGISTRATION ACCEPT are two protected
+		// messages riding one RAN message, so the gNB, not the AMF, decides the order
+		// they reach the UE in. The two sends are kept adjacent so no third message can
+		// take a NAS COUNT between them (TS 24.501 §4.4.3.1).
+		if err := appendPendingN1(sht); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "send buffered N1 SM message", err)
+
 			return
 		}
 
-		if len(suList) != 0 {
-			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+		plain, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
+		if err != nil {
+			abortRegistration(ctx, amfInstance, ue, "build registration accept", err)
 
-			err := ueConn.SendPDUSessionResourceSetupRequest(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				nasPdu,
-				suList,
-			)
-			if err != nil {
-				abortRegistration(ctx, amfInstance, ue, "send PDU session resource setup request", err)
-				return
-			}
-
-			amf.ArmRegistrationAcceptGuard(amfInstance, ue, nasPdu)
-
-			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
-		} else {
-			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
-
-			err := ueConn.SendDownlinkNASTransport(ctx, nasPdu)
-			if err != nil {
-				abortRegistration(ctx, amfInstance, ue, "send downlink NAS transport", err)
-				return
-			}
-
-			amf.ArmRegistrationAcceptGuard(amfInstance, ue, nasPdu)
-
-			logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
+			return
 		}
+
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+
+		if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+			if len(suList) != 0 {
+				return ueConn.SendPDUSessionResourceSetupRequest(
+					ctx,
+					ue.Ambr.Uplink,
+					ue.Ambr.Downlink,
+					wire,
+					suList,
+				)
+			}
+
+			return ueConn.SendDownlinkNASTransport(ctx, wire)
+		}); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
+
+			return
+		}
+
+		amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
+
+		logger.From(ctx, logger.AmfLog).Info("sent registration accept")
 	}
 }
 

@@ -33,6 +33,13 @@ func (c *captureConn) count() int {
 	return len(c.sent)
 }
 
+func (c *captureConn) snapshot() [][]byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([][]byte(nil), c.sent...)
+}
+
 // mobileIdentityDigits extracts the identity digits from a TS 24.008 Mobile
 // Identity IE, reporting a value that does not decode as no digits.
 func mobileIdentityDigits(b []byte) string {

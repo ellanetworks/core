@@ -76,7 +76,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Empty mobileIdentityContents",
-			&amf.UeContext{},
+			amf.NewUeContext(),
 			[]uint8{},
 			fmt.Errorf("nas/fgs: empty 5GS mobile identity"),
 			emptyValidation,
@@ -85,14 +85,14 @@ func TestUpdateUeIdentity(t *testing.T) {
 			// An identity type this AMF does not model names no subscriber, so the
 			// identification procedure cannot have succeeded (TS 24.501 §5.4.3.4).
 			"Unknown type is refused",
-			&amf.UeContext{},
+			amf.NewUeContext(),
 			[]uint8{0xFF},
 			fmt.Errorf("UE sent EUI-64"),
 			emptyValidation,
 		},
 		{
 			"Invalid SUCI sets empty SUCI and PLMN",
-			&amf.UeContext{},
+			amf.NewUeContext(),
 			[]uint8{uint8(fgs.IdentitySUCI)},
 			fmt.Errorf("nas: bytes at octet 1: buffer truncated"),
 			func(ue *amf.UeContext) error {
@@ -105,7 +105,7 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Valid SUCI sets SUCI and PLMN",
-			&amf.UeContext{},
+			amf.NewUeContext(),
 			[]uint8{uint8(fgs.IdentitySUCI), 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 			nil,
 			func(ue *amf.UeContext) error {

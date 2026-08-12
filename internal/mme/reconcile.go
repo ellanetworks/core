@@ -290,8 +290,37 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 	}
 	ue.mu.Unlock()
 
-	naspdu, err := ue.ProtectDownlinkMessage(req)
+	plain, err := req.MarshalBinary()
 	if err != nil {
+		ue.mu.Lock()
+		ClearPendingModifyLocked(p)
+		ue.mu.Unlock()
+
+		logger.From(ctx, logger.MmeLog).Error("failed to build Modify EPS Bearer Context Request",
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		return
+	}
+
+	write := func(wire []byte) error {
+		// DNS and/or Session-AMBR only: no radio change, so the NAS message is sent
+		// standalone in a Downlink NAS Transport (TS 23.401 §5.4.3).
+		ueConn.SendDownlinkNASTransport(ctx, wire)
+
+		return nil
+	}
+
+	if includeQoS {
+		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
+		// piggybacked in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2).
+		write = func(wire []byte) error {
+			m.sendERABModify(ctx, ueConn, p, qos, wire)
+
+			return nil
+		}
+	}
+
+	if err := ueConn.SendProtected(plain, eps.SHTIntegrityProtectedCiphered, write); err != nil {
 		ue.mu.Lock()
 		ClearPendingModifyLocked(p)
 		ue.mu.Unlock()
@@ -301,17 +330,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		return
 	}
 
-	if includeQoS {
-		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
-		// piggybacked in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2).
-		m.sendERABModify(ctx, ueConn, p, qos, naspdu)
-	} else {
-		// DNS and/or Session-AMBR only: no radio change, so the NAS message is sent
-		// standalone in a Downlink NAS Transport (TS 23.401 §5.4.3).
-		ueConn.SendDownlinkNASTransport(ctx, naspdu)
-	}
-
-	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", naspdu, func() {
+	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func() {
 		ue.mu.Lock()
 		ClearPendingModifyLocked(p)
 		ue.mu.Unlock()

@@ -162,7 +162,8 @@ type UeContext struct {
 	cipheringAlg           nas.CipheringAlgorithm
 	integrityAlg           nas.IntegrityAlgorithm
 	ulCount                nas.UplinkCounter
-	dlCount                nas.DownlinkCounter
+	dl                     *nas.DownlinkSender
+	dlOnce                 sync.Once
 	sc                     *nas.SecurityContext
 	secured                bool
 	eksi                   nas.KeySetIdentifier

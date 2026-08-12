@@ -151,32 +151,45 @@ func (ue *UeContext) SetSecuredForTest(b bool) {
 			ue.knasInt[i], ue.knasEnc[i] = byte(i+1), byte(i+1)
 		}
 
-		_ = ue.installSecurityContextLocked()
+		ue.reinstallSecurityContextForTest()
 	}
 }
 func (ue *UeContext) SecuredForTest() bool { return ue.secured }
 
+// reinstallSecurityContextForTest rebuilds the NAS security context from the keys
+// and algorithms currently held and hands it to the downlink sender, keeping the
+// downlink NAS COUNT the sender has reached.
+func (ue *UeContext) reinstallSecurityContextForTest() {
+	if err := ue.installSecurityContextLocked(); err != nil {
+		ue.dl.Clear()
+
+		return
+	}
+
+	ue.dl.Install(ue.sc, nas.NewDownlinkCounter(ue.dl.Next()))
+}
+
 func (ue *UeContext) SetIntegrityAlgForTest(a nas.IntegrityAlgorithm) {
 	ue.integrityAlg = a
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 func (ue *UeContext) IntegrityAlgForTest() nas.IntegrityAlgorithm { return ue.integrityAlg }
 
 func (ue *UeContext) SetCipheringAlgForTest(a nas.CipheringAlgorithm) {
 	ue.cipheringAlg = a
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 func (ue *UeContext) CipheringAlgForTest() nas.CipheringAlgorithm { return ue.cipheringAlg }
 
 func (ue *UeContext) SetKnasIntForTest(k [16]uint8) {
 	ue.knasInt = k
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 func (ue *UeContext) KnasIntForTest() [16]uint8 { return ue.knasInt }
 
 func (ue *UeContext) SetKnasEncForTest(k [16]uint8) {
 	ue.knasEnc = k
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 func (ue *UeContext) KnasEncForTest() [16]uint8 { return ue.knasEnc }
 
@@ -228,19 +241,12 @@ func (ue *UeContext) SetULCountForTest(c uint32) {
 func (ue *UeContext) ULCountForTest() nas.UplinkCounter { return ue.ulCount }
 
 func (ue *UeContext) SetDLCountForTest(c nas.Count) {
-	ue.dlCount = nas.NewDownlinkCounter(c)
+	ue.dl.Install(ue.sc, nas.NewDownlinkCounter(c))
 }
 
-func (ue *UeContext) DLCountForTest() nas.Count { return ue.dlCount.Next() }
+func (ue *UeContext) DLCountForTest() nas.Count { return ue.dl.Next() }
 
-func (ue *UeContext) NextDownlinkCountForTest() (nas.Count, error) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	counter := ue.dlCount
-
-	return counter.Use()
-}
+func (ue *UeContext) NextDownlinkCountForTest() nas.Count { return ue.dl.Next() }
 
 func (ue *UeContext) ForgetS1CapabilityForTest() {
 	ue.mu.Lock()

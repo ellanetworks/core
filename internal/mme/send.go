@@ -15,15 +15,31 @@ import (
 	"go.uber.org/zap"
 )
 
-// ProtectDownlinkMessage serializes a NAS message and integrity-protects and
-// ciphers it with the UE's security context.
-func (ue *UeContext) ProtectDownlinkMessage(msg nasMessage) ([]byte, error) {
-	plain, err := msg.MarshalBinary()
-	if err != nil {
-		return nil, err
+// SendProtected takes the next downlink NAS COUNT, protects plain under it, and
+// hands the wire bytes to write — one critical section, so the messages reach the
+// eNB in the order their COUNTs were taken (TS 24.301 §4.4.3.1). The protected
+// bytes never escape write, so no caller can hold a COUNT it has not written.
+//
+// write frames the protected PDU for its S1AP procedure and sends it. It runs
+// under the sender's lock, so it must not block, take UeContext.mu, call the
+// anchor, or send a second protected message; MME.mu it reaches only through the
+// S1AP send chokepoint.
+func (c *UeConn) SendProtected(plain []byte, sht eps.SecurityHeaderType, write nas.WriteFunc) error {
+	if c == nil || c.ue == nil {
+		return nil
 	}
 
-	return ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedCiphered)
+	return c.ue.downlink().Send(plain, uint8(sht), write)
+}
+
+// SendProtectedNASTransport protects plain and sends it in a Downlink NAS
+// Transport (TS 36.413 §8.6.2).
+func (c *UeConn) SendProtectedNASTransport(ctx context.Context, plain []byte, sht eps.SecurityHeaderType) error {
+	return c.SendProtected(plain, sht, func(wire []byte) error {
+		c.SendDownlinkNASTransport(ctx, wire)
+
+		return nil
+	})
 }
 
 func (c *UeConn) SendDownlinkMessage(ctx context.Context, msg nasMessage) {
@@ -53,37 +69,33 @@ func (c *UeConn) SendDownlinkProtected(ctx context.Context, msg nasMessage) {
 		return
 	}
 
-	wire, err := c.ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedCiphered)
-	if err != nil {
+	if err := c.SendProtectedNASTransport(ctx, plain, eps.SHTIntegrityProtectedCiphered); err != nil {
 		c.reportProtectFailure(ctx, err)
-		return
 	}
-
-	c.SendDownlinkNASTransport(ctx, wire)
 }
 
 // ResendAttachAccept resends the last ATTACH ACCEPT and restarts T3450 without
 // re-authenticating, for a duplicate ATTACH REQUEST whose IEs match the one being
-// served (TS 24.301 §5.5.1.2.7 case d). Re-arming resets the guard, so this
-// retransmission is not charged against the T3450 retransmission count.
+// served (TS 24.301 §5.5.1.2.7 case d). The retransmission is protected afresh
+// under the next downlink NAS COUNT (TS 24.301 §4.4.3.1). Re-arming resets the
+// guard, so this retransmission is not charged against the T3450 retransmission
+// count.
 func (c *UeConn) ResendAttachAccept(ctx context.Context) {
-	if c == nil || len(c.AttachAcceptPdu) == 0 {
+	if c == nil || len(c.AttachAcceptPlain) == 0 {
 		return
 	}
 
-	c.SendDownlinkNASTransport(ctx, c.AttachAcceptPdu)
-	c.ArmNASGuard("Attach Accept", c.AttachAcceptPdu)
+	_ = c.SendGuardedProtected(ctx, "Attach Accept", c.AttachAcceptPlain, eps.SHTIntegrityProtectedCiphered)
 }
 
 // ResendTauAccept resends the stored TAU ACCEPT and restarts its T3450 guard
 // (TS 24.301 §5.5.3.2.7 case d).
 func (c *UeConn) ResendTauAccept(ctx context.Context) {
-	if c == nil || len(c.TauAcceptPdu) == 0 {
+	if c == nil || len(c.TauAcceptPlain) == 0 {
 		return
 	}
 
-	c.SendDownlinkNASTransport(ctx, c.TauAcceptPdu)
-	c.ArmNASGuard("Tracking Area Update Accept", c.TauAcceptPdu)
+	_ = c.SendGuardedProtected(ctx, "Tracking Area Update Accept", c.TauAcceptPlain, eps.SHTIntegrityProtectedCiphered)
 }
 
 // SendDownlinkNASTransport wraps NAS bytes (plain or security-protected) in a Downlink NAS

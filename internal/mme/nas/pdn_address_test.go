@@ -15,6 +15,25 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
+func buildProtectedAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
+	plain, err := buildAttachAccept(ctx, m, ue, qos)
+	if err != nil {
+		return nil, err
+	}
+
+	var wire []byte
+
+	if err := ue.Conn().SendProtected(plain, eps.SHTIntegrityProtectedCiphered, func(b []byte) error {
+		wire = b
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return wire, nil
+}
+
 // activateFromAccept unprotects an Attach Accept and decodes the embedded
 // Activate Default EPS Bearer Context Request.
 func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.ActivateDefaultEPSBearerContextRequest {

@@ -23,7 +23,7 @@ import (
 // carries the Additional information IE (TS 24.501 §9.11.2.1); it is required
 // for LPP payloads, where it holds the LCS correlation identifier the UE hands
 // to its location services application (TS 24.501 §5.4.5.3.2 case c).
-func BuildDLNASTransport(ue *UeContext, payloadContainerType fgs.PayloadContainerType, nasPdu []byte, pduSessionID *fgs.PDUSessionID, cause *fgs.GMMCause, additionalInfo []byte) ([]byte, error) {
+func BuildDLNASTransport(payloadContainerType fgs.PayloadContainerType, nasPdu []byte, pduSessionID *fgs.PDUSessionID, cause *fgs.GMMCause, additionalInfo []byte) ([]byte, error) {
 	plain, err := (&fgs.DLNASTransport{
 		PayloadContainerType: payloadContainerType,
 		PayloadContainer:     nasPdu,
@@ -35,7 +35,7 @@ func BuildDLNASTransport(ue *UeContext, payloadContainerType fgs.PayloadContaine
 		return nil, err
 	}
 
-	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
+	return plain, nil
 }
 
 func BuildIdentityRequest(typeOfIdentity fgs.MobileIdentityType) ([]byte, error) {
@@ -81,7 +81,7 @@ func BuildAuthenticationRequest(ue *UeContext) ([]byte, error) {
 	return m.MarshalBinary()
 }
 
-func BuildServiceAccept(ue *UeContext, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
+func BuildServiceAccept(pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
 	m := &fgs.ServiceAccept{}
 
 	if pDUSessionStatus != nil {
@@ -96,12 +96,7 @@ func BuildServiceAccept(ue *UeContext, pDUSessionStatus *[16]bool, reactivationR
 		m.ReactivationResultErrorCause = reactivationErrCause(errPduSessionID, errCause)
 	}
 
-	plain, err := m.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
+	return m.MarshalBinary()
 }
 
 // reactivationErrCause pairs each PDU session identity with its 5GSM cause into
@@ -191,16 +186,7 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 
 	ue.MarkSecured()
 
-	ue.ResetNASCounts()
-
-	payload, err := ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedNewContext))
-	if err != nil {
-		ue.ClearSecured()
-
-		return nil, err
-	}
-
-	return payload, nil
+	return plain, nil
 }
 
 func BuildEPSNASAlgorithmsSecurityModeCommand(ue *UeContext) ([]byte, error) {
@@ -222,12 +208,7 @@ func BuildEPSNASAlgorithmsSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		return nil, fmt.Errorf("no EPS NAS security algorithms selected, cannot build SecurityModeCommand")
 	}
 
-	plain, err := smc.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedNewContext))
+	return smc.MarshalBinary()
 }
 
 func addEPSNASSecurityAlgorithms(ue *UeContext, smc *fgs.SecurityModeCommand) {
@@ -334,17 +315,12 @@ func BuildRegistrationAccept(
 		m.NegotiatedDRX = &fgs.DRXParameter{Value: ue.DRXParameter}
 	}
 
-	plain, err := m.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
+	return m.MarshalBinary()
 }
 
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-func BuildConfigurationUpdateCommand(amfInstance *AMF, ue *UeContext, guti etsi.GUTI5G, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
+func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
 	ack := fgs.ConfigurationUpdateIndication{ACK: true}
 
 	m := &fgs.ConfigurationUpdateCommand{ConfigurationUpdateIndication: &ack}
@@ -370,12 +346,7 @@ func BuildConfigurationUpdateCommand(amfInstance *AMF, ue *UeContext, guti etsi.
 		m.ShortNameForNetwork = new(nas.NewNetworkName(spnShortName))
 	}
 
-	plain, err := m.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
+	return m.MarshalBinary()
 }
 
 func BuildStatus5GMM(cause fgs.GMMCause) ([]byte, error) {

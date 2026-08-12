@@ -153,7 +153,7 @@ func TestAgeOfLocation(t *testing.T) {
 }
 
 func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
-	ue := &UeContext{}
+	ue := NewUeContext()
 	c := &UeConn{}
 	c.ue.Store(ue)
 
@@ -187,7 +187,7 @@ func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 // against the API-goroutine read; run under -race it guards the mirror-write
 // synchronization.
 func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
-	ue := &UeContext{}
+	ue := NewUeContext()
 	c := &UeConn{}
 	c.ue.Store(ue)
 

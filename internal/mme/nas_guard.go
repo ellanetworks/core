@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
 
@@ -27,32 +28,54 @@ func (c *UeConn) SendGuardedMessage(ctx context.Context, name string, msg nasMes
 	c.SendGuardedDownlink(ctx, name, b)
 }
 
-// SendGuardedDownlink sends already-serialized NAS bytes and arms the EMM guard.
+// SendGuardedDownlink sends already-serialized plain NAS bytes and arms the EMM
+// guard. For the messages that precede security activation; a protected message
+// goes through SendGuardedProtected.
 func (c *UeConn) SendGuardedDownlink(ctx context.Context, name string, nas []byte) {
 	if c == nil {
 		return
 	}
 
-	c.ArmNASGuard(name, nas)
+	c.ArmNASGuard(name, nas, eps.SHTPlain)
 	c.SendDownlinkNASTransport(ctx, nas)
+}
+
+// SendGuardedProtected protects plain, sends it in a Downlink NAS Transport, and
+// arms the EMM guard on the plain message, so each retransmission is protected
+// afresh under the next downlink NAS COUNT (TS 24.301 §4.4.3.1).
+func (c *UeConn) SendGuardedProtected(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType) error {
+	if c == nil {
+		return nil
+	}
+
+	if err := c.SendProtectedNASTransport(ctx, plain, sht); err != nil {
+		ReportProtectFailure(ctx, c, name, err)
+
+		return err
+	}
+
+	c.ArmNASGuard(name, plain, sht)
+
+	return nil
 }
 
 // ArmNASGuard arms the EMM common-procedure guard (T3450/T3460/T3470). EMM
 // procedures are mutually exclusive, so the connection has a single EMM guard.
-// The retransmitted bytes are kept verbatim so the NAS sequence number is
-// preserved (TS 24.301); exhausting the retransmissions releases the UE.
-func (c *UeConn) ArmNASGuard(name string, nas []byte) {
-	c.armNASGuardMode(name, nas, nil)
+// The plain message is kept, and each retransmission of a protected one takes the
+// next NAS COUNT (TS 24.301 §4.4.3.1); a security header type of eps.SHTPlain
+// marks a message sent unprotected. Exhausting the retransmissions releases the UE.
+func (c *UeConn) ArmNASGuard(name string, plain []byte, sht eps.SecurityHeaderType) {
+	c.armNASGuardMode(name, plain, sht, nil)
 }
 
 // ArmNASGuardAbortOnly arms the EMM guard in abort-only mode: exhausting the
 // retransmissions runs onAbort, which finalizes the procedure locally and leaves
 // the UE connected.
-func (c *UeConn) ArmNASGuardAbortOnly(name string, nas []byte, onAbort func()) {
-	c.armNASGuardMode(name, nas, onAbort)
+func (c *UeConn) ArmNASGuardAbortOnly(name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
+	c.armNASGuardMode(name, plain, sht, onAbort)
 }
 
-func (c *UeConn) ArmT3489(name string, nas []byte, onAbort func()) {
+func (c *UeConn) ArmT3489(name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
 	if c == nil || c.ue == nil {
 		return
 	}
@@ -65,7 +88,7 @@ func (c *UeConn) ArmT3489(name string, nas []byte, onAbort func()) {
 
 	c.esmInfoGuard.ArmWith(
 		m.t3489Cfg,
-		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
+		func(attempt int32) { c.retransmitNASGuard(ue, name, plain, sht, attempt) },
 		func() { c.expireNASGuard(ue, name, onAbort) },
 	)
 }
@@ -81,7 +104,7 @@ func (c *UeConn) StopESMInfoGuard() {
 	c.esmInfoGuard.Stop()
 }
 
-func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
+func (c *UeConn) armNASGuardMode(name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
 	if c == nil || c.ue == nil {
 		return
 	}
@@ -98,7 +121,7 @@ func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
 	c.nasGuardName = name
 	c.nasGuard.ArmWith(
 		m.nasGuardCfg,
-		func(attempt int32) { c.retransmitNASGuard(ue, name, nas, attempt) },
+		func(attempt int32) { c.retransmitNASGuard(ue, name, plain, sht, attempt) },
 		func() { c.expireNASGuard(ue, name, onAbort) },
 	)
 }
@@ -108,18 +131,18 @@ func (c *UeConn) armNASGuardMode(name string, nas []byte, onAbort func()) {
 // with several PDN connections can have an ESM procedure outstanding on each
 // concurrently, and concurrently with an EMM procedure, without cancelling one
 // another. (ESM is a 4G MME concept with no 5G AMF analog, so it stays MME-owned.)
-func (m *MME) ArmESMGuard(ue *UeContext, p *PdnConnection, name string, nas []byte) {
-	m.armESMGuardMode(ue, p, name, nas, nil)
+func (m *MME) ArmESMGuard(ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType) {
+	m.armESMGuardMode(ue, p, name, plain, sht, nil)
 }
 
 // ArmESMGuardAbortOnly arms p's ESM bearer-procedure guard in abort-only mode: on
 // exhaustion onAbort finalizes the procedure locally and the UE stays connected
 // (TS 24.301 §6.4.2.5 modify, §6.4.4.5 deactivate).
-func (m *MME) ArmESMGuardAbortOnly(ue *UeContext, p *PdnConnection, name string, nas []byte, onAbort func()) {
-	m.armESMGuardMode(ue, p, name, nas, onAbort)
+func (m *MME) ArmESMGuardAbortOnly(ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
+	m.armESMGuardMode(ue, p, name, plain, sht, onAbort)
 }
 
-func (m *MME) armESMGuardMode(ue *UeContext, p *PdnConnection, name string, nas []byte, onAbort func()) {
+func (m *MME) armESMGuardMode(ue *UeContext, p *PdnConnection, name string, plain []byte, sht eps.SecurityHeaderType, onAbort func()) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -130,7 +153,7 @@ func (m *MME) armESMGuardMode(ue *UeContext, p *PdnConnection, name string, nas 
 
 	p.guard.ArmWith(
 		m.esmGuardCfg,
-		func(attempt int32) { conn.retransmitNASGuard(ue, name, nas, attempt) },
+		func(attempt int32) { conn.retransmitNASGuard(ue, name, plain, sht, attempt) },
 		func() { conn.expireNASGuard(ue, name, onAbort) },
 	)
 }
@@ -167,10 +190,12 @@ func (m *MME) StopESMGuard(p *PdnConnection) {
 }
 
 // retransmitNASGuard resends the outstanding downlink message on each guard
-// interval (TS 24.301). It no-ops if the guarded connection is not the UE's
-// current one (released or replaced); the guard already suppresses a firing that
-// races a stop or re-arm.
-func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, pdu []byte, attempt int32) {
+// interval (TS 24.301). A protected message is protected again under the next
+// downlink NAS COUNT, which the sender increases after each new or retransmitted
+// outbound protected message (TS 24.301 §4.4.3.1). It no-ops if the guarded
+// connection is not the UE's current one (released or replaced); the guard already
+// suppresses a firing that races a stop or re-arm.
+func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, plain []byte, sht eps.SecurityHeaderType, attempt int32) {
 	m := c.m
 	m.mu.Lock()
 
@@ -185,8 +210,19 @@ func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, pdu []byte, atte
 
 	logger.MmeLog.Info("retransmitting NAS message",
 		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name), zap.Int("attempt", int(attempt)))
+
 	// Retransmission is timer-driven, outside the original request; start a fresh root.
-	c.SendDownlinkNASTransport(context.Background(), pdu)
+	ctx := context.Background()
+
+	if sht == eps.SHTPlain {
+		c.SendDownlinkNASTransport(ctx, plain)
+
+		return
+	}
+
+	if err := c.SendProtectedNASTransport(ctx, plain, sht); err != nil {
+		ReportProtectFailure(ctx, c, name, err)
+	}
 }
 
 // expireNASGuard runs once the retransmission limit is exhausted. A critical

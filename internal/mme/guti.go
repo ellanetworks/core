@@ -42,20 +42,25 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	wire, err := ue.ProtectDownlinkMessage(&eps.GUTIReallocationCommand{GUTI: guti})
+	plain, err := (&eps.GUTIReallocationCommand{GUTI: guti}).MarshalBinary()
 	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("GUTI reallocation: build the command", zap.Error(err))
+		return
+	}
+
+	if err := ueConn.SendProtectedNASTransport(ctx, plain, eps.SHTIntegrityProtectedCiphered); err != nil {
 		ReportProtectFailure(ctx, ueConn, "GUTI Reallocation Command", err)
+
 		return
 	}
 
 	// On T3450 exhaustion the reallocation is abort-only, not a UE release: the UE stays
 	// connected with both old and new GUTI valid, and a later Service Request re-initiates
 	// with the staged M-TMSI (TS 24.301 §5.4.1.6 a).
-	ueConn.ArmNASGuardAbortOnly("GUTI Reallocation Command", wire, func() {
+	ueConn.ArmNASGuardAbortOnly("GUTI Reallocation Command", plain, eps.SHTIntegrityProtectedCiphered, func() {
 		logger.From(ctx, logger.MmeLog).Warn("GUTI reallocation aborted: no GUTI Reallocation Complete after T3450 retransmissions",
 			zap.String("imsi", ue.IMSI()))
 	})
-	ueConn.SendDownlinkNASTransport(ctx, wire)
 }
 
 // releaseMTMSIsLocked unindexes and frees both the UE's current M-TMSI and any

@@ -52,30 +52,33 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return amf.storeN1N2AndPage(ctx, ue, req)
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, new(fgs.PDUSessionID(req.PduSessionID)), nil, nil)
+	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+
+	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, req.BinaryDataN1Message, new(fgs.PDUSessionID(req.PduSessionID)), nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	logger.From(ctx, logger.AmfLog).Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
+	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
 	if !ueConn.ClaimICS() {
 		// Context already set up (or in progress): deliver the PDU session standalone.
-		item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
-		if err != nil {
-			return fmt.Errorf("could not build PDU session setup item: %w", err)
-		}
+		return ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+			item, err := PDUSessionSetupItemSUReq(req.PduSessionID, req.SNssai, wire, req.BinaryDataN2Information)
+			if err != nil {
+				return fmt.Errorf("could not build PDU session setup item: %w", err)
+			}
 
-		list := ngap.PDUSessionResourceSetupListSUReq{item}
+			list := ngap.PDUSessionResourceSetupListSUReq{item}
 
-		err = ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
-		if err != nil {
-			return fmt.Errorf("send pdu session resource setup request error: %v", err)
-		}
+			if err := ueConn.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list); err != nil {
+				return fmt.Errorf("send pdu session resource setup request error: %v", err)
+			}
 
-		logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
+			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request to UE")
 
-		return nil
+			return nil
+		})
 	}
 
 	// Claimed the Initial Context Setup: bundle the PDU session into it.
@@ -85,33 +88,41 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
+	kgnb, ueSecCap := ue.Kgnb(), ue.UESecCap()
+
+	err = ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+		item, err := PDUSessionSetupItem(req.PduSessionID, req.SNssai, wire, req.BinaryDataN2Information)
+		if err != nil {
+			return fmt.Errorf("could not build PDU session setup item: %w", err)
+		}
+
+		list := ngap.PDUSessionResourceSetupListCxtReq{item}
+
+		if err := ueConn.SendInitialContextSetup(
+			ctx,
+			ue.Ambr.Uplink,
+			ue.Ambr.Downlink,
+			ue.AllowedNssai,
+			kgnb,
+			ue.RadioCapability,
+			ue.RadioCapabilityForPaging,
+			ueSecCap,
+			nil,
+			list,
+			operatorInfo.Guami,
+		); err != nil {
+			return fmt.Errorf("send initial context setup request error: %v", err)
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
+
+		return nil
+	})
 	if err != nil {
 		ueConn.ResetICS()
-		return fmt.Errorf("could not build PDU session setup item: %w", err)
+
+		return err
 	}
-
-	list := ngap.PDUSessionResourceSetupListCxtReq{item}
-
-	err = ueConn.SendInitialContextSetup(
-		ctx,
-		ue.Ambr.Uplink,
-		ue.Ambr.Downlink,
-		ue.AllowedNssai,
-		ue.kgnb,
-		ue.RadioCapability,
-		ue.RadioCapabilityForPaging,
-		ue.ueSecurityCapability,
-		nil,
-		list,
-		operatorInfo.Guami,
-	)
-	if err != nil {
-		ueConn.ResetICS()
-		return fmt.Errorf("send initial context setup request error: %v", err)
-	}
-
-	logger.From(ctx, logger.AmfLog).Info("Sent NGAP initial context setup request to UE")
 
 	return nil
 }
@@ -202,41 +213,43 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 		return fmt.Errorf("temporary reject: PDU session modification during handover")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
+	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	if n2Msg == nil {
-		// N1-only delivery (e.g. DNS update via Extended PCO): the Modification
-		// Command rides Downlink NAS Transport and no radio resources change
-		// (TS 23.502).
-		if err := ueConn.SendDownlinkNASTransport(ctx, nasPdu); err != nil {
-			return fmt.Errorf("send downlink NAS transport: %w", err)
+	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+		if n2Msg == nil {
+			// N1-only delivery (e.g. DNS update via Extended PCO): the Modification
+			// Command rides Downlink NAS Transport and no radio resources change
+			// (TS 23.502).
+			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
+				return fmt.Errorf("send downlink NAS transport: %w", err)
+			}
+
+			logger.From(ctx, logger.AmfLog).Info("Sent DL NAS Transport (N1-only session modification) to gNB")
+
+			return nil
 		}
 
-		logger.From(ctx, logger.AmfLog).Info("Sent DL NAS Transport (N1-only session modification) to gNB")
+		// The PDUSessionResourceModifyRequestTransfer IE is mandatory per
+		// TS 38.413, so this path must only be taken when n2Msg is set.
+		list := ngap.PDUSessionResourceModifyListModReq{
+			{
+				PDUSessionID: ngap.PDUSessionID(pduSessionID),
+				NASPDU:       ngap.Ptr(ngap.NASPDU(wire)),
+				Transfer:     ngap.TransferContainer(n2Msg),
+			},
+		}
+
+		if err := ueConn.SendPDUSessionResourceModifyRequest(ctx, list); err != nil {
+			return fmt.Errorf("send pdu session resource modify request error: %v", err)
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Modify Request to gNB")
 
 		return nil
-	}
-
-	// The PDUSessionResourceModifyRequestTransfer IE is mandatory per
-	// TS 38.413, so this path must only be taken when n2Msg is set.
-	list := ngap.PDUSessionResourceModifyListModReq{
-		{
-			PDUSessionID: ngap.PDUSessionID(pduSessionID),
-			NASPDU:       ngap.Ptr(ngap.NASPDU(nasPdu)),
-			Transfer:     ngap.TransferContainer(n2Msg),
-		},
-	}
-
-	if err := ueConn.SendPDUSessionResourceModifyRequest(ctx, list); err != nil {
-		return fmt.Errorf("send pdu session resource modify request error: %v", err)
-	}
-
-	logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Modify Request to gNB")
-
-	return nil
+	})
 }
 
 // ReleaseSessionMessage sends a PDUSessionResourceReleaseCommand to the gNB,
@@ -264,24 +277,26 @@ func (amf *AMF) ReleaseSessionMessage(ctx context.Context, supi etsi.SUPI, pduSe
 		return ErrUENotReachable
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
+	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	list := ngap.PDUSessionResourceToReleaseListRelCmd{
-		{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Transfer)},
-	}
+	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+		list := ngap.PDUSessionResourceToReleaseListRelCmd{
+			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(n2Transfer)},
+		}
 
-	if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, nasPdu, list); err != nil {
-		return fmt.Errorf("send pdu session resource release command error: %v", err)
-	}
+		if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, wire, list); err != nil {
+			return fmt.Errorf("send pdu session resource release command error: %v", err)
+		}
 
-	logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Release Command to gNB",
-		logger.PDUSessionID(pduSessionID),
-	)
+		logger.From(ctx, logger.AmfLog).Info("Sent NGAP PDU Session Resource Release Command to gNB",
+			logger.PDUSessionID(pduSessionID),
+		)
 
-	return nil
+		return nil
+	})
 }
 
 func (amf *AMF) N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
@@ -396,19 +411,20 @@ func (amf *AMF) TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte,
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
+	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	err = ueConn.SendDownlinkNASTransport(ctx, nasPdu)
-	if err != nil {
-		return fmt.Errorf("send downlink nas transport error: %v", err)
-	}
+	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+		if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
+			return fmt.Errorf("send downlink nas transport error: %v", err)
+		}
 
-	logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
+		logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
 
-	return nil
+		return nil
+	})
 }
 
 // TransferN1LPPMsg wraps an LPP payload in a DL NAS Transport message and
@@ -446,13 +462,19 @@ func (amf *AMF) TransferN1LPPMsg(ctx context.Context, supi etsi.SUPI, correlatio
 		correlationID = amf.nextLCSCorrelationID()
 	}
 
-	nasPdu, err := BuildDLNASTransport(ue, fgs.PayloadContainerTypeLPP, lppMsg, nil, nil, correlationID)
+	plain, err := BuildDLNASTransport(fgs.PayloadContainerTypeLPP, lppMsg, nil, nil, correlationID)
 	if err != nil {
 		return fmt.Errorf("build DL NAS Transport (LPP) error: %v", err)
 	}
 
-	if err := ueConn.SendDownlinkNASTransport(ctx, nasPdu); err != nil {
-		return fmt.Errorf("send downlink nas transport (LPP): %w", err)
+	if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+		if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
+			return fmt.Errorf("send downlink nas transport (LPP): %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	logger.From(ctx, logger.AmfLog).Info("sent DL NAS Transport (LPP) to UE",

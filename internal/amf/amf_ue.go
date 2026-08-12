@@ -92,7 +92,7 @@ type UeContext struct {
 	nh           [32]uint8 // AS key-chain Next Hop, 256 bits (TS 33.501)
 	ncc          uint8
 	ulCount      nas.UplinkCounter
-	dlCount      nas.DownlinkCounter
+	dl           *nas.DownlinkSender
 	sc           *nas.SecurityContext
 	cipheringAlg nas.CipheringAlgorithm
 	integrityAlg nas.IntegrityAlgorithm
@@ -134,6 +134,7 @@ func NewUeContext() *UeContext {
 		procedures:       procedure.NewRegistry(logger.AmfLog),
 		tmsi:             etsi.InvalidTMSI,
 		oldTmsi:          etsi.InvalidTMSI,
+		dl:               nas.NewDownlinkSender(protectDownlink),
 	}
 
 	return ue
@@ -385,16 +386,30 @@ func (ue *UeContext) DeriveKamf(kseaf []byte) error {
 
 // InstallNASSecurityContext commits the negotiated NAS algorithms and derives the NAS
 // algorithm keys from kamf, installing the 5G NAS security context under ue.mu
-// (TS 33.501). The AuthProof witnesses that authentication has succeeded. The NAS COUNTs
-// are reset separately in the downlink encode path, keyed off the new-security-context
-// header type.
+// (TS 33.501). The AuthProof witnesses that authentication has succeeded. The context
+// is handed to the downlink sender after ue.mu is released, with a downlink counter
+// whose first message carries NAS COUNT zero (TS 24.501 §4.4.3.1); the uplink count is
+// reset here alongside it.
 func (ue *UeContext) InstallNASSecurityContext(nea nas.CipheringAlgorithm, nia nas.IntegrityAlgorithm, _ AuthProof) error {
 	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
 	ue.cipheringAlg, ue.integrityAlg = nea, nia
+	err := ue.deriveAlgKeyLocked()
+	sc := ue.sc
 
-	return ue.deriveAlgKeyLocked()
+	if err == nil {
+		ue.ulCount.Reset()
+	}
+	ue.mu.Unlock()
+
+	if err != nil {
+		ue.dl.Clear()
+
+		return err
+	}
+
+	ue.dl.Install(sc, nas.DownlinkCounter{})
+
+	return nil
 }
 
 // deriveAlgKeyLocked derives the NAS algorithm keys per TS 33.501. Caller holds ue.mu.
@@ -531,7 +546,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 	conn.IdentityTypeUsedForRegistration = 0
 	conn.resyncTried = false
 	conn.RetransmissionOfInitialNASMsg = false
-	conn.RegistrationAcceptPdu = nil
+	conn.RegistrationAcceptPlain = nil
 
 	if r := ue.active.Load(); r != nil {
 		r.UeContextRequest = false
@@ -614,37 +629,12 @@ func (ue *UeContext) HasActivePduSessions() bool {
 	return false
 }
 
-// EncodeNASMessagePlain wraps an already-encoded plain 5GMM message with NAS
-// security (or returns it unchanged when no security context exists). It is the
-// byte-boundary entry point for home-built (nas/fgs) message builders.
-func (ue *UeContext) EncodeNASMessagePlain(plain []byte, securityHeaderType uint8) ([]byte, error) {
-	if ue == nil {
-		return nil, fmt.Errorf("amf ue is nil")
-	}
-
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	if !ue.secured {
-		return plain, nil
-	}
-
-	return ue.wrapSecuredLocked(plain, securityHeaderType)
-}
-
-func (ue *UeContext) ResetNASCounts() {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	ue.ulCount.Reset()
-	ue.dlCount.Reset()
-}
-
-// wrapSecuredLocked ciphers (when the header type requires it), integrity
+// protectDownlink ciphers (when the header type requires it), integrity
 // protects, and frames a plain 5GMM message as a security-protected 5GS NAS
-// message (TS 24.501 §4.4.4, §9.1.1). The caller must hold ue.mu and have a
-// security context. It advances the downlink NAS COUNT.
-func (ue *UeContext) wrapSecuredLocked(plain []byte, sht uint8) ([]byte, error) {
+// message (TS 24.501 §4.4.4, §9.1.1). It is the UE's downlink sender's
+// ProtectFunc, and its only caller: the sender writes what it protects, so
+// protected bytes never reach a caller that could hold them back.
+func protectDownlink(plain []byte, sht uint8, count nas.Count, sc *nas.SecurityContext) ([]byte, error) {
 	headerType := fgs.SecurityHeaderType(sht)
 
 	switch headerType {
@@ -653,20 +643,19 @@ func (ue *UeContext) wrapSecuredLocked(plain []byte, sht uint8) ([]byte, error) 
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", sht)
 	}
 
-	// Protect with the current NAS COUNT and advance only once the message is
-	// protected, so a protection failure does not consume a downlink COUNT
-	// (TS 24.501 §4.4.3.1).
-	count, err := ue.dlCount.Use()
-	if err != nil {
-		return nil, err
+	return fgs.Protect(plain, headerType, count, nas.DirectionDownlink, sc)
+}
+
+func (ue *UeContext) SendDownlinkNAS(plain []byte, sht uint8, write nas.WriteFunc) error {
+	if ue == nil {
+		return fmt.Errorf("amf ue is nil")
 	}
 
-	wire, err := fgs.Protect(plain, headerType, count, nas.DirectionDownlink, ue.sc)
-	if err != nil {
-		return nil, err
+	if fgs.SecurityHeaderType(sht) == fgs.SHTPlain || !ue.Secured() {
+		return write(plain)
 	}
 
-	return wire, nil
+	return ue.dl.Send(plain, sht, write)
 }
 
 func (ue *UeContext) StopProcedureTimers() {

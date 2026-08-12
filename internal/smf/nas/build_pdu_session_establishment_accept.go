@@ -100,7 +100,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	}
 
 	if epsBearerIdentity != 0 {
-		mapped, err := mappedEPSBearerContexts(epsBearerIdentity, qosData, ambr)
+		mapped, err := mappedEPSBearerContexts(epsBearerIdentity, fgs.MappedEPSBearerOpCreate, qosData, ambr)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +232,7 @@ func qosFlow(qosData *models.QosData, epsBearerIdentity uint8) (fgs.QoSFlowDescr
 	return flow, nil
 }
 
-func mappedEPSBearerContexts(epsBearerIdentity uint8, qosData *models.QosData, ambr *models.Ambr) (fgs.MappedEPSBearerContexts, error) {
+func mappedEPSBearerContexts(epsBearerIdentity uint8, op fgs.MappedEPSBearerOperation, qosData *models.QosData, ambr *models.Ambr) (fgs.MappedEPSBearerContexts, error) {
 	epsQoS, err := eps.EPSQoS{QCI: uint8(qosData.Var5qi)}.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("mapped EPS QoS: %w", err)
@@ -250,7 +250,7 @@ func mappedEPSBearerContexts(epsBearerIdentity uint8, qosData *models.QosData, a
 
 	return fgs.MappedEPSBearerContexts{{
 		EPSBearerIdentity: epsBearerIdentity,
-		Operation:         fgs.MappedEPSBearerOpCreate,
+		Operation:         op,
 		EBit:              true,
 		Parameters: []fgs.EPSParameter{
 			{Identifier: fgs.EPSParameterMappedEPSQoS, Contents: epsQoS},
