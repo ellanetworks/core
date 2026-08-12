@@ -65,8 +65,6 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 		}
 	}
 
-	setIEValueTypes(msg.Value.IEs)
-
 	msg.Summary = buildNGAPSummary(msg)
 
 	return msg

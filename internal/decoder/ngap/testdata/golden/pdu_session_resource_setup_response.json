@@ -1,0 +1,115 @@
+{
+  "summary": "PDUSessionResourceSetup, AMF-UE=1, RAN-UE=1",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 29,
+    "label": "PDUSessionResourceSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 75,
+          "label": "PDUSessionResourceSetupListSURes",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "pdu_session_resource_setup_response_transfer": {
+              "dl_qos_flow_per_tnl_information": {
+                "gtp_tunnel": {
+                  "gtp_teid": 1,
+                  "transport_layer_address": "33.33.33.209"
+                },
+                "associated_qos_flows": [
+                  {
+                    "qos_flow_identifier": 1
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 121,
+          "label": "UserLocationInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr": {
+            "nr_cgi": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "nr_cell_identity": "000000010"
+            },
+            "tai": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "tac": "000001"
+            },
+            "timestamp": "2025-10-15T14:25:42Z"
+          }
+        }
+      }
+    ]
+  }
+}

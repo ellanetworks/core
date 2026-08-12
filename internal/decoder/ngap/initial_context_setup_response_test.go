@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
-	const message = "IA4ADwAAAgAKQAIAAgBVQAIAAg=="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(initialContextSetupResponseCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -77,3 +75,6 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected RAN-UE-NGAP-ID=2, got %d", ranUENGAPID)
 	}
 }
+
+// An InitialContextSetupResponse captured on the 001/01 test PLMN.
+const initialContextSetupResponseCapture = "IA4ADwAAAgAKQAIAAgBVQAIAAg=="

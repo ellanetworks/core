@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 func TestDecodeInitialUEMessage(t *testing.T) {
-	msg := decodeHex(t, "000c40610000060008000340032e001a002e2d17659a6d010d0748000bf699f910000101000000015807f07000001800805299f9100001570220005d0106e0c1004300060099f9100001006440080099f9100019b010008640013000600006004000000001")
+	msg := decodeHex(t, initialUEMessageCapture)
 
 	if msg.PDUType != "InitiatingMessage" || msg.ProcedureCode.Value != int64(s1ap.ProcInitialUEMessage) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
@@ -38,7 +39,7 @@ func TestDecodeInitialUEMessage(t *testing.T) {
 		t.Fatalf("decoded NAS = %+v", nas.Decoded)
 	}
 
-	taiv := mustIE(t, msg, s1ap.IDTAIList).Value.(TAI)
+	taiv := mustIE(t, msg, s1ap.IDTAI).Value.(TAI)
 	if taiv.PLMNID.Mcc != "999" || taiv.PLMNID.Mnc != "01" || taiv.TAC != 1 {
 		t.Fatalf("TAI = %+v", taiv)
 	}
@@ -48,7 +49,7 @@ func TestDecodeInitialUEMessage(t *testing.T) {
 		t.Fatalf("EUTRAN-CGI cell = %q", cgi.CellID)
 	}
 
-	if mustIE(t, msg, s1ap.IDRRCEstablishmentCause).ValueType != "enum" {
+	if _, ok := mustIE(t, msg, s1ap.IDRRCEstablishmentCause).Value.(utils.EnumField); !ok {
 		t.Fatal("RRC cause not an enum")
 	}
 
@@ -59,7 +60,7 @@ func TestDecodeInitialUEMessage(t *testing.T) {
 }
 
 func TestDecodeUplinkNASTransport(t *testing.T) {
-	msg := decodeHex(t, "000d403800000500000002000200080003400332001a000e0d2774a88ff701128f7ddc4907f3006440080099f9100019b010004340060099f9100001")
+	msg := decodeHex(t, uplinkNASTransportCapture)
 
 	if msg.ProcedureCode.Value != int64(s1ap.ProcUplinkNASTransport) {
 		t.Fatalf("proc = %q", msg.ProcedureCode.Label)
@@ -87,7 +88,7 @@ func TestDecodeUplinkNASTransport(t *testing.T) {
 }
 
 func TestDecodeDownlinkNASTransport(t *testing.T) {
-	msg := decodeHex(t, "000b402600000300000002000300080003400333001a001211277aacef53032d11d997029fd028cf59aa")
+	msg := decodeHex(t, downlinkNASTransportCapture)
 
 	if msg.ProcedureCode.Value != int64(s1ap.ProcDownlinkNASTransport) {
 		t.Fatalf("proc = %q", msg.ProcedureCode.Label)
@@ -106,3 +107,12 @@ func TestDecodeDownlinkNASTransport(t *testing.T) {
 		t.Fatalf("expected encrypted NAS, got %+v", nas.Decoded)
 	}
 }
+
+// An InitialUEMessage captured on the 999/01 test PLMN.
+const initialUEMessageCapture = "000c40610000060008000340032e001a002e2d17659a6d010d0748000bf699f910000101000000015807f07000001800805299f9100001570220005d0106e0c1004300060099f9100001006440080099f9100019b010008640013000600006004000000001"
+
+// An UplinkNASTransport captured on the 999/01 test PLMN.
+const uplinkNASTransportCapture = "000d403800000500000002000200080003400332001a000e0d2774a88ff701128f7ddc4907f3006440080099f9100019b010004340060099f9100001"
+
+// A DownlinkNASTransport captured on the 999/01 test PLMN.
+const downlinkNASTransportCapture = "000b402600000300000002000300080003400333001a001211277aacef53032d11d997029fd028cf59aa"

@@ -6,27 +6,28 @@ package s1ap
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 func TestDecodePaging(t *testing.T) {
-	msg := decodeHex(t, "000a4027000004005040024b00002b4006001000000001006d400100002e400b00002f40060099f9100001")
+	msg := decodeHex(t, pagingCapture)
 
 	if msg.PDUType != "InitiatingMessage" || msg.ProcedureCode.Value != int64(s1ap.ProcPaging) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
 	}
 
 	idx := mustIE(t, msg, s1ap.IDUEIdentityIndexValue)
-	if idx.Value != uint16(300) || idx.ValueType != "integer" {
-		t.Fatalf("UEIdentityIndexValue = %v (%s)", idx.Value, idx.ValueType)
+	if idx.Value != uint16(300) {
+		t.Fatalf("UEIdentityIndexValue = %v", idx.Value)
 	}
 
-	st := mustIE(t, msg, s1ap.IDSTMSI).Value.(STMSI)
+	st := mustIE(t, msg, s1ap.IDUEPagingID).Value.(STMSI)
 	if st.MMEC != 1 || st.MTMSI != 1 {
 		t.Fatalf("S-TMSI = %+v", st)
 	}
 
-	if mustIE(t, msg, s1ap.IDCNDomain).ValueType != "enum" {
+	if _, ok := mustIE(t, msg, s1ap.IDCNDomain).Value.(utils.EnumField); !ok {
 		t.Fatal("CNDomain not an enum")
 	}
 
@@ -35,3 +36,6 @@ func TestDecodePaging(t *testing.T) {
 		t.Fatalf("TAIList = %+v", tais)
 	}
 }
+
+// A Paging captured on the 999/01 test PLMN.
+const pagingCapture = "000a4027000004005040024b00002b4006001000000001006d400100002e400b00002f40060099f9100001"

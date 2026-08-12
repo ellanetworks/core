@@ -79,6 +79,25 @@ var ueRetentionInformationNames = map[UERetentionInformation]string{
 
 func (u UERetentionInformation) Name() string { return ueRetentionInformationNames[u] }
 
+var pagingOriginNames = map[PagingOrigin]string{
+	PagingOriginNon3GPP: "non-3gpp",
+}
+
+func (o PagingOrigin) Name() string { return pagingOriginNames[o] }
+
+var pagingPriorityNames = map[PagingPriority]string{
+	PagingPriorityLevel1: "priolevel1",
+	PagingPriorityLevel2: "priolevel2",
+	PagingPriorityLevel3: "priolevel3",
+	PagingPriorityLevel4: "priolevel4",
+	PagingPriorityLevel5: "priolevel5",
+	PagingPriorityLevel6: "priolevel6",
+	PagingPriorityLevel7: "priolevel7",
+	PagingPriorityLevel8: "priolevel8",
+}
+
+func (p PagingPriority) Name() string { return pagingPriorityNames[p] }
+
 var pduSessionTypeNames = map[PDUSessionType]string{
 	PDUSessionTypeIPv4:         "ipv4",
 	PDUSessionTypeIPv6:         "ipv6",

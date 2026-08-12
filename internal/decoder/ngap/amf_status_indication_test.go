@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
-	const message = "AAFADwAAAQB4AAgAAADxEMr+AA=="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(amfStatusIndicationCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -80,3 +78,6 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Errorf("expected AMFPointer=00, got %s", guami.AMFPointer)
 	}
 }
+
+// An AMFStatusIndication captured on the 001/01 test PLMN.
+const amfStatusIndicationCapture = "AAFADwAAAQB4AAgAAADxEMr+AA=="

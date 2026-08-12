@@ -82,6 +82,42 @@ var cnDomainNames = map[CNDomain]string{
 
 func (d CNDomain) Name() string { return cnDomainNames[d] }
 
+var pagingPriorityNames = map[PagingPriority]string{
+	PagingPriorityLevel1: "priolevel1",
+	PagingPriorityLevel2: "priolevel2",
+	PagingPriorityLevel3: "priolevel3",
+	PagingPriorityLevel4: "priolevel4",
+	PagingPriorityLevel5: "priolevel5",
+	PagingPriorityLevel6: "priolevel6",
+	PagingPriorityLevel7: "priolevel7",
+	PagingPriorityLevel8: "priolevel8",
+}
+
+func (p PagingPriority) Name() string { return pagingPriorityNames[p] }
+
+var directForwardingPathAvailabilityNames = map[DirectForwardingPathAvailability]string{
+	DirectForwardingPathAvailable: "directPathAvailable",
+}
+
+func (d DirectForwardingPathAvailability) Name() string {
+	return directForwardingPathAvailabilityNames[d]
+}
+
+var ueRetentionInformationNames = map[UERetentionInformation]string{
+	UERetentionUesRetained: "ues-retained",
+}
+
+func (u UERetentionInformation) Name() string { return ueRetentionInformationNames[u] }
+
+var forbiddenInterRATsNames = map[ForbiddenInterRATs]string{
+	ForbiddenInterRATsAll:      "all",
+	ForbiddenInterRATsGERAN:    "geran",
+	ForbiddenInterRATsUTRAN:    "utran",
+	ForbiddenInterRATsCDMA2000: "cdma2000",
+}
+
+func (f ForbiddenInterRATs) Name() string { return forbiddenInterRATsNames[f] }
+
 var enbIDKindNames = map[ENBIDKind]string{
 	ENBIDMacro:      "macroENB-ID",
 	ENBIDHome:       "homeENB-ID",

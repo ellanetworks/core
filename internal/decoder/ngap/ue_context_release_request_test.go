@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
-	const message = "ACpAHAAABAAKAAIAGwBVAAIAGwCFAAMAAAEAD0ACBUA="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(ueContextReleaseRequestCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -123,3 +121,6 @@ func TestDecodeNGAPMessage_UEContextReleaseRequest(t *testing.T) {
 		t.Errorf("expected Cause value=21, got %d", cause.Value.Value)
 	}
 }
+
+// A UEContextReleaseRequest captured on the 001/01 test PLMN.
+const ueContextReleaseRequestCapture = "ACpAHAAABAAKAAIAGwBVAAIAGwCFAAMAAAEAD0ACBUA="

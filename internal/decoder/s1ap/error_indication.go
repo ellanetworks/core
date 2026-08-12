@@ -33,6 +33,10 @@ func buildErrorIndication(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
+	if m.STMSI != nil {
+		ies = append(ies, ie(s1ap.IDSTMSI, s1ap.CriticalityIgnore, stmsi(*m.STMSI)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, "Error Indication"

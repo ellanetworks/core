@@ -12,9 +12,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
-	const message = "AA9ASAAABQBVAAIAAQAmABoZfgBBeQANAQDxEAAAAABEdGhXJS4E8PDw8AB5ABNQAPEQAAAAAQAA8RAAAAHsmTVKAFpAARgAcEABAA=="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(initialUEMessageCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -177,3 +175,6 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected UEContextRequest value=0, got %d", ueContextRequest.Value)
 	}
 }
+
+// An InitialUEMessage captured on the 001/01 test PLMN.
+const initialUEMessageCapture = "AA9ASAAABQBVAAIAAQAmABoZfgBBeQANAQDxEAAAAABEdGhXJS4E8PDw8AB5ABNQAPEQAAAAAQAA8RAAAAHsmTVKAFpAARgAcEABAA=="

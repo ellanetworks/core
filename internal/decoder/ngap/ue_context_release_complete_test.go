@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_UEContextReleaseComplete(t *testing.T) {
-	const message = "ICkAKQAABAAKQAIAkgBVQAIAnwB5QA9AAPEQABI0UBAA8RAAAAEAPAADAAAB"
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(ueContextReleaseCompleteCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -159,3 +157,6 @@ func TestDecodeNGAPMessage_UEContextReleaseComplete(t *testing.T) {
 		t.Errorf("expected PDUSessionID=1, got %d", pduSessionList[0].PDUSessionID)
 	}
 }
+
+// A UEContextReleaseComplete captured on the 001/01 test PLMN.
+const ueContextReleaseCompleteCapture = "ICkAKQAABAAKQAIAkgBVQAIAnwB5QA9AAPEQABI0UBAA8RAAAAEAPAADAAAB"

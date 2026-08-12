@@ -11,9 +11,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
-	const message = "AA4AgJQAAAgACgACAAQAVQACAAIAHAAHAADxEMr+AAAAAAUCARAgMAB3AAkcAA4AAAAAAAAAXgAgmoWQH+QL60OhHSJbbTHIzCPUPAVPceX9UqhcE2VOITwAJEAEAADxEAAmQDQzfgKx/lSdAX4AQgEBdwAL8gDxEMr+AAAAAAFKAwDxEFQHAADxEAAAARUFBAEQIDAhAgAA"
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(initialContextSetupRequestCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -254,7 +252,10 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Fatal("Mobility Restriction List was dropped; it must be preserved as an unmodeled IE")
 	}
 
-	if unmodeled.ValueType != "unmodeled" {
-		t.Errorf("expected ValueType=unmodeled, got %q", unmodeled.ValueType)
+	if _, ok := unmodeled.Value.(rawIEValue); !ok {
+		t.Errorf("unmodeled IE value = %T, want rawIEValue", unmodeled.Value)
 	}
 }
+
+// An InitialContextSetupRequest captured on the 001/01 test PLMN.
+const initialContextSetupRequestCapture = "AA4AgJQAAAgACgACAAQAVQACAAIAHAAHAADxEMr+AAAAAAUCARAgMAB3AAkcAA4AAAAAAAAAXgAgmoWQH+QL60OhHSJbbTHIzCPUPAVPceX9UqhcE2VOITwAJEAEAADxEAAmQDQzfgKx/lSdAX4AQgEBdwAL8gDxEMr+AAAAAAFKAwDxEFQHAADxEAAAARUFBAEQIDAhAgAA"

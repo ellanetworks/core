@@ -11,9 +11,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
-	const message = "ABwAMQAABAAKAAIAlABVAAIAAQAmQBUUfgKGQUZ3A34AaAEABS4BBNMAEgEATwAFAAABARA="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(pduSessionResourceReleaseCommandCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -141,3 +139,6 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
 		t.Errorf("expected non-empty cause, got zero value")
 	}
 }
+
+// A PDUSessionResourceReleaseCommand captured on the 001/01 test PLMN.
+const pduSessionResourceReleaseCommandCapture = "ABwAMQAABAAKAAIAlABVAAIAAQAmQBUUfgKGQUZ3A34AaAEABS4BBNMAEgEATwAFAAABARA="

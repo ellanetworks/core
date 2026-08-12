@@ -1,0 +1,18 @@
+{
+  "pdu_type": "",
+  "procedure_code": {
+    "type": "",
+    "value": 0,
+    "label": "",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "",
+    "value": 0,
+    "label": "",
+    "unknown": false
+  },
+  "value": {
+    "error": "could not decode raw s1ap message: s1ap: unsupported S1AP-PDU extension alternative"
+  }
+}

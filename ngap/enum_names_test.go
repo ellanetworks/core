@@ -42,6 +42,12 @@ func TestEnumNames(t *testing.T) {
 		{"UERetentionUesRetained", UERetentionUesRetained.Name(), "ues-retained"},
 		{"UERetentionInformation(9)", UERetentionInformation(9).Name(), ""},
 
+		{"PagingOriginNon3GPP", PagingOriginNon3GPP.Name(), "non-3gpp"},
+		{"PagingOrigin(9)", PagingOrigin(9).Name(), ""},
+
+		{"PagingPriorityLevel8", PagingPriorityLevel8.Name(), "priolevel8"},
+		{"PagingPriority(99)", PagingPriority(99).Name(), ""},
+
 		{"PDUSessionTypeIPv4v6", PDUSessionTypeIPv4v6.Name(), "ipv4v6"},
 		{"PDUSessionType(9)", PDUSessionType(9).Name(), ""},
 	} {

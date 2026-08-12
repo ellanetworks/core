@@ -1,0 +1,242 @@
+{
+  "summary": "InitialContextSetup, AMF-UE=4, RAN-UE=2, NAS=REGISTRATION ACCEPT",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 14,
+    "label": "InitialContextSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 4
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 28,
+          "label": "GUAMI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "amf_region_id": "ca",
+          "amf_set_id": "fe0",
+          "amf_pointer": "00"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "AllowedNSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "sst": 1,
+            "sd": "102030"
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 119,
+          "label": "UESecurityCapabilities",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "nr_encryption_algorithms": [
+            "NEA1",
+            "NEA2",
+            "NEA3"
+          ],
+          "nr_integrity_protection_algorithms": [
+            "NIA1",
+            "NIA2",
+            "NIA3"
+          ],
+          "eutra_encryption_algorithms": "0000",
+          "eutra_integrity_protection_algorithms": "0000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 94,
+          "label": "SecurityKey",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "9a85901fe40beb43a11d225b6d31c8cc23d43c054f71e5fd52a85c13654e213c"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 38,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "7e02b1fe549d017e0042010177000bf200f110cafe00000000014a0300f11054070000f1100000011505040110203021020000",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 126,
+                "label": "5GMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 2,
+                "label": "integrity protected and ciphered",
+                "unknown": false
+              },
+              "authentication_code": 2986235037,
+              "sequence_number": 1
+            },
+            "gmm_message": {
+              "gmm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 66,
+                  "label": "REGISTRATION ACCEPT",
+                  "unknown": false
+                }
+              },
+              "registration_accept": {
+                "registration_result_5gs": {
+                  "type": "enum",
+                  "value": 1,
+                  "label": "3GPP access",
+                  "unknown": false
+                },
+                "guti_5g": {
+                  "mcc": "001",
+                  "mnc": "01",
+                  "amf_region_id": 202,
+                  "amf_set_id": 1016,
+                  "amf_pointer": 0,
+                  "tmsi": "00000001"
+                },
+                "tai_list": [
+                  {
+                    "plmn_id": {
+                      "mcc": "001",
+                      "mnc": "01"
+                    },
+                    "tac": "000001"
+                  }
+                ],
+                "allowed_nssai": [
+                  {
+                    "sst": 1,
+                    "sd": "102030"
+                  }
+                ],
+                "network_feature_support_5gs": {
+                  "emc": 0,
+                  "emc_n3": 0,
+                  "emf": 0,
+                  "ims_vops": 0,
+                  "iwk_n26": 0,
+                  "mcsi": 0,
+                  "mpsi": 0,
+                  "ims_vops_3gpp": 0,
+                  "ims_vops_n3gpp": 0
+                }
+              }
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 36,
+          "label": "MobilityRestrictionList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0000f110"
+        }
+      }
+    ]
+  }
+}

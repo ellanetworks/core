@@ -215,3 +215,14 @@ func appendUnknownIEs(ies []IE, raw []s1ap.RawIE) []IE {
 
 	return ies
 }
+
+// UserLocationInformation is the decoded User Location Information IE
+// (TS 36.413 §9.2.1.93): the cell and tracking area the UE was last seen in.
+type UserLocationInformation struct {
+	EUTRANCGI EUTRANCGI `json:"eutran_cgi"`
+	TAI       TAI       `json:"tai"`
+}
+
+func userLocationInformation(u s1ap.UserLocationInformation) UserLocationInformation {
+	return UserLocationInformation{EUTRANCGI: eutranCGI(u.EUTRANCGI), TAI: tai(u.TAI)}
+}

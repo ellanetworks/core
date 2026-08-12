@@ -15,9 +15,7 @@ import (
 //	40 0e 00 15 00 00 03 00 0a 40 02 00 09 00 55 40
 //	02 00 09 00 0f 40 02 09 c0
 func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
-	const message = "QA4AFQAAAwAKQAIACQBVQAIACQAPQAIJwA=="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(initialContextSetupFailureCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -84,3 +82,6 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Errorf("expected Cause value=%d, got %d", lib.CauseRadioNetworkSliceNotSupported, cause.Value.Value)
 	}
 }
+
+// An InitialContextSetupFailure captured on the 001/01 test PLMN.
+const initialContextSetupFailureCapture = "QA4AFQAAAwAKQAIACQBVQAIACQAPQAIJwA=="

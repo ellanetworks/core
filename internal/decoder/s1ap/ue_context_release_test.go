@@ -10,7 +10,7 @@ import (
 )
 
 func TestDecodeUEContextReleaseRequest(t *testing.T) {
-	msg := decodeHex(t, "00124016000003000000020008000800034003280002400203a0")
+	msg := decodeHex(t, ueContextReleaseRequestCapture)
 
 	if msg.PDUType != "InitiatingMessage" || msg.ProcedureCode.Value != int64(s1ap.ProcUEContextReleaseRequest) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
@@ -27,7 +27,7 @@ func TestDecodeUEContextReleaseRequest(t *testing.T) {
 }
 
 func TestDecodeUEContextReleaseCommand(t *testing.T) {
-	msg := decodeHex(t, "0017001200000200630005000b40032b0002400202a0")
+	msg := decodeHex(t, ueContextReleaseCommandCapture)
 
 	if msg.PDUType != "InitiatingMessage" || msg.ProcedureCode.Value != int64(s1ap.ProcUEContextRelease) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
@@ -45,7 +45,7 @@ func TestDecodeUEContextReleaseCommand(t *testing.T) {
 }
 
 func TestDecodeUEContextReleaseComplete(t *testing.T) {
-	msg := decodeHex(t, "2017001000000200004002000800084003400328")
+	msg := decodeHex(t, ueContextReleaseCompleteCapture)
 
 	if msg.PDUType != "SuccessfulOutcome" || msg.ProcedureCode.Value != int64(s1ap.ProcUEContextRelease) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
@@ -55,3 +55,12 @@ func TestDecodeUEContextReleaseComplete(t *testing.T) {
 		t.Fatal("UE id mismatch")
 	}
 }
+
+// A UEContextReleaseRequest captured on the 999/01 test PLMN.
+const ueContextReleaseRequestCapture = "00124016000003000000020008000800034003280002400203a0"
+
+// A UEContextReleaseCommand captured on the 999/01 test PLMN.
+const ueContextReleaseCommandCapture = "0017001200000200630005000b40032b0002400202a0"
+
+// A UEContextReleaseComplete captured on the 999/01 test PLMN.
+const ueContextReleaseCompleteCapture = "2017001000000200004002000800084003400328"

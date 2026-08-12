@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_Paging(t *testing.T) {
-	const message = "ABhAGQAAAgBzQAcfwAAAAAABAGdABwAA8RAAAAE="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(pagingCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -97,3 +95,6 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected TAC=000001, got %s", item1.Value.([]TAI)[0].TAC)
 	}
 }
+
+// A Paging captured on the 001/01 test PLMN.
+const pagingCapture = "ABhAGQAAAgBzQAcfwAAAAAABAGdABwAA8RAAAAE="

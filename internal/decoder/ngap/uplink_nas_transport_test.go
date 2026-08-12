@@ -11,9 +11,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
-	const message = "AC5APwAABAAKAAIAAQBVAAIAAQAmABUUfgLpGbfKA34AZwEABS4BANZREgEAeUATUADxEAAAAAEAAPEQAAAB7JlGUQ=="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(uplinkNASTransportCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -148,3 +146,6 @@ func TestDecodeNGAPMessage_UplinkNASTransport(t *testing.T) {
 		t.Errorf("expected TimeStamp=2025-10-14T21:59:45Z, got %s", *userLocationInfo.NR.TimeStamp)
 	}
 }
+
+// An UplinkNASTransport captured on the 001/01 test PLMN.
+const uplinkNASTransportCapture = "AC5APwAABAAKAAIAAQBVAAIAAQAmABUUfgLpGbfKA34AZwEABS4BANZREgEAeUATUADxEAAAAAEAAPEQAAAB7JlGUQ=="

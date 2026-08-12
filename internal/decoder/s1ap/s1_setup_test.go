@@ -6,11 +6,12 @@ package s1ap
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 func TestDecodeS1SetupRequest(t *testing.T) {
-	msg := decodeHex(t, "0011002d000004003b00080099f910000019b0003c400a0380737273656e623031004000070000004099f9100089400140")
+	msg := decodeHex(t, s1SetupRequestCapture)
 
 	if msg.PDUType != "InitiatingMessage" || msg.ProcedureCode.Value != int64(s1ap.ProcS1Setup) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
@@ -34,13 +35,13 @@ func TestDecodeS1SetupRequest(t *testing.T) {
 		t.Fatalf("SupportedTAs = %+v", tas)
 	}
 
-	if mustIE(t, msg, s1ap.IDDefaultPagingDRX).ValueType != "enum" {
+	if _, ok := mustIE(t, msg, s1ap.IDDefaultPagingDRX).Value.(utils.EnumField); !ok {
 		t.Fatal("DefaultPagingDRX not an enum")
 	}
 }
 
 func TestDecodeS1SetupResponse(t *testing.T) {
-	msg := decodeHex(t, "20110021000003003d40060180656c6c610069000b000099f91000000001000100574001ff")
+	msg := decodeHex(t, s1SetupResponseCapture)
 
 	if msg.PDUType != "SuccessfulOutcome" || msg.ProcedureCode.Value != int64(s1ap.ProcS1Setup) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
@@ -85,7 +86,13 @@ func TestDecodeS1SetupFailure(t *testing.T) {
 		t.Fatalf("cause = %+v", c)
 	}
 
-	if mustIE(t, msg, s1ap.IDTimeToWait).ValueType != "enum" {
+	if _, ok := mustIE(t, msg, s1ap.IDTimeToWait).Value.(utils.EnumField); !ok {
 		t.Fatal("TimeToWait not an enum")
 	}
 }
+
+// An S1SetupRequest captured on the 999/01 test PLMN.
+const s1SetupRequestCapture = "0011002d000004003b00080099f910000019b0003c400a0380737273656e623031004000070000004099f9100089400140"
+
+// An S1SetupResponse captured on the 999/01 test PLMN.
+const s1SetupResponseCapture = "20110021000003003d40060180656c6c610069000b000099f91000000001000100574001ff"

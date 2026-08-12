@@ -1,0 +1,171 @@
+{
+  "summary": "Initial UE Message (eNB-UE 814, NAS=TRACKING AREA UPDATE REQUEST)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 12,
+    "label": "InitialUEMessage",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 814
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 26,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "17659a6d010d0748000bf699f910000101000000015807f07000001800805299f9100001570220005d0106e0c1",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 7,
+                "label": "EMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 1,
+                "label": "integrity protected",
+                "unknown": false
+              },
+              "authentication_code": 1704619265,
+              "sequence_number": 13
+            },
+            "emm_message": {
+              "emm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 72,
+                  "label": "TRACKING AREA UPDATE REQUEST",
+                  "unknown": false
+                }
+              },
+              "tracking_area_update_request": {
+                "update_type": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "TA updating",
+                  "unknown": false
+                },
+                "active_flag": false
+              }
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 67,
+          "label": "TAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "999",
+            "mnc": "01"
+          },
+          "tac": 1
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 100,
+          "label": "EUTRAN-CGI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "999",
+            "mnc": "01"
+          },
+          "cell_id": "0019b01"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 134,
+          "label": "RRC-Establishment-Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 3,
+          "label": "mo-Signalling",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 96,
+          "label": "S-TMSI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "mmec": 1,
+          "m_tmsi": 1
+        }
+      }
+    ]
+  }
+}

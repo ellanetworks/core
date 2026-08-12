@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"reflect"
 	"time"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
@@ -20,44 +19,8 @@ type IE struct {
 	ID          utils.EnumField `json:"id"`
 	Criticality utils.EnumField `json:"criticality"`
 	Value       any             `json:"value,omitempty"`
-	ValueType   string          `json:"value_type,omitempty"`
 
 	Error string `json:"error,omitempty"` // Reserved field for decoding errors
-}
-
-func inferValueType(v any) string {
-	if v == nil {
-		return ""
-	}
-
-	switch v.(type) {
-	case int64, int32, int, uint64, uint32:
-		return "integer"
-	case string:
-		return "string"
-	case []byte:
-		return "bytes"
-	case NASPDU:
-		return "nas_pdu"
-	case NRPPaPDU:
-		return "nrppa_pdu"
-	case rawIEValue:
-		return "unmodeled"
-	case utils.EnumField:
-		return "enum"
-	default:
-		if reflect.TypeOf(v).Kind() == reflect.Slice {
-			return "array"
-		}
-
-		return "object"
-	}
-}
-
-func setIEValueTypes(ies []IE) {
-	for i := range ies {
-		ies[i].ValueType = inferValueType(ies[i].Value)
-	}
 }
 
 func criticalityToEnum(c ngap.Criticality) utils.EnumField {

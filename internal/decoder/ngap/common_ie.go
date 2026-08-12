@@ -35,10 +35,9 @@ func bitsHex(v uint64, bits int) string {
 	return hex.EncodeToString(b)[:(bits+3)/4]
 }
 
-// rawIEValue carries an IE the library preserved but does not model. It is a
-// named struct rather than a bare hex string so inferValueType reports it as
-// such — setIEValueTypes overwrites whatever ValueType a renderer sets, which
-// is why the marker cannot live there. internal/decoder/s1ap does the same.
+// rawIEValue carries an IE the library preserved but does not model. The hex
+// sits under a key so the UI can tell an unmodeled IE from a modeled one whose
+// value happens to be a hex string. internal/decoder/s1ap does the same.
 type rawIEValue struct {
 	Hex string `json:"hex"`
 }

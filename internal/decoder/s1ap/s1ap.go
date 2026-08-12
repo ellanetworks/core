@@ -9,7 +9,6 @@ package s1ap
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
@@ -21,7 +20,6 @@ type IE struct {
 	ID          utils.EnumField `json:"id"`
 	Criticality utils.EnumField `json:"criticality"`
 	Value       any             `json:"value,omitempty"`
-	ValueType   string          `json:"value_type,omitempty"`
 
 	Error string `json:"error,omitempty"` // reserved field for decoding errors
 }
@@ -112,8 +110,6 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}
 
-	setIEValueTypes(msg.Value.IEs)
-
 	return msg
 }
 
@@ -141,8 +137,6 @@ func decodeSuccessfulOutcome(m *s1ap.SuccessfulOutcome) S1APMessage {
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}
 
-	setIEValueTypes(msg.Value.IEs)
-
 	return msg
 }
 
@@ -166,8 +160,6 @@ func decodeUnsuccessfulOutcome(m *s1ap.UnsuccessfulOutcome) S1APMessage {
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}
 
-	setIEValueTypes(msg.Value.IEs)
-
 	return msg
 }
 
@@ -176,36 +168,5 @@ func unsupportedProcedure(code s1ap.ProcedureCode) S1APMessageValue {
 
 	return S1APMessageValue{
 		Error: fmt.Sprintf("decoding not implemented for procedure code %d (%s)", code, name),
-	}
-}
-
-func inferValueType(v any) string {
-	if v == nil {
-		return ""
-	}
-
-	switch v.(type) {
-	case int64, int32, int16, int, uint64, uint32, uint16, uint8:
-		return "integer"
-	case string:
-		return "string"
-	case []byte:
-		return "bytes"
-	case NASPDU:
-		return "nas_pdu"
-	case utils.EnumField:
-		return "enum"
-	default:
-		if reflect.TypeOf(v).Kind() == reflect.Slice {
-			return "array"
-		}
-
-		return "object"
-	}
-}
-
-func setIEValueTypes(ies []IE) {
-	for i := range ies {
-		ies[i].ValueType = inferValueType(ies[i].Value)
 	}
 }

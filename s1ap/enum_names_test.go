@@ -41,6 +41,18 @@ func TestEnumNames(t *testing.T) {
 		{"CNDomainPS", CNDomainPS.Name(), "ps"},
 		{"CNDomain(9)", CNDomain(9).Name(), ""},
 
+		{"PagingPriorityLevel8", PagingPriorityLevel8.Name(), "priolevel8"},
+		{"PagingPriority(99)", PagingPriority(99).Name(), ""},
+
+		{"DirectForwardingPathAvailable", DirectForwardingPathAvailable.Name(), "directPathAvailable"},
+		{"DirectForwardingPathAvailability(9)", DirectForwardingPathAvailability(9).Name(), ""},
+
+		{"UERetentionUesRetained", UERetentionUesRetained.Name(), "ues-retained"},
+		{"UERetentionInformation(9)", UERetentionInformation(9).Name(), ""},
+
+		{"ForbiddenInterRATsGERAN", ForbiddenInterRATsGERAN.Name(), "geran"},
+		{"ForbiddenInterRATs(9)", ForbiddenInterRATs(9).Name(), ""},
+
 		{"ENBIDShortMacro", ENBIDShortMacro.Name(), "short-macroENB-ID"},
 		{"ENBIDKind(9)", ENBIDKind(9).Name(), ""},
 	} {

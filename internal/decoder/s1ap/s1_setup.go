@@ -121,6 +121,11 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 		})
 	}
 
+	if req.UERetentionInformation != nil {
+		r := *req.UERetentionInformation
+		ies = append(ies, ie(s1ap.IDUERetentionInformation, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(r), r.Name())))
+	}
+
 	summary := "S1 Setup Request"
 	if req.ENBName != nil {
 		summary = fmt.Sprintf("S1 Setup Request (%s)", *req.ENBName)
@@ -163,6 +168,11 @@ func buildS1SetupResponse(value []byte) (S1APMessageValue, string) {
 
 	if resp.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*resp.CriticalityDiagnostics)))
+	}
+
+	if resp.UERetentionInformation != nil {
+		r := *resp.UERetentionInformation
+		ies = append(ies, ie(s1ap.IDUERetentionInformation, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(r), r.Name())))
 	}
 
 	ies = appendUnknownIEs(ies, resp.UnknownIEs())

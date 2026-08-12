@@ -1,0 +1,129 @@
+{
+  "summary": "Uplink NAS Transport (MME-UE 2, eNB-UE 818, NAS=encrypted)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 13,
+    "label": "UplinkNASTransport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 818
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 26,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "2774a88ff701128f7ddc4907f3",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 7,
+                "label": "EMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 2,
+                "label": "integrity protected and ciphered",
+                "unknown": false
+              },
+              "authentication_code": 1957203959,
+              "sequence_number": 1
+            },
+            "encrypted": true
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 100,
+          "label": "EUTRAN-CGI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "999",
+            "mnc": "01"
+          },
+          "cell_id": "0019b01"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 67,
+          "label": "TAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "999",
+            "mnc": "01"
+          },
+          "tac": 1
+        }
+      }
+    ]
+  }
+}

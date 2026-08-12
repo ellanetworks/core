@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_PDUSessionResourceReleaseResponse(t *testing.T) {
-	const message = "IBwAKwAABAAKQAIAlABVQAIAAQBGQAUAAAEBAAB5QA9AAPEQABI0UBAA8RAAAAE="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(pduSessionResourceReleaseResponseCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -146,3 +144,6 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseResponse(t *testing.T) {
 		t.Errorf("expected UserLocationInformation.Error to be empty, got %s", userLocationInfo.Error)
 	}
 }
+
+// A PDUSessionResourceReleaseResponse captured on the 001/01 test PLMN.
+const pduSessionResourceReleaseResponseCapture = "IBwAKwAABAAKQAIAlABVQAIAAQBGQAUAAAEBAAB5QA9AAPEQABI0UBAA8RAAAAE="

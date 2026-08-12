@@ -18,7 +18,7 @@ func buildInitialUEMessage(value []byte) (S1APMessageValue, string) {
 	ies := []IE{
 		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
 		ie(s1ap.IDNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
-		ie(s1ap.IDTAIList, s1ap.CriticalityReject, tai(m.TAI)),
+		ie(s1ap.IDTAI, s1ap.CriticalityReject, tai(m.TAI)),
 	}
 
 	if m.EUTRANCGI != nil {
@@ -59,7 +59,7 @@ func buildUplinkNASTransport(value []byte) (S1APMessageValue, string) {
 	}
 
 	if m.TAI != nil {
-		ies = append(ies, ie(s1ap.IDTAIList, s1ap.CriticalityIgnore, tai(*m.TAI)))
+		ies = append(ies, ie(s1ap.IDTAI, s1ap.CriticalityIgnore, tai(*m.TAI)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

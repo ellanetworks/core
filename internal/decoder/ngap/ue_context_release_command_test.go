@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_UEContextReleaseCommand(t *testing.T) {
-	const message = "ACkAEQAAAgByAAQAGgAaAA9AAgUA"
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(ueContextReleaseCommandCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -66,3 +64,6 @@ func TestDecodeNGAPMessage_UEContextReleaseCommand(t *testing.T) {
 		t.Errorf("expected UENGAPIDPair.RAN-UE-NGAP-ID=26, got %d", ueNgapIDs.UENGAPIDPair.RANUENGAPID)
 	}
 }
+
+// A UEContextReleaseCommand captured on the 001/01 test PLMN.
+const ueContextReleaseCommandCapture = "ACkAEQAAAgByAAQAGgAaAA9AAgUA"
