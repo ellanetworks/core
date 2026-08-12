@@ -115,7 +115,11 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 }
 
 func handoverToEPSFailureCause(err error) ngap.Cause {
+	var refusal interworking.TargetRefusal
+
 	switch {
+	case errors.As(err, &refusal):
+		return amf.NGAPHandoverFailureCause(refusal.Cause)
 	case errors.Is(err, interworking.ErrUnknownTarget):
 		return causeUnknownTargetID
 	default:

@@ -98,3 +98,93 @@ func TestNGAPHandoverCause(t *testing.T) {
 		})
 	}
 }
+
+func TestS1APHandoverFailureCause(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   ngap.Cause
+		want s1ap.Cause
+	}{
+		{
+			name: "no radio resources in the target cell",
+			in:   ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell},
+			want: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell},
+		},
+		{
+			name: "algorithms not supported",
+			in:   ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkEncryptionAlgorithmsNotSupported},
+			want: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported},
+		},
+		{
+			name: "insufficient UE capabilities",
+			in:   ngap.CauseInsufficientUECapabilities,
+			want: s1ap.CauseInsufficientUECapabilities,
+		},
+		{
+			name: "O&M intervention",
+			in:   ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscOMIntervention},
+			want: s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscOMIntervention},
+		},
+		{
+			name: "another radio cause",
+			in:   ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+			want: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget},
+		},
+		{
+			name: "another misc cause",
+			in:   ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified},
+			want: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := amf.S1APHandoverFailureCause(tc.in); got != tc.want {
+				t.Errorf("cause = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNGAPHandoverFailureCause(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   s1ap.Cause
+		want ngap.Cause
+	}{
+		{
+			name: "no radio resources in the target cell",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell},
+		},
+		{
+			name: "algorithms not supported",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkEncryptionAlgorithmsNotSupported},
+		},
+		{
+			name: "insufficient UE capabilities",
+			in:   s1ap.CauseInsufficientUECapabilities,
+			want: ngap.CauseInsufficientUECapabilities,
+		},
+		{
+			name: "O&M intervention",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscOMIntervention},
+			want: ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscOMIntervention},
+		},
+		{
+			name: "another radio cause",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		},
+		{
+			name: "a transport cause",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := amf.NGAPHandoverFailureCause(tc.in); got != tc.want {
+				t.Errorf("cause = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}

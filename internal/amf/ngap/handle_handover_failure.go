@@ -5,7 +5,6 @@ package ngap
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/interworking"
@@ -56,7 +55,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	switch {
 	case amfInstance.HandoverFromEPS(amfUe):
 		amfInstance.FailRelocationPreparation(amfUe,
-			fmt.Errorf("%w: %s", interworking.ErrTargetRefused, failureCause.String()))
+			interworking.TargetRefusal{Cause: amf.S1APHandoverFailureCause(failureCause)})
 	case sourceUe == nil:
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 	default:

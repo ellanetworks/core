@@ -344,11 +344,22 @@ func TestHandoverFailureFromEPSRefusesTheRelocation(t *testing.T) {
 
 	HandleHandoverFailure(context.Background(), amfInstance, radio, &ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(hoReq.AMFUENGAPID),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell},
 	})
 
-	if _, err := awaitArrival(t, done); !errors.Is(err, interworking.ErrTargetRefused) {
+	_, err := awaitArrival(t, done)
+	if !errors.Is(err, interworking.ErrTargetRefused) {
 		t.Fatalf("error = %v, want ErrTargetRefused", err)
+	}
+
+	var refusal interworking.TargetRefusal
+	if !errors.As(err, &refusal) {
+		t.Fatalf("error = %v, want a refusal carrying the target's cause", err)
+	}
+
+	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+	if refusal.Cause != want {
+		t.Errorf("refusal cause = %+v, want %+v mapped from the gNB's own", refusal.Cause, want)
 	}
 }
 

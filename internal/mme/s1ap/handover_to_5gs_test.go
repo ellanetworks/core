@@ -562,3 +562,25 @@ func TestSourceENBLossLeavesTheArrivalToThePeersGuard(t *testing.T) {
 		t.Error("a UE that may already have reached the target had its arrival cancelled; the source association was the only thing lost")
 	}
 }
+
+func TestHandoverToFiveGSRelaysTheTargetsCause(t *testing.T) {
+	m := newTestMME(t)
+
+	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+	peer := &fiveGSPeerStub{err: interworking.TargetRefusal{Cause: want}}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	fail := lastPreparationFailure(t, source)
+	if fail.Cause == nil {
+		t.Fatal("the refusal reached the source eNB without a cause")
+	}
+
+	if *fail.Cause != want {
+		t.Errorf("cause = %+v, want the target's own %+v", *fail.Cause, want)
+	}
+}

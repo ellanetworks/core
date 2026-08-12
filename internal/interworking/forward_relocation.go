@@ -6,6 +6,7 @@ package interworking
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
@@ -87,6 +88,16 @@ type FiveGSRelocationResponse struct {
 	TargetToSource     []byte
 	AcceptedEPSBearers []uint8
 }
+
+type TargetRefusal struct {
+	Cause s1ap.Cause
+}
+
+func (r TargetRefusal) Error() string {
+	return fmt.Sprintf("%s: %s", ErrTargetRefused, r.Cause)
+}
+
+func (r TargetRefusal) Unwrap() error { return ErrTargetRefused }
 
 var (
 	ErrUnknownTarget     = errors.New("interworking: the target is not connected")

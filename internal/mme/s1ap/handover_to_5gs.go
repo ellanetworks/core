@@ -102,7 +102,11 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 }
 
 func handoverToFiveGSFailureCause(err error) s1ap.Cause {
+	var refusal interworking.TargetRefusal
+
 	switch {
+	case errors.As(err, &refusal):
+		return refusal.Cause
 	case errors.Is(err, interworking.ErrUnknownTarget):
 		return causeUnknownTargetID
 	default:

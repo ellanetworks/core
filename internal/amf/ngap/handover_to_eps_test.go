@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 const relocationTargetENBID = 0x00abc
@@ -466,6 +467,13 @@ func TestHandoverToEPSFailureCause(t *testing.T) {
 		want ngap.Cause
 	}{
 		{"unknown target", fmt.Errorf("wrapped: %w", interworking.ErrUnknownTarget), causeUnknownTargetID},
+		{
+			"the target eNB's own cause",
+			interworking.TargetRefusal{Cause: s1ap.Cause{
+				Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell,
+			}},
+			ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell},
+		},
 		{"target refused", fmt.Errorf("wrapped: %w", interworking.ErrTargetRefused), causeHOFailureInTarget},
 		{"anything else", errors.New("boom"), causeHOFailureInTarget},
 	} {
