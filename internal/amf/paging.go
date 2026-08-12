@@ -147,9 +147,11 @@ func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *models.N1N2M
 	return nil
 }
 
+// errPagingActive is returned when paging supervision is already in flight for the UE.
+var errPagingActive = fmt.Errorf("paging already in progress")
+
 // guardIdlePaging rejects paging a UE that is already connected, mid-registration,
-// mid-handover, or not registered. Paging already in progress is left to the callers,
-// which answer it differently.
+// mid-handover, or not registered.
 func guardIdlePaging(ue *UeContext) error {
 	if ue.Conn() != nil {
 		return fmt.Errorf("ue is already CM-CONNECTED")

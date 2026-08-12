@@ -131,7 +131,7 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 // caller is told to retry (HIGHER_PRIORITY_REQUEST_ONGOING, TS 29.518 §6.1.7.3).
 func (amf *AMF) storeN1N2AndPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) error {
 	if ue.PagingActive() {
-		return fmt.Errorf("higher priority request ongoing")
+		return errPagingActive
 	}
 
 	if err := guardIdlePaging(ue); err != nil {

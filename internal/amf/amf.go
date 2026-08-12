@@ -10,6 +10,7 @@ package amf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -739,7 +740,15 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		return amf.Page(ctx, supi)
+		if err := amf.storeN1N2AndPage(ctx, ue, models.N1N2MessageTransferRequest{}); err != nil {
+			if errors.Is(err, errPagingActive) {
+				return nil
+			}
+
+			return err
+		}
+
+		return nil
 	}
 
 	if err := ueConn.SendLocationReportingControl(ctx, ngap.EventTypeDirect); err != nil {
@@ -753,25 +762,6 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 	)
 
 	return nil
-}
-
-// Page pages a CM-IDLE UE, supervised by T3513 (TS 24.501 §5.6.2). Paging already in
-// progress is a deliberate skip reported as success.
-func (amf *AMF) Page(ctx context.Context, supi etsi.SUPI) error {
-	ue, ok := amf.LookupUeBySupi(supi)
-	if !ok {
-		return fmt.Errorf("UE not found: %s", supi)
-	}
-
-	if err := guardIdlePaging(ue); err != nil {
-		return err
-	}
-
-	if ue.PagingActive() {
-		return nil
-	}
-
-	return amf.pageIdleUE(ctx, ue, nil)
 }
 
 // CancelBufferedN1N2 discards a buffered request of one of the given classes, once its
