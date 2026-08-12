@@ -1172,3 +1172,39 @@ func TestHandoverNHAdvancedAtPreparation(t *testing.T) {
 		t.Error("an abandoned handover must not roll the key chain back")
 	}
 }
+
+// TS 36.413 §8.4.5.1 gives the Handover Cancel procedure to the source eNB, and
+// the prepared target holds the same UE context. The UE-associated identity check
+// is what keeps the target out: a cancel quoting the target's own ids arrives on
+// an association that is not the UE's, so it is answered with an Error Indication
+// and the source's handover stands.
+func TestHandoverCancelFromTheTargetLeavesTheHandoverStanding(t *testing.T) {
+	m := newTestMME(t)
+	ue, source, target := handoverUE(t, m)
+
+	targetMME, targetENBUEID := driveToPrepared(t, m, ue, source, target)
+
+	cancel := &s1ap.HandoverCancel{
+		MMEUES1APID: targetMME,
+		ENBUES1APID: targetENBUEID,
+		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}),
+	}
+	handleHandoverCancel(m, context.Background(), mme.NewRadioForTest(target), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
+
+	if !ue.HasHandoverForTest() {
+		t.Fatal("the target cancelled the source's handover")
+	}
+
+	answer, ok := lastPDU(t, target).(*s1ap.InitiatingMessage)
+	if !ok || answer.ProcedureCode != s1ap.ProcErrorIndication {
+		t.Fatalf("last message to the target is %T, want an Error Indication", lastPDU(t, target))
+	}
+
+	if lastPDU(t, source) == nil {
+		t.Fatal("no message on the source")
+	}
+
+	if ack, isAck := lastPDU(t, source).(*s1ap.SuccessfulOutcome); isAck && ack.ProcedureCode == s1ap.ProcHandoverCancel {
+		t.Error("the source was told its handover had been cancelled")
+	}
+}

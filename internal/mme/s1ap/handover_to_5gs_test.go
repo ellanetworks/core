@@ -425,3 +425,140 @@ func TestRelocationCompleteReleasesEvenWhenTheGuardFiredFirst(t *testing.T) {
 		t.Error("the source MME kept the UE context after the handover completed")
 	}
 }
+
+func handoverCancel(ue *mme.UeContext) *s1ap.HandoverCancel {
+	return &s1ap.HandoverCancel{
+		MMEUES1APID: ue.Conn().MMEUES1APID,
+		ENBUES1APID: ue.Conn().ENBUES1APID,
+		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverCancelled}),
+	}
+}
+
+func cancelHandover(t *testing.T, m *mme.MME, radio *captureConn, cancel *s1ap.HandoverCancel) {
+	t.Helper()
+
+	handleHandoverCancel(m, context.Background(), mme.NewRadioForTest(radio), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
+}
+
+func expectCancelAcknowledge(t *testing.T, source *captureConn) {
+	t.Helper()
+
+	pdu, ok := lastPDU(t, source).(*s1ap.SuccessfulOutcome)
+	if !ok || pdu.ProcedureCode != s1ap.ProcHandoverCancel {
+		t.Fatalf("last message to the source is %T, want a Handover Cancel Acknowledge", lastPDU(t, source))
+	}
+}
+
+func TestHandoverCancelToFiveGS(t *testing.T) {
+	m := newTestMME(t)
+	peer := &fiveGSPeerStub{accepted: []uint8{mme.DefaultERABID}}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	cancelHandover(t, m, source, handoverCancel(ue))
+	expectCancelAcknowledge(t, source)
+
+	if peer.cancels() != 1 {
+		t.Errorf("the 5GS peer was told to cancel %d times, want 1", peer.cancels())
+	}
+
+	if _, held := m.RelocationToFiveGS(ue); held {
+		t.Error("the cancelled handover was left staged")
+	}
+}
+
+func TestHandoverCancelToFiveGSWhenTheUEHasAlreadyArrived(t *testing.T) {
+	m := newTestMME(t)
+	peer := &fiveGSPeerStub{accepted: []uint8{mme.DefaultERABID}, cancelErr: interworking.ErrRelocationTooLate}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	cancelHandover(t, m, source, handoverCancel(ue))
+	expectCancelAcknowledge(t, source)
+
+	if _, held := m.RelocationToFiveGS(ue); !held {
+		t.Error("a handover the peer reported as too late to cancel was unwound anyway")
+	}
+}
+
+func TestHandoverCancelToFiveGSWhenThePeerHoldsNothing(t *testing.T) {
+	m := newTestMME(t)
+	peer := &fiveGSPeerStub{accepted: []uint8{mme.DefaultERABID}, cancelErr: errors.New("no such relocation")}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	cancelHandover(t, m, source, handoverCancel(ue))
+	expectCancelAcknowledge(t, source)
+
+	if _, held := m.RelocationToFiveGS(ue); held {
+		t.Error("the MME kept a handover no peer is holding, wedging the UE until its guard expires")
+	}
+}
+
+func TestENBStatusTransferDuringAHandoverToFiveGS(t *testing.T) {
+	m := newTestMME(t)
+	peer := &fiveGSPeerStub{accepted: []uint8{mme.DefaultERABID}}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	st := &s1ap.ENBStatusTransfer{
+		MMEUES1APID: ue.Conn().MMEUES1APID,
+		ENBUES1APID: ue.Conn().ENBUES1APID,
+		Container:   s1ap.StatusTransferContainer{0xde, 0xad},
+	}
+
+	handleENBStatusTransfer(m, context.Background(), mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, st.Marshal)))
+
+	if _, held := m.RelocationToFiveGS(ue); !held {
+		t.Error("an eNB Status Transfer disturbed the handover to 5GS")
+	}
+}
+
+func TestSourceENBLossLeavesTheArrivalToThePeersGuard(t *testing.T) {
+	m := newTestMME(t)
+	m.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
+
+	peer := &fiveGSPeerStub{accepted: []uint8{mme.DefaultERABID}}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	m.ReclaimConns(m.ConnsOnConn(source), "eNB disconnect")
+
+	deadline := time.Now().Add(2 * time.Second)
+
+	for {
+		if _, held := m.RelocationToFiveGS(ue); !held {
+			break
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatal("a handover whose source eNB went away was left staged")
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	if peer.cancels() != 0 {
+		t.Error("a UE that may already have reached the target had its arrival cancelled; the source association was the only thing lost")
+	}
+}

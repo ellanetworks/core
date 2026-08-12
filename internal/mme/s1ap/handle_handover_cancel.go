@@ -5,7 +5,9 @@ package s1ap
 
 import (
 	"context"
+	"errors"
 
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
@@ -38,10 +40,31 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		releaseCause = *cancel.Cause
 	}
 
+	if id, toFiveGS := m.RelocationToFiveGS(ue); toFiveGS {
+		err := m.CancelRelocationToFiveGS(ctx, ue, id)
+
+		switch {
+		case errors.Is(err, interworking.ErrRelocationTooLate):
+			logger.From(ctx, logger.MmeLog).Info("the UE has already reached 5GS; leaving the handover to complete",
+				zap.Error(err))
+			sendHandoverCancelAcknowledge(m, ctx, radio, cancel)
+
+			return
+		case err != nil:
+			logger.From(ctx, logger.MmeLog).Info("the 5GS peer had no handover to cancel; unwinding locally",
+				zap.Error(err))
+		}
+	}
+
 	if releaseConn, releaseMMEID, releaseENBID, pair, has := m.CancelHandover(ue); has {
 		mme.SendUEContextRelease(ctx, m, releaseConn, releaseMMEID, releaseENBID, pair, releaseCause)
 	}
 
+	logger.From(ctx, logger.MmeLog).Info("Handover Cancel", zap.Uint32("mme-ue-id", uint32(cancel.MMEUES1APID)))
+	sendHandoverCancelAcknowledge(m, ctx, radio, cancel)
+}
+
+func sendHandoverCancelAcknowledge(m *mme.MME, ctx context.Context, radio *mme.Radio, cancel *s1ap.HandoverCancel) {
 	ack := &s1ap.HandoverCancelAcknowledge{MMEUES1APID: s1ap.Ptr(cancel.MMEUES1APID), ENBUES1APID: s1ap.Ptr(cancel.ENBUES1APID)}
 
 	b, err := ack.Marshal()
@@ -50,6 +73,5 @@ func handleHandoverCancel(m *mme.MME, ctx context.Context, radio *mme.Radio, val
 		return
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("Handover Cancel", zap.Uint32("mme-ue-id", uint32(cancel.MMEUES1APID)))
 	m.SendToRadio(ctx, radio.Conn, mme.S1APProcedureHandoverCancelAcknowledge, b)
 }

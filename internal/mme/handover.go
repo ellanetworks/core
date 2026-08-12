@@ -266,12 +266,20 @@ func (m *MME) SuperviseHandover(ue *UeContext) {
 	})
 }
 
+func (ho *handoverContext) targetIs(mmeID s1ap.MMEUES1APID, conn S1APWriter) bool {
+	return ho.target != nil && ho.target.MMEUES1APID == mmeID && ho.target.Conn() == conn
+}
+
+func (ho *handoverContext) targetNotifiedBy(conn S1APWriter, enbUEID s1ap.ENBUES1APID) bool {
+	return ho.target != nil && ho.target.Conn() == conn && ho.target.ENBUES1APID == enbUEID
+}
+
 func (m *MME) MatchAndSetTargetENB(ue *UeContext, ackMMEID s1ap.MMEUES1APID, ackENBID s1ap.ENBUES1APID, conn S1APWriter) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	ho := ue.handover
-	if ho == nil || ho.state != hoPreparing || ho.target.MMEUES1APID != ackMMEID || ho.target.Conn() != conn {
+	if ho == nil || ho.state != hoPreparing || !ho.targetIs(ackMMEID, conn) {
 		return false
 	}
 
@@ -285,7 +293,7 @@ func (m *MME) MarkHandoverPrepared(ue *UeContext, ackMMEID s1ap.MMEUES1APID, con
 	defer m.mu.Unlock()
 
 	ho := ue.handover
-	if ho == nil || ho.state != hoPreparing || ho.target.MMEUES1APID != ackMMEID || ho.target.Conn() != conn {
+	if ho == nil || ho.state != hoPreparing || !ho.targetIs(ackMMEID, conn) {
 		return nil, nil, 0, 0, false
 	}
 
@@ -327,7 +335,7 @@ func (m *MME) HandoverTargetMatches(ue *UeContext, mmeID s1ap.MMEUES1APID, conn 
 
 	ho := ue.handover
 
-	return ho != nil && ho.target.MMEUES1APID == mmeID && ho.target.Conn() == conn
+	return ho != nil && ho.targetIs(mmeID, conn)
 }
 
 // HandoverStatusTarget returns the target association of an in-flight handover so
@@ -337,7 +345,7 @@ func (m *MME) HandoverStatusTarget(ue *UeContext) (targetConn S1APWriter, target
 	defer m.mu.Unlock()
 
 	ho := ue.handover
-	if ho == nil {
+	if ho == nil || ho.target == nil {
 		return nil, 0, 0, false
 	}
 
@@ -349,7 +357,7 @@ func (m *MME) MarkHandoverCommitting(ue *UeContext, conn S1APWriter, notifyENBID
 	defer m.mu.Unlock()
 
 	ho := ue.handover
-	if ho == nil || ho.state != hoPrepared || ho.target.Conn() != conn || ho.target.ENBUES1APID != notifyENBID {
+	if ho == nil || ho.state != hoPrepared || !ho.targetNotifiedBy(conn, notifyENBID) {
 		return nil, false
 	}
 
@@ -363,7 +371,7 @@ func (m *MME) FinishHandoverCommit(ue *UeContext, conn S1APWriter, notifyENBID s
 	defer m.mu.Unlock()
 
 	ho := ue.handover
-	if ho == nil || ho.state != hoCommitting || ho.target.Conn() != conn || ho.target.ENBUES1APID != notifyENBID {
+	if ho == nil || ho.state != hoCommitting || !ho.targetNotifiedBy(conn, notifyENBID) {
 		return nil, 0, 0, 0, false
 	}
 
@@ -401,9 +409,11 @@ func (m *MME) CancelHandover(ue *UeContext) (releaseConn S1APWriter, releaseMMEI
 	case ho.state == hoCommitting:
 		// Too late to cancel: acknowledge but let the in-flight move finish.
 	default:
-		releaseConn, releaseMMEID, releaseENBID = ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID
-		pair = ho.state == hoPrepared
-		hasTarget = true
+		if ho.target != nil {
+			releaseConn, releaseMMEID, releaseENBID = ho.target.Conn(), ho.target.MMEUES1APID, ho.target.ENBUES1APID
+			pair = ho.state == hoPrepared
+			hasTarget = true
+		}
 
 		m.clearHandoverLocked(ue)
 	}
