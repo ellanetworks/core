@@ -155,6 +155,8 @@ func (m *MME) relocate(ctx context.Context, ue *UeContext, target *Radio, target
 			return none, out.err
 		}
 
+		m.SuperviseHandover(ue)
+
 		return interworking.ForwardRelocationResponse{
 			TargetToSource:      out.targetToSource,
 			AcceptedPDUSessions: m.dropUnadmittedPDNs(ctx, ue, accepted, out.unadmitted),

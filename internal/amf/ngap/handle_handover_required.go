@@ -175,6 +175,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		SourceToTarget:       msg.SourceToTargetTransparentContainer,
 		SnssaiList:           snssaiList,
 		GUAMI:                operatorInfo.Guami,
+		ServingPLMN:          operatorInfo.Guami.PlmnID,
 	})
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))

@@ -38,6 +38,7 @@ func validHandoverRequestAcknowledgeTransfer(t *testing.T) []byte {
 func TestHandleHandoverRequestAcknowledgeTransfer_ActivatedNilForwarding(t *testing.T) {
 	dlFAR := &FAR{}
 	smContext := &SMContext{
+		PolicyData: &Policy{QosData: models.QosData{QFI: models.DefaultQFI}},
 		Tunnel: &UPTunnel{
 			Activated:   true,
 			DownlinkPDR: &PDR{FAR: dlFAR},
@@ -70,7 +71,7 @@ func TestHandleHandoverRequestAcknowledgeTransfer_ActivatedNilForwarding(t *test
 // With no active data path the tunnel endpoint is recorded but no FAR is
 // touched, so a nil downlink tunnel must not panic.
 func TestHandleHandoverRequestAcknowledgeTransfer_NotActivated(t *testing.T) {
-	smContext := &SMContext{Tunnel: &UPTunnel{}}
+	smContext := &SMContext{PolicyData: &Policy{QosData: models.QosData{QFI: models.DefaultQFI}}, Tunnel: &UPTunnel{}}
 
 	if err := handleHandoverRequestAcknowledgeTransfer(validHandoverRequestAcknowledgeTransfer(t), smContext); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -83,7 +84,7 @@ func TestHandleHandoverRequestAcknowledgeTransfer_NotActivated(t *testing.T) {
 
 // Undecodable input is rejected with an error rather than a panic.
 func TestHandleHandoverRequestAcknowledgeTransfer_BadInput(t *testing.T) {
-	smContext := &SMContext{Tunnel: &UPTunnel{}}
+	smContext := &SMContext{PolicyData: &Policy{QosData: models.QosData{QFI: models.DefaultQFI}}, Tunnel: &UPTunnel{}}
 
 	if err := handleHandoverRequestAcknowledgeTransfer([]byte{0xff, 0xff}, smContext); err == nil {
 		t.Fatal("expected an error for undecodable transfer, got nil")

@@ -52,6 +52,7 @@ const (
 	CauseRadioNetworkReduceLoadInServingCell           = 19 // reduce-load-in-serving-cell
 	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
+	CauseRadioNetworkInteractionWithOtherProcedure     = 29 // interaction-with-other-procedure
 	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances
 
 	// encryption-and-or-integrity-protection-algorithms-not-supported
@@ -78,6 +79,10 @@ const (
 )
 
 var CauseInsufficientUECapabilities = Cause{Group: CauseGroupRadioNetwork, Value: 5, Extended: true}
+
+// CauseN26InterfaceNotAvailable is radioNetwork extension index 4,
+// "N26 interface not available" (TS 36.413 §9.2.1.3).
+var CauseN26InterfaceNotAvailable = Cause{Group: CauseGroupRadioNetwork, Value: 4, Extended: true}
 
 // Cause ::= CHOICE of five extensible ENUMERATED groups. Value indexes the
 // chosen group; Extended marks it as indexing an extension addition.

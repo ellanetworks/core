@@ -220,6 +220,8 @@ func (a *AMF) relocateFromEPS(
 			return none, out.err
 		}
 
+		a.SuperviseHandoverFromEPS(ue, targetUe)
+
 		return interworking.FiveGSRelocationResponse{
 			TargetToSource:     out.targetToSource,
 			AcceptedEPSBearers: a.dropUnadmittedSessions(ctx, ue, bearers, out.unadmitted),

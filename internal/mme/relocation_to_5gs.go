@@ -38,9 +38,9 @@ func (m *MME) PrepareHandoverToFiveGS(ue *UeContext, source *UeConn, target inte
 		return nil, ErrNoUEIdentityForRelocate
 	}
 
-	req, candidates, err := m.buildFiveGSRelocationRequest(ue, target, sourceToTarget, cause)
-	if err != nil {
-		return nil, err
+	connections, candidates := TransferablePDNConnections(ue)
+	if len(connections) == 0 {
+		return nil, ErrNoTransferablePDNs
 	}
 
 	id, ok := m.stageRelocationToFiveGS(ue, source, candidates)
@@ -48,25 +48,33 @@ func (m *MME) PrepareHandoverToFiveGS(ue *UeContext, source *UeConn, target inte
 		return nil, ErrRelocationToFiveGSBusy
 	}
 
+	if err := ue.advanceNextHop(); err != nil {
+		m.ClearRelocationToFiveGS(ue, id)
+
+		return nil, fmt.Errorf("mme: advance the next hop for a handover to 5GS: %w", err)
+	}
+
+	req, err := m.buildFiveGSRelocationRequest(ue, connections, target, sourceToTarget, cause)
+	if err != nil {
+		m.ClearRelocationToFiveGS(ue, id)
+
+		return nil, err
+	}
+
 	req.ID = id
 
 	return req, nil
 }
 
-func (m *MME) buildFiveGSRelocationRequest(ue *UeContext, target interworking.NGRANIdentity, sourceToTarget []byte, cause *s1ap.Cause) (*interworking.FiveGSRelocationRequest, []HandoverCandidate, error) {
-	connections, candidates := TransferablePDNConnections(ue)
-	if len(connections) == 0 {
-		return nil, nil, ErrNoTransferablePDNs
-	}
-
+func (m *MME) buildFiveGSRelocationRequest(ue *UeContext, connections []interworking.PDNConnection, target interworking.NGRANIdentity, sourceToTarget []byte, cause *s1ap.Cause) (*interworking.FiveGSRelocationRequest, error) {
 	security, err := ue.EPSSecurityContextForRelocation()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	ambrUL, ambrDL := ue.AmbrRates()
 	if ambrUL.Bps() == 0 || ambrDL.Bps() == 0 {
-		return nil, nil, fmt.Errorf("mme: UE has no AMBR")
+		return nil, fmt.Errorf("mme: UE has no AMBR")
 	}
 
 	return &interworking.FiveGSRelocationRequest{
@@ -78,7 +86,7 @@ func (m *MME) buildFiveGSRelocationRequest(ue *UeContext, target interworking.NG
 		Cause:           handoverRequiredCause(cause),
 		UEAMBRUplink:    ambrUL,
 		UEAMBRDownlink:  ambrDL,
-	}, candidates, nil
+	}, nil
 }
 
 func handoverRequiredCause(cause *s1ap.Cause) s1ap.Cause {

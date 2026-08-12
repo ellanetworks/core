@@ -9,6 +9,10 @@ import (
 
 func (smContext *SMContext) TransferPendingForTest() bool { return smContext.pending != nil }
 
+func (smContext *SMContext) HandoverSourceANForTest() *AnchorBinding {
+	return smContext.handoverSourceAN
+}
+
 func SetTransferSupervisionForTest(d time.Duration) func() {
 	prev := transferSupervision
 	transferSupervision = d

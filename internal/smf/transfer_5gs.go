@@ -147,7 +147,7 @@ func handoverRequestTransferForArrival(sc *SMContext, epsBearerIdentity uint8, t
 
 	n2, err := smfNgap.BuildHandoverRequestTransfer(&policy.Ambr, &policy.QosData,
 		sc.Tunnel.N3TEID, sc.Tunnel.N3IPv4, sc.Tunnel.N3IPv6,
-		nasToNgapPDUSessionType(sc.PDUSessionType))
+		nasToNgapPDUSessionType(sc.PDUSessionType), &epsBearerIdentity)
 	if err != nil {
 		return nil, fmt.Errorf("build the Handover Request transfer for an arriving PDN connection: %w", err)
 	}

@@ -68,11 +68,9 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 
 	ue.mu.Lock()
 
-	newNH, err := epskeys.DeriveNH(ue.kasme, ue.nh[:])
+	err := ue.advanceNextHopLocked()
 	if err == nil {
-		ue.nh = newNH
-		ue.ncc = (ue.ncc + 1) & 0x07
-		newNCC = ue.ncc
+		newNH, newNCC = ue.nh, ue.ncc
 	}
 	ue.mu.Unlock()
 
@@ -622,3 +620,22 @@ var (
 	causeHandoverEUTRANReason   = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReleaseDueToEUTRANGeneratedReason}
 	causeHandoverCNReason       = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
 )
+
+func (ue *UeContext) advanceNextHop() error {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.advanceNextHopLocked()
+}
+
+func (ue *UeContext) advanceNextHopLocked() error {
+	nh, err := epskeys.DeriveNH(ue.kasme, ue.nh[:])
+	if err != nil {
+		return err
+	}
+
+	ue.nh = nh
+	ue.ncc = (ue.ncc + 1) & 0x07
+
+	return nil
+}

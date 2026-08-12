@@ -571,6 +571,20 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 	if ue.N1N2Message() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
+
+	// TS 24.501 §5.3.4 d)
+	regAccept, err := fgs.ParseRegistrationAccept(nmAccept)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.TAIList == nil {
+		t.Error("the accept carries no TAI list")
+	}
+
+	if len(ue.RegistrationArea) == 0 {
+		t.Error("no registration area was allocated, so the AMF cannot page this UE")
+	}
 }
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t *testing.T) {

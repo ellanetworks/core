@@ -133,8 +133,8 @@ func TestTS24501_6_3_2_2_FiveQIChangeRefreshesTheMappedEPSBearerContext(t *testi
 		t.Fatalf("EPS bearer identity = %d, want %d", mapped.EPSBearerIdentity, refreshTestEBI)
 	}
 
-	if mapped.Operation != fgs.MappedEPSBearerOpModify {
-		t.Fatalf("operation = %s, want modify", mapped.Operation)
+	if mapped.Operation != fgs.MappedEPSBearerOpCreate {
+		t.Fatalf("operation = %s, want create", mapped.Operation)
 	}
 
 	if qci := mappedQCI(t, mapped); qci != 6 {

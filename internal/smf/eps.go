@@ -327,7 +327,7 @@ func (s *SMF) dropHalf(ref string, by AccessType) bool {
 	}
 
 	if sc.pending != nil && sc.pending.to == by {
-		sc.clearPendingLocked()
+		sc.abandonPendingLocked()
 	}
 
 	return true

@@ -17,9 +17,6 @@ type MappedEPSQoS struct {
 	Ambr    models.Ambr
 }
 
-// BuildPDUSessionModificationCommand constructs a NAS PDU SESSION MODIFICATION
-// COMMAND message (TS 24.501 §8.3.9). At least one of ambr, qosData, or dns must
-// be non-nil.
 func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, qosData *models.QosData, dns net.IP, epsBearerIdentity uint8, mappedEPSQoS *MappedEPSQoS) ([]byte, error) {
 	if ambr == nil && qosData == nil && dns == nil {
 		return nil, fmt.Errorf("at least one of ambr, qosData, or dns must be provided")
@@ -46,7 +43,7 @@ func BuildPDUSessionModificationCommand(pduSessionID uint8, ambr *models.Ambr, q
 	}
 
 	if mappedEPSQoS != nil && epsBearerIdentity != 0 {
-		mapped, err := mappedEPSBearerContexts(epsBearerIdentity, fgs.MappedEPSBearerOpModify, &mappedEPSQoS.QosData, &mappedEPSQoS.Ambr)
+		mapped, err := mappedEPSBearerContexts(epsBearerIdentity, fgs.MappedEPSBearerOpCreate, &mappedEPSQoS.QosData, &mappedEPSQoS.Ambr)
 		if err != nil {
 			return nil, err
 		}

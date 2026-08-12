@@ -138,10 +138,7 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 		sc.pending = nil
 		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
 
-		if source := sc.handoverSourceAN; source != nil {
-			sc.handoverSourceAN = nil
-			sc.bindAccessTunnel(*source, sc.Access)
-		}
+		sc.restoreHandoverSourceLocked()
 
 		sc.Mutex.Unlock()
 
@@ -164,12 +161,27 @@ func (sc *SMContext) clearPendingLocked() {
 	sc.transferGuard.Stop()
 }
 
+func (sc *SMContext) abandonPendingLocked() {
+	sc.clearPendingLocked()
+	sc.restoreHandoverSourceLocked()
+}
+
+func (sc *SMContext) restoreHandoverSourceLocked() {
+	source := sc.handoverSourceAN
+	if source == nil {
+		return
+	}
+
+	sc.handoverSourceAN = nil
+	sc.bindAccessTunnel(*source, sc.Access)
+}
+
 func (sc *SMContext) abandonTransferTo(access AccessType) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
 	if sc.pending != nil && sc.pending.to == access {
-		sc.clearPendingLocked()
+		sc.abandonPendingLocked()
 	}
 }
 

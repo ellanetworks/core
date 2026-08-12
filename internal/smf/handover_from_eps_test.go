@@ -359,3 +359,108 @@ func TestAbandonedArrivalPutsTheDownlinkBackOnTheSourceENB(t *testing.T) {
 			dl.IPv4Address, dl.TEID, dl.S1U, sourceENB.Addr, sourceENB.TEID)
 	}
 }
+
+// TS 23.502 §4.11.1.2.3 step 4b
+func TestReleasingAPreparedArrivalRestoresTheSourceENBDownlink(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	sc, ref, _, _ := prepareArrival(t, s, upf)
+
+	ack, err := buildHandoverRequestAcknowledgeTransfer(targetGnbTEID, targetGnbIPv4)
+	if err != nil {
+		t.Fatalf("build the Handover Request Acknowledge transfer: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN2HandoverPrepared(ctx, ref, ack); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverPrepared: %v", err)
+	}
+
+	if err := s.ReleaseSmContext(ctx, ref); err != nil {
+		t.Fatalf("ReleaseSmContext: %v", err)
+	}
+
+	sc.Mutex.Lock()
+	access := sc.Access
+	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	sc.Mutex.Unlock()
+
+	if access != smf.Access4G {
+		t.Errorf("session is on %s after the arrival was released", access)
+	}
+
+	if dl.TEID != sourceENB.TEID || dl.IPv4Address.String() != sourceENB.Addr.String() {
+		t.Errorf("downlink points at %s/%#x, want the source eNB %s/%#x", dl.IPv4Address, dl.TEID, sourceENB.Addr, sourceENB.TEID)
+	}
+
+	if !dl.S1U {
+		t.Error("the restored downlink is not addressed as S1-U, so the UPF would GTP-U it to a gNB the UE never reached")
+	}
+}
+
+func TestAFailedCompletionKeepsTheRollbackAnchor(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	sc, ref, _, _ := prepareArrival(t, s, upf)
+
+	ack, err := buildHandoverRequestAcknowledgeTransfer(targetGnbTEID, targetGnbIPv4)
+	if err != nil {
+		t.Fatalf("build the Handover Request Acknowledge transfer: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN2HandoverPrepared(ctx, ref, ack); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverPrepared: %v", err)
+	}
+
+	sc.Mutex.Lock()
+	sc.Tunnel = nil
+	sc.Mutex.Unlock()
+
+	if err := s.UpdateSmContextN2HandoverComplete(ctx, ref); err == nil {
+		t.Fatal("a completion with no tunnel was accepted")
+	}
+
+	sc.Mutex.Lock()
+	stranded := sc.HandoverSourceANForTest() == nil
+	sc.Mutex.Unlock()
+
+	if stranded {
+		t.Error("the rollback anchor was discarded on a failed completion, so the cancel that follows restores nothing")
+	}
+}
+
+// TS 23.502 §4.11.1.2.2.2 step 7: the SMF includes the mapping between EBI(s)
+// and QFI(s) in the N2 SM information, which the target NG-RAN stores as the
+// QoS flow's E-RAB ID (TS 38.413 §9.3.4.1).
+func TestArrivalTransferCarriesTheEBIToQFIMapping(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	_, _, n2, _ := prepareArrival(t, s, upf) //nolint:dogsled // only the N2 transfer is under test
+
+	transfer, err := libngap.ParsePDUSessionResourceSetupRequestTransfer(n2)
+	if err != nil {
+		t.Fatalf("parse the arrival transfer: %v", err)
+	}
+
+	if len(transfer.QosFlowSetupRequest) != 1 {
+		t.Fatalf("QoS flows = %d, want 1", len(transfer.QosFlowSetupRequest))
+	}
+
+	got := transfer.QosFlowSetupRequest[0].ERABID
+	if got == nil {
+		t.Fatal("no E-RAB ID, so the target cannot map the QoS flow back to its EPS bearer")
+	}
+
+	if uint8(*got) != epsTestEBI {
+		t.Errorf("E-RAB ID = %d, want the arriving EPS bearer identity %d", *got, epsTestEBI)
+	}
+}

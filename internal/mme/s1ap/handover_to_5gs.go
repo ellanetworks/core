@@ -36,7 +36,7 @@ func handoverRequiredToFiveGS(m *mme.MME, ctx context.Context, radio *mme.Radio,
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("handover to 5GS could not be prepared",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)), zap.Error(err))
-		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHOFailureInTarget)
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, preparationFailureCause(err))
 
 		return
 	}
@@ -52,6 +52,18 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
 			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID,
 				handoverToFiveGSFailureCause(err))
+		}
+
+		return
+	}
+
+	if len(resp.AcceptedEPSBearers) == 0 {
+		logger.From(ctx, logger.MmeLog).Warn("the 5GS peer accepted no EPS bearer; failing the preparation",
+			zap.Uint32("mme-ue-id", uint32(source.MMEUES1APID)))
+
+		if m.AbandonHandoverToFiveGS(ctx, ue, req.ID) {
+			mme.SendHandoverPreparationFailure(ctx, m, source.Conn(), source.MMEUES1APID, source.ENBUES1APID,
+				causeHOFailureInTarget)
 		}
 
 		return
@@ -99,6 +111,19 @@ func completeHandoverToFiveGS(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	m.SendToRadio(ctx, source.Conn(), mme.S1APProcedureHandoverCommand, b)
 
 	m.SuperviseHandoverToFiveGS(ue, req.ID)
+}
+
+func preparationFailureCause(err error) s1ap.Cause {
+	switch {
+	case errors.Is(err, mme.ErrNoFiveGSPeer):
+		return causeN26NotAvailable
+	case errors.Is(err, mme.ErrRelocationToFiveGSBusy):
+		return causeProcedureConflict
+	case errors.Is(err, mme.ErrNoTransferablePDNs):
+		return causeHOTargetNotAllowed
+	default:
+		return causeHandoverPrepUnspecific
+	}
 }
 
 func handoverToFiveGSFailureCause(err error) s1ap.Cause {

@@ -59,7 +59,7 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildHandoverRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
+	n2Rsp, err := ngap.BuildHandoverRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType), nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build handover request transfer")
@@ -171,8 +171,6 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	smContext.handoverSourceAN = nil
-
 	if smContext.Tunnel == nil {
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContext.Ref)
 	}
@@ -195,6 +193,8 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 
 	if !smContext.Tunnel.Activated {
 		if commit == nil {
+			smContext.handoverSourceAN = nil
+
 			return nil, nil
 		}
 
@@ -249,6 +249,8 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
+
+	smContext.handoverSourceAN = nil
 
 	var dropped *droppedSource
 	if commit != nil {

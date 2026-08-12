@@ -27,6 +27,7 @@ type fiveGSPeerStub struct {
 	mu sync.Mutex
 
 	request   *interworking.FiveGSRelocationRequest
+	requests  int
 	accepted  []uint8
 	err       error
 	cancelled int
@@ -38,6 +39,7 @@ type fiveGSPeerStub struct {
 func (p *fiveGSPeerStub) ForwardRelocation(_ context.Context, req interworking.FiveGSRelocationRequest) (interworking.FiveGSRelocationResponse, error) {
 	p.mu.Lock()
 	p.request = &req
+	p.requests++
 	gate := p.gate
 	p.mu.Unlock()
 
@@ -210,8 +212,8 @@ func TestHandoverRequiredToFiveGS(t *testing.T) {
 		t.Errorf("PDN connection = %+v", c)
 	}
 
-	if req.SecurityContext.NCC != 1 {
-		t.Errorf("NCC = %d, want the UE's current 1", req.SecurityContext.NCC)
+	if req.SecurityContext.NCC != 2 {
+		t.Errorf("NCC = %d, want the UE's 1 advanced to 2", req.SecurityContext.NCC)
 	}
 
 	if req.SecurityContext.KASME == ([32]byte{}) {
@@ -255,6 +257,28 @@ func TestHandoverRequiredToFiveGS(t *testing.T) {
 
 func TestHandoverRequiredToFiveGSReleasesUnacceptedPDNs(t *testing.T) {
 	m := newTestMME(t)
+	peer := &fiveGSPeerStub{accepted: []uint8{mme.DefaultERABID}}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	second := ue.EnsurePDN(6)
+	second.Apn = "internet"
+	second.PDUSessionID = relocationPDUSessionID + 1
+	second.Snssai = &models.Snssai{Sst: 1}
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	cmd := lastHandoverCommand(t, source)
+	if len(cmd.ERABToRelease) != 1 || cmd.ERABToRelease[0].ERABID != s1ap.ERABID(6) {
+		t.Fatalf("to-release list = %+v, want the bearer the target did not take", cmd.ERABToRelease)
+	}
+}
+
+// TS 36.413 §8.4.1.3
+func TestHandoverToFiveGSFailsWhenThePeerAdmitsNothing(t *testing.T) {
+	m := newTestMME(t)
 	peer := &fiveGSPeerStub{}
 	ue, source := relocatingToFiveGSUE(t, m, peer)
 
@@ -263,9 +287,12 @@ func TestHandoverRequiredToFiveGSReleasesUnacceptedPDNs(t *testing.T) {
 	requireHandoverToFiveGS(t, m, ue, source)
 	awaitSourceMessage(t, source, before+1)
 
-	cmd := lastHandoverCommand(t, source)
-	if len(cmd.ERABToRelease) != 1 || cmd.ERABToRelease[0].ERABID != s1ap.ERABID(mme.DefaultERABID) {
-		t.Fatalf("to-release list = %+v, want the bearer the target did not take", cmd.ERABToRelease)
+	if _, ok := lastPDU(t, source).(*s1ap.UnsuccessfulOutcome); !ok {
+		t.Fatalf("last message to the source is %T, want a Handover Preparation Failure", lastPDU(t, source))
+	}
+
+	if _, held := m.RelocationToFiveGS(ue); held {
+		t.Error("the relocation is still held after the target admitted nothing")
 	}
 }
 
@@ -317,8 +344,14 @@ func TestHandoverRequiredToFiveGSWithNoTransferablePDN(t *testing.T) {
 
 	requireHandoverToFiveGS(t, m, ue, source)
 
-	if got := lastPreparationFailure(t, source); got.Cause == nil {
-		t.Error("no cause in the preparation failure")
+	got := lastPreparationFailure(t, source)
+	if got.Cause == nil {
+		t.Fatal("no cause in the preparation failure")
+	}
+
+	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
+	if *got.Cause != want {
+		t.Errorf("cause = %+v, want ho-target-not-allowed", *got.Cause)
 	}
 
 	if peer.forwarded() != nil {
@@ -628,5 +661,50 @@ func TestHandoverToFiveGSRelaysTheTargetsCause(t *testing.T) {
 
 	if *fail.Cause != want {
 		t.Errorf("cause = %+v, want the target's own %+v", *fail.Cause, want)
+	}
+}
+
+// TS 33.501 §8.4.2 step 3
+func TestHandoverToFiveGSChainsTheNextHopAcrossAttempts(t *testing.T) {
+	m := newTestMME(t)
+	peer := &fiveGSPeerStub{err: errors.New("no target gNB")}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	requireHandoverToFiveGS(t, m, ue, source)
+
+	first := peer.awaitRequest(t, 1)
+
+	requireHandoverToFiveGS(t, m, ue, source)
+
+	second := peer.awaitRequest(t, 2)
+
+	if second.SecurityContext.NH == first.SecurityContext.NH {
+		t.Error("the retry shipped the NH the first target already holds")
+	}
+
+	if second.SecurityContext.NCC == first.SecurityContext.NCC {
+		t.Errorf("NCC stayed at %d across two preparations", second.SecurityContext.NCC)
+	}
+}
+
+func (p *fiveGSPeerStub) awaitRequest(t *testing.T, want int) interworking.FiveGSRelocationRequest {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+
+	for {
+		p.mu.Lock()
+		got, req := p.requests, p.request
+		p.mu.Unlock()
+
+		if got >= want {
+			return *req
+		}
+
+		if time.Now().After(deadline) {
+			t.Fatalf("the peer got %d relocation requests, want %d", got, want)
+		}
+
+		time.Sleep(time.Millisecond)
 	}
 }

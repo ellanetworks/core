@@ -179,6 +179,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 	}
 
+	ue.AllocateRegistrationArea(operatorInfo.Tais)
+
 	err = amfInstance.ReallocateGUTI(ctx, ue)
 	if err != nil {
 		abortRegistration(ctx, amfInstance, ue, "reallocate GUTI", err)
@@ -276,8 +278,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			}
 		}
 	}
-
-	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	if ueConn.UeContextRequest {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)

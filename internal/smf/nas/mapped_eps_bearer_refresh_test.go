@@ -48,12 +48,12 @@ func TestTS24501_6_3_2_2_ModificationCommandRefreshesTheMappedEPSBearerContext(t
 		t.Fatalf("EPS bearer identity = %d, want 5", mapped.EPSBearerIdentity)
 	}
 
-	if mapped.Operation != fgs.MappedEPSBearerOpModify {
-		t.Fatalf("operation = %s, want modify: the UE already holds a context for this bearer", mapped.Operation)
+	if mapped.Operation != fgs.MappedEPSBearerOpCreate {
+		t.Fatalf("operation = %s, want create", mapped.Operation)
 	}
 
 	if !mapped.EBit {
-		t.Fatal("the E bit must request replacement of all previously provided parameters")
+		t.Fatal("the parameters list must be included")
 	}
 
 	var sawQoS, sawAMBR bool
