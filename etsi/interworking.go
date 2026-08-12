@@ -16,3 +16,13 @@ func MapGUTI5GToEPS(g fgs.GUTI) eps.GUTI {
 		TMSI:       g.TMSI,
 	}
 }
+
+func MapGUTIEPSTo5G(g eps.GUTI) fgs.GUTI {
+	return fgs.GUTI{
+		PLMN:        g.PLMN,
+		AMFRegionID: uint8(g.MMEGroupID >> 8),
+		AMFSetID:    (g.MMEGroupID&0xFF)<<2 | uint16(g.MMECode>>6),
+		AMFPointer:  g.MMECode & 0x3F,
+		TMSI:        g.TMSI,
+	}
+}

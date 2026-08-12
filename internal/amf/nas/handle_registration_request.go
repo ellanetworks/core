@@ -152,21 +152,23 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	ngKsi := models.NgKsi{}
+	if !req.NgKSI.Mapped || !integrityVerified {
+		ngKsi := models.NgKsi{}
 
-	if req.NgKSI.Mapped {
-		ngKsi.Tsc = models.ScTypeMapped
-	} else {
-		ngKsi.Tsc = models.ScTypeNative
+		if req.NgKSI.Mapped {
+			ngKsi.Tsc = models.ScTypeMapped
+		} else {
+			ngKsi.Tsc = models.ScTypeNative
+		}
+
+		ngKsi.Ksi = amf.NextNgKsi(int32(req.NgKSI.Value))
+		if ngKsi.Tsc != models.ScTypeNative || ngKsi.Ksi == 7 {
+			ngKsi.Tsc = models.ScTypeNative
+			ngKsi.Ksi = 0
+		}
+
+		ue.SetNgKsi(ngKsi)
 	}
-
-	ngKsi.Ksi = amf.NextNgKsi(int32(req.NgKSI.Value))
-	if ngKsi.Tsc != models.ScTypeNative || ngKsi.Ksi == 7 {
-		ngKsi.Tsc = models.ScTypeNative
-		ngKsi.Ksi = 0
-	}
-
-	ue.SetNgKsi(ngKsi)
 
 	ue.Location = ueConn.Location
 	ue.Tai = ueConn.Tai

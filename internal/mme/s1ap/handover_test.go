@@ -1173,11 +1173,7 @@ func TestHandoverNHAdvancedAtPreparation(t *testing.T) {
 	}
 }
 
-// TS 36.413 §8.4.5.1 gives the Handover Cancel procedure to the source eNB, and
-// the prepared target holds the same UE context. The UE-associated identity check
-// is what keeps the target out: a cancel quoting the target's own ids arrives on
-// an association that is not the UE's, so it is answered with an Error Indication
-// and the source's handover stands.
+// TS 36.413 §8.4.5.1
 func TestHandoverCancelFromTheTargetLeavesTheHandoverStanding(t *testing.T) {
 	m := newTestMME(t)
 	ue, source, target := handoverUE(t, m)

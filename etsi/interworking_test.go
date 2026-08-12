@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -77,5 +78,85 @@ func TestMapGUTI5GToEPSMasksOverwideFields(t *testing.T) {
 
 	if got.MMECode != 0x3F {
 		t.Errorf("MME Code = %#02x, want the pointer masked to six bits", got.MMECode)
+	}
+}
+
+// TS 23.003 §2.10.2.2.2
+func TestMapGUTIEPSTo5G(t *testing.T) {
+	plmn := nas.PLMN{MCC: "001", MNC: "01"}
+	tmsi := [4]byte{0xde, 0xad, 0xbe, 0xef}
+
+	for _, tc := range []struct {
+		name       string
+		in         eps.GUTI
+		wantRegion uint8
+		wantSet    uint16
+		wantPtr    uint8
+	}{
+		{
+			name:       "the top of the group id fills the region id",
+			in:         eps.GUTI{PLMN: plmn, MMEGroupID: 0xAB00, TMSI: tmsi},
+			wantRegion: 0xAB,
+		},
+		{
+			name:    "the bottom of the group id fills the set id's high 8 bits",
+			in:      eps.GUTI{PLMN: plmn, MMEGroupID: 0x00FF, TMSI: tmsi},
+			wantSet: 0x3FC,
+		},
+		{
+			name:    "the top of the mme code fills the set id's low 2 bits",
+			in:      eps.GUTI{PLMN: plmn, MMECode: 0xC0, TMSI: tmsi},
+			wantSet: 0x003,
+		},
+		{
+			name:    "the bottom of the mme code fills the pointer",
+			in:      eps.GUTI{PLMN: plmn, MMECode: 0x3F, TMSI: tmsi},
+			wantPtr: 0x3F,
+		},
+		{
+			name:       "every field at once",
+			in:         eps.GUTI{PLMN: plmn, MMEGroupID: 0x0102, MMECode: 0x03, TMSI: tmsi},
+			wantRegion: 0x01,
+			wantSet:    0x008,
+			wantPtr:    0x03,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := etsi.MapGUTIEPSTo5G(tc.in)
+
+			if got.AMFRegionID != tc.wantRegion {
+				t.Errorf("AMF Region ID = %#02x, want %#02x", got.AMFRegionID, tc.wantRegion)
+			}
+
+			if got.AMFSetID != tc.wantSet {
+				t.Errorf("AMF Set ID = %#03x, want %#03x", got.AMFSetID, tc.wantSet)
+			}
+
+			if got.AMFPointer != tc.wantPtr {
+				t.Errorf("AMF Pointer = %#02x, want %#02x", got.AMFPointer, tc.wantPtr)
+			}
+
+			if got.TMSI != tc.in.TMSI {
+				t.Errorf("5G-TMSI = % x, want the M-TMSI % x", got.TMSI, tc.in.TMSI)
+			}
+
+			if got.PLMN != tc.in.PLMN {
+				t.Errorf("PLMN = %v, want %v", got.PLMN, tc.in.PLMN)
+			}
+		})
+	}
+}
+
+func TestGUTIMappingRoundTrips(t *testing.T) {
+	in := fgs.GUTI{
+		PLMN:        nas.PLMN{MCC: "001", MNC: "01"},
+		AMFRegionID: 0xA5,
+		AMFSetID:    0x2D3,
+		AMFPointer:  0x1E,
+		TMSI:        [4]byte{0xde, 0xad, 0xbe, 0xef},
+	}
+
+	if got := etsi.MapGUTIEPSTo5G(etsi.MapGUTI5GToEPS(in)); got != in {
+		t.Errorf("round trip = %+v, want %+v", got, in)
 	}
 }
