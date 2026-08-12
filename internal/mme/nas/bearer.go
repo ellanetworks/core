@@ -322,7 +322,7 @@ func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *
 	return accept.MarshalBinary()
 }
 
-func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
+func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, msg *eps.AttachComplete) nasreply.Disposition {
 	if ue.RegStep() != mme.RegStepContextSetup {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Attach Complete outside the context-setup sub-phase")
 
@@ -341,9 +341,23 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 		zap.String("imsi", ue.IMSI()),
 	)
 
+	acceptDefaultBearerFromAttach(ctx, m, ue, msg.ESMMessageContainer)
+
 	sendNetworkName(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
+}
+
+func acceptDefaultBearerFromAttach(ctx context.Context, m *mme.MME, ue *mme.UeContext, container []byte) {
+	accept, err := eps.ParseActivateDefaultEPSBearerContextAccept(container)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("ignoring the ESM message container of the Attach Complete",
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		return
+	}
+
+	handleActivateDefaultBearerAccept(ctx, m, ue, accept)
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM

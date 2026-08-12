@@ -5,14 +5,20 @@ package nas
 
 import (
 	"bytes"
+	"context"
 	"net/netip"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestActivateDefaultCarriesTheSNSSAI(t *testing.T) {
@@ -306,5 +312,82 @@ func TestActivateDefaultOmitsTheMappedFiveGSQoSWithoutAPDUSessionIdentity(t *tes
 		if containerContent(t, act.ProtocolConfigurationOptions, id) != nil {
 			t.Errorf("container %#04x was sent for a PDN connection the UE gave no PDU session identity", id)
 		}
+	}
+}
+
+func observeMmeLog(t *testing.T) *observer.ObservedLogs {
+	t.Helper()
+
+	core, logs := observer.New(zapcore.WarnLevel)
+	saved := logger.MmeLog
+	logger.MmeLog = zap.New(core)
+
+	t.Cleanup(func() { logger.MmeLog = saved })
+
+	return logs
+}
+
+func TestAttachCompleteReportsTheUEDiscardingTheMappedFiveGSQoS(t *testing.T) {
+	m := newTestMME(t)
+	ue := newAttachUe(m, &captureConn{}, 9)
+
+	m.SetIMSI(ue, "001010000000042")
+
+	ue.Pdns = map[uint8]*mme.PdnConnection{mme.DefaultERABID: {Ebi: mme.DefaultERABID, Apn: "internet"}}
+	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.AdvanceRegStep(mme.RegStepContextSetup)
+
+	accept := &eps.ActivateDefaultEPSBearerContextAccept{
+		EPSBearerIdentity: eps.EPSBearerIdentity(mme.DefaultERABID),
+		PTI:               1,
+		ProtocolConfigurationOptions: &nas.ProtocolConfigurationOptions{
+			ConfigProtocol: nas.PCOConfigProtocolPPP,
+			Direction:      nas.PCOMSToNetwork,
+			Containers:     []nas.PCOContainer{{ID: nas.PCOContainerFiveGSMCause, Content: []byte{83}}},
+		},
+	}
+
+	container, err := accept.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	logs := observeMmeLog(t)
+
+	handleAttachComplete(context.Background(), m, ue, ue.Conn(), &eps.AttachComplete{ESMMessageContainer: container})
+
+	if ue.EMMState() != mme.EMMRegistered {
+		t.Fatalf("EMM state = %v, want EMM-REGISTERED", ue.EMMState())
+	}
+
+	reported := logs.FilterMessage("UE discarded the mapped 5GS QoS parameters of the PDN connection")
+	if reported.Len() != 1 {
+		t.Fatalf("the UE reported 5GSM cause #83 for the mapped 5GS QoS parameters of the default bearer and the MME did not record it: the ESM message container of the ATTACH COMPLETE was discarded, and the initial attach is where those parameters are delivered (matching warnings = %d)", reported.Len())
+	}
+
+	if got := reported.All()[0].ContextMap()["5gsm-cause"]; got != uint8(83) {
+		t.Errorf("recorded 5gsm-cause = %v, want 83", got)
+	}
+}
+
+func TestAttachCompleteWithAnUndecodableESMContainerStillCompletes(t *testing.T) {
+	m := newTestMME(t)
+	ue := newAttachUe(m, &captureConn{}, 11)
+
+	m.SetIMSI(ue, "001010000000043")
+
+	ue.Pdns = map[uint8]*mme.PdnConnection{mme.DefaultERABID: {Ebi: mme.DefaultERABID, Apn: "internet"}}
+	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.AdvanceRegStep(mme.RegStepContextSetup)
+
+	got := handleAttachComplete(context.Background(), m, ue, ue.Conn(),
+		&eps.AttachComplete{ESMMessageContainer: []byte{0x52, 0x01, 0xc2, 0xff, 0xff}})
+
+	if ue.EMMState() != mme.EMMRegistered {
+		t.Errorf("EMM state = %v, want EMM-REGISTERED: TS 24.301 §7.5.2 allows the EMM sublayer no diagnosis of the ESM message container beyond presence and length, so its contents cannot fail the attach", ue.EMMState())
+	}
+
+	if got.Action == nasreply.ActionStatus {
+		t.Errorf("the Attach Complete drew a %v STATUS with cause %d: §7.5.2 forbids diagnosing the container, so an undecodable one is not an error of the ATTACH COMPLETE", got.Domain, got.Cause)
 	}
 }

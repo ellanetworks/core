@@ -16,9 +16,8 @@ import "fmt"
 // leave the mechanism to the implementation and require the same result of it,
 // so the 4G and 5G receivers share this type.
 type UplinkCounter struct {
-	last      Count
-	accepted  bool
-	exhausted bool
+	last     Count
+	accepted bool
 }
 
 // NewUplinkCounter returns a counter for a security context whose uplink NAS
@@ -50,7 +49,7 @@ func (u UplinkCounter) NextExpected() Count {
 // The receiver fails closed there, as [DownlinkCounter.Use] does for the sender,
 // and the connection has to be released or a new security context established.
 func (u UplinkCounter) Estimate(recvSeq uint8) (Count, error) {
-	if u.exhausted {
+	if u.Exhausted() {
 		return 0, ErrCountExhausted
 	}
 
@@ -59,7 +58,7 @@ func (u UplinkCounter) Estimate(recvSeq uint8) (Count, error) {
 
 // Exhausted reports whether the count has reached its maximum, so no further
 // uplink message can be accepted under this security context.
-func (u UplinkCounter) Exhausted() bool { return u.exhausted }
+func (u UplinkCounter) Exhausted() bool { return u.accepted && u.last == countMask }
 
 // LastAccepted returns the NAS COUNT of the most recently accepted message, zero
 // if none has been. It is the K_eNB/K_gNB derivation input (TS 33.401 §A.3,
@@ -93,7 +92,6 @@ func (u *UplinkCounter) Commit(count Count) error {
 
 	u.last = count
 	u.accepted = true
-	u.exhausted = count == countMask
 
 	return nil
 }

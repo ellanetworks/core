@@ -159,7 +159,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 
 	acc := &eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: 6, PTI: 2}
 
-	handleActivateDefaultBearerAccept(m, ue, acc)
+	handleActivateDefaultBearerAccept(context.Background(), m, ue, acc)
 
 	dis := &eps.PDNDisconnectRequest{PTI: 3, LinkedEPSBearerIdentity: 6}
 
@@ -247,7 +247,7 @@ func TestAdditionalPDNActivationIsGuarded(t *testing.T) {
 
 	acc := &eps.ActivateDefaultEPSBearerContextAccept{EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi), PTI: 2}
 
-	handleActivateDefaultBearerAccept(m, ue, acc)
+	handleActivateDefaultBearerAccept(context.Background(), m, ue, acc)
 
 	if m.ESMGuardActiveForTest(p) {
 		t.Fatal("T3485 guard still armed after the UE accepted the default bearer; it would retransmit indefinitely")

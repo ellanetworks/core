@@ -319,7 +319,7 @@ func TestAttachKeepsOldGUTIResolvableUntilComplete(t *testing.T) {
 		t.Fatal("new M-TMSI not resolvable")
 	}
 
-	handleAttachComplete(context.Background(), m, existing, existing.Conn())
+	handleAttachComplete(context.Background(), m, existing, existing.Conn(), &eps.AttachComplete{})
 
 	if !existing.OldTmsiUnsetForTest() {
 		t.Fatal("GUTI reallocation not committed after Attach Complete")
@@ -594,7 +594,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 	}
 
 	// 4. UE → Attach Complete reaches EMM-REGISTERED.
-	completePlain, err := (&eps.AttachComplete{ESMMessageContainer: []byte{0x02, uint8(activate.PTI), 0xc2}}).MarshalBinary()
+	completePlain, err := (&eps.AttachComplete{ESMMessageContainer: []byte{uint8(activate.EPSBearerIdentity)<<4 | 0x02, uint8(activate.PTI), 0xc2}}).MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}

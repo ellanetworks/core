@@ -113,7 +113,7 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	case *eps.SecurityModeReject:
 		return handleSecurityModeReject(ctx, m, ue, ueConn, msg)
 	case *eps.AttachComplete:
-		return handleAttachComplete(ctx, m, ue, ueConn)
+		return handleAttachComplete(ctx, m, ue, ueConn, msg)
 	case *eps.GUTIReallocationComplete:
 		return handleGUTIReallocationComplete(ctx, m, ue, ueConn)
 	case *eps.DetachRequestUE:

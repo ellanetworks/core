@@ -300,13 +300,13 @@ func rejectPDNDisconnect(ctx context.Context, ueConn *mme.UeConn, pti uint8, cau
 	})
 }
 
-// handleActivateDefaultBearerAccept confirms an additional PDN connection once the UE
+// handleActivateDefaultBearerAccept confirms a PDN connection once the UE
 // accepts the network's ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301
 // §6.4.1).
-func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, accept *eps.ActivateDefaultEPSBearerContextAccept) nasreply.Disposition {
+func handleActivateDefaultBearerAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, accept *eps.ActivateDefaultEPSBearerContextAccept) nasreply.Disposition {
 	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
 	if p == nil {
-		logger.MmeLog.Warn("Activate Default Accept for an unknown EPS bearer",
+		logger.From(ctx, logger.MmeLog).Warn("Activate Default Accept for an unknown EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", uint8(accept.EPSBearerIdentity)))
 
 		return nasreply.Silent(nasreply.ReasonNoContext)
@@ -315,11 +315,11 @@ func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, accept *ep
 	m.StopESMGuard(p)
 
 	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
-		logger.MmeLog.Warn("UE discarded the mapped 5GS QoS parameters of the PDN connection",
+		logger.From(ctx, logger.MmeLog).Warn("UE discarded the mapped 5GS QoS parameters of the PDN connection",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("5gsm-cause", cause))
 	}
 
-	logger.MmeLog.Info("additional PDN connection active",
+	logger.From(ctx, logger.MmeLog).Info("PDN connection active",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi))
 
 	return nasreply.Handled()

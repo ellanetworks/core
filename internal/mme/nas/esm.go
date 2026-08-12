@@ -32,7 +32,7 @@ func handleESMMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	case *eps.BearerResourceModificationRequest:
 		return handleBearerResourceModificationRequest(ctx, ue, ueConn, msg)
 	case *eps.ActivateDefaultEPSBearerContextAccept:
-		return handleActivateDefaultBearerAccept(m, ue, msg)
+		return handleActivateDefaultBearerAccept(ctx, m, ue, msg)
 	case *eps.ActivateDefaultEPSBearerContextReject:
 		return handleActivateDefaultBearerReject(ctx, m, ue, msg)
 	case *eps.DeactivateEPSBearerContextAccept:

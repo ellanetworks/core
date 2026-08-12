@@ -105,6 +105,10 @@ func (s *DownlinkSender) Next() Count {
 	return s.count.Next()
 }
 
+// UseForMappedContext spends the next downlink NAS COUNT and returns it, for use
+// as the derivation input of a mapped security context rather than to protect a
+// message. The count is spent so no later message can carry it
+// (TS 33.401 §9.2.2, TS 33.501 §8.4.2).
 func (s *DownlinkSender) UseForMappedContext() (Count, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
