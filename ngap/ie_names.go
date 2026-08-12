@@ -7,6 +7,11 @@ import "fmt"
 
 // ProtocolIE-ID names from TS 38.413 §9.4.7, spelled as the ASN.1
 // identifiers are. IDs are unique protocol-wide.
+//
+// #nosec G101 -- these are 3GPP IE names, not credentials. G101 matches its
+// "pw" pattern against the PWS list names, where PWS is the Public Warning
+// System (TS 38.413 §8.9), and its "key" pattern against SecurityKey, which
+// names the IE carrying the key, never a key value.
 var protocolIENames = map[ProtocolIEID]string{
 	IDAllowedNSSAI:                                "AllowedNSSAI",
 	IDAMFName:                                     "AMFName",

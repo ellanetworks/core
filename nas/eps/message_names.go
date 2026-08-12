@@ -54,6 +54,10 @@ func (t MessageType) String() string {
 }
 
 // Message names from TS 24.301 table 9.8.2.
+//
+// #nosec G101 -- these are 3GPP message names, not credentials. G101 matches
+// its "bearer" pattern against the EPS bearer context messages, where a bearer
+// is an EPS radio bearer (TS 24.301 §6.1).
 var esmMessageTypeNames = map[ESMMessageType]string{
 	MsgActivateDefaultEPSBearerContextRequest:   "ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST",
 	MsgActivateDefaultEPSBearerContextAccept:    "ACTIVATE DEFAULT EPS BEARER CONTEXT ACCEPT",
