@@ -269,10 +269,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	} else {
 		sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
-		// The buffered N1 SM message and the REGISTRATION ACCEPT are two protected
-		// messages riding one RAN message, so the gNB, not the AMF, decides the order
-		// they reach the UE in. The two sends are kept adjacent so no third message can
-		// take a NAS COUNT between them (TS 24.501 §4.4.3.1).
 		if err := appendPendingN1(sht); err != nil {
 			abortRegistration(ctx, amfInstance, ue, "send buffered N1 SM message", err)
 

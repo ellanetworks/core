@@ -46,10 +46,6 @@ func sendServiceAccept(
 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
-	// The buffered N1 SM message and the SERVICE ACCEPT are two protected messages
-	// riding one RAN message, so the gNB, not the AMF, decides the order they reach
-	// the UE in. The two sends are kept adjacent so no third message can take a NAS
-	// COUNT between them (TS 24.501 §4.4.3.1).
 	if pending != nil {
 		if err := stagePendingN1(ctx, ue, ueConn, pending, sht, &ctxList, &suList); err != nil {
 			amf.ReportProtectFailure(ctx, ue, "buffered N1 SM message", err)
@@ -117,9 +113,6 @@ func sendServiceAccept(
 	return nil
 }
 
-// stagePendingN1 protects the buffered N1 SM message and stages it on the PDU
-// session setup item the SERVICE ACCEPT's RAN message carries. The write does not
-// reach the RAN itself: the item is handed to the gNB by the send that follows.
 func stagePendingN1(
 	ctx context.Context,
 	ue *amf.UeContext,
