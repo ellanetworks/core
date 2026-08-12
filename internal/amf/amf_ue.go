@@ -45,6 +45,8 @@ type UeContext struct {
 	state   StateType
 	regStep RegStep
 
+	arrivedFromEPSHandover bool
+
 	PlmnID  models.PlmnID
 	Suci    string
 	supi    etsi.SUPI

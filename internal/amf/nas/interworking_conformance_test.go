@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -92,5 +93,28 @@ func TestInterworkingPeriodicUpdateWithUEStatusIsNotTreatedAsInitial(t *testing.
 
 	if _, ok := ue.SmContextFindByPDUSessionID(1); !ok {
 		t.Error("the UE's PDU session was torn down: only an inter-system change from S1 mode carries the UE status IE, and a periodic update is never one, so this took the initial-registration path")
+	}
+}
+
+func TestRegistrationAfterAnEPSHandoverKeepsTheMovedSessions(t *testing.T) {
+	ue, _, smfStub, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	if err := ue.CreateSmContext(1, "moved-by-handover", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.MarkArrivedFromEPSHandover()
+
+	req := movingFromEPCRequest()
+	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
+
+	contextSetup(context.TODO(), amfInstance, ue, req, nil)
+
+	for _, call := range smfStub.ReleaseSmContextCalls {
+		t.Errorf("released SM context %q: the handover moved it onto 5GS moments before", call.SmContextRef)
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(1); !ok {
+		t.Error("the AMF dropped the PDU session the handover moved")
 	}
 }

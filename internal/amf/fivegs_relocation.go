@@ -344,6 +344,7 @@ func (a *AMF) CompleteRelocationFromEPS(ctx context.Context, ue *UeContext) {
 
 	id := held.id
 
+	ue.MarkArrivedFromEPSHandover()
 	ue.TransitionTo(Registered)
 
 	if err := a.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
@@ -387,6 +388,23 @@ func (a *AMF) RelocationCancel(ctx context.Context, supi etsi.SUPI, id interwork
 	}
 
 	return nil
+}
+
+func (ue *UeContext) MarkArrivedFromEPSHandover() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.arrivedFromEPSHandover = true
+}
+
+func (ue *UeContext) TakeArrivedFromEPSHandover() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	arrived := ue.arrivedFromEPSHandover
+	ue.arrivedFromEPSHandover = false
+
+	return arrived
 }
 
 type fromEPSRelocation struct {
