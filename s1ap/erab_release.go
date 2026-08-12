@@ -28,21 +28,21 @@ type ERABReleaseCommand struct {
 
 var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *ERABReleaseCommand) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
+		id: IDUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			var (
 				err  error
@@ -67,7 +67,7 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 		},
 	},
 	{
-		id: idERABToBeReleasedList, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDERABToBeReleasedList, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -81,12 +81,12 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToBeReleased)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABToBeReleased)
 			}), true
 		},
 	},
 	{
-		id: idNASPDU, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDNASPDU, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
@@ -138,7 +138,7 @@ type ERABReleaseResponse struct {
 
 var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -159,7 +159,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -180,7 +180,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idERABReleaseListBearerRelComp, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDERABReleaseListBearerRelComp, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -194,12 +194,12 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABReleaseItemBearerRelComp, CriticalityIgnore, m.ERABReleased)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABReleaseItemBearerRelComp, CriticalityIgnore, m.ERABReleased)
 			}), true
 		},
 	},
 	{
-		id: idERABFailedToReleaseList, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDERABFailedToReleaseList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -213,12 +213,12 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToRelease)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToRelease)
 			}), true
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -239,7 +239,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABReleaseResponse, raw []byte, enc per.Encoding) error {
 			var uli UserLocationInformation
 

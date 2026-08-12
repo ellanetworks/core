@@ -1,0 +1,165 @@
+{
+  "summary": "InitialContextSetup, AMF-UE=1, RAN-UE=2",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 14,
+    "label": "InitialContextSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 28,
+          "label": "GUAMI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "amf_region_id": "02",
+          "amf_set_id": "004",
+          "amf_pointer": "00"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "AllowedNSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "sst": 1
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 119,
+          "label": "UESecurityCapabilities",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "nr_encryption_algorithms": [
+            "NEA1",
+            "NEA2"
+          ],
+          "nr_integrity_protection_algorithms": [
+            "NIA1",
+            "NIA2"
+          ],
+          "eutra_encryption_algorithms": "c000",
+          "eutra_integrity_protection_algorithms": "c000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 94,
+          "label": "SecurityKey",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 117,
+          "label": "UERadioCapability",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": "AQ=="
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 118,
+          "label": "UERadioCapabilityForPaging",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr": "ab"
+        }
+      }
+    ]
+  }
+}

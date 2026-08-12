@@ -10,9 +10,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
-	const message = "IA4ADwAAAgAKQAIAAgBVQAIAAg=="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(initialContextSetupResponseCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -23,20 +21,16 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "InitialContextSetup" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
-		t.Errorf("expected ProcedureCode value=14, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcInitialContextSetup)
 	}
 
-	if ngapMsg.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 2 {
@@ -45,55 +39,42 @@ func TestDecodeNGAPMessage_InitialContextSetupResponse(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "AMFUENGAPID" {
-		t.Errorf("expected ID=AMFUENGAPID, got %v", item0.ID)
+	if item0.ID.Value != int64(lib.IDAMFUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDAMFUENGAPID)
 	}
 
-	if item0.ID.Value != int64(idAMFUENGAPID) {
-		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item0.Criticality)
 	}
 
 	amfUENGAPID, ok := item0.Value.(int64)
 	if !ok {
-		t.Fatalf("expected AMFUENGAPID to be of type int64, got %T", item0.Value)
+		t.Fatalf("expected AMF-UE-NGAP-ID to be of type int64, got %T", item0.Value)
 	}
 
 	if amfUENGAPID != 2 {
-		t.Errorf("expected AMFUENGAPID=2, got %d", amfUENGAPID)
+		t.Errorf("expected AMF-UE-NGAP-ID=2, got %d", amfUENGAPID)
 	}
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "RANUENGAPID" {
-		t.Errorf("expected ID=RANUENGAPID, got %v", item1.ID)
+	if item1.ID.Value != int64(lib.IDRANUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDRANUENGAPID)
 	}
 
-	if item1.ID.Value != int64(idRANUENGAPID) {
-		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item1.Criticality)
 	}
 
 	ranUENGAPID, ok := item1.Value.(int64)
 	if !ok {
-		t.Fatalf("expected RANUENGAPID to be of type int64, got %T", item1.Value)
+		t.Fatalf("expected RAN-UE-NGAP-ID to be of type int64, got %T", item1.Value)
 	}
 
 	if ranUENGAPID != 2 {
-		t.Errorf("expected RANUENGAPID=2, got %d", ranUENGAPID)
+		t.Errorf("expected RAN-UE-NGAP-ID=2, got %d", ranUENGAPID)
 	}
 }
+
+// An InitialContextSetupResponse captured on the 001/01 test PLMN.
+const initialContextSetupResponseCapture = "IA4ADwAAAgAKQAIAAgBVQAIAAg=="

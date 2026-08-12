@@ -1,0 +1,122 @@
+{
+  "summary": "LocationReport, AMF-UE=1, RAN-UE=2",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 18,
+    "label": "LocationReport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 121,
+          "label": "UserLocationInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr": {
+            "nr_cgi": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "nr_cell_identity": "000000010"
+            },
+            "tai": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "tac": "000001"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 116,
+          "label": "UEPresenceInAreaOfInterestList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "items": [
+            {
+              "location_reporting_reference_id": 1,
+              "ue_presence": "In"
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 33,
+          "label": "LocationReportingRequestType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "event_type": "Direct",
+          "report_area": "Cell"
+        }
+      }
+    ]
+  }
+}

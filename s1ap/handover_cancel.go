@@ -18,21 +18,21 @@ type HandoverCancel struct {
 
 var handoverCancelIEs = []ieSpec[HandoverCancel]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *HandoverCancel) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancel, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -89,7 +89,7 @@ type HandoverCancelAcknowledge struct {
 
 var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -110,7 +110,7 @@ var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -131,7 +131,7 @@ var handoverCancelAcknowledgeIEs = []ieSpec[HandoverCancelAcknowledge]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverCancelAcknowledge, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 

@@ -29,20 +29,7 @@ type Cause struct {
 }
 
 func causeGroupToEnum(g ngap.CauseGroup) utils.EnumField {
-	switch g {
-	case ngap.CauseGroupRadioNetwork:
-		return utils.MakeEnum(uint64(g), "radioNetwork", false)
-	case ngap.CauseGroupTransport:
-		return utils.MakeEnum(uint64(g), "transport", false)
-	case ngap.CauseGroupNAS:
-		return utils.MakeEnum(uint64(g), "nas", false)
-	case ngap.CauseGroupProtocol:
-		return utils.MakeEnum(uint64(g), "protocol", false)
-	case ngap.CauseGroupMisc:
-		return utils.MakeEnum(uint64(g), "misc", false)
-	default:
-		return utils.MakeEnum(uint64(g), "", true)
-	}
+	return utils.NamedEnum(uint8(g), g.Name())
 }
 
 // The library owns the cause vocabulary, including which values are extension
@@ -120,26 +107,11 @@ func buildSNSSAIValue(s ngap.SNSSAI) SNSSAI {
 }
 
 func buildPagingDRX(drx ngap.PagingDRX) utils.EnumField {
-	switch drx {
-	case ngap.PagingDRXv32:
-		return utils.MakeEnum(uint64(drx), "v32", false)
-	case ngap.PagingDRXv64:
-		return utils.MakeEnum(uint64(drx), "v64", false)
-	case ngap.PagingDRXv128:
-		return utils.MakeEnum(uint64(drx), "v128", false)
-	case ngap.PagingDRXv256:
-		return utils.MakeEnum(uint64(drx), "v256", false)
-	default:
-		return utils.MakeEnum(uint64(drx), "", true)
-	}
+	return utils.NamedEnum(uint8(drx), drx.Name())
 }
 
 func buildUERetention(uri ngap.UERetentionInformation) utils.EnumField {
-	if uri == ngap.UERetentionUesRetained {
-		return utils.MakeEnum(uint64(uri), "UesRetained", false)
-	}
-
-	return utils.MakeEnum(uint64(uri), "", true)
+	return utils.NamedEnum(uint8(uri), uri.Name())
 }
 
 // buildNGSetupRequest renders an NG SETUP REQUEST. Absent IEs are omitted
@@ -153,20 +125,20 @@ func buildNGSetupRequest(value []byte) NGAPMessageValue {
 
 	ies := make([]IE, 0, 5)
 
-	ies = append(ies, ie(idGlobalRANNodeID, ngap.CriticalityReject, buildGlobalRANNodeID(req.GlobalRANNodeID)))
+	ies = append(ies, ie(ngap.IDGlobalRANNodeID, ngap.CriticalityReject, buildGlobalRANNodeID(req.GlobalRANNodeID)))
 
 	if req.RANNodeName != nil {
-		ies = append(ies, ie(idRANNodeName, ngap.CriticalityIgnore, *req.RANNodeName))
+		ies = append(ies, ie(ngap.IDRANNodeName, ngap.CriticalityIgnore, *req.RANNodeName))
 	}
 
-	ies = append(ies, ie(idSupportedTAList, ngap.CriticalityReject, buildSupportedTAList(req.SupportedTAList)))
+	ies = append(ies, ie(ngap.IDSupportedTAList, ngap.CriticalityReject, buildSupportedTAList(req.SupportedTAList)))
 
 	if req.DefaultPagingDRX != nil {
-		ies = append(ies, ie(idDefaultPagingDRX, ngap.CriticalityIgnore, buildPagingDRX(*req.DefaultPagingDRX)))
+		ies = append(ies, ie(ngap.IDDefaultPagingDRX, ngap.CriticalityIgnore, buildPagingDRX(*req.DefaultPagingDRX)))
 	}
 
 	if req.UERetentionInformation != nil {
-		ies = append(ies, ie(idUERetentionInformation, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDUERetentionInformation, ngap.CriticalityIgnore,
 			buildUERetention(*req.UERetentionInformation)))
 	}
 
@@ -216,23 +188,23 @@ func buildNGSetupResponse(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFName, ngap.CriticalityReject, resp.AMFName),
-		ie(idServedGUAMIList, ngap.CriticalityReject, buildServedGUAMIList(resp.ServedGUAMIList)),
+		ie(ngap.IDAMFName, ngap.CriticalityReject, resp.AMFName),
+		ie(ngap.IDServedGUAMIList, ngap.CriticalityReject, buildServedGUAMIList(resp.ServedGUAMIList)),
 	}
 
 	if resp.RelativeAMFCapacity != nil {
-		ies = append(ies, ie(idRelativeAMFCapacity, ngap.CriticalityIgnore, int64(*resp.RelativeAMFCapacity)))
+		ies = append(ies, ie(ngap.IDRelativeAMFCapacity, ngap.CriticalityIgnore, int64(*resp.RelativeAMFCapacity)))
 	}
 
-	ies = append(ies, ie(idPLMNSupportList, ngap.CriticalityReject, buildPLMNSupportList(resp.PLMNSupportList)))
+	ies = append(ies, ie(ngap.IDPLMNSupportList, ngap.CriticalityReject, buildPLMNSupportList(resp.PLMNSupportList)))
 
 	if resp.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore,
 			criticalityDiagnostics(*resp.CriticalityDiagnostics)))
 	}
 
 	if resp.UERetentionInformation != nil {
-		ies = append(ies, ie(idUERetentionInformation, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDUERetentionInformation, ngap.CriticalityIgnore,
 			buildUERetention(*resp.UERetentionInformation)))
 	}
 
@@ -251,15 +223,15 @@ func buildNGSetupFailure(value []byte) NGAPMessageValue {
 	ies := make([]IE, 0, 3)
 
 	if fail.Cause != nil {
-		ies = append(ies, ie(idCause, ngap.CriticalityIgnore, cause(*fail.Cause)))
+		ies = append(ies, ie(ngap.IDCause, ngap.CriticalityIgnore, cause(*fail.Cause)))
 	}
 
 	if fail.TimeToWait != nil {
-		ies = append(ies, ie(idTimeToWait, ngap.CriticalityIgnore, buildTimeToWait(*fail.TimeToWait)))
+		ies = append(ies, ie(ngap.IDTimeToWait, ngap.CriticalityIgnore, buildTimeToWait(*fail.TimeToWait)))
 	}
 
 	if fail.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore,
 			criticalityDiagnostics(*fail.CriticalityDiagnostics)))
 	}
 
@@ -267,20 +239,5 @@ func buildNGSetupFailure(value []byte) NGAPMessageValue {
 }
 
 func buildTimeToWait(t ngap.TimeToWait) utils.EnumField {
-	switch t {
-	case ngap.TimeToWaitV1s:
-		return utils.MakeEnum(uint64(t), "V1s", false)
-	case ngap.TimeToWaitV2s:
-		return utils.MakeEnum(uint64(t), "V2s", false)
-	case ngap.TimeToWaitV5s:
-		return utils.MakeEnum(uint64(t), "V5s", false)
-	case ngap.TimeToWaitV10s:
-		return utils.MakeEnum(uint64(t), "V10s", false)
-	case ngap.TimeToWaitV20s:
-		return utils.MakeEnum(uint64(t), "V20s", false)
-	case ngap.TimeToWaitV60s:
-		return utils.MakeEnum(uint64(t), "V60s", false)
-	default:
-		return utils.MakeEnum(uint64(t), "", true)
-	}
+	return utils.NamedEnum(uint8(t), t.Name())
 }

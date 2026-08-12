@@ -52,7 +52,7 @@ func TestUPTransportLayerInformationGolden(t *testing.T) {
 // criticality.
 func TestUPTransportLayerInformationChoiceExtension(t *testing.T) {
 	raw := choiceExtensionValue(t, upTransportLayerInformationAlternatives,
-		upTransportLayerInformationChoiceExtensions, idAMFUENGAPID)
+		upTransportLayerInformationChoiceExtensions, IDAMFUENGAPID)
 
 	_, err := unmarshalPERValue[UPTransportLayerInformation](raw)
 	if err == nil {

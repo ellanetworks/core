@@ -370,3 +370,23 @@ func ParseSecurityModeComplete(b []byte) (*SecurityModeComplete, error) {
 
 	return m, err
 }
+
+// NAS ciphering algorithm names (TS 24.501 table 9.11.3.34.1).
+var cipheringAlgorithmNames = map[nas.CipheringAlgorithm]string{
+	0: "5G-EA0", 1: "128-5G-EA1", 2: "128-5G-EA2", 3: "128-5G-EA3",
+	4: "5G-EA4", 5: "5G-EA5", 6: "5G-EA6", 7: "5G-EA7",
+}
+
+// NAS integrity algorithm names (TS 24.501 table 9.11.3.34.1).
+var integrityAlgorithmNames = map[nas.IntegrityAlgorithm]string{
+	0: "5G-IA0", 1: "128-5G-IA1", 2: "128-5G-IA2", 3: "128-5G-IA3",
+	4: "5G-IA4", 5: "5G-IA5", 6: "5G-IA6", 7: "5G-IA7",
+}
+
+// CipheringAlgorithmName returns the 5GS name of a NAS ciphering algorithm, or
+// the empty string for a value TS 24.501 table 9.11.3.34.1 reserves.
+func CipheringAlgorithmName(a nas.CipheringAlgorithm) string { return cipheringAlgorithmNames[a] }
+
+// IntegrityAlgorithmName returns the 5GS name of a NAS integrity algorithm, or
+// the empty string for a value TS 24.501 table 9.11.3.34.1 reserves.
+func IntegrityAlgorithmName(a nas.IntegrityAlgorithm) string { return integrityAlgorithmNames[a] }

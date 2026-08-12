@@ -156,10 +156,10 @@ func TestLPPaTransportUnknownIE(t *testing.T) {
 	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(9)},
-		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(9)},
-		{id: idRoutingID, crit: CriticalityReject, val: RoutingID(0)},
-		{id: idLPPaPDU, crit: CriticalityReject, val: LPPaPDU{0x01}},
+		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(9)},
+		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(9)},
+		{id: IDRoutingID, crit: CriticalityReject, val: RoutingID(0)},
+		{id: IDLPPaPDU, crit: CriticalityReject, val: LPPaPDU{0x01}},
 		{id: 999, crit: CriticalityIgnore, raw: []byte{0xaa}},
 	}
 
@@ -184,8 +184,8 @@ func TestLPPaTransportMissingMandatoryIE(t *testing.T) {
 
 	// MME-UE-S1AP-ID and eNB-UE-S1AP-ID only; Routing-ID and LPPa-PDU omitted.
 	fields := []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
+		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {

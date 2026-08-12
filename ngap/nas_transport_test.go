@@ -159,16 +159,16 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseUplinkNASTransport(container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
 	)); err == nil {
 		t.Error("decoded a message with no NAS-PDU, want it rejected")
 	}
 
 	msg, err := ParseUplinkNASTransport(container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
-		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
+		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -181,7 +181,7 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	var missing int
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.TypeOfError == TypeOfErrorMissing && ie.ID == idUserLocationInformation {
+		if ie.TypeOfError == TypeOfErrorMissing && ie.ID == IDUserLocationInformation {
 			missing++
 		}
 	}
@@ -350,8 +350,8 @@ func TestDownlinkNASTransportMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseDownlinkNASTransport(container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
 	)); err == nil {
 		t.Error("decoded a message with no NAS-PDU, want it rejected")
 	}
@@ -442,8 +442,8 @@ func TestInitialUEMessageGolden(t *testing.T) {
 // the other. §10.3.5 stops this message when it is absent.
 func TestInitialUEMessageLocationIsRequired(t *testing.T) {
 	if _, err := ParseInitialUEMessage(container(t,
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
-		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
+		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
 	)); err == nil {
 		t.Error("decoded a message with no User Location Information, want it rejected")
 	}
@@ -451,9 +451,9 @@ func TestInitialUEMessageLocationIsRequired(t *testing.T) {
 	// RRC Establishment Cause is mandatory-ignore, so its absence is reported
 	// and the message still delivered.
 	msg, err := ParseInitialUEMessage(container(t,
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
-		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
-		ieField{id: idUserLocationInformation, crit: CriticalityReject, val: goldInitialULI()},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
+		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
+		ieField{id: IDUserLocationInformation, crit: CriticalityReject, val: goldInitialULI()},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -466,7 +466,7 @@ func TestInitialUEMessageLocationIsRequired(t *testing.T) {
 	var missing int
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.TypeOfError == TypeOfErrorMissing && ie.ID == idRRCEstablishmentCause {
+		if ie.TypeOfError == TypeOfErrorMissing && ie.ID == IDRRCEstablishmentCause {
 			missing++
 		}
 	}

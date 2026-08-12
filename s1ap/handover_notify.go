@@ -19,21 +19,21 @@ type HandoverNotify struct {
 
 var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			var v EUTRANCGI
 
@@ -54,7 +54,7 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 		},
 	},
 	{
-		id: idTAI, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDTAI, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			var v TAI
 

@@ -157,7 +157,7 @@ const getNasHeader = (nasPdu: any): string => {
     "Unknown";
 
   const secHeader =
-    decoded.security_header?.security_header_type?.label || "Plain NAS";
+    decoded.security_header?.security_header_type?.label || "plain";
   return `${messageType} (${secHeader})`;
 };
 
@@ -169,6 +169,15 @@ const getNrppaHeader = (nrppaPdu: any): string => {
   if (!decoded) return "undecoded";
   if (decoded.error) return "decode error";
   return decoded.kind?.label || "Unknown";
+};
+
+const isLppaPdu = (v: unknown): boolean =>
+  !!v && typeof v === "object" && (v as any).protocol === "LPPa";
+
+const getLppaHeader = (lppaPdu: any): string => {
+  const decoded = lppaPdu?.decoded;
+  if (!decoded) return "undecoded";
+  return decoded.kind || "Unknown";
 };
 
 const isLppPdu = (v: unknown): boolean =>
@@ -269,6 +278,20 @@ const LppPduBlock: React.FC<{
   />
 );
 
+const LppaPduBlock: React.FC<{
+  lppaPdu: any;
+  depth: number;
+  title: string;
+}> = ({ lppaPdu, depth, title }) => (
+  <ProtocolPduBlock
+    pdu={lppaPdu}
+    depth={depth}
+    title={title}
+    header={getLppaHeader(lppaPdu)}
+    accentColor="warning.main"
+  />
+);
+
 const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
   ie,
   depth,
@@ -327,6 +350,15 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     return (
       <>
         <LppPduBlock lppPdu={value} depth={depth} title={title} />
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+      </>
+    );
+  }
+
+  if (isLppaPdu(value)) {
+    return (
+      <>
+        <LppaPduBlock lppaPdu={value} depth={depth} title={title} />
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
       </>
     );
@@ -527,6 +559,16 @@ const CollapsibleObject: React.FC<{
                   <LppPduBlock
                     key={k}
                     lppPdu={v}
+                    depth={childDepth}
+                    title={k}
+                  />
+                );
+              }
+              if (isLppaPdu(v)) {
+                return (
+                  <LppaPduBlock
+                    key={k}
+                    lppaPdu={v}
                     depth={childDepth}
                     title={k}
                   />

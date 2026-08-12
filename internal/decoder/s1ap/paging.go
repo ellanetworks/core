@@ -4,9 +4,11 @@
 package s1ap
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -24,18 +26,32 @@ func buildPaging(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.UEIdentityIndexValue != nil {
-		ies = append(ies, ie(idUEIdentityIndexValue, s1ap.CriticalityReject, *m.UEIdentityIndexValue))
+		ies = append(ies, ie(s1ap.IDUEIdentityIndexValue, s1ap.CriticalityIgnore, *m.UEIdentityIndexValue))
 	}
 
 	if m.STMSI != nil {
-		ies = append(ies, ie(idSTMSI, s1ap.CriticalityReject, stmsi(*m.STMSI)))
+		ies = append(ies, ie(s1ap.IDUEPagingID, s1ap.CriticalityIgnore, stmsi(*m.STMSI)))
+	}
+
+	if m.PagingDRX != nil {
+		ies = append(ies, ie(s1ap.IDPagingDRX, s1ap.CriticalityIgnore, pagingDRXToEnum(*m.PagingDRX)))
 	}
 
 	if m.CNDomain != nil {
-		ies = append(ies, ie(idCNDomain, s1ap.CriticalityReject, cnDomainToEnum(*m.CNDomain)))
+		ies = append(ies, ie(s1ap.IDCNDomain, s1ap.CriticalityIgnore, cnDomainToEnum(*m.CNDomain)))
 	}
 
-	ies = append(ies, ie(idTAIList, s1ap.CriticalityReject, tais))
+	ies = append(ies, ie(s1ap.IDTAIList, s1ap.CriticalityIgnore, tais))
+
+	if m.PagingPriority != nil {
+		pr := *m.PagingPriority
+		ies = append(ies, ie(s1ap.IDPagingPriority, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(pr), pr.Name())))
+	}
+
+	if len(m.UERadioCapabilityForPaging) > 0 {
+		ies = append(ies, ie(s1ap.IDUERadioCapabilityForPaging, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapabilityForPaging)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	mtmsi := "?"

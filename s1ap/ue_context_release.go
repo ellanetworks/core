@@ -122,14 +122,14 @@ type UEContextReleaseCommand struct {
 
 var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
 	{
-		id: idUES1APIDs, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDUES1APIDs, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UES1APIDs)
 		},
 		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) { return &m.UES1APIDs, true },
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -187,7 +187,7 @@ type UEContextReleaseComplete struct {
 
 var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -208,7 +208,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -229,7 +229,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -250,7 +250,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var uli UserLocationInformation
 
@@ -307,21 +307,21 @@ type UEContextReleaseRequest struct {
 
 var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
 			var v Cause
 

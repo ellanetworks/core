@@ -47,7 +47,7 @@ type NGSetupFailure struct {
 
 var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -68,7 +68,7 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 		},
 	},
 	{
-		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
 			var ttw TimeToWait
 
@@ -89,7 +89,7 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 

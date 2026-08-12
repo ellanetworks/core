@@ -89,8 +89,8 @@ func TestHandoverNotifyGolden(t *testing.T) {
 // still has to see that it was missing.
 func TestHandoverNotifyMissingUserLocation(t *testing.T) {
 	value := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
 	)
 
 	out, err := ParseHandoverNotify(value)
@@ -103,7 +103,7 @@ func TestHandoverNotifyMissingUserLocation(t *testing.T) {
 	}
 
 	ies := out.meta().diagnostics.IEs
-	if len(ies) != 1 || ies[0].ID != idUserLocationInformation || ies[0].TypeOfError != TypeOfErrorMissing {
+	if len(ies) != 1 || ies[0].ID != IDUserLocationInformation || ies[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for UserLocationInformation", ies)
 	}
 }
@@ -111,7 +111,7 @@ func TestHandoverNotifyMissingUserLocation(t *testing.T) {
 // A missing mandatory reject IE rejects the procedure (§10.3.5).
 func TestHandoverNotifyMissingAMFUENGAPID(t *testing.T) {
 	value := container(t,
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
 	)
 
 	if _, err := ParseHandoverNotify(value); err == nil {

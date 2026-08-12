@@ -54,7 +54,7 @@ func (t ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 		return err
 	}
 
-	return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityReject, t.Part)
+	return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityReject, t.Part)
 }
 
 func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -104,7 +104,7 @@ type Reset struct {
 
 var resetIEs = []ieSpec[Reset]{
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -125,7 +125,7 @@ var resetIEs = []ieSpec[Reset]{
 		},
 	},
 	{
-		id: idResetType, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDResetType, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ResetType)
 		},
@@ -168,7 +168,7 @@ type ResetAcknowledge struct {
 // The message has no mandatory IE.
 var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 	{
-		id: idUEAssociatedLogicalS1ConnectionListResAck, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUEAssociatedLogicalS1ConnectionListResAck, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
 			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(raw), enc, maxnoofIndividualS1ConnectionsToReset)
 			if err != nil {
@@ -185,12 +185,12 @@ var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, idUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, m.ConnectionList)
+				return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, m.ConnectionList)
 			}), true
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 			if err := perIEDecode(raw, &cd); err != nil {

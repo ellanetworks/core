@@ -61,21 +61,21 @@ type PDUSessionResourceModifyRequest struct {
 
 var pDUSessionResourceModifyRequestIEs = []ieSpec[PDUSessionResourceModifyRequest]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idPDUSessionResourceModifyListModReq, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDPDUSessionResourceModifyListModReq, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceModify)
 		},
@@ -127,7 +127,7 @@ type PDUSessionResourceModifyResponse struct {
 
 var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyResponse]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
 			var v AMFUENGAPID
 
@@ -148,7 +148,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
 			var v RANUENGAPID
 
@@ -169,7 +169,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: idPDUSessionResourceModifyListModRes, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPDUSessionResourceModifyListModRes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceModify)
 		},
@@ -182,7 +182,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: idPDUSessionResourceFailedToModifyListModRes, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPDUSessionResourceFailedToModifyListModRes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceFailed)
 		},
@@ -195,7 +195,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
 			var uli UserLocationInformation
 
@@ -216,7 +216,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -280,7 +280,7 @@ type PDUSessionResourceModifyRequestTransfer struct {
 
 var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModifyRequestTransfer]{
 	{
-		id: idPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
+		id: IDPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
 			var v PDUSessionAggregateMaximumBitRate
 
@@ -301,7 +301,7 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: idULNGUUPTNLModifyList, presence: presenceOptional, crit: CriticalityReject,
+		id: IDULNGUUPTNLModifyList, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ULNGUUPTNLModify)
 		},
@@ -314,7 +314,7 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: idNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
+		id: IDNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
 			var v NetworkInstance
 
@@ -335,7 +335,7 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: idQosFlowAddOrModifyRequestList, presence: presenceOptional, crit: CriticalityReject,
+		id: IDQosFlowAddOrModifyRequestList, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.QosFlowAddOrModifyRequest)
 		},
@@ -348,7 +348,7 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: idQosFlowToReleaseList, presence: presenceOptional, crit: CriticalityReject,
+		id: IDQosFlowToReleaseList, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.QosFlowToRelease)
 		},
@@ -361,7 +361,7 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: idAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
+		id: IDAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AdditionalULNGUUPTNLInformation)
 		},

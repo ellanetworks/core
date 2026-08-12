@@ -72,7 +72,7 @@ type ieRow struct {
 
 var (
 	reTable = regexp.MustCompile(`(?s)var \w+IEs = \[\]ieSpec\[(\w+)\]\{(.*?)\n\}\n`)
-	reRow   = regexp.MustCompile(`(?s)\{\n\t\tid: (id\w+), presence: (presence\w+), crit: (Criticality\w+),\n(.*?)\n\t\},`)
+	reRow   = regexp.MustCompile(`(?s)\{\n\t\tid: (ID\w+), presence: (presence\w+), crit: (Criticality\w+),\n(.*?)\n\t\},`)
 	reField = regexp.MustCompile(`m\.([A-Z]\w*)`)
 )
 

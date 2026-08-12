@@ -1,0 +1,69 @@
+{
+  "summary": "UEContextRelease, Cause=user-inactivity",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 41,
+    "label": "UEContextRelease",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 114,
+          "label": "UE-NGAP-IDs",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "amf_ue_ngap_id": 0,
+          "ue_ngap_id_pair": {
+            "amf_ue_ngap_id": 26,
+            "ran_ue_ngap_id": 26
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 20,
+            "label": "user-inactivity",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}

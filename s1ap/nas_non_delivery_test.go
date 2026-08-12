@@ -120,15 +120,15 @@ func TestNASNonDeliveryIndicationMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseNASNonDeliveryIndication(container(t,
-		ieField{id: idNASPDU, crit: CriticalityIgnore, val: NASPDU{0x7e}},
-		ieField{id: idCause, crit: CriticalityIgnore, val: Cause{Group: CauseGroupNAS, Value: CauseNASDetach}},
+		ieField{id: IDNASPDU, crit: CriticalityIgnore, val: NASPDU{0x7e}},
+		ieField{id: IDCause, crit: CriticalityIgnore, val: Cause{Group: CauseGroupNAS, Value: CauseNASDetach}},
 	)); err == nil {
 		t.Error("decoded a message with neither UE id, want it rejected")
 	}
 
 	msg, err := ParseNASNonDeliveryIndication(container(t,
-		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
-		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
+		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -141,7 +141,7 @@ func TestNASNonDeliveryIndicationMissingIEs(t *testing.T) {
 	var missing int
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.TypeOfError == TypeOfErrorMissing && (ie.ID == idNASPDU || ie.ID == idCause) {
+		if ie.TypeOfError == TypeOfErrorMissing && (ie.ID == IDNASPDU || ie.ID == IDCause) {
 			missing++
 		}
 	}

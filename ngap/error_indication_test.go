@@ -33,7 +33,7 @@ func goldErrorIndicationFull() *ErrorIndication {
 		ProcedureCriticality: Ptr(CriticalityReject),
 		IEsCriticalityDiagnostics: []CriticalityDiagnosticsIEItem{{
 			IECriticality: CriticalityReject,
-			IEID:          idGlobalRANNodeID,
+			IEID:          IDGlobalRANNodeID,
 			TypeOfError:   TypeOfErrorMissing,
 		}},
 	}
@@ -100,7 +100,7 @@ func TestErrorIndicationGoldenDecode(t *testing.T) {
 	if cd == nil || deref(cd.ProcedureCode) != ProcNGSetup ||
 		deref(cd.ProcedureCriticality) != CriticalityReject ||
 		len(cd.IEsCriticalityDiagnostics) != 1 ||
-		cd.IEsCriticalityDiagnostics[0].IEID != idGlobalRANNodeID {
+		cd.IEsCriticalityDiagnostics[0].IEID != IDGlobalRANNodeID {
 		t.Errorf("criticality diagnostics = %+v", cd)
 	}
 

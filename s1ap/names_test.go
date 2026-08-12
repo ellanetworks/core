@@ -25,8 +25,8 @@ func TestProtocolIEIDString(t *testing.T) {
 		in   ProtocolIEID
 		want string
 	}{
-		{idGlobalENBID, "GlobalENBID (59)"},
-		{idCause, "Cause (2)"},
+		{IDGlobalENBID, "Global-ENB-ID (59)"},
+		{IDCause, "Cause (2)"},
 		{ProtocolIEID(9999), "ProtocolIEID(9999)"},
 	} {
 		if got := tc.in.String(); got != tc.want {
@@ -59,13 +59,13 @@ func TestAbstractSyntaxErrorMessage(t *testing.T) {
 		Trigger:   TriggeringInitiatingMessage,
 		Cause:     Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject},
 		IEs: []CriticalityDiagnosticsIEItem{
-			{IEID: idGlobalENBID, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorMissing},
-			{IEID: idSupportedTAs, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorNotUnderstood},
+			{IEID: IDGlobalENBID, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorMissing},
+			{IEID: IDSupportedTAs, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorNotUnderstood},
 		},
 	}
 
 	want := "s1ap: S1Setup (17): protocol: abstract-syntax-error-reject (1): " +
-		"GlobalENBID (59) (reject, missing), SupportedTAs (64) (reject, not-understood)"
+		"Global-ENB-ID (59) (reject, missing), SupportedTAs (64) (reject, not-understood)"
 	if got := err.Error(); got != want {
 		t.Errorf("Error() = %q, want %q", got, want)
 	}

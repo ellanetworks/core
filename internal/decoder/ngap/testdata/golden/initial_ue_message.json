@@ -1,0 +1,190 @@
+{
+  "summary": "InitialUEMessage, RAN-UE=1, NAS=REGISTRATION REQUEST",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 15,
+    "label": "InitialUEMessage",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 38,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "7e004179000d0100f1100000000044746857252e04f0f0f0f0",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 126,
+                "label": "5GMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "plain",
+                "unknown": false
+              },
+              "sequence_number": 0
+            },
+            "gmm_message": {
+              "gmm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 65,
+                  "label": "REGISTRATION REQUEST",
+                  "unknown": false
+                }
+              },
+              "registration_request": {
+                "nas_key_set_identifier": 7,
+                "registration_type_5gs": {
+                  "type": "enum",
+                  "value": 1,
+                  "label": "Initial registration",
+                  "unknown": false
+                },
+                "mobile_identity_5gs": {
+                  "identity_type": {
+                    "type": "enum",
+                    "value": 1,
+                    "label": "SUCI",
+                    "unknown": false
+                  },
+                  "plmn_id": {
+                    "mcc": "001",
+                    "mnc": "01"
+                  },
+                  "suci": "suci-0-001-01-0000-0-0-4447867552"
+                },
+                "ue_security_capability": {
+                  "integrity_algorithm": {
+                    "nia0": true,
+                    "nia1": true,
+                    "nia2": true,
+                    "nia3": true
+                  },
+                  "ciphering_algorithm": {
+                    "nea0": true,
+                    "nea1": true,
+                    "nea2": true,
+                    "nea3": true
+                  }
+                }
+              }
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 121,
+          "label": "UserLocationInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "nr": {
+            "nr_cgi": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "nr_cell_identity": "000000010"
+            },
+            "tai": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "tac": "000001"
+            },
+            "timestamp": "2025-10-14T20:47:06Z"
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 90,
+          "label": "RRCEstablishmentCause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 3,
+          "label": "mo-Signalling",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 112,
+          "label": "UEContextRequest",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "requested",
+          "unknown": false
+        }
+      }
+    ]
+  }
+}

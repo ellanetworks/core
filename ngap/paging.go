@@ -115,7 +115,7 @@ type Paging struct {
 
 var pagingIEs = []ieSpec[Paging]{
 	{
-		id: idUEPagingIdentity, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDUEPagingIdentity, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			sub := per.NewReader(raw)
 
@@ -153,7 +153,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			var drx PagingDRX
 
@@ -174,7 +174,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idTAIListForPaging, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDTAIListForPaging, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			items, err := unmarshalSeqOf[taiListForPagingItem](per.NewReader(raw), enc, 1, maxnoofTAIforPaging)
 			if err != nil {
@@ -204,7 +204,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, "PagingPriority")
 			if err != nil {
@@ -231,7 +231,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			var v UERadioCapabilityForPaging
 
@@ -252,7 +252,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idPagingOrigin, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPagingOrigin, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingOriginRootCount, "PagingOrigin")
 			if err != nil {

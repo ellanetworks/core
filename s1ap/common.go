@@ -41,16 +41,11 @@ const (
 )
 
 func (c Criticality) String() string {
-	switch c {
-	case CriticalityReject:
-		return "reject"
-	case CriticalityIgnore:
-		return "ignore"
-	case CriticalityNotify:
-		return "notify"
-	default:
-		return fmt.Sprintf("Criticality(%d)", uint8(c))
+	if name, ok := criticalityNames[c]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("Criticality(%d)", uint8(c))
 }
 
 // encodeRootEnumerated refuses to encode a value outside the root.

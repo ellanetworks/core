@@ -1,0 +1,136 @@
+{
+  "summary": "DownlinkNASTransport, AMF-UE=1, RAN-UE=1, NAS=AUTHENTICATION REQUEST",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 4,
+    "label": "DownlinkNASTransport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 38,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "7e005600020000211a0700a36d26bdbe4880911764cbcfb9201047da3840536480004d828024414acd87",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 126,
+                "label": "5GMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "plain",
+                "unknown": false
+              },
+              "sequence_number": 0
+            },
+            "gmm_message": {
+              "gmm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 86,
+                  "label": "AUTHENTICATION REQUEST",
+                  "unknown": false
+                }
+              },
+              "authentication_request": {
+                "spare_half_octet_and_ngksi": 0,
+                "abba": "AAA=",
+                "authentication_parameter_autn": [
+                  71,
+                  218,
+                  56,
+                  64,
+                  83,
+                  100,
+                  128,
+                  0,
+                  77,
+                  130,
+                  128,
+                  36,
+                  65,
+                  74,
+                  205,
+                  135
+                ],
+                "authentication_parameter_rand": [
+                  26,
+                  7,
+                  0,
+                  163,
+                  109,
+                  38,
+                  189,
+                  190,
+                  72,
+                  128,
+                  145,
+                  23,
+                  100,
+                  203,
+                  207,
+                  185
+                ]
+              }
+            },
+            "encrypted": false
+          }
+        }
+      }
+    ]
+  }
+}

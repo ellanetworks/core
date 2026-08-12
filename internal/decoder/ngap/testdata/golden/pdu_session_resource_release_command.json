@@ -1,0 +1,151 @@
+{
+  "summary": "PDUSessionResourceRelease, AMF-UE=148, RAN-UE=1, NAS=DL NAS TRANSPORT",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 28,
+    "label": "PDUSessionResourceRelease",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 148
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 38,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "7e0286414677037e00680100052e0104d3001201",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 126,
+                "label": "5GMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 2,
+                "label": "integrity protected and ciphered",
+                "unknown": false
+              },
+              "authentication_code": 2252424823,
+              "sequence_number": 3
+            },
+            "gmm_message": {
+              "gmm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 104,
+                  "label": "DL NAS TRANSPORT",
+                  "unknown": false
+                }
+              },
+              "dl_nas_transport": {
+                "spare_half_octet_and_payload_container_type": 1,
+                "payload_container": {
+                  "raw": "LgEE0wA=",
+                  "gsm_message": {
+                    "gsm_header": {
+                      "message_type": {
+                        "type": "enum",
+                        "value": 211,
+                        "label": "PDU SESSION RELEASE COMMAND",
+                        "unknown": false
+                      },
+                      "pdu_session_id": 1,
+                      "pti": 4
+                    }
+                  }
+                },
+                "pdu_session_id_2_value": 1
+              }
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 79,
+          "label": "PDUSessionResourceToReleaseListRelCmd",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "pdu_session_resource_release_command_transfer": {
+              "cause": {
+                "group": {
+                  "type": "enum",
+                  "value": 2,
+                  "label": "nas",
+                  "unknown": false
+                },
+                "value": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "normal-release",
+                  "unknown": false
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

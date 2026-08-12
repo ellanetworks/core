@@ -215,21 +215,21 @@ type LocationReport struct {
 
 var locationReportIEs = []ieSpec[LocationReport]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			var v UserLocationInformation
 
@@ -250,7 +250,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: idUEPresenceInAreaOfInterestList, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUEPresenceInAreaOfInterestList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UEPresenceInAreaOfInterestList)
 		},
@@ -263,7 +263,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: idLocationReportingRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDLocationReportingRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			var v LocationReportingRequestType
 
@@ -322,21 +322,21 @@ type LocationReportingControl struct {
 
 var locationReportingControlIEs = []ieSpec[LocationReportingControl]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *LocationReportingControl, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *LocationReportingControl) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *LocationReportingControl, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *LocationReportingControl) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idLocationReportingRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDLocationReportingRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReportingControl, raw []byte, enc per.Encoding) error {
 			var v LocationReportingRequestType
 

@@ -45,11 +45,11 @@ func buildInitialContextSetupResponse(value []byte) NGAPMessageValue {
 	var ies []IE
 
 	if m.AMFUENGAPID != nil {
-		ies = append(ies, ie(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
+		ies = append(ies, ie(ngap.IDAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
 	}
 
 	if m.RANUENGAPID != nil {
-		ies = append(ies, ie(idRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
+		ies = append(ies, ie(ngap.IDRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
 	}
 
 	if m.PDUSessionResourceSetup != nil {
@@ -68,7 +68,7 @@ func buildInitialContextSetupResponse(value []byte) NGAPMessageValue {
 			out = append(out, entry)
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceSetupListCxtRes, ngap.CriticalityIgnore, out))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceSetupListCxtRes, ngap.CriticalityIgnore, out))
 	}
 
 	if m.PDUSessionResourceFailed != nil {
@@ -87,11 +87,11 @@ func buildInitialContextSetupResponse(value []byte) NGAPMessageValue {
 			out = append(out, entry)
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceFailedToSetupListCxtRes, ngap.CriticalityIgnore, out))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceFailedToSetupListCxtRes, ngap.CriticalityIgnore, out))
 	}
 
 	if m.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore,
 			criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 

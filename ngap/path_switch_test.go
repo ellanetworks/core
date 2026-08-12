@@ -238,11 +238,11 @@ func TestPathSwitchSessionsSurviveRejection(t *testing.T) {
 	sessions := PDUSessionResourceToBeSwitchedDLList{{PDUSessionID: 5, Transfer: transfer}}
 
 	fields := []ieField{
-		{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
-		{id: idSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
-		{id: idUserLocationInformation, crit: CriticalityIgnore, val: &uli},
-		{id: idUESecurityCapabilities, crit: CriticalityIgnore, val: &caps},
-		{id: idPDUSessionResourceToBeSwitchedDLList, crit: CriticalityReject, val: sessions},
+		{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
+		{id: IDSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
+		{id: IDUserLocationInformation, crit: CriticalityIgnore, val: &uli},
+		{id: IDUESecurityCapabilities, crit: CriticalityIgnore, val: &caps},
+		{id: IDPDUSessionResourceToBeSwitchedDLList, crit: CriticalityReject, val: sessions},
 	}
 
 	// §10.3.6: the same IE twice is a falsely constructed message.
@@ -272,9 +272,9 @@ func TestPathSwitchSessionsAbsent(t *testing.T) {
 	uli := pathSwitchULI()
 
 	value := container(t,
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
-		ieField{id: idSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
-		ieField{id: idUserLocationInformation, crit: CriticalityIgnore, val: &uli},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
+		ieField{id: IDSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
+		ieField{id: IDUserLocationInformation, crit: CriticalityIgnore, val: &uli},
 	)
 
 	_, err := ParsePathSwitchRequest(value)

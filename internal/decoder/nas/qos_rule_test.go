@@ -49,7 +49,7 @@ func TestUnmarshalQosRules(t *testing.T) {
 		t.Fatalf("Expected Packet Filter Identifier 1, got %d", rules[0].PacketFilterList[0].Identifier)
 	}
 
-	if rules[0].PacketFilterList[0].Direction.Label != "bidirectional" {
+	if rules[0].PacketFilterList[0].Direction.Value != int64(fgs.PacketFilterBidirectional) {
 		t.Fatalf("Expected Packet Filter Direction bidirectional, got %v", rules[0].PacketFilterList[0].Direction.Label)
 	}
 

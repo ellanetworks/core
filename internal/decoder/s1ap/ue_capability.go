@@ -17,13 +17,13 @@ func buildUECapabilityInfoIndication(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idUERadioCapability, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapability)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDUERadioCapability, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapability)),
 	}
 
 	if len(m.UERadioCapabilityForPaging) > 0 {
-		ies = append(ies, ie(idUERadioCapabilityForPaging, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapabilityForPaging)))
+		ies = append(ies, ie(s1ap.IDUERadioCapabilityForPaging, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapabilityForPaging)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

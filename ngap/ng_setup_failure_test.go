@@ -74,7 +74,7 @@ func TestNGSetupFailureWithoutCauseIsDelivered(t *testing.T) {
 	}
 
 	diag := out.Diagnostics()
-	if len(diag.IEs) != 1 || diag.IEs[0].ID != idCause || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
+	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDCause || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Fatalf("diagnostics = %+v", diag.IEs)
 	}
 }

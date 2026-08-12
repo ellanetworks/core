@@ -29,18 +29,18 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "ErrorIndication" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcErrorIndication) {
 		t.Errorf("expected ProcedureCode=ErrorIndication, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcErrorIndication) {
-		t.Errorf("expected ProcedureCode value=%d, got %d", lib.ProcErrorIndication, ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcErrorIndication)
 	}
 
 	// Error Indication is ignore at both the message and the IE level
 	// (TS 38.413 §9.2.6.4).
-	if ngapMsg.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", ngapMsg.Criticality)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 3 {
@@ -49,52 +49,40 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "AMFUENGAPID" {
-		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
-	}
-
-	if item0.ID.Value != int64(idAMFUENGAPID) {
-		t.Errorf("expected ID value=%d, got %d", idAMFUENGAPID, item0.ID.Value)
+	if item0.ID.Value != int64(lib.IDAMFUENGAPID) {
+		t.Errorf("expected ID value=%d, got %d", lib.IDAMFUENGAPID, item0.ID.Value)
 	}
 
 	amfUeNgapID, ok := item0.Value.(int64)
 	if !ok {
-		t.Fatalf("expected AMFUENGAPID value type=int64, got %T", item0.Value)
+		t.Fatalf("expected AMF-UE-NGAP-ID value type=int64, got %T", item0.Value)
 	}
 
 	if amfUeNgapID != 2 {
-		t.Errorf("expected AMFUENGAPID=2, got %d", amfUeNgapID)
+		t.Errorf("expected AMF-UE-NGAP-ID=2, got %d", amfUeNgapID)
 	}
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "RANUENGAPID" {
-		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
-	}
-
-	if item1.ID.Value != int64(idRANUENGAPID) {
-		t.Errorf("expected ID value=%d, got %d", idRANUENGAPID, item1.ID.Value)
+	if item1.ID.Value != int64(lib.IDRANUENGAPID) {
+		t.Errorf("expected ID value=%d, got %d", lib.IDRANUENGAPID, item1.ID.Value)
 	}
 
 	ranUeNgapID, ok := item1.Value.(int64)
 	if !ok {
-		t.Fatalf("expected RANUENGAPID value type=int64, got %T", item1.Value)
+		t.Fatalf("expected RAN-UE-NGAP-ID value type=int64, got %T", item1.Value)
 	}
 
 	if ranUeNgapID != 92 {
-		t.Errorf("expected RANUENGAPID=92, got %d", ranUeNgapID)
+		t.Errorf("expected RAN-UE-NGAP-ID=92, got %d", ranUeNgapID)
 	}
 
 	// The Cause is the whole point of the message: without it the event says a
 	// failure happened and nothing about why.
 	item2 := ngapMsg.Value.IEs[2]
 
-	if item2.ID.Label != "Cause" {
-		t.Errorf("expected ID=Cause, got %s", item2.ID.Label)
-	}
-
-	if item2.ID.Value != int64(idCause) {
-		t.Errorf("expected ID value=%d, got %d", idCause, item2.ID.Value)
+	if item2.ID.Value != int64(lib.IDCause) {
+		t.Errorf("expected ID value=%d, got %d", lib.IDCause, item2.ID.Value)
 	}
 
 	cause, ok := item2.Value.(Cause)
@@ -102,11 +90,11 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Fatalf("expected Cause value type=Cause, got %T", item2.Value)
 	}
 
-	if cause.Group.Label != "radioNetwork" {
+	if cause.Group.Value != int64(lib.CauseGroupRadioNetwork) {
 		t.Errorf("expected Cause group=radioNetwork, got %s", cause.Group.Label)
 	}
 
-	if cause.Value.Label != "unknown-local-UE-NGAP-ID" {
+	if cause.Value.Value != int64(lib.CauseRadioNetworkUnknownLocalUENGAPID) {
 		t.Errorf("expected Cause=unknown-local-UE-NGAP-ID, got %s", cause.Value.Label)
 	}
 

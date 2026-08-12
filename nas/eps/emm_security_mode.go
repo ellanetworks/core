@@ -315,3 +315,23 @@ func ParseSecurityModeReject(b []byte) (*SecurityModeReject, error) {
 
 	return out, err
 }
+
+// EPS ciphering algorithm names (TS 24.301 table 9.9.3.23.1).
+var cipheringAlgorithmNames = map[nas.CipheringAlgorithm]string{
+	0: "EEA0", 1: "128-EEA1", 2: "128-EEA2", 3: "128-EEA3",
+	4: "EEA4", 5: "EEA5", 6: "EEA6", 7: "EEA7",
+}
+
+// EPS integrity algorithm names (TS 24.301 table 9.9.3.23.1).
+var integrityAlgorithmNames = map[nas.IntegrityAlgorithm]string{
+	0: "EIA0", 1: "128-EIA1", 2: "128-EIA2", 3: "128-EIA3",
+	4: "EIA4", 5: "EIA5", 6: "EIA6", 7: "EIA7",
+}
+
+// CipheringAlgorithmName returns the EPS name of a NAS ciphering algorithm, or
+// the empty string for a value TS 24.301 table 9.9.3.23.1 reserves.
+func CipheringAlgorithmName(a nas.CipheringAlgorithm) string { return cipheringAlgorithmNames[a] }
+
+// IntegrityAlgorithmName returns the EPS name of a NAS integrity algorithm, or
+// the empty string for a value TS 24.301 table 9.9.3.23.1 reserves.
+func IntegrityAlgorithmName(a nas.IntegrityAlgorithm) string { return integrityAlgorithmNames[a] }

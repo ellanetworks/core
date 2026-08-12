@@ -35,13 +35,13 @@ func TestDecodeHandoverRequired(t *testing.T) {
 		t.Fatalf("summary = %q", msg.Summary)
 	}
 
-	mustIE(t, msg, idHandoverType)
+	mustIE(t, msg, lib.IDHandoverType)
 
-	if _, ok := findIE(msg.Value.IEs, idTargetID); !ok {
+	if _, ok := findIE(msg.Value.IEs, lib.IDTargetID); !ok {
 		t.Fatal("TargetID IE missing")
 	}
 
-	if _, ok := findIE(msg.Value.IEs, idSourceToTargetContainer); !ok {
+	if _, ok := findIE(msg.Value.IEs, lib.IDSourceToTargetTransparentContainer); !ok {
 		t.Fatal("Source-to-Target container IE missing")
 	}
 }
@@ -67,14 +67,14 @@ func TestDecodeHandoverRequestAcknowledge(t *testing.T) {
 		t.Fatalf("decode error: %s", msg.Value.Error)
 	}
 
-	admittedIE := mustIE(t, msg, idERABAdmittedList)
+	admittedIE := mustIE(t, msg, lib.IDERABAdmittedList)
 
 	admitted, ok := admittedIE.Value.([]ERABAdmitted)
 	if !ok || len(admitted) != 1 || admitted[0].ERABID != 5 || admitted[0].GTPTEID != 0x99 {
 		t.Fatalf("admitted list = %+v", admittedIE.Value)
 	}
 
-	if _, ok := findIE(msg.Value.IEs, idERABFailedToSetupListHOReqAck); !ok {
+	if _, ok := findIE(msg.Value.IEs, lib.IDERABFailedToSetupListHOReqAck); !ok {
 		t.Fatal("failed-to-setup list IE missing")
 	}
 }
@@ -94,7 +94,7 @@ func TestDecodeMMEStatusTransfer(t *testing.T) {
 		t.Fatalf("decode error: %s", msg.Value.Error)
 	}
 
-	containerIE := mustIE(t, msg, idENBStatusTransferContainer)
+	containerIE := mustIE(t, msg, lib.IDENBStatusTransferTransparentContainer)
 	if containerIE.Value != "deadbeef" {
 		t.Fatalf("container = %v, want deadbeef", containerIE.Value)
 	}
@@ -129,7 +129,7 @@ func TestDecodeHandoverRequiredNGRANTarget(t *testing.T) {
 		t.Fatalf("decode error: %s", msg.Value.Error)
 	}
 
-	raw, ok := findIE(msg.Value.IEs, idTargetID)
+	raw, ok := findIE(msg.Value.IEs, lib.IDTargetID)
 	if !ok {
 		t.Fatal("no Target ID rendered")
 	}

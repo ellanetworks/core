@@ -63,22 +63,22 @@ func lppaTransportIEs[M any](
 ) []ieSpec[M] {
 	return []ieSpec[M]{
 		{
-			id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, mme(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return mme(m), true },
 		},
 		{
-			id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, enb(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return enb(m), true },
 		},
 		{
-			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDRoutingID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return routing(m), true },
 		},
 		{
-			id: idLPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDLPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return pdu(m), true },
 		},
@@ -165,12 +165,12 @@ func nonUEAssociatedLPPaTransportIEs[M any](
 ) []ieSpec[M] {
 	return []ieSpec[M]{
 		{
-			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDRoutingID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return routing(m), true },
 		},
 		{
-			id: idLPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDLPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
 			encode: func(m *M) (per.Marshaler, bool) {
 				if *pdu(m) == nil {

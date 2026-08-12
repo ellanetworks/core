@@ -4,8 +4,6 @@
 package nas
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -43,55 +41,13 @@ func dqrToEnum(dqr uint8) utils.EnumField {
 }
 
 func buildPFComponentTypeString(ct uint8) utils.EnumField {
-	switch ct {
-	case 0x01:
-		return utils.MakeEnum(ct, "MatchAll", false)
-	case 0x10:
-		return utils.MakeEnum(ct, "IPv4RemoteAddress", false)
-	case 0x11:
-		return utils.MakeEnum(ct, "IPv4LocalAddress", false)
-	case 0x21:
-		return utils.MakeEnum(ct, "IPv6RemoteAddress", false)
-	case 0x23:
-		return utils.MakeEnum(ct, "IPv6LocalAddress", false)
-	case 0x30:
-		return utils.MakeEnum(ct, "ProtocolIdentifierOrNextHeader", false)
-	case 0x40:
-		return utils.MakeEnum(ct, "SingleLocalPort", false)
-	case 0x41:
-		return utils.MakeEnum(ct, "LocalPortRange", false)
-	case 0x50:
-		return utils.MakeEnum(ct, "SingleRemotePort", false)
-	case 0x51:
-		return utils.MakeEnum(ct, "RemotePortRange", false)
-	case 0x60:
-		return utils.MakeEnum(ct, "SecurityParameterIndex", false)
-	case 0x70:
-		return utils.MakeEnum(ct, "TypeOfServiceOrTrafficClass", false)
-	case 0x80:
-		return utils.MakeEnum(ct, "FlowLabel", false)
-	case 0x81:
-		return utils.MakeEnum(ct, "DestinationMACAddress", false)
-	case 0x82:
-		return utils.MakeEnum(ct, "SourceMACAddress", false)
-	case 0x87:
-		return utils.MakeEnum(ct, "Ethertype", false)
-	default:
-		return utils.MakeEnum(ct, fmt.Sprintf("Unknown(0x%02X)", ct), true)
-	}
+	return utils.NamedEnum(ct, fgs.PacketFilterComponentType(ct).Name())
 }
 
 func buildPFDirectionString(n uint8) utils.EnumField {
-	switch n & 0x0F {
-	case 0x01:
-		return utils.MakeEnum(n&0x0F, "downlink", false)
-	case 0x02:
-		return utils.MakeEnum(n&0x0F, "uplink", false)
-	case 0x03:
-		return utils.MakeEnum(n&0x0F, "bidirectional", false)
-	default:
-		return utils.MakeEnum(n&0x0F, "", true)
-	}
+	d := fgs.PacketFilterDirection(n & 0x0F)
+
+	return utils.NamedEnum(uint8(d), d.Name())
 }
 
 // QosRulesFromNAS renders decoded authorized QoS rules as the observability

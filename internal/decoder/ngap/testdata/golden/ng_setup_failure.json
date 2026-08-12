@@ -1,0 +1,48 @@
+{
+  "summary": "NGSetup, Cause=unknown-PLMN-or-SNPN",
+  "pdu_type": "UnsuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 21,
+    "label": "NGSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 15,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 4,
+            "label": "misc",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 4,
+            "label": "unknown-PLMN-or-SNPN",
+            "unknown": false
+          }
+        }
+      }
+    ]
+  }
+}

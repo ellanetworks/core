@@ -26,7 +26,7 @@ func TestAppendUnknownIEs(t *testing.T) {
 		t.Fatalf("id = %+v, want value 300 flagged unknown", got.ID)
 	}
 
-	if got.Criticality.Label != "Notify" {
+	if got.Criticality.Value != int64(s1ap.CriticalityNotify) {
 		t.Fatalf("criticality = %+v, want Notify", got.Criticality)
 	}
 
@@ -61,7 +61,7 @@ func TestDecodeInitialContextSetupFailure(t *testing.T) {
 	var foundCause bool
 
 	for _, ie := range msg.Value.IEs {
-		if ie.ID.Value == idCause {
+		if ie.ID.Value == int64(s1ap.IDCause) {
 			foundCause = true
 		}
 	}

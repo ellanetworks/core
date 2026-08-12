@@ -3,13 +3,13 @@
     "protocol_discriminator": {
       "type": "enum",
       "value": 126,
-      "label": "5GSMobilityManagementMessage",
+      "label": "5GMM",
       "unknown": false
     },
     "security_header_type": {
       "type": "enum",
       "value": 0,
-      "label": "Plain NAS",
+      "label": "plain",
       "unknown": false
     },
     "sequence_number": 0
@@ -19,7 +19,7 @@
       "message_type": {
         "type": "enum",
         "value": 103,
-        "label": "ULNASTransport",
+        "label": "UL NAS TRANSPORT",
         "unknown": false
       }
     },
@@ -32,7 +32,7 @@
             "message_type": {
               "type": "enum",
               "value": 193,
-              "label": "PDUSessionEstablishmentRequest",
+              "label": "PDU SESSION ESTABLISHMENT REQUEST",
               "unknown": false
             },
             "pdu_session_id": 1,
@@ -51,7 +51,7 @@
       "request_type": {
         "type": "enum",
         "value": 1,
-        "label": "InitialRequest",
+        "label": "Initial request",
         "unknown": false
       },
       "snssai": {

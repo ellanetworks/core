@@ -38,6 +38,10 @@ var mobileIdentityTypeNames = map[MobileIdentityType]string{
 	IdentityEUI64:      "EUI-64",
 }
 
+// Name returns the type's spec description, or the empty string when the value
+// is not one TS 24.501 §9.11.3.4 assigns.
+func (t MobileIdentityType) Name() string { return mobileIdentityTypeNames[t] }
+
 func (t MobileIdentityType) String() string {
 	if name, ok := mobileIdentityTypeNames[t]; ok {
 		return name

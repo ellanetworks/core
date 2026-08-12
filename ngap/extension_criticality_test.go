@@ -10,8 +10,9 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// A real TAI extension id this version does not model.
-const idNRCGI ProtocolIEID = 82
+// A real extension id TAI does not model: TAI-ExtIEs is empty (TS 38.413
+// §9.3.3.11).
+const idTAIExtension = IDNRCGI
 
 // A one-item TAIListForPaging whose TAI carries one unmodeled iE-Extension.
 func extendedTAIList(t *testing.T, crit Criticality) []byte {
@@ -40,7 +41,7 @@ func extendedTAIList(t *testing.T, crit Criticality) []byte {
 		t.Fatalf("ext count: %v", err)
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idNRCGI)); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idTAIExtension)); err != nil {
 		t.Fatalf("ext id: %v", err)
 	}
 
@@ -62,8 +63,8 @@ func extendedTAIList(t *testing.T, crit Criticality) []byte {
 // extension's id rather than the container's.
 func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	_, err := ParsePaging(container(t,
-		ieField{id: idUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
-		ieField{id: idTAIListForPaging, crit: CriticalityIgnore, raw: extendedTAIList(t, CriticalityReject)},
+		ieField{id: IDUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
+		ieField{id: IDTAIListForPaging, crit: CriticalityIgnore, raw: extendedTAIList(t, CriticalityReject)},
 	))
 
 	var ase *AbstractSyntaxError
@@ -75,8 +76,8 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 		t.Fatalf("reported %+v, want exactly the extension", ase.IEs)
 	}
 
-	if ase.IEs[0].IEID != idNRCGI {
-		t.Errorf("diagnostics name IE %d, want the extension %d", ase.IEs[0].IEID, idNRCGI)
+	if ase.IEs[0].IEID != idTAIExtension {
+		t.Errorf("diagnostics name IE %d, want the extension %d", ase.IEs[0].IEID, idTAIExtension)
 	}
 
 	if ase.IEs[0].IECriticality != CriticalityReject {
@@ -87,8 +88,8 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 // §10.3.4.2: an ignore extension is skipped and its IE still delivered.
 func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	msg, err := ParsePaging(container(t,
-		ieField{id: idUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
-		ieField{id: idTAIListForPaging, crit: CriticalityIgnore, raw: extendedTAIList(t, CriticalityIgnore)},
+		ieField{id: IDUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
+		ieField{id: IDTAIListForPaging, crit: CriticalityIgnore, raw: extendedTAIList(t, CriticalityIgnore)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)

@@ -27,21 +27,21 @@ type UplinkRANStatusTransfer struct {
 
 var uplinkRANStatusTransferIEs = []ieSpec[UplinkRANStatusTransfer]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UplinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UplinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idRANStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UplinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
 			m.Container = StatusTransferContainer(raw)
 
@@ -93,21 +93,21 @@ type DownlinkRANStatusTransfer struct {
 
 var downlinkRANStatusTransferIEs = []ieSpec[DownlinkRANStatusTransfer]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *DownlinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *DownlinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idRANStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *DownlinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
 			m.Container = StatusTransferContainer(raw)
 

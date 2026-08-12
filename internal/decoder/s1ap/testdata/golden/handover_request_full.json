@@ -1,0 +1,254 @@
+{
+  "summary": "Handover Request (MME-UE 7, 1 E-RAB)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 1,
+    "label": "HandoverResourceAllocation",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 1,
+          "label": "HandoverType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 3,
+          "label": "utrantolte",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 2,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 16,
+            "label": "handover-desirable-for-radio-reason",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 66,
+          "label": "uEaggregateMaximumBitrate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "dl": 100000000,
+          "ul": 50000000
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 53,
+          "label": "E-RABToBeSetupListHOReq",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 5,
+            "qci": 9,
+            "arp": {
+              "priority_level": 15,
+              "preemption_capability": 0,
+              "preemption_vulnerability": 0
+            },
+            "transport_layer_address": "10.4.0.2",
+            "gtp_teid": 153
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 104,
+          "label": "Source-ToTarget-TransparentContainer",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "ab"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 107,
+          "label": "UESecurityCapabilities",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "encryption_algorithms": [
+            "EEA1",
+            "EEA2"
+          ],
+          "integrity_protection_algorithms": [
+            "EIA1",
+            "EIA2"
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 41,
+          "label": "HandoverRestrictionList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "serving_plmn": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "equivalent_plmns": [
+            {
+              "mcc": "001",
+              "mnc": "01"
+            }
+          ],
+          "forbidden_tas": [
+            {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "tacs": [
+                7
+              ]
+            }
+          ],
+          "forbidden_las": [
+            {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "lacs": [
+                9
+              ]
+            }
+          ],
+          "forbidden_inter_rats": {
+            "type": "enum",
+            "value": 1,
+            "label": "geran",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 40,
+          "label": "SecurityContext",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "next_hop_chaining_count": 1,
+          "next_hop_parameter": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 136,
+          "label": "NASSecurityParameterstoE-UTRAN",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "0a0b"
+      }
+    ]
+  }
+}

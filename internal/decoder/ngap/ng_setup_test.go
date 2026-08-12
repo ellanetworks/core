@@ -11,9 +11,7 @@ import (
 )
 
 func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
-	const message = "ABUAQQAABAAbAAkAAPEQUAAAAAEAUkAUCIBVRVJBTlNJTS1nbmItMS0xLTEAZgAQAAAAAAEAAPEQAAAQCBAgMAAVQAFA"
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(ngSetupRequestCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -24,20 +22,16 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "NGSetup" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcNGSetup)
 	}
 
-	if ngapMsg.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 4 {
@@ -46,20 +40,12 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "GlobalRANNodeID" {
-		t.Errorf("expected ID=GlobalRANNodeID, got %v", item0.ID)
+	if item0.ID.Value != int64(lib.IDGlobalRANNodeID) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDGlobalRANNodeID)
 	}
 
-	if item0.ID.Value != int64(idGlobalRANNodeID) {
-		t.Errorf("expected ID value=27, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item0.Criticality)
 	}
 
 	globalRANNodeID, ok := item0.Value.(GlobalRANNodeIDIE)
@@ -89,20 +75,12 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "RANNodeName" {
-		t.Errorf("expected ID=RANNodeName, got %v", item1.ID)
+	if item1.ID.Value != int64(lib.IDRANNodeName) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDRANNodeName)
 	}
 
-	if item1.ID.Value != int64(idRANNodeName) {
-		t.Errorf("expected ID value=82, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item1.Criticality)
 	}
 
 	ranNodeName, ok := item1.Value.(string)
@@ -116,20 +94,12 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 
 	item2 := ngapMsg.Value.IEs[2]
 
-	if item2.ID.Label != "SupportedTAList" {
-		t.Errorf("expected ID=SupportedTAList, got %s", item2.ID.Label)
+	if item2.ID.Value != int64(lib.IDSupportedTAList) {
+		t.Errorf("IE id = %d, want %d", item2.ID.Value, lib.IDSupportedTAList)
 	}
 
-	if item2.ID.Value != int64(idSupportedTAList) {
-		t.Errorf("expected ID value=102, got %d", item2.ID.Value)
-	}
-
-	if item2.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item2.Criticality)
-	}
-
-	if item2.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
+	if item2.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item2.Criticality)
 	}
 
 	supportedTAList, ok := item2.Value.([]SupportedTA)
@@ -164,7 +134,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 	}
 
 	if len(supportedTAItem.BroadcastPLMNList[0].SliceSupportList) != 1 {
-		t.Fatalf("expected 1 SNSSAI, got %d", len(supportedTAItem.BroadcastPLMNList[0].SliceSupportList))
+		t.Fatalf("expected 1 S-NSSAI, got %d", len(supportedTAItem.BroadcastPLMNList[0].SliceSupportList))
 	}
 
 	snssai := supportedTAItem.BroadcastPLMNList[0].SliceSupportList[0]
@@ -179,20 +149,12 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 
 	item3 := ngapMsg.Value.IEs[3]
 
-	if item3.ID.Label != "DefaultPagingDRX" {
-		t.Errorf("expected ID=DefaultPagingDRX, got %s", item3.ID.Label)
+	if item3.ID.Value != int64(lib.IDDefaultPagingDRX) {
+		t.Errorf("IE id = %d, want %d", item3.ID.Value, lib.IDDefaultPagingDRX)
 	}
 
-	if item3.ID.Value != int64(idDefaultPagingDRX) {
-		t.Errorf("expected ID value=21, got %d", item3.ID.Value)
-	}
-
-	if item3.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item3.Criticality)
-	}
-
-	if item3.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
+	if item3.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item3.Criticality)
 	}
 
 	defaultPagingDRX, ok := item3.Value.(utils.EnumField)
@@ -200,7 +162,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Fatalf("expected EnumField, got %T", item3.Value)
 	}
 
-	if defaultPagingDRX.Label != "v128" {
+	if defaultPagingDRX.Value != int64(lib.PagingDRXv128) {
 		t.Errorf("expected DefaultPagingDRX=v128, got %s", defaultPagingDRX.Label)
 	}
 
@@ -210,9 +172,7 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 }
 
 func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
-	const message = "IBUALAAABAABAAUBAGFtZgBgAAgAAADxEMr+AABWQAH/AFAACwAA8RAAABAIECAw"
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(ngSetupResponseCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -223,20 +183,16 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "NGSetup" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcNGSetup)
 	}
 
-	if ngapMsg.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 4 {
@@ -245,20 +201,12 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "AMFName" {
-		t.Errorf("expected ID=AMFName, got %s", item0.ID.Label)
+	if item0.ID.Value != int64(lib.IDAMFName) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDAMFName)
 	}
 
-	if item0.ID.Value != int64(idAMFName) {
-		t.Errorf("expected ID value=1, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item0.Criticality)
 	}
 
 	amfName, ok := item0.Value.(string)
@@ -272,20 +220,12 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "ServedGUAMIList" {
-		t.Errorf("expected ID=ServedGUAMIList, got %s", item1.ID.Label)
+	if item1.ID.Value != int64(lib.IDServedGUAMIList) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDServedGUAMIList)
 	}
 
-	if item1.ID.Value != int64(idServedGUAMIList) {
-		t.Errorf("expected ID value=96, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item1.Criticality)
 	}
 
 	servedGUAMIList, ok := item1.Value.([]Guami)
@@ -325,20 +265,12 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 
 	item2 := ngapMsg.Value.IEs[2]
 
-	if item2.ID.Label != "RelativeAMFCapacity" {
-		t.Errorf("expected ID=RelativeAMFCapacity, got %s", item2.ID.Label)
+	if item2.ID.Value != int64(lib.IDRelativeAMFCapacity) {
+		t.Errorf("IE id = %d, want %d", item2.ID.Value, lib.IDRelativeAMFCapacity)
 	}
 
-	if item2.ID.Value != int64(idRelativeAMFCapacity) {
-		t.Errorf("expected ID value=86, got %d", item2.ID.Value)
-	}
-
-	if item2.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item2.Criticality)
-	}
-
-	if item2.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
+	if item2.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item2.Criticality)
 	}
 
 	relativeAMFCapacity, ok := item2.Value.(int64)
@@ -352,20 +284,12 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 
 	item3 := ngapMsg.Value.IEs[3]
 
-	if item3.ID.Label != "PLMNSupportList" {
-		t.Errorf("expected ID=PLMNSupportList, got %s", item3.ID.Label)
+	if item3.ID.Value != int64(lib.IDPLMNSupportList) {
+		t.Errorf("IE id = %d, want %d", item3.ID.Value, lib.IDPLMNSupportList)
 	}
 
-	if item3.ID.Value != int64(idPLMNSupportList) {
-		t.Errorf("expected ID value=80, got %d", item3.ID.Value)
-	}
-
-	if item3.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item3.Criticality)
-	}
-
-	if item3.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item3.Criticality.Value)
+	if item3.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item3.Criticality)
 	}
 
 	plmnSupportList, ok := item3.Value.([]PLMN)
@@ -392,7 +316,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 	}
 
 	if len(plmnItem.SliceSupportList) != 1 {
-		t.Fatalf("expected 1 SNSSAI, got %d", len(plmnItem.SliceSupportList))
+		t.Fatalf("expected 1 S-NSSAI, got %d", len(plmnItem.SliceSupportList))
 	}
 
 	snssai := plmnItem.SliceSupportList[0]
@@ -407,9 +331,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 }
 
 func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
-	const message = "QBUACAAAAQAPQAGI"
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(ngSetupFailureCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -420,20 +342,16 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected PDUType=UnsuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "NGSetup" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
 		t.Errorf("expected ProcedureCode=NGSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcNGSetup) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcNGSetup)
 	}
 
-	if ngapMsg.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 1 {
@@ -442,20 +360,12 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "Cause" {
-		t.Errorf("expected ID=Cause, got %v", item0.ID)
+	if item0.ID.Value != int64(lib.IDCause) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDCause)
 	}
 
-	if item0.ID.Value != int64(idCause) {
-		t.Errorf("expected ID value=15, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item0.Criticality)
 	}
 
 	cause, ok := item0.Value.(Cause)
@@ -463,7 +373,7 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Fatalf("expected Cause, got %T", item0.Value)
 	}
 
-	if cause.Value.Label != "unknown-PLMN-or-SNPN" {
+	if cause.Value.Value != int64(lib.CauseMiscUnknownPLMNOrSNPN) {
 		t.Errorf("expected Cause=unknown-PLMN-or-SNPN, got %v", cause.Value.Label)
 	}
 
@@ -471,3 +381,12 @@ func TestDecodeNGAPMessage_NGSetupFailure(t *testing.T) {
 		t.Errorf("expected Cause value=%d, got %d", int64(lib.CauseMiscUnknownPLMNOrSNPN), cause.Value.Value)
 	}
 }
+
+// An NGSetupRequest captured on the 001/01 test PLMN.
+const ngSetupRequestCapture = "ABUAQQAABAAbAAkAAPEQUAAAAAEAUkAUCIBVRVJBTlNJTS1nbmItMS0xLTEAZgAQAAAAAAEAAPEQAAAQCBAgMAAVQAFA"
+
+// An NGSetupResponse captured on the 001/01 test PLMN.
+const ngSetupResponseCapture = "IBUALAAABAABAAUBAGFtZgBgAAgAAADxEMr+AABWQAH/AFAACwAA8RAAABAIECAw"
+
+// An NGSetupFailure captured on the 001/01 test PLMN.
+const ngSetupFailureCapture = "QBUACAAAAQAPQAGI"

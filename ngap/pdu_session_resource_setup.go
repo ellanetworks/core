@@ -103,21 +103,21 @@ type PDUSessionResourceSetupRequest struct {
 
 var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idNASPDU, presence: presenceOptional, crit: CriticalityReject,
+		id: IDNASPDU, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
 			var v NASPDU
 
@@ -138,7 +138,7 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 		},
 	},
 	{
-		id: idPDUSessionResourceSetupListSUReq, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDPDUSessionResourceSetupListSUReq, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceSetup)
 		},
@@ -151,7 +151,7 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 		},
 	},
 	{
-		id: idUEAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUEAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
 			var v UEAggregateMaximumBitRate
 
@@ -211,7 +211,7 @@ type PDUSessionResourceSetupResponse struct {
 
 var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupResponse]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
 			var v AMFUENGAPID
 
@@ -232,7 +232,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
 			var v RANUENGAPID
 
@@ -253,7 +253,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: idPDUSessionResourceSetupListSURes, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPDUSessionResourceSetupListSURes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceSetup)
 		},
@@ -266,7 +266,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: idPDUSessionResourceFailedToSetupListSURes, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPDUSessionResourceFailedToSetupListSURes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceFailed)
 		},
@@ -279,7 +279,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -300,7 +300,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
 			var uli UserLocationInformation
 
@@ -391,7 +391,7 @@ type PDUSessionResourceSetupRequestTransfer struct {
 
 var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetupRequestTransfer]{
 	{
-		id: idPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
+		id: IDPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			var v PDUSessionAggregateMaximumBitRate
 
@@ -412,7 +412,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: idULNGUUPTNLInformation, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDULNGUUPTNLInformation, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ULNGUUPTNLInformation)
 		},
@@ -421,7 +421,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: idAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
+		id: IDAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AdditionalULNGUUPTNLInformation)
 		},
@@ -434,7 +434,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: idDataForwardingNotPossible, presence: presenceOptional, crit: CriticalityReject,
+		id: IDDataForwardingNotPossible, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			var d DataForwardingNotPossible
 
@@ -455,7 +455,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: idPDUSessionType, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDPDUSessionType, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionType)
 		},
@@ -464,7 +464,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: idSecurityIndication, presence: presenceOptional, crit: CriticalityReject,
+		id: IDSecurityIndication, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			var v SecurityIndication
 
@@ -485,7 +485,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: idNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
+		id: IDNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			var v NetworkInstance
 
@@ -506,7 +506,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: idQosFlowSetupRequestList, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDQosFlowSetupRequestList, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.QosFlowSetupRequest)
 		},

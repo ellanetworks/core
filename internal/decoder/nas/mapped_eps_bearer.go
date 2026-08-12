@@ -5,7 +5,6 @@ package nas
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strings"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
@@ -33,33 +32,11 @@ type EPSParameter struct {
 }
 
 func mappedEPSOpcodeToEnum(op fgs.MappedEPSBearerOperation) utils.EnumField {
-	switch op {
-	case fgs.MappedEPSBearerOpCreate:
-		return utils.MakeEnum(uint8(op), "Create", false)
-	case fgs.MappedEPSBearerOpDelete:
-		return utils.MakeEnum(uint8(op), "Delete", false)
-	case fgs.MappedEPSBearerOpModify:
-		return utils.MakeEnum(uint8(op), "Modify", false)
-	default:
-		return utils.MakeEnum(uint8(op), "", true)
-	}
+	return utils.NamedEnum(uint8(op), op.Name())
 }
 
 func epsParameterIDToEnum(id fgs.EPSParameterIdentifier) utils.EnumField {
-	switch id {
-	case fgs.EPSParameterMappedEPSQoS:
-		return utils.MakeEnum(uint8(id), "Mapped EPS QoS", false)
-	case fgs.EPSParameterMappedExtendedEPSQoS:
-		return utils.MakeEnum(uint8(id), "Mapped Extended EPS QoS", false)
-	case fgs.EPSParameterTrafficFlowTemplate:
-		return utils.MakeEnum(uint8(id), "TFT", false)
-	case fgs.EPSParameterAPNAMBR:
-		return utils.MakeEnum(uint8(id), "APN-AMBR", false)
-	case fgs.EPSParameterExtendedAPNAMBR:
-		return utils.MakeEnum(uint8(id), "Extended APN-AMBR", false)
-	default:
-		return utils.MakeEnum(uint8(id), fmt.Sprintf("Unknown(0x%02X)", uint8(id)), true)
-	}
+	return utils.NamedEnum(uint8(id), id.Name())
 }
 
 // MappedEPSBearerContextsFromNAS renders decoded mapped EPS bearer contexts as

@@ -28,28 +28,28 @@ type HandoverRequired struct {
 
 var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idHandoverType, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDHandoverType, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.HandoverType)
 		},
 		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.HandoverType, true },
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -70,14 +70,14 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 		},
 	},
 	{
-		id: idTargetID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDTargetID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.TargetID)
 		},
 		encode: func(m *HandoverRequired) (per.Marshaler, bool) { return &m.TargetID, true },
 	},
 	{
-		id: idDirectForwardingPathAvailability, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDDirectForwardingPathAvailability, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			var v DirectForwardingPathAvailability
 
@@ -98,7 +98,7 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 		},
 	},
 	{
-		id: idSourceToTargetTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDSourceToTargetTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverRequired, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SourceToTarget)
 		},
@@ -160,28 +160,28 @@ func handoverLeavesEUTRAN(m *HandoverCommand) bool {
 
 var handoverCommandIEs = []ieSpec[HandoverCommand]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idHandoverType, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDHandoverType, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.HandoverType)
 		},
 		encode: func(m *HandoverCommand) (per.Marshaler, bool) { return &m.HandoverType, true },
 	},
 	{
-		id: idNASSecurityParametersfromEUTRAN, presence: presenceConditional, crit: CriticalityReject,
+		id: IDNASSecurityParametersfromEUTRAN, presence: presenceConditional, crit: CriticalityReject,
 		condition: handoverLeavesEUTRAN,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASSecurityParametersfromEUTRAN)
@@ -195,7 +195,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		},
 	},
 	{
-		id: idERABSubjecttoDataForwardingList, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDERABSubjecttoDataForwardingList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -209,12 +209,12 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABDataForwardingItem, CriticalityIgnore, m.ERABSubjecttoDataForwarding)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABDataForwardingItem, CriticalityIgnore, m.ERABSubjecttoDataForwarding)
 			}), true
 		},
 	},
 	{
-		id: idERABtoReleaseListHOCmd, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDERABtoReleaseListHOCmd, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -228,12 +228,12 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABToRelease)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABToRelease)
 			}), true
 		},
 	},
 	{
-		id: idTargetToSourceTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDTargetToSourceTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.TargetToSource)
 		},
@@ -246,7 +246,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var v CriticalityDiagnostics
 
@@ -304,7 +304,7 @@ type HandoverPreparationFailure struct {
 
 var handoverPreparationFailureIEs = []ieSpec[HandoverPreparationFailure]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverPreparationFailure, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -325,7 +325,7 @@ var handoverPreparationFailureIEs = []ieSpec[HandoverPreparationFailure]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverPreparationFailure, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -346,7 +346,7 @@ var handoverPreparationFailureIEs = []ieSpec[HandoverPreparationFailure]{
 		},
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverPreparationFailure, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -367,7 +367,7 @@ var handoverPreparationFailureIEs = []ieSpec[HandoverPreparationFailure]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverPreparationFailure, raw []byte, enc per.Encoding) error {
 			var v CriticalityDiagnostics
 

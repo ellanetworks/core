@@ -1,0 +1,108 @@
+{
+  "summary": "UplinkUEAssociatedNRPPaTransport, AMF-UE=1, RAN-UE=2, NRPPa=E-CID Measurement Initiation Request",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 50,
+    "label": "UplinkUEAssociatedNRPPaTransport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 89,
+          "label": "RoutingID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "03"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 46,
+          "label": "NRPPa-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NRPPa",
+          "raw_hex": "000200000018000003000200015000030001000005000700000b00022000",
+          "decoded": {
+            "kind": {
+              "type": "enum",
+              "value": 1,
+              "label": "E-CID Measurement Initiation Request",
+              "unknown": false
+            },
+            "request": {
+              "lmf_ue_measurement_id": 11,
+              "report_characteristics": {
+                "type": "enum",
+                "value": 0,
+                "label": "onDemand",
+                "unknown": false
+              },
+              "measurement_quantities": [
+                {
+                  "type": "enum",
+                  "value": 6,
+                  "label": "ss-RSRP",
+                  "unknown": false
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

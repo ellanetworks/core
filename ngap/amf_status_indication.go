@@ -59,7 +59,7 @@ type AMFStatusIndication struct {
 
 var aMFStatusIndicationIEs = []ieSpec[AMFStatusIndication]{
 	{
-		id: idUnavailableGUAMIList, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDUnavailableGUAMIList, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *AMFStatusIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UnavailableGUAMIList)
 		},

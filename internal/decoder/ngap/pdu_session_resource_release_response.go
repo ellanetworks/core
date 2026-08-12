@@ -26,11 +26,11 @@ func buildPDUSessionResourceReleaseResponse(value []byte) NGAPMessageValue {
 	var ies []IE
 
 	if m.AMFUENGAPID != nil {
-		ies = append(ies, ie(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
+		ies = append(ies, ie(ngap.IDAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
 	}
 
 	if m.RANUENGAPID != nil {
-		ies = append(ies, ie(idRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
+		ies = append(ies, ie(ngap.IDRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
 	}
 
 	if m.PDUSessionResourceReleased != nil {
@@ -43,16 +43,16 @@ func buildPDUSessionResourceReleaseResponse(value []byte) NGAPMessageValue {
 			})
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceReleasedListRelRes, ngap.CriticalityIgnore, out))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceReleasedListRelRes, ngap.CriticalityIgnore, out))
 	}
 
 	if m.UserLocationInformation != nil {
-		ies = append(ies, ie(idUserLocationInformation, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDUserLocationInformation, ngap.CriticalityIgnore,
 			userLocationInformation(*m.UserLocationInformation)))
 	}
 
 	if m.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore,
 			criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
