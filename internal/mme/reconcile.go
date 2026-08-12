@@ -303,8 +303,6 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 	}
 
 	write := func(wire []byte) error {
-		// DNS and/or Session-AMBR only: no radio change, so the NAS message is sent
-		// standalone in a Downlink NAS Transport (TS 23.401 §5.4.3).
 		ueConn.SendDownlinkNASTransport(ctx, wire)
 
 		return nil

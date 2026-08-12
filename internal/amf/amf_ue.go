@@ -431,8 +431,6 @@ func (ue *UeContext) UpdateSecurityContext() error {
 	return nil
 }
 
-// Derives the next {NH, NCC} without committing them (TS 33.501 §6.9.2.1.1): the
-// chain advances only once the path switch is confirmed.
 func (ue *UeContext) AdvancePathSwitchNH() (nh [32]uint8, ncc uint8, err error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -476,8 +474,6 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 }
 
 func (ue *UeContext) ClearRegistrationData(ctx context.Context) {
-	// SmContextList is cleared under ue.mu there; clearing it here would be an
-	// unguarded write.
 	ue.releaseSmContexts(ctx)
 }
 
@@ -523,8 +519,6 @@ func (ue *UeContext) SetSmContextInactive(pduSessionID uint8) {
 	}
 }
 
-// Without this the inactive mark latches and a UE with a live session is released
-// to CM-IDLE.
 func (ue *UeContext) SetSmContextActive(pduSessionID uint8) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
@@ -638,7 +632,6 @@ func (ue *UeContext) StopPaging() {
 	ue.pagingTimer.Stop()
 }
 
-// Paging is per UE (TS 24.501 §5.6.2.2), so this timer is the paging state.
 func (ue *UeContext) PagingActive() bool {
 	if ue == nil {
 		return false
@@ -666,7 +659,6 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	ue.SmContextList = make(map[uint8]*SmContext)
 	ue.mu.Unlock()
 
-	// SMF calls must not hold ue.mu.
 	if ue.smf != nil {
 		for _, smContextRef := range smContextRefs {
 			err := ue.smf.ReleaseSmContext(ctx, smContextRef)

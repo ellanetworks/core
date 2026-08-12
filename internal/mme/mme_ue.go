@@ -93,10 +93,7 @@ type PdnConnection struct {
 	// DEACTIVATE ACCEPT only this PDN connection is released, leaving the UE
 	// connected (TS 24.301 §6.5.2).
 	Disconnecting bool
-	// Modifying is set while a bearer modification (in-place DNS and/or Session-AMBR
-	// update) is in flight, so a duplicate reconcile does not re-send it. The
-	// pending* values are committed once the UE accepts, so an aborted modification
-	// leaves the stored config stale for the backstop to retry.
+
 	Modifying            bool
 	PendingDNConfig      string
 	PendingSessAmbrDLBps uint64

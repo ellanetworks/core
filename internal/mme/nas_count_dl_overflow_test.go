@@ -26,11 +26,7 @@ func sendCapturingWire(t *testing.T, ue *UeContext, plain []byte, sht eps.Securi
 	return wire
 }
 
-// TestDownlinkProtectionAdvancesCountByOne verifies a successful protect advances
-// the downlink NAS COUNT by exactly one, using the pre-increment value for the
-// message (TS 24.301 §4.4.3.1). The protection-failure path (COUNT not consumed)
-// is unreachable here — eps.Protect does not fail for a fixed-size key and a
-// valid algorithm — so only the success contract is asserted.
+// TS 24.301 §4.4.3.1
 func TestDownlinkProtectionAdvancesCountByOne(t *testing.T) {
 	ue, _ := securedUE(t, newTestMME(t))
 	ue.SetDLCountForTest(10)
@@ -42,12 +38,7 @@ func TestDownlinkProtectionAdvancesCountByOne(t *testing.T) {
 	}
 }
 
-// TestDownlinkProtectionAppliesOverflow is the regression for the downlink NAS
-// COUNT overflow: two downlink messages 256 apart carry the same 8-bit sequence
-// number but differ in the 16-bit overflow counter, so the NAS COUNT input to
-// integrity and ciphering differs and the protected output must differ
-// (TS 24.301 §4.4.3.1). Dropping the overflow reuses the COUNT once the sequence
-// number wraps, which a spec-compliant UE rejects.
+// TS 24.301 §4.4.3.1
 func TestDownlinkProtectionAppliesOverflow(t *testing.T) {
 	plain := []byte{0x07, 0x42, 0x01, 0x02, 0x03}
 

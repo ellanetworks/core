@@ -256,10 +256,6 @@ func TestForwardRelocationSendsAnInterSystemHandoverRequest(t *testing.T) {
 		t.Error("no Mobility Restriction List, so the target cannot determine the serving PLMN")
 	}
 
-	// TS 38.413 §9.3.1.86: the E-UTRA bitmaps are what an ng-eNB target selects
-	// its AS algorithms from, and all-zero reads as "EEA0/EIA0 only". The
-	// forwarded 0xe0 is EEA0/EEA1/EEA2, and EEA0 is implicit in NGAP, so 128-EEA1
-	// and 128-EEA2 land in the first two bits.
 	if got := hoReq.UESecurityCapabilities.EUTRAEncryptionAlgorithms; got != 0xc000 {
 		t.Errorf("E-UTRA encryption algorithms = %#04x, want the forwarded 0xc000", got)
 	}
