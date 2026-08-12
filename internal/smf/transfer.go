@@ -138,6 +138,11 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 		sc.pending = nil
 		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
 
+		if source := sc.handoverSourceAN; source != nil {
+			sc.handoverSourceAN = nil
+			sc.bindAccessTunnel(*source, sc.Access)
+		}
+
 		sc.Mutex.Unlock()
 
 		logger.SmfLog.Warn("abandoning a move the target access never bound",

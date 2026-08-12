@@ -36,6 +36,7 @@ type epsPeerStub struct {
 	cancelErr error
 	request   *interworking.ForwardRelocationRequest
 	cancelled int
+	completed []interworking.RelocationID
 	gate      chan struct{}
 }
 
@@ -67,6 +68,22 @@ func (p *epsPeerStub) relocationID() interworking.RelocationID {
 	defer p.mu.Unlock()
 
 	return p.request.ID
+}
+
+func (p *epsPeerStub) RelocationComplete(_ context.Context, _ etsi.SUPI, id interworking.RelocationID) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.completed = append(p.completed, id)
+
+	return nil
+}
+
+func (p *epsPeerStub) relocationsCompleted() []interworking.RelocationID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return append([]interworking.RelocationID(nil), p.completed...)
 }
 
 func (p *epsPeerStub) RelocationCancel(_ context.Context, _ etsi.SUPI, _ interworking.RelocationID) error {

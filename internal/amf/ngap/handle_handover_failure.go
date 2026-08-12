@@ -5,8 +5,10 @@ package ngap
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
@@ -44,16 +46,21 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	amfInstance.UnbindHandoverTarget(ctx, amfUe)
 
-	sourceUe := amfInstance.HandoverSource(amfUe)
-	if sourceUe == nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
-	} else {
-		amfInstance.ClearHandover(amfUe)
+	failureCause := causeHOFailureInTarget
+	if msg.Cause != nil {
+		failureCause = *msg.Cause
+	}
 
-		failureCause := causeHOFailureInTarget
-		if msg.Cause != nil {
-			failureCause = *msg.Cause
-		}
+	sourceUe := amfInstance.HandoverSource(amfUe)
+
+	switch {
+	case amfInstance.HandoverFromEPS(amfUe):
+		amfInstance.FailRelocationPreparation(amfUe,
+			fmt.Errorf("%w: %s", interworking.ErrTargetRefused, failureCause.String()))
+	case sourceUe == nil:
+		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
+	default:
+		amfInstance.ClearHandover(amfUe)
 
 		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")

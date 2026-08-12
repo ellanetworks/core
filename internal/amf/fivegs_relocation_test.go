@@ -4,11 +4,8 @@
 package amf_test
 
 import (
-	"context"
-	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/interworking"
@@ -60,23 +57,6 @@ func TestNGRANIdentityToNGAP(t *testing.T) {
 				t.Fatalf("node id = %+v, want %+v", got, tc.want)
 			}
 		})
-	}
-}
-
-func TestTheTargetHalfRefusesRatherThanLooksLikeAnUnknownTarget(t *testing.T) {
-	a := &amf.AMF{}
-
-	_, err := a.ForwardRelocation(context.Background(), interworking.FiveGSRelocationRequest{})
-	if !errors.Is(err, interworking.ErrTargetRefused) {
-		t.Fatalf("error = %v, want ErrTargetRefused", err)
-	}
-
-	if errors.Is(err, interworking.ErrUnknownTarget) || errors.Is(err, interworking.ErrRelocationTooLate) {
-		t.Fatalf("error = %v, want a refusal alone", err)
-	}
-
-	if err := a.RelocationCancel(context.Background(), etsi.SUPI{}, 1); !errors.Is(err, interworking.ErrTargetRefused) {
-		t.Fatalf("error = %v, want ErrTargetRefused", err)
 	}
 }
 

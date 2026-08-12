@@ -5,8 +5,10 @@ package ngap
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
@@ -117,8 +119,10 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
+	fromEPS := amfInstance.HandoverFromEPS(amfUe)
+
 	sourceUe := amfInstance.HandoverSource(amfUe)
-	if sourceUe == nil {
+	if sourceUe == nil && !fromEPS {
 		logger.WithTrace(ctx, targetUe.Log).Error("handover between different Ue has not been implement yet")
 		return
 	}
@@ -128,9 +132,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	// A duplicate or out-of-order HANDOVER REQUEST ACKNOWLEDGE: the staleness check
-	// precedes any per-session SMF side effect, since UpdateSmContextN2HandoverPrepared
-	// rebinds the downlink tunnel (TS 38.413 §10.4).
 	if !amfInstance.HandoverPreparing(amfUe) {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
 		return
@@ -174,28 +175,24 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	reportFailedSessionsToSmf(ctx, amfInstance, targetUe, amfUe, msg.PDUSessionResourceFailedToSetup, admittedPDU)
 
-	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)),
-		zap.Uint32("target-ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)))
-
 	if len(admitted) == 0 {
 		logger.WithTrace(ctx, targetUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 
-		if sourceUeContext := sourceUe.UeContext(); sourceUeContext != nil {
-			amfInstance.ClearHandover(sourceUeContext)
-			// The bind happens per session before this count is known, so a
-			// preparation that admits nothing still leaves one behind.
-			amfInstance.UnbindHandoverTarget(ctx, sourceUeContext)
-		}
+		amfInstance.UnbindHandoverTarget(ctx, amfUe)
 
-		if sourceUe.Radio() == nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
+		if fromEPS {
+			amfInstance.FailRelocationPreparation(amfUe,
+				fmt.Errorf("%w: the target NG-RAN node admitted no PDU session", interworking.ErrTargetRefused))
 		} else {
-			sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
+			amfInstance.ClearHandover(amfUe)
+
+			if sourceUe.Radio() == nil {
+				logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
+			} else {
+				sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
+			}
 		}
 
-		// The target acknowledged and so holds a reserved UE context, but no session
-		// survived core-side preparation. Its resources are reclaimed only by a
-		// CN-initiated UE Context Release (TS 38.413 §8.4.2).
 		targetUe.ReleaseAction = amf.UeContextReleaseHandover
 		targetUe.SendUEContextReleaseCommand(ctx, causeHOFailureInTarget)
 
@@ -207,6 +204,17 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge: handover advanced concurrently; dropping")
 		return
 	}
+
+	if fromEPS {
+		logger.WithTrace(ctx, targetUe.Log).Info("Handover Request Acknowledge (EPS to 5GS)",
+			zap.Int("admitted", len(admitted)), zap.Int("not-handed-over", len(unadmitted)))
+		amfInstance.FinishRelocationPreparation(amfUe, msg.TargetToSourceTransparentContainer, unadmitted)
+
+		return
+	}
+
+	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)),
+		zap.Uint32("target-ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)))
 
 	sourceUe.SendHandoverCommand(ctx, admitted, releaseItems(ctx, targetUe, unadmitted, targetCauses), msg.TargetToSourceTransparentContainer)
 }

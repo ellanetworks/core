@@ -365,6 +365,10 @@ func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string)
 	return s.Error
 }
 
+func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ etsi.SUPI, _, _ uint8, _ string, _ *models.Snssai) (string, []byte, error) {
+	return "", nil, nil
+}
+
 func (s *fakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, s.Error
 }

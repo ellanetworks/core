@@ -27,6 +27,9 @@ type fakeEPSPeer struct {
 	err          error
 	cancelled    []string
 	cancelledIDs []interworking.RelocationID
+	completed    []string
+	completedIDs []interworking.RelocationID
+	completeErr  error
 	block        chan struct{}
 }
 
@@ -48,6 +51,16 @@ func (f *fakeEPSPeer) ForwardRelocation(ctx context.Context, req interworking.Fo
 	defer f.mu.Unlock()
 
 	return f.response, f.err
+}
+
+func (f *fakeEPSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.completed = append(f.completed, supi.IMSI())
+	f.completedIDs = append(f.completedIDs, id)
+
+	return f.completeErr
 }
 
 func (f *fakeEPSPeer) RelocationCancel(_ context.Context, supi etsi.SUPI, id interworking.RelocationID) error {

@@ -25,15 +25,14 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
+	fromEPS := amfInstance.HandoverFromEPS(amfUe)
+
 	sourceUe := amfInstance.HandoverSource(amfUe)
-	if sourceUe == nil {
+	if sourceUe == nil && !fromEPS {
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 		return
 	}
 
-	// Advance the FSM hoPrepared→hoCommitting; an out-of-order Handover Notify (no
-	// prepared handover) or one from a UeConn that is not the prepared target does not
-	// match and is dropped before the user plane is switched or any session released.
 	admitted, ok := amfInstance.MarkHandoverCommitting(amfUe, targetUe)
 	if !ok {
 		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify with no prepared handover for this target; dropping")
@@ -72,6 +71,12 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")
+
+	if fromEPS {
+		amfInstance.CompleteRelocationFromEPS(ctx, amfUe)
+
+		return
+	}
 
 	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
 

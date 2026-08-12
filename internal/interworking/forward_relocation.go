@@ -98,6 +98,7 @@ var (
 type EPSPeer interface {
 	ForwardRelocation(ctx context.Context, req ForwardRelocationRequest) (ForwardRelocationResponse, error)
 	RelocationCancel(ctx context.Context, supi etsi.SUPI, id RelocationID) error
+	RelocationComplete(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 }
 
 type FiveGSPeer interface {

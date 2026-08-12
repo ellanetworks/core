@@ -954,93 +954,86 @@ func PDUSessionSetupItemHOReq(pduSessionID uint8, snssai *models.Snssai, transfe
 // handoverRequestBytes builds a HANDOVER REQUEST (TS 38.413 §9.2.3.4). The
 // {NH, NCC} pair is the AS key chain the target derives its keys from; it is
 // staged at preparation and committed only when the UE arrives (TS 33.501).
-func handoverRequestBytes(
-	amfID ngap.AMFUENGAPID,
-	handoverType ngap.HandoverType,
-	ambrUp, ambrDown models.BitRate,
-	ueSecurityCapability *fgs.UESecurityCapability,
-	ncc uint8,
-	nh []byte,
-	cause ngap.Cause,
-	sessions ngap.PDUSessionResourceSetupListHOReq,
-	sourceToTarget ngap.SourceToTargetTransparentContainer,
-	allowedNSSAI ngap.AllowedNSSAI,
-	guami ngap.GUAMI,
-) ([]byte, error) {
+type HandoverRequestOpts struct {
+	HandoverType         ngap.HandoverType
+	UplinkAmbr           models.BitRate
+	DownlinkAmbr         models.BitRate
+	UESecurityCapability *fgs.UESecurityCapability
+	NCC                  uint8
+	NH                   []byte
+	Cause                ngap.Cause
+	Sessions             ngap.PDUSessionResourceSetupListHOReq
+	SourceToTarget       ngap.SourceToTargetTransparentContainer
+	SnssaiList           []models.Snssai
+	GUAMI                *models.Guami
+	NASC                 []byte
+	NewSecurityContext   bool
+	ServingPLMN          *models.PlmnID
+}
+
+func handoverRequestBytes(amfID ngap.AMFUENGAPID, opts HandoverRequestOpts, allowedNSSAI ngap.AllowedNSSAI, guami ngap.GUAMI) ([]byte, error) {
 	var nextHop ngap.SecurityKey
 
-	if len(nh) != len(nextHop) {
-		return nil, fmt.Errorf("next hop is %d octets, want %d", len(nh), len(nextHop))
+	if len(opts.NH) != len(nextHop) {
+		return nil, fmt.Errorf("next hop is %d octets, want %d", len(opts.NH), len(nextHop))
 	}
 
-	copy(nextHop[:], nh)
+	copy(nextHop[:], opts.NH)
 
 	msg := &ngap.HandoverRequest{
 		AMFUENGAPID:  amfID,
-		HandoverType: handoverType,
-		Cause:        &cause,
+		HandoverType: opts.HandoverType,
+		Cause:        &opts.Cause,
 		UEAggregateMaximumBitRate: ngap.UEAggregateMaximumBitRate{
-			DL: ngap.BitRate(ambrDown.Bps()),
-			UL: ngap.BitRate(ambrUp.Bps()),
+			DL: ngap.BitRate(opts.DownlinkAmbr.Bps()),
+			UL: ngap.BitRate(opts.UplinkAmbr.Bps()),
 		},
-		UESecurityCapabilities:             util.SecurityCapabilitiesToNGAP(ueSecurityCapability),
-		SecurityContext:                    ngap.SecurityContext{NextHopChainingCount: ncc, NextHopNH: nextHop},
-		PDUSessionResourceSetupListHOReq:   sessions,
+		UESecurityCapabilities:             util.SecurityCapabilitiesToNGAP(opts.UESecurityCapability),
+		SecurityContext:                    ngap.SecurityContext{NextHopChainingCount: opts.NCC, NextHopNH: nextHop},
+		NASC:                               opts.NASC,
+		PDUSessionResourceSetupListHOReq:   opts.Sessions,
 		AllowedNSSAI:                       allowedNSSAI,
-		SourceToTargetTransparentContainer: sourceToTarget,
+		SourceToTargetTransparentContainer: opts.SourceToTarget,
 		GUAMI:                              guami,
+	}
+
+	if opts.NewSecurityContext {
+		msg.NewSecurityContextInd = ngap.Ptr(ngap.NewSecurityContextIndTrue)
+	}
+
+	if opts.ServingPLMN != nil {
+		plmn, err := util.PLMNToNGAP(*opts.ServingPLMN)
+		if err != nil {
+			return nil, fmt.Errorf("could not convert the serving PLMN: %w", err)
+		}
+
+		msg.MobilityRestrictionList = &ngap.MobilityRestrictionList{ServingPLMN: plmn}
 	}
 
 	return msg.Marshal()
 }
 
-func (ueConn *UeConn) SendHandoverRequest(
-	ctx context.Context,
-	handOverType ngap.HandoverType,
-	uplinkAmbr models.BitRate,
-	downlinkAmbr models.BitRate,
-	ueSecurityCapability *fgs.UESecurityCapability,
-	ncc uint8,
-	nh []byte,
-	cause ngap.Cause,
-	sessions ngap.PDUSessionResourceSetupListHOReq,
-	sourceToTargetTransparentContainer ngap.SourceToTargetTransparentContainer,
-	snssaiList []models.Snssai,
-	supportedGUAMI *models.Guami,
-) error {
+func (ueConn *UeConn) SendHandoverRequest(ctx context.Context, opts HandoverRequestOpts) error {
 	amfInstance, conn, err := ueConn.sendTarget()
 	if err != nil {
 		return err
 	}
 
-	if supportedGUAMI == nil {
+	if opts.GUAMI == nil {
 		return fmt.Errorf("no GUAMI to name this AMF with")
 	}
 
-	guami, err := util.GUAMIToNGAP(*supportedGUAMI)
+	guami, err := util.GUAMIToNGAP(*opts.GUAMI)
 	if err != nil {
 		return fmt.Errorf("could not convert GUAMI: %w", err)
 	}
 
-	allowed, err := util.AllowedNSSAIToNGAP(snssaiList)
+	allowed, err := util.AllowedNSSAIToNGAP(opts.SnssaiList)
 	if err != nil {
 		return fmt.Errorf("could not convert Allowed NSSAI: %w", err)
 	}
 
-	pkt, err := handoverRequestBytes(
-		ngap.AMFUENGAPID(ueConn.AmfUeNgapID),
-		handOverType,
-		uplinkAmbr,
-		downlinkAmbr,
-		ueSecurityCapability,
-		ncc,
-		nh,
-		cause,
-		sessions,
-		sourceToTargetTransparentContainer,
-		allowed,
-		guami,
-	)
+	pkt, err := handoverRequestBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), opts, allowed, guami)
 	if err != nil {
 		return err
 	}

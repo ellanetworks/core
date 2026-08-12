@@ -127,6 +127,10 @@ func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, str
 	return nil, nil
 }
 
+func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, error) {
+	return "", nil, nil
+}
+
 func (f *fakeSmf) UpdateSmContextN2HandoverPreparing(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil
 }

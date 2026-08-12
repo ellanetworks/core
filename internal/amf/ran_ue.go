@@ -474,10 +474,17 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	source := a.HandoverSource(ue)
 	target := a.HandoverTarget(ue)
 
+	fromEPS := a.HandoverFromEPS(ue)
+
 	switch ueConn {
 	case target:
 		a.ClearHandover(ue)
 		a.UnbindHandoverTarget(ctx, ue)
+
+		if fromEPS {
+			a.dropRelocationFromEPS(ctx, ue)
+		}
+
 		logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
 	case source:
 		a.ClearHandover(ue)

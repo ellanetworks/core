@@ -163,20 +163,19 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		cause = *msg.Cause
 	}
 
-	err = targetUe.SendHandoverRequest(
-		ctx,
-		sourceUe.HandOverType,
-		amfUe.Ambr.Uplink,
-		amfUe.Ambr.Downlink,
-		amfUe.UESecCap(),
-		ncc,
-		nh[:],
-		cause,
-		sessions,
-		msg.SourceToTargetTransparentContainer,
-		snssaiList,
-		operatorInfo.Guami,
-	)
+	err = targetUe.SendHandoverRequest(ctx, amf.HandoverRequestOpts{
+		HandoverType:         sourceUe.HandOverType,
+		UplinkAmbr:           amfUe.Ambr.Uplink,
+		DownlinkAmbr:         amfUe.Ambr.Downlink,
+		UESecurityCapability: amfUe.UESecCap(),
+		NCC:                  ncc,
+		NH:                   nh[:],
+		Cause:                cause,
+		Sessions:             sessions,
+		SourceToTarget:       msg.SourceToTargetTransparentContainer,
+		SnssaiList:           snssaiList,
+		GUAMI:                operatorInfo.Guami,
+	})
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
 		amfInstance.ClearHandover(amfUe)

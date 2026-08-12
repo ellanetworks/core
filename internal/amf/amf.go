@@ -75,6 +75,7 @@ type SmfSbi interface {
 	UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
+	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, error)
 	UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error
@@ -163,6 +164,7 @@ type AMF struct {
 	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID
 	radios                   map[NGAPWriter]*Radio
 	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID
+	relocatingFromEPS        map[etsi.SUPI]*fromEPSRelocation
 	RelativeCapacity         int64
 	Name                     string
 	NetworkFeatureSupport5GS *NetworkFeatureSupport5GS
@@ -615,6 +617,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		conns:                    make(map[int64]*UeConn),
 		radios:                   make(map[NGAPWriter]*Radio),
 		radiosByID:               make(map[string]*Radio),
+		relocatingFromEPS:        make(map[etsi.SUPI]*fromEPSRelocation),
 		DBInstance:               db,
 		Ausf:                     ausf,
 		Session:                  smf,

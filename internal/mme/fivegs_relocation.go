@@ -4,16 +4,25 @@
 package mme
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 var _ interworking.EPSPeer = (*MME)(nil)
 
-var ErrUnusableTargetNGRAN = errors.New("mme: the target NG-RAN node cannot be named")
+var (
+	ErrUnusableTargetNGRAN  = errors.New("mme: the target NG-RAN node cannot be named")
+	ErrNoRelocationToFiveGS = errors.New("mme: no handover to 5GS is in progress for this subscriber")
+)
+
+func (m *MME) RelocationComplete(_ context.Context, supi etsi.SUPI, _ interworking.RelocationID) error {
+	return fmt.Errorf("%w: %s", ErrNoRelocationToFiveGS, supi)
+}
 
 func NGRANIdentityFromS1AP(target s1ap.TargetNgRanNodeID) (interworking.NGRANIdentity, error) {
 	out := interworking.NGRANIdentity{
