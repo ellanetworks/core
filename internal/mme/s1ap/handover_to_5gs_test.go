@@ -354,13 +354,57 @@ func TestRelocationCompleteReleasesTheSourceENB(t *testing.T) {
 		t.Error("the UE still holds PDN connections after moving to 5GS")
 	}
 
-	if _, still := m.LookupUeBySupi(ue.Supi()); still {
-		t.Error("the source MME kept the UE context after the handover completed")
+	// The command is outstanding: the eNB's Release Complete is the last message
+	// of the procedure and has to find its connection (TS 36.413 §10.6).
+	if _, still := m.LookupUeBySupi(ue.Supi()); !still {
+		t.Fatal("the UE context was destroyed before the eNB could answer the release command")
 	}
 
-	if err := m.RelocationComplete(context.Background(), ue.Supi(), id); err == nil {
-		t.Error("a second completion of the same attempt was accepted")
+	sent := source.count()
+
+	if err := m.RelocationComplete(context.Background(), ue.Supi(), id); err != nil {
+		t.Errorf("a repeated completion was refused: %v", err)
 	}
+
+	if source.count() != sent {
+		t.Error("a repeated completion sent a second UE Context Release Command")
+	}
+
+	answerRelease(t, m, source, ue)
+
+	if _, still := m.LookupUeBySupi(ue.Supi()); still {
+		t.Error("the source MME kept the UE context after the eNB released it")
+	}
+
+	if last, ok := lastPDU(t, source).(*s1ap.InitiatingMessage); ok && last.ProcedureCode == s1ap.ProcErrorIndication {
+		t.Error("the solicited Release Complete drew an Error Indication (TS 36.413 §10.6 makes it the last message)")
+	}
+}
+
+func answerRelease(t *testing.T, m *mme.MME, source *captureConn, ue *mme.UeContext) {
+	t.Helper()
+
+	conn := ue.Conn()
+	if conn == nil {
+		t.Fatal("the UE has no connection to release")
+	}
+
+	complete := &s1ap.UEContextReleaseComplete{
+		MMEUES1APID: s1ap.Ptr(conn.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(conn.ENBUES1APID),
+	}
+
+	b, err := complete.Marshal()
+	if err != nil {
+		t.Fatalf("marshal UE Context Release Complete: %v", err)
+	}
+
+	pdu, err := s1ap.Unmarshal(b)
+	if err != nil {
+		t.Fatalf("unmarshal UE Context Release Complete: %v", err)
+	}
+
+	HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(source), pdu.(*s1ap.SuccessfulOutcome).Value)
 }
 
 func TestHandoverToFiveGSGuardCancelsAUEThatNeverArrives(t *testing.T) {
@@ -421,8 +465,10 @@ func TestRelocationCompleteReleasesEvenWhenTheGuardFiredFirst(t *testing.T) {
 		t.Error("the UE kept its PDN connections after arriving on 5GS")
 	}
 
+	answerRelease(t, m, source, ue)
+
 	if _, still := m.LookupUeBySupi(ue.Supi()); still {
-		t.Error("the source MME kept the UE context after the handover completed")
+		t.Error("the source MME kept the UE context after the eNB released it")
 	}
 }
 

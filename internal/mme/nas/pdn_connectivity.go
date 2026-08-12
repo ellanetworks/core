@@ -321,6 +321,14 @@ func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, accept *ep
 
 	m.StopESMGuard(p)
 
+	// Without the mapped parameters the UE releases the PDN connection locally on
+	// a later move to 5GS (TS 23.502 §4.11.1.3.3 step 2), so this is the only
+	// warning that interworking is lost for it.
+	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
+		logger.MmeLog.Warn("UE discarded the mapped 5GS QoS parameters of the PDN connection",
+			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("5gsm-cause", cause))
+	}
+
 	logger.MmeLog.Info("additional PDN connection active",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("ebi", p.Ebi))
 

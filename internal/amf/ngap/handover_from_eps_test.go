@@ -482,3 +482,47 @@ func TestArrivalGuardUnwindsAUEThatNeverShowsUp(t *testing.T) {
 		t.Error("an abandoned arrival left a UE context behind")
 	}
 }
+
+// Core Network type restriction (TS 23.501 §5.3.4.1.1). Refusing during
+// preparation means the source eNB never sends a Handover Command, so the UE
+// stays on E-UTRAN with live bearers (TS 36.413 §8.4.1.3).
+func TestForwardRelocationRefusesASubscriberBarredFrom5GS(t *testing.T) {
+	sender := newArrivalSender()
+	smfSbi := &fakeSmfSbi{PrepareFromEPSResponse: []byte{0x09, 0x08}}
+
+	amfInstance := amf.New(&fakeDBInstance{Operator: arrivingOperator(), BarFrom5G: true}, nil, smfSbi)
+	amfInstance.EPS = &epsPeerStub{}
+
+	radio := &amf.Radio{Log: logger.AmfLog, Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+
+	target, err := amf.NGRANIdentityToNGAP(arrivingTarget())
+	if err != nil {
+		t.Fatalf("NGRANIdentityToNGAP: %v", err)
+	}
+
+	amfInstance.ClaimRanID(radio, target)
+
+	_, err = amfInstance.ForwardRelocation(context.Background(), arrivingRequest())
+	if err == nil {
+		t.Fatal("a subscriber barred from 5G was handed over into 5GS")
+	}
+
+	var refusal interworking.TargetRefusal
+	if !errors.As(err, &refusal) {
+		t.Fatalf("error = %v, want a TargetRefusal the MME can map to an S1AP cause", err)
+	}
+
+	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
+	if refusal.Cause != want {
+		t.Errorf("cause = %+v, want ho-target-not-allowed", refusal.Cause)
+	}
+
+	if len(sender.SentHandoverRequests) != 0 {
+		t.Error("the target gNB was asked to admit a barred subscriber")
+	}
+
+	if len(smfSbi.PrepareFromEPSCalls) != 0 {
+		t.Error("the SMF prepared sessions for a handover that was refused")
+	}
+}

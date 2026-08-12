@@ -754,7 +754,7 @@ func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscr
 }
 
 func (m *multiSliceDB) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile", UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
 func (m *multiSliceDB) ListAllNetworkSlices(_ context.Context) ([]db.NetworkSlice, error) {
@@ -1004,4 +1004,100 @@ func (fakeEPSPeer) RelocationCancel(context.Context, etsi.SUPI, interworking.Rel
 
 func (fakeEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.RelocationID) error {
 	return nil
+}
+
+// TS 24.501 §5.5.1.3.2 d) / §5.5.1.3.4 and TS 23.502 §4.11.1.3.3 step 14: a UE
+// that deactivated a mapped EPS bearer in S1 mode without telling the network
+// reports it here, and the AMF releases the corresponding PDU session. Nothing
+// else reconciles it — the status the AMF returns only ever makes the UE delete.
+func TestMobilityReg_ReleasesPDUSessionsTheUEDeactivatedInEPS(t *testing.T) {
+	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	for _, s := range []struct{ psi, ebi uint8 }{{1, 5}, {3, 6}} {
+		if err := ue.CreateSmContext(s.psi, fmt.Sprintf("ref-%d", s.psi), &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+			t.Fatalf("CreateSmContext: %v", err)
+		}
+
+		ue.SetEPSBearerIdentity(s.psi, s.ebi)
+	}
+
+	status := new(nas.EPSBearerContextStatus)
+	status.Active[5] = true
+
+	ue.Conn().ArrivedFromEPS = true
+	ue.Conn().RegistrationRequest.EPSBearerContextStatus = status
+	ue.Conn().MarkICSCompleted()
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if got := smf.ReleaseSmContextCalls; len(got) != 1 || got[0].SmContextRef != "ref-3" {
+		t.Errorf("released %v, want only the session of the bearer the UE dropped", got)
+	}
+
+	if _, still := ue.SmContextFindByPDUSessionID(3); still {
+		t.Error("the AMF kept the SM context of a released session, so its EBI is still reported active")
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.EPSBearerContextStatus == nil {
+		t.Fatal("no EPS bearer context status in the accept")
+	}
+
+	if !regAccept.EPSBearerContextStatus.Active[5] || regAccept.EPSBearerContextStatus.Active[6] {
+		t.Errorf("returned status %v, want only EBI 5 active", regAccept.EPSBearerContextStatus)
+	}
+}
+
+// The IE is scoped to the inter-system change (TS 24.501 §8.2.6.23). 5G-native
+// sessions also carry an EBI, in preparation for a later move to EPS, so acting
+// on the IE outside that scope would tear down live sessions.
+func TestMobilityReg_IgnoresTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *testing.T) {
+	ue, _, smf, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	if err := ue.CreateSmContext(3, "ref-3", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(3, 6)
+	ue.Conn().RegistrationRequest.EPSBearerContextStatus = new(nas.EPSBearerContextStatus)
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(smf.ReleaseSmContextCalls) != 0 {
+		t.Errorf("released %v on a registration that is not an inter-system change", smf.ReleaseSmContextCalls)
+	}
+}
+
+// Core Network type restriction (TS 23.501 §5.3.4.1.1): the bar has to hold for
+// the life of the registration, not only at the initial one.
+func TestMobilityReg_RejectsASubscriberBarredFrom5G(t *testing.T) {
+	ue, ngapSender, _, _ := buildMobilityRegUeAndAMF(t)
+
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator:  &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
+		BarFrom5G: true,
+	}, nil, &fakeSmf{})
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	// The reject goes out unprotected, so the message type is the third octet of
+	// the PDU itself.
+	pdu := ngapSender.SentDownlinkNASTransport[0].NASPDU
+	if len(pdu) < 3 || pdu[2] != uint8(fgs.MsgRegistrationReject) {
+		t.Fatalf("sent % x, want a Registration Reject", pdu)
+	}
 }

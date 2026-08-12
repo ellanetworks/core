@@ -28,6 +28,24 @@ var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Va
 // which is nil in ECM-IDLE and can become nil at any point. A nil dereference
 // panics the dispatch goroutine, and the dispatcher answers by aborting the
 // association, dropping every other UE on that eNB.
+// resolveUEQuiet resolves a UE-associated message that is the last message of
+// its logical connection: TS 36.413 §10.6 answers an unknown one with a local
+// release rather than an Error Indication, so the caller reports the miss
+// itself.
+func resolveUEQuiet(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
+	ue, ok := m.LookupUe(mmeID)
+	if !ok {
+		return nil, nil, false
+	}
+
+	ueConn := ue.Conn()
+	if ueConn == nil || ueConn.Conn() != conn || ueConn.ENBUES1APID != enbID {
+		return nil, nil, false
+	}
+
+	return ue, ueConn, true
+}
+
 func resolveUE(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	ue, ok := m.LookupUe(mmeID)
 	if !ok {

@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
 
@@ -101,6 +102,17 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		return none, fmt.Errorf("amf: resolve the subscriber profile: %w", err)
 	}
 
+	// Subscriber access control (Core Network type restriction, TS 23.501
+	// §5.3.4.1.1). Refusing during preparation leaves the UE on E-UTRAN with live
+	// bearers (TS 36.413 §8.4.1.3); admitting it and rejecting the follow-up
+	// registration would drop the sessions to reach the same place.
+	if !subscriberProfile.Allow5G {
+		return none, interworking.TargetRefusal{Cause: s1ap.Cause{
+			Group: s1ap.CauseGroupRadioNetwork,
+			Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
+		}}
+	}
+
 	snssaiList := subscriberProfile.AllowedNssai
 	if len(snssaiList) == 0 {
 		return none, fmt.Errorf("amf: %s is subscribed to no network slice", req.SUPI)
@@ -120,6 +132,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 	ue.SetSupi(req.SUPI)
 	ue.Ambr = &models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink}
 	ue.AllowedNssai = snssaiList
+	ue.SetAllow4G(subscriberProfile.Allow4G)
 	ue.smf = a.Session
 
 	if err := ue.InstallMappedSecurityContextFromEPS(mapped.Context, MintAuthProofForInterworking()); err != nil {

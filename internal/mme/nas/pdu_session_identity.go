@@ -27,6 +27,20 @@ func pduSessionIDFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) uint8 {
 	return 0
 }
 
+func fiveGSMCauseFromPCOs(pco, epco *nas.ProtocolConfigurationOptions) (uint8, bool) {
+	for _, opts := range []*nas.ProtocolConfigurationOptions{epco, pco} {
+		if opts == nil {
+			continue
+		}
+
+		if cause, ok := opts.FiveGSMCause(); ok {
+			return cause, true
+		}
+	}
+
+	return 0, false
+}
+
 func snssaiPCOContainer(snssai models.Snssai, plmn models.PlmnID) (nas.PCOContainer, error) {
 	ie := fgs.SNSSAI{SST: uint8(snssai.Sst)}
 

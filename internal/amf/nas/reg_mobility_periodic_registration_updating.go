@@ -59,6 +59,21 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
+	// Subscriber access control (Core Network type restriction, TS 23.501): the
+	// bar has to be re-evaluated here too, or a subscriber barred after it
+	// registered — or one that arrived on a handover from EPS — keeps 5G for the
+	// life of its context.
+	if !subscriberProfile.Allow5G {
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+
+		logger.From(ctx, logger.AmfLog).Info("registration update rejected: 5G not allowed for subscriber")
+
+		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
+		ue.Deregister(ctx)
+
+		return
+	}
+
 	if len(subscriberProfile.AllowedNssai) == 0 {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
@@ -86,6 +101,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	ue.Ambr = subscriberProfile.Ambr
 	ue.SetAllow4G(subscriberProfile.Allow4G)
+
+	releaseLocallyDeactivatedEPSBearers(ctx, amfInstance, ue, conn)
 
 	var (
 		reactivationResult        *[16]bool
@@ -314,4 +331,36 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 func movingFromEPC(req *fgs.RegistrationRequest) bool {
 	return req != nil && req.UEStatus != nil && req.UEStatus.S1ModeReg
+}
+
+// releaseLocallyDeactivatedEPSBearers acts on the EPS bearer context status a UE
+// sends when it deactivated a mapped bearer in S1 mode without telling the
+// network (TS 24.501 §5.5.1.3.2 d, §5.5.1.3.4; TS 23.502 §4.11.1.3.3 step 14).
+// Nothing else ever reconciles it: the UE only deletes on the status the AMF
+// returns, so the two views would never converge.
+func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) {
+	status := conn.RegistrationRequest.EPSBearerContextStatus
+	if status == nil || !conn.ArrivedFromEPS || amfInstance.EPS == nil {
+		return
+	}
+
+	for pduSessionID, ebi := range ue.EPSBearerIdentities() {
+		if int(ebi) < len(status.Active) && status.Active[ebi] {
+			continue
+		}
+
+		smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID)
+		if !ok {
+			continue
+		}
+
+		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("failed to release a PDU session the UE deactivated in EPS",
+				zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), zap.Uint8("ebi", ebi))
+
+			continue
+		}
+
+		ue.DeleteSmContext(pduSessionID)
+	}
 }
