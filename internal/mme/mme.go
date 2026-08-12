@@ -49,23 +49,23 @@ type credentialProvider interface {
 // SCTP association), the reconcile backstop, the status/detach API, and timer
 // callbacks. Three locks, acquired in this order and never reversed:
 //
-//	DownlinkSender  →  MME.mu  →  UeContext.mu
+//		DownlinkSender  →  MME.mu  →  UeContext.mu
 //
-//   - MME.mu guards the registry and lifecycle: the UEs/uesByTmsi/radios maps, the
-//     MME-UE-S1AP-ID and M-TMSI allocators, each UE's S1-connection fields (conn,
-//     MME/ENB-UE-S1AP-IDs, releasing), and the idle/paging/NAS-guard timers with
-//     their generation counters. ue.active is swapped under MME.mu on bind/release
-//     but is an atomic.Pointer, so the hot path reads it lock-free via Conn().
-//   - UeContext.mu guards that UE's data: emmState, imsi, the EPS NAS security
-//     context (keys, uplink NAS COUNT, NH/NCC chain), and the PDN/bearer state
-//     (pdns, defaultEBI, in-flight modification flags). The security context is
-//     reached only through chokepoint methods (installNASSecurityContext,
-//     tryUnprotectUplink, deriveInitialKeNB, markSecured, Snapshot) and the
-//     downlink sender. ECM state is derived from ue.active.
-//   - The nas.DownlinkSender lock (ue.downlink()) makes taking a downlink NAS COUNT
-//     and writing the message that carries it one step, so messages cannot be
-//     written out of COUNT order — the UE would fail their integrity check
-//     (TS 24.301 §4.4.3.1, §4.4.3.3).
+//	  - MME.mu guards the registry and lifecycle: the UEs/uesByTmsi/radios maps, the
+//	    MME-UE-S1AP-ID and M-TMSI allocators, each UE's S1-connection fields (conn,
+//	    MME/ENB-UE-S1AP-IDs, releasing), and the idle/paging/NAS-guard timers with
+//	    their generation counters. ue.active is swapped under MME.mu on bind/release
+//	    but is an atomic.Pointer, so the hot path reads it lock-free via Conn().
+//	  - UeContext.mu guards that UE's data: emmState, imsi, the EPS NAS security
+//	    context (keys, uplink NAS COUNT, NH/NCC chain), and the PDN/bearer state
+//	    (pdns, defaultEBI, in-flight modification flags). The security context is
+//	    reached only through chokepoint methods (installNASSecurityContext,
+//	    tryUnprotectUplink, deriveInitialKeNB, markSecured, Snapshot) and the
+//	    downlink sender. ECM state is derived from ue.active.
+//	  - The nas.DownlinkSender lock (ue.downlink()) makes taking a downlink NAS COUNT
+//	    and writing the message that carries it one step, so messages cannot be
+//	    written out of COUNT order — the UE would fail their integrity check
+//	    (TS 24.301 §4.4.3.1, §4.4.3.3).
 //
 // Never hold MME.mu or UeContext.mu across an external call (SMF, DB, SCTP send):
 // snapshot, release, then send. The DownlinkSender's lock is the exception — it is
