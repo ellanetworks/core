@@ -82,6 +82,21 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 		}
 	}
 
+	// The NAS-PDU is optional (TS 38.413 §9.2.2.1); a request that carries none
+	// sets up the context alone. Forward it to the UE before sending the
+	// InitialContextSetupResponse so the UE processes downlink NAS messages in
+	// the same order the AMF sent them (TS 24.501 §4.4.3.1).
+	if req.NASPDU != nil {
+		ue, err := gnb.LoadUE(ranUEID)
+		if err != nil {
+			return fmt.Errorf("cannot find UE for NAS-PDU: %v", err)
+		}
+
+		if err := ue.SendDownlinkNAS([]byte(*req.NASPDU), amfUEID, ranUEID); err != nil {
+			return fmt.Errorf("could not deliver NAS-PDU to UE: %v", err)
+		}
+	}
+
 	err = gnb.SendInitialContextSetupResponse(&InitialContextSetupResponseOpts{
 		AMFUENGAPID: amfUEID,
 		RANUENGAPID: ranUEID,
@@ -94,21 +109,6 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 	logger.GnbLogger.Debug(
 		"Sent Initial Context Setup Response",
 	)
-
-	// The NAS-PDU is optional (TS 38.413 §9.2.2.1); a request that carries none
-	// sets up the context alone.
-	if req.NASPDU == nil {
-		return nil
-	}
-
-	ue, err := gnb.LoadUE(ranUEID)
-	if err != nil {
-		return fmt.Errorf("cannot find UE for DownlinkNASTransport message: %v", err)
-	}
-
-	if err := ue.SendDownlinkNAS([]byte(*req.NASPDU), amfUEID, ranUEID); err != nil {
-		return fmt.Errorf("HandleDownlinkNASTransport failed: %v", err)
-	}
 
 	return nil
 }
