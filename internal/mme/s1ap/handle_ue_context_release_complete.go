@@ -37,8 +37,11 @@ func HandleUEContextReleaseComplete(m *mme.MME, ctx context.Context, radio *mme.
 		return
 	}
 
-	ue, ueConn, ok := resolveUE(m, radio.Conn, mmeUEID, enbUEID)
+	ue, ueConn, ok := resolveUEQuiet(m, radio.Conn, mmeUEID, enbUEID)
 	if !ok {
+		logger.MmeLog.Info("UE Context Release Complete for a connection the MME no longer holds",
+			zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.Uint32("enb-ue-id", uint32(enbUEID)))
+
 		return
 	}
 

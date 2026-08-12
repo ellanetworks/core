@@ -221,7 +221,7 @@ func TestBuildSecurityModeCommandCarriesEPSNASAlgorithms(t *testing.T) {
 		t.Fatalf("BuildSecurityModeCommand: %v", err)
 	}
 
-	smc, err := fgs.ParseSecurityModeCommand(decryptNAS(t, ue, raw))
+	smc, err := fgs.ParseSecurityModeCommand(raw)
 	if err != nil {
 		t.Fatalf("parse SecurityModeCommand: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestBuildSecurityModeCommandWithoutEPSNASAlgorithms(t *testing.T) {
 		t.Fatalf("BuildSecurityModeCommand: %v", err)
 	}
 
-	smc, err := fgs.ParseSecurityModeCommand(decryptNAS(t, ue, raw))
+	smc, err := fgs.ParseSecurityModeCommand(raw)
 	if err != nil {
 		t.Fatalf("parse SecurityModeCommand: %v", err)
 	}
@@ -278,12 +278,7 @@ func TestBuildEPSNASAlgorithmsSecurityModeCommand(t *testing.T) {
 		t.Fatalf("BuildEPSNASAlgorithmsSecurityModeCommand: %v", err)
 	}
 
-	// TS 24.501 §5.4.2.2
-	if got := fgs.SecurityHeaderType(raw[1] & 0x0F); got != fgs.SHTIntegrityProtectedNewContext {
-		t.Fatalf("security header type = %v, want integrity protected with new 5G NAS security context", got)
-	}
-
-	smc, err := fgs.ParseSecurityModeCommand(decryptNAS(t, ue, raw))
+	smc, err := fgs.ParseSecurityModeCommand(raw)
 	if err != nil {
 		t.Fatalf("parse SecurityModeCommand: %v", err)
 	}

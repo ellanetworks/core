@@ -68,9 +68,6 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
-	// Subscriber access control (Core Network type restriction, TS 23.501):
-	// if the profile does not permit 5G, reject with 5GMM cause #7 "5GS services
-	// not allowed" (TS 24.501).
 	if !subscriberProfile.Allow5G {
 		ueConn := ue.Conn()
 		if ueConn == nil {
@@ -149,7 +146,13 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
+	pduSessionStatus, err := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
+	if err != nil {
+		abortRegistration(ctx, amfInstance, ue, "synchronise PDU session status", err)
+		return
+	}
+
 	metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-	amf.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
+	amf.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 }

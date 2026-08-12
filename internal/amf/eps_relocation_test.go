@@ -85,10 +85,7 @@ func TestTransferableEPSSessionsSkipsASessionWithNoBearerIdentity(t *testing.T) 
 func TestBuildForwardRelocationRequest(t *testing.T) {
 	ue := relocatableUE(t)
 
-	consumed, err := ue.NextDownlinkCountForTest()
-	if err != nil {
-		t.Fatalf("downlink counter: %v", err)
-	}
+	consumed := ue.NextDownlinkCountForTest()
 
 	req, mapped, err := ue.BuildForwardRelocationRequest(testTarget, []byte{0xaa, 0xbb}, []uint8{1}, nil)
 	if err != nil {
@@ -136,19 +133,13 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 func TestBuildForwardRelocationRequestWithoutSessions(t *testing.T) {
 	ue := mappableUE(t)
 
-	before, err := ue.NextDownlinkCountForTest()
-	if err != nil {
-		t.Fatalf("downlink counter: %v", err)
-	}
+	before := ue.NextDownlinkCountForTest()
 
 	if _, _, err := ue.BuildForwardRelocationRequest(testTarget, nil, []uint8{1}, nil); !errors.Is(err, amf.ErrNoTransferableSessions) {
 		t.Fatalf("error = %v, want ErrNoTransferableSessions", err)
 	}
 
-	after, err := ue.NextDownlinkCountForTest()
-	if err != nil {
-		t.Fatalf("downlink counter: %v", err)
-	}
+	after := ue.NextDownlinkCountForTest()
 
 	if after != before {
 		t.Fatal("a refused handover must not consume a downlink NAS COUNT")

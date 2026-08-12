@@ -61,14 +61,15 @@ func TestCreateEPSSessionWithoutAnIdentity(t *testing.T) {
 	}
 }
 
-func TestCreateEPSSessionDropsADuplicateIdentity(t *testing.T) {
+func TestCreateEPSSessionSupersedesTheHolderOfADuplicateIdentity(t *testing.T) {
 	store, upf := epsTestSMF()
 	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
 
 	first := epsRequest(1)
 	first.PDUSessionID = 3
 
-	if _, err := s.CreateEPSSession(context.Background(), first); err != nil {
+	firstBearer, err := s.CreateEPSSession(context.Background(), first)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -78,11 +79,11 @@ func TestCreateEPSSessionDropsADuplicateIdentity(t *testing.T) {
 
 	bearer, err := s.CreateEPSSession(context.Background(), second)
 	if err != nil {
-		t.Fatalf("the second connection was refused rather than anchored without the identity: %v", err)
+		t.Fatalf("the second connection was refused: %v", err)
 	}
 
-	if bearer.PDUSessionID != 0 {
-		t.Errorf("bearer.PDUSessionID = %d, want 0: the identity was already held", bearer.PDUSessionID)
+	if bearer.PDUSessionID != 3 {
+		t.Errorf("bearer.PDUSessionID = %d, want the identity the UE asked for", bearer.PDUSessionID)
 	}
 
 	sc := s.GetSession(bearer.Ref)
@@ -90,12 +91,16 @@ func TestCreateEPSSessionDropsADuplicateIdentity(t *testing.T) {
 		t.Fatal("second session not in the pool")
 	}
 
-	if sc.PDUSessionID != 0 || sc.EBI != epsTestEBI+1 {
-		t.Errorf("session identity = %s, want the EPS bearer identity alone", sc.SessionIdentity)
+	if sc.PDUSessionID != 3 || sc.EBI != epsTestEBI+1 {
+		t.Errorf("session identity = %s, want both identities intact", sc.SessionIdentity)
 	}
 
-	if s.SessionCount() != 2 {
-		t.Fatalf("expected 2 sessions, got %d", s.SessionCount())
+	if s.GetSession(firstBearer.Ref) != nil {
+		t.Error("the session holding the duplicate identity survived")
+	}
+
+	if s.SessionCount() != 1 {
+		t.Fatalf("expected 1 session, got %d", s.SessionCount())
 	}
 }
 
@@ -145,5 +150,31 @@ func TestCreateEPSSessionReportsTheNarrowedFamily(t *testing.T) {
 	var pdnErr *models.PDNTypeError
 	if !errors.As(err, &pdnErr) || pdnErr.Cause != eps.ESMCausePDNTypeIPv4OnlyAllowed {
 		t.Errorf("drew %v, want ESM cause #50 IPv4 only allowed", err)
+	}
+}
+
+func TestCreateEPSSessionSupersedesALiveFiveGSHolder(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	existing := establish5GS(t, s)
+
+	req := epsRequest(1)
+	req.PDUSessionID = existing.PDUSessionID
+
+	bearer, err := s.CreateEPSSession(ctx, req)
+	if err != nil {
+		t.Fatalf("CreateEPSSession: %v", err)
+	}
+
+	if bearer.PDUSessionID != existing.PDUSessionID {
+		t.Errorf("bearer.PDUSessionID = %d, want the identity the UE asked for %d", bearer.PDUSessionID, existing.PDUSessionID)
+	}
+
+	if s.GetSession(existing.Ref) != nil {
+		t.Error("the 5GS session holding the identity survived")
 	}
 }

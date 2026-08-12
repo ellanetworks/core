@@ -27,7 +27,7 @@ func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}
 	qos := &models.QosData{QFI: 1, Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}}
 
-	encoded, err := smfNas.BuildPDUSessionModificationCommand(1, ambr, qos, nil)
+	encoded, err := smfNas.BuildPDUSessionModificationCommand(1, ambr, qos, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestBuildPDUSessionModificationCommand_WithDNS(t *testing.T) {
 }
 
 func TestBuildPDUSessionModificationCommand_AllNil(t *testing.T) {
-	if _, err := smfNas.BuildPDUSessionModificationCommand(1, nil, nil, nil); err == nil {
+	if _, err := smfNas.BuildPDUSessionModificationCommand(1, nil, nil, nil, 0, nil); err == nil {
 		t.Fatal("expected error when all inputs are nil")
 	}
 }
@@ -97,7 +97,7 @@ func TestBuildPDUSessionModificationCommand_AllNil(t *testing.T) {
 func mustBuildModCmd(t *testing.T, psi uint8, ambr *models.Ambr, qos *models.QosData, dns net.IP) []byte {
 	t.Helper()
 
-	b, err := smfNas.BuildPDUSessionModificationCommand(psi, ambr, qos, dns)
+	b, err := smfNas.BuildPDUSessionModificationCommand(psi, ambr, qos, dns, 0, nil)
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}

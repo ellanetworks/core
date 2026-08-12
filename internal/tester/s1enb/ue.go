@@ -50,6 +50,7 @@ type UE struct {
 	eia                       uint8
 	ulCount                   uint8           // uplink NAS COUNT for protected uplink messages
 	dlCount                   downlinkCounter // largest downlink NAS COUNT accepted
+	kenbCount                 uint32
 	contextFromAuthentication bool
 	pti                       nas.ProcedureTransactionIdentity // last ESM procedure transaction identity used (attach uses 1)
 }
@@ -247,6 +248,8 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("protect Security Mode Complete: %w", err)
 	}
+
+	ue.kenbCount = uint32(ue.ulCount)
 
 	ue.ulCount++
 

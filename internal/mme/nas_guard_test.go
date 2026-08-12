@@ -6,6 +6,8 @@ package mme
 import (
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/nas/eps"
 )
 
 // TestNASGuardRetransmitsThenReleases confirms an unanswered guarded procedure
@@ -18,7 +20,7 @@ func TestNASGuardRetransmitsThenReleases(t *testing.T) {
 
 	ue, cc := securedUE(t, m)
 
-	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52})
+	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
 
 	// Two retransmissions plus the UE Context Release Command. Wait for all three
 	// sends rather than the releasing flag, which releaseUEContext sets just before
@@ -40,7 +42,7 @@ func TestNASGuardAbortOnlyRunsFinalizer(t *testing.T) {
 
 	finalized := make(chan struct{}, 1)
 
-	ue.Conn().ArmNASGuardAbortOnly("Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, func() {
+	ue.Conn().ArmNASGuardAbortOnly("Deactivate EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func() {
 		finalized <- struct{}{}
 	})
 
@@ -76,7 +78,7 @@ func TestESMGuardUsesESMTimeout(t *testing.T) {
 
 	finalized := make(chan struct{}, 1)
 
-	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, func() {
+	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func() {
 		finalized <- struct{}{}
 	})
 
@@ -109,8 +111,8 @@ func TestPerBearerESMGuardsAreIndependent(t *testing.T) {
 	a1 := make(chan struct{}, 1)
 	a2 := make(chan struct{}, 1)
 
-	m.ArmESMGuardAbortOnly(ue, p1, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, func() { a1 <- struct{}{} })
-	m.ArmESMGuardAbortOnly(ue, p2, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xcd}, func() { a2 <- struct{}{} })
+	m.ArmESMGuardAbortOnly(ue, p1, "Modify EPS Bearer Context Request", []byte{0x07, 0xc9}, eps.SHTIntegrityProtectedCiphered, func() { a1 <- struct{}{} })
+	m.ArmESMGuardAbortOnly(ue, p2, "Deactivate EPS Bearer Context Request", []byte{0x07, 0xcd}, eps.SHTIntegrityProtectedCiphered, func() { a2 <- struct{}{} })
 
 	for i, ch := range []chan struct{}{a1, a2} {
 		select {
@@ -130,7 +132,7 @@ func TestNASGuardStoppedByResponse(t *testing.T) {
 
 	ue, cc := securedUE(t, m)
 
-	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52})
+	ue.Conn().ArmNASGuard("Authentication Request", []byte{0x07, 0x52}, eps.SHTIntegrityProtectedCiphered)
 	ue.Conn().StopNASGuard()
 
 	// The guard is cancelled, so after the timeout window nothing mutates the UE.

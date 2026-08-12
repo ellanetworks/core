@@ -59,7 +59,7 @@ func TestBuildHandoverRequestTransfer(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	addr := netip.MustParseAddr("10.3.0.2")
 
-	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, libngap.PDUSessionTypeIPv4)
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, libngap.PDUSessionTypeIPv4, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestBuildHandoverRequestTransfer(t *testing.T) {
 }
 
 func TestBuildHandoverRequestTransfer_NilAmbr(t *testing.T) {
-	_, err := ngap.BuildHandoverRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4)
+	_, err := ngap.BuildHandoverRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil)
 	if err == nil {
 		t.Fatal("expected error for nil ambr")
 	}
@@ -338,5 +338,55 @@ func TestQosFlowARPPreemptionDefaults(t *testing.T) {
 				t.Errorf("pre-emption vulnerability = %v, want %v", arp.PreemptionVulnerability, tc.wantVuln)
 			}
 		})
+	}
+}
+
+// TS 23.502 §4.11.1.2.2.2 step 7
+func TestBuildHandoverRequestTransferCarriesTheERABID(t *testing.T) {
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("2 Mbps")}
+	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
+	ebi := uint8(5)
+
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, &ebi)
+	if err != nil {
+		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
+	}
+
+	transfer, err := libngap.ParsePDUSessionResourceSetupRequestTransfer(buf)
+	if err != nil {
+		t.Fatalf("parse the transfer: %v", err)
+	}
+
+	if len(transfer.QosFlowSetupRequest) != 1 {
+		t.Fatalf("QoS flows = %d, want 1", len(transfer.QosFlowSetupRequest))
+	}
+
+	got := transfer.QosFlowSetupRequest[0].ERABID
+	if got == nil {
+		t.Fatal("no E-RAB ID, so the target cannot map the QoS flow back to its EPS bearer")
+	}
+
+	if uint8(*got) != ebi {
+		t.Errorf("E-RAB ID = %d, want the EPS bearer identity %d", *got, ebi)
+	}
+}
+
+// An intra-5GS handover has no EPS bearer, so the optional IE stays absent.
+func TestBuildHandoverRequestTransferOmitsTheERABIDWithoutABearer(t *testing.T) {
+	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("2 Mbps")}
+	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}
+
+	buf, err := ngap.BuildHandoverRequestTransfer(ambr, qos, 42, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, libngap.PDUSessionTypeIPv4, nil)
+	if err != nil {
+		t.Fatalf("BuildHandoverRequestTransfer: %v", err)
+	}
+
+	transfer, err := libngap.ParsePDUSessionResourceSetupRequestTransfer(buf)
+	if err != nil {
+		t.Fatalf("parse the transfer: %v", err)
+	}
+
+	if transfer.QosFlowSetupRequest[0].ERABID != nil {
+		t.Error("an intra-5GS handover carried an E-RAB ID")
 	}
 }

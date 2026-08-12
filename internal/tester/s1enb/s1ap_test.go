@@ -15,7 +15,7 @@ func TestPLMNOctets(t *testing.T) {
 		want     s1ap.PLMNIdentity
 	}{
 		{"001", "01", s1ap.PLMNIdentity{0x00, 0xf1, 0x10}},  // 2-digit MNC
-		{"310", "260", s1ap.PLMNIdentity{0x13, 0x20, 0x06}}, // 3-digit MNC
+		{"310", "260", s1ap.PLMNIdentity{0x13, 0x00, 0x62}}, // 3-digit MNC
 		{"208", "93", s1ap.PLMNIdentity{0x02, 0xf8, 0x39}},  // 2-digit MNC
 	}
 

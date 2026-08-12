@@ -9,49 +9,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 // plmnOctets encodes an MCC/MNC pair as the 3-octet TBCD PLMN identity
 // (TS 24.008 §10.5.1.3 / TS 23.003). E.g. 001/01 -> {0x00, 0xf1, 0x10}.
 func plmnOctets(mcc, mnc string) (s1ap.PLMNIdentity, error) {
-	if len(mcc) != 3 || (len(mnc) != 2 && len(mnc) != 3) {
-		return s1ap.PLMNIdentity{}, fmt.Errorf("s1enb: invalid MCC/MNC %q/%q", mcc, mnc)
+	octets, err := nas.PLMN{MCC: mcc, MNC: mnc}.Octets()
+	if err != nil {
+		return s1ap.PLMNIdentity{}, fmt.Errorf("s1enb: invalid MCC/MNC %q/%q: %w", mcc, mnc, err)
 	}
 
-	var d [6]byte
-
-	for i := 0; i < 3; i++ {
-		if mcc[i] < '0' || mcc[i] > '9' {
-			return s1ap.PLMNIdentity{}, fmt.Errorf("s1enb: non-digit MCC %q", mcc)
-		}
-
-		d[i] = mcc[i] - '0'
-	}
-
-	for i := 0; i < len(mnc); i++ {
-		if mnc[i] < '0' || mnc[i] > '9' {
-			return s1ap.PLMNIdentity{}, fmt.Errorf("s1enb: non-digit MNC %q", mnc)
-		}
-
-		d[3+i] = mnc[i] - '0' // #nosec: G602 -- len(mnc) is 2 or 3 (checked above), so 3+i ≤ 5
-	}
-
-	var p s1ap.PLMNIdentity
-
-	// Nibble order matches the MME's encodePLMN (TS 23.003): octet 1 = MCC2|MCC1,
-	// octet 2 = (MNC1 or filler)|MCC3, octet 3 = MNC3|MNC2 for a 3-digit MNC, or
-	// MNC2|MNC1 for a 2-digit MNC.
-	p[0] = d[1]<<4 | d[0]
-	if len(mnc) == 2 {
-		p[1] = 0xf0 | d[2]
-		p[2] = d[4]<<4 | d[3]
-	} else {
-		p[1] = d[3]<<4 | d[2]
-		p[2] = d[5]<<4 | d[4]
-	}
-
-	return p, nil
+	return s1ap.PLMNIdentity(octets), nil
 }
 
 func parseTAC(s string) (uint16, error) {

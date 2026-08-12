@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/epskeys"
@@ -14,14 +15,27 @@ import (
 
 // TS 33.501 §8.3.2 step 4
 func (ue *UeContext) InstallRelocatedSecurityContext(in interworking.EPSSecurityContext, _ AuthProof) error {
+	sc, err := ue.installRelocatedKeys(in)
+	if err != nil {
+		ue.downlink().Clear()
+
+		return err
+	}
+
+	ue.downlink().Install(sc, nas.NewDownlinkCounter(in.DLNASCount))
+
+	return nil
+}
+
+func (ue *UeContext) installRelocatedKeys(in interworking.EPSSecurityContext) (*nas.SecurityContext, error) {
 	knasEnc, err := epskeys.DeriveKNASEnc(in.KASME[:], in.Algorithms.Ciphering)
 	if err != nil {
-		return fmt.Errorf("mme: derive K_NASenc: %w", err)
+		return nil, fmt.Errorf("mme: derive K_NASenc: %w", err)
 	}
 
 	knasInt, err := epskeys.DeriveKNASInt(in.KASME[:], in.Algorithms.Integrity)
 	if err != nil {
-		return fmt.Errorf("mme: derive K_NASint: %w", err)
+		return nil, fmt.Errorf("mme: derive K_NASint: %w", err)
 	}
 
 	ue.mu.Lock()
@@ -33,21 +47,61 @@ func (ue *UeContext) InstallRelocatedSecurityContext(in interworking.EPSSecurity
 	ue.knasEnc, ue.knasInt = knasEnc, knasInt
 
 	ue.ulCount = nas.NewUplinkCounter(in.ULNASCount)
-	ue.dlCount = nas.NewDownlinkCounter(in.DLNASCount)
 
 	ue.nh, ue.ncc = in.NH, in.NCC
 
 	ue.ueNetCap = relocatedNetworkCapability(in.UESecurityCapability)
+	ue.ue5GSecurityCapability = in.UE5GSecurityCapability
 
 	ue.secured = true
 
-	if err := ue.installSecurityContextLocked(); err != nil {
+	sc, err := ue.installSecurityContextLocked()
+	if err != nil {
 		ue.secured = false
 
-		return fmt.Errorf("mme: install relocated EPS NAS security context: %w", err)
+		return nil, fmt.Errorf("mme: install relocated EPS NAS security context: %w", err)
 	}
 
-	return nil
+	return sc, nil
+}
+
+var ErrNoEPSSecurityContext = errors.New("mme: UE has no current EPS NAS security context")
+
+func (ue *UeContext) EPSSecurityContextForRelocation() (interworking.EPSSecurityContext, error) {
+	dlCount := ue.downlink().Next()
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if !ue.secured || len(ue.kasme) != len(interworking.EPSSecurityContext{}.KASME) {
+		return interworking.EPSSecurityContext{}, ErrNoEPSSecurityContext
+	}
+
+	var kasme [32]byte
+
+	copy(kasme[:], ue.kasme)
+
+	return interworking.EPSSecurityContext{
+		KASME:                  kasme,
+		EKSI:                   ue.eksi,
+		ULNASCount:             ue.ulCount.LastAccepted(),
+		DLNASCount:             dlCount,
+		Algorithms:             interworking.EPSNASAlgorithms{Ciphering: ue.cipheringAlg, Integrity: ue.integrityAlg},
+		UESecurityCapability:   relocatedSecurityCapability(ue.ueNetCap),
+		NH:                     ue.nh,
+		NCC:                    ue.ncc,
+		UE5GSecurityCapability: ue.ue5GSecurityCapability,
+	}, nil
+}
+
+func relocatedSecurityCapability(c eps.UENetworkCapability) eps.UESecurityCapability {
+	return eps.UESecurityCapability{
+		EEA:     c.EEA,
+		EIA:     c.EIA,
+		HasUMTS: c.HasUMTS,
+		UEA:     c.UEA,
+		UIA:     c.UIA,
+	}
 }
 
 func relocatedNetworkCapability(c eps.UESecurityCapability) eps.UENetworkCapability {

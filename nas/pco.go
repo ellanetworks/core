@@ -24,6 +24,11 @@ const (
 	// allocated for the PDN connection (TS 24.007 §11.2.3.1b).
 	PCOContainerPDUSessionID uint16 = 0x001A
 	PCOContainerSNSSAI       uint16 = 0x001B
+
+	// PCOContainerFiveGSMCause is MS to network: the 5GSM cause the UE returns
+	// when it rejects the mapped 5GS QoS parameters of an ESM accept
+	// (TS 24.008 §10.5.6.3, TS 24.501 §6.1.4.1). It is Reserved network to MS.
+	PCOContainerFiveGSMCause uint16 = 0x0022
 )
 
 // The mapped 5GS QoS parameters of a PDN connection, network to MS
@@ -329,6 +334,24 @@ func (p ProtocolConfigurationOptions) PDUSessionID() (uint8, bool) {
 
 	for _, c := range p.Containers {
 		if c.ID == PCOContainerPDUSessionID && len(c.Content) == 1 && c.Content[0] >= 1 && c.Content[0] <= 15 {
+			return c.Content[0], true
+		}
+	}
+
+	return 0, false
+}
+
+// FiveGSMCause reports the 5GSM cause the MS returned, if any. A UE that
+// diagnoses an error in the mapped 5GS QoS parameters still accepts the ESM
+// procedure and reports the cause here, having discarded those parameters
+// (TS 24.501 §6.1.4.1).
+func (p ProtocolConfigurationOptions) FiveGSMCause() (uint8, bool) {
+	if p.Direction != PCOMSToNetwork {
+		return 0, false
+	}
+
+	for _, c := range p.Containers {
+		if c.ID == PCOContainerFiveGSMCause && len(c.Content) == 1 {
 			return c.Content[0], true
 		}
 	}

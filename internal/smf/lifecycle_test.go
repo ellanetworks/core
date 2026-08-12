@@ -72,8 +72,18 @@ func buildPDUSessionModificationRequest(pduSessionID, pti uint8) []byte {
 func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	t.Helper()
 
+	return setupSessionWithTunnelIdentity(t, s, smf.SessionIdentity{PDUSessionID: 1})
+}
+
+func setupSessionWithTunnelIdentity(t *testing.T, s *smf.SMF, id smf.SessionIdentity) (*smf.SMContext, string) {
+	t.Helper()
+
 	supi := testSUPI()
-	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
+
+	smCtx, err := s.NewSession(supi, smf.Access5G, id, testDNN, testSnssai)
+	if err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
 
 	s.AssignPFCPSession(smCtx, 100)
 	smCtx.PFCPContext.Established = true
@@ -1244,12 +1254,12 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	call := amfCb.modifyCalls[0]
 	amfCb.mu.Unlock()
 
-	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil)
+	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("build old policy modification command: %v", err)
 	}
 
-	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("300 Mbps")}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
+	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("200 Mbps"), Downlink: models.MustParseBitRate("300 Mbps")}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("build new policy modification command: %v", err)
 	}
@@ -1303,7 +1313,7 @@ func TestReconcileSmContext_AmbrOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 300000/400000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")}, nil, nil)
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: models.MustParseBitRate("300 Mbps"), Downlink: models.MustParseBitRate("400 Mbps")}, nil, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -1340,7 +1350,7 @@ func TestReconcileSmContext_QoSOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 100000/200000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -2284,9 +2294,13 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 // buildHandoverRequestAcknowledgeTransfer builds an APER-encoded
 // HandoverRequestAcknowledgeTransfer with the given target gNB DL GTP tunnel info.
 func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, error) {
+	return buildHandoverRequestAcknowledgeTransferWithQFI(teid, ip, models.DefaultQFI)
+}
+
+func buildHandoverRequestAcknowledgeTransferWithQFI(teid uint32, ip net.IP, qfi uint8) ([]byte, error) {
 	transfer := libngap.HandoverRequestAcknowledgeTransfer{
 		DLNGUUPTNLInformation: testTunnel(teid, ip),
-		QosFlowSetupResponse:  libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
+		QosFlowSetupResponse:  libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: libngap.QosFlowIdentifier(qfi)}},
 	}
 
 	b, err := transfer.Marshal()
@@ -2294,10 +2308,7 @@ func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, er
 	return b, err
 }
 
-// TestUpdateSmContextN1Msg_ModificationRejected verifies that a UE-requested PDU
-// Session Modification Request is answered with a PDU Session Modification Reject
-// echoing the request's PTI (TS 24.501 §6.4.2.4, §7.3.1), and that the session is
-// not torn down.
+// TS 24.501 §6.4.2.4, §7.3.1
 func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

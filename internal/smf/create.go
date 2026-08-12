@@ -130,9 +130,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return ref, rsp, err
 	}
 
-	if existing := s.currentPDUSession(supi, pduSessionID); existing != nil {
-		s.handlePduSessionContextReplacement(ctx, existing, Access5G)
-	}
+	s.supersedeIdentityHolders(ctx, supi, SessionIdentity{PDUSessionID: pduSessionID, EBI: epsBearerIdentity}, Access5G)
 
 	policy, err := s.GetSessionPolicy(ctx, supi, snssai, dnn)
 	if err != nil {
@@ -255,6 +253,7 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 
 	// Stop the superseded context's outstanding procedure retransmission.
 	smCtxt.stopProcedureTimer()
+	smCtxt.abandonPendingLocked()
 	s.RemoveSession(ctx, smCtxt.Ref)
 	smCtxt.Mutex.Unlock()
 

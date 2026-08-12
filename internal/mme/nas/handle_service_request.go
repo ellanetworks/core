@@ -89,7 +89,9 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	sendInitialContextSetup(ctx, m, ue, c, qos, nil)
+	if ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, c, qos); ok {
+		_ = sendInitialContextSetup(ctx, c, ics, carrier, nil)
+	}
 
 	// The SERVICE REQUEST carries no accept message to convey a fresh GUTI, so reassign
 	// one with the standalone reallocation procedure — identity confidentiality on return

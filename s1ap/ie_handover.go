@@ -67,12 +67,10 @@ func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 }
 
 // Direct-Forwarding-Path-Availability ::= ENUMERATED { directPathAvailable,
-// ... } (TS 36.413 §9.2.1.44). The source eNB sets it in HANDOVER REQUIRED to
+// ... } (TS 36.413 §9.2.3.15). The source eNB sets it in HANDOVER REQUIRED to
 // report that a direct forwarding path to the target is available; absent means
 // it is not. It is what the core needs to choose between direct and indirect
-// forwarding, and on an EPS to 5GS handover it is what the SMF turns into the
-// "Direct Forwarding Path Availability" indication of the N2 SM information
-// (TS 23.502 §4.11.1.2.2.2 step 4).
+// forwarding.
 type DirectForwardingPathAvailability uint8
 
 const (

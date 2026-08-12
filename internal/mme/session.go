@@ -127,6 +127,10 @@ func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref st
 
 	// TS 23.502 §4.11.2.3
 	if last {
+		if _, relocating := m.RelocationToFiveGS(ue); relocating {
+			return
+		}
+
 		ue.TransitionTo(EMMDeregistered)
 		m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
 	}

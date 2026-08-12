@@ -58,9 +58,6 @@ func TestRANNodeIDToModels(t *testing.T) {
 	}
 }
 
-// GUAMIToNGAP splits the AMF id into the three NGAP fields, which is what
-// decides the GUAMI a gNB sees in NG Setup Response. Expectations produced
-// out-of-band as above.
 func TestGUAMIToNGAP(t *testing.T) {
 	tests := []struct {
 		amfID      string
@@ -100,9 +97,7 @@ func TestGUAMIToNGAP(t *testing.T) {
 	}
 }
 
-// The BCD encoding of a PLMN differs between two- and three-digit MNCs
-// (TS 38.413 §9.3.3.5), and a wrong filler nibble makes a gNB unreachable.
-// Expectations produced out-of-band as above.
+// S 38.413 §9.3.3.5, TS 24.008 §10.5.1.3
 func TestPLMNRoundTrip(t *testing.T) {
 	tests := []struct {
 		plmn models.PlmnID
@@ -110,7 +105,9 @@ func TestPLMNRoundTrip(t *testing.T) {
 	}{
 		{models.PlmnID{Mcc: "208", Mnc: "93"}, ngap.PLMNIdentity{0x02, 0xf8, 0x39}},
 		{models.PlmnID{Mcc: "001", Mnc: "01"}, ngap.PLMNIdentity{0x00, 0xf1, 0x10}},
-		{models.PlmnID{Mcc: "310", Mnc: "260"}, ngap.PLMNIdentity{0x13, 0x20, 0x06}},
+		{models.PlmnID{Mcc: "310", Mnc: "260"}, ngap.PLMNIdentity{0x13, 0x00, 0x62}},
+		{models.PlmnID{Mcc: "310", Mnc: "410"}, ngap.PLMNIdentity{0x13, 0x00, 0x14}},
+		{models.PlmnID{Mcc: "302", Mnc: "720"}, ngap.PLMNIdentity{0x03, 0x02, 0x27}},
 	}
 
 	for _, tt := range tests {
@@ -124,8 +121,17 @@ func TestPLMNRoundTrip(t *testing.T) {
 				t.Fatalf("encoded %x, want %x", got, tt.want)
 			}
 
-			if back := util.PLMNToModels(got); back != tt.plmn {
-				t.Errorf("round trip = %+v, want %+v", back, tt.plmn)
+			if back := util.PLMNToModels(tt.want); back != tt.plmn {
+				t.Errorf("decoded %+v, want %+v", back, tt.plmn)
+			}
+
+			octets, err := nas.PLMN{MCC: tt.plmn.Mcc, MNC: tt.plmn.Mnc}.Octets()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if [3]byte(got) != octets {
+				t.Errorf("NGAP %x and NAS %x disagree on the same PLMN", got, octets)
 			}
 		})
 	}
@@ -144,11 +150,7 @@ func TestPLMNToNGAPRejectsMalformed(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.86: "The Security Capabilities received from NAS signaling
-// shall not be modified or truncated when forwarded to NG-RAN nodes". Each
-// bitmap gives its first three bits to 128-xxx1..3 and maps the fourth to
-// seventh from bit 4 down to bit 1 of the matching TS 24.501 §9.11.3.54 octet,
-// so algorithm n lands at 1<<(16-n) and identity 0 has no position.
+// TS 38.413 §9.3.1.86
 func TestSecurityCapabilitiesToNGAP(t *testing.T) {
 	tests := []struct {
 		name string

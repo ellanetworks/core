@@ -8,9 +8,9 @@ package util
 import (
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
@@ -21,45 +21,22 @@ import (
 // octet's high nibble is the third MNC digit, or "f" for a two-digit MNC
 // (TS 23.003 §2.2).
 func PLMNToModels(id ngap.PLMNIdentity) models.PlmnID {
-	h := strings.Split(hex.EncodeToString(id[:]), "")
-
-	out := models.PlmnID{Mcc: h[1] + h[0] + h[3]}
-
-	if h[2] == "f" {
-		out.Mnc = h[5] + h[4]
-	} else {
-		out.Mnc = h[2] + h[5] + h[4]
+	p, err := nas.ParsePLMN([3]byte(id))
+	if err != nil {
+		return models.PlmnID{}
 	}
 
-	return out
+	return models.PlmnID{Mcc: p.MCC, Mnc: p.MNC}
 }
 
 // PLMNToNGAP encodes MCC/MNC digit strings into a PLMN identity.
 func PLMNToNGAP(plmn models.PlmnID) (ngap.PLMNIdentity, error) {
-	var out ngap.PLMNIdentity
-
-	mcc := strings.Split(plmn.Mcc, "")
-	mnc := strings.Split(plmn.Mnc, "")
-
-	if len(mcc) != 3 || (len(mnc) != 2 && len(mnc) != 3) {
-		return out, fmt.Errorf("invalid PLMN %q/%q: want a 3-digit MCC and a 2- or 3-digit MNC", plmn.Mcc, plmn.Mnc)
-	}
-
-	var s string
-	if len(mnc) == 2 {
-		s = mcc[1] + mcc[0] + "f" + mcc[2] + mnc[1] + mnc[0]
-	} else {
-		s = mcc[1] + mcc[0] + mnc[0] + mcc[2] + mnc[2] + mnc[1]
-	}
-
-	b, err := hex.DecodeString(s)
+	b, err := nas.PLMN{MCC: plmn.Mcc, MNC: plmn.Mnc}.Octets()
 	if err != nil {
-		return out, fmt.Errorf("error decoding PLMN %q/%q: %w", plmn.Mcc, plmn.Mnc, err)
+		return ngap.PLMNIdentity{}, fmt.Errorf("invalid PLMN %q/%q: %w", plmn.Mcc, plmn.Mnc, err)
 	}
 
-	copy(out[:], b)
-
-	return out, nil
+	return ngap.PLMNIdentity(b), nil
 }
 
 // The SD is canonical (lowercase hex), as SnssaiToModels renders it for NAS, so

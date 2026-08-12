@@ -24,6 +24,7 @@ import (
 var operatorPLMN = ngap.PLMNIdentity{0x00, 0xf1, 0x10}
 
 type fakeDBInstance struct {
+	BarFrom5G   bool
 	Operator    *db.Operator
 	OperatorErr error
 	Slices      []db.NetworkSlice
@@ -74,6 +75,33 @@ type fakeSmfSbi struct {
 	N2HandoverFailedErr         error
 	N2HandoverCanceledErr       error
 	ReleaseSmContextErr         error
+	PrepareFromEPSResponse      []byte
+	PrepareFromEPSErr           error
+	PrepareFromEPSCalls         []*SmfPrepareFromEPSCall
+}
+
+type SmfPrepareFromEPSCall struct {
+	Supi              etsi.SUPI
+	PDUSessionID      uint8
+	EPSBearerIdentity uint8
+	Dnn               string
+	Snssai            *models.Snssai
+}
+
+func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, error) {
+	f.PrepareFromEPSCalls = append(f.PrepareFromEPSCalls, &SmfPrepareFromEPSCall{
+		Supi:              supi,
+		PDUSessionID:      pduSessionID,
+		EPSBearerIdentity: epsBearerIdentity,
+		Dnn:               dnn,
+		Snssai:            snssai,
+	})
+
+	if f.PrepareFromEPSErr != nil {
+		return "", nil, f.PrepareFromEPSErr
+	}
+
+	return fmt.Sprintf("ref-from-eps-%d", pduSessionID), f.PrepareFromEPSResponse, nil
 }
 
 func (f *fakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
@@ -217,7 +245,7 @@ func (fdb *fakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 }
 
 func (fdb *fakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile", UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: !fdb.BarFrom5G, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
 func (fdb *fakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {

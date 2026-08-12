@@ -22,17 +22,23 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 	return marshalPDUSessionResourceSetupRequestTransfer(transfer)
 }
 
-// BuildHandoverRequestTransfer builds the Handover Request Transfer of a
-// HANDOVER REQUEST (TS 38.413 §9.2.3.1). Data Forwarding Not Possible keeps the
-// target NG-RAN node from allocating forwarding tunnels (§8.4.2.2): the Handover
-// Command Transfer names no forwarding endpoint.
-func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType) ([]byte, error) {
+func BuildHandoverRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID *uint8) ([]byte, error) {
 	transfer, err := pduSessionResourceSetupRequestTransfer(ambr, qosData, teid, n3IPv4, n3IPv6, pduSessionType)
 	if err != nil {
 		return nil, err
 	}
 
 	transfer.DataForwardingNotPossible = libngap.Ptr(libngap.DataForwardingNotPossibleTrue)
+
+	if erabID != nil {
+		if *erabID > 15 {
+			return nil, fmt.Errorf("EPS bearer identity %d does not fit the E-RAB ID", *erabID)
+		}
+
+		for i := range transfer.QosFlowSetupRequest {
+			transfer.QosFlowSetupRequest[i].ERABID = libngap.Ptr(libngap.ERABID(*erabID))
+		}
+	}
 
 	return marshalPDUSessionResourceSetupRequestTransfer(transfer)
 }

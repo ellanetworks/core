@@ -133,6 +133,10 @@ func MapTo5GSOnHandover(in EPSSecurityContext, intOrder []nas.IntegrityAlgorithm
 	capability := DefaultUE5GSecurityCapability
 	if in.UE5GSecurityCapability != nil {
 		capability = *in.UE5GSecurityCapability
+	} else {
+		capability.HasEPS = true
+		capability.EEA = in.UESecurityCapability.EEA
+		capability.EIA = in.UESecurityCapability.EIA &^ 1
 	}
 
 	nea, nia, ok := fgs.SelectNASAlgorithms(capability, intOrder, encOrder)

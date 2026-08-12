@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/sctp"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 )
 
@@ -36,9 +37,12 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 		ue.knasInt[i], ue.knasEnc[i] = byte(i+1), byte(i+1)
 	}
 
-	if err := ue.installSecurityContextLocked(); err != nil {
+	sc, err := ue.installSecurityContextLocked()
+	if err != nil {
 		t.Fatal(err)
 	}
+
+	ue.downlink().Install(sc, nas.DownlinkCounter{})
 
 	ue.Imei, _ = etsi.NewIMEIFromPEI("353456789012347")
 
@@ -56,9 +60,16 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
+			plain, err := (&eps.IdentityRequest{IdentityType: 1}).MarshalBinary()
+			if err != nil {
+				t.Errorf("marshal Identity Request: %v", err)
+				return
+			}
+
 			for i := 0; i < perWriter; i++ {
-				if _, err := ue.ProtectDownlinkMessage(&eps.IdentityRequest{IdentityType: 1}); err != nil {
-					t.Errorf("protectDownlink: %v", err)
+				err := ue.Conn().SendProtected(plain, eps.SHTIntegrityProtectedCiphered, func([]byte) error { return nil })
+				if err != nil {
+					t.Errorf("SendProtected: %v", err)
 					return
 				}
 			}
@@ -67,7 +78,7 @@ func TestDownlinkNASCountConcurrent(t *testing.T) {
 
 	wg.Wait()
 
-	if got := ue.dlCount.Next(); got != totalCount {
+	if got := ue.downlink().Next(); got != totalCount {
 		t.Fatalf("downlink NAS COUNT = %d after %d protected messages, want %d (%d counts reused)",
 			got, totalCount, totalCount, totalCount-uint32(got))
 	}

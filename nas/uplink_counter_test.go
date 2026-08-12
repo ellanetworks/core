@@ -164,3 +164,19 @@ func TestUplinkCounterFailsClosedAtMax(t *testing.T) {
 		t.Errorf("Commit past the maximum = %v, want ErrCountExhausted", err)
 	}
 }
+
+func TestUplinkCounterRestoredAtMaxFailsClosed(t *testing.T) {
+	u := NewUplinkCounter(MakeCount(0xFFFF, 0xFF))
+
+	if !u.Exhausted() {
+		t.Error("a counter restored at the maximum reports itself usable, so the context survives a relocation with a spent uplink NAS COUNT")
+	}
+
+	if _, err := u.Estimate(0x00); !errors.Is(err, ErrCountExhausted) {
+		t.Errorf("Estimate on a counter restored at the maximum = %v, want ErrCountExhausted: wrapping to zero re-accepts the first message of the context under the same key", err)
+	}
+
+	if err := u.Commit(MakeCount(0, 0)); !errors.Is(err, ErrCountExhausted) {
+		t.Errorf("Commit on a counter restored at the maximum = %v, want ErrCountExhausted", err)
+	}
+}

@@ -78,9 +78,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 	}
 
 	// §5.5.1.2.7 f)
-	if existing := s.currentEPSSession(supi, req.EPSBearerIdentity); existing != nil {
-		s.handlePduSessionContextReplacement(ctx, existing, Access4G)
-	}
+	s.supersedeIdentityHolders(ctx, supi, SessionIdentity{PDUSessionID: req.PDUSessionID, EBI: req.EPSBearerIdentity}, Access4G)
 
 	requestedType, err := pduSessionTypeFor(req.RequestedPDNType)
 	if err != nil {
@@ -327,7 +325,7 @@ func (s *SMF) dropHalf(ref string, by AccessType) bool {
 	}
 
 	if sc.pending != nil && sc.pending.to == by {
-		sc.clearPendingLocked()
+		sc.abandonPendingLocked()
 	}
 
 	return true

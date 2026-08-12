@@ -39,12 +39,39 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	p.Disconnecting = disconnecting
 	ue.mu.Unlock()
 
-	naspdu, err := ue.ProtectDownlinkMessage(&eps.DeactivateEPSBearerContextRequest{
+	plain, err := (&eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity: eps.EPSBearerIdentity(p.Ebi),
 		PTI:               nas.ProcedureTransactionIdentity(pti),
 		Cause:             esmCause,
-	})
+	}).MarshalBinary()
 	if err != nil {
+		ue.mu.Lock()
+		p.Deactivating = false
+		ue.mu.Unlock()
+
+		logger.From(ctx, logger.MmeLog).Error("failed to build Deactivate EPS Bearer Context Request",
+			zap.String("imsi", ue.IMSI()), zap.Uint8("ebi", p.Ebi), zap.Error(err))
+
+		return
+	}
+
+	releaseOnly := ue.BearerReleaseOnly(p)
+
+	write := func(wire []byte) error {
+		ueConn.SendDownlinkNASTransport(ctx, wire)
+
+		return nil
+	}
+
+	if releaseOnly {
+		write = func(wire []byte) error {
+			m.sendERABRelease(ctx, ueConn, p, wire)
+
+			return nil
+		}
+	}
+
+	if err := ueConn.SendProtected(plain, eps.SHTIntegrityProtectedCiphered, write); err != nil {
 		ue.mu.Lock()
 		p.Deactivating = false
 		ue.mu.Unlock()
@@ -61,21 +88,19 @@ func (m *MME) DeactivateBearer(ctx context.Context, ue *UeContext, p *PdnConnect
 	// then an idempotent no-op.
 	m.releaseAnchorSession(ctx, ue, p)
 
-	if ue.BearerReleaseOnly(p) {
-		m.sendERABRelease(ctx, ueConn, p, naspdu)
+	if releaseOnly {
 		// The eNB releases the radio bearer, but the NAS DEACTIVATE EPS BEARER
 		// CONTEXT REQUEST still needs an answer: guard it with T3495 so it is
 		// retransmitted, and on exhaustion release only this PDN connection
 		// locally, leaving the UE attached (TS 24.301 §6.4.4.5).
-		m.ArmESMGuardAbortOnly(ue, p, "Deactivate EPS Bearer Context Request", naspdu, func() {
+		m.ArmESMGuardAbortOnly(ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func() {
 			m.ReleasePDN(ctx, ue, p)
 		})
 
 		return
 	}
 
-	ueConn.SendDownlinkNASTransport(ctx, naspdu)
-	m.ArmESMGuard(ue, p, "Deactivate EPS Bearer Context Request", naspdu)
+	m.ArmESMGuard(ue, p, "Deactivate EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
 // DisconnectBearer tears down the UE's PDN connection p with a regular

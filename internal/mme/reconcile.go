@@ -207,20 +207,38 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		dnsValid bool
 	)
 
-	if includeDNS {
-		var dnsServers [][]byte
+	refreshMappedQoS := (includeQoS || includeAMBR) && p.Snssai != nil && p.PDUSessionID != 0
 
-		if parsed, err := netip.ParseAddr(qos.DNS); err == nil {
-			dns, dnsValid = parsed, true
-			dnsServers = nas.DNSServers(dns)
-		}
+	if includeDNS || refreshMappedQoS {
+		var (
+			dnsServers  [][]byte
+			ipv4LinkMTU uint16
+		)
 
-		var ipv4LinkMTU uint16
-		if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {
-			ipv4LinkMTU = qos.MTU
+		if includeDNS {
+			if parsed, err := netip.ParseAddr(qos.DNS); err == nil {
+				dns, dnsValid = parsed, true
+				dnsServers = nas.DNSServers(dns)
+			}
+
+			if p.PdnType == eps.PDNTypeIPv4 || p.PdnType == eps.PDNTypeIPv4v6 {
+				ipv4LinkMTU = qos.MTU
+			}
 		}
 
 		pco := nas.NewProtocolConfigurationOptions(dnsServers, ipv4LinkMTU)
+
+		if refreshMappedQoS {
+			mapped, err := MappedFiveGSQoSRefresh(p.Ebi, qos)
+			if err != nil {
+				logger.From(ctx, logger.MmeLog).Error("failed to encode the mapped 5GS QoS parameters; deferring EPS bearer modification to the next reconcile",
+					zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
+
+				return
+			}
+
+			pco.Containers = append(pco.Containers, mapped...)
+		}
 
 		// TS 24.301 §8.3.18.9 and §8.3.18.13
 		if ue.UsesEPCO(p) {
@@ -272,8 +290,35 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 	}
 	ue.mu.Unlock()
 
-	naspdu, err := ue.ProtectDownlinkMessage(req)
+	plain, err := req.MarshalBinary()
 	if err != nil {
+		ue.mu.Lock()
+		ClearPendingModifyLocked(p)
+		ue.mu.Unlock()
+
+		logger.From(ctx, logger.MmeLog).Error("failed to build Modify EPS Bearer Context Request",
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		return
+	}
+
+	write := func(wire []byte) error {
+		ueConn.SendDownlinkNASTransport(ctx, wire)
+
+		return nil
+	}
+
+	if includeQoS {
+		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
+		// piggybacked in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2).
+		write = func(wire []byte) error {
+			m.sendERABModify(ctx, ueConn, p, qos, wire)
+
+			return nil
+		}
+	}
+
+	if err := ueConn.SendProtected(plain, eps.SHTIntegrityProtectedCiphered, write); err != nil {
 		ue.mu.Lock()
 		ClearPendingModifyLocked(p)
 		ue.mu.Unlock()
@@ -283,17 +328,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, ueConn *UeConn, p
 		return
 	}
 
-	if includeQoS {
-		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
-		// piggybacked in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2).
-		m.sendERABModify(ctx, ueConn, p, qos, naspdu)
-	} else {
-		// DNS and/or Session-AMBR only: no radio change, so the NAS message is sent
-		// standalone in a Downlink NAS Transport (TS 23.401 §5.4.3).
-		ueConn.SendDownlinkNASTransport(ctx, naspdu)
-	}
-
-	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", naspdu, func() {
+	m.ArmESMGuardAbortOnly(ue, p, "Modify EPS Bearer Context Request", plain, eps.SHTIntegrityProtectedCiphered, func() {
 		ue.mu.Lock()
 		ClearPendingModifyLocked(p)
 		ue.mu.Unlock()

@@ -30,7 +30,8 @@ func setTestUESecurityCapability(ue *amf.UeContext) {
 }
 
 type fakeDBInstance struct {
-	Operator *db.Operator
+	Operator  *db.Operator
+	BarFrom5G bool
 }
 
 func (fdb *fakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
@@ -90,7 +91,7 @@ func (fdb *fakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 }
 
 func (fdb *fakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: !fdb.BarFrom5G, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
 func (fdb *fakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
@@ -363,6 +364,10 @@ func (s *fakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ stri
 
 func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
 	return s.Error
+}
+
+func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ etsi.SUPI, _, _ uint8, _ string, _ *models.Snssai) (string, []byte, error) {
+	return "", nil, nil
 }
 
 func (s *fakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {

@@ -469,6 +469,14 @@ func (f *fakeFiveGSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI, i
 	return f.err
 }
 
+func (f *fakeFiveGSPeer) ForwardRelocation(_ context.Context, _ interworking.FiveGSRelocationRequest) (interworking.FiveGSRelocationResponse, error) {
+	return interworking.FiveGSRelocationResponse{}, errors.New("the 5GS peer was asked to admit a handover")
+}
+
+func (f *fakeFiveGSPeer) RelocationCancel(_ context.Context, _ etsi.SUPI, _ interworking.RelocationID) error {
+	return errors.New("the 5GS peer was asked to cancel a handover")
+}
+
 func TestCompleteRelocationPublishesTheContextAndNotifiesThePeer(t *testing.T) {
 	m := newTestMME(t)
 	peer := &fakeFiveGSPeer{}
@@ -754,12 +762,21 @@ func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 		t.Fatal("the relocated UE context is not reachable")
 	}
 
-	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget}
+	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
 	m.FailHandoverToSource(context.Background(), ue, refusal)
 
 	err := <-done
 	if !errors.Is(err, interworking.ErrTargetRefused) {
 		t.Fatalf("error = %v, want ErrTargetRefused", err)
+	}
+
+	var refused interworking.TargetRefusal
+	if !errors.As(err, &refused) {
+		t.Fatalf("error = %v, want a refusal carrying the target eNB's cause", err)
+	}
+
+	if refused.Cause != refusal {
+		t.Errorf("refusal cause = %+v, want the target eNB's %+v", refused.Cause, refusal)
 	}
 
 	if errors.Is(err, ErrRelocationAbandoned) {

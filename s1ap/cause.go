@@ -43,6 +43,7 @@ const (
 	CauseRadioNetworkHOTargetNotAllowed                = 7  // ho-target-not-allowed
 	CauseRadioNetworkTS1RelocOverallExpiry             = 8  // tS1relocoverall-expiry
 	CauseRadioNetworkUnknownTargetID                   = 11 // unknown-targetID
+	CauseRadioNetworkNoRadioResourcesInTargetCell      = 12 // no-radio-resources-available-in-target-cell
 	CauseRadioNetworkUnknownMMEUES1APID                = 13 // unknown-mme-ue-s1ap-id
 	CauseRadioNetworkUnknownPairUES1APID               = 15 // unknown-pair-ue-s1ap-id
 	CauseRadioNetworkHandoverDesirableForRadio         = 16 // handover-desirable-for-radio-reason
@@ -51,7 +52,12 @@ const (
 	CauseRadioNetworkReduceLoadInServingCell           = 19 // reduce-load-in-serving-cell
 	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
+	CauseRadioNetworkS1InterSystemHandoverTriggered    = 34 // s1-inter-system-handover-triggered
+	CauseRadioNetworkInteractionWithOtherProcedure     = 29 // interaction-with-other-procedure
 	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances
+
+	// encryption-and-or-integrity-protection-algorithms-not-supported
+	CauseRadioNetworkEncryptionAlgorithmsNotSupported = 32
 
 	CauseTransportResourceUnavailable = 0 // transport-resource-unavailable
 
@@ -68,9 +74,16 @@ const (
 	// abstract-syntax-error-falsely-constructed-message
 	CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage = 5
 
-	CauseMiscUnspecified = 4 // unspecified
-	CauseMiscUnknownPLMN = 5 // unknown-PLMN
+	CauseMiscOMIntervention = 3 // om-intervention
+	CauseMiscUnspecified    = 4 // unspecified
+	CauseMiscUnknownPLMN    = 5 // unknown-PLMN
 )
+
+var CauseInsufficientUECapabilities = Cause{Group: CauseGroupRadioNetwork, Value: 5, Extended: true}
+
+// CauseN26InterfaceNotAvailable is radioNetwork extension index 4,
+// "N26 interface not available" (TS 36.413 §9.2.1.3).
+var CauseN26InterfaceNotAvailable = Cause{Group: CauseGroupRadioNetwork, Value: 4, Extended: true}
 
 // Cause ::= CHOICE of five extensible ENUMERATED groups. Value indexes the
 // chosen group; Extended marks it as indexing an extension addition.

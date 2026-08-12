@@ -19,14 +19,25 @@ import (
 // state without exporting the fields themselves; production code mutates this
 // state only through the chokepoint methods.
 
+func (ue *UeContext) reinstallSecurityContextForTest() {
+	sc, err := ue.installSecurityContextLocked()
+	if err != nil {
+		ue.downlink().Clear()
+
+		return
+	}
+
+	ue.downlink().Install(sc, nas.NewDownlinkCounter(ue.downlink().Next()))
+}
+
 func (ue *UeContext) SetKnasIntForTest(k [16]byte) {
 	ue.knasInt = k
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 
 func (ue *UeContext) SetKnasEncForTest(k [16]byte) {
 	ue.knasEnc = k
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 
 func (ue *UeContext) SetKASMEForTest(k []byte) { ue.kasme = k }
@@ -44,18 +55,18 @@ func (ue *UeContext) SetULCountForTest(c uint32) {
 func (ue *UeContext) ULCountForTest() nas.UplinkCounter { return ue.ulCount }
 
 func (ue *UeContext) SetDLCountForTest(c uint32) {
-	ue.dlCount = nas.NewDownlinkCounter(nas.Count(c))
+	ue.downlink().Install(ue.sc, nas.NewDownlinkCounter(nas.Count(c)))
 }
-func (ue *UeContext) DLCountForTest() uint32 { return ue.dlCount.Next().Value() }
+func (ue *UeContext) DLCountForTest() uint32 { return ue.downlink().Next().Value() }
 
 func (ue *UeContext) SetIntegrityAlgForTest(a nas.IntegrityAlgorithm) {
 	ue.integrityAlg = a
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 
 func (ue *UeContext) SetCipheringAlgForTest(a nas.CipheringAlgorithm) {
 	ue.cipheringAlg = a
-	_ = ue.installSecurityContextLocked()
+	ue.reinstallSecurityContextForTest()
 }
 
 func (ue *UeContext) SetNHForTest(nh [32]byte) { ue.nh = nh }
@@ -86,7 +97,7 @@ func (ue *UeContext) SetSecuredForTest(v bool) {
 			ue.knasInt[i], ue.knasEnc[i] = byte(i+1), byte(i+1)
 		}
 
-		_ = ue.installSecurityContextLocked()
+		ue.reinstallSecurityContextForTest()
 	}
 }
 func (ue *UeContext) SecuredForTest() bool { return ue.secured }
@@ -113,9 +124,12 @@ func (ue *UeContext) SetSecurityContextForTest(kasme []byte, eea nas.CipheringAl
 	ue.cipheringAlg, ue.integrityAlg = eea, eia
 	ue.knasEnc, ue.knasInt = ke, ki
 
-	if err := ue.installSecurityContextLocked(); err != nil {
+	sc, err := ue.installSecurityContextLocked()
+	if err != nil {
 		return err
 	}
+
+	ue.downlink().Install(sc, nas.DownlinkCounter{})
 
 	ue.secured = true
 
@@ -258,11 +272,5 @@ func (ue *UeContext) ForceStateForTest(s EMMState) {
 }
 
 func (ue *UeContext) NextDownlinkCountForTest() nas.Count {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
-
-	counter := ue.dlCount
-	count, _ := counter.Use()
-
-	return count
+	return ue.downlink().Next()
 }

@@ -27,7 +27,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.Bool("active-flag", req.ActiveFlag))
 
 	// TS 24.301 §5.5.3.2.7 case d: an identical retransmission gets the stored accept.
-	if len(ueConn.TauAcceptPdu) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
+	if len(ueConn.TauAcceptPlain) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept",
 			zap.String("imsi", ue.IMSI()))
 		ueConn.ResendTauAccept(ctx)
@@ -76,54 +76,72 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
-	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
-	naspdu, err := ue.ProtectDownlinkMessage(accept)
+	reestablish := ueConn.ICS != mme.ICSCompleted && req.ActiveFlag
+
+	var qos *mme.EpsQoS
+
+	if reestablish {
+		ue.PinKeNBFreshness()
+
+		qos, err = mme.ResolveQoS(ctx, m, ue.IMSI())
+		if err != nil {
+			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
+			return nasreply.Handled()
+		}
+	}
+
+	acceptPlain, err := accept.MarshalBinary()
 	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to encode Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		return nasreply.Handled()
+	}
+
+	write := func(wire []byte) error {
+		ueConn.SendDownlinkNASTransport(ctx, wire)
+
+		return nil
+	}
+
+	var releaseOnComplete bool
+
+	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
+	// TAU needs re-establishment or a deferred release.
+	switch {
+	case ueConn.ICS == mme.ICSCompleted:
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted", zap.String("imsi", ue.IMSI()))
+	case reestablish:
+		ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, ueConn, qos)
+		if !ok {
+			return nasreply.Handled()
+		}
+
+		write = func(wire []byte) error {
+			return sendInitialContextSetup(ctx, ueConn, ics, carrier, wire)
+		}
+
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)", zap.String("imsi", ue.IMSI()))
+	default:
+		releaseOnComplete = true
+
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (returning to idle)", zap.String("imsi", ue.IMSI()))
+	}
+
+	if err := ueConn.SendProtected(acceptPlain, eps.SHTIntegrityProtectedCiphered, write); err != nil {
 		mme.ReportProtectFailure(ctx, ueConn, "Tracking Area Update Accept", err)
+
 		return nasreply.Handled()
 	}
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
 	ueConn.TauRequestPlain = plain
-	ueConn.TauAcceptPdu = naspdu
+	ueConn.TauAcceptPlain = acceptPlain
 
-	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
-	// TAU needs re-establishment or a deferred release.
-	if ueConn.ICS == mme.ICSCompleted {
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted", zap.String("imsi", ue.IMSI()))
-		ueConn.SendDownlinkNASTransport(ctx, naspdu)
-		ueConn.ArmNASGuard("Tracking Area Update Accept", naspdu)
-
-		return nasreply.Handled()
+	if releaseOnComplete {
+		ueConn.TauReleaseOnComplete = true
 	}
 
-	if req.ActiveFlag {
-		ue.PinKeNBFreshness()
-
-		qos, err := mme.ResolveQoS(ctx, m, ue.IMSI())
-		if err != nil {
-			logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
-			return nasreply.Handled()
-		}
-
-		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)", zap.String("imsi", ue.IMSI()))
-		sendInitialContextSetup(ctx, m, ue, ueConn, qos, naspdu)
-		ueConn.ArmNASGuard("Tracking Area Update Accept", naspdu)
-
-		return nasreply.Handled()
-	}
-
-	// No active flag: defer the S1 release to TAU Complete (or the guard timeout)
-	// so the UE stays ECM-CONNECTED to acknowledge the reallocated GUTI; releasing
-	// earlier would reject the TAU Complete as having no active connection
-	// (TS 36.413 §10.6).
-	ueConn.TauReleaseOnComplete = true
-
-	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (returning to idle)", zap.String("imsi", ue.IMSI()))
-	ueConn.SendDownlinkNASTransport(ctx, naspdu)
-	ueConn.ArmNASGuard("Tracking Area Update Accept", naspdu)
+	ueConn.ArmNASGuard("Tracking Area Update Accept", acceptPlain, eps.SHTIntegrityProtectedCiphered)
 
 	return nasreply.Handled()
 }
@@ -153,7 +171,7 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 	m.CommitGUTIRealloc(ue)
 
 	ueConn.TauRequestPlain = nil
-	ueConn.TauAcceptPdu = nil
+	ueConn.TauAcceptPlain = nil
 
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete", zap.String("imsi", ue.IMSI()))
 

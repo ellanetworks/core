@@ -72,19 +72,17 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return
 	}
 
-	wire, err := ue.ProtectDownlink(plain, eps.SHTIntegrityProtectedNewContext)
-	if err != nil {
-		mme.ReportProtectFailure(ctx, ueConn, "Security Mode Command", err)
-		return
-	}
-
 	logger.From(ctx, logger.MmeLog).Info("Security Mode Command",
 		zap.Stringer("eea", eea), zap.Stringer("eia", eia),
 		zap.Stringer("ue-network-capability", ue.UeNetCap()),
 		zap.Any("ms-network-capability", ue.MsNetCap()),
 		zap.Stringer("replayed-ue-security-capability", smc.ReplayedUESecurityCapability))
+
+	if err := ueConn.SendGuardedProtected(ctx, "Security Mode Command", plain, eps.SHTIntegrityProtectedNewContext); err != nil {
+		return
+	}
+
 	ue.AdvanceRegStep(mme.RegStepSecurityMode)
-	ueConn.SendGuardedDownlink(ctx, "Security Mode Command", wire)
 
 	committed = true
 }

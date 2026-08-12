@@ -27,6 +27,9 @@ type fakeEPSPeer struct {
 	err          error
 	cancelled    []string
 	cancelledIDs []interworking.RelocationID
+	completed    []string
+	completedIDs []interworking.RelocationID
+	completeErr  error
 	block        chan struct{}
 }
 
@@ -48,6 +51,16 @@ func (f *fakeEPSPeer) ForwardRelocation(ctx context.Context, req interworking.Fo
 	defer f.mu.Unlock()
 
 	return f.response, f.err
+}
+
+func (f *fakeEPSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.completed = append(f.completed, supi.IMSI())
+	f.completedIDs = append(f.completedIDs, id)
+
+	return f.completeErr
 }
 
 func (f *fakeEPSPeer) RelocationCancel(_ context.Context, supi etsi.SUPI, id interworking.RelocationID) error {
@@ -176,7 +189,7 @@ func TestPrepareHandoverToEPSRefusesASecondHandover(t *testing.T) {
 	}
 }
 
-func TestForwardRelocationReachesThePeer(t *testing.T) {
+func TestRequestRelocationToEPSReachesThePeer(t *testing.T) {
 	peer := &fakeEPSPeer{response: interworking.ForwardRelocationResponse{
 		TargetToSource:      []byte{0x01},
 		AcceptedPDUSessions: []uint8{1},
@@ -188,9 +201,9 @@ func TestForwardRelocationReachesThePeer(t *testing.T) {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	resp, err := a.ForwardRelocation(context.Background(), prep.Request)
+	resp, err := a.RequestRelocationToEPS(context.Background(), prep.Request)
 	if err != nil {
-		t.Fatalf("ForwardRelocation: %v", err)
+		t.Fatalf("RequestRelocationToEPS: %v", err)
 	}
 
 	if len(resp.AcceptedPDUSessions) != 1 {
@@ -202,7 +215,7 @@ func TestForwardRelocationReachesThePeer(t *testing.T) {
 	}
 }
 
-func TestForwardRelocationIsBounded(t *testing.T) {
+func TestRequestRelocationToEPSIsBounded(t *testing.T) {
 	peer := &fakeEPSPeer{block: make(chan struct{})}
 	a, ue, source := newRelocatingAMF(t, peer)
 	a.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
@@ -212,7 +225,7 @@ func TestForwardRelocationIsBounded(t *testing.T) {
 		t.Fatalf("PrepareHandoverToEPS: %v", err)
 	}
 
-	if _, err := a.ForwardRelocation(context.Background(), prep.Request); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := a.RequestRelocationToEPS(context.Background(), prep.Request); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error = %v, want a deadline", err)
 	}
 

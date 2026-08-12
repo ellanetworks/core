@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -222,19 +223,10 @@ func (s *SMF) NewSession(supi etsi.SUPI, access AccessType, id SessionIdentity, 
 		return nil, fmt.Errorf("session identity %s names no session", id)
 	}
 
-	if id.PDUSessionID != 0 && s.byKey[canonicalName(supi, id.PDUSessionID)] != nil {
-		if id.EBI == 0 {
-			return nil, fmt.Errorf("PDU session identity %d is already in use", id.PDUSessionID)
+	for _, key := range id.sessionKeys() {
+		if held := s.byKey[canonicalName(supi, key)]; held != nil {
+			return nil, fmt.Errorf("session identity %s is already held by %q", id, held.Ref)
 		}
-
-		logger.SmfLog.Warn("ignoring a PDU session identity a live session already holds",
-			logger.SUPI(supi.String()), logger.PDUSessionID(id.PDUSessionID))
-
-		id.PDUSessionID = 0
-	}
-
-	if id.EBI != 0 && s.byKey[canonicalName(supi, epsBearerKey(id.EBI))] != nil {
-		return nil, fmt.Errorf("EPS bearer identity %d is already in use", id.EBI)
 	}
 
 	s.refSeq++
@@ -278,6 +270,27 @@ func (s *SMF) currentPDUSession(supi etsi.SUPI, pduSessionID uint8) *SMContext {
 
 func (s *SMF) currentEPSSession(supi etsi.SUPI, ebi uint8) *SMContext {
 	return s.currentSession(supi, SessionIdentity{EBI: ebi}.sessionKey())
+}
+
+func (s *SMF) identityHolders(supi etsi.SUPI, id SessionIdentity) []*SMContext {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var held []*SMContext
+
+	for _, key := range id.sessionKeys() {
+		if sc := s.byKey[canonicalName(supi, key)]; sc != nil && !slices.Contains(held, sc) {
+			held = append(held, sc)
+		}
+	}
+
+	return held
+}
+
+func (s *SMF) supersedeIdentityHolders(ctx context.Context, supi etsi.SUPI, id SessionIdentity, by AccessType) {
+	for _, held := range s.identityHolders(supi, id) {
+		s.handlePduSessionContextReplacement(ctx, held, by)
+	}
 }
 
 func (s *SMF) dropFromPool(sc *SMContext) {

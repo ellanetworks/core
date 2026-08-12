@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -44,39 +45,38 @@ type credentialProvider interface {
 	GenerateEPSVector(ctx context.Context, imsi string, plmnID []byte, resyncAuts, resyncRand string) (*udm.EPSAV, error)
 }
 
-// Concurrency model. A UE's state is touched by several goroutines: the eNB
-// dispatch loop (serial per SCTP association), the data-network reconcile
-// backstop, the status and detach API, and timer callbacks. Two locks, with a
-// fixed ordering, plus two atomics:
+// Concurrency model. A UE's state is touched by the eNB dispatch loop (serial per
+// SCTP association), the reconcile backstop, the status/detach API, and timer
+// callbacks. Three locks, acquired in this order and never reversed:
 //
-//   - MME.mu guards the registry and lifecycle: the UEs/uesByTmsi/radios maps,
-//     the MME-UE-S1AP-ID allocator, the M-TMSI allocator, each UE's S1-connection
-//     fields (conn, MME/ENB-UE-S1AP-IDs, the releasing flag), and the
-//     idle/paging/NAS-guard timers and their generation counters. The UE's
-//     S1-connection *pointer* itself (ue.active) is swapped under MME.mu on bind/release
-//     but is an atomic.Pointer so the hot path reads it lock-free via Conn().
-//   - UeContext.mu guards that UE's data: the EMM registration state (emmState),
-//     the EPS NAS security context (keys, NAS COUNTs, and the NH/NCC key chain),
-//     the PDN/bearer state (the pdns map, defaultEBI, and each connection's
-//     in-flight modification flags), and imsi. The security context is reached only
-//     through chokepoint methods (installNASSecurityContext, protectDownlink,
-//     tryUnprotectUplink, deriveInitialKeNB, markSecured, Snapshot) so the keys
-//     never leave the kernel and the COUNT invariant is auditable in one place. The
-//     ECM state is derived from whether the UE holds an S1-connection (ue.active).
+//		DownlinkSender  →  MME.mu  →  UeContext.mu
 //
-// Shared invariant: a UE's registration state and security
-// key material — the keys, NAS COUNTs, and the NH/NCC key chain — are read and
-// written only under UeContext.mu, never under the registry lock.
+//	  - MME.mu guards the registry and lifecycle: the UEs/uesByTmsi/radios maps, the
+//	    MME-UE-S1AP-ID and M-TMSI allocators, each UE's S1-connection fields (conn,
+//	    MME/ENB-UE-S1AP-IDs, releasing), and the idle/paging/NAS-guard timers with
+//	    their generation counters. ue.active is swapped under MME.mu on bind/release
+//	    but is an atomic.Pointer, so the hot path reads it lock-free via Conn().
+//	  - UeContext.mu guards that UE's data: emmState, imsi, the EPS NAS security
+//	    context (keys, uplink NAS COUNT, NH/NCC chain), and the PDN/bearer state
+//	    (pdns, defaultEBI, in-flight modification flags). The security context is
+//	    reached only through chokepoint methods (installNASSecurityContext,
+//	    tryUnprotectUplink, deriveInitialKeNB, markSecured, Snapshot) and the
+//	    downlink sender. ECM state is derived from ue.active.
+//	  - The nas.DownlinkSender lock (ue.downlink()) makes taking a downlink NAS COUNT
+//	    and writing the message that carries it one step, so messages cannot be
+//	    written out of COUNT order — the UE would fail their integrity check
+//	    (TS 24.301 §4.4.3.1, §4.4.3.3).
 //
-// Lock ordering (acquire in this order, never reverse):
+// Never hold MME.mu or UeContext.mu across an external call (SMF, DB, SCTP send):
+// snapshot, release, then send. The DownlinkSender's lock is the exception — it is
+// held across the S1AP send, a non-blocking enqueue on the association's writer —
+// so the write closure passed to SendProtected must only frame and write the
+// protected PDU. It must not take UeContext.mu, call the SMF, DB or a peer RAT, or
+// send a second protected message (the lock is not reentrant); the security context
+// is built under UeContext.mu and handed to the sender afterwards.
 //
-//	MME.mu  →  UeContext.mu
-//
-// Never hold a lock across an external call (SMF, DB, SCTP send): snapshot the
-// state, release, then send. A reader that observes emmState == EMM-REGISTERED
-// under UeContext.mu (status, reconcile) may then read the UE's other registered
-// data — the mutex is the publication barrier that carries the happens-before from
-// the TransitionTo at registration.
+// UeContext.mu is also the publication barrier: a reader that observes
+// emmState == EMM-REGISTERED under it may read the UE's other registered data.
 type MME struct {
 	Cred    credentialProvider
 	Bearer  bearerStore
@@ -102,6 +102,8 @@ type MME struct {
 	connIDs    *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
 
 	relocating map[etsi.SUPI]*relocation
+
+	relocationIDs atomic.Uint64
 
 	tmsi *etsi.TmsiAllocator
 

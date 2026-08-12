@@ -66,7 +66,7 @@ func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target inter
 	return &RelocationPreparation{Request: req, Container: mapped.Container}, nil
 }
 
-func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
+func (a *AMF) RequestRelocationToEPS(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	if a.EPS == nil {
 		return interworking.ForwardRelocationResponse{}, ErrNoEPSPeer
 	}

@@ -29,28 +29,13 @@ func buildTestUE(t *testing.T) *amf.UeContext {
 	return ue
 }
 
-// decryptNAS unwraps a downlink protected NAS message to its plaintext (the
-// message is encoded at NAS COUNT 0 by the builders under test).
-func decryptNAS(t *testing.T, ue *amf.UeContext, raw []byte) []byte {
-	t.Helper()
-
-	plain, err := unprotected(fgs.Unprotect(raw, 0, nas.DirectionDownlink, mustSecurityContext(t, ue.IntegrityAlgForTest(), ue.CipheringAlgForTest(), ue.KnasIntForTest(), ue.KnasEncForTest())))
-	if err != nil {
-		t.Fatalf("NAS unprotect failed: %v", err)
-	}
-
-	return plain
-}
-
 func TestBuildConfigurationUpdateCommand_WithoutGUTI(t *testing.T) {
-	ue := buildTestUE(t)
-
-	raw, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", false)
+	raw, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", false)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
 
-	cuc, err := fgs.ParseConfigurationUpdateCommand(decryptNAS(t, ue, raw))
+	cuc, err := fgs.ParseConfigurationUpdateCommand(raw)
 	if err != nil {
 		t.Fatalf("parse ConfigurationUpdateCommand: %v", err)
 	}
@@ -83,12 +68,12 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 
 	ue.SetGutiForTest(guti)
 
-	raw, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, guti, "ELLACORE5G", "ELLACORE", true)
+	raw, err := amf.BuildConfigurationUpdateCommand(guti, "ELLACORE5G", "ELLACORE", true)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
 
-	cuc, err := fgs.ParseConfigurationUpdateCommand(decryptNAS(t, ue, raw))
+	cuc, err := fgs.ParseConfigurationUpdateCommand(raw)
 	if err != nil {
 		t.Fatalf("parse ConfigurationUpdateCommand: %v", err)
 	}
@@ -107,10 +92,7 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 }
 
 func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T) {
-	ue := buildTestUE(t)
-	ue.SetGutiForTest(etsi.InvalidGUTI5G)
-
-	_, err := amf.BuildConfigurationUpdateCommand(amf.New(nil, nil, nil), ue, etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", true)
+	_, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", true)
 	if err == nil {
 		t.Fatal("expected error when includeGUTI is true but GUTI is invalid")
 	}
@@ -130,7 +112,7 @@ func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}
 
-	ra, err := fgs.ParseRegistrationAccept(decryptNAS(t, ue, raw))
+	ra, err := fgs.ParseRegistrationAccept(raw)
 	if err != nil {
 		t.Fatalf("parse RegistrationAccept: %v", err)
 	}
@@ -154,7 +136,7 @@ func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}
 
-	ra, err := fgs.ParseRegistrationAccept(decryptNAS(t, ue, raw))
+	ra, err := fgs.ParseRegistrationAccept(raw)
 	if err != nil {
 		t.Fatalf("parse RegistrationAccept: %v", err)
 	}
@@ -176,7 +158,7 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}
 
-	ra, err := fgs.ParseRegistrationAccept(decryptNAS(t, ue, raw))
+	ra, err := fgs.ParseRegistrationAccept(raw)
 	if err != nil {
 		t.Fatalf("parse RegistrationAccept: %v", err)
 	}

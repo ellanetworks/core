@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -69,11 +70,6 @@ func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ strin
 
 func (fdb *failingSubscriberDB) NodeID() int { return 0 }
 
-// decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security
-// context and returns the plaintext 5GMM message. It verifies the security header
-// is IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the
-// offset from ue.ULCount() to use as the DL count (0 for the first message, 1 for
-// the second, etc.).
 func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCountOffset uint32) []byte {
 	t.Helper()
 
@@ -93,10 +89,6 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 	return plain
 }
 
-// buildMobilityRegUeAndAMF creates a UE and amf.AMF configured for mobility/periodic
-// registration updating tests. The UE has security context, a valid registration
-// request, Pei, Supi, and matching Tai. The amf.AMF has a valid Operator, fakeSmf, and
-// UEs map. Returns the UE, ngapSender, fakeSmf, and amf.AMF.
 func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *fakeSmf, *amf.AMF) {
 	t.Helper()
 
@@ -156,9 +148,7 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 	}
 }
 
-// A mobility registration update with no 5GMM capability IE is valid: the IE
-// is optional and re-sent only on change (TS 24.501), so the
-// amf.AMF accepts it.
+// TS 24.501
 func TestMobilityReg_NilGMMCapability_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -510,7 +500,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
 	}
 
-	// suList non-empty → PDUSessionResourceSetupRequest + DLNASTransport
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
@@ -551,8 +540,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Empty suList → calls amf.SendRegistrationAccept (which sends DLNASTransport since UeContextRequest=false)
-	// Then also sends DLNASTransport for N1 message
 	if len(ngapSender.SentDownlinkNASTransport) != 2 {
 		t.Fatalf("expected 2 DownlinkNASTransport (RegistrationAccept + N1 DLNASTransport), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -570,6 +557,20 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 	if ue.N1N2Message() != nil {
 		t.Fatal("expected N1N2Message to be nil after processing")
 	}
+
+	// TS 24.501 §5.3.4 d)
+	regAccept, err := fgs.ParseRegistrationAccept(nmAccept)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.TAIList == nil {
+		t.Error("the accept carries no TAI list")
+	}
+
+	if len(ue.RegistrationArea) == 0 {
+		t.Error("no registration area was allocated, so the AMF cannot page this UE")
+	}
 }
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t *testing.T) {
@@ -577,7 +578,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 
-	// N1N2 with N2Info, but no amf.SmContext for PduSessionID 3
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
@@ -701,8 +701,6 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 	}
 }
 
-// multiSliceDB returns multiple policies spanning two different slices,
-// causing SubscriberProfile to return a multi-element AllowedNssai.
 type multiSliceDB struct {
 	Operator *db.Operator
 }
@@ -753,7 +751,7 @@ func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscr
 }
 
 func (m *multiSliceDB) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile", UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true, UeAmbrDownlink: "200 Mbps", UeAmbrUplink: "100 Mbps"}, nil
 }
 
 func (m *multiSliceDB) ListAllNetworkSlices(_ context.Context) ([]db.NetworkSlice, error) {
@@ -880,5 +878,207 @@ func TestMobilityReg_ReanchorsASKeyChain(t *testing.T) {
 
 	if ncc := ue.NCCForTest(); ncc != 1 {
 		t.Errorf("NCC = %d, want 1: a fresh K_gNB starts a fresh chain", ncc)
+	}
+}
+
+// TS 33.501 §6.8.1.3
+func TestMobilityReg_KeepsTheMappedKeyChainOnAHandoverConnection(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	ue.SetKamfForTest("0f0e0d0c0b0a09080706050403020100f0e0d0c0b0a090807060504030201000")
+
+	mapped := make([]uint8, 32)
+	for i := range mapped {
+		mapped[i] = 0xAA
+	}
+
+	ue.SetNHForTest(mapped)
+	ue.SetNCCForTest(1)
+	ue.SetKgnbForTest(nil)
+	ue.Conn().MarkICSCompleted()
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if nh := ue.NHForTest(); nh != [32]uint8(mapped) {
+		t.Error("the {NH, NCC} the target gNB was keyed from was overwritten: the next handover or path switch would desynchronise the AS key chain")
+	}
+
+	if ncc := ue.NCCForTest(); ncc != 1 {
+		t.Errorf("NCC = %d, want the stored 1", ncc)
+	}
+
+	if len(ue.KgnbForTest()) != 0 {
+		t.Error("a K_gNB was derived on a connection that already carries an AS context")
+	}
+}
+
+// TS 24.501 §5.5.1.3.4
+func TestMobilityReg_ReportsTheEPSBearerContextStatusAfterAnArrivalFromEPS(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	if err := ue.CreateSmContext(5, "ref-5", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(5, 6)
+	ue.Conn().ArrivedFromEPS = true
+	ue.Conn().MarkICSCompleted()
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.EPSBearerContextStatus == nil {
+		t.Fatal("no EPS bearer context status: a UE whose PDN connection did not transfer keeps its QoS flow descriptions and rules for ever")
+	}
+
+	for ebi := 1; ebi < 16; ebi++ {
+		want := ebi == 6
+		if got := regAccept.EPSBearerContextStatus.Active[ebi]; got != want {
+			t.Errorf("EBI(%d) = %v, want %v", ebi, got, want)
+		}
+	}
+}
+
+// TS 24.501 §8.2.7.31
+func TestMobilityReg_OmitsTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	if err := ue.CreateSmContext(5, "ref-5", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(5, 6)
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.EPSBearerContextStatus != nil {
+		t.Error("the EPS bearer context status went out on a registration that is not an inter-system change")
+	}
+}
+
+type fakeEPSPeer struct{}
+
+func (fakeEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
+	return interworking.ForwardRelocationResponse{}, nil
+}
+
+func (fakeEPSPeer) RelocationCancel(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+func (fakeEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+// TS 24.501 §5.5.1.3.2 d) / §5.5.1.3.4 and TS 23.502 §4.11.1.3.3 step 14
+func TestMobilityReg_ReleasesPDUSessionsTheUEDeactivatedInEPS(t *testing.T) {
+	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	for _, s := range []struct{ psi, ebi uint8 }{{1, 5}, {3, 6}} {
+		if err := ue.CreateSmContext(s.psi, fmt.Sprintf("ref-%d", s.psi), &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+			t.Fatalf("CreateSmContext: %v", err)
+		}
+
+		ue.SetEPSBearerIdentity(s.psi, s.ebi)
+	}
+
+	status := new(nas.EPSBearerContextStatus)
+	status.Active[5] = true
+
+	ue.Conn().ArrivedFromEPS = true
+	ue.Conn().RegistrationRequest.EPSBearerContextStatus = status
+	ue.Conn().MarkICSCompleted()
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if got := smf.ReleaseSmContextCalls; len(got) != 1 || got[0].SmContextRef != "ref-3" {
+		t.Errorf("released %v, want only the session of the bearer the UE dropped", got)
+	}
+
+	if _, still := ue.SmContextFindByPDUSessionID(3); still {
+		t.Error("the AMF kept the SM context of a released session, so its EBI is still reported active")
+	}
+
+	plain := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0)
+
+	regAccept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("could not parse RegistrationAccept: %v", err)
+	}
+
+	if regAccept.EPSBearerContextStatus == nil {
+		t.Fatal("no EPS bearer context status in the accept")
+	}
+
+	if !regAccept.EPSBearerContextStatus.Active[5] || regAccept.EPSBearerContextStatus.Active[6] {
+		t.Errorf("returned status %v, want only EBI 5 active", regAccept.EPSBearerContextStatus)
+	}
+}
+
+// TS 24.501 §8.2.6.23
+func TestMobilityReg_IgnoresTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *testing.T) {
+	ue, _, smf, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	if err := ue.CreateSmContext(3, "ref-3", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(3, 6)
+	ue.Conn().RegistrationRequest.EPSBearerContextStatus = new(nas.EPSBearerContextStatus)
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(smf.ReleaseSmContextCalls) != 0 {
+		t.Errorf("released %v on a registration that is not an inter-system change", smf.ReleaseSmContextCalls)
+	}
+}
+
+// TS 23.501 §5.3.4.1.1
+func TestMobilityReg_RejectsASubscriberBarredFrom5G(t *testing.T) {
+	ue, ngapSender, _, _ := buildMobilityRegUeAndAMF(t)
+
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator:  &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
+		BarFrom5G: true,
+	}, nil, &fakeSmf{})
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	pdu := ngapSender.SentDownlinkNASTransport[0].NASPDU
+	if len(pdu) < 3 || pdu[2] != uint8(fgs.MsgRegistrationReject) {
+		t.Fatalf("sent % x, want a Registration Reject", pdu)
 	}
 }

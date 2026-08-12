@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -92,10 +93,7 @@ type PdnConnection struct {
 	// DEACTIVATE ACCEPT only this PDN connection is released, leaving the UE
 	// connected (TS 24.301 §6.5.2).
 	Disconnecting bool
-	// Modifying is set while a bearer modification (in-place DNS and/or Session-AMBR
-	// update) is in flight, so a duplicate reconcile does not re-send it. The
-	// pending* values are committed once the UE accepts, so an aborted modification
-	// leaves the stored config stale for the backstop to retry.
+
 	Modifying            bool
 	PendingDNConfig      string
 	PendingSessAmbrDLBps uint64
@@ -155,16 +153,18 @@ type UeContext struct {
 	mu sync.Mutex
 
 	// EPS NAS security context (TS 33.401).
-	kasme        []byte
-	knasEnc      [16]byte
-	knasInt      [16]byte
-	cipheringAlg nas.CipheringAlgorithm
-	integrityAlg nas.IntegrityAlgorithm
-	ulCount      nas.UplinkCounter
-	dlCount      nas.DownlinkCounter
-	sc           *nas.SecurityContext
-	secured      bool
-	eksi         nas.KeySetIdentifier
+	kasme                  []byte
+	knasEnc                [16]byte
+	knasInt                [16]byte
+	cipheringAlg           nas.CipheringAlgorithm
+	integrityAlg           nas.IntegrityAlgorithm
+	ulCount                nas.UplinkCounter
+	dl                     *nas.DownlinkSender
+	dlOnce                 sync.Once
+	sc                     *nas.SecurityContext
+	secured                bool
+	eksi                   nas.KeySetIdentifier
+	ue5GSecurityCapability *fgs.UESecurityCapability
 
 	// X2-handover key chain (TS 33.401)
 	nh  [32]byte

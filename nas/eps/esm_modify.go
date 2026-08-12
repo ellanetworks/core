@@ -153,9 +153,19 @@ type ModifyEPSBearerContextAccept struct {
 	EPSBearerIdentity EPSBearerIdentity
 	PTI               nas.ProcedureTransactionIdentity
 
+	// The UE reports a 5GSM cause here when it discarded the mapped 5GS QoS
+	// parameters of the modification (TS 24.501 §6.1.4.1).
+	ProtocolConfigurationOptions         *nas.ProtocolConfigurationOptions
+	ExtendedProtocolConfigurationOptions *nas.ProtocolConfigurationOptions
+
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
+}
+
+var modifyEPSBearerContextAcceptIEs = []nas.OptionalIE{
+	{IEI: ieiProtocolConfigurationOptions, Format: nas.IETLV, Name: "Protocol configuration options"},
+	{IEI: ieiExtendedProtocolConfigurationOptions, Format: nas.IETLVE, Name: "Extended protocol configuration options"},
 }
 
 // AppendBinary encodes the MODIFY EPS BEARER CONTEXT ACCEPT.
@@ -166,6 +176,24 @@ func (m *ModifyEPSBearerContextAccept) AppendBinary(b []byte) ([]byte, error) {
 	var o nas.OptionalWriter
 
 	writeESMHeader(w, m.EPSBearerIdentity, m.PTI, MsgModifyEPSBearerContextAccept)
+
+	if m.ProtocolConfigurationOptions != nil {
+		raw, err := m.ProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiProtocolConfigurationOptions, raw)
+	}
+
+	if m.ExtendedProtocolConfigurationOptions != nil {
+		raw, err := m.ExtendedProtocolConfigurationOptions.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLVE(ieiExtendedProtocolConfigurationOptions, raw)
+	}
 
 	o.Raw(m.Unrecognized...)
 	o.WriteTo(w)
@@ -187,7 +215,28 @@ func ParseModifyEPSBearerContextAccept(b []byte) (*ModifyEPSBearerContextAccept,
 
 	out := &ModifyEPSBearerContextAccept{EPSBearerIdentity: ebi, PTI: pti}
 
-	_unrec, err := walkOptionalIEs(r, nil, declineAll)
+	_unrec, err := walkOptionalIEs(r, modifyEPSBearerContextAcceptIEs, func(iei uint8, value []byte) (bool, error) {
+		switch iei {
+		case ieiProtocolConfigurationOptions:
+			parsed, perr := nas.ParseProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
+			if perr != nil {
+				return false, perr
+			}
+
+			out.ProtocolConfigurationOptions = &parsed
+		case ieiExtendedProtocolConfigurationOptions:
+			parsed, perr := nas.ParseExtendedProtocolConfigurationOptions(value, nas.PCOMSToNetwork)
+			if perr != nil {
+				return false, perr
+			}
+
+			out.ExtendedProtocolConfigurationOptions = &parsed
+		default:
+			return false, nil
+		}
+
+		return true, nil
+	})
 	if err != nil && !nas.SoftOnly(err) {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -59,14 +60,17 @@ func forward5GSMMessageToSMF(
 		ue.DeleteSmContext(pduSessionID)
 	}
 
-	var n1Msg []byte
+	var plain []byte
 
 	if response.N1Msg != nil {
 		logger.From(ctx, logger.AmfLog).Debug("Receive N1 SM Message from SMF")
 
-		n1Msg, err = amf.BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, response.N1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
+		var err error
+
+		plain, err = amf.BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, response.N1Msg, new(fgs.PDUSessionID(pduSessionID)), nil, nil)
 		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error building DL NAS Transport", zap.Error(err))
+			logger.From(ctx, logger.AmfLog).Warn("could not deliver the SMF's 5GSM message", zap.Error(err))
+
 			return
 		}
 	}
@@ -76,32 +80,47 @@ func forward5GSMMessageToSMF(
 
 		if !response.ReleaseN2 {
 			logger.From(ctx, logger.AmfLog).Debug("amf.AMF forward N2 SM Information to UE")
+
 			return
 		}
-
-		list := ngap.PDUSessionResourceToReleaseListRelCmd{
-			{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(response.N2Msg)},
-		}
-
-		err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error sending pdu session resource release command", zap.Error(err))
-			return
-		}
-
-		logger.From(ctx, logger.AmfLog).Info("sent pdu session resource release command to UE")
-
-		return
 	}
 
-	if n1Msg != nil {
-		err := ueConn.SendDownlinkNASTransport(ctx, n1Msg)
-		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("error sending downlink nas transport", zap.Error(err))
-			return
+	send := func(wire []byte) error {
+		if response.N2Msg != nil {
+			list := ngap.PDUSessionResourceToReleaseListRelCmd{
+				{PDUSessionID: ngap.PDUSessionID(pduSessionID), Transfer: ngap.TransferContainer(response.N2Msg)},
+			}
+
+			if err := ueConn.SendPDUSessionResourceReleaseCommand(ctx, wire, list); err != nil {
+				return fmt.Errorf("error sending pdu session resource release command: %w", err)
+			}
+
+			logger.From(ctx, logger.AmfLog).Info("sent pdu session resource release command to UE")
+
+			return nil
 		}
 
-		logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE")
+		if wire != nil {
+			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
+				return fmt.Errorf("error sending downlink nas transport: %w", err)
+			}
+
+			logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE")
+		}
+
+		return nil
+	}
+
+	deliver := func() error {
+		if plain == nil {
+			return send(nil)
+		}
+
+		return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), send)
+	}
+
+	if err := deliver(); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not deliver the SMF's 5GSM message", zap.Error(err))
 	}
 }
 

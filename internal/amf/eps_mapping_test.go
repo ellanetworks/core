@@ -85,10 +85,7 @@ func TestMapSecurityContextToEPSConsumesTheDownlinkCount(t *testing.T) {
 		t.Fatal("a second mapping produced the same K'ASME")
 	}
 
-	next, err := ue.NextDownlinkCountForTest()
-	if err != nil {
-		t.Fatalf("downlink counter: %v", err)
-	}
+	next := ue.NextDownlinkCountForTest()
 
 	if next.SQN() == first.Container.SequenceNumber || next.SQN() == second.Container.SequenceNumber {
 		t.Fatal("the downlink counter did not advance past the mapped COUNTs")
@@ -194,10 +191,7 @@ func TestInstallMappedSecurityContextFromEPS(t *testing.T) {
 		t.Fatalf("EPS NAS algorithms = (%v, %+v), want the MME's %+v", ok, eps, mapped.EPSAlgorithms)
 	}
 
-	next, err := ue.NextDownlinkCountForTest()
-	if err != nil {
-		t.Fatalf("downlink counter: %v", err)
-	}
+	next := ue.NextDownlinkCountForTest()
 
 	if next != 1 {
 		t.Fatalf("next downlink NAS COUNT = %d, want 1", next)

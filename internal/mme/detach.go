@@ -53,12 +53,11 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	logger.From(ctx, ueConn.Log).Info("network-initiated detach (subscriber deleted)",
 		zap.String("imsi", imsi))
 
-	naspdu, err := ue.ProtectDownlinkMessage(&eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachNotRequired})
+	plain, err := (&eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachNotRequired}).MarshalBinary()
 	if err != nil {
-		ReportProtectFailure(ctx, ueConn, "Detach Request", err)
+		logger.From(ctx, logger.MmeLog).Error("failed to build Detach Request", zap.Error(err))
 		return
 	}
 
-	ueConn.SendDownlinkNASTransport(ctx, naspdu)
-	ueConn.ArmNASGuard("Detach Request", naspdu)
+	_ = ueConn.SendGuardedProtected(ctx, "Detach Request", plain, eps.SHTIntegrityProtectedCiphered)
 }

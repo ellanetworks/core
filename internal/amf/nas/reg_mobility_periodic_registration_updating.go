@@ -32,15 +32,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
-	// A fresh K_gNB and the {NH, NCC} anchored on it are one derivation
-	// (TS 33.501 §6.9.2.1.1). The NAS SMC that would otherwise re-derive both is
-	// skipped whenever the UE holds a valid security context — the normal case
-	// here — so deriving the key alone leaves every later handover handing the
-	// target an {NH, NCC} the UE cannot reproduce (§6.9.2.3.4).
-	err := ue.UpdateSecurityContext()
-	if err != nil {
-		abortRegistration(ctx, amfInstance, ue, "update security context", err)
-		return
+	if ueConn.ICS() == amf.ICSNotStarted {
+		if err := ue.UpdateSecurityContext(); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "update security context", err)
+			return
+		}
 	}
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
@@ -52,6 +48,17 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	subscriberProfile, err := amfInstance.SubscriberProfile(ctx, ue.Supi())
 	if err != nil {
 		abortRegistration(ctx, amfInstance, ue, "get subscriber profile", err)
+		return
+	}
+
+	if !subscriberProfile.Allow5G {
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+
+		logger.From(ctx, logger.AmfLog).Info("registration update rejected: 5G not allowed for subscriber")
+
+		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
+		ue.Deregister(ctx)
+
 		return
 	}
 
@@ -83,6 +90,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.Ambr = subscriberProfile.Ambr
 	ue.SetAllow4G(subscriberProfile.Allow4G)
 
+	releaseLocallyDeactivatedEPSBearers(ctx, amfInstance, ue, conn)
+
 	var (
 		reactivationResult        *[16]bool
 		errPduSessionID, errCause []uint8
@@ -92,6 +101,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		ctxList ngap.PDUSessionResourceSetupListCxtReq
 		suList  ngap.PDUSessionResourceSetupListSUReq
 	)
+
+	appendPendingN1 := func(uint8) error { return nil }
 
 	if conn.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := conn.RegistrationRequest.UplinkDataStatus.PSI
@@ -132,29 +143,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 	}
 
-	var pduSessionStatus *[16]bool
-	if conn.RegistrationRequest.PDUSessionStatus != nil {
-		pduSessionStatus = new([16]bool)
-
-		psiArray := conn.RegistrationRequest.PDUSessionStatus.PSI
-
-		for psi := 1; psi <= 15; psi++ {
-			pduSessionID := uint8(psi)
-			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
-				if !psiArray[psi] {
-					err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref)
-					if err != nil {
-						logger.From(ctx, logger.AmfLog).Warn("failed to release sm context", zap.Error(err))
-						return
-					} else {
-						pduSessionStatus[psi] = false
-					}
-				} else {
-					pduSessionStatus[psi] = true
-				}
-			}
-		}
+	pduSessionStatus, err := syncPDUSessionStatus(ctx, amfInstance, ue, conn.RegistrationRequest)
+	if err != nil {
+		abortRegistration(ctx, amfInstance, ue, "synchronise PDU session status", err)
+		return
 	}
+
+	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	err = amfInstance.ReallocateGUTI(ctx, ue)
 	if err != nil {
@@ -175,27 +170,30 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 			if n2Info == nil {
 				if len(suList) != 0 {
-					nasPdu, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
+					plain, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
 					if err != nil {
 						logger.From(ctx, logger.AmfLog).Warn("failed to build registration accept", zap.Error(err))
+
 						return
 					}
 
 					metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
 
-					err = ueConn.SendPDUSessionResourceSetupRequest(
-						ctx,
-						ue.Ambr.Uplink,
-						ue.Ambr.Downlink,
-						nasPdu,
-						suList,
-					)
-					if err != nil {
+					if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
+						return ueConn.SendPDUSessionResourceSetupRequest(
+							ctx,
+							ue.Ambr.Uplink,
+							ue.Ambr.Downlink,
+							wire,
+							suList,
+						)
+					}); err != nil {
 						abortRegistration(ctx, amfInstance, ue, "send PDU session resource setup request", err)
+
 						return
 					}
 
-					amf.ArmRegistrationAcceptGuard(amfInstance, ue, nasPdu)
+					amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
 
 					logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 				} else {
@@ -223,29 +221,33 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				return
 			}
 
-			var (
-				nasPdu []byte
-				err    error
-			)
+			appendPendingN1 = func(sht uint8) error {
+				stage := func(nasPdu []byte) error {
+					item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
+					if err != nil {
+						logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
 
-			if n1Msg != nil {
-				nasPdu, err = amf.BuildDLNASTransport(ue, fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(requestData.PduSessionID)), nil, nil)
-				if err != nil {
-					logger.From(ctx, logger.AmfLog).Warn("failed to build DL NAS transport", zap.Error(err))
-					return
+						return nil
+					}
+
+					suList = append(suList, item)
+
+					return nil
 				}
-			}
 
-			item, err := amf.PDUSessionSetupItemSUReq(requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
-			if err != nil {
-				logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", requestData.PduSessionID))
-			} else {
-				suList = append(suList, item)
+				if n1Msg == nil {
+					return stage(nil)
+				}
+
+				plain, err := amf.BuildDLNASTransport(fgs.PayloadContainerTypeN1SMInfo, n1Msg, new(fgs.PDUSessionID(requestData.PduSessionID)), nil, nil)
+				if err != nil {
+					return err
+				}
+
+				return ue.SendDownlinkNAS(plain, sht, stage)
 			}
 		}
 	}
-
-	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	if ueConn.UeContextRequest {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
@@ -256,46 +258,74 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 		return
 	} else {
-		nasPdu, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
-		if err != nil {
-			abortRegistration(ctx, amfInstance, ue, "build registration accept", err)
+		sht := uint8(fgs.SHTIntegrityProtectedCiphered)
+
+		if err := appendPendingN1(sht); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "send buffered N1 SM message", err)
+
 			return
 		}
 
-		if len(suList) != 0 {
-			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+		plain, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
+		if err != nil {
+			abortRegistration(ctx, amfInstance, ue, "build registration accept", err)
 
-			err := ueConn.SendPDUSessionResourceSetupRequest(
-				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
-				nasPdu,
-				suList,
-			)
-			if err != nil {
-				abortRegistration(ctx, amfInstance, ue, "send PDU session resource setup request", err)
-				return
-			}
-
-			amf.ArmRegistrationAcceptGuard(amfInstance, ue, nasPdu)
-
-			logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
-		} else {
-			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
-
-			err := ueConn.SendDownlinkNASTransport(ctx, nasPdu)
-			if err != nil {
-				abortRegistration(ctx, amfInstance, ue, "send downlink NAS transport", err)
-				return
-			}
-
-			amf.ArmRegistrationAcceptGuard(amfInstance, ue, nasPdu)
-
-			logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
+			return
 		}
+
+		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultAccept)
+
+		if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+			if len(suList) != 0 {
+				return ueConn.SendPDUSessionResourceSetupRequest(
+					ctx,
+					ue.Ambr.Uplink,
+					ue.Ambr.Downlink,
+					wire,
+					suList,
+				)
+			}
+
+			return ueConn.SendDownlinkNASTransport(ctx, wire)
+		}); err != nil {
+			abortRegistration(ctx, amfInstance, ue, "send registration accept", err)
+
+			return
+		}
+
+		amf.ArmRegistrationAcceptGuard(amfInstance, ue, plain)
+
+		logger.From(ctx, logger.AmfLog).Info("sent registration accept")
 	}
 }
 
 func movingFromEPC(req *fgs.RegistrationRequest) bool {
 	return req != nil && req.UEStatus != nil && req.UEStatus.S1ModeReg
+}
+
+func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) {
+	status := conn.RegistrationRequest.EPSBearerContextStatus
+	if status == nil || !conn.ArrivedFromEPS || amfInstance.EPS == nil {
+		return
+	}
+
+	for pduSessionID, ebi := range ue.EPSBearerIdentities() {
+		if int(ebi) < len(status.Active) && status.Active[ebi] {
+			continue
+		}
+
+		smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID)
+		if !ok {
+			continue
+		}
+
+		if err := amfInstance.Session.ReleaseSmContext(ctx, smContext.Ref); err != nil {
+			logger.From(ctx, logger.AmfLog).Warn("failed to release a PDU session the UE deactivated in EPS",
+				zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID), zap.Uint8("ebi", ebi))
+
+			continue
+		}
+
+		ue.DeleteSmContext(pduSessionID)
+	}
 }

@@ -110,10 +110,9 @@ type UeConn struct {
 	IdentityTypeUsedForRegistration   uint8
 	RetransmissionOfInitialNASMsg     bool
 
-	// RegistrationAcceptPdu is the REGISTRATION ACCEPT last sent, kept to resend on a
-	// duplicate REGISTRATION REQUEST with identical IEs while awaiting REGISTRATION
-	// COMPLETE (TS 24.501 §5.5.1.2.8 case d).
-	RegistrationAcceptPdu []byte
+	ArrivedFromEPS bool
+
+	RegistrationAcceptPlain []byte
 }
 
 // Parent returns the UeContext this connection is bound to, or nil when bare.
@@ -474,10 +473,17 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 	source := a.HandoverSource(ue)
 	target := a.HandoverTarget(ue)
 
+	fromEPS := a.HandoverFromEPS(ue)
+
 	switch ueConn {
 	case target:
 		a.ClearHandover(ue)
 		a.UnbindHandoverTarget(ctx, ue)
+
+		if fromEPS {
+			a.dropRelocationFromEPS(ctx, ue)
+		}
+
 		logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
 	case source:
 		a.ClearHandover(ue)

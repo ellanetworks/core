@@ -5,6 +5,7 @@ package amf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -38,7 +39,27 @@ type handoverContext struct {
 	candidates   []HandoverCandidate
 	admitted     map[uint8]struct{}
 	toEPS        bool
+	fromEPS      bool
 	relocationID interworking.RelocationID
+	relocation   chan relocationOutcome
+}
+
+type relocationOutcome struct {
+	targetToSource []byte
+	unadmitted     []HandoverCandidate
+	err            error
+}
+
+var ErrRelocationAbandoned = errors.New("amf: handover preparation abandoned")
+
+func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
+	if ho == nil || ho.relocation == nil {
+		return
+	}
+
+	ho.relocation <- out
+
+	ho.relocation = nil
 }
 
 func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio, candidates []HandoverCandidate) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
@@ -91,6 +112,99 @@ func (a *AMF) stageRelocationToEPS(ue *UeContext, source *UeConn, candidates []H
 	a.mu.Unlock()
 
 	return id, true
+}
+
+func (a *AMF) prepareRelocationFromEPS(ctx context.Context, ue *UeContext, targetRan *Radio, candidates []HandoverCandidate) (*UeConn, <-chan relocationOutcome, bool) {
+	if ue == nil {
+		return nil, nil, false
+	}
+
+	if !ue.BeginKeyChainProc(procedure.N2Handover) {
+		return nil, nil, false
+	}
+
+	target, err := a.NewUeConn(targetRan, models.RanUeNgapIDUnspecified)
+	if err != nil {
+		ue.EndKeyChainProc(procedure.N2Handover)
+		logger.AmfLog.Error("error creating the target ue for a handover from EPS", zap.Error(err))
+
+		return nil, nil, false
+	}
+
+	delivery := make(chan relocationOutcome, 1)
+
+	a.mu.Lock()
+
+	held, ok := a.relocatingFromEPS[ue.Supi()]
+	if !ok || held.ue != ue || held.cancelled {
+		a.mu.Unlock()
+		ue.EndKeyChainProc(procedure.N2Handover)
+
+		if rerr := a.RemoveUeConn(ctx, target); rerr != nil {
+			logger.From(ctx, logger.AmfLog).Error("error removing the target ue after a cancelled handover from EPS", zap.Error(rerr))
+		}
+
+		return nil, nil, false
+	}
+
+	held.prepared = true
+
+	target.ue.Store(ue)
+	ue.handover = &handoverContext{
+		state:      hoPreparing,
+		target:     target,
+		candidates: candidates,
+		fromEPS:    true,
+		relocation: delivery,
+	}
+	a.mu.Unlock()
+
+	return target, delivery, true
+}
+
+func (a *AMF) FinishRelocationPreparation(ue *UeContext, targetToSource []byte, unadmitted []HandoverCandidate) {
+	if ue == nil {
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	deliverRelocationLocked(ue.handover, relocationOutcome{targetToSource: targetToSource, unadmitted: unadmitted})
+}
+
+func (a *AMF) FailRelocationPreparation(ue *UeContext, err error) {
+	if ue == nil {
+		return
+	}
+
+	a.mu.Lock()
+
+	ho := ue.handover
+	if ho == nil {
+		a.mu.Unlock()
+
+		return
+	}
+
+	deliverRelocationLocked(ho, relocationOutcome{err: err})
+	detachAbandonedTargetLocked(ue, ho)
+	ue.handover = nil
+
+	a.mu.Unlock()
+
+	ue.EndKeyChainProc(procedure.N2Handover)
+}
+
+func (a *AMF) HandoverFromEPS(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return ue.handover != nil && ue.handover.fromEPS
 }
 
 func (a *AMF) RelocationToEPS(ue *UeContext) (interworking.RelocationID, bool) {
@@ -188,6 +302,7 @@ func (a *AMF) abandonHandover(ue *UeContext) bool {
 		return false
 	}
 
+	deliverRelocationLocked(ho, relocationOutcome{err: ErrRelocationAbandoned})
 	detachAbandonedTargetLocked(ue, ho)
 	ue.handover = nil
 
@@ -292,6 +407,8 @@ func (a *AMF) FinishHandoverCommit(ue *UeContext, targetUe *UeConn) bool {
 	// The source connection is managed by the handover flow, not released here.
 	_ = a.attachUeConnLocked(ue, targetUe)
 
+	targetUe.MarkICSCompleted()
+
 	a.mu.Unlock()
 
 	ue.EndKeyChainProc(procedure.N2Handover)
@@ -314,6 +431,7 @@ func (a *AMF) CancelHandover(ue *UeContext) (target *UeConn, aborted bool) {
 		// Too late to cancel: acknowledge but let the in-flight NOTIFY finish.
 	default:
 		target = ho.target
+		deliverRelocationLocked(ho, relocationOutcome{err: ErrRelocationAbandoned})
 		detachAbandonedTargetLocked(ue, ho)
 		ue.handover = nil
 		aborted = true
@@ -358,6 +476,7 @@ func (a *AMF) ClearHandover(ue *UeContext) {
 	}
 
 	a.mu.Lock()
+	deliverRelocationLocked(ue.handover, relocationOutcome{err: ErrRelocationAbandoned})
 	detachAbandonedTargetLocked(ue, ue.handover)
 	ue.handover = nil
 	a.mu.Unlock()
@@ -379,6 +498,7 @@ func (a *AMF) ClearRelocationToEPS(ue *UeContext, id interworking.RelocationID) 
 		return false
 	}
 
+	deliverRelocationLocked(ho, relocationOutcome{err: ErrRelocationAbandoned})
 	detachAbandonedTargetLocked(ue, ho)
 	ue.handover = nil
 

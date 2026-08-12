@@ -16,13 +16,8 @@ import (
 // DEREGISTRATION REQUEST (TS 24.501) over 3GPP access, integrity
 // protected and ciphered with the UE's security context. Re-registration is not
 // requested: the subscriber was removed, so the UE stays deregistered.
-func buildDeregistrationRequest(ue *UeContext) ([]byte, error) {
-	plain, err := (&fgs.DeregistrationRequestUETerminated{AccessType: fgs.AccessType3GPP}).MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	return ue.EncodeNASMessagePlain(plain, uint8(fgs.SHTIntegrityProtectedCiphered))
+func buildDeregistrationRequest() ([]byte, error) {
+	return (&fgs.DeregistrationRequestUETerminated{AccessType: fgs.AccessType3GPP}).MarshalBinary()
 }
 
 // sendNetworkInitiatedDeregistration sends a UE-terminated DEREGISTRATION
@@ -34,12 +29,16 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 		return fmt.Errorf("ueConn is nil")
 	}
 
-	nasMsg, err := buildDeregistrationRequest(ue)
+	plain, err := buildDeregistrationRequest()
 	if err != nil {
 		return fmt.Errorf("build deregistration request: %w", err)
 	}
 
-	if err := ueConn.SendDownlinkNASTransport(ctx, nasMsg); err != nil {
+	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
+
+	if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+		return ueConn.SendDownlinkNASTransport(ctx, wire)
+	}); err != nil {
 		return fmt.Errorf("send downlink nas transport: %w", err)
 	}
 
@@ -63,7 +62,9 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 
 		logger.From(ctx, logger.AmfLog).Warn("T3522 expired, retransmit Deregistration Request", zap.Int32("retry", expireTimes))
 
-		if err := retryUeConn.SendDownlinkNASTransport(context.Background(), nasMsg); err != nil {
+		if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
+			return retryUeConn.SendDownlinkNASTransport(context.Background(), wire)
+		}); err != nil {
 			logger.From(ctx, logger.AmfLog).Error("could not retransmit Deregistration Request", zap.Error(err))
 		}
 	}, func() {

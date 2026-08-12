@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -19,6 +20,8 @@ type RegistrationRequestOpts struct {
 	UESecurity            *UESecurity
 	PDUSessionStatus      *[16]bool
 	S1UENetworkCapability []byte
+
+	UEStatus *fgs.UEStatus
 }
 
 func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
@@ -34,8 +37,12 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 	m := &fgs.RegistrationRequest{
 		RegistrationType: fgs.RegistrationType(opts.RegistrationType),
 		FOR:              true,
-		NgKSI:            nas.KeySetIdentifier{Value: uint8(opts.UESecurity.NgKsi.Ksi)},
-		MobileIdentity:   mobileIdentity,
+		NgKSI: nas.KeySetIdentifier{
+			Value:  uint8(opts.UESecurity.NgKsi.Ksi),
+			Mapped: opts.UESecurity.NgKsi.Tsc == models.ScTypeMapped,
+		},
+		MobileIdentity: mobileIdentity,
+		UEStatus:       opts.UEStatus,
 	}
 
 	if opts.IncludeCapability {

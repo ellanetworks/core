@@ -518,6 +518,11 @@ func TestN2HandoverRequestCarriesMandatoryIEs(t *testing.T) {
 	if len(req.SourceToTargetTransparentContainer) == 0 {
 		t.Error("HANDOVER REQUEST carries no Source to Target Transparent Container (mandatory)")
 	}
+
+	// TS 38.413 §8.4.2.4
+	if req.MobilityRestrictionList == nil {
+		t.Error("HANDOVER REQUEST carries no Mobility Restriction List, so the target cannot determine the serving PLMN")
+	}
 }
 
 func TestN2AcknowledgeTransfersAdmittedSessionsToTheSmf(t *testing.T) {

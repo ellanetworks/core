@@ -25,10 +25,9 @@ func pagingTestUE(t *testing.T) *UeContext {
 		t.Fatal(err)
 	}
 
-	ue := &UeContext{
-		RegistrationArea: []models.Tai{
-			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
-		},
+	ue := NewUeContext()
+	ue.RegistrationArea = []models.Tai{
+		{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 	}
 	ue.SetTmsiForTest(tmsi)
 	// 0 is a legal 5G-TMSI; only the all-ones value means "no reallocation in

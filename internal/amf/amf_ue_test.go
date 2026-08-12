@@ -13,7 +13,7 @@ import (
 )
 
 func TestDecodePayloadTooShort(t *testing.T) {
-	ue := &amf.UeContext{}
+	ue := amf.NewUeContext()
 	payload := []byte{0x00, 0x01, 0x02}
 
 	_, err := amf.DecodeNASMessage(ue, payload)

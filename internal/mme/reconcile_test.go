@@ -9,8 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -584,5 +586,87 @@ func TestModifyBearerFollowsTheConnectionsPCOElement(t *testing.T) {
 				t.Error("the extended element went to a connection that never took it")
 			}
 		})
+	}
+}
+
+func TestReconcileSessionAMBRRefreshesTheMappedFiveGSQoS(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+	p := testPDN(ue)
+	p.PdnType = eps.PDNTypeIPv4
+	p.Snssai = &models.Snssai{Sst: 1}
+	p.PDUSessionID = 5
+
+	qos, err := ResolveQoS(context.Background(), m, ue.imsiOrEmpty())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p.DnConfig = qos.DnFingerprint()
+	p.SessAmbrDLBps = qos.SessAmbrDL.Bps() / 2
+	p.SessAmbrULBps = qos.SessAmbrUL.Bps() / 2
+
+	m.ReconcileDataNetwork(context.Background())
+
+	defer ue.Conn().StopNASGuard()
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one Modify EPS Bearer Context Request, got %d", len(cc.sent))
+	}
+
+	wire := decodeDownlinkNAS(t, cc.sent[0])
+
+	plain, err := unprotected(eps.Unprotect(wire, nas.MakeCount(0, wire[5]), nas.DirectionDownlink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, ue.knasInt, ue.knasEnc)))
+	if err != nil {
+		t.Fatalf("unprotect downlink: %v", err)
+	}
+
+	req, err := eps.ParseModifyEPSBearerContextRequest(plain)
+	if err != nil {
+		t.Fatalf("parse Modify request: %v", err)
+	}
+
+	if req.ProtocolConfigurationOptions == nil {
+		t.Fatal("the modification carries no protocol configuration options, so the UE keeps its stale mapped 5GS QoS")
+	}
+
+	var ambrValue, flowsValue []byte
+
+	for _, c := range req.ProtocolConfigurationOptions.Containers {
+		switch c.ID {
+		case nas.PCOContainerSessionAMBR:
+			ambrValue = c.Content
+		case nas.PCOContainerQoSFlowDescriptions:
+			flowsValue = c.Content
+		case nas.PCOContainerQoSRules:
+			t.Error("the modification re-sends the default QoS rule, which the UE rejects with 5GSM cause #83 (TS 24.501 §6.1.4.1 case a)7)")
+		}
+	}
+
+	if ambrValue == nil {
+		t.Fatal("no mapped Session-AMBR container in the modification")
+	}
+
+	if flowsValue == nil {
+		t.Fatal("no mapped QoS flow descriptions container in the modification")
+	}
+
+	flows, err := fgs.ParseQoSFlowDescriptions(flowsValue)
+	if err != nil {
+		t.Fatalf("parse the mapped QoS flow descriptions: %v", err)
+	}
+
+	if len(flows) != 1 || flows[0].QFI != models.DefaultQFI || flows[0].OperationCode != fgs.QoSFlowOpCreate {
+		t.Errorf("mapped QoS flow descriptions = %+v, want one create for QFI %d", flows, models.DefaultQFI)
+	}
+
+	ambr, err := fgs.ParseSessionAMBR(ambrValue)
+	if err != nil {
+		t.Fatalf("parse the mapped Session-AMBR: %v", err)
+	}
+
+	dl, ul, ok := ambr.Kbps()
+	if !ok || dl != qos.SessAmbrDL.Kbps() || ul != qos.SessAmbrUL.Kbps() {
+		t.Errorf("mapped Session-AMBR = %d/%d kbps, want the policy's %d/%d", dl, ul, qos.SessAmbrDL.Kbps(), qos.SessAmbrUL.Kbps())
 	}
 }

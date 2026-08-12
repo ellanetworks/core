@@ -67,6 +67,12 @@ type RegistrationRequest struct {
 	MICOIndication      *MICOIndication // IEI 0xB0 (type 1)
 	UpdateType5GS       *UpdateType5GS  // IEI 0x53
 
+	// EPSBearerContextStatus (IEI 0x60) reports which EPS bearer contexts are
+	// active in the UE. A UE that locally deactivated one in S1 mode without
+	// telling the network shall include it on the inter-system change
+	// (TS 24.501 §5.5.1.3.2 d, §8.2.6.23).
+	EPSBearerContextStatus *nas.EPSBearerContextStatus
+
 	// Unrecognized carries the optional information elements this message does
 	// not model, so they survive decoding and re-encode unchanged.
 	Unrecognized []nas.RawIE
@@ -211,6 +217,15 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiUpdateType5GS, raw)
 	}
 
+	if m.EPSBearerContextStatus != nil {
+		raw, err := m.EPSBearerContextStatus.MarshalBinary()
+		if err != nil {
+			return b, err
+		}
+
+		o.TLV(ieiEPSBearerContextStatus, raw)
+	}
+
 	if m.NASMessageContainer != nil {
 		o.TLVE(ieiNASMessageContainer, m.NASMessageContainer)
 	}
@@ -327,6 +342,13 @@ func ParseRegistrationRequest(b []byte) (*RegistrationRequest, error) {
 			}
 
 			out.PDUSessionStatus = &bitmap
+		case ieiEPSBearerContextStatus:
+			status, err := nas.ParseEPSBearerContextStatus(value)
+			if err != nil {
+				return false, err
+			}
+
+			out.EPSBearerContextStatus = &status
 		case ieiUEStatus:
 			parsed, err := ParseUEStatus(value)
 			if err != nil {

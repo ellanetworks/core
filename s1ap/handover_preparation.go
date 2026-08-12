@@ -17,7 +17,7 @@ type HandoverRequired struct {
 
 	// DirectForwardingPathAvailability reports that a direct forwarding path to
 	// the target is available. Absent means it is not, which is why it is a
-	// pointer rather than a bool: TS 36.413 §9.2.1.44 gives the enumeration one
+	// pointer rather than a bool: TS 36.413 §9.2.3.15 gives the enumeration one
 	// root value and carries "not available" as the IE's absence.
 	DirectForwardingPathAvailability *DirectForwardingPathAvailability
 

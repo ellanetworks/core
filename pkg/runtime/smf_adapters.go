@@ -257,7 +257,7 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 		PolicyID: pol.ID,
 		Ambr:     models.Ambr{Uplink: ambrUL, Downlink: ambrDL},
 		QosData: models.QosData{
-			QFI:    1,
+			QFI:    models.DefaultQFI,
 			Var5qi: pol.Var5qi,
 			Arp: &models.Arp{
 				PriorityLevel: pol.Arp,

@@ -182,58 +182,61 @@ func (ue *UeContext) TryUnprotectUplink(pdu []byte) (plain []byte, count uint32,
 	return p, estimated.Value(), nil
 }
 
-// ProtectDownlink reserves the next downlink NAS COUNT and integrity-protects
-// (and ciphers, per the security header type) an already-marshalled NAS message
-// with the UE's security context. The keys never leave the kernel (TS 24.301).
-func (ue *UeContext) ProtectDownlink(plain []byte, sht eps.SecurityHeaderType) ([]byte, error) {
-	ue.mu.Lock()
-	defer ue.mu.Unlock()
+// downlink returns the UE's downlink NAS sender, which takes a downlink NAS COUNT
+// and writes the message that carries it in one step, so two senders cannot write
+// in an order other than the one they took their COUNTs in (TS 24.301 §4.4.3.1).
+func (ue *UeContext) downlink() *nas.DownlinkSender {
+	ue.dlOnce.Do(func() { ue.dl = nas.NewDownlinkSender(protectEPSDownlink) })
 
-	// Reserve the COUNT before protecting, so a failure part-way through burns a
-	// downlink COUNT rather than risking a second message under the same one
-	// (TS 24.301 §4.4.3.1).
-	count, err := ue.dlCount.Use()
-	if err != nil {
-		return nil, err
-	}
+	return ue.dl
+}
 
-	wire, err := eps.Protect(plain, sht, count, nas.DirectionDownlink, ue.sc)
-	if err != nil {
-		return nil, err
-	}
-
-	return wire, nil
+func protectEPSDownlink(plain []byte, sht uint8, count nas.Count, sc *nas.SecurityContext) ([]byte, error) {
+	return eps.Protect(plain, eps.SecurityHeaderType(sht), count, nas.DirectionDownlink, sc)
 }
 
 // InstallNASSecurityContext derives the NAS keys from K_ASME for the negotiated
 // algorithms and installs the EPS NAS security context (TS 33.401). The
 // AuthProof witnesses that EPS-AKA authentication has succeeded.
 func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, _ AuthProof) error {
+	sc, err := ue.deriveNASKeys(eea, eia)
+	if err != nil {
+		ue.downlink().Clear()
+
+		return err
+	}
+
+	ue.downlink().Install(sc, nas.DownlinkCounter{})
+
+	return nil
+}
+
+func (ue *UeContext) deriveNASKeys(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm) (*nas.SecurityContext, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
 	knasEnc, err := epskeys.DeriveKNASEnc(ue.kasme, eea)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	knasInt, err := epskeys.DeriveKNASInt(ue.kasme, eia)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ue.cipheringAlg, ue.integrityAlg = eea, eia
 	ue.knasEnc, ue.knasInt = knasEnc, knasInt
 
-	if err := ue.installSecurityContextLocked(); err != nil {
-		return err
+	sc, err := ue.installSecurityContextLocked()
+	if err != nil {
+		return nil, err
 	}
 
 	ue.ulCount.Reset()
-	ue.dlCount.Reset()
 	ue.kenbCount = 0
 
-	return nil
+	return sc, nil
 }
 
 // AllocateRegistrationArea assigns the UE's registered tracking area. Ella Core is a
@@ -382,8 +385,9 @@ func (m *MME) SetPDNEnbFTEID(ue *UeContext, p *PdnConnection, f models.FTEID) {
 }
 
 // installSecurityContextLocked builds the NAS security context from the
-// algorithms and keys currently held. Caller holds ue.mu.
-func (ue *UeContext) installSecurityContextLocked() error {
+// algorithms and keys currently held and returns it, for the caller to hand to
+// the downlink sender once it has released ue.mu. Caller holds ue.mu.
+func (ue *UeContext) installSecurityContextLocked() (*nas.SecurityContext, error) {
 	sc, err := nas.NewSecurityContext(nas.SecurityContextOptions{
 		Integrity:    ue.integrityAlg,
 		Ciphering:    ue.cipheringAlg,
@@ -397,10 +401,10 @@ func (ue *UeContext) installSecurityContextLocked() error {
 		// must not fall back to the previous one.
 		ue.sc = nil
 
-		return err
+		return nil, err
 	}
 
 	ue.sc = sc
 
-	return nil
+	return sc, nil
 }

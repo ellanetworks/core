@@ -7,12 +7,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
@@ -133,17 +133,12 @@ func validateNGSetupResponse(resp *ngap.NGSetupResponse, expMCC, expMNC string, 
 // plmnIDToString decodes the TBCD PLMN identity back to MCC/MNC digit strings
 // (TS 23.003 §2.2).
 func plmnIDToString(id ngap.PLMNIdentity) (string, string) {
-	hexString := strings.Split(hex.EncodeToString(id[:]), "")
-	mcc := hexString[1] + hexString[0] + hexString[3]
-
-	var mnc string
-	if hexString[2] == "f" {
-		mnc = hexString[5] + hexString[4]
-	} else {
-		mnc = hexString[2] + hexString[5] + hexString[4]
+	p, err := nas.ParsePLMN([3]byte(id))
+	if err != nil {
+		return "", ""
 	}
 
-	return mcc, mnc
+	return p.MCC, p.MNC
 }
 
 func snssaiToString(snssai ngap.SNSSAI) (int32, string) {

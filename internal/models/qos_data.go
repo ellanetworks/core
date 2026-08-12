@@ -3,6 +3,8 @@
 
 package models
 
+const DefaultQFI uint8 = 1
+
 type QosData struct {
 	QFI    uint8
 	Var5qi int32

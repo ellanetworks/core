@@ -48,8 +48,6 @@ func TestAttachUeConn_ReleasesDisplacedConn(t *testing.T) {
 	second := amf.NewUeConnForTest(radio, 2, 11, logger.AmfLog)
 	amfInstance.AttachUeConn(ue, second)
 
-	// The displaced connection stays registered with its AMF-UE-NGAP-ID reserved until
-	// its Release Complete, so the gNB can reference it until then.
 	if first.UeContext() != nil {
 		t.Fatal("displaced UeConn was not detached from the UE after re-attach")
 	}

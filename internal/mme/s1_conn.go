@@ -85,17 +85,18 @@ type UeConn struct {
 	resyncTried bool
 
 	// In-flight attach working-state (TS 24.301 §5.5.1.2.7 case d): AttachRequestPlain
-	// is the plaintext ATTACH REQUEST that started the attach, AttachAcceptPdu the
-	// protected ATTACH ACCEPT last sent — kept to resend the ACCEPT on a duplicate
-	// ATTACH REQUEST with identical IEs while awaiting ATTACH COMPLETE. Connection-
-	// scoped like the auth state above. Dispatch-confined.
+	// is the plaintext ATTACH REQUEST that started the attach, AttachAcceptPlain the
+	// plaintext ATTACH ACCEPT last sent — kept to resend the ACCEPT on a duplicate
+	// ATTACH REQUEST with identical IEs while awaiting ATTACH COMPLETE. The resend is
+	// protected afresh, under the next downlink NAS COUNT (TS 24.301 §4.4.3.1).
+	// Connection-scoped like the auth state above. Dispatch-confined.
 	AttachRequestPlain []byte
-	AttachAcceptPdu    []byte
+	AttachAcceptPlain  []byte
 
 	// In-flight TAU working-state (TS 24.301 §5.5.3.2.7 case d), like the attach
 	// state above; cleared when TAU COMPLETE commits the reallocated GUTI.
 	TauRequestPlain []byte
-	TauAcceptPdu    []byte
+	TauAcceptPlain  []byte
 
 	// TauReleaseOnComplete defers the S1 release of a no-active TAU until the
 	// GUTI reallocation it carried is acknowledged.

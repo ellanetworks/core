@@ -39,8 +39,10 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.U
 		return true
 	}
 
-	naspdu, err := ue.ProtectDownlink(esm, eps.SHTIntegrityProtectedCiphered)
-	if err != nil {
+	logger.From(ctx, logger.MmeLog).Info("requesting deferred ESM information",
+		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", wait.PTI))
+
+	if err := ueConn.SendProtectedNASTransport(ctx, esm, eps.SHTIntegrityProtectedCiphered); err != nil {
 		mme.ReportProtectFailure(ctx, ueConn, "ESM Information Request", err)
 
 		// The connection is gone, so the abort's reject could not be protected.
@@ -55,15 +57,10 @@ func requestESMInformation(ctx context.Context, ue *mme.UeContext, ueConn *mme.U
 		return true
 	}
 
-	logger.From(ctx, logger.MmeLog).Info("requesting deferred ESM information",
-		zap.String("imsi", ue.IMSI()), zap.Uint8("pti", wait.PTI))
-
-	ueConn.ArmT3489("ESM Information Request", naspdu, func() {
+	ueConn.ArmT3489("ESM Information Request", esm, eps.SHTIntegrityProtectedCiphered, func() {
 		logger.MmeLog.Info("ESM information not received", zap.String("imsi", ue.IMSI()))
 		abort()
 	})
-
-	ueConn.SendDownlinkNASTransport(ctx, naspdu)
 
 	return true
 }
