@@ -81,20 +81,20 @@ func buildNGAPSummary(msg NGAPMessage) string {
 	}
 
 	for _, ie := range msg.Value.IEs {
-		switch ie.ID.Label {
-		case "AMFUENGAPID":
+		switch ngap.ProtocolIEID(ie.ID.Value) {
+		case ngap.IDAMFUENGAPID:
 			summary += fmt.Sprintf(", AMF-UE=%d", ie.Value)
-		case "RANUENGAPID":
+		case ngap.IDRANUENGAPID:
 			summary += fmt.Sprintf(", RAN-UE=%d", ie.Value)
-		case "NASPDU":
+		case ngap.IDNASPDU:
 			if nasPdu, ok := ie.Value.(NASPDU); ok && nasPdu.Decoded != nil {
 				summary += ", NAS=" + nasMessageTypeName(nasPdu.Decoded)
 			}
-		case "NRPPaPDU":
+		case ngap.IDNRPPaPDU:
 			if nrppaPdu, ok := ie.Value.(NRPPaPDU); ok && nrppaPdu.Decoded != nil && nrppaPdu.Decoded.Kind.Label != "" {
 				summary += ", NRPPa=" + nrppaPdu.Decoded.Kind.Label
 			}
-		case "Cause":
+		case ngap.IDCause:
 			if c, ok := ie.Value.(Cause); ok {
 				summary += ", Cause=" + c.Value.Label
 			}

@@ -18,7 +18,7 @@ type ENBConfigurationUpdate struct {
 
 var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 	{
-		id: idENBname, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDENBname, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -40,7 +40,7 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 		},
 	},
 	{
-		id: idSupportedTAs, presence: presenceOptional, crit: CriticalityReject,
+		id: IDSupportedTAs, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SupportedTAs)
 		},
@@ -53,7 +53,7 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 		},
 	},
 	{
-		id: idDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			var drx PagingDRX
 
@@ -108,7 +108,7 @@ type ENBConfigurationUpdateAcknowledge struct {
 
 var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknowledge]{
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -165,7 +165,7 @@ type ENBConfigurationUpdateFailure struct {
 
 var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -186,7 +186,7 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
 			var ttw TimeToWait
 
@@ -207,7 +207,7 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 

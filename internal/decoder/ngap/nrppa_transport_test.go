@@ -43,7 +43,7 @@ func TestDecodeNGAPMessage_DownlinkUEAssociatedNRPPaTransport(t *testing.T) {
 		t.Errorf("PDUType: got %q, want InitiatingMessage", msg.PDUType)
 	}
 
-	if msg.ProcedureCode.Label != "DownlinkUEAssociatedNRPPaTransport" {
+	if msg.ProcedureCode.Value != int64(lib.ProcDownlinkUEAssociatedNRPPaTransport) {
 		t.Errorf("ProcedureCode: got %q", msg.ProcedureCode.Label)
 	}
 
@@ -55,18 +55,18 @@ func TestDecodeNGAPMessage_DownlinkUEAssociatedNRPPaTransport(t *testing.T) {
 	var nrppaIE *IE
 
 	for i := range msg.Value.IEs {
-		if msg.Value.IEs[i].ID.Label == "NRPPaPDU" {
+		if msg.Value.IEs[i].ID.Value == int64(lib.IDNRPPaPDU) {
 			nrppaIE = &msg.Value.IEs[i]
 		}
 	}
 
 	if nrppaIE == nil {
-		t.Fatal("NRPPaPDU IE not found")
+		t.Fatal("NRPPa-PDU IE not found")
 	}
 
 	decoded, ok := nrppaIE.Value.(NRPPaPDU)
 	if !ok {
-		t.Fatalf("NRPPaPDU value type: got %T, want NRPPaPDU", nrppaIE.Value)
+		t.Fatalf("NRPPa-PDU value type: got %T, want NRPPa-PDU", nrppaIE.Value)
 	}
 
 	if decoded.Protocol != "NRPPa" {

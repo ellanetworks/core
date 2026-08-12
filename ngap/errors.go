@@ -110,12 +110,12 @@ func (e *AbstractSyntaxError) UEIDs() (*AMFUENGAPID, *RANUENGAPID) {
 		// is deliberately absent: UE CONTEXT MODIFICATION REQUEST carries it
 		// alongside id-AMF-UE-NGAP-ID to assign a new id, so it names the
 		// association being moved to rather than the one to answer about.
-		case idAMFUENGAPID, idSourceAMFUENGAPID:
+		case IDAMFUENGAPID, IDSourceAMFUENGAPID:
 			var v AMFUENGAPID
 			if perIEDecode(ie.Value, &v) == nil {
 				amfID = &v
 			}
-		case idRANUENGAPID:
+		case IDRANUENGAPID:
 			var v RANUENGAPID
 			if perIEDecode(ie.Value, &v) == nil {
 				ranID = &v
@@ -229,14 +229,11 @@ func (d *Diagnostics) record(id ProtocolIEID, crit Criticality, kind TypeOfError
 }
 
 func (t TypeOfError) String() string {
-	switch t {
-	case TypeOfErrorNotUnderstood:
-		return "not-understood"
-	case TypeOfErrorMissing:
-		return "missing"
-	default:
-		return fmt.Sprintf("TypeOfError(%d)", uint8(t))
+	if name, ok := typeOfErrorNames[t]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("TypeOfError(%d)", uint8(t))
 }
 
 // PathSwitchSessions returns the sessions a rejected PATH SWITCH REQUEST asked
@@ -245,7 +242,7 @@ func (t TypeOfError) String() string {
 // decode; §10.3.5 falls back to the Error Indication procedure where it did not.
 func (e *AbstractSyntaxError) PathSwitchSessions() PDUSessionResourceToBeSwitchedDLList {
 	for _, ie := range e.decoded {
-		if ie.ID != idPDUSessionResourceToBeSwitchedDLList {
+		if ie.ID != IDPDUSessionResourceToBeSwitchedDLList {
 			continue
 		}
 

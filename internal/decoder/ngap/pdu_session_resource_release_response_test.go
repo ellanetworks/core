@@ -23,20 +23,16 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseResponse(t *testing.T) {
 		t.Errorf("expected PDUType=SuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "PDUSessionResourceRelease" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcPDUSessionResourceRelease) {
 		t.Errorf("expected ProcedureCode=PDUSessionResourceRelease, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcPDUSessionResourceRelease) {
-		t.Errorf("expected ProcedureCode value=28, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcPDUSessionResourceRelease)
 	}
 
-	if ngapMsg.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 4 {
@@ -45,92 +41,60 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseResponse(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "AMFUENGAPID" {
-		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
+	if item0.ID.Value != int64(lib.IDAMFUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDAMFUENGAPID)
 	}
 
-	if item0.ID.Value != int64(idAMFUENGAPID) {
-		t.Errorf("expected ID value=10, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item0.Criticality)
 	}
 
 	amfUENGAPID, ok := item0.Value.(int64)
 	if !ok {
-		t.Errorf("expected AMFUENGAPID to be int64, got %T", item0.Value)
+		t.Errorf("expected AMF-UE-NGAP-ID to be int64, got %T", item0.Value)
 	}
 
 	if amfUENGAPID != 148 {
-		t.Errorf("expected AMFUENGAPID=148, got %d", amfUENGAPID)
+		t.Errorf("expected AMF-UE-NGAP-ID=148, got %d", amfUENGAPID)
 	}
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "RANUENGAPID" {
-		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
+	if item1.ID.Value != int64(lib.IDRANUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDRANUENGAPID)
 	}
 
-	if item1.ID.Value != int64(idRANUENGAPID) {
-		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item1.Criticality)
 	}
 
 	ranUENGAPID, ok := item1.Value.(int64)
 	if !ok {
-		t.Errorf("expected RANUENGAPID to be int64, got %T", item1.Value)
+		t.Errorf("expected RAN-UE-NGAP-ID to be int64, got %T", item1.Value)
 	}
 
 	if ranUENGAPID != 1 {
-		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
+		t.Errorf("expected RAN-UE-NGAP-ID=1, got %d", ranUENGAPID)
 	}
 
 	item2 := ngapMsg.Value.IEs[2]
 
-	if item2.ID.Label != "PDUSessionResourceReleasedListRelRes" {
-		t.Errorf("expected ID=PDUSessionResourceReleasedListRelRes, got %s", item2.ID.Label)
+	if item2.ID.Value != int64(lib.IDPDUSessionResourceReleasedListRelRes) {
+		t.Errorf("IE id = %d, want %d", item2.ID.Value, lib.IDPDUSessionResourceReleasedListRelRes)
 	}
 
-	if item2.ID.Value != int64(idPDUSessionResourceReleasedListRelRes) {
-		t.Errorf("expected ID value=70, got %d", item2.ID.Value)
-	}
-
-	if item2.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item2.Criticality)
-	}
-
-	if item2.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item2.Criticality.Value)
+	if item2.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item2.Criticality)
 	}
 
 	item3 := ngapMsg.Value.IEs[3]
 
-	if item3.ID.Label != "UserLocationInformation" {
-		t.Errorf("expected ID=UserLocationInformation, got %s", item3.ID.Label)
+	if item3.ID.Value != int64(lib.IDUserLocationInformation) {
+		t.Errorf("IE id = %d, want %d", item3.ID.Value, lib.IDUserLocationInformation)
 	}
 
-	if item3.ID.Value != int64(idUserLocationInformation) {
-		t.Errorf("expected ID value=116, got %d", item3.ID.Value)
-	}
-
-	if item3.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item3.Criticality)
-	}
-
-	if item3.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
+	if item3.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item3.Criticality)
 	}
 
 	userLocationInfo, ok := item3.Value.(UserLocationInformation)
@@ -155,15 +119,15 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseResponse(t *testing.T) {
 	}
 
 	if userLocationInfo.NR.NRCGI.PLMNID.Mcc != "001" {
-		t.Errorf("expected NRCGI.PLMNID.MCC=001, got %s", userLocationInfo.NR.NRCGI.PLMNID.Mcc)
+		t.Errorf("expected NR-CGI.PLMNID.MCC=001, got %s", userLocationInfo.NR.NRCGI.PLMNID.Mcc)
 	}
 
 	if userLocationInfo.NR.NRCGI.PLMNID.Mnc != "01" {
-		t.Errorf("expected NRCGI.PLMNID.MNC=01, got %s", userLocationInfo.NR.NRCGI.PLMNID.Mnc)
+		t.Errorf("expected NR-CGI.PLMNID.MNC=01, got %s", userLocationInfo.NR.NRCGI.PLMNID.Mnc)
 	}
 
 	if userLocationInfo.NR.NRCGI.NRCellIdentity != "001234501" {
-		t.Errorf("expected NRCGI.NRCellIdentity=001234501, got %v", userLocationInfo.NR.NRCGI.NRCellIdentity)
+		t.Errorf("expected NR-CGI.NRCellIdentity=001234501, got %v", userLocationInfo.NR.NRCGI.NRCellIdentity)
 	}
 
 	if userLocationInfo.NR.TimeStamp != nil {

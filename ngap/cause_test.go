@@ -62,7 +62,7 @@ func TestCauseChoiceExtensionIsRejected(t *testing.T) {
 	}
 
 	if err := encodeContainerField(w, enc, ieField{
-		id:   idCause,
+		id:   IDCause,
 		crit: CriticalityIgnore,
 		raw:  []byte{0x00},
 	}); err != nil {

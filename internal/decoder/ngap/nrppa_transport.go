@@ -34,10 +34,10 @@ func decodeNRPPaPDU(raw []byte) NRPPaPDU {
 // carry; they differ only in procedure code (TS 38.413 §9.2.9.1, §9.2.9.2).
 func ueAssociatedNRPPaIEs(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, routing ngap.RoutingID, pdu ngap.NRPPaPDU, unknown []ngap.RawIE) NGAPMessageValue {
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(amfID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(ranID)),
-		ie(idRoutingID, ngap.CriticalityReject, hex.EncodeToString(routing)),
-		ie(idNRPPaPDU, ngap.CriticalityReject, decodeNRPPaPDU(pdu)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(amfID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(ranID)),
+		ie(ngap.IDRoutingID, ngap.CriticalityReject, hex.EncodeToString(routing)),
+		ie(ngap.IDNRPPaPDU, ngap.CriticalityReject, decodeNRPPaPDU(pdu)),
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(unknown)...)}
@@ -47,8 +47,8 @@ func ueAssociatedNRPPaIEs(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, routin
 // carry (TS 38.413 §9.2.9.3, §9.2.9.4).
 func nonUEAssociatedNRPPaIEs(routing ngap.RoutingID, pdu ngap.NRPPaPDU, unknown []ngap.RawIE) NGAPMessageValue {
 	ies := []IE{
-		ie(idRoutingID, ngap.CriticalityReject, hex.EncodeToString(routing)),
-		ie(idNRPPaPDU, ngap.CriticalityReject, decodeNRPPaPDU(pdu)),
+		ie(ngap.IDRoutingID, ngap.CriticalityReject, hex.EncodeToString(routing)),
+		ie(ngap.IDNRPPaPDU, ngap.CriticalityReject, decodeNRPPaPDU(pdu)),
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(unknown)...)}

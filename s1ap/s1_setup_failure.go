@@ -47,7 +47,7 @@ type S1SetupFailure struct {
 
 var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -68,7 +68,7 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 		},
 	},
 	{
-		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
 			var ttw TimeToWait
 
@@ -89,7 +89,7 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 

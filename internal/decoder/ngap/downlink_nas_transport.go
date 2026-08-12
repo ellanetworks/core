@@ -20,9 +20,9 @@ func buildDownlinkNASTransport(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
-		ie(idNASPDU, ngap.CriticalityReject, libNASPDU(m.NASPDU)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDNASPDU, ngap.CriticalityReject, libNASPDU(m.NASPDU)),
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}

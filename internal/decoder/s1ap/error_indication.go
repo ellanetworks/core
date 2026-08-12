@@ -18,19 +18,19 @@ func buildErrorIndication(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.ENBUES1APID != nil {
-		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+		ies = append(ies, ie(s1ap.IDENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	if m.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

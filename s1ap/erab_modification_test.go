@@ -18,10 +18,10 @@ func erabModIndicationWire(t *testing.T, items []ERABToBeModifiedItemBearerModIn
 	w.WriteBit(false)
 
 	err := encodeIEContainer(w, per.Aligned, []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
-		{id: idERABToBeModifiedListBearerModInd, crit: CriticalityReject, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-			return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeModifiedItemBearerModInd, CriticalityReject, items)
+		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
+		{id: IDERABToBeModifiedListBearerModInd, crit: CriticalityReject, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+			return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABToBeModifiedItemBearerModInd, CriticalityReject, items)
 		})},
 	})
 	if err != nil {
@@ -66,8 +66,8 @@ func TestERABModificationIndication_MissingMandatoryIE(t *testing.T) {
 
 	// Only the UE IDs, no E-RABToBeModified list (mandatory).
 	if err := encodeIEContainer(w, per.Aligned, []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
+		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
 	}); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestERABModificationConfirm_Marshal(t *testing.T) {
 	var seenList bool
 
 	for _, f := range fields {
-		if f.id == idERABModifyListBearerModConf {
+		if f.id == IDERABModifyListBearerModConf {
 			seenList = true
 		}
 	}

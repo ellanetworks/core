@@ -20,14 +20,14 @@ type NGSetupRequest struct {
 
 var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 	{
-		id: idGlobalRANNodeID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDGlobalRANNodeID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.GlobalRANNodeID)
 		},
 		encode: func(m *NGSetupRequest) (per.Marshaler, bool) { return &m.GlobalRANNodeID, true },
 	},
 	{
-		id: idRANNodeName, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDRANNodeName, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -49,14 +49,14 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 		},
 	},
 	{
-		id: idSupportedTAList, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDSupportedTAList, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SupportedTAList)
 		},
 		encode: func(m *NGSetupRequest) (per.Marshaler, bool) { return m.SupportedTAList, true },
 	},
 	{
-		id: idDefaultPagingDRX, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDDefaultPagingDRX, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
 			var v PagingDRX
 
@@ -77,7 +77,7 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 		},
 	},
 	{
-		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
 			var v UERetentionInformation
 

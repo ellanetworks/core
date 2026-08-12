@@ -201,7 +201,7 @@ func TestTargetIDRejectsChoiceExtensions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idTargetID)); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(IDTargetID)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -396,7 +396,7 @@ func encodedHandoverTypeIE(t *testing.T, v HandoverType) []byte {
 	t.Helper()
 
 	w := per.NewWriter()
-	if err := encodeContainerField(w, per.Aligned, ieField{id: idHandoverType, crit: CriticalityReject, val: v}); err != nil {
+	if err := encodeContainerField(w, per.Aligned, ieField{id: IDHandoverType, crit: CriticalityReject, val: v}); err != nil {
 		t.Fatal(err)
 	}
 

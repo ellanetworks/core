@@ -102,7 +102,7 @@ type NGReset struct {
 
 var nGResetIEs = []ieSpec[NGReset]{
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NGReset, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -123,7 +123,7 @@ var nGResetIEs = []ieSpec[NGReset]{
 		},
 	},
 	{
-		id: idResetType, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDResetType, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NGReset, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ResetType)
 		},
@@ -166,7 +166,7 @@ type NGResetAcknowledge struct {
 // The message has no mandatory IE.
 var nGResetAcknowledgeIEs = []ieSpec[NGResetAcknowledge]{
 	{
-		id: idUEAssociatedLogicalNGConnectionList, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUEAssociatedLogicalNGConnectionList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGResetAcknowledge, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ConnectionList)
 		},
@@ -179,7 +179,7 @@ var nGResetAcknowledgeIEs = []ieSpec[NGResetAcknowledge]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGResetAcknowledge, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 			if err := perIEDecode(raw, &cd); err != nil {

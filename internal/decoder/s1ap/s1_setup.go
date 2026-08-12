@@ -41,18 +41,7 @@ type Cause struct {
 }
 
 func enbIDKind(kind s1ap.ENBIDKind) utils.EnumField {
-	switch kind {
-	case s1ap.ENBIDMacro:
-		return utils.MakeEnum(uint64(kind), "macro", false)
-	case s1ap.ENBIDHome:
-		return utils.MakeEnum(uint64(kind), "home", false)
-	case s1ap.ENBIDShortMacro:
-		return utils.MakeEnum(uint64(kind), "short-macro", false)
-	case s1ap.ENBIDLongMacro:
-		return utils.MakeEnum(uint64(kind), "long-macro", false)
-	default:
-		return utils.MakeEnum(uint64(kind), "", true)
-	}
+	return utils.NamedEnum(uint8(kind), kind.Name())
 }
 
 func globalENBID(g s1ap.GlobalENBID) GlobalENBID {
@@ -78,50 +67,15 @@ func supportedTAs(tas s1ap.SupportedTAs) []SupportedTA {
 }
 
 func pagingDRXToEnum(d s1ap.PagingDRX) utils.EnumField {
-	switch d {
-	case s1ap.PagingDRXv32:
-		return utils.MakeEnum(uint64(d), "v32", false)
-	case s1ap.PagingDRXv64:
-		return utils.MakeEnum(uint64(d), "v64", false)
-	case s1ap.PagingDRXv128:
-		return utils.MakeEnum(uint64(d), "v128", false)
-	case s1ap.PagingDRXv256:
-		return utils.MakeEnum(uint64(d), "v256", false)
-	default:
-		return utils.MakeEnum(uint64(d), "", true)
-	}
+	return utils.NamedEnum(uint8(d), d.Name())
 }
 
 func timeToWaitToEnum(t s1ap.TimeToWait) utils.EnumField {
-	names := map[s1ap.TimeToWait]string{
-		s1ap.TimeToWaitV1s:  "v1s",
-		s1ap.TimeToWaitV2s:  "v2s",
-		s1ap.TimeToWaitV5s:  "v5s",
-		s1ap.TimeToWaitV10s: "v10s",
-		s1ap.TimeToWaitV20s: "v20s",
-		s1ap.TimeToWaitV60s: "v60s",
-	}
-
-	name, ok := names[t]
-
-	return utils.MakeEnum(uint64(t), name, !ok)
+	return utils.NamedEnum(uint8(t), t.Name())
 }
 
 func causeGroupToEnum(g s1ap.CauseGroup) utils.EnumField {
-	switch g {
-	case s1ap.CauseGroupRadioNetwork:
-		return utils.MakeEnum(uint64(g), "radioNetwork", false)
-	case s1ap.CauseGroupTransport:
-		return utils.MakeEnum(uint64(g), "transport", false)
-	case s1ap.CauseGroupNAS:
-		return utils.MakeEnum(uint64(g), "nas", false)
-	case s1ap.CauseGroupProtocol:
-		return utils.MakeEnum(uint64(g), "protocol", false)
-	case s1ap.CauseGroupMisc:
-		return utils.MakeEnum(uint64(g), "misc", false)
-	default:
-		return utils.MakeEnum(uint64(g), "", true)
-	}
+	return utils.NamedEnum(uint8(g), g.Name())
 }
 
 func cause(c s1ap.Cause) Cause {
@@ -140,28 +94,28 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{{
-		ID:          ieEnum(idGlobalENBID),
+		ID:          ieEnum(s1ap.IDGlobalENBID),
 		Criticality: criticalityToEnum(s1ap.CriticalityReject),
 		Value:       globalENBID(req.GlobalENBID),
 	}}
 
 	if req.ENBName != nil {
 		ies = append(ies, IE{
-			ID:          ieEnum(idENBname),
+			ID:          ieEnum(s1ap.IDENBname),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
 			Value:       *req.ENBName,
 		})
 	}
 
 	ies = append(ies, IE{
-		ID:          ieEnum(idSupportedTAs),
+		ID:          ieEnum(s1ap.IDSupportedTAs),
 		Criticality: criticalityToEnum(s1ap.CriticalityReject),
 		Value:       supportedTAs(req.SupportedTAs),
 	})
 
 	if req.DefaultPagingDRX != nil {
 		ies = append(ies, IE{
-			ID:          ieEnum(idDefaultPagingDRX),
+			ID:          ieEnum(s1ap.IDDefaultPagingDRX),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
 			Value:       pagingDRXToEnum(*req.DefaultPagingDRX),
 		})
@@ -187,28 +141,28 @@ func buildS1SetupResponse(value []byte) (S1APMessageValue, string) {
 
 	if resp.MMEName != nil {
 		ies = append(ies, IE{
-			ID:          ieEnum(idMMEname),
+			ID:          ieEnum(s1ap.IDMMEname),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
 			Value:       *resp.MMEName,
 		})
 	}
 
 	ies = append(ies, IE{
-		ID:          ieEnum(idServedGUMMEIs),
+		ID:          ieEnum(s1ap.IDServedGUMMEIs),
 		Criticality: criticalityToEnum(s1ap.CriticalityReject),
 		Value:       servedGUMMEIs(resp.ServedGUMMEIs),
 	})
 
 	if resp.RelativeMMECapacity != nil {
 		ies = append(ies, IE{
-			ID:          ieEnum(idRelativeMMECapacity),
+			ID:          ieEnum(s1ap.IDRelativeMMECapacity),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
 			Value:       *resp.RelativeMMECapacity,
 		})
 	}
 
 	if resp.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*resp.CriticalityDiagnostics)))
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*resp.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, resp.UnknownIEs())
@@ -226,7 +180,7 @@ func buildS1SetupFailure(value []byte) (S1APMessageValue, string) {
 
 	if fail.Cause != nil {
 		ies = append(ies, IE{
-			ID:          ieEnum(idCause),
+			ID:          ieEnum(s1ap.IDCause),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
 			Value:       cause(*fail.Cause),
 		})
@@ -234,14 +188,14 @@ func buildS1SetupFailure(value []byte) (S1APMessageValue, string) {
 
 	if fail.TimeToWait != nil {
 		ies = append(ies, IE{
-			ID:          ieEnum(idTimeToWait),
+			ID:          ieEnum(s1ap.IDTimeToWait),
 			Criticality: criticalityToEnum(s1ap.CriticalityIgnore),
 			Value:       timeToWaitToEnum(*fail.TimeToWait),
 		})
 	}
 
 	if fail.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*fail.CriticalityDiagnostics)))
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*fail.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, fail.UnknownIEs())

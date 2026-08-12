@@ -24,20 +24,16 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "DownlinkNASTransport" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcDownlinkNASTransport) {
 		t.Errorf("expected ProcedureCode=DownlinkNASTransport, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcDownlinkNASTransport) {
-		t.Errorf("expected ProcedureCode value=3, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcDownlinkNASTransport)
 	}
 
-	if ngapMsg.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 3 {
@@ -46,79 +42,55 @@ func TestDecodeNGAPMessage_DownlinkNASTransport(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "AMFUENGAPID" {
-		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
+	if item0.ID.Value != int64(lib.IDAMFUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDAMFUENGAPID)
 	}
 
-	if item0.ID.Value != int64(idAMFUENGAPID) {
-		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item0.Criticality)
 	}
 
 	amfUENGAPID, ok := item0.Value.(int64)
 	if !ok {
-		t.Fatalf("expected AMFUENGAPID to be of type int64, got %T", item0.Value)
+		t.Fatalf("expected AMF-UE-NGAP-ID to be of type int64, got %T", item0.Value)
 	}
 
 	if amfUENGAPID != 1 {
-		t.Errorf("expected AMFUENGAPID=1, got %d", amfUENGAPID)
+		t.Errorf("expected AMF-UE-NGAP-ID=1, got %d", amfUENGAPID)
 	}
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "RANUENGAPID" {
-		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
+	if item1.ID.Value != int64(lib.IDRANUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDRANUENGAPID)
 	}
 
-	if item1.ID.Value != int64(idRANUENGAPID) {
-		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item1.Criticality)
 	}
 
 	ranUENGAPID, ok := item1.Value.(int64)
 	if !ok {
-		t.Fatalf("expected RANUENGAPID to be of type *int64, got %T", item1.Value)
+		t.Fatalf("expected RAN-UE-NGAP-ID to be of type *int64, got %T", item1.Value)
 	}
 
 	if ranUENGAPID != 1 {
-		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
+		t.Errorf("expected RAN-UE-NGAP-ID=1, got %d", ranUENGAPID)
 	}
 
 	item2 := ngapMsg.Value.IEs[2]
 
-	if item2.ID.Label != "NASPDU" {
-		t.Errorf("expected ID=NASPDU, got %v", item2.ID)
+	if item2.ID.Value != int64(lib.IDNASPDU) {
+		t.Errorf("IE id = %d, want %d", item2.ID.Value, lib.IDNASPDU)
 	}
 
-	if item2.ID.Value != int64(idNASPDU) {
-		t.Errorf("expected ID value=38, got %d", item2.ID.Value)
-	}
-
-	if item2.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item2.Criticality)
-	}
-
-	if item2.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
+	if item2.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item2.Criticality)
 	}
 
 	nasPdu, ok := item2.Value.(NASPDU)
 	if !ok {
-		t.Fatalf("expected NASPDU to be of type NASPDU, got %T", item2.Value)
+		t.Fatalf("expected NAS-PDU to be of type NAS-PDU, got %T", item2.Value)
 	}
 
 	expectedNASPDU := "fgBWAAIAACEaBwCjbSa9vkiAkRdky8+5IBBH2jhAU2SAAE2CgCRBSs2H"

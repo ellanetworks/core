@@ -78,8 +78,8 @@ func TestUECapabilityInfoIndicationPaging(t *testing.T) {
 // without it is still delivered and the absence reported (§10.3.5).
 func TestUECapabilityInfoIndicationWithoutCapability(t *testing.T) {
 	value := container(t,
-		ieField{id: idMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
-		ieField{id: idENBUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(ENBUES1APID(2)))},
+		ieField{id: IDMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
+		ieField{id: IDENBUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(ENBUES1APID(2)))},
 	)
 
 	msg, err := ParseUECapabilityInfoIndication(value)
@@ -92,7 +92,7 @@ func TestUECapabilityInfoIndicationWithoutCapability(t *testing.T) {
 	}
 
 	d := msg.Diagnostics()
-	if len(d.IEs) != 1 || d.IEs[0].ID != idUERadioCapability || d.IEs[0].TypeOfError != TypeOfErrorMissing {
+	if len(d.IEs) != 1 || d.IEs[0].ID != IDUERadioCapability || d.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for UERadioCapability", d.IEs)
 	}
 }
@@ -101,8 +101,8 @@ func TestUECapabilityInfoIndicationWithoutCapability(t *testing.T) {
 // missing one (§10.3.5).
 func TestUECapabilityInfoIndicationMissingRejectIE(t *testing.T) {
 	value := container(t,
-		ieField{id: idMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
-		ieField{id: idUERadioCapability, crit: CriticalityIgnore, raw: ieRaw(t, UERadioCapability{0x01})},
+		ieField{id: IDMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
+		ieField{id: IDUERadioCapability, crit: CriticalityIgnore, raw: ieRaw(t, UERadioCapability{0x01})},
 	)
 
 	_, err := ParseUECapabilityInfoIndication(value)
@@ -115,7 +115,7 @@ func TestUECapabilityInfoIndicationMissingRejectIE(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idENBUES1APID ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDENBUES1APID ||
 		ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for ENBUES1APID", ase.IEs)
 	}

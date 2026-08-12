@@ -69,24 +69,8 @@ func buildULNASTransport(msg *fgs.ULNASTransport) *ULNASTransport {
 	return out
 }
 
-// UL NAS transport request type values (TS 24.501 §9.11.3.47).
 func requestTypeEnum(rt uint8) utils.EnumField {
-	switch rt {
-	case 1:
-		return utils.MakeEnum(rt, "InitialRequest", false)
-	case 2:
-		return utils.MakeEnum(rt, "ExistingPduSession", false)
-	case 3:
-		return utils.MakeEnum(rt, "InitialEmergencyRequest", false)
-	case 4:
-		return utils.MakeEnum(rt, "ExistingEmergencyPduSession", false)
-	case 5:
-		return utils.MakeEnum(rt, "ModificationRequest", false)
-	case 6:
-		return utils.MakeEnum(rt, "Reserved", false)
-	default:
-		return utils.MakeEnum(rt, "", true)
-	}
+	return utils.NamedEnum(rt, fgs.RequestType(rt).Name())
 }
 
 func buildULPayloadContainer(containerType fgs.PayloadContainerType, contents []byte) PayloadContainer {

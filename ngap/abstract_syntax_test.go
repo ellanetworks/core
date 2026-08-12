@@ -28,10 +28,10 @@ func ngSetupFields() []ieField {
 	src := goldRequest()
 
 	return []ieField{
-		{id: idGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID},
-		{id: idRANNodeName, crit: CriticalityIgnore, val: Name("ella-gnb")},
-		{id: idSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList},
-		{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
+		{id: IDGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID},
+		{id: IDRANNodeName, crit: CriticalityIgnore, val: Name("ella-gnb")},
+		{id: IDSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList},
+		{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
 	}
 }
 
@@ -101,7 +101,7 @@ func TestAbsentIgnoreIEIsDelivered(t *testing.T) {
 	}
 
 	diag := msg.Diagnostics()
-	if len(diag.IEs) != 1 || diag.IEs[0].ID != idDefaultPagingDRX ||
+	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDDefaultPagingDRX ||
 		diag.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Fatalf("diagnostics = %+v", diag.IEs)
 	}
@@ -126,7 +126,7 @@ func TestAbsentRejectIEStopsDelivery(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idGlobalRANNodeID {
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGlobalRANNodeID {
 		t.Fatalf("reported IEs = %+v", ase.IEs)
 	}
 }
@@ -269,29 +269,29 @@ func TestUEIDsRecoverTheAssociation(t *testing.T) {
 	}{
 		{
 			"canonical pair",
-			[]RawIE{{ID: idAMFUENGAPID, Value: amf}, {ID: idRANUENGAPID, Value: ran}},
+			[]RawIE{{ID: IDAMFUENGAPID, Value: amf}, {ID: IDRANUENGAPID, Value: ran}},
 			Ptr(AMFUENGAPID(7)), Ptr(RANUENGAPID(9)),
 		},
 		{
 			// PATH SWITCH REQUEST names the association by the source AMF id.
 			"source AMF id",
-			[]RawIE{{ID: idSourceAMFUENGAPID, Value: amf}, {ID: idRANUENGAPID, Value: ran}},
+			[]RawIE{{ID: IDSourceAMFUENGAPID, Value: amf}, {ID: IDRANUENGAPID, Value: ran}},
 			Ptr(AMFUENGAPID(7)), Ptr(RANUENGAPID(9)),
 		},
 		{
 			"RAN id only",
-			[]RawIE{{ID: idRANUENGAPID, Value: ran}},
+			[]RawIE{{ID: IDRANUENGAPID, Value: ran}},
 			nil, Ptr(RANUENGAPID(9)),
 		},
 		{
 			"neither arrived",
-			[]RawIE{{ID: idCause, Value: []byte{0x00}}},
+			[]RawIE{{ID: IDCause, Value: []byte{0x00}}},
 			nil, nil,
 		},
 		{
 			// A value that does not decode leaves the id absent, not zero.
 			"undecodable id",
-			[]RawIE{{ID: idAMFUENGAPID, Value: nil}},
+			[]RawIE{{ID: IDAMFUENGAPID, Value: nil}},
 			nil, nil,
 		},
 	}
@@ -341,7 +341,7 @@ func TestModeledIEsSurvivePadding(t *testing.T) {
 	var found bool
 
 	for _, ie := range ase.decoded {
-		if ie.ID == idGlobalRANNodeID {
+		if ie.ID == IDGlobalRANNodeID {
 			found = true
 		}
 	}

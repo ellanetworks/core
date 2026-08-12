@@ -23,20 +23,16 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "Paging" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcPaging) {
 		t.Errorf("expected ProcedureCode=Paging, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcPaging) {
-		t.Errorf("expected ProcedureCode value=24, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcPaging)
 	}
 
-	if ngapMsg.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 2 {
@@ -45,20 +41,12 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "UEPagingIdentity" {
-		t.Errorf("expected ID=UEPagingIdentity, got %s", item0.ID.Label)
+	if item0.ID.Value != int64(lib.IDUEPagingIdentity) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDUEPagingIdentity)
 	}
 
-	if item0.ID.Value != int64(idUEPagingIdentity) {
-		t.Errorf("expected ID value=53, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item0.Criticality)
 	}
 
 	pagingID, ok := item0.Value.(UEPagingIdentity)
@@ -80,20 +68,12 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "TAIListForPaging" {
-		t.Errorf("expected ID=TAIListForPaging, got %s", item1.ID.Label)
+	if item1.ID.Value != int64(lib.IDTAIListForPaging) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDTAIListForPaging)
 	}
 
-	if item1.ID.Value != int64(idTAIListForPaging) {
-		t.Errorf("expected ID value=54, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item1.Criticality)
 	}
 
 	_, ok = item1.Value.([]TAI)

@@ -27,12 +27,12 @@ func buildPDUSessionResourceSetupRequest(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 	}
 
 	if m.NASPDU != nil {
-		ies = append(ies, ie(idNASPDU, ngap.CriticalityReject, libNASPDU(*m.NASPDU)))
+		ies = append(ies, ie(ngap.IDNASPDU, ngap.CriticalityReject, libNASPDU(*m.NASPDU)))
 	}
 
 	if m.PDUSessionResourceSetup != nil {
@@ -58,11 +58,11 @@ func buildPDUSessionResourceSetupRequest(value []byte) NGAPMessageValue {
 			out = append(out, entry)
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceSetupListSUReq, ngap.CriticalityReject, out))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceSetupListSUReq, ngap.CriticalityReject, out))
 	}
 
 	if m.UEAggregateMaximumBitRate != nil {
-		ies = append(ies, ie(idUEAggregateMaximumBitRate, ngap.CriticalityIgnore, UEAggregateMaximumBitRate{
+		ies = append(ies, ie(ngap.IDUEAggregateMaximumBitRate, ngap.CriticalityIgnore, UEAggregateMaximumBitRate{
 			Downlink: int64(m.UEAggregateMaximumBitRate.DL),
 			Uplink:   int64(m.UEAggregateMaximumBitRate.UL),
 			Unit:     "bps",

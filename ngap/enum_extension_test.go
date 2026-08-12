@@ -81,14 +81,14 @@ func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 		nRoot   int64
 		present func(*Paging) bool
 	}{
-		{"PagingPriority", idPagingPriority, pagingPriorityRootCount, func(m *Paging) bool { return m.PagingPriority != nil }},
-		{"PagingOrigin", idPagingOrigin, pagingOriginRootCount, func(m *Paging) bool { return m.PagingOrigin != nil }},
+		{"PagingPriority", IDPagingPriority, pagingPriorityRootCount, func(m *Paging) bool { return m.PagingPriority != nil }},
+		{"PagingOrigin", IDPagingOrigin, pagingOriginRootCount, func(m *Paging) bool { return m.PagingOrigin != nil }},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			msg, err := ParsePaging(container(t,
-				ieField{id: idPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
+				ieField{id: IDPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
 				ieField{id: tt.id, crit: CriticalityIgnore, raw: extensionEnum(t, tt.nRoot, 255)},
 			))
 			if err != nil {
@@ -111,8 +111,8 @@ func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 // a zero that reads as DefaultPagingDRX v32.
 func TestNotComprehendedIEIsNotDelivered(t *testing.T) {
 	msg, err := ParseRANConfigurationUpdate(container(t,
-		ieField{id: idRANNodeName, crit: CriticalityIgnore, val: Name("ella-gnb")},
-		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, raw: extensionEnum(t, pagingDRXRootCount, 255)},
+		ieField{id: IDRANNodeName, crit: CriticalityIgnore, val: Name("ella-gnb")},
+		ieField{id: IDDefaultPagingDRX, crit: CriticalityIgnore, raw: extensionEnum(t, pagingDRXRootCount, 255)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)

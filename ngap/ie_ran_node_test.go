@@ -129,7 +129,7 @@ func TestGlobalRANNodeIDChoiceExtensionIsRejected(t *testing.T) {
 
 			// The alternative's own ProtocolIE-SingleContainer payload.
 			if err := encodeContainerField(w, per.Aligned, ieField{
-				id:   idGlobalRANNodeID,
+				id:   IDGlobalRANNodeID,
 				crit: CriticalityReject,
 				raw:  []byte{0x00},
 			}); err != nil {

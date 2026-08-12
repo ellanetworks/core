@@ -24,7 +24,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Fatal("Decoded NAS message is nil")
 	}
 
-	if nas.SecurityHeader.SecurityHeaderType.Label != "Plain NAS" {
+	if nas.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTPlain) {
 		t.Errorf("Unexpected SecurityHeaderType: got %v", nas.SecurityHeader.SecurityHeaderType.Label)
 	}
 
@@ -40,7 +40,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Fatal("GmmMessage is nil")
 	}
 
-	if nas.GmmMessage.GmmHeader.MessageType.Label != "RegistrationRequest" {
+	if nas.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgRegistrationRequest) {
 		t.Errorf("Unexpected GmmMessage Type: got %v", nas.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
@@ -52,7 +52,7 @@ func TestDecodeNASMessage_RegistrationRequest(t *testing.T) {
 		t.Fatal("RegistrationRequest is nil")
 	}
 
-	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Label != "SUCI" {
+	if nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity.Value != int64(fgs.IdentitySUCI) {
 		t.Errorf("Unexpected MobileIdentity5GS Identity: got %v", nas.GmmMessage.RegistrationRequest.MobileIdentity5GS.Identity)
 	}
 

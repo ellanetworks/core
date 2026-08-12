@@ -157,7 +157,7 @@ const getNasHeader = (nasPdu: any): string => {
     "Unknown";
 
   const secHeader =
-    decoded.security_header?.security_header_type?.label || "Plain NAS";
+    decoded.security_header?.security_header_type?.label || "plain";
   return `${messageType} (${secHeader})`;
 };
 

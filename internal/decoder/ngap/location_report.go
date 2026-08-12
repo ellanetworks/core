@@ -33,12 +33,12 @@ func buildLocationReport(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 	}
 
 	if m.UserLocationInformation != nil {
-		ies = append(ies, ie(idUserLocationInformation, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDUserLocationInformation, ngap.CriticalityIgnore,
 			userLocationInformation(*m.UserLocationInformation)))
 	}
 
@@ -51,12 +51,12 @@ func buildLocationReport(value []byte) NGAPMessageValue {
 			})
 		}
 
-		ies = append(ies, ie(idUEPresenceInAreaOfInterestList, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDUEPresenceInAreaOfInterestList, ngap.CriticalityIgnore,
 			UEPresenceInAreaOfInterestList{Items: items}))
 	}
 
 	if m.LocationReportingRequestType != nil {
-		ies = append(ies, ie(idLocationReportingRequestType, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDLocationReportingRequestType, ngap.CriticalityIgnore,
 			libLocationReportingRequestType(*m.LocationReportingRequestType)))
 	}
 
@@ -72,12 +72,12 @@ func buildLocationReportingControl(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 	}
 
 	if m.LocationReportingRequestType != nil {
-		ies = append(ies, ie(idLocationReportingRequestType, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDLocationReportingRequestType, ngap.CriticalityIgnore,
 			libLocationReportingRequestType(*m.LocationReportingRequestType)))
 	}
 

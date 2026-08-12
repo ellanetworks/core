@@ -48,21 +48,21 @@ type HandoverNotify struct {
 
 var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			var v UserLocationInformation
 
@@ -83,7 +83,7 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 		},
 	},
 	{
-		id: idNotifySourceNGRANNode, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDNotifySourceNGRANNode, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
 			var v NotifySourceNGRANNode
 

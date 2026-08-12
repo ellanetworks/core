@@ -528,7 +528,7 @@ func (e *ERABToBeSetupItemHOReqExtIEs) MarshalPER(w *per.Writer, enc per.Encodin
 		return err
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(idDataForwardingNotPossible)); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(IDDataForwardingNotPossible)); err != nil {
 		return err
 	}
 
@@ -564,7 +564,7 @@ func (e *ERABToBeSetupItemHOReqExtIEs) UnmarshalPER(r *per.Reader, enc per.Encod
 			return err
 		}
 
-		if ProtocolIEID(id) == idDataForwardingNotPossible {
+		if ProtocolIEID(id) == IDDataForwardingNotPossible {
 			var v DataForwardingNotPossible
 
 			if err := per.DecodeOpenType(r, enc, per.UnmarshalerFunc(func(r *per.Reader, enc per.Encoding) error {

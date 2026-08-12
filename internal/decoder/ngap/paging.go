@@ -24,7 +24,7 @@ func buildPaging(value []byte) NGAPMessageValue {
 	var ies []IE
 
 	if m.FiveGSTMSI != nil {
-		ies = append(ies, ie(idUEPagingIdentity, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDUEPagingIdentity, ngap.CriticalityIgnore,
 			UEPagingIdentity{FiveGSTMSI: buildFiveGSTMSI(*m.FiveGSTMSI)}))
 	}
 
@@ -34,7 +34,7 @@ func buildPaging(value []byte) NGAPMessageValue {
 			tais = append(tais, tai(item))
 		}
 
-		ies = append(ies, ie(idTAIListForPaging, ngap.CriticalityIgnore, tais))
+		ies = append(ies, ie(ngap.IDTAIListForPaging, ngap.CriticalityIgnore, tais))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}

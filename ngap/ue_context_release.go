@@ -141,14 +141,14 @@ type UEContextReleaseCommand struct {
 
 var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
 	{
-		id: idUENGAPIDs, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDUENGAPIDs, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UENGAPIDs)
 		},
 		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) { return &m.UENGAPIDs, true },
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -207,7 +207,7 @@ type UEContextReleaseComplete struct {
 
 var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var v AMFUENGAPID
 
@@ -228,7 +228,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var v RANUENGAPID
 
@@ -249,7 +249,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var uli UserLocationInformation
 
@@ -270,7 +270,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: idPDUSessionResourceListCxtRelCpl, presence: presenceOptional, crit: CriticalityReject,
+		id: IDPDUSessionResourceListCxtRelCpl, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceList)
 		},
@@ -283,7 +283,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -341,21 +341,21 @@ type UEContextReleaseRequest struct {
 
 var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idPDUSessionResourceListCxtRelReq, presence: presenceOptional, crit: CriticalityReject,
+		id: IDPDUSessionResourceListCxtRelReq, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceList)
 		},
@@ -368,7 +368,7 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 		},
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
 			var v Cause
 

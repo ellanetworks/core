@@ -189,7 +189,7 @@ func encodedHandoverTypeIE(t *testing.T, v HandoverType) []byte {
 	t.Helper()
 
 	w := per.NewWriter()
-	if err := encodeContainerField(w, per.Aligned, ieField{id: idHandoverType, crit: CriticalityReject, val: v}); err != nil {
+	if err := encodeContainerField(w, per.Aligned, ieField{id: IDHandoverType, crit: CriticalityReject, val: v}); err != nil {
 		t.Fatal(err)
 	}
 

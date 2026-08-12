@@ -26,11 +26,11 @@ func container(t *testing.T, fields ...ieField) []byte {
 
 func uplinkNASFields() []ieField {
 	return []ieField{
-		{id: idMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
-		{id: idENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
-		{id: idNASPDU, crit: CriticalityReject, val: Ptr(NASPDU{0x01})},
-		{id: idEUTRANCGI, crit: CriticalityIgnore, val: Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}})},
-		{id: idTAI, crit: CriticalityIgnore, val: Ptr(TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: TAC(1)})},
+		{id: IDMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
+		{id: IDENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
+		{id: IDNASPDU, crit: CriticalityReject, val: Ptr(NASPDU{0x01})},
+		{id: IDEUTRANCGI, crit: CriticalityIgnore, val: Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}})},
+		{id: IDTAI, crit: CriticalityIgnore, val: Ptr(TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: TAC(1)})},
 	}
 }
 
@@ -100,7 +100,7 @@ func TestAbsentIgnoreIEIsDelivered(t *testing.T) {
 	}
 
 	diag := msg.Diagnostics()
-	if len(diag.IEs) != 1 || diag.IEs[0].ID != idTAI || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
+	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDTAI || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Fatalf("diagnostics = %+v, want TAI reported missing", diag.IEs)
 	}
 
@@ -134,7 +134,7 @@ func TestAbsentRejectIEStopsDelivery(t *testing.T) {
 		t.Errorf("eNB-UE-S1AP-ID = %v, want nil", enbID)
 	}
 
-	want := map[ProtocolIEID]bool{idENBUES1APID: true, idNASPDU: true}
+	want := map[ProtocolIEID]bool{IDENBUES1APID: true, IDNASPDU: true}
 	for _, ie := range ase.IEs {
 		if !want[ie.IEID] || ie.TypeOfError != TypeOfErrorMissing {
 			t.Errorf("unexpected diagnostic %+v", ie)
@@ -264,8 +264,8 @@ func TestOversizedIECountRejected(t *testing.T) {
 // one (§8.7.2.2).
 func TestUEIDsFromPathSwitchRequest(t *testing.T) {
 	value := container(t,
-		ieField{id: idENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
-		ieField{id: idSourceMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
+		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
+		ieField{id: IDSourceMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
 	)
 
 	_, err := ParsePathSwitchRequest(value)

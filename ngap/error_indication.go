@@ -22,7 +22,7 @@ type ErrorIndication struct {
 
 var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
-		id: idAMFUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDAMFUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var v AMFUENGAPID
 
@@ -43,7 +43,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: idRANUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDRANUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var v RANUENGAPID
 
@@ -64,7 +64,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: idCause, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -85,7 +85,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var v CriticalityDiagnostics
 
@@ -106,7 +106,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: idFiveGSTMSI, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDFiveGSTMSI, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
 			var v FiveGSTMSI
 

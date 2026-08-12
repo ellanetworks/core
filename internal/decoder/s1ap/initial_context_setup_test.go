@@ -6,12 +6,14 @@ package s1ap
 import (
 	"strings"
 	"testing"
+
+	"github.com/ellanetworks/core/s1ap"
 )
 
 func TestDecodeInitialContextSetupRequest(t *testing.T) {
 	msg := decodeHex(t, icsRequestExampleHex)
 
-	if msg.PDUType != "InitiatingMessage" || msg.ProcedureCode.Label != "InitialContextSetup" {
+	if msg.PDUType != "InitiatingMessage" || msg.ProcedureCode.Value != int64(s1ap.ProcInitialContextSetup) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
 	}
 
@@ -19,16 +21,16 @@ func TestDecodeInitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("summary = %q", msg.Summary)
 	}
 
-	if mustIE(t, msg, idMMEUES1APID).Value != uint32(7) || mustIE(t, msg, idENBUES1APID).Value != uint32(807) {
+	if mustIE(t, msg, s1ap.IDMMEUES1APID).Value != uint32(7) || mustIE(t, msg, s1ap.IDENBUES1APID).Value != uint32(807) {
 		t.Fatal("UE id mismatch")
 	}
 
-	ambr := mustIE(t, msg, idUEAggregateMaximumBitrate).Value.(AMBR)
+	ambr := mustIE(t, msg, s1ap.IDUEAggregateMaximumBitrate).Value.(AMBR)
 	if ambr.DL != 200000000 || ambr.UL != 200000000 {
 		t.Fatalf("AMBR = %+v", ambr)
 	}
 
-	erabs := mustIE(t, msg, idERABToBeSetupListCtxtSUReq).Value.([]ERABToBeSetup)
+	erabs := mustIE(t, msg, s1ap.IDERABToBeSetupListCtxtSUReq).Value.([]ERABToBeSetup)
 	if len(erabs) != 1 || erabs[0].ERABID != 5 || erabs[0].QCI != 9 || erabs[0].GTPTEID != 1 ||
 		erabs[0].TransportLayerAddress != "10.202.0.3" {
 		t.Fatalf("E-RAB = %+v", erabs)
@@ -38,18 +40,18 @@ func TestDecodeInitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("ARP = %+v", erabs[0].ARP)
 	}
 
-	sec := mustIE(t, msg, idUESecurityCapabilities).Value.(UESecurityCapabilities)
+	sec := mustIE(t, msg, s1ap.IDUESecurityCapabilities).Value.(UESecurityCapabilities)
 	if strings.Join(sec.EncryptionAlgorithms, ",") != "EEA1,EEA2,EEA3" ||
 		strings.Join(sec.IntegrityProtectionAlgorithms, ",") != "EIA1,EIA2,EIA3" {
 		t.Fatalf("UE security capabilities = %+v", sec)
 	}
 
-	key, ok := mustIE(t, msg, idSecurityKey).Value.(string)
+	key, ok := mustIE(t, msg, s1ap.IDSecurityKey).Value.(string)
 	if !ok || len(key) != 64 {
-		t.Fatalf("SecurityKey = %v", mustIE(t, msg, idSecurityKey).Value)
+		t.Fatalf("SecurityKey = %v", mustIE(t, msg, s1ap.IDSecurityKey).Value)
 	}
 
-	if _, ok := findIE(msg.Value.IEs, idUERadioCapability); !ok {
+	if _, ok := findIE(msg.Value.IEs, s1ap.IDUERadioCapability); !ok {
 		t.Fatal("UERadioCapability IE missing")
 	}
 }
@@ -57,15 +59,15 @@ func TestDecodeInitialContextSetupRequest(t *testing.T) {
 func TestDecodeInitialContextSetupResponse(t *testing.T) {
 	msg := decodeHex(t, "20090023000003000040020004000840034003340033400f000032400a0a1f0aca000500000130")
 
-	if msg.PDUType != "SuccessfulOutcome" || msg.ProcedureCode.Label != "InitialContextSetup" {
+	if msg.PDUType != "SuccessfulOutcome" || msg.ProcedureCode.Value != int64(s1ap.ProcInitialContextSetup) {
 		t.Fatalf("pdu=%q proc=%q", msg.PDUType, msg.ProcedureCode.Label)
 	}
 
-	if mustIE(t, msg, idMMEUES1APID).Value != uint32(4) || mustIE(t, msg, idENBUES1APID).Value != uint32(820) {
+	if mustIE(t, msg, s1ap.IDMMEUES1APID).Value != uint32(4) || mustIE(t, msg, s1ap.IDENBUES1APID).Value != uint32(820) {
 		t.Fatal("UE id mismatch")
 	}
 
-	setup := mustIE(t, msg, idERABSetupListCtxtSURes).Value.([]ERABSetupItem)
+	setup := mustIE(t, msg, s1ap.IDERABSetupListCtxtSURes).Value.([]ERABSetupItem)
 	if len(setup) != 1 || setup[0].ERABID != 5 || setup[0].GTPTEID != 304 || setup[0].TransportLayerAddress != "10.202.0.5" {
 		t.Fatalf("E-RAB setup = %+v", setup)
 	}

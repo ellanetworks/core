@@ -70,7 +70,7 @@ const ueIdentityIndexValueBits = 10
 
 var pagingIEs = []ieSpec[Paging]{
 	{
-		id: idUEIdentityIndexValue, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDUEIdentityIndexValue, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			n, err := decodeBitStringUint(per.NewReader(raw), enc, ueIdentityIndexValueBits)
 			if err != nil {
@@ -93,7 +93,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idUEPagingID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDUEPagingID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			sub := per.NewReader(raw)
 
@@ -141,7 +141,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			var drx PagingDRX
 
@@ -162,7 +162,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idCNDomain, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCNDomain, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			index, err := per.DecodeEnumerated(per.NewReader(raw), enc, cnDomainRootCount, false)
 			if err != nil {
@@ -185,7 +185,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idTAIList, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDTAIList, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			items, err := decodeItemList[taiItem](per.NewReader(raw), enc, maxnoofTAIs)
 			if err != nil {
@@ -210,12 +210,12 @@ var pagingIEs = []ieSpec[Paging]{
 					items[i] = taiItem{TAI: tai}
 				}
 
-				return encodeSingleContainerList(w, enc, maxnoofTAIs, idTAIItem, CriticalityIgnore, items)
+				return encodeSingleContainerList(w, enc, maxnoofTAIs, IDTAIItem, CriticalityIgnore, items)
 			}), true
 		},
 	},
 	{
-		id: idPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, "PagingPriority")
 			if err != nil {
@@ -238,7 +238,7 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
 			var err error
 

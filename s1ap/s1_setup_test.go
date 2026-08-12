@@ -133,17 +133,17 @@ func encodePartialS1Setup(t *testing.T, globalENBID, supportedTAs, pagingDRX boo
 
 	if globalENBID {
 		g := GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}}
-		fields = append(fields, ieField{id: idGlobalENBID, crit: CriticalityReject, val: &g})
+		fields = append(fields, ieField{id: IDGlobalENBID, crit: CriticalityReject, val: &g})
 	}
 
 	if supportedTAs {
 		s := SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}}
-		fields = append(fields, ieField{id: idSupportedTAs, crit: CriticalityReject, val: s})
+		fields = append(fields, ieField{id: IDSupportedTAs, crit: CriticalityReject, val: s})
 	}
 
 	if pagingDRX {
 		d := PagingDRXv128
-		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: d})
+		fields = append(fields, ieField{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: d})
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
@@ -163,13 +163,13 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 		wantReject   []ProtocolIEID
 		wantReported []ProtocolIEID
 	}{
-		{"missing GlobalENBID", false, true, true, []ProtocolIEID{idGlobalENBID}, nil},
-		{"missing SupportedTAs", true, false, true, []ProtocolIEID{idSupportedTAs}, nil},
-		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalENBID, idSupportedTAs}, nil},
+		{"missing GlobalENBID", false, true, true, []ProtocolIEID{IDGlobalENBID}, nil},
+		{"missing SupportedTAs", true, false, true, []ProtocolIEID{IDSupportedTAs}, nil},
+		{"missing both reject IEs", false, false, true, []ProtocolIEID{IDGlobalENBID, IDSupportedTAs}, nil},
 		// Default Paging DRX is mandatory-ignore (§9.1.8.4), so its absence is
 		// reported and delivered.
-		{"missing only PagingDRX", true, true, false, nil, []ProtocolIEID{idDefaultPagingDRX}},
-		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{idGlobalENBID}, nil},
+		{"missing only PagingDRX", true, true, false, nil, []ProtocolIEID{IDDefaultPagingDRX}},
+		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{IDGlobalENBID}, nil},
 	}
 
 	for _, tt := range tests {

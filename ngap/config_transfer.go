@@ -65,7 +65,7 @@ type UplinkRANConfigurationTransfer struct {
 
 var uplinkRANConfigurationTransferIEs = []ieSpec[UplinkRANConfigurationTransfer]{
 	{
-		id: idSONConfigurationTransferUL, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDSONConfigurationTransferUL, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UplinkRANConfigurationTransfer, raw []byte, enc per.Encoding) error {
 			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
 			return nil
@@ -114,7 +114,7 @@ type DownlinkRANConfigurationTransfer struct {
 // The IE is optional, so an empty container is a valid message.
 var downlinkRANConfigurationTransferIEs = []ieSpec[DownlinkRANConfigurationTransfer]{
 	{
-		id: idSONConfigurationTransferDL, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDSONConfigurationTransferDL, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *DownlinkRANConfigurationTransfer, raw []byte, enc per.Encoding) error {
 			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
 			return nil

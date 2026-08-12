@@ -21,3 +21,10 @@ type EnumField struct {
 func MakeEnum[T ~int | ~int32 | ~int64 | ~uint8 | ~uint16 | ~uint32 | ~uint64](v T, label string, unknown bool) EnumField {
 	return EnumField{Type: "enum", Value: int64(v), Label: label, Unknown: unknown}
 }
+
+// NamedEnum builds an EnumField from a label the codec produced. The codec
+// returns the empty string for a value its spec table does not name, which is
+// what the UI renders as unknown.
+func NamedEnum[T ~int | ~int32 | ~int64 | ~uint8 | ~uint16 | ~uint32 | ~uint64](v T, name string) EnumField {
+	return MakeEnum(v, name, name == "")
+}

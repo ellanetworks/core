@@ -70,8 +70,8 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 
 	t.Run("ignore-criticality IEs missing are reported", func(t *testing.T) {
 		value := encode(t, []ieField{
-			{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-			{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
+			{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+			{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
 		})
 
 		out, err := ParseLocationReport(value)
@@ -88,7 +88,7 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 			t.Fatalf("diagnostics = %v, want 3 entries", got)
 		}
 
-		for i, want := range []ProtocolIEID{idEUTRANCGI, idTAI, idRequestType} {
+		for i, want := range []ProtocolIEID{IDEUTRANCGI, IDTAI, IDRequestType} {
 			if got[i].ID != want || got[i].Criticality != CriticalityIgnore ||
 				got[i].TypeOfError != TypeOfErrorMissing {
 				t.Errorf("diagnostic %d = %+v, want %v missing/ignore", i, got[i], want)
@@ -98,7 +98,7 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 
 	t.Run("missing reject-criticality IE rejects the procedure", func(t *testing.T) {
 		value := encode(t, []ieField{
-			{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+			{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
 		})
 
 		var ase *AbstractSyntaxError
@@ -106,7 +106,7 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 			t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 		}
 
-		if len(ase.IEs) != 1 || ase.IEs[0].IEID != idENBUES1APID || ase.IEs[0].TypeOfError != TypeOfErrorMissing {
+		if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDENBUES1APID || ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 			t.Fatalf("diagnostics = %v, want [eNB-UE-S1AP-ID missing]", ase.IEs)
 		}
 

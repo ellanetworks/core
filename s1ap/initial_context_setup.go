@@ -22,28 +22,28 @@ type InitialContextSetupRequest struct {
 
 var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idUEAggregateMaximumBitrate, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDUEAggregateMaximumBitrate, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UEAggregateMaximumBitRate)
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.UEAggregateMaximumBitRate, true },
 	},
 	{
-		id: idERABToBeSetupListCtxtSUReq, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDERABToBeSetupListCtxtSUReq, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -53,26 +53,26 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeSetupItemCtxtSUReq, CriticalityReject, m.ERABToBeSetup)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABToBeSetupItemCtxtSUReq, CriticalityReject, m.ERABToBeSetup)
 			}), true
 		},
 	},
 	{
-		id: idUESecurityCapabilities, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDUESecurityCapabilities, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UESecurityCapabilities)
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.UESecurityCapabilities, true },
 	},
 	{
-		id: idSecurityKey, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDSecurityKey, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SecurityKey)
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.SecurityKey, true },
 	},
 	{
-		id: idUERadioCapability, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUERadioCapability, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UERadioCapability)
 		},
@@ -123,7 +123,7 @@ type InitialContextSetupResponse struct {
 
 var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -144,7 +144,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -165,7 +165,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		},
 	},
 	{
-		id: idERABSetupListCtxtSURes, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDERABSetupListCtxtSURes, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -179,12 +179,12 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABSetupItemCtxtSURes, CriticalityIgnore, m.ERABSetup)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABSetupItemCtxtSURes, CriticalityIgnore, m.ERABSetup)
 			}), true
 		},
 	},
 	{
-		id: idERABFailedToSetupListCtxtSU, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDERABFailedToSetupListCtxtSURes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -198,12 +198,12 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToSetup)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToSetup)
 			}), true
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -261,7 +261,7 @@ type InitialContextSetupFailure struct {
 
 var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -282,7 +282,7 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -303,7 +303,7 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 		},
 	},
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -324,7 +324,7 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 

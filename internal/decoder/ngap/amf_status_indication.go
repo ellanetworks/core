@@ -22,7 +22,7 @@ func buildAMFStatusIndication(value []byte) NGAPMessageValue {
 		guamis = append(guamis, guami(item.GUAMI))
 	}
 
-	ies := []IE{ie(idUnavailableGUAMIList, ngap.CriticalityReject, guamis)}
+	ies := []IE{ie(ngap.IDUnavailableGUAMIList, ngap.CriticalityReject, guamis)}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

@@ -24,18 +24,18 @@ func buildPaging(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.UEIdentityIndexValue != nil {
-		ies = append(ies, ie(idUEIdentityIndexValue, s1ap.CriticalityReject, *m.UEIdentityIndexValue))
+		ies = append(ies, ie(s1ap.IDUEIdentityIndexValue, s1ap.CriticalityReject, *m.UEIdentityIndexValue))
 	}
 
 	if m.STMSI != nil {
-		ies = append(ies, ie(idSTMSI, s1ap.CriticalityReject, stmsi(*m.STMSI)))
+		ies = append(ies, ie(s1ap.IDSTMSI, s1ap.CriticalityReject, stmsi(*m.STMSI)))
 	}
 
 	if m.CNDomain != nil {
-		ies = append(ies, ie(idCNDomain, s1ap.CriticalityReject, cnDomainToEnum(*m.CNDomain)))
+		ies = append(ies, ie(s1ap.IDCNDomain, s1ap.CriticalityReject, cnDomainToEnum(*m.CNDomain)))
 	}
 
-	ies = append(ies, ie(idTAIList, s1ap.CriticalityReject, tais))
+	ies = append(ies, ie(s1ap.IDTAIList, s1ap.CriticalityReject, tais))
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	mtmsi := "?"

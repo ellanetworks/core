@@ -21,21 +21,21 @@ type UERadioCapabilityInfoIndication struct {
 
 var uERadioCapabilityInfoIndicationIEs = []ieSpec[UERadioCapabilityInfoIndication]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UERadioCapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *UERadioCapabilityInfoIndication) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UERadioCapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *UERadioCapabilityInfoIndication) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idUERadioCapability, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDUERadioCapability, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UERadioCapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UERadioCapability)
 		},
@@ -48,7 +48,7 @@ var uERadioCapabilityInfoIndicationIEs = []ieSpec[UERadioCapabilityInfoIndicatio
 		},
 	},
 	{
-		id: idUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *UERadioCapabilityInfoIndication, raw []byte, enc per.Encoding) error {
 			var v UERadioCapabilityForPaging
 

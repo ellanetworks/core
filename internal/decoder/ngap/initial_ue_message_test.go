@@ -21,7 +21,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 
 	ngapMsg := DecodeNGAPMessage(raw)
 
-	expectedSummary := "InitialUEMessage, RAN-UE=1, NAS=RegistrationRequest"
+	expectedSummary := "InitialUEMessage, RAN-UE=1, NAS=REGISTRATION REQUEST"
 	if ngapMsg.Summary != expectedSummary {
 		t.Errorf("expected Summary=%q, got %q", expectedSummary, ngapMsg.Summary)
 	}
@@ -30,16 +30,16 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "InitialUEMessage" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialUEMessage) {
 		t.Errorf("expected ProcedureCode=InitialUEMessage, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialUEMessage) {
-		t.Errorf("expected ProcedureCode value=9, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcInitialUEMessage)
 	}
 
-	if ngapMsg.Criticality.Value != 1 {
-		t.Errorf("expected Criticality=Ignore (1), got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 5 {
@@ -48,52 +48,36 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "RANUENGAPID" {
-		t.Errorf("expected ID=RANUENGAPID, got %s", item0.ID.Label)
+	if item0.ID.Value != int64(lib.IDRANUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDRANUENGAPID)
 	}
 
-	if item0.ID.Value != int64(idRANUENGAPID) {
-		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item0.Criticality)
 	}
 
 	ranUENGAPID, ok := item0.Value.(int64)
 	if !ok {
-		t.Fatalf("expected RANUENGAPID to be of type int64, got %T", item0.Value)
+		t.Fatalf("expected RAN-UE-NGAP-ID to be of type int64, got %T", item0.Value)
 	}
 
 	if ranUENGAPID != 1 {
-		t.Errorf("expected RANUENGAPID=1, got %d", ranUENGAPID)
+		t.Errorf("expected RAN-UE-NGAP-ID=1, got %d", ranUENGAPID)
 	}
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "NASPDU" {
-		t.Errorf("expected ID=NASPDU, got %s", item1.ID.Label)
+	if item1.ID.Value != int64(lib.IDNASPDU) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDNASPDU)
 	}
 
-	if item1.ID.Value != int64(idNASPDU) {
-		t.Errorf("expected ID value=38, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item1.Criticality)
 	}
 
 	nasPdu, ok := item1.Value.(NASPDU)
 	if !ok {
-		t.Fatalf("expected NASPDU to be of type NASPDU, got %T", item1.Value)
+		t.Fatalf("expected NAS-PDU to be of type NAS-PDU, got %T", item1.Value)
 	}
 
 	expectedNASPDU := "fgBBeQANAQDxEAAAAABEdGhXJS4E8PDw8A=="
@@ -110,20 +94,12 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 
 	item2 := ngapMsg.Value.IEs[2]
 
-	if item2.ID.Label != "UserLocationInformation" {
-		t.Errorf("expected ID=UserLocationInformation, got %s", item2.ID.Label)
+	if item2.ID.Value != int64(lib.IDUserLocationInformation) {
+		t.Errorf("IE id = %d, want %d", item2.ID.Value, lib.IDUserLocationInformation)
 	}
 
-	if item2.ID.Value != int64(idUserLocationInformation) {
-		t.Errorf("expected ID value=116, got %d", item2.ID.Value)
-	}
-
-	if item2.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item2.Criticality)
-	}
-
-	if item2.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
+	if item2.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item2.Criticality)
 	}
 
 	userLocationInfo, ok := item2.Value.(UserLocationInformation)
@@ -157,20 +133,12 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 
 	item3 := ngapMsg.Value.IEs[3]
 
-	if item3.ID.Label != "RRCEstablishmentCause" {
-		t.Errorf("expected ID=RRCEstablishmentCause, got %s", item3.ID.Label)
+	if item3.ID.Value != int64(lib.IDRRCEstablishmentCause) {
+		t.Errorf("IE id = %d, want %d", item3.ID.Value, lib.IDRRCEstablishmentCause)
 	}
 
-	if item3.ID.Value != int64(idRRCEstablishmentCause) {
-		t.Errorf("expected ID value=90, got %d", item3.ID.Value)
-	}
-
-	if item3.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item3.Criticality)
-	}
-
-	if item3.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item3.Criticality.Value)
+	if item3.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item3.Criticality)
 	}
 
 	rrcEstabCause, ok := item3.Value.(utils.EnumField)
@@ -178,8 +146,8 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Fatalf("expected RRCEstablishmentCause to be of type EnumField, got %T", item3.Value)
 	}
 
-	if rrcEstabCause.Label != "MoSignalling" {
-		t.Errorf("expected RRCEstablishmentCause=MoSignalling, got %s", rrcEstabCause.Label)
+	if rrcEstabCause.Value != int64(lib.RRCCauseMOSignalling) {
+		t.Errorf("expected RRCEstablishmentCause=mo-Signalling, got %s", rrcEstabCause.Label)
 	}
 
 	if rrcEstabCause.Value != int64(lib.RRCCauseMOSignalling) {
@@ -188,20 +156,12 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 
 	item4 := ngapMsg.Value.IEs[4]
 
-	if item4.ID.Label != "UEContextRequest" {
-		t.Errorf("expected ID=UEContextRequest, got %s", item4.ID.Label)
+	if item4.ID.Value != int64(lib.IDUEContextRequest) {
+		t.Errorf("IE id = %d, want %d", item4.ID.Value, lib.IDUEContextRequest)
 	}
 
-	if item4.ID.Value != int64(idUEContextRequest) {
-		t.Errorf("expected ID value=112, got %d", item4.ID.Value)
-	}
-
-	if item4.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", item4.Criticality)
-	}
-
-	if item4.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", item4.Criticality.Value)
+	if item4.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", item4.Criticality)
 	}
 
 	ueContextRequest, ok := item4.Value.(utils.EnumField)
@@ -209,7 +169,7 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Fatalf("expected UEContextRequest to be of type EnumField, got %T", item4.Value)
 	}
 
-	if ueContextRequest.Label != "Requested" {
+	if ueContextRequest.Value != int64(lib.UEContextRequested) {
 		t.Errorf("expected UEContextRequest=Requested, got %v", ueContextRequest.Label)
 	}
 

@@ -22,12 +22,18 @@ const (
 	MappedEPSBearerOpModify MappedEPSBearerOperation = 3 // modify existing EPS bearer
 )
 
+var mappedEPSBearerOperationNames = map[uint8]string{
+	uint8(MappedEPSBearerOpCreate): "create",
+	uint8(MappedEPSBearerOpDelete): "delete",
+	uint8(MappedEPSBearerOpModify): "modify",
+}
+
+// Name returns the operation's spec description, or the empty string when the
+// value is not one TS 24.501 assigns.
+func (o MappedEPSBearerOperation) Name() string { return mappedEPSBearerOperationNames[uint8(o)] }
+
 func (o MappedEPSBearerOperation) String() string {
-	return enumString(uint8(o), map[uint8]string{
-		uint8(MappedEPSBearerOpCreate): "create",
-		uint8(MappedEPSBearerOpDelete): "delete",
-		uint8(MappedEPSBearerOpModify): "modify",
-	})
+	return enumString(uint8(o), mappedEPSBearerOperationNames)
 }
 
 // EPSParameterIdentifier names one EPS parameter of a mapped EPS bearer context
@@ -52,14 +58,20 @@ const (
 	EPSParameterExtendedAPNAMBR EPSParameterIdentifier = 0x05
 )
 
+var epsParameterIdentifierNames = map[uint8]string{
+	uint8(EPSParameterMappedEPSQoS):         "mapped EPS QoS parameters",
+	uint8(EPSParameterMappedExtendedEPSQoS): "mapped extended EPS QoS parameters",
+	uint8(EPSParameterTrafficFlowTemplate):  "traffic flow template",
+	uint8(EPSParameterAPNAMBR):              "APN-AMBR",
+	uint8(EPSParameterExtendedAPNAMBR):      "extended APN-AMBR",
+}
+
+// Name returns the parameter's spec description, or the empty string when the
+// identifier is not one TS 24.501 assigns.
+func (i EPSParameterIdentifier) Name() string { return epsParameterIdentifierNames[uint8(i)] }
+
 func (i EPSParameterIdentifier) String() string {
-	return enumString(uint8(i), map[uint8]string{
-		uint8(EPSParameterMappedEPSQoS):         "mapped EPS QoS parameters",
-		uint8(EPSParameterMappedExtendedEPSQoS): "mapped extended EPS QoS parameters",
-		uint8(EPSParameterTrafficFlowTemplate):  "traffic flow template",
-		uint8(EPSParameterAPNAMBR):              "APN-AMBR",
-		uint8(EPSParameterExtendedAPNAMBR):      "extended APN-AMBR",
-	})
+	return enumString(uint8(i), epsParameterIdentifierNames)
 }
 
 // EPSParameter is one entry of a mapped EPS bearer context's EPS parameters list

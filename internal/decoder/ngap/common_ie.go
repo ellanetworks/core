@@ -12,60 +12,10 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// ProtocolIE-ID values the renderers cite (TS 38.413, NGAP-Constants).
-const (
-	idAMFName                                    ngap.ProtocolIEID = 1
-	idAMFUENGAPID                                ngap.ProtocolIEID = 10
-	idCause                                      ngap.ProtocolIEID = 15
-	idCriticalityDiagnostics                     ngap.ProtocolIEID = 19
-	idDefaultPagingDRX                           ngap.ProtocolIEID = 21
-	idFiveGSTMSI                                 ngap.ProtocolIEID = 26
-	idGlobalRANNodeID                            ngap.ProtocolIEID = 27
-	idMobilityRestrictionList                    ngap.ProtocolIEID = 36
-	idNRPPaPDU                                   ngap.ProtocolIEID = 46
-	idRoutingID                                  ngap.ProtocolIEID = 89
-	idUENGAPIDs                                  ngap.ProtocolIEID = 114
-	idUEPagingIdentity                           ngap.ProtocolIEID = 115
-	idTAIListForPaging                           ngap.ProtocolIEID = 103
-	idUnavailableGUAMIList                       ngap.ProtocolIEID = 120
-	idUEPresenceInAreaOfInterestList             ngap.ProtocolIEID = 116
-	idLocationReportingRequestType               ngap.ProtocolIEID = 33
-	idUERadioCapability                          ngap.ProtocolIEID = 117
-	idNASPDU                                     ngap.ProtocolIEID = 38
-	idPDUSessionResourceSetupListSURes           ngap.ProtocolIEID = 75
-	idPDUSessionResourceFailedToSetupListSURes   ngap.ProtocolIEID = 58
-	idPDUSessionResourceSetupListCxtRes          ngap.ProtocolIEID = 72
-	idPDUSessionResourceFailedToSetupListCxtRes  ngap.ProtocolIEID = 55
-	idPDUSessionResourceFailedToSetupListCxtFail ngap.ProtocolIEID = 132
-	idPDUSessionResourceToReleaseListRelCmd      ngap.ProtocolIEID = 79
-	idPDUSessionResourceReleasedListRelRes       ngap.ProtocolIEID = 70
-	idPDUSessionResourceSetupListSUReq           ngap.ProtocolIEID = 74
-	idUEAggregateMaximumBitRate                  ngap.ProtocolIEID = 110
-	idRRCEstablishmentCause                      ngap.ProtocolIEID = 90
-	idAMFSetID                                   ngap.ProtocolIEID = 3
-	idUEContextRequest                           ngap.ProtocolIEID = 112
-	idAllowedNSSAI                               ngap.ProtocolIEID = 0
-	idGUAMI                                      ngap.ProtocolIEID = 28
-	idPDUSessionResourceSetupListCxtReq          ngap.ProtocolIEID = 71
-	idUESecurityCapabilities                     ngap.ProtocolIEID = 119
-	idSecurityKey                                ngap.ProtocolIEID = 94
-	idUserLocationInformation                    ngap.ProtocolIEID = 121
-	idPDUSessionResourceListCxtRelCpl            ngap.ProtocolIEID = 60
-	idPDUSessionResourceListCxtRelReq            ngap.ProtocolIEID = 133
-	idPLMNSupportList                            ngap.ProtocolIEID = 80
-	idRANNodeName                                ngap.ProtocolIEID = 82
-	idRANUENGAPID                                ngap.ProtocolIEID = 85
-	idRelativeAMFCapacity                        ngap.ProtocolIEID = 86
-	idServedGUAMIList                            ngap.ProtocolIEID = 96
-	idSupportedTAList                            ngap.ProtocolIEID = 102
-	idTimeToWait                                 ngap.ProtocolIEID = 107
-	idUERetentionInformation                     ngap.ProtocolIEID = 147
-)
-
 // ie renders one modeled IE.
 func ie(id ngap.ProtocolIEID, crit ngap.Criticality, value any) IE {
 	return IE{
-		ID:          ieEnum(int64(id)),
+		ID:          ieEnum(id),
 		Criticality: criticalityToEnum(crit),
 		Value:       value,
 	}
@@ -144,7 +94,7 @@ func criticalityDiagnostics(cd ngap.CriticalityDiagnostics) CriticalityDiagnosti
 
 	for _, item := range cd.IEsCriticalityDiagnostics {
 		out.IEs = append(out.IEs, CriticalityDiagnosticsIE{
-			IEID:        ieEnum(int64(item.IEID)),
+			IEID:        ieEnum(item.IEID),
 			Criticality: criticalityToEnum(item.IECriticality),
 			TypeOfError: typeOfErrorToEnum(item.TypeOfError),
 		})

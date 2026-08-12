@@ -50,21 +50,21 @@ type PDUSessionResourceNotify struct {
 
 var pDUSessionResourceNotifyIEs = []ieSpec[PDUSessionResourceNotify]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idPDUSessionResourceNotifyList, presence: presenceOptional, crit: CriticalityReject,
+		id: IDPDUSessionResourceNotifyList, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceNotify)
 		},
@@ -77,7 +77,7 @@ var pDUSessionResourceNotifyIEs = []ieSpec[PDUSessionResourceNotify]{
 		},
 	},
 	{
-		id: idPDUSessionResourceReleasedListNot, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDPDUSessionResourceReleasedListNot, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PDUSessionResourceReleased)
 		},
@@ -90,7 +90,7 @@ var pDUSessionResourceNotifyIEs = []ieSpec[PDUSessionResourceNotify]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
 			var uli UserLocationInformation
 

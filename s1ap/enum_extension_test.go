@@ -76,8 +76,8 @@ func TestEnumExtensionIsNotComprehended(t *testing.T) {
 // leaves the field absent and acts on the rest.
 func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 	msg, err := ParsePaging(container(t,
-		ieField{id: idPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
-		ieField{id: idPagingPriority, crit: CriticalityIgnore, raw: extensionEnum(t, pagingPriorityRootCount, 255)},
+		ieField{id: IDPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
+		ieField{id: IDPagingPriority, crit: CriticalityIgnore, raw: extensionEnum(t, pagingPriorityRootCount, 255)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -97,8 +97,8 @@ func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 // a zero that reads as DefaultPagingDRX v32.
 func TestNotComprehendedIEIsNotDelivered(t *testing.T) {
 	msg, err := ParseENBConfigurationUpdate(container(t,
-		ieField{id: idENBname, crit: CriticalityIgnore, val: Name("ella-enb")},
-		ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, raw: extensionEnum(t, pagingDRXRootCount, 255)},
+		ieField{id: IDENBname, crit: CriticalityIgnore, val: Name("ella-enb")},
+		ieField{id: IDDefaultPagingDRX, crit: CriticalityIgnore, raw: extensionEnum(t, pagingDRXRootCount, 255)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)

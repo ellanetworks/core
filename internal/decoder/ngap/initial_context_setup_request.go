@@ -114,19 +114,19 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 	}
 
 	if m.UEAggregateMaximumBitRate != nil {
-		ies = append(ies, ie(idUEAggregateMaximumBitRate, ngap.CriticalityReject, UEAggregateMaximumBitRate{
+		ies = append(ies, ie(ngap.IDUEAggregateMaximumBitRate, ngap.CriticalityReject, UEAggregateMaximumBitRate{
 			Downlink: int64(m.UEAggregateMaximumBitRate.DL),
 			Uplink:   int64(m.UEAggregateMaximumBitRate.UL),
 			Unit:     "bps",
 		}))
 	}
 
-	ies = append(ies, ie(idGUAMI, ngap.CriticalityReject, guami(m.GUAMI)))
+	ies = append(ies, ie(ngap.IDGUAMI, ngap.CriticalityReject, guami(m.GUAMI)))
 
 	if m.PDUSessionResourceSetup != nil {
 		out := make([]PDUSessionResourceSetupCxtReq, 0, len(m.PDUSessionResourceSetup))
@@ -151,7 +151,7 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 			out = append(out, entry)
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceSetupListCxtReq, ngap.CriticalityReject, out))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceSetupListCxtReq, ngap.CriticalityReject, out))
 	}
 
 	if m.AllowedNSSAI != nil {
@@ -160,20 +160,20 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 			slices = append(slices, buildSNSSAIValue(item.SNSSAI))
 		}
 
-		ies = append(ies, ie(idAllowedNSSAI, ngap.CriticalityReject, slices))
+		ies = append(ies, ie(ngap.IDAllowedNSSAI, ngap.CriticalityReject, slices))
 	}
 
 	ies = append(ies,
-		ie(idUESecurityCapabilities, ngap.CriticalityReject, libUESecurityCapabilities(m.UESecurityCapabilities)),
-		ie(idSecurityKey, ngap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
+		ie(ngap.IDUESecurityCapabilities, ngap.CriticalityReject, libUESecurityCapabilities(m.UESecurityCapabilities)),
+		ie(ngap.IDSecurityKey, ngap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
 	)
 
 	if m.NASPDU != nil {
-		ies = append(ies, ie(idNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
+		ies = append(ies, ie(ngap.IDNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
 	}
 
 	if m.UERadioCapability != nil {
-		ies = append(ies, ie(idUERadioCapability, ngap.CriticalityIgnore, []byte(m.UERadioCapability)))
+		ies = append(ies, ie(ngap.IDUERadioCapability, ngap.CriticalityIgnore, []byte(m.UERadioCapability)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}

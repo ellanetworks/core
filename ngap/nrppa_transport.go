@@ -65,17 +65,17 @@ func nrppaTransportIEs[M any](
 ) []ieSpec[M] {
 	return []ieSpec[M]{
 		{
-			id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, amf(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return amf(m), true },
 		},
 		{
-			id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, ran(m)) },
 			encode: func(m *M) (per.Marshaler, bool) { return ran(m), true },
 		},
 		{
-			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDRoutingID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
 			encode: func(m *M) (per.Marshaler, bool) {
 				if *routing(m) == nil {
@@ -86,7 +86,7 @@ func nrppaTransportIEs[M any](
 			},
 		},
 		{
-			id: idNRPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDNRPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
 			encode: func(m *M) (per.Marshaler, bool) {
 				if *pdu(m) == nil {
@@ -179,7 +179,7 @@ func nonUEAssociatedNRPPaTransportIEs[M any](
 ) []ieSpec[M] {
 	return []ieSpec[M]{
 		{
-			id: idRoutingID, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDRoutingID, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
 			encode: func(m *M) (per.Marshaler, bool) {
 				if *routing(m) == nil {
@@ -190,7 +190,7 @@ func nonUEAssociatedNRPPaTransportIEs[M any](
 			},
 		},
 		{
-			id: idNRPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
+			id: IDNRPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
 			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
 			encode: func(m *M) (per.Marshaler, bool) {
 				if *pdu(m) == nil {

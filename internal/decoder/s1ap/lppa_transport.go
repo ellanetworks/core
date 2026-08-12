@@ -126,10 +126,10 @@ func buildUplinkUEAssociatedLPPaTransport(value []byte) (S1APMessageValue, strin
 
 func lppaTransportValue(mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID, routing s1ap.RoutingID, pdu s1ap.LPPaPDU, unknown []s1ap.RawIE) S1APMessageValue {
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(mmeID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(enbID)),
-		ie(idRoutingID, s1ap.CriticalityReject, uint8(routing)),
-		ie(idLPPaPDU, s1ap.CriticalityReject, decodeLPPaPDU(pdu)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(mmeID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(enbID)),
+		ie(s1ap.IDRoutingID, s1ap.CriticalityReject, uint8(routing)),
+		ie(s1ap.IDLPPaPDU, s1ap.CriticalityReject, decodeLPPaPDU(pdu)),
 	}
 
 	ies = appendUnknownIEs(ies, unknown)

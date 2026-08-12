@@ -22,15 +22,21 @@ const (
 	EPD5GSM ProtocolDiscriminator = 0x2E // 5GS Session Management
 )
 
+var protocolDiscriminatorNames = map[ProtocolDiscriminator]string{
+	EPD5GMM: "5GMM",
+	EPD5GSM: "5GSM",
+}
+
+// Name returns the discriminator's spec description, or the empty string when
+// the value is not one TS 24.501 assigns.
+func (p ProtocolDiscriminator) Name() string { return protocolDiscriminatorNames[p] }
+
 func (p ProtocolDiscriminator) String() string {
-	switch p {
-	case EPD5GMM:
-		return "5GMM"
-	case EPD5GSM:
-		return "5GSM"
-	default:
-		return fmt.Sprintf("unknown protocol discriminator (%#x)", uint8(p))
+	if name, ok := protocolDiscriminatorNames[p]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("unknown protocol discriminator (%#x)", uint8(p))
 }
 
 // SecurityHeaderType identifies the protection applied to a 5GMM message
@@ -55,21 +61,24 @@ func (s SecurityHeaderType) ciphered() bool {
 // else is reserved, and a receiver must not guess what protection it names.
 func (s SecurityHeaderType) defined() bool { return s <= SHTIntegrityProtectedCipheredNewContext }
 
+var securityHeaderTypeNames = map[SecurityHeaderType]string{
+	SHTPlain:                                "plain",
+	SHTIntegrityProtected:                   "integrity protected",
+	SHTIntegrityProtectedCiphered:           "integrity protected and ciphered",
+	SHTIntegrityProtectedNewContext:         "integrity protected with new 5G NAS security context",
+	SHTIntegrityProtectedCipheredNewContext: "integrity protected and ciphered with new 5G NAS security context",
+}
+
+// Name returns the type's spec description, or the empty string for a value
+// TS 24.501 table 9.3.1 reserves.
+func (s SecurityHeaderType) Name() string { return securityHeaderTypeNames[s] }
+
 func (s SecurityHeaderType) String() string {
-	switch s {
-	case SHTPlain:
-		return "plain"
-	case SHTIntegrityProtected:
-		return "integrity protected"
-	case SHTIntegrityProtectedCiphered:
-		return "integrity protected and ciphered"
-	case SHTIntegrityProtectedNewContext:
-		return "integrity protected with new 5G NAS security context"
-	case SHTIntegrityProtectedCipheredNewContext:
-		return "integrity protected and ciphered with new 5G NAS security context"
-	default:
-		return fmt.Sprintf("reserved security header type (%d)", uint8(s))
+	if name, ok := securityHeaderTypeNames[s]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("reserved security header type (%d)", uint8(s))
 }
 
 // ErrNotGMM reports an extended protocol discriminator other than 5GMM.

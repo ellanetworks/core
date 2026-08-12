@@ -24,20 +24,16 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "InitialContextSetup" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
-		t.Errorf("expected ProcedureCode value=14, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcInitialContextSetup)
 	}
 
-	if ngapMsg.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 8 {
@@ -46,74 +42,50 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "AMFUENGAPID" {
-		t.Errorf("expected ID=AMFUENGAPID, got %s", item0.ID.Label)
+	if item0.ID.Value != int64(lib.IDAMFUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDAMFUENGAPID)
 	}
 
-	if item0.ID.Value != int64(idAMFUENGAPID) {
-		t.Errorf("expected ID value=85, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item0.Criticality)
 	}
 
 	amfUENGAPID, ok := item0.Value.(int64)
 	if !ok {
-		t.Fatalf("expected AMFUENGAPID to be of type int64, got %T", item0.Value)
+		t.Fatalf("expected AMF-UE-NGAP-ID to be of type int64, got %T", item0.Value)
 	}
 
 	if amfUENGAPID != 4 {
-		t.Errorf("expected AMFUENGAPID=4, got %d", amfUENGAPID)
+		t.Errorf("expected AMF-UE-NGAP-ID=4, got %d", amfUENGAPID)
 	}
 
 	item1 := ngapMsg.Value.IEs[1]
 
-	if item1.ID.Label != "RANUENGAPID" {
-		t.Errorf("expected ID=RANUENGAPID, got %s", item1.ID.Label)
+	if item1.ID.Value != int64(lib.IDRANUENGAPID) {
+		t.Errorf("IE id = %d, want %d", item1.ID.Value, lib.IDRANUENGAPID)
 	}
 
-	if item1.ID.Value != int64(idRANUENGAPID) {
-		t.Errorf("expected ID value=85, got %d", item1.ID.Value)
-	}
-
-	if item1.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item1.Criticality)
-	}
-
-	if item1.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item1.Criticality.Value)
+	if item1.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item1.Criticality)
 	}
 
 	ranUENGAPID, ok := item1.Value.(int64)
 	if !ok {
-		t.Fatalf("expected RANUENGAPID to be of type int64, got %T", item1.Value)
+		t.Fatalf("expected RAN-UE-NGAP-ID to be of type int64, got %T", item1.Value)
 	}
 
 	if ranUENGAPID != 2 {
-		t.Errorf("expected RANUENGAPID=2, got %d", ranUENGAPID)
+		t.Errorf("expected RAN-UE-NGAP-ID=2, got %d", ranUENGAPID)
 	}
 
 	item2 := ngapMsg.Value.IEs[2]
 
-	if item2.ID.Label != "GUAMI" {
-		t.Errorf("expected ID=GUAMI, got %s", item2.ID.Label)
+	if item2.ID.Value != int64(lib.IDGUAMI) {
+		t.Errorf("IE id = %d, want %d", item2.ID.Value, lib.IDGUAMI)
 	}
 
-	if item2.ID.Value != int64(idGUAMI) {
-		t.Errorf("expected ID value=0, got %d", item2.ID.Value)
-	}
-
-	if item2.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item2.Criticality)
-	}
-
-	if item2.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item2.Criticality.Value)
+	if item2.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item2.Criticality)
 	}
 
 	guami, ok := item2.Value.(Guami)
@@ -143,29 +115,21 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item3 := ngapMsg.Value.IEs[3]
 
-	if item3.ID.Label != "AllowedNSSAI" {
-		t.Errorf("expected ID=AllowedNSSAI, got %s", item3.ID.Label)
+	if item3.ID.Value != int64(lib.IDAllowedNSSAI) {
+		t.Errorf("IE id = %d, want %d", item3.ID.Value, lib.IDAllowedNSSAI)
 	}
 
-	if item3.ID.Value != int64(idAllowedNSSAI) {
-		t.Errorf("expected ID value=0, got %d", item3.ID.Value)
-	}
-
-	if item3.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item3.Criticality)
-	}
-
-	if item3.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item3.Criticality.Value)
+	if item3.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item3.Criticality)
 	}
 
 	allowedNSSAI, ok := item3.Value.([]SNSSAI)
 	if !ok {
-		t.Fatalf("expected AllowedNSSAI to be of type []SNSSAI, got %T", item3.Value)
+		t.Fatalf("expected AllowedNSSAI to be of type []S-NSSAI, got %T", item3.Value)
 	}
 
 	if len(allowedNSSAI) != 1 {
-		t.Fatalf("expected 1 SNSSAI, got %d", len(allowedNSSAI))
+		t.Fatalf("expected 1 S-NSSAI, got %d", len(allowedNSSAI))
 	}
 
 	snssai := allowedNSSAI[0]
@@ -180,20 +144,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item4 := ngapMsg.Value.IEs[4]
 
-	if item4.ID.Label != "UESecurityCapabilities" {
-		t.Errorf("expected ID=UESecurityCapabilities, got %s", item4.ID.Label)
+	if item4.ID.Value != int64(lib.IDUESecurityCapabilities) {
+		t.Errorf("IE id = %d, want %d", item4.ID.Value, lib.IDUESecurityCapabilities)
 	}
 
-	if item4.ID.Value != int64(idUESecurityCapabilities) {
-		t.Errorf("expected ID value=93, got %d", item4.ID.Value)
-	}
-
-	if item4.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item4.Criticality)
-	}
-
-	if item4.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item4.Criticality.Value)
+	if item4.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item4.Criticality)
 	}
 
 	ueSecurityCapabilities, ok := item4.Value.(UESecurityCapabilities)
@@ -243,20 +199,12 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	item5 := ngapMsg.Value.IEs[5]
 
-	if item5.ID.Label != "SecurityKey" {
-		t.Errorf("expected ID=SecurityKey, got %s", item5.ID.Label)
+	if item5.ID.Value != int64(lib.IDSecurityKey) {
+		t.Errorf("IE id = %d, want %d", item5.ID.Value, lib.IDSecurityKey)
 	}
 
-	if item5.ID.Value != int64(idSecurityKey) {
-		t.Errorf("expected ID value=96, got %d", item5.ID.Value)
-	}
-
-	if item5.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item5.Criticality)
-	}
-
-	if item5.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item5.Criticality.Value)
+	if item5.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item5.Criticality)
 	}
 
 	securityKey, ok := item5.Value.(string)
@@ -274,13 +222,13 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 	// modeled one, rather than decoded in place.
 	item6 := ngapMsg.Value.IEs[6]
 
-	if item6.ID.Label != "NASPDU" {
-		t.Errorf("expected ID=NASPDU, got %v", item6.ID)
+	if item6.ID.Value != int64(lib.IDNASPDU) {
+		t.Errorf("IE id = %d, want %d", item6.ID.Value, lib.IDNASPDU)
 	}
 
 	nasPdu, ok := item6.Value.(NASPDU)
 	if !ok {
-		t.Fatalf("expected NASPDU to be of type NASPDU, got %T", item6.Value)
+		t.Fatalf("expected NAS-PDU to be of type NAS-PDU, got %T", item6.Value)
 	}
 
 	expectedNASPDU := "fgKx/lSdAX4AQgEBdwAL8gDxEMr+AAAAAAFKAwDxEFQHAADxEAAAARUFBAEQIDAhAgAA"
@@ -297,7 +245,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 	var unmodeled *IE
 
 	for i := range ngapMsg.Value.IEs {
-		if ngapMsg.Value.IEs[i].ID.Value == int64(idMobilityRestrictionList) {
+		if ngapMsg.Value.IEs[i].ID.Value == int64(lib.IDMobilityRestrictionList) {
 			unmodeled = &ngapMsg.Value.IEs[i]
 		}
 	}

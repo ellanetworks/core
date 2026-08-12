@@ -68,24 +68,8 @@ func stmsiToString(s fgs.STMSI) string {
 	return hex.EncodeToString(raw[1:])
 }
 
-// buildTypeOfIdentityEnum renders a 5GS type-of-identity value (TS 24.501 §9.11.3.4).
 func buildTypeOfIdentityEnum(toi uint8) utils.EnumField {
-	switch toi {
-	case 0:
-		return utils.MakeEnum(toi, "NoIdentity", false)
-	case 1:
-		return utils.MakeEnum(toi, "Suci", false)
-	case 2:
-		return utils.MakeEnum(toi, "5gGuti", false)
-	case 3:
-		return utils.MakeEnum(toi, "Imei", false)
-	case 4:
-		return utils.MakeEnum(toi, "5gSTmsi", false)
-	case 5:
-		return utils.MakeEnum(toi, "Imeisv", false)
-	default:
-		return utils.MakeEnum(toi, "", true)
-	}
+	return utils.NamedEnum(toi, fgs.MobileIdentityType(toi).Name())
 }
 
 // decodePDUSessionStatus renders a PDU session status IE value as one entry per PDU

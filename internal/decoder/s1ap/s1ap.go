@@ -172,8 +172,10 @@ func decodeUnsuccessfulOutcome(m *s1ap.UnsuccessfulOutcome) S1APMessage {
 }
 
 func unsupportedProcedure(code s1ap.ProcedureCode) S1APMessageValue {
+	name, _ := s1ap.ProcedureCodeName(code)
+
 	return S1APMessageValue{
-		Error: fmt.Sprintf("decoding not implemented for procedure code %d (%s)", code, procedureCodeName(code)),
+		Error: fmt.Sprintf("decoding not implemented for procedure code %d (%s)", code, name),
 	}
 }
 

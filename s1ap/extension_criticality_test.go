@@ -56,11 +56,11 @@ func extendedTAI(t *testing.T, crit Criticality) []byte {
 // extension's id rather than the container's.
 func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	_, err := ParseUplinkNASTransport(container(t,
-		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
-		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x7e, 0x00}},
-		ieField{id: idEUTRANCGI, crit: CriticalityIgnore, val: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
-		ieField{id: idTAI, crit: CriticalityIgnore, raw: extendedTAI(t, CriticalityReject)},
+		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
+		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e, 0x00}},
+		ieField{id: IDEUTRANCGI, crit: CriticalityIgnore, val: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
+		ieField{id: IDTAI, crit: CriticalityIgnore, raw: extendedTAI(t, CriticalityReject)},
 	))
 
 	var ase *AbstractSyntaxError
@@ -84,11 +84,11 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 // §10.3.4.2: an ignore extension is skipped and its IE still delivered.
 func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	msg, err := ParseUplinkNASTransport(container(t,
-		ieField{id: idMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		ieField{id: idENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
-		ieField{id: idNASPDU, crit: CriticalityReject, val: NASPDU{0x7e, 0x00}},
-		ieField{id: idEUTRANCGI, crit: CriticalityIgnore, val: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
-		ieField{id: idTAI, crit: CriticalityIgnore, raw: extendedTAI(t, CriticalityIgnore)},
+		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
+		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e, 0x00}},
+		ieField{id: IDEUTRANCGI, crit: CriticalityIgnore, val: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
+		ieField{id: IDTAI, crit: CriticalityIgnore, raw: extendedTAI(t, CriticalityIgnore)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -133,7 +133,7 @@ func erabHOReqExtensions(t *testing.T, unmodeledCrit Criticality, withModeled bo
 	}
 
 	if withModeled {
-		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idDataForwardingNotPossible)); err != nil {
+		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(IDDataForwardingNotPossible)); err != nil {
 			t.Fatalf("modeled ext id: %v", err)
 		}
 

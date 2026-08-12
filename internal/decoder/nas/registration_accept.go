@@ -6,7 +6,6 @@ package nas
 import (
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/internal/logger"
@@ -84,11 +83,8 @@ type RegistrationAccept struct {
 
 func registrationResult5GSEnum(value fgs.RegistrationResult) utils.EnumField {
 	value &= 0x07
-	if name := value.String(); !strings.HasPrefix(name, "unknown") {
-		return utils.MakeEnum(uint8(value), name, false)
-	}
 
-	return utils.MakeEnum(uint8(value), "", true)
+	return utils.NamedEnum(uint8(value), value.Name())
 }
 
 func buildRegistrationAccept(msg *fgs.RegistrationAccept) *RegistrationAccept {

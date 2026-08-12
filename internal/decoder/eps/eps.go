@@ -134,27 +134,9 @@ func decodePlain(msg *NASMessage, b []byte) *NASMessage {
 }
 
 func pdToEnum(pd eps.ProtocolDiscriminator) utils.EnumField {
-	switch pd {
-	case eps.PDEMM:
-		return utils.MakeEnum(uint64(pd), "EPS Mobility Management", false)
-	case eps.PDESM:
-		return utils.MakeEnum(uint64(pd), "EPS Session Management", false)
-	default:
-		return utils.MakeEnum(uint64(pd), "", true)
-	}
+	return utils.NamedEnum(uint8(pd), pd.Name())
 }
 
 func shtToEnum(sht uint8) utils.EnumField {
-	names := map[uint8]string{
-		uint8(eps.SHTPlain):                                "Plain NAS",
-		uint8(eps.SHTIntegrityProtected):                   "Integrity protected",
-		uint8(eps.SHTIntegrityProtectedCiphered):           "Integrity protected and ciphered",
-		uint8(eps.SHTIntegrityProtectedNewContext):         "Integrity protected with new EPS security context",
-		uint8(eps.SHTIntegrityProtectedCipheredNewContext): "Integrity protected and ciphered with new EPS security context",
-		uint8(eps.SHTServiceRequest):                       "Service request",
-	}
-
-	name, ok := names[sht]
-
-	return utils.MakeEnum(uint64(sht), name, !ok)
+	return utils.NamedEnum(sht, eps.SecurityHeaderType(sht).Name())
 }

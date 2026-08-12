@@ -31,19 +31,19 @@ func TestDecodeDownlinkLPPaTransport(t *testing.T) {
 		t.Fatalf("decode error: %s", msg.Value.Error)
 	}
 
-	if msg.ProcedureCode.Label != "DownlinkUEAssociatedLPPaTransport" {
+	if msg.ProcedureCode.Value != int64(s1ap.ProcDownlinkUEAssociatedLPPaTransport) {
 		t.Fatalf("proc = %q", msg.ProcedureCode.Label)
 	}
 
-	if v := mustIE(t, msg, idMMEUES1APID).Value; v != uint32(5) {
+	if v := mustIE(t, msg, s1ap.IDMMEUES1APID).Value; v != uint32(5) {
 		t.Fatalf("MME-UE-S1AP-ID = %v", v)
 	}
 
-	if v := mustIE(t, msg, idRoutingID).Value; v != uint8(3) {
+	if v := mustIE(t, msg, s1ap.IDRoutingID).Value; v != uint8(3) {
 		t.Fatalf("Routing-ID = %v", v)
 	}
 
-	lp := mustIE(t, msg, idLPPaPDU).Value.(LPPaPDU)
+	lp := mustIE(t, msg, s1ap.IDLPPaPDU).Value.(LPPaPDU)
 	if lp.Protocol != "LPPa" || lp.Decoded == nil {
 		t.Fatalf("LPPa-PDU = %+v", lp)
 	}
@@ -81,7 +81,7 @@ func TestDecodeUplinkLPPaTransport(t *testing.T) {
 		t.Fatalf("decode error: %s", msg.Value.Error)
 	}
 
-	lp := mustIE(t, msg, idLPPaPDU).Value.(LPPaPDU)
+	lp := mustIE(t, msg, s1ap.IDLPPaPDU).Value.(LPPaPDU)
 	if lp.Decoded == nil || lp.Decoded.Kind != "E-CIDMeasurementInitiationResponse" {
 		t.Fatalf("decoded LPPa = %+v", lp.Decoded)
 	}

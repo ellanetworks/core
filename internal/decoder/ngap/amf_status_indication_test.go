@@ -23,20 +23,16 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "AMFStatusIndication" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcAMFStatusIndication) {
 		t.Errorf("expected ProcedureCode=AMFStatusIndication, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcAMFStatusIndication) {
-		t.Errorf("expected ProcedureCode value=1, got %d", ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcAMFStatusIndication)
 	}
 
-	if ngapMsg.Criticality.Label != "Ignore" {
-		t.Errorf("expected Criticality=Ignore, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 1 {
-		t.Errorf("expected Criticality value=1, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Errorf("Criticality = %v, want ignore", ngapMsg.Criticality)
 	}
 
 	if len(ngapMsg.Value.IEs) != 1 {
@@ -45,20 +41,12 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 
 	item0 := ngapMsg.Value.IEs[0]
 
-	if item0.ID.Label != "UnavailableGUAMIList" {
-		t.Errorf("expected ID=UnavailableGUAMIList, got %s", item0.ID.Label)
+	if item0.ID.Value != int64(lib.IDUnavailableGUAMIList) {
+		t.Errorf("IE id = %d, want %d", item0.ID.Value, lib.IDUnavailableGUAMIList)
 	}
 
-	if item0.ID.Value != int64(idUnavailableGUAMIList) {
-		t.Errorf("expected ID value=120, got %d", item0.ID.Value)
-	}
-
-	if item0.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", item0.Criticality)
-	}
-
-	if item0.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", item0.Criticality.Value)
+	if item0.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", item0.Criticality)
 	}
 
 	unavailableGuamiList, ok := item0.Value.([]Guami)

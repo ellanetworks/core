@@ -24,16 +24,20 @@ const (
 	QoSRuleOpModifyWithoutFilters QoSRuleOperation = 6 // modify without modifying packet filters
 )
 
-func (o QoSRuleOperation) String() string {
-	return enumString(uint8(o), map[uint8]string{
-		uint8(QoSRuleOpCreate):               "create",
-		uint8(QoSRuleOpDelete):               "delete",
-		uint8(QoSRuleOpModifyReplaceFilters): "modify, replace all packet filters",
-		uint8(QoSRuleOpModifyAddFilters):     "modify, add packet filters",
-		uint8(QoSRuleOpModifyDeleteFilters):  "modify, delete packet filters",
-		uint8(QoSRuleOpModifyWithoutFilters): "modify without modifying packet filters",
-	})
+var qosRuleOperationNames = map[uint8]string{
+	uint8(QoSRuleOpCreate):               "create",
+	uint8(QoSRuleOpDelete):               "delete",
+	uint8(QoSRuleOpModifyReplaceFilters): "modify, replace all packet filters",
+	uint8(QoSRuleOpModifyAddFilters):     "modify, add packet filters",
+	uint8(QoSRuleOpModifyDeleteFilters):  "modify, delete packet filters",
+	uint8(QoSRuleOpModifyWithoutFilters): "modify without modifying packet filters",
 }
+
+// Name returns the operation's spec description, or the empty string when the
+// value is not one TS 24.501 assigns.
+func (o QoSRuleOperation) Name() string { return qosRuleOperationNames[uint8(o)] }
+
+func (o QoSRuleOperation) String() string { return enumString(uint8(o), qosRuleOperationNames) }
 
 // PacketFilterDirection is the direction a packet filter applies in
 // (TS 24.501 §9.11.4.13, figure 9.11.4.13.4, bits 6-5). Value 0 is reserved.
@@ -46,22 +50,89 @@ const (
 	PacketFilterBidirectional PacketFilterDirection = 3
 )
 
+var packetFilterDirectionNames = map[uint8]string{
+	uint8(PacketFilterDownlink):      "downlink only",
+	uint8(PacketFilterUplink):        "uplink only",
+	uint8(PacketFilterBidirectional): "bidirectional",
+}
+
+// Name returns the direction's spec description, or the empty string for the
+// value TS 24.501 table 9.11.4.13.1 reserves.
+func (d PacketFilterDirection) Name() string { return packetFilterDirectionNames[uint8(d)] }
+
 func (d PacketFilterDirection) String() string {
-	return enumString(uint8(d), map[uint8]string{
-		uint8(PacketFilterDownlink):      "downlink only",
-		uint8(PacketFilterUplink):        "uplink only",
-		uint8(PacketFilterBidirectional): "bidirectional",
-	})
+	return enumString(uint8(d), packetFilterDirectionNames)
 }
 
 // PacketFilterComponentType is a packet filter component's type octet
 // (TS 24.501 §9.11.4.13, table 9.11.4.13.1).
 type PacketFilterComponentType uint8
 
+// Packet filter component types (TS 24.501 table 9.11.4.13.1).
+const (
+	pfComponentTypeMatchAll            PacketFilterComponentType = 0x01
+	pfComponentTypeIPv4RemoteAddress   PacketFilterComponentType = 0x10
+	pfComponentTypeIPv4LocalAddress    PacketFilterComponentType = 0x11
+	pfComponentTypeIPv6RemoteAddress   PacketFilterComponentType = 0x21
+	pfComponentTypeIPv6LocalAddress    PacketFilterComponentType = 0x23
+	pfComponentTypeProtocolIdentifier  PacketFilterComponentType = 0x30
+	pfComponentTypeSingleLocalPort     PacketFilterComponentType = 0x40
+	pfComponentTypeLocalPortRange      PacketFilterComponentType = 0x41
+	pfComponentTypeSingleRemotePort    PacketFilterComponentType = 0x50
+	pfComponentTypeRemotePortRange     PacketFilterComponentType = 0x51
+	pfComponentTypeSecurityParamIndex  PacketFilterComponentType = 0x60
+	pfComponentTypeTypeOfService       PacketFilterComponentType = 0x70
+	pfComponentTypeFlowLabel           PacketFilterComponentType = 0x80
+	pfComponentTypeDestinationMAC      PacketFilterComponentType = 0x81
+	pfComponentTypeSourceMAC           PacketFilterComponentType = 0x82
+	pfComponentTypeCTAGVID             PacketFilterComponentType = 0x83
+	pfComponentTypeSTAGVID             PacketFilterComponentType = 0x84
+	pfComponentTypeCTAGPCPDEI          PacketFilterComponentType = 0x85
+	pfComponentTypeSTAGPCPDEI          PacketFilterComponentType = 0x86
+	pfComponentTypeEthertype           PacketFilterComponentType = 0x87
+	pfComponentTypeDestinationMACRange PacketFilterComponentType = 0x88
+	pfComponentTypeSourceMACRange      PacketFilterComponentType = 0x89
+)
+
+var packetFilterComponentTypeNames = map[PacketFilterComponentType]string{
+	pfComponentTypeMatchAll:            "Match-all type",
+	pfComponentTypeIPv4RemoteAddress:   "IPv4 remote address type",
+	pfComponentTypeIPv4LocalAddress:    "IPv4 local address type",
+	pfComponentTypeIPv6RemoteAddress:   "IPv6 remote address/prefix length type",
+	pfComponentTypeIPv6LocalAddress:    "IPv6 local address/prefix length type",
+	pfComponentTypeProtocolIdentifier:  "Protocol identifier/Next header type",
+	pfComponentTypeSingleLocalPort:     "Single local port type",
+	pfComponentTypeLocalPortRange:      "Local port range type",
+	pfComponentTypeSingleRemotePort:    "Single remote port type",
+	pfComponentTypeRemotePortRange:     "Remote port range type",
+	pfComponentTypeSecurityParamIndex:  "Security parameter index type",
+	pfComponentTypeTypeOfService:       "Type of service/Traffic class type",
+	pfComponentTypeFlowLabel:           "Flow label type",
+	pfComponentTypeDestinationMAC:      "Destination MAC address type",
+	pfComponentTypeSourceMAC:           "Source MAC address type",
+	pfComponentTypeCTAGVID:             "802.1Q C-TAG VID type",
+	pfComponentTypeSTAGVID:             "802.1Q S-TAG VID type",
+	pfComponentTypeCTAGPCPDEI:          "802.1Q C-TAG PCP/DEI type",
+	pfComponentTypeSTAGPCPDEI:          "802.1Q S-TAG PCP/DEI type",
+	pfComponentTypeEthertype:           "Ethertype type",
+	pfComponentTypeDestinationMACRange: "Destination MAC address range type",
+	pfComponentTypeSourceMACRange:      "Source MAC address range type",
+}
+
+// Name returns the component type's spec description, or the empty string for a
+// value TS 24.501 table 9.11.4.13.1 reserves.
+func (t PacketFilterComponentType) Name() string { return packetFilterComponentTypeNames[t] }
+
+func (t PacketFilterComponentType) String() string {
+	if name, ok := packetFilterComponentTypeNames[t]; ok {
+		return name
+	}
+
+	return fmt.Sprintf("reserved packet filter component type (%#x)", uint8(t))
+}
+
 // QoS rule and packet-filter coding (TS 24.501 §9.11.4.13, table 9.11.4.13.1).
 const (
-	pfComponentTypeMatchAll PacketFilterComponentType = 0x01
-
 	maxPacketFiltersPerRule = 15
 	// maxQoSFlowParameters is the largest number of parameters a flow description
 	// can declare: the count is a 6-bit field (TS 24.501 §9.11.4.12).
@@ -219,13 +290,17 @@ const (
 	QoSFlowOpModify QoSFlowOperation = 3 // modify existing QoS flow description
 )
 
-func (o QoSFlowOperation) String() string {
-	return enumString(uint8(o), map[uint8]string{
-		uint8(QoSFlowOpCreate): "create",
-		uint8(QoSFlowOpDelete): "delete",
-		uint8(QoSFlowOpModify): "modify",
-	})
+var qosFlowOperationNames = map[uint8]string{
+	uint8(QoSFlowOpCreate): "create",
+	uint8(QoSFlowOpDelete): "delete",
+	uint8(QoSFlowOpModify): "modify",
 }
+
+// Name returns the operation's spec description, or the empty string when the
+// value is not one TS 24.501 assigns.
+func (o QoSFlowOperation) Name() string { return qosFlowOperationNames[uint8(o)] }
+
+func (o QoSFlowOperation) String() string { return enumString(uint8(o), qosFlowOperationNames) }
 
 // qosFlowOpShift is the position of the operation code in its octet.
 const qosFlowOpShift = 5
@@ -253,33 +328,33 @@ func FiveQIQoSFlow(qfi, fiveQI uint8, opCode QoSFlowOperation) QoSFlowDescriptio
 // type, and whether the type is one TS 24.501 table 9.11.4.13.1 assigns.
 func (t PacketFilterComponentType) valueLength() (int, bool) {
 	switch t {
-	case 0x01: // match-all — no value
+	case pfComponentTypeMatchAll:
 		return 0, true
-	case 0x10, 0x11: // IPv4 remote/local address + mask
+	case pfComponentTypeIPv4RemoteAddress, pfComponentTypeIPv4LocalAddress: // address + mask
 		return 8, true
-	case 0x21, 0x23: // IPv6 remote/local address + prefix length
+	case pfComponentTypeIPv6RemoteAddress, pfComponentTypeIPv6LocalAddress: // address + prefix length
 		return 17, true
-	case 0x30: // protocol identifier / next header
+	case pfComponentTypeProtocolIdentifier:
 		return 1, true
-	case 0x40, 0x50: // single local/remote port
+	case pfComponentTypeSingleLocalPort, pfComponentTypeSingleRemotePort:
 		return 2, true
-	case 0x41, 0x51: // local/remote port range
+	case pfComponentTypeLocalPortRange, pfComponentTypeRemotePortRange:
 		return 4, true
-	case 0x60: // security parameter index
+	case pfComponentTypeSecurityParamIndex:
 		return 4, true
-	case 0x70: // type of service / traffic class (value + mask)
+	case pfComponentTypeTypeOfService: // value + mask
 		return 2, true
-	case 0x80: // IPv6 flow label (20 bits, 3 octets)
+	case pfComponentTypeFlowLabel: // 20 bits
 		return 3, true
-	case 0x81, 0x82: // destination/source MAC address
+	case pfComponentTypeDestinationMAC, pfComponentTypeSourceMAC:
 		return 6, true
-	case 0x83, 0x84: // 802.1Q C-TAG/S-TAG VID
+	case pfComponentTypeCTAGVID, pfComponentTypeSTAGVID:
 		return 2, true
-	case 0x85, 0x86: // 802.1Q C-TAG/S-TAG PCP/DEI
+	case pfComponentTypeCTAGPCPDEI, pfComponentTypeSTAGPCPDEI:
 		return 1, true
-	case 0x87: // Ethertype type
+	case pfComponentTypeEthertype:
 		return 2, true
-	case 0x88, 0x89: // destination/source MAC address range (low and high limits)
+	case pfComponentTypeDestinationMACRange, pfComponentTypeSourceMACRange: // low and high limits
 		return 12, true
 	default:
 		return 0, false
@@ -454,6 +529,22 @@ const (
 	QoSFlowParamAveragingWindow QoSFlowParameterID = 0x06
 	QoSFlowParamEPSBearerID     QoSFlowParameterID = 0x07
 )
+
+var qosFlowParameterIDNames = map[uint8]string{
+	uint8(QoSFlowParam5QI):             "5QI",
+	uint8(QoSFlowParamGFBRUplink):      "GFBR uplink",
+	uint8(QoSFlowParamGFBRDownlink):    "GFBR downlink",
+	uint8(QoSFlowParamMFBRUplink):      "MFBR uplink",
+	uint8(QoSFlowParamMFBRDownlink):    "MFBR downlink",
+	uint8(QoSFlowParamAveragingWindow): "Averaging window",
+	uint8(QoSFlowParamEPSBearerID):     "EPS bearer identity",
+}
+
+// Name returns the parameter's spec description, or the empty string when the
+// identifier is not one TS 24.501 assigns.
+func (i QoSFlowParameterID) Name() string { return qosFlowParameterIDNames[uint8(i)] }
+
+func (i QoSFlowParameterID) String() string { return enumString(uint8(i), qosFlowParameterIDNames) }
 
 // QoS flow bit-rate units (TS 24.501 §9.11.4.12): the unit octet of a GFBR/MFBR
 // parameter value.

@@ -48,8 +48,8 @@ func buildUEContextReleaseRequest(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 	}
 
 	if m.PDUSessionResourceList != nil {
@@ -58,11 +58,11 @@ func buildUEContextReleaseRequest(value []byte) NGAPMessageValue {
 			sessions = append(sessions, PDUSessionResourceListCxtRelReq{PDUSessionID: int64(item.PDUSessionID)})
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceListCxtRelReq, ngap.CriticalityReject, sessions))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceListCxtRelReq, ngap.CriticalityReject, sessions))
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, ngap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(ngap.IDCause, ngap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
@@ -75,11 +75,11 @@ func buildUEContextReleaseCommand(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idUENGAPIDs, ngap.CriticalityReject, libUENGAPIDs(m.UENGAPIDs)),
+		ie(ngap.IDUENGAPIDs, ngap.CriticalityReject, libUENGAPIDs(m.UENGAPIDs)),
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, ngap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(ngap.IDCause, ngap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
@@ -94,15 +94,15 @@ func buildUEContextReleaseComplete(value []byte) NGAPMessageValue {
 	var ies []IE
 
 	if m.AMFUENGAPID != nil {
-		ies = append(ies, ie(idAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
+		ies = append(ies, ie(ngap.IDAMFUENGAPID, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID)))
 	}
 
 	if m.RANUENGAPID != nil {
-		ies = append(ies, ie(idRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
+		ies = append(ies, ie(ngap.IDRANUENGAPID, ngap.CriticalityIgnore, int64(*m.RANUENGAPID)))
 	}
 
 	if m.UserLocationInformation != nil {
-		ies = append(ies, ie(idUserLocationInformation, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDUserLocationInformation, ngap.CriticalityIgnore,
 			userLocationInformation(*m.UserLocationInformation)))
 	}
 
@@ -112,11 +112,11 @@ func buildUEContextReleaseComplete(value []byte) NGAPMessageValue {
 			sessions = append(sessions, PDUSessionResourceItemCxtRelCpl{PDUSessionID: int64(item.PDUSessionID)})
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceListCxtRelCpl, ngap.CriticalityReject, sessions))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceListCxtRelCpl, ngap.CriticalityReject, sessions))
 	}
 
 	if m.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, ngap.CriticalityIgnore,
+		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore,
 			criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 

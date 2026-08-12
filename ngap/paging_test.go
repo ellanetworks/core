@@ -121,7 +121,7 @@ func TestPagingMissingMandatoryIEs(t *testing.T) {
 	}
 
 	msg, err := ParsePaging(container(t,
-		ieField{id: idPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
+		ieField{id: IDPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -135,7 +135,7 @@ func TestPagingMissingMandatoryIEs(t *testing.T) {
 
 	for _, ie := range msg.Diagnostics().IEs {
 		if ie.TypeOfError == TypeOfErrorMissing &&
-			(ie.ID == idUEPagingIdentity || ie.ID == idTAIListForPaging) {
+			(ie.ID == IDUEPagingIdentity || ie.ID == IDTAIListForPaging) {
 			missing++
 		}
 	}
@@ -155,14 +155,14 @@ func TestUEPagingIdentityChoiceExtensionIsRejected(t *testing.T) {
 	}
 
 	if err := encodeContainerField(w, per.Aligned, ieField{
-		id: idUEPagingIdentity, crit: CriticalityReject, raw: []byte{0x00},
+		id: IDUEPagingIdentity, crit: CriticalityReject, raw: []byte{0x00},
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	value := container(t,
-		ieField{id: idUEPagingIdentity, crit: CriticalityIgnore, raw: perBytes(w)},
-		ieField{id: idTAIListForPaging, crit: CriticalityIgnore, val: per.MarshalerFunc(
+		ieField{id: IDUEPagingIdentity, crit: CriticalityIgnore, raw: perBytes(w)},
+		ieField{id: IDTAIListForPaging, crit: CriticalityIgnore, val: per.MarshalerFunc(
 			func(w *per.Writer, enc per.Encoding) error {
 				return marshalSeqOf(w, enc, 1, maxnoofTAIforPaging, []taiListForPagingItem{
 					{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}},

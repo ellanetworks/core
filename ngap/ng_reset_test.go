@@ -184,7 +184,7 @@ func TestResetTypeChoiceExtensionIsRejected(t *testing.T) {
 	}
 
 	if err := encodeContainerField(w, enc, ieField{
-		id:   idResetType,
+		id:   IDResetType,
 		crit: CriticalityReject,
 		raw:  []byte{0x00},
 	}); err != nil {

@@ -16,25 +16,25 @@ func buildInitialUEMessage(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
-		ie(idTAIList, s1ap.CriticalityReject, tai(m.TAI)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
+		ie(s1ap.IDTAIList, s1ap.CriticalityReject, tai(m.TAI)),
 	}
 
 	if m.EUTRANCGI != nil {
-		ies = append(ies, ie(idEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
+		ies = append(ies, ie(s1ap.IDEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
 	}
 
 	if m.RRCEstablishmentCause != nil {
-		ies = append(ies, ie(idRRCEstablishmentCause, s1ap.CriticalityIgnore, rrcCauseToEnum(*m.RRCEstablishmentCause)))
+		ies = append(ies, ie(s1ap.IDRRCEstablishmentCause, s1ap.CriticalityIgnore, rrcCauseToEnum(*m.RRCEstablishmentCause)))
 	}
 
 	if m.STMSI != nil {
-		ies = append(ies, ie(idSTMSI, s1ap.CriticalityReject, stmsi(*m.STMSI)))
+		ies = append(ies, ie(s1ap.IDSTMSI, s1ap.CriticalityReject, stmsi(*m.STMSI)))
 	}
 
 	if m.GUMMEI != nil {
-		ies = append(ies, ie(idGUMMEI, s1ap.CriticalityReject, gummei(*m.GUMMEI)))
+		ies = append(ies, ie(s1ap.IDGUMMEI, s1ap.CriticalityReject, gummei(*m.GUMMEI)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -49,17 +49,17 @@ func buildUplinkNASTransport(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
 	}
 
 	if m.EUTRANCGI != nil {
-		ies = append(ies, ie(idEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
+		ies = append(ies, ie(s1ap.IDEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
 	}
 
 	if m.TAI != nil {
-		ies = append(ies, ie(idTAIList, s1ap.CriticalityIgnore, tai(*m.TAI)))
+		ies = append(ies, ie(s1ap.IDTAIList, s1ap.CriticalityIgnore, tai(*m.TAI)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -74,9 +74,9 @@ func buildDownlinkNASTransport(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDNASPDU, s1ap.CriticalityReject, nasPDU(m.NASPDU)),
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

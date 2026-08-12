@@ -4,8 +4,6 @@
 package nas
 
 import (
-	"strings"
-
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -114,14 +112,8 @@ func buildRegistrationRequest(msg *fgs.RegistrationRequest) *RegistrationRequest
 	return out
 }
 
-// registrationType5GSEnum renders the registration type for the capture. The
-// codec's own name is the single definition; the table this replaced drifted
-// from it, reporting a disaster roaming initial registration as "Reserved" and
-// every type added since as unknown.
 func registrationType5GSEnum(t fgs.RegistrationType) utils.EnumField {
-	name := t.String()
-
-	return utils.MakeEnum(uint8(t), name, strings.HasPrefix(name, "unknown"))
+	return utils.NamedEnum(uint8(t), t.Name())
 }
 
 // buildUESecurityCapability renders the 5G integrity and ciphering algorithm bitmaps
