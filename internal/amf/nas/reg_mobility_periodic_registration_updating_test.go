@@ -70,11 +70,6 @@ func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ strin
 
 func (fdb *failingSubscriberDB) NodeID() int { return 0 }
 
-// decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security
-// context and returns the plaintext 5GMM message. It verifies the security header
-// is IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the
-// offset from ue.ULCount() to use as the DL count (0 for the first message, 1 for
-// the second, etc.).
 func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCountOffset uint32) []byte {
 	t.Helper()
 
@@ -94,10 +89,6 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amf.UeContext, nasPdu []byte, dlCo
 	return plain
 }
 
-// buildMobilityRegUeAndAMF creates a UE and amf.AMF configured for mobility/periodic
-// registration updating tests. The UE has security context, a valid registration
-// request, Pei, Supi, and matching Tai. The amf.AMF has a valid Operator, fakeSmf, and
-// UEs map. Returns the UE, ngapSender, fakeSmf, and amf.AMF.
 func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *fakeSmf, *amf.AMF) {
 	t.Helper()
 
@@ -157,9 +148,7 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 	}
 }
 
-// A mobility registration update with no 5GMM capability IE is valid: the IE
-// is optional and re-sent only on change (TS 24.501), so the
-// amf.AMF accepts it.
+// TS 24.501
 func TestMobilityReg_NilGMMCapability_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -511,7 +500,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		t.Fatalf("expected 1 ActivateSmContext call, got %d", len(fakeSmf.ActivateSmContextCalls))
 	}
 
-	// suList non-empty → PDUSessionResourceSetupRequest + DLNASTransport
 	if len(ngapSender.SentPDUSessionResourceSetupRequest) != 1 {
 		t.Fatalf("expected 1 PDUSessionResourceSetupRequest, got %d", len(ngapSender.SentPDUSessionResourceSetupRequest))
 	}
@@ -552,8 +540,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// Empty suList → calls amf.SendRegistrationAccept (which sends DLNASTransport since UeContextRequest=false)
-	// Then also sends DLNASTransport for N1 message
 	if len(ngapSender.SentDownlinkNASTransport) != 2 {
 		t.Fatalf("expected 2 DownlinkNASTransport (RegistrationAccept + N1 DLNASTransport), got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
@@ -592,7 +578,6 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 
 	ue.Conn().RegistrationRequest.AllowedPDUSessionStatus = mustBitmap([]uint8{0x04, 0x00})
 
-	// N1N2 with N2Info, but no amf.SmContext for PduSessionID 3
 	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
 		PduSessionID:            3,
 		BinaryDataN1Message:     []byte{0x01, 0x02},
@@ -716,8 +701,6 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 	}
 }
 
-// multiSliceDB returns multiple policies spanning two different slices,
-// causing SubscriberProfile to return a multi-element AllowedNssai.
 type multiSliceDB struct {
 	Operator *db.Operator
 }
@@ -898,11 +881,7 @@ func TestMobilityReg_ReanchorsASKeyChain(t *testing.T) {
 	}
 }
 
-// A registration that establishes no radio bearers derives no AS key
-// (TS 33.501 §6.8.1.3). On the connection an EPS→5GS handover created, the
-// target gNB was already keyed from the stored {NCC=1, NH} (§8.4.2 steps 4-5),
-// so re-anchoring the chain here hands every later handover an NH the UE
-// cannot reproduce.
+// TS 33.501 §6.8.1.3
 func TestMobilityReg_KeepsTheMappedKeyChainOnAHandoverConnection(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -933,10 +912,7 @@ func TestMobilityReg_KeepsTheMappedKeyChainOnAHandoverConnection(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.4: after an inter-system change from S1 mode to N1 mode an
-// AMF that supports N26 shall tell the UE which mapped EPS bearer contexts are
-// still active, so the UE deletes the QoS flow descriptions and QoS rules of the
-// PDN connections that did not transfer.
+// TS 24.501 §5.5.1.3.4
 func TestMobilityReg_ReportsTheEPSBearerContextStatusAfterAnArrivalFromEPS(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -975,8 +951,7 @@ func TestMobilityReg_ReportsTheEPSBearerContextStatusAfterAnArrivalFromEPS(t *te
 	}
 }
 
-// The IE is conditional on the inter-system change (TS 24.501 §8.2.7.31), so an
-// ordinary mobility registration must not carry it.
+// TS 24.501 §8.2.7.31
 func TestMobilityReg_OmitsTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -1020,10 +995,7 @@ func (fakeEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.R
 	return nil
 }
 
-// TS 24.501 §5.5.1.3.2 d) / §5.5.1.3.4 and TS 23.502 §4.11.1.3.3 step 14: a UE
-// that deactivated a mapped EPS bearer in S1 mode without telling the network
-// reports it here, and the AMF releases the corresponding PDU session. Nothing
-// else reconciles it — the status the AMF returns only ever makes the UE delete.
+// TS 24.501 §5.5.1.3.2 d) / §5.5.1.3.4 and TS 23.502 §4.11.1.3.3 step 14
 func TestMobilityReg_ReleasesPDUSessionsTheUEDeactivatedInEPS(t *testing.T) {
 	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -1070,9 +1042,7 @@ func TestMobilityReg_ReleasesPDUSessionsTheUEDeactivatedInEPS(t *testing.T) {
 	}
 }
 
-// The IE is scoped to the inter-system change (TS 24.501 §8.2.6.23). 5G-native
-// sessions also carry an EBI, in preparation for a later move to EPS, so acting
-// on the IE outside that scope would tear down live sessions.
+// TS 24.501 §8.2.6.23
 func TestMobilityReg_IgnoresTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *testing.T) {
 	ue, _, smf, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -1092,8 +1062,7 @@ func TestMobilityReg_IgnoresTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *
 	}
 }
 
-// Core Network type restriction (TS 23.501 §5.3.4.1.1): the bar has to hold for
-// the life of the registration, not only at the initial one.
+// TS 23.501 §5.3.4.1.1
 func TestMobilityReg_RejectsASubscriberBarredFrom5G(t *testing.T) {
 	ue, ngapSender, _, _ := buildMobilityRegUeAndAMF(t)
 
@@ -1108,8 +1077,6 @@ func TestMobilityReg_RejectsASubscriberBarredFrom5G(t *testing.T) {
 		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	// The reject goes out unprotected, so the message type is the third octet of
-	// the PDU itself.
 	pdu := ngapSender.SentDownlinkNASTransport[0].NASPDU
 	if len(pdu) < 3 || pdu[2] != uint8(fgs.MsgRegistrationReject) {
 		t.Fatalf("sent % x, want a Registration Reject", pdu)

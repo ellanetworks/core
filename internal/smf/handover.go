@@ -272,6 +272,15 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %w", err)
 	}
 
+	accepted := make([]libngap.QosFlowIdentifier, 0, len(transfer.QosFlowSetupResponse))
+	for _, f := range transfer.QosFlowSetupResponse {
+		accepted = append(accepted, f.QosFlowIdentifier)
+	}
+
+	if err := smContext.admittedSignalledFlow(accepted); err != nil {
+		return err
+	}
+
 	source := smContext.Tunnel.AN
 	smContext.handoverSourceAN = &source
 
@@ -456,6 +465,15 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 		return err
 	}
 
+	accepted := make([]libngap.QosFlowIdentifier, 0, len(pathSwitchRequestTransfer.QosFlowAccepted))
+	for _, f := range pathSwitchRequestTransfer.QosFlowAccepted {
+		accepted = append(accepted, f.QosFlowIdentifier)
+	}
+
+	if err := smContext.admittedSignalledFlow(accepted); err != nil {
+		return err
+	}
+
 	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
 
 	return nil
@@ -485,4 +503,28 @@ func handlePathSwitchRequestSetupFailedTransfer(b []byte) error {
 	}
 
 	return nil
+}
+
+func (sc *SMContext) signalledQFI() uint8 {
+	if sc.pending != nil && sc.pending.policy != nil {
+		return transferPolicy(sc.PolicyData, sc.pending.policy).QosData.QFI
+	}
+
+	if sc.PolicyData == nil {
+		return 0
+	}
+
+	return sc.PolicyData.QosData.QFI
+}
+
+func (sc *SMContext) admittedSignalledFlow(accepted []libngap.QosFlowIdentifier) error {
+	want := sc.signalledQFI()
+	for _, qfi := range accepted {
+		if uint8(qfi) == want {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("the NG-RAN node admitted QoS flows %v for session %q, not the signalled QFI %d",
+		accepted, sc.Ref, want)
 }

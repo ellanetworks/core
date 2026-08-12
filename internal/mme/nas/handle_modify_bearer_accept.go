@@ -10,8 +10,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleModifyBearerAccept commits the new bearer configuration once the UE accepts
-// the in-place modification (TS 24.301 §6.4.2.3).
 func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, accept *eps.ModifyEPSBearerContextAccept) nasreply.Disposition {
 	p := m.LookupPDN(ue, uint8(accept.EPSBearerIdentity))
 
@@ -21,8 +19,6 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 
 	m.StopESMGuard(p)
 
-	// The EPS modification itself succeeded; only the mapped 5GS parameters were
-	// discarded, so the commit stands (TS 24.501 §6.1.4.1 NOTE 1).
 	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
 		ueConn.Log.Warn("UE discarded the mapped 5GS QoS parameters of the bearer modification",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("5gsm-cause", cause))

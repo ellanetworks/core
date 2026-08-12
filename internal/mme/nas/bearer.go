@@ -170,13 +170,7 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	ueConn.ArmNASGuard("Attach Accept", plain, eps.SHTIntegrityProtectedCiphered)
 }
 
-// buildInitialContextSetup assembles the Initial Context Setup Request that
-// establishes the UE's S1 context and default E-RAB at the eNB (TS 36.413),
-// returning it with the E-RAB identity that carries the NAS PDU. Everything that
-// reads UE state happens here, so the send itself is pure framing.
 func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, qos *mme.EpsQoS) (*s1ap.InitialContextSetupRequest, uint8, bool) {
-	// Derive K_eNB and seed the X2-handover key chain (NH for NCC=1). Re-seeded on
-	// every context setup, so a Service Request restarts the chain (TS 33.401).
 	kenb, kenbCount, err := ue.DeriveInitialKeNB()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to derive AS keys", zap.Error(err))
@@ -244,9 +238,6 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	return ics, carrier, true
 }
 
-// sendInitialContextSetup stamps the protected NAS PDU onto the E-RAB that carries
-// it and sends the Initial Context Setup Request (TS 36.413). wire is nil on a
-// Service Request, where only the radio and S1 bearers are re-established.
 func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.InitialContextSetupRequest, carrier uint8, wire []byte) error {
 	if len(wire) > 0 {
 		for i := range ics.ERABToBeSetup {

@@ -35,11 +35,8 @@ type Profile struct {
 	Name           string `db:"name"`
 	UeAmbrUplink   string `db:"ueAmbrUplink"`
 	UeAmbrDownlink string `db:"ueAmbrDownlink"`
-	// Allow4G / Allow5G are the subscriber access control (Core Network type
-	// restriction, TS 23.501 §5.3.4): whether subscribers on this profile may use
-	// EPC (4G) and/or 5GC (5G). Default true (unrestricted).
-	Allow4G bool `db:"allow4G"`
-	Allow5G bool `db:"allow5G"`
+	Allow4G        bool   `db:"allow4G"`
+	Allow5G        bool   `db:"allow5G"`
 }
 
 func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]Profile, int, error) {

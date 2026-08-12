@@ -359,9 +359,7 @@ func TestMapTo5GSDefaultCapability(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.86, TS 33.501 §8.4.2 step 3: the default set covers the 5G
-// algorithms only, so octets 5-6 stay the UE's own E-UTRA set. TS 24.301
-// §9.9.3.36 octet 4 bit 1 is EPS-UPIP, which is not EIA7.
+// TS 38.413 §9.3.1.86, TS 33.501 §8.4.2 step 3
 func TestMapTo5GSCarriesTheEPSAlgorithmsIntoTheDefaultCapability(t *testing.T) {
 	in := epsContext(t)
 	in.UESecurityCapability = eps.UESecurityCapability{EEA: 0xe0, EIA: 0xe1}
@@ -390,9 +388,7 @@ func TestMapTo5GSCarriesTheEPSAlgorithmsIntoTheDefaultCapability(t *testing.T) {
 	}
 }
 
-// A capability the source MME really forwarded is the UE's own statement, so an
-// absent EPS half means the UE supports no AS algorithm over E-UTRA connected to
-// 5GC (TS 24.501 §9.11.3.54) and must not be filled in.
+// TS 24.501 §9.11.3.54
 func TestMapTo5GSLeavesAForwardedCapabilityAlone(t *testing.T) {
 	in := epsContext(t)
 	in.UESecurityCapability = eps.UESecurityCapability{EEA: 0xe0, EIA: 0xe0}

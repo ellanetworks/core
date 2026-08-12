@@ -105,10 +105,6 @@ func (s *DownlinkSender) Next() Count {
 	return s.count.Next()
 }
 
-// UseForMappedContext spends a downlink NAS COUNT without sending a message,
-// for the inter-system NAS transparent container that derives a mapped security
-// context from it (TS 33.501 §8.6.1). It returns [ErrCountExhausted] rather
-// than reusing a COUNT.
 func (s *DownlinkSender) UseForMappedContext() (Count, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

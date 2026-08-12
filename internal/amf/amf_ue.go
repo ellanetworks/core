@@ -58,22 +58,17 @@ type UeContext struct {
 	Tai      models.Tai
 	lastSeen atomic.Int64 // Unix nanoseconds
 
-	// Guarded by AMF.mu, not ue.mu.
 	handover *handoverContext
 
 	smf SmfSbi
 
 	active atomic.Pointer[UeConn]
 
-	// On the UeContext rather than the connection, so a claim survives the UeConn
-	// swap on N2 handover (TS 33.501 §6.9).
 	procedures *procedure.Registry
 
 	secured              bool
 	ueSecurityCapability *fgs.UESecurityCapability // TS 24.501 §9.11.3.54
 
-	// Kept as received: SECURITY MODE COMMAND replays these octets byte-for-byte
-	// (TS 24.501 §5.5.1.2.4, §5.5.1.3.4).
 	gmmCapability         *fgs.GMMCapability
 	s1UENetworkCapability []byte
 
@@ -154,7 +149,6 @@ func (ue *UeContext) Procedures() *procedure.Registry {
 	return ue.procedures
 }
 
-// A nil registry (bare test context) never conflicts.
 func (ue *UeContext) BeginKeyChainProc(t procedure.Type) bool {
 	if ue.procedures == nil {
 		return true
@@ -169,8 +163,6 @@ func (ue *UeContext) EndKeyChainProc(t procedure.Type) {
 	}
 }
 
-// NAS procedures are aborted when the N1 signalling connection is released
-// (TS 24.501 §5.3.1.2). They are mutually exclusive, so at most one ends here.
 func (ue *UeContext) endKeyChainProcs() {
 	ue.EndKeyChainProc(procedure.SecurityMode)
 	ue.EndKeyChainProc(procedure.N2Handover)
@@ -183,7 +175,6 @@ func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time,
 	}
 }
 
-// nil in CM-IDLE. The pointer may change between calls, so capture it in a local.
 func (ue *UeContext) Conn() *UeConn {
 	if ue == nil {
 		return nil
@@ -192,7 +183,6 @@ func (ue *UeContext) Conn() *UeConn {
 	return ue.active.Load()
 }
 
-// May be cleared concurrently, so capture it in a local.
 func (ue *UeContext) N1N2Message() *models.N1N2MessageTransferRequest {
 	return ue.n1n2Message.Load()
 }
@@ -205,9 +195,6 @@ func (ue *UeContext) ClearN1N2Message() {
 	ue.n1n2Message.Store(nil)
 }
 
-// Returns the displaced connection so it can be released outside the lock. Caller
-// holds amf.mu, which serializes the whole connection lifecycle so that bind and
-// release cannot race.
 func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 	oldUeConn := ue.active.Load()
 
@@ -241,9 +228,6 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	displaced := a.attachUeConnLocked(ue, ueConn)
 	a.mu.Unlock()
 
-	// The displaced connection stays registered with its AMF-UE-NGAP-ID reserved
-	// until Release Complete reaps it, so the gNB can still reference it
-	// (TS 38.413 §8.3.3.1).
 	if displaced != nil {
 		displaced.SendUEContextReleaseCommand(context.Background(),
 			ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
@@ -252,7 +236,6 @@ func (a *AMF) AttachUeConn(ue *UeContext, ueConn *UeConn) {
 	a.clearPagingSuppression(context.Background(), ue)
 }
 
-// Must not run while amf.mu is held.
 func (a *AMF) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 	if a.Session == nil {
 		return
@@ -268,8 +251,6 @@ func (a *AMF) clearPagingSuppression(ctx context.Context, ue *UeContext) {
 	}
 }
 
-// The whole served area is one registration area, which TS 23.501 §5.3.4 permits
-// because it always contains the UE's serving TAI.
 func (ue *UeContext) AllocateRegistrationArea(supportedTais []models.Tai) {
 	ue.RegistrationArea = append([]models.Tai(nil), supportedTais...)
 }
@@ -346,8 +327,6 @@ func (ue *UeContext) DeriveKamf(kseaf []byte) error {
 	return nil
 }
 
-// The unused AuthProof witnesses that authentication has succeeded. Both NAS
-// counts restart at zero (TS 24.501 §4.4.3.1).
 func (ue *UeContext) InstallNASSecurityContext(nea nas.CipheringAlgorithm, nia nas.IntegrityAlgorithm, _ AuthProof) error {
 	ue.mu.Lock()
 	ue.cipheringAlg, ue.integrityAlg = nea, nia
@@ -396,7 +375,6 @@ func (ue *UeContext) installSecurityContextLocked() error {
 		AllowNullIntegrity: ue.integrityAlg == nas.IntegrityNull,
 	})
 	if err != nil {
-		// Never fall back to the previous context.
 		ue.sc = nil
 
 		return err
@@ -408,8 +386,6 @@ func (ue *UeContext) installSecurityContextLocked() error {
 }
 
 func (ue *UeContext) deriveAnKeyLocked() error {
-	// The AN key binds the uplink NAS COUNT of the most recently accepted uplink
-	// NAS message (TS 33.501 §A.9).
 	key, err := fivegskeys.DeriveKgNB(ue.kamf, ue.ulCount.LastAccepted().Value())
 	if err != nil {
 		return err
@@ -439,8 +415,6 @@ func (ue *UeContext) deriveNHLocked(syncInput []byte) error {
 }
 
 func (ue *UeContext) UpdateSecurityContext() error {
-	// One critical section for the whole derivation: both AS keys must come from
-	// the same view of K_AMF and the uplink NAS COUNT.
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -609,7 +583,6 @@ func (ue *UeContext) StopProcedureTimers() {
 	conn.StopNASGuard()
 }
 
-// A non-nil target makes the release a no-op once a newer connection has taken over.
 func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
 	if ue == nil {
 		return
@@ -634,7 +607,6 @@ func (a *AMF) ReleaseNasConnection(ue *UeContext, target *UeConn) {
 	detached.Release()
 }
 
-// A nil target detaches unconditionally.
 func (a *AMF) detachUeConnLocked(ue *UeContext, target *UeConn) *UeConn {
 	cur := ue.active.Load()
 	if cur == nil {
@@ -676,8 +648,6 @@ func (ue *UeContext) PagingActive() bool {
 }
 
 func (ue *UeContext) Deregister(ctx context.Context) {
-	// Release takes the registry lock, so it runs first to preserve the lock order
-	// registry lock → ue.mu.
 	if conn := ue.Conn(); conn != nil {
 		conn.Release()
 	}
@@ -709,8 +679,6 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 	logger.From(ctx, logger.AmfLog).Debug("ue deregistered", logger.SUPI(ue.supi.String()))
 }
 
-// Deactivating rather than releasing leaves the UPF buffering downlink, so paging
-// can reactivate the session (TS 23.501 §5.3.3.2.4, §5.8.3).
 func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
 	if ue == nil || ue.smf == nil {
 		return
@@ -724,8 +692,6 @@ func (ue *UeContext) deactivateSmContexts(ctx context.Context) {
 }
 
 func (ue *UeContext) releaseSmContexts(ctx context.Context) {
-	// SmContextList is cleared under the lock even with no SMF wired up; the SMF
-	// calls that follow must not hold ue.mu.
 	ue.mu.Lock()
 
 	smContextRefs := make([]string, 0, len(ue.SmContextList))

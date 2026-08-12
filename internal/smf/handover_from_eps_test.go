@@ -436,9 +436,7 @@ func TestAFailedCompletionKeepsTheRollbackAnchor(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.11.1.2.2.2 step 7: the SMF includes the mapping between EBI(s)
-// and QFI(s) in the N2 SM information, which the target NG-RAN stores as the
-// QoS flow's E-RAB ID (TS 38.413 §9.3.4.1).
+// TS 23.502 §4.11.1.2.2.2 step 7
 func TestArrivalTransferCarriesTheEBIToQFIMapping(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -462,5 +460,42 @@ func TestArrivalTransferCarriesTheEBIToQFIMapping(t *testing.T) {
 
 	if uint8(*got) != epsTestEBI {
 		t.Errorf("E-RAB ID = %d, want the arriving EPS bearer identity %d", *got, epsTestEBI)
+	}
+}
+
+func TestArrivalAdmittedUnderAForeignQFIIsRefused(t *testing.T) {
+	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	s.SetMME(mmeCb)
+
+	ctx := context.Background()
+
+	sc, ref, _, _ := prepareArrival(t, s, upf)
+
+	ack, err := buildHandoverRequestAcknowledgeTransferWithQFI(targetGnbTEID, targetGnbIPv4, models.DefaultQFI+1)
+	if err != nil {
+		t.Fatalf("build the Handover Request Acknowledge transfer: %v", err)
+	}
+
+	if _, err := s.UpdateSmContextN2HandoverPrepared(ctx, ref, ack); err == nil {
+		t.Fatal("the target admitted a QoS flow the SMF never asked for, and the arrival was accepted")
+	}
+
+	sc.Mutex.Lock()
+	access := sc.Access
+	stranded := sc.HandoverSourceANForTest()
+	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	sc.Mutex.Unlock()
+
+	if access != smf.Access4G {
+		t.Errorf("session moved to %s on a refused admission", access)
+	}
+
+	if stranded != nil {
+		t.Error("a rollback anchor was captured for an admission that was refused")
+	}
+
+	if dl.TEID != sourceENB.TEID || !dl.S1U {
+		t.Errorf("downlink points at %s/%#x, want the source eNB", dl.IPv4Address, dl.TEID)
 	}
 }

@@ -155,9 +155,6 @@ func (ue *UeContext) MapSecurityContextToEPS() (interworking.FiveGToEPSHandover,
 	}
 	ue.mu.Unlock()
 
-	// The inter-system NAS transparent container spends a downlink NAS COUNT
-	// without a NAS message carrying it (TS 33.501 §8.6.1), so it is taken from
-	// the sender rather than around it.
 	dl, err := ue.dl.UseForMappedContext()
 	if err != nil {
 		return interworking.FiveGToEPSHandover{}, fmt.Errorf("amf: downlink NAS COUNT: %w", err)

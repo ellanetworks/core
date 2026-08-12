@@ -59,10 +59,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return
 	}
 
-	// Subscriber access control (Core Network type restriction, TS 23.501): the
-	// bar has to be re-evaluated here too, or a subscriber barred after it
-	// registered — or one that arrived on a handover from EPS — keeps 5G for the
-	// life of its context.
 	if !subscriberProfile.Allow5G {
 		metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 

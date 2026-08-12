@@ -58,9 +58,6 @@ func TestRANNodeIDToModels(t *testing.T) {
 	}
 }
 
-// GUAMIToNGAP splits the AMF id into the three NGAP fields, which is what
-// decides the GUAMI a gNB sees in NG Setup Response. Expectations produced
-// out-of-band as above.
 func TestGUAMIToNGAP(t *testing.T) {
 	tests := []struct {
 		amfID      string
@@ -100,12 +97,7 @@ func TestGUAMIToNGAP(t *testing.T) {
 	}
 }
 
-// The BCD encoding of a PLMN differs between two- and three-digit MNCs
-// (TS 38.413 §9.3.3.5, TS 24.008 §10.5.1.3 figure 10.5.3: octet 2 is
-// MCC2|MCC1, octet 3 is MNC3|MCC3, octet 4 is MNC2|MNC1), and a wrong nibble
-// order makes a gNB unreachable. The decode leg is checked against the literal
-// vector rather than the encoder's output: a rotation round-trips with itself.
-// Expectations produced out-of-band as above.
+// S 38.413 §9.3.3.5, TS 24.008 §10.5.1.3
 func TestPLMNRoundTrip(t *testing.T) {
 	tests := []struct {
 		plmn models.PlmnID
@@ -158,11 +150,7 @@ func TestPLMNToNGAPRejectsMalformed(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.86: "The Security Capabilities received from NAS signaling
-// shall not be modified or truncated when forwarded to NG-RAN nodes". Each
-// bitmap gives its first three bits to 128-xxx1..3 and maps the fourth to
-// seventh from bit 4 down to bit 1 of the matching TS 24.501 §9.11.3.54 octet,
-// so algorithm n lands at 1<<(16-n) and identity 0 has no position.
+// TS 38.413 §9.3.1.86
 func TestSecurityCapabilitiesToNGAP(t *testing.T) {
 	tests := []struct {
 		name string

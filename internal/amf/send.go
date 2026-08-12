@@ -28,10 +28,6 @@ import (
 
 var nasSendTracer = otel.Tracer("ella-core/amf/nas/send")
 
-// armNASGuard supervises a NAS request with the connection's guard, holding the
-// plain message so each retransmission is protected afresh: the sender increases
-// the NAS COUNT after each new or retransmitted outbound protected message
-// (TS 24.501 §4.4.3.1).
 func armNASGuard(conn *UeConn, ueConn *UeConn, cfg guard.TimerValue, name string, plain []byte, sht uint8, onExhausted func()) {
 	ue := conn.UeContext()
 
@@ -52,10 +48,6 @@ func armNASGuard(conn *UeConn, ueConn *UeConn, cfg guard.TimerValue, name string
 	)
 }
 
-// sendGmm builds a 5GMM message and sends it on a Downlink NAS Transport, taking
-// the downlink NAS COUNT and writing the message it protects as one step. sht
-// [fgs.SHTPlain] sends the message unprotected, as TS 24.501 §4.4.4.2 permits for
-// the rejects the UE has to accept before security is activated.
 func sendGmm(ctx context.Context, ue *UeConn, spanName string, attrs []attribute.KeyValue, sht uint8, build func(*UeContext) ([]byte, error)) {
 	if ue == nil || ue.UeContext() == nil {
 		logger.AmfLog.Error("cannot send NAS message: ue or amf ue is nil", zap.String("message", spanName))
@@ -215,9 +207,6 @@ func SendEPSNASAlgorithmsSecurityModeCommand(ctx context.Context, amfInstance *A
 	return sendSecurityModeCommand(ctx, amfInstance, ue, BuildEPSNASAlgorithmsSecurityModeCommand, false)
 }
 
-// newContext says the build marked the UE secured on a freshly derived context, so a
-// protection failure has to put that mark back. The follow-up command that only
-// signals the EPS NAS algorithms re-keys nothing and must leave the mark alone.
 func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, build func(*UeContext) ([]byte, error), newContext bool) error {
 	if ue == nil || ue.UeContext() == nil {
 		return fmt.Errorf("cannot send Security Mode Command: ue or amf ue is nil")
@@ -263,9 +252,6 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	return nil
 }
 
-// registrationRejectSHT protects a REGISTRATION REJECT once secure exchange of NAS
-// messages has been established on the connection, and sends it plain before that
-// (TS 24.501 §4.4.4.2 case e).
 func registrationRejectSHT(ue *UeConn) uint8 {
 	if ue.SecureExchangeEstablished() {
 		return uint8(fgs.SHTIntegrityProtectedCiphered)
@@ -325,9 +311,6 @@ func SendRegistrationAccept(
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
 	if conn := ue.Conn(); conn != nil {
-		// Keep the accept so a duplicate REGISTRATION REQUEST with identical IEs can be
-		// answered by resending it (TS 24.501 §5.5.1.2.8 case d). Kept plain: the resend
-		// is protected afresh, under the NAS COUNT it is written with.
 		conn.RegistrationAcceptPlain = plain
 	}
 
@@ -382,9 +365,6 @@ func SendRegistrationAccept(
 				return
 			}
 
-			// Protected again rather than replayed: the sender increases the NAS COUNT
-			// after each new or retransmitted outbound protected message
-			// (TS 24.501 §4.4.3.1).
 			if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 				if retryUeConn.UeContextRequest && retryUeConn.ICS() != ICSCompleted {
 					if err := retryUeConn.SendInitialContextSetup(
@@ -431,12 +411,6 @@ func SendRegistrationAccept(
 	}
 }
 
-// ArmRegistrationAcceptGuard supervises with T3550 a GUTI-bearing REGISTRATION
-// ACCEPT delivered outside SendRegistrationAccept — embedded in a PDU Session
-// Resource Setup Request, or as a plain DL NAS Transport during a mobility/periodic
-// registration update. The AMF always reallocates the 5G-GUTI, so every such accept
-// carries one and must be supervised (TS 24.501 §5.5.1.3.4). Registration Complete
-// stops the timer.
 func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
 	if !amfInstance.NASGuardCfg.Enable {
 		return
@@ -457,9 +431,6 @@ func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
 
 		logger.AmfLog.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-		// Protected again rather than replayed: the sender increases the NAS COUNT
-		// after each new or retransmitted outbound protected message
-		// (TS 24.501 §4.4.3.1).
 		if err := ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
 			return retryUeConn.SendDownlinkNASTransport(context.Background(), wire)
 		}); err != nil {
@@ -472,12 +443,6 @@ func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
 	})
 }
 
-// ResendRegistrationAccept resends the REGISTRATION ACCEPT last sent and restarts
-// T3550 without re-authenticating, for a duplicate REGISTRATION REQUEST whose IEs
-// match the one being served (TS 24.501 §5.5.1.2.8 case d). Re-arming resets the
-// guard, so this retransmission is not charged against the T3550 count. At this
-// stage the Initial Context Setup is complete, so the accept rides a plain DL NAS
-// Transport.
 func ResendRegistrationAccept(ctx context.Context, amfInstance *AMF, ue *UeContext) {
 	conn := ue.Conn()
 	if conn == nil || len(conn.RegistrationAcceptPlain) == 0 {
@@ -576,9 +541,6 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 				return
 			}
 
-			// Protected again rather than replayed: the sender increases the NAS COUNT
-			// after each new or retransmitted outbound protected message
-			// (TS 24.501 §4.4.3.1).
 			if err := amfUe.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 				return retryUeConn.SendDownlinkNASTransport(context.Background(), wire)
 			}); err != nil {

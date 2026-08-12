@@ -62,8 +62,6 @@ func (amf *AMF) sendNetworkInitiatedDeregistration(ctx context.Context, ue *UeCo
 
 		logger.From(ctx, logger.AmfLog).Warn("T3522 expired, retransmit Deregistration Request", zap.Int32("retry", expireTimes))
 
-		// A retransmission is a new outbound protected message and takes the next
-		// downlink NAS COUNT (TS 24.501 §4.4.3.1).
 		if err := ue.SendDownlinkNAS(plain, sht, func(wire []byte) error {
 			return retryUeConn.SendDownlinkNASTransport(context.Background(), wire)
 		}); err != nil {

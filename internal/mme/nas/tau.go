@@ -121,10 +121,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (bearer re-established)", zap.String("imsi", ue.IMSI()))
 	default:
-		// No active flag: defer the S1 release to TAU Complete (or the guard timeout)
-		// so the UE stays ECM-CONNECTED to acknowledge the reallocated GUTI; releasing
-		// earlier would reject the TAU Complete as having no active connection
-		// (TS 36.413 §10.6).
 		releaseOnComplete = true
 
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted (returning to idle)", zap.String("imsi", ue.IMSI()))
@@ -145,8 +141,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		ueConn.TauReleaseOnComplete = true
 	}
 
-	// The accept reallocates the GUTI, so it is guarded by T3450 and retransmitted
-	// until TRACKING AREA UPDATE COMPLETE commits the new GUTI (TS 24.301).
 	ueConn.ArmNASGuard("Tracking Area Update Accept", acceptPlain, eps.SHTIntegrityProtectedCiphered)
 
 	return nasreply.Handled()

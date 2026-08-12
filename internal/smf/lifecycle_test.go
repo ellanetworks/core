@@ -2294,9 +2294,13 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 // buildHandoverRequestAcknowledgeTransfer builds an APER-encoded
 // HandoverRequestAcknowledgeTransfer with the given target gNB DL GTP tunnel info.
 func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, error) {
+	return buildHandoverRequestAcknowledgeTransferWithQFI(teid, ip, models.DefaultQFI)
+}
+
+func buildHandoverRequestAcknowledgeTransferWithQFI(teid uint32, ip net.IP, qfi uint8) ([]byte, error) {
 	transfer := libngap.HandoverRequestAcknowledgeTransfer{
 		DLNGUUPTNLInformation: testTunnel(teid, ip),
-		QosFlowSetupResponse:  libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
+		QosFlowSetupResponse:  libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: libngap.QosFlowIdentifier(qfi)}},
 	}
 
 	b, err := transfer.Marshal()
@@ -2304,10 +2308,7 @@ func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, er
 	return b, err
 }
 
-// TestUpdateSmContextN1Msg_ModificationRejected verifies that a UE-requested PDU
-// Session Modification Request is answered with a PDU Session Modification Reject
-// echoing the request's PTI (TS 24.501 §6.4.2.4, §7.3.1), and that the session is
-// not torn down.
+// TS 24.501 §6.4.2.4, §7.3.1
 func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

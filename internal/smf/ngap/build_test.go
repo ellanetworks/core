@@ -341,9 +341,7 @@ func TestQosFlowARPPreemptionDefaults(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.11.1.2.2.2 step 7: the SMF includes the EBI-to-QFI mapping in
-// the N2 SM information, which the target stores as the QoS flow's E-RAB ID
-// (TS 38.413 §9.3.4.1).
+// TS 23.502 §4.11.1.2.2.2 step 7
 func TestBuildHandoverRequestTransferCarriesTheERABID(t *testing.T) {
 	ambr := &models.Ambr{Uplink: models.MustParseBitRate("1 Mbps"), Downlink: models.MustParseBitRate("2 Mbps")}
 	qos := &models.QosData{Var5qi: 9, QFI: 1, Arp: &models.Arp{PriorityLevel: 1}}

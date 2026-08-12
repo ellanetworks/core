@@ -52,6 +52,7 @@ const (
 	CauseRadioNetworkReduceLoadInServingCell           = 19 // reduce-load-in-serving-cell
 	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
 	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
+	CauseRadioNetworkS1InterSystemHandoverTriggered    = 34 // s1-inter-system-handover-triggered
 	CauseRadioNetworkInteractionWithOtherProcedure     = 29 // interaction-with-other-procedure
 	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances
 

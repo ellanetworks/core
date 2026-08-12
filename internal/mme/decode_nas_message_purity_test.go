@@ -10,15 +10,10 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// plainPDU builds a minimal plain EMM PDU (TS 24.301: octet0 = SHT plain | PD
-// EMM, octet1 = message type); two octets suffice for the decoder's type peek.
 func plainPDU(mt eps.MessageType) []byte {
 	return []byte{uint8(eps.PDEMM), byte(mt)}
 }
 
-// TestDecodeNASMessage_PurityOnPlainWhitelist asserts the decoder does not
-// mutate any security-policy field on the UE when accepting a plain NAS PDU on
-// the §4.4.4.3 whitelist. Mirrors the 5G AMF purity test.
 func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
 	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 	before := snapshotSecurityState(ue)
@@ -32,10 +27,6 @@ func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_PurityOnPlainReject asserts the decoder does not mutate
-// any security-policy field on the UE when rejecting a plain NAS PDU off the
-// whitelist (TRACKING AREA UPDATE REQUEST). This is the anti-DoS-amplification
-// invariant. Mirrors the 5G AMF purity test.
 func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 	ue := &UeContext{supi: mustSUPI(testSubscriber.IMSI)}
 	before := snapshotSecurityState(ue)
@@ -49,13 +40,6 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 	}
 }
 
-// securityStateSnapshot is the set of UeContext fields the NAS decoder is
-// forbidden from mutating. New security-relevant fields should be added here as
-// they are introduced.
-//
-// Explicitly excluded: the uplink and downlink NAS COUNTs. The decoder legitimately advances the
-// uplink NAS COUNT on a verified MAC as protocol plumbing, so the counters are
-// not security-policy fields and are not snapshotted.
 type securityStateSnapshot struct {
 	Kasme   string
 	KnasEnc [16]byte

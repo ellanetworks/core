@@ -30,10 +30,7 @@ func cancelWindowUE(t *testing.T) (*AMF, *UeContext, *Radio, etsi.SUPI) {
 	return a, ue, radio, supi
 }
 
-// TS 36.413 §8.4.5.2: the EPC shall terminate the ongoing handover preparation
-// and release its resources on a HANDOVER CANCEL. Answering "too late" before
-// the preparation even exists leaves the AMF building a context the source eNB
-// has already been told is gone.
+// TS 36.413 §8.4.5.2
 func TestRelocationCancelBeforePreparationIsAccepted(t *testing.T) {
 	a, ue, radio, supi := cancelWindowUE(t)
 
@@ -50,8 +47,6 @@ func TestRelocationCancelBeforePreparationIsAccepted(t *testing.T) {
 	}
 }
 
-// Only a relocation the AMF actually holds may be cancelled, and only the
-// relocation the source names.
 func TestRelocationCancelRejectsAnUnknownRelocation(t *testing.T) {
 	a, ue, _, supi := cancelWindowUE(t)
 

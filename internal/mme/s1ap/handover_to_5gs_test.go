@@ -387,8 +387,6 @@ func TestRelocationCompleteReleasesTheSourceENB(t *testing.T) {
 		t.Error("the UE still holds PDN connections after moving to 5GS")
 	}
 
-	// The command is outstanding: the eNB's Release Complete is the last message
-	// of the procedure and has to find its connection (TS 36.413 §10.6).
 	if _, still := m.LookupUeBySupi(ue.Supi()); !still {
 		t.Fatal("the UE context was destroyed before the eNB could answer the release command")
 	}
@@ -706,5 +704,29 @@ func (p *fiveGSPeerStub) awaitRequest(t *testing.T, want int) interworking.FiveG
 		}
 
 		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestHandoverToFiveGSReleasesAPDNThatCannotMove(t *testing.T) {
+	m := newTestMME(t)
+	peer := &fiveGSPeerStub{accepted: []uint8{mme.DefaultERABID}}
+	ue, source := relocatingToFiveGSUE(t, m, peer)
+
+	stranded := ue.EnsurePDN(6)
+	stranded.Apn = "internet"
+
+	before := source.count()
+
+	requireHandoverToFiveGS(t, m, ue, source)
+	awaitSourceMessage(t, source, before+1)
+
+	cmd := lastHandoverCommand(t, source)
+	if len(cmd.ERABToRelease) != 1 || cmd.ERABToRelease[0].ERABID != s1ap.ERABID(6) {
+		t.Fatalf("to-release list = %+v, want the PDN that cannot move", cmd.ERABToRelease)
+	}
+
+	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered}
+	if cmd.ERABToRelease[0].Cause != want {
+		t.Errorf("cause = %+v, want s1-inter-system-handover-triggered", cmd.ERABToRelease[0].Cause)
 	}
 }

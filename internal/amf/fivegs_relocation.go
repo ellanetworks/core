@@ -102,10 +102,6 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		return none, fmt.Errorf("amf: resolve the subscriber profile: %w", err)
 	}
 
-	// Subscriber access control (Core Network type restriction, TS 23.501
-	// §5.3.4.1.1). Refusing during preparation leaves the UE on E-UTRAN with live
-	// bearers (TS 36.413 §8.4.1.3); admitting it and rejecting the follow-up
-	// registration would drop the sessions to reach the same place.
 	if !subscriberProfile.Allow5G {
 		return none, interworking.TargetRefusal{Cause: s1ap.Cause{
 			Group: s1ap.CauseGroupRadioNetwork,
@@ -441,12 +437,8 @@ func (ue *UeContext) TakeArrivedFromEPSHandover() bool {
 }
 
 type fromEPSRelocation struct {
-	id interworking.RelocationID
-	ue *UeContext
-	// prepared and cancelled are read and written under AMF.mu, which is also
-	// what installs ue.handover. A cancel that lands before the handover context
-	// exists is still a cancel the EPC must honour (TS 36.413 §8.4.5.2), so it is
-	// recorded here and taken by prepareRelocationFromEPS.
+	id        interworking.RelocationID
+	ue        *UeContext
 	prepared  bool
 	cancelled bool
 }

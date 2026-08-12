@@ -142,11 +142,7 @@ func (a *AMF) AssignGutiForTest(ue *UeContext, guti etsi.GUTI5G) {
 func (ue *UeContext) SetSecuredForTest(b bool) {
 	ue.secured = b
 
-	// A secured UE has a NAS security context in production, so give one to a
-	// test that marks it secured without running the security mode procedure.
 	if b && ue.sc == nil {
-		// The null algorithms, as a UE that has not run the security mode procedure
-		// would have: the keys only have to be present, not secret.
 		for i := range ue.knasInt {
 			ue.knasInt[i], ue.knasEnc[i] = byte(i+1), byte(i+1)
 		}
@@ -156,9 +152,6 @@ func (ue *UeContext) SetSecuredForTest(b bool) {
 }
 func (ue *UeContext) SecuredForTest() bool { return ue.secured }
 
-// reinstallSecurityContextForTest rebuilds the NAS security context from the keys
-// and algorithms currently held and hands it to the downlink sender, keeping the
-// downlink NAS COUNT the sender has reached.
 func (ue *UeContext) reinstallSecurityContextForTest() {
 	if err := ue.installSecurityContextLocked(); err != nil {
 		ue.dl.Clear()

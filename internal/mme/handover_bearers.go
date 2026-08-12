@@ -23,7 +23,7 @@ func HandoverBearers(ue *UeContext) (bearers []s1ap.ERABToBeSetupItemHOReq, cand
 			logger.MmeLog.Error("failed to encode S-GW transport layer address for handover",
 				zap.String("imsi", ue.imsiOrEmpty()), zap.Uint8("e-rab-id", p.Ebi), zap.Error(err))
 
-			candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi, Cause: &causeHandoverCNReason})
+			candidates = append(candidates, HandoverCandidate{Ebi: p.Ebi, Cause: &causeHandoverUnspecified})
 
 			continue
 		}

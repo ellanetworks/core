@@ -68,9 +68,6 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return
 	}
 
-	// Subscriber access control (Core Network type restriction, TS 23.501):
-	// if the profile does not permit 5G, reject with 5GMM cause #7 "5GS services
-	// not allowed" (TS 24.501).
 	if !subscriberProfile.Allow5G {
 		ueConn := ue.Conn()
 		if ueConn == nil {

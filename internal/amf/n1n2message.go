@@ -220,9 +220,6 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 
 	return ue.SendDownlinkNAS(plain, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
 		if n2Msg == nil {
-			// N1-only delivery (e.g. DNS update via Extended PCO): the Modification
-			// Command rides Downlink NAS Transport and no radio resources change
-			// (TS 23.502).
 			if err := ueConn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("send downlink NAS transport: %w", err)
 			}
@@ -232,8 +229,6 @@ func (amf *AMF) ModifyN1N2Message(ctx context.Context, supi etsi.SUPI, pduSessio
 			return nil
 		}
 
-		// The PDUSessionResourceModifyRequestTransfer IE is mandatory per
-		// TS 38.413, so this path must only be taken when n2Msg is set.
 		list := ngap.PDUSessionResourceModifyListModReq{
 			{
 				PDUSessionID: ngap.PDUSessionID(pduSessionID),

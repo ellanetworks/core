@@ -152,8 +152,7 @@ func TestDownlinkSenderRefusesWithoutASecurityContext(t *testing.T) {
 	}
 }
 
-// A retransmission is a new outbound protected message and takes the next COUNT
-// (TS 24.301 §4.4.3.1, TS 24.501 §4.4.3.1: "new or retransmitted").
+// TS 24.301 §4.4.3.1, TS 24.501 §4.4.3.1
 func TestDownlinkSenderGivesARetransmissionAFreshCount(t *testing.T) {
 	s := newTestSender(t)
 

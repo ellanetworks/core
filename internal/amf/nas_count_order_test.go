@@ -59,8 +59,6 @@ func (c *downlinkOrderConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) 
 	return len(b), nil
 }
 
-// awaitWrites blocks until n protected downlink messages have been written, and
-// returns the NAS sequence number and security header type each carried.
 func (c *downlinkOrderConn) awaitWrites(t *testing.T, n int) (seqs, shts []uint8) {
 	t.Helper()
 
@@ -160,9 +158,7 @@ func TestDownlinkNASWrittenInCountOrder_TS24501_4_4_3_1(t *testing.T) {
 	}
 }
 
-// TS 24.501 §4.4.3.1: "After each new or retransmitted outbound SECURITY
-// PROTECTED 5GS NAS MESSAGE message, the sender shall increase the NAS COUNT
-// number by one."
+// TS 24.501 §4.4.3.1
 func TestRegistrationAcceptResendTakesTheNextNASCount_TS24501_4_4_3_1(t *testing.T) {
 	ue, sender := newDownlinkOrderUE(t)
 
@@ -184,8 +180,7 @@ func TestRegistrationAcceptResendTakesTheNextNASCount_TS24501_4_4_3_1(t *testing
 	}
 }
 
-// TS 24.501 §4.4.3.1 for the fresh COUNT, §5.4.2.2 for the security header type of
-// a SECURITY MODE COMMAND establishing a new 5G NAS security context.
+// TS 24.501 §4.4.3.1
 func TestNASGuardRetransmissionTakesTheNextNASCount_TS24501_4_4_3_1(t *testing.T) {
 	ue, sender := newDownlinkOrderUE(t)
 

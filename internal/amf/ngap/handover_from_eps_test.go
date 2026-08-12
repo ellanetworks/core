@@ -127,9 +127,6 @@ func arrivingAMF(t *testing.T, peer *epsPeerStub) (*amf.AMF, *amf.Radio, *arriva
 	sender := newArrivalSender()
 	smfSbi := &fakeSmfSbi{PrepareFromEPSResponse: []byte{0x09, 0x08}}
 
-	// The operator runs a slice the subscriber is not on, so an Allowed NSSAI
-	// taken from the slice table rather than the subscription is visible on the
-	// wire (TS 23.501 §5.15.5.2.1).
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: arrivingOperator(),
 		Slices: []db.NetworkSlice{
@@ -483,9 +480,7 @@ func TestArrivalGuardUnwindsAUEThatNeverShowsUp(t *testing.T) {
 	}
 }
 
-// Core Network type restriction (TS 23.501 §5.3.4.1.1). Refusing during
-// preparation means the source eNB never sends a Handover Command, so the UE
-// stays on E-UTRAN with live bearers (TS 36.413 §8.4.1.3).
+// TS 23.501 §5.3.4.1.1
 func TestForwardRelocationRefusesASubscriberBarredFrom5GS(t *testing.T) {
 	sender := newArrivalSender()
 	smfSbi := &fakeSmfSbi{PrepareFromEPSResponse: []byte{0x09, 0x08}}

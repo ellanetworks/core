@@ -216,10 +216,6 @@ func openPDNConnection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return nasreply.Handled()
 	}
 
-	// The S1AP send chokepoint swallows write failures, so without T3485 supervision a
-	// failed or unanswered activation would leak the committed PDN and its S-GW session.
-	// The guard retransmits, then releases the PDN once the budget is spent
-	// (TS 24.301 §6.4.1.6).
 	m.ArmESMGuardAbortOnly(ue, p, "Activate Default EPS Bearer Context Request", esm, eps.SHTIntegrityProtectedCiphered, func() {
 		m.ReleasePDN(context.Background(), ue, p)
 	})
@@ -231,9 +227,6 @@ func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 	openPDNConnection(ctx, m, ue, ueConn, ue.RequestedAPN, pending.PTI, eps.PDNType(pending.PDNType))
 }
 
-// buildERABSetup assembles the E-RAB Setup Request that sets up the radio leg of a
-// new PDN connection; the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST is stamped
-// into its NAS-PDU once protected (TS 36.413 §8.2.1).
 func buildERABSetup(p *mme.PdnConnection, qos *mme.EpsQoS) (*s1ap.ERABSetupRequest, error) {
 	sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
 	if err != nil {
@@ -321,9 +314,6 @@ func handleActivateDefaultBearerAccept(m *mme.MME, ue *mme.UeContext, accept *ep
 
 	m.StopESMGuard(p)
 
-	// Without the mapped parameters the UE releases the PDN connection locally on
-	// a later move to 5GS (TS 23.502 §4.11.1.3.3 step 2), so this is the only
-	// warning that interworking is lost for it.
 	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
 		logger.MmeLog.Warn("UE discarded the mapped 5GS QoS parameters of the PDN connection",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("5gsm-cause", cause))

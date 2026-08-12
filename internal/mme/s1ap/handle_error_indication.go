@@ -18,20 +18,6 @@ import (
 // one stored against its MME-UE-S1AP-ID.
 var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownPairUES1APID}
 
-// resolveUE finds a UE-associated message's UE by its MME-UE-S1AP-ID and
-// cross-checks the eNB-UE-S1AP-ID, returning (nil, nil, false) and an Error
-// Indication to the sender otherwise (TS 36.413). The MME-UE-S1AP-ID map is
-// shared across eNBs, so a hit is scoped to the sending association: this stops
-// one eNB acting on a UE attached through another.
-//
-// Handlers must use the returned connection rather than re-reading ue.Conn(),
-// which is nil in ECM-IDLE and can become nil at any point. A nil dereference
-// panics the dispatch goroutine, and the dispatcher answers by aborting the
-// association, dropping every other UE on that eNB.
-// resolveUEQuiet resolves a UE-associated message that is the last message of
-// its logical connection: TS 36.413 §10.6 answers an unknown one with a local
-// release rather than an Error Indication, so the caller reports the miss
-// itself.
 func resolveUEQuiet(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	ue, ok := m.LookupUe(mmeID)
 	if !ok {
@@ -346,9 +332,6 @@ func handleErrorIndication(m *mme.MME, ctx context.Context, radio *mme.Radio, va
 		return
 	}
 
-	// The MME-UE-S1AP-ID space is shared across eNBs, so releasing on the id
-	// alone would let any eNB tear down a UE attached through another. One read,
-	// not two: a detach between them leaves the second dereferencing nil.
 	if ueConn := ue.Conn(); ueConn == nil || ueConn.Conn() != radio.Conn {
 		logger.From(ctx, logger.MmeLog).Warn("Error Indication for an MME-UE-S1AP-ID on a different S1 association",
 			zap.Uint32("mme-ue-id", uint32(*msg.MMEUES1APID)))
