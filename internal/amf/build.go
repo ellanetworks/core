@@ -162,19 +162,21 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 
 	addInfo := fgs.AdditionalSecurityInformation{
 		RINMR: conn.RetransmissionOfInitialNASMsg,
-		HDP: conn.RegistrationType5GS == fgs.RegistrationTypePeriodicUpdating ||
-			conn.RegistrationType5GS == fgs.RegistrationTypeMobilityUpdating,
+		HDP:   ue.KeyOrigin() == KeyOriginHorizontalDerivation,
 	}
 
 	ngksi := ue.NgKsi()
 
 	smc := &fgs.SecurityModeCommand{
-		CipheringAlgorithm:            ue.NEA(),
-		IntegrityAlgorithm:            ue.NIA(),
-		NgKSI:                         ngKsi(ngksi),
-		ReplayedUESecurityCapability:  *ueSecCap,
-		IMEISVRequested:               &imeisv,
-		AdditionalSecurityInformation: &addInfo,
+		CipheringAlgorithm:           ue.NEA(),
+		IntegrityAlgorithm:           ue.NIA(),
+		NgKSI:                        ngKsi(ngksi),
+		ReplayedUESecurityCapability: *ueSecCap,
+		IMEISVRequested:              &imeisv,
+	}
+
+	if addInfo.RINMR || addInfo.HDP {
+		smc.AdditionalSecurityInformation = &addInfo
 	}
 
 	addEPSNASSecurityAlgorithms(ue, smc)
