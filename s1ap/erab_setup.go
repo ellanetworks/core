@@ -37,21 +37,21 @@ type ERABSetupRequest struct {
 
 var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
+		id: IDUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
 			var (
 				err  error
@@ -76,7 +76,7 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 		},
 	},
 	{
-		id: idERABToBeSetupListBearerSUReq, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDERABToBeSetupListBearerSUReq, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -86,7 +86,7 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 		},
 		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABToBeSetupItemBearerSUReq, CriticalityReject, m.ERABToBeSetup)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject, m.ERABToBeSetup)
 			}), true
 		},
 	},
@@ -130,7 +130,7 @@ type ERABSetupResponse struct {
 
 var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var v MMEUES1APID
 
@@ -151,7 +151,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		},
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var v ENBUES1APID
 
@@ -172,7 +172,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		},
 	},
 	{
-		id: idERABSetupListBearerSURes, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDERABSetupListBearerSURes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -186,12 +186,12 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABSetupItemBearerSURes, CriticalityIgnore, m.ERABSetup)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore, m.ERABSetup)
 			}), true
 		},
 	},
 	{
-		id: idERABFailedToSetupListBearerSURes, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDERABFailedToSetupListBearerSURes, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
@@ -205,12 +205,12 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 			}
 
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, idERABItem, CriticalityIgnore, m.ERABFailedToSetup)
+				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToSetup)
 			}), true
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -231,7 +231,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var uli UserLocationInformation
 

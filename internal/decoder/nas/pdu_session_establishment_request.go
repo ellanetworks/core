@@ -122,20 +122,7 @@ func buildPDUSessionEstablishmentRequest(msg *fgs.PDUSessionEstablishmentRequest
 }
 
 func buildPDUSessionType(sessType uint8) utils.EnumField {
-	switch sessType {
-	case uint8(fgs.PDUSessionTypeIPv4):
-		return utils.MakeEnum(sessType, "IPv4", false)
-	case uint8(fgs.PDUSessionTypeIPv6):
-		return utils.MakeEnum(sessType, "IPv6", false)
-	case uint8(fgs.PDUSessionTypeIPv4v6):
-		return utils.MakeEnum(sessType, "IPv4v6", false)
-	case uint8(fgs.PDUSessionTypeUnstructured):
-		return utils.MakeEnum(sessType, "Unstructured", false)
-	case uint8(fgs.PDUSessionTypeEthernet):
-		return utils.MakeEnum(sessType, "Ethernet", false)
-	default:
-		return utils.MakeEnum(sessType, "", true)
-	}
+	return utils.NamedEnum(sessType, fgs.PDUSessionType(sessType).Name())
 }
 
 func ptr(b bool) *bool { return &b }

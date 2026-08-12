@@ -116,8 +116,8 @@ func TestPDUSessionResourceReleaseRoundTrips(t *testing.T) {
 // releases nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceReleaseCommandMissingList(t *testing.T) {
 	value := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
 	)
 
 	_, err := ParsePDUSessionResourceReleaseCommand(value)
@@ -130,7 +130,7 @@ func TestPDUSessionResourceReleaseCommandMissingList(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idPDUSessionResourceToReleaseListRelCmd ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDPDUSessionResourceToReleaseListRelCmd ||
 		ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for the release list", ase.IEs)
 	}
@@ -140,8 +140,8 @@ func TestPDUSessionResourceReleaseCommandMissingList(t *testing.T) {
 // it is still delivered and the absence reported (§10.3.5).
 func TestPDUSessionResourceReleaseResponseMissingList(t *testing.T) {
 	value := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityIgnore, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: idRANUENGAPID, crit: CriticalityIgnore, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityIgnore, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityIgnore, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
 	)
 
 	msg, err := ParsePDUSessionResourceReleaseResponse(value)
@@ -150,7 +150,7 @@ func TestPDUSessionResourceReleaseResponseMissingList(t *testing.T) {
 	}
 
 	d := msg.Diagnostics()
-	if len(d.IEs) != 1 || d.IEs[0].ID != idPDUSessionResourceReleasedListRelRes ||
+	if len(d.IEs) != 1 || d.IEs[0].ID != IDPDUSessionResourceReleasedListRelRes ||
 		d.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for the released list", d.IEs)
 	}

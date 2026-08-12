@@ -32,14 +32,14 @@ type InitialUEMessage struct {
 
 var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idNASPDU, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDNASPDU, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
@@ -52,14 +52,14 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDUserLocationInformation, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.UserLocationInformation)
 		},
 		encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return &m.UserLocationInformation, true },
 	},
 	{
-		id: idRRCEstablishmentCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDRRCEstablishmentCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			var v RRCEstablishmentCause
 
@@ -80,7 +80,7 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 		},
 	},
 	{
-		id: idFiveGSTMSI, presence: presenceOptional, crit: CriticalityReject,
+		id: IDFiveGSTMSI, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			var v FiveGSTMSI
 
@@ -101,7 +101,7 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 		},
 	},
 	{
-		id: idAMFSetID, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDAMFSetID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			var v AMFSetID
 
@@ -122,7 +122,7 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 		},
 	},
 	{
-		id: idUEContextRequest, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUEContextRequest, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			var v UEContextRequest
 
@@ -145,7 +145,7 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 	{
 		// Modeled but not acted on: the IE is reject, so not comprehending it
 		// would reject an otherwise valid INITIAL UE MESSAGE (§10.3.4.2).
-		id: idAllowedNSSAI, presence: presenceOptional, crit: CriticalityReject,
+		id: IDAllowedNSSAI, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AllowedNSSAI)
 		},
@@ -198,21 +198,21 @@ type UplinkNASTransport struct {
 
 var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idNASPDU, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDNASPDU, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},
@@ -225,7 +225,7 @@ var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 		},
 	},
 	{
-		id: idUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UplinkNASTransport, raw []byte, enc per.Encoding) error {
 			var v UserLocationInformation
 
@@ -286,21 +286,21 @@ type DownlinkNASTransport struct {
 
 var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
 	{
-		id: idAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.AMFUENGAPID)
 		},
 		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: idRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.RANUENGAPID)
 		},
 		encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: idNASPDU, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDNASPDU, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *DownlinkNASTransport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NASPDU)
 		},

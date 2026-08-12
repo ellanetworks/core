@@ -15,9 +15,7 @@ import (
 //	40 0e 00 15 00 00 03 00 0a 40 02 00 09 00 55 40
 //	02 00 09 00 0f 40 02 09 c0
 func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
-	const message = "QA4AFQAAAwAKQAIACQBVQAIACQAPQAIJwA=="
-
-	raw, err := decodeB64(message)
+	raw, err := decodeB64(initialContextSetupFailureCapture)
 	if err != nil {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
@@ -28,20 +26,16 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Errorf("expected PDUType=UnsuccessfulOutcome, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.ProcedureCode.Label != "InitialContextSetup" {
+	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
 		t.Errorf("expected ProcedureCode=InitialContextSetup, got %v", ngapMsg.ProcedureCode)
 	}
 
 	if ngapMsg.ProcedureCode.Value != int64(lib.ProcInitialContextSetup) {
-		t.Errorf("expected ProcedureCode value=%d, got %d", lib.ProcInitialContextSetup, ngapMsg.ProcedureCode.Value)
+		t.Errorf("procedure code = %d, want %d", ngapMsg.ProcedureCode.Value, lib.ProcInitialContextSetup)
 	}
 
-	if ngapMsg.Criticality.Label != "Reject" {
-		t.Errorf("expected Criticality=Reject, got %v", ngapMsg.Criticality)
-	}
-
-	if ngapMsg.Criticality.Value != 0 {
-		t.Errorf("expected Criticality value=0, got %d", ngapMsg.Criticality.Value)
+	if ngapMsg.Criticality.Value != int64(lib.CriticalityReject) {
+		t.Errorf("Criticality = %v, want reject", ngapMsg.Criticality)
 	}
 
 	if ngapMsg.Value.Error != "" {
@@ -53,8 +47,8 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 	}
 
 	amfUEID := ngapMsg.Value.IEs[0]
-	if amfUEID.ID.Value != int64(idAMFUENGAPID) {
-		t.Errorf("expected first IE=AMF-UE-NGAP-ID (%d), got %d", idAMFUENGAPID, amfUEID.ID.Value)
+	if amfUEID.ID.Value != int64(lib.IDAMFUENGAPID) {
+		t.Errorf("expected first IE=AMF-UE-NGAP-ID (%d), got %d", lib.IDAMFUENGAPID, amfUEID.ID.Value)
 	}
 
 	if v, ok := amfUEID.Value.(int64); !ok || v != 9 {
@@ -62,8 +56,8 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 	}
 
 	ranUEID := ngapMsg.Value.IEs[1]
-	if ranUEID.ID.Value != int64(idRANUENGAPID) {
-		t.Errorf("expected second IE=RAN-UE-NGAP-ID (%d), got %d", idRANUENGAPID, ranUEID.ID.Value)
+	if ranUEID.ID.Value != int64(lib.IDRANUENGAPID) {
+		t.Errorf("expected second IE=RAN-UE-NGAP-ID (%d), got %d", lib.IDRANUENGAPID, ranUEID.ID.Value)
 	}
 
 	if v, ok := ranUEID.Value.(int64); !ok || v != 9 {
@@ -71,8 +65,8 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 	}
 
 	causeIE := ngapMsg.Value.IEs[2]
-	if causeIE.ID.Label != "Cause" {
-		t.Errorf("expected third IE=Cause, got %v", causeIE.ID)
+	if causeIE.ID.Value != int64(lib.IDCause) {
+		t.Errorf("IE id = %d, want %d", causeIE.ID.Value, lib.IDCause)
 	}
 
 	cause, ok := causeIE.Value.(Cause)
@@ -80,7 +74,7 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Fatalf("expected Cause, got %T", causeIE.Value)
 	}
 
-	if cause.Value.Label != "slice-not-supported" {
+	if cause.Value.Value != int64(lib.CauseRadioNetworkSliceNotSupported) {
 		t.Errorf("expected Cause=slice-not-supported, got %v", cause.Value.Label)
 	}
 
@@ -88,3 +82,6 @@ func TestDecodeNGAPMessage_InitialContextSetupFailure(t *testing.T) {
 		t.Errorf("expected Cause value=%d, got %d", lib.CauseRadioNetworkSliceNotSupported, cause.Value.Value)
 	}
 }
+
+// An InitialContextSetupFailure captured on the 001/01 test PLMN.
+const initialContextSetupFailureCapture = "QA4AFQAAAwAKQAIACQBVQAIACQAPQAIJwA=="

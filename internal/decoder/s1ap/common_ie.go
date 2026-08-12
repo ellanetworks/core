@@ -123,27 +123,11 @@ type CriticalityDiagnosticsIE struct {
 }
 
 func triggeringMessageToEnum(t s1ap.TriggeringMessage) utils.EnumField {
-	switch t {
-	case s1ap.TriggeringInitiatingMessage:
-		return utils.MakeEnum(uint64(t), "initiating-message", false)
-	case s1ap.TriggeringSuccessfulOutcome:
-		return utils.MakeEnum(uint64(t), "successful-outcome", false)
-	case s1ap.TriggeringUnsuccessfulOutcome:
-		return utils.MakeEnum(uint64(t), "unsuccessful-outcome", false)
-	default:
-		return utils.MakeEnum(uint64(t), "", true)
-	}
+	return utils.NamedEnum(uint8(t), t.Name())
 }
 
 func typeOfErrorToEnum(t s1ap.TypeOfError) utils.EnumField {
-	switch t {
-	case s1ap.TypeOfErrorNotUnderstood:
-		return utils.MakeEnum(uint64(t), "not-understood", false)
-	case s1ap.TypeOfErrorMissing:
-		return utils.MakeEnum(uint64(t), "missing", false)
-	default:
-		return utils.MakeEnum(uint64(t), "", true)
-	}
+	return utils.NamedEnum(uint8(t), t.Name())
 }
 
 func criticalityDiagnostics(d s1ap.CriticalityDiagnostics) CriticalityDiagnostics {
@@ -166,7 +150,7 @@ func criticalityDiagnostics(d s1ap.CriticalityDiagnostics) CriticalityDiagnostic
 
 	for _, it := range d.IEsCriticalityDiagnostics {
 		out.IEs = append(out.IEs, CriticalityDiagnosticsIE{
-			IEID:        ieEnum(int64(it.IEID)),
+			IEID:        ieEnum(it.IEID),
 			Criticality: criticalityToEnum(it.IECriticality),
 			TypeOfError: typeOfErrorToEnum(it.TypeOfError),
 		})
@@ -192,33 +176,16 @@ func gummei(g s1ap.GUMMEI) GUMMEI {
 }
 
 func cnDomainToEnum(d s1ap.CNDomain) utils.EnumField {
-	switch d {
-	case s1ap.CNDomainPS:
-		return utils.MakeEnum(uint64(d), "ps", false)
-	case s1ap.CNDomainCS:
-		return utils.MakeEnum(uint64(d), "cs", false)
-	default:
-		return utils.MakeEnum(uint64(d), "", true)
-	}
+	return utils.NamedEnum(uint8(d), d.Name())
 }
 
 func rrcCauseToEnum(c s1ap.RRCEstablishmentCause) utils.EnumField {
-	names := map[s1ap.RRCEstablishmentCause]string{
-		s1ap.RRCCauseEmergency:          "emergency",
-		s1ap.RRCCauseHighPriorityAccess: "highPriorityAccess",
-		s1ap.RRCCauseMTAccess:           "mt-Access",
-		s1ap.RRCCauseMOSignalling:       "mo-Signalling",
-		s1ap.RRCCauseMOData:             "mo-Data",
-	}
-
-	name, ok := names[c]
-
-	return utils.MakeEnum(uint64(c), name, !ok)
+	return utils.NamedEnum(uint8(c), c.Name())
 }
 
 // ie is a small constructor for an Information Element with a spec-fixed
 // criticality.
-func ie(id int64, crit s1ap.Criticality, value any) IE {
+func ie(id s1ap.ProtocolIEID, crit s1ap.Criticality, value any) IE {
 	return IE{ID: ieEnum(id), Criticality: criticalityToEnum(crit), Value: value}
 }
 
@@ -243,8 +210,19 @@ type rawIEValue struct {
 // dropping it.
 func appendUnknownIEs(ies []IE, raw []s1ap.RawIE) []IE {
 	for _, r := range raw {
-		ies = append(ies, ie(int64(r.ID), r.Criticality, rawIEValue{Hex: hex.EncodeToString(r.Value)}))
+		ies = append(ies, ie(r.ID, r.Criticality, rawIEValue{Hex: hex.EncodeToString(r.Value)}))
 	}
 
 	return ies
+}
+
+// UserLocationInformation is the decoded User Location Information IE
+// (TS 36.413 §9.2.1.93): the cell and tracking area the UE was last seen in.
+type UserLocationInformation struct {
+	EUTRANCGI EUTRANCGI `json:"eutran_cgi"`
+	TAI       TAI       `json:"tai"`
+}
+
+func userLocationInformation(u s1ap.UserLocationInformation) UserLocationInformation {
+	return UserLocationInformation{EUTRANCGI: eutranCGI(u.EUTRANCGI), TAI: tai(u.TAI)}
 }

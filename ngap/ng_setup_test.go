@@ -198,16 +198,16 @@ func encodePartialNGSetup(t *testing.T, globalRANNodeID, supportedTAList, paging
 	src := goldRequest()
 
 	if globalRANNodeID {
-		fields = append(fields, ieField{id: idGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID})
+		fields = append(fields, ieField{id: IDGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID})
 	}
 
 	if supportedTAList {
-		fields = append(fields, ieField{id: idSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList})
+		fields = append(fields, ieField{id: IDSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList})
 	}
 
 	if pagingDRX {
 		d := PagingDRXv128
-		fields = append(fields, ieField{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: d})
+		fields = append(fields, ieField{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: d})
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
@@ -227,13 +227,13 @@ func TestParseNGSetupRequestMissingMandatoryIE(t *testing.T) {
 		wantReject   []ProtocolIEID
 		wantReported []ProtocolIEID
 	}{
-		{"missing GlobalRANNodeID", false, true, true, []ProtocolIEID{idGlobalRANNodeID}, nil},
-		{"missing SupportedTAList", true, false, true, []ProtocolIEID{idSupportedTAList}, nil},
-		{"missing both reject IEs", false, false, true, []ProtocolIEID{idGlobalRANNodeID, idSupportedTAList}, nil},
+		{"missing GlobalRANNodeID", false, true, true, []ProtocolIEID{IDGlobalRANNodeID}, nil},
+		{"missing SupportedTAList", true, false, true, []ProtocolIEID{IDSupportedTAList}, nil},
+		{"missing both reject IEs", false, false, true, []ProtocolIEID{IDGlobalRANNodeID, IDSupportedTAList}, nil},
 		// Default Paging DRX is mandatory-ignore (§9.2.6.1), so its absence is
 		// reported and delivered.
-		{"missing only PagingDRX", true, true, false, nil, []ProtocolIEID{idDefaultPagingDRX}},
-		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{idGlobalRANNodeID}, nil},
+		{"missing only PagingDRX", true, true, false, nil, []ProtocolIEID{IDDefaultPagingDRX}},
+		{"missing reject and ignore IEs", false, true, false, []ProtocolIEID{IDGlobalRANNodeID}, nil},
 	}
 
 	for _, tt := range tests {

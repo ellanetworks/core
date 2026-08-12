@@ -25,7 +25,7 @@ var relativeMMECapacityBounds = per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: t
 
 var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
-		id: idMMEname, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDMMEname, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -47,7 +47,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: idServedGUMMEIs, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDServedGUMMEIs, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ServedGUMMEIs)
 		},
@@ -60,7 +60,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: idRelativeMMECapacity, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDRelativeMMECapacity, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeMMECapacityBounds)
 			if err != nil {
@@ -83,7 +83,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -104,7 +104,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
 			var v UERetentionInformation
 

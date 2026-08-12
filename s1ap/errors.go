@@ -127,12 +127,12 @@ func (e *AbstractSyntaxError) UEIDs() (*MMEUES1APID, *ENBUES1APID) {
 		switch ie.ID {
 		// PATH SWITCH REQUEST identifies the association by the source MME id
 		// (TS 36.413 §9.1.5.8); no message carries both.
-		case idMMEUES1APID, idSourceMMEUES1APID:
+		case IDMMEUES1APID, IDSourceMMEUES1APID:
 			var v MMEUES1APID
 			if perIEDecode(ie.Value, &v) == nil {
 				mmeID = &v
 			}
-		case idENBUES1APID:
+		case IDENBUES1APID:
 			var v ENBUES1APID
 			if perIEDecode(ie.Value, &v) == nil {
 				enbID = &v
@@ -226,12 +226,9 @@ func (d *Diagnostics) record(id ProtocolIEID, crit Criticality, kind TypeOfError
 }
 
 func (t TypeOfError) String() string {
-	switch t {
-	case TypeOfErrorNotUnderstood:
-		return "not-understood"
-	case TypeOfErrorMissing:
-		return "missing"
-	default:
-		return fmt.Sprintf("TypeOfError(%d)", uint8(t))
+	if name, ok := typeOfErrorNames[t]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("TypeOfError(%d)", uint8(t))
 }

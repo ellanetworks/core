@@ -84,18 +84,5 @@ func libQosFlowSetupRequest(flow ngap.QosFlowSetupRequestItem) QosFlowSetupReque
 }
 
 func libPDUSessionType(t ngap.PDUSessionType) utils.EnumField {
-	switch t {
-	case ngap.PDUSessionTypeIPv4:
-		return utils.MakeEnum(int64(t), "ipv4", false)
-	case ngap.PDUSessionTypeIPv6:
-		return utils.MakeEnum(int64(t), "ipv6", false)
-	case ngap.PDUSessionTypeIPv4v6:
-		return utils.MakeEnum(int64(t), "ipv4v6", false)
-	case ngap.PDUSessionTypeEthernet:
-		return utils.MakeEnum(int64(t), "ethernet", false)
-	case ngap.PDUSessionTypeUnstructured:
-		return utils.MakeEnum(int64(t), "unstructured", false)
-	default:
-		return utils.MakeEnum(int64(t), "", true)
-	}
+	return utils.NamedEnum(uint8(t), t.Name())
 }

@@ -19,9 +19,14 @@ func buildUERadioCapabilityInfoIndication(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
-		ie(idUERadioCapability, ngap.CriticalityIgnore, []byte(m.UERadioCapability)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDUERadioCapability, ngap.CriticalityIgnore, []byte(m.UERadioCapability)),
+	}
+
+	if m.UERadioCapabilityForPaging != nil {
+		ies = append(ies, ie(ngap.IDUERadioCapabilityForPaging, ngap.CriticalityIgnore,
+			ueRadioCapabilityForPaging(*m.UERadioCapabilityForPaging)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}

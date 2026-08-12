@@ -101,22 +101,7 @@ func buildServiceRequest(msg *fgs.ServiceRequest) *ServiceRequest {
 }
 
 func buildServiceTypeEnum(serviceType uint8) utils.EnumField {
-	switch serviceType {
-	case uint8(fgs.ServiceTypeSignalling):
-		return utils.MakeEnum(serviceType, "Signalling", false)
-	case uint8(fgs.ServiceTypeData):
-		return utils.MakeEnum(serviceType, "Data", false)
-	case uint8(fgs.ServiceTypeMobileTerminatedServices):
-		return utils.MakeEnum(serviceType, "MobileTerminatedServices", false)
-	case uint8(fgs.ServiceTypeEmergencyServices):
-		return utils.MakeEnum(serviceType, "EmergencyServices", false)
-	case uint8(fgs.ServiceTypeEmergencyServicesFallback):
-		return utils.MakeEnum(serviceType, "EmergencyServicesFallback", false)
-	case uint8(fgs.ServiceTypeHighPriorityAccess):
-		return utils.MakeEnum(serviceType, "HighPriorityAccess", false)
-	default:
-		return utils.MakeEnum(serviceType, "", true)
-	}
+	return utils.NamedEnum(serviceType, fgs.ServiceType(serviceType).Name())
 }
 
 func buildTSCEnum(mapped bool) utils.EnumField {

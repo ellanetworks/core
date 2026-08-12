@@ -3,13 +3,13 @@
     "protocol_discriminator": {
       "type": "enum",
       "value": 126,
-      "label": "5GSMobilityManagementMessage",
+      "label": "5GMM",
       "unknown": false
     },
     "security_header_type": {
       "type": "enum",
       "value": 0,
-      "label": "Plain NAS",
+      "label": "plain",
       "unknown": false
     },
     "sequence_number": 0
@@ -19,7 +19,7 @@
       "message_type": {
         "type": "enum",
         "value": 93,
-        "label": "SecurityModeCommand",
+        "label": "SECURITY MODE COMMAND",
         "unknown": false
       }
     },
@@ -28,13 +28,13 @@
         "integrity": {
           "type": "enum",
           "value": 1,
-          "label": "NIA1",
+          "label": "128-5G-IA1",
           "unknown": false
         },
         "ciphering": {
           "type": "enum",
           "value": 2,
-          "label": "NEA2",
+          "label": "128-5G-EA2",
           "unknown": false
         }
       },
@@ -56,7 +56,7 @@
       "imeisv_request": {
         "type": "enum",
         "value": 1,
-        "label": "Requested",
+        "label": "IMEISV requested",
         "unknown": false
       },
       "selected_eps_nas_security_algorithms": {
@@ -69,7 +69,7 @@
         "integrity": {
           "type": "enum",
           "value": 1,
-          "label": "EIA1",
+          "label": "128-EIA1",
           "unknown": false
         }
       },

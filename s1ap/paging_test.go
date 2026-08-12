@@ -152,7 +152,7 @@ func TestPagingDRXAndPriorityRoundTrip(t *testing.T) {
 // the IE is ignore, so §10.3.4.2 carries on with the message.
 func TestUEPagingIDUnsupportedAlternativesAreIgnored(t *testing.T) {
 	taiList := per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-		return encodeSingleContainerList(w, enc, maxnoofTAIs, idTAIItem, CriticalityIgnore,
+		return encodeSingleContainerList(w, enc, maxnoofTAIs, IDTAIItem, CriticalityIgnore,
 			[]taiItem{{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}})
 	})
 
@@ -180,8 +180,8 @@ func TestUEPagingIDUnsupportedAlternativesAreIgnored(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			msg, err := ParsePaging(container(t,
-				ieField{id: idUEPagingID, crit: CriticalityIgnore, val: tc.id},
-				ieField{id: idTAIList, crit: CriticalityIgnore, val: taiList},
+				ieField{id: IDUEPagingID, crit: CriticalityIgnore, val: tc.id},
+				ieField{id: IDTAIList, crit: CriticalityIgnore, val: taiList},
 			))
 			if err != nil {
 				t.Fatalf("parse: %v", err)

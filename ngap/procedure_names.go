@@ -95,8 +95,15 @@ var procedureNames = map[ProcedureCode]string{
 	ProcBroadcastSessionTransport:             "BroadcastSessionTransport",
 }
 
+// ProcedureCodeName returns the TS 38.413 name of p, and whether it is known.
+func ProcedureCodeName(p ProcedureCode) (string, bool) {
+	name, ok := procedureNames[p]
+
+	return name, ok
+}
+
 func (p ProcedureCode) String() string {
-	if name, ok := procedureNames[p]; ok {
+	if name, ok := ProcedureCodeName(p); ok {
 		return fmt.Sprintf("%s (%d)", name, uint8(p))
 	}
 

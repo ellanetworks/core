@@ -1,0 +1,134 @@
+{
+  "summary": "Handover Preparation Failure (MME-UE 7, eNB-UE 2)",
+  "pdu_type": "UnsuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 0,
+    "label": "HandoverPreparation",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 2,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 0,
+            "label": "unspecified",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 58,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 17,
+            "label": "S1Setup",
+            "unknown": false
+          },
+          "triggering_message": {
+            "type": "enum",
+            "value": 0,
+            "label": "initiating-message",
+            "unknown": false
+          },
+          "procedure_criticality": {
+            "type": "enum",
+            "value": 0,
+            "label": "reject",
+            "unknown": false
+          },
+          "ies": [
+            {
+              "ie_id": {
+                "type": "enum",
+                "value": 59,
+                "label": "Global-ENB-ID",
+                "unknown": false
+              },
+              "criticality": {
+                "type": "enum",
+                "value": 0,
+                "label": "reject",
+                "unknown": false
+              },
+              "type_of_error": {
+                "type": "enum",
+                "value": 1,
+                "label": "missing",
+                "unknown": false
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

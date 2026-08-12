@@ -275,133 +275,17 @@ func buildGsmMessage(raw []byte) *GsmMessage {
 }
 
 func getGsmMessageType(messageType uint8) utils.EnumField {
-	switch messageType {
-	case 0xC1:
-		return utils.MakeEnum(messageType, "PDUSessionEstablishmentRequest", false)
-	case 0xC2:
-		return utils.MakeEnum(messageType, "PDUSessionEstablishmentAccept", false)
-	case 0xC3:
-		return utils.MakeEnum(messageType, "PDUSessionEstablishmentReject", false)
-	case 0xC5:
-		return utils.MakeEnum(messageType, "PDUSessionAuthenticationCommand", false)
-	case 0xC6:
-		return utils.MakeEnum(messageType, "PDUSessionAuthenticationComplete", false)
-	case 0xC7:
-		return utils.MakeEnum(messageType, "PDUSessionAuthenticationResult", false)
-	case 0xC9:
-		return utils.MakeEnum(messageType, "PDUSessionModificationRequest", false)
-	case 0xCA:
-		return utils.MakeEnum(messageType, "PDUSessionModificationReject", false)
-	case 0xCB:
-		return utils.MakeEnum(messageType, "PDUSessionModificationCommand", false)
-	case 0xCC:
-		return utils.MakeEnum(messageType, "PDUSessionModificationComplete", false)
-	case 0xCD:
-		return utils.MakeEnum(messageType, "PDUSessionModificationCommandReject", false)
-	case 0xD1:
-		return utils.MakeEnum(messageType, "PDUSessionReleaseRequest", false)
-	case 0xD2:
-		return utils.MakeEnum(messageType, "PDUSessionReleaseReject", false)
-	case 0xD3:
-		return utils.MakeEnum(messageType, "PDUSessionReleaseCommand", false)
-	case 0xD4:
-		return utils.MakeEnum(messageType, "PDUSessionReleaseComplete", false)
-	case 0xD6:
-		return utils.MakeEnum(messageType, "Status5GSM", false)
-	default:
-		return utils.MakeEnum(messageType, "", true)
-	}
+	return utils.NamedEnum(messageType, fgs.GSMMessageType(messageType).Name())
 }
 
 func getGmmMessageType(messageType uint8) utils.EnumField {
-	switch messageType {
-	case 0x41:
-		return utils.MakeEnum(messageType, "RegistrationRequest", false)
-	case 0x42:
-		return utils.MakeEnum(messageType, "RegistrationAccept", false)
-	case 0x43:
-		return utils.MakeEnum(messageType, "RegistrationComplete", false)
-	case 0x44:
-		return utils.MakeEnum(messageType, "RegistrationReject", false)
-	case 0x45:
-		return utils.MakeEnum(messageType, "DeregistrationRequestUEOriginatingDeregistration", false)
-	case 0x46:
-		return utils.MakeEnum(messageType, "DeregistrationAcceptUEOriginatingDeregistration", false)
-	case 0x47:
-		return utils.MakeEnum(messageType, "DeregistrationRequestUETerminatedDeregistration", false)
-	case 0x48:
-		return utils.MakeEnum(messageType, "DeregistrationAcceptUETerminatedDeregistration", false)
-	case 0x4C:
-		return utils.MakeEnum(messageType, "ServiceRequest", false)
-	case 0x4D:
-		return utils.MakeEnum(messageType, "ServiceReject", false)
-	case 0x4E:
-		return utils.MakeEnum(messageType, "ServiceAccept", false)
-	case 0x54:
-		return utils.MakeEnum(messageType, "ConfigurationUpdateCommand", false)
-	case 0x55:
-		return utils.MakeEnum(messageType, "ConfigurationUpdateComplete", false)
-	case 0x56:
-		return utils.MakeEnum(messageType, "AuthenticationRequest", false)
-	case 0x57:
-		return utils.MakeEnum(messageType, "AuthenticationResponse", false)
-	case 0x58:
-		return utils.MakeEnum(messageType, "AuthenticationReject", false)
-	case 0x59:
-		return utils.MakeEnum(messageType, "AuthenticationFailure", false)
-	case 0x5A:
-		return utils.MakeEnum(messageType, "AuthenticationResult", false)
-	case 0x5B:
-		return utils.MakeEnum(messageType, "IdentityRequest", false)
-	case 0x5C:
-		return utils.MakeEnum(messageType, "IdentityResponse", false)
-	case 0x5D:
-		return utils.MakeEnum(messageType, "SecurityModeCommand", false)
-	case 0x5E:
-		return utils.MakeEnum(messageType, "SecurityModeComplete", false)
-	case 0x5F:
-		return utils.MakeEnum(messageType, "SecurityModeReject", false)
-	case 0x64:
-		return utils.MakeEnum(messageType, "Status5GMM", false)
-	case 0x65:
-		return utils.MakeEnum(messageType, "Notification", false)
-	case 0x66:
-		return utils.MakeEnum(messageType, "NotificationResponse", false)
-	case 0x67:
-		return utils.MakeEnum(messageType, "ULNASTransport", false)
-	case 0x68:
-		return utils.MakeEnum(messageType, "DLNASTransport", false)
-	default:
-		return utils.MakeEnum(messageType, "", true)
-	}
+	return utils.NamedEnum(messageType, fgs.MessageType(messageType).Name())
 }
 
 func epdToEnum(epd fgs.ProtocolDiscriminator) utils.EnumField {
-	switch epd {
-	case fgs.EPD5GMM:
-		return utils.MakeEnum(uint8(epd), "5GSMobilityManagementMessage", false)
-	case fgs.EPD5GSM:
-		return utils.MakeEnum(uint8(epd), "5GSSessionManagementMessage", false)
-	default:
-		return utils.MakeEnum(uint8(epd), "", true)
-	}
+	return utils.NamedEnum(uint8(epd), epd.Name())
 }
 
 func securityHeaderTypeToEnum(sht fgs.SecurityHeaderType) utils.EnumField {
-	v := uint8(sht)
-
-	switch sht {
-	case fgs.SHTPlain:
-		return utils.MakeEnum(v, "Plain NAS", false)
-	case fgs.SHTIntegrityProtected:
-		return utils.MakeEnum(v, "Integrity Protected", false)
-	case fgs.SHTIntegrityProtectedCiphered:
-		return utils.MakeEnum(v, "Integrity Protected and Ciphered", false)
-	case fgs.SHTIntegrityProtectedNewContext:
-		return utils.MakeEnum(v, "Integrity Protected with New 5G NAS Security Context", false)
-	case fgs.SHTIntegrityProtectedCipheredNewContext:
-		return utils.MakeEnum(v, "Integrity Protected and Ciphered with New 5G NAS Security Context", false)
-	default:
-		return utils.MakeEnum(v, "", true)
-	}
+	return utils.NamedEnum(uint8(sht), sht.Name())
 }

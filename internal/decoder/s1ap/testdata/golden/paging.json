@@ -1,0 +1,96 @@
+{
+  "summary": "Paging (M-TMSI 1, 1 TAI)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 10,
+    "label": "Paging",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 80,
+          "label": "UEIdentityIndexValue",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 300
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 43,
+          "label": "UEPagingID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "mmec": 1,
+          "m_tmsi": 1
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 109,
+          "label": "CNDomain",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "ps",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 46,
+          "label": "TAIList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "plmn_id": {
+              "mcc": "999",
+              "mnc": "01"
+            },
+            "tac": 1
+          }
+        ]
+      }
+    ]
+  }
+}

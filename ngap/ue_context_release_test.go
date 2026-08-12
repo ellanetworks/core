@@ -249,9 +249,9 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 // the IE's criticality: reject, so no message is delivered.
 func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 	value := container(t, ieField{
-		id:   idUENGAPIDs,
+		id:   IDUENGAPIDs,
 		crit: CriticalityReject,
-		raw:  choiceExtensionValue(t, ueNGAPIDsAlternatives, ueNGAPIDsChoiceExtensions, idUENGAPIDs),
+		raw:  choiceExtensionValue(t, ueNGAPIDsAlternatives, ueNGAPIDsChoiceExtensions, IDUENGAPIDs),
 	})
 
 	_, err := ParseUEContextReleaseCommand(value)
@@ -268,7 +268,7 @@ func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idUENGAPIDs ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDUENGAPIDs ||
 		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
 		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-NGAP-IDs", ase.IEs)
 	}

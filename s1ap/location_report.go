@@ -46,21 +46,21 @@ type LocationReport struct {
 
 var locationReportIEs = []ieSpec[LocationReport]{
 	{
-		id: idMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.MMEUES1APID)
 		},
 		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: idENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ENBUES1APID)
 		},
 		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: idEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			var v EUTRANCGI
 
@@ -81,7 +81,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: idTAI, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDTAI, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			var v TAI
 
@@ -102,7 +102,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: idRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
 			var v RequestType
 

@@ -95,19 +95,19 @@ func buildInitialContextSetupRequest(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idUEAggregateMaximumBitrate, s1ap.CriticalityReject, AMBR{DL: uint64(m.UEAggregateMaximumBitRate.DL), UL: uint64(m.UEAggregateMaximumBitRate.UL)}),
-		ie(idERABToBeSetupListCtxtSUReq, s1ap.CriticalityReject, erabs),
-		ie(idUESecurityCapabilities, s1ap.CriticalityReject, UESecurityCapabilities{
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDUEAggregateMaximumBitrate, s1ap.CriticalityReject, AMBR{DL: uint64(m.UEAggregateMaximumBitRate.DL), UL: uint64(m.UEAggregateMaximumBitRate.UL)}),
+		ie(s1ap.IDERABToBeSetupListCtxtSUReq, s1ap.CriticalityReject, erabs),
+		ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityReject, UESecurityCapabilities{
 			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
 			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms, "EIA"),
 		}),
-		ie(idSecurityKey, s1ap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
+		ie(s1ap.IDSecurityKey, s1ap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
 	}
 
 	if len(m.UERadioCapability) > 0 {
-		ies = append(ies, ie(idUERadioCapability, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapability)))
+		ies = append(ies, ie(s1ap.IDUERadioCapability, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapability)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -133,14 +133,14 @@ func buildInitialContextSetupResponse(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.ENBUES1APID != nil {
-		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+		ies = append(ies, ie(s1ap.IDENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
 	}
 
-	ies = append(ies, ie(idERABSetupListCtxtSURes, s1ap.CriticalityIgnore, setup))
+	ies = append(ies, ie(s1ap.IDERABSetupListCtxtSURes, s1ap.CriticalityIgnore, setup))
 
 	if len(m.ERABFailedToSetup) > 0 {
 		failed := make([]ERABFailedItem, 0, len(m.ERABFailedToSetup))
@@ -148,11 +148,11 @@ func buildInitialContextSetupResponse(value []byte) (S1APMessageValue, string) {
 			failed = append(failed, ERABFailedItem{ERABID: uint8(it.ERABID), Cause: cause(it.Cause)})
 		}
 
-		ies = append(ies, ie(idERABFailedToSetupListCtxtSURes, s1ap.CriticalityIgnore, failed))
+		ies = append(ies, ie(s1ap.IDERABFailedToSetupListCtxtSURes, s1ap.CriticalityIgnore, failed))
 	}
 
 	if m.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -176,19 +176,19 @@ func buildInitialContextSetupFailure(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.ENBUES1APID != nil {
-		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+		ies = append(ies, ie(s1ap.IDENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	if m.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

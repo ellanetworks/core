@@ -185,7 +185,7 @@ func TestRANConfigurationUpdateFailureMissingCause(t *testing.T) {
 		t.Error("Marshal() = nil error, want a required-IE error for the absent Cause")
 	}
 
-	value := container(t, ieField{id: idTimeToWait, crit: CriticalityIgnore, val: TimeToWaitV10s})
+	value := container(t, ieField{id: IDTimeToWait, crit: CriticalityIgnore, val: TimeToWaitV10s})
 
 	msg, err := ParseRANConfigurationUpdateFailure(value)
 	if err != nil {
@@ -201,7 +201,7 @@ func TestRANConfigurationUpdateFailureMissingCause(t *testing.T) {
 	var reported bool
 
 	for _, ie := range diag.IEs {
-		if ie.ID == idCause && ie.TypeOfError == TypeOfErrorMissing {
+		if ie.ID == IDCause && ie.TypeOfError == TypeOfErrorMissing {
 			reported = true
 		}
 	}

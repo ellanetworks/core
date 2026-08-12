@@ -132,9 +132,5 @@ func ambrUnitToString(unit uint8) string {
 }
 
 func cause5GSMToString(cause fgs.GSMCause) utils.EnumField {
-	if name := cause.Name(); name != "" {
-		return utils.MakeEnum(uint8(cause), name, false)
-	}
-
-	return utils.MakeEnum(uint8(cause), "", true)
+	return utils.NamedEnum(uint8(cause), cause.Name())
 }

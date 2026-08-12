@@ -47,7 +47,7 @@ type ENBConfigurationTransfer struct {
 
 var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
 	{
-		id: idSONConfigurationTransferECT, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDSONConfigurationTransferECT, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ENBConfigurationTransfer, raw []byte, enc per.Encoding) error {
 			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
 			return nil
@@ -96,7 +96,7 @@ type MMEConfigurationTransfer struct {
 // IE is optional, so an empty container is a valid message.
 var mMEConfigurationTransferIEs = []ieSpec[MMEConfigurationTransfer]{
 	{
-		id: idSONConfigurationTransferMCT, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDSONConfigurationTransferMCT, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *MMEConfigurationTransfer, raw []byte, enc per.Encoding) error {
 			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
 			return nil

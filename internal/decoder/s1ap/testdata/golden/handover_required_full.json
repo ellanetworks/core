@@ -1,0 +1,171 @@
+{
+  "summary": "Handover Required (MME-UE 7, eNB-UE 2)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 0,
+    "label": "HandoverPreparation",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 1,
+          "label": "HandoverType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "intralte",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 2,
+          "label": "Cause",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "group": {
+            "type": "enum",
+            "value": 0,
+            "label": "radioNetwork",
+            "unknown": false
+          },
+          "value": {
+            "type": "enum",
+            "value": 16,
+            "label": "handover-desirable-for-radio-reason",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 4,
+          "label": "TargetID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "global_enb_id": {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "enb_id": {
+              "kind": {
+                "type": "enum",
+                "value": 0,
+                "label": "macroENB-ID",
+                "unknown": false
+              },
+              "value": 2
+            }
+          },
+          "selected_tai": {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "tac": 1
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 79,
+          "label": "Direct-Forwarding-Path-Availability",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "directPathAvailable",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 104,
+          "label": "Source-ToTarget-TransparentContainer",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "abcd"
+      }
+    ]
+  }
+}

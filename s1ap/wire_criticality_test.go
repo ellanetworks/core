@@ -54,9 +54,9 @@ func TestWireCriticality(t *testing.T) {
 			"HandoverCancel §9.1.5.11",
 			(&HandoverCancel{Cause: cause}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idCause, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDCause, CriticalityIgnore},
 			},
 		},
 		{
@@ -65,9 +65,9 @@ func TestWireCriticality(t *testing.T) {
 				MMEUES1APID: Ptr(MMEUES1APID(1)), ENBUES1APID: Ptr(ENBUES1APID(2)), Cause: cause,
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idCause, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDCause, CriticalityIgnore},
 			},
 		},
 		{
@@ -76,9 +76,9 @@ func TestWireCriticality(t *testing.T) {
 				MMEUES1APID: Ptr(MMEUES1APID(1)), ENBUES1APID: Ptr(ENBUES1APID(2)), Cause: cause,
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idCause, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDCause, CriticalityIgnore},
 			},
 		},
 		{
@@ -89,11 +89,11 @@ func TestWireCriticality(t *testing.T) {
 				TAI:       Ptr(TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7}),
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idNASPDU, CriticalityReject},
-				{idEUTRANCGI, CriticalityIgnore},
-				{idTAI, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDNASPDU, CriticalityReject},
+				{IDEUTRANCGI, CriticalityIgnore},
+				{IDTAI, CriticalityIgnore},
 			},
 		},
 		{
@@ -105,10 +105,10 @@ func TestWireCriticality(t *testing.T) {
 				UERadioCapabilityForPaging: UERadioCapabilityForPaging{0x0a},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idUERadioCapability, CriticalityIgnore},
-				{idUERadioCapabilityForPaging, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDUERadioCapability, CriticalityIgnore},
+				{IDUERadioCapabilityForPaging, CriticalityIgnore},
 			},
 		},
 		{
@@ -119,9 +119,9 @@ func TestWireCriticality(t *testing.T) {
 				ToBeModified: []ERABToBeModifiedItemBearerModInd{{ERABID: 1, TransportLayerAddress: goldTLA(), DLGTPTEID: 1}},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idERABToBeModifiedListBearerModInd, CriticalityReject},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDERABToBeModifiedListBearerModInd, CriticalityReject},
 			},
 		},
 		{
@@ -131,8 +131,8 @@ func TestWireCriticality(t *testing.T) {
 				ENBUES1APID: Ptr(ENBUES1APID(2)),
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
 			},
 		},
 		{
@@ -144,10 +144,10 @@ func TestWireCriticality(t *testing.T) {
 				ERABToBeModified:          []ERABToBeModifiedItemBearerModReq{{ERABID: 1, QoS: goldQoS(), NASPDU: NASPDU{0x07}}},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idUEAggregateMaximumBitrate, CriticalityReject},
-				{idERABToBeModifiedListBearerModReq, CriticalityReject},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDUEAggregateMaximumBitrate, CriticalityReject},
+				{IDERABToBeModifiedListBearerModReq, CriticalityReject},
 			},
 		},
 		{
@@ -160,11 +160,11 @@ func TestWireCriticality(t *testing.T) {
 				CriticalityDiagnostics: &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idERABModifyListBearerModRes, CriticalityIgnore},
-				{idERABFailedToModifyList, CriticalityIgnore},
-				{idCriticalityDiagnostics, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDERABModifyListBearerModRes, CriticalityIgnore},
+				{IDERABFailedToModifyList, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
 			},
 		},
 		{
@@ -176,10 +176,10 @@ func TestWireCriticality(t *testing.T) {
 				ERABToBeSetup:             []ERABToBeSetupItemBearerSUReq{{ERABID: 1, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idUEAggregateMaximumBitrate, CriticalityReject},
-				{idERABToBeSetupListBearerSUReq, CriticalityReject},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDUEAggregateMaximumBitrate, CriticalityReject},
+				{IDERABToBeSetupListBearerSUReq, CriticalityReject},
 			},
 		},
 		{
@@ -192,11 +192,11 @@ func TestWireCriticality(t *testing.T) {
 				CriticalityDiagnostics: &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idERABSetupListBearerSURes, CriticalityIgnore},
-				{idERABFailedToSetupListBearerSURes, CriticalityIgnore},
-				{idCriticalityDiagnostics, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDERABSetupListBearerSURes, CriticalityIgnore},
+				{IDERABFailedToSetupListBearerSURes, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
 			},
 		},
 		{
@@ -208,10 +208,10 @@ func TestWireCriticality(t *testing.T) {
 				NASPDU:           NASPDU{0x07},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idERABToBeReleasedList, CriticalityIgnore},
-				{idNASPDU, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDERABToBeReleasedList, CriticalityIgnore},
+				{IDNASPDU, CriticalityIgnore},
 			},
 		},
 		{
@@ -223,10 +223,10 @@ func TestWireCriticality(t *testing.T) {
 				ERABFailedToRelease: []ERABItem{goldERABItem()},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idERABReleaseListBearerRelComp, CriticalityIgnore},
-				{idERABFailedToReleaseList, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDERABReleaseListBearerRelComp, CriticalityIgnore},
+				{IDERABFailedToReleaseList, CriticalityIgnore},
 			},
 		},
 		{
@@ -238,13 +238,13 @@ func TestWireCriticality(t *testing.T) {
 				UERadioCapability: UERadioCapability{0x01},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idUEAggregateMaximumBitrate, CriticalityReject},
-				{idERABToBeSetupListCtxtSUReq, CriticalityReject},
-				{idUESecurityCapabilities, CriticalityReject},
-				{idSecurityKey, CriticalityReject},
-				{idUERadioCapability, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDUEAggregateMaximumBitrate, CriticalityReject},
+				{IDERABToBeSetupListCtxtSUReq, CriticalityReject},
+				{IDUESecurityCapabilities, CriticalityReject},
+				{IDSecurityKey, CriticalityReject},
+				{IDUERadioCapability, CriticalityIgnore},
 			},
 		},
 		{
@@ -257,11 +257,11 @@ func TestWireCriticality(t *testing.T) {
 				CriticalityDiagnostics: &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idERABSetupListCtxtSURes, CriticalityIgnore},
-				{idERABFailedToSetupListCtxtSU, CriticalityIgnore},
-				{idCriticalityDiagnostics, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDERABSetupListCtxtSURes, CriticalityIgnore},
+				{IDERABFailedToSetupListCtxtSURes, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
 			},
 		},
 		{
@@ -273,10 +273,10 @@ func TestWireCriticality(t *testing.T) {
 				CriticalityDiagnostics: &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idCause, CriticalityIgnore},
-				{idCriticalityDiagnostics, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDCause, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
 			},
 		},
 		{
@@ -287,9 +287,9 @@ func TestWireCriticality(t *testing.T) {
 				Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idCause, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDCause, CriticalityIgnore},
 			},
 		},
 		{
@@ -299,8 +299,8 @@ func TestWireCriticality(t *testing.T) {
 				Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: 0}),
 			}).encodeBody,
 			[]wireIE{
-				{idUES1APIDs, CriticalityReject},
-				{idCause, CriticalityIgnore},
+				{IDUES1APIDs, CriticalityReject},
+				{IDCause, CriticalityIgnore},
 			},
 		},
 		{
@@ -312,10 +312,10 @@ func TestWireCriticality(t *testing.T) {
 				UserLocationInformation: &UserLocationInformation{},
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityIgnore},
-				{idENBUES1APID, CriticalityIgnore},
-				{idCriticalityDiagnostics, CriticalityIgnore},
-				{idUserLocationInformation, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
+				{IDUserLocationInformation, CriticalityIgnore},
 			},
 		},
 		{
@@ -330,22 +330,22 @@ func TestWireCriticality(t *testing.T) {
 				GUMMEI:                &GUMMEI{},
 			}).encodeBody,
 			[]wireIE{
-				{idENBUES1APID, CriticalityReject},
-				{idNASPDU, CriticalityReject},
-				{idTAI, CriticalityReject},
-				{idEUTRANCGI, CriticalityIgnore},
-				{idRRCEstablishmentCause, CriticalityIgnore},
-				{idSTMSI, CriticalityReject},
-				{idGUMMEI, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDNASPDU, CriticalityReject},
+				{IDTAI, CriticalityReject},
+				{IDEUTRANCGI, CriticalityIgnore},
+				{IDRRCEstablishmentCause, CriticalityIgnore},
+				{IDSTMSI, CriticalityReject},
+				{IDGUMMEI, CriticalityReject},
 			},
 		},
 		{
 			"DownlinkNASTransport §9.1.7.2",
 			(&DownlinkNASTransport{MMEUES1APID: 1, ENBUES1APID: 2, NASPDU: NASPDU{0x07}}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idNASPDU, CriticalityReject},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDNASPDU, CriticalityReject},
 			},
 		},
 		{
@@ -357,10 +357,10 @@ func TestWireCriticality(t *testing.T) {
 				Cause:       Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),
 			}).encodeBody,
 			[]wireIE{
-				{idMMEUES1APID, CriticalityReject},
-				{idENBUES1APID, CriticalityReject},
-				{idNASPDU, CriticalityIgnore},
-				{idCause, CriticalityIgnore},
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDNASPDU, CriticalityIgnore},
+				{IDCause, CriticalityIgnore},
 			},
 		},
 	}

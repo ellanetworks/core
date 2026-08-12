@@ -1,0 +1,71 @@
+{
+  "summary": "Initial Context Setup Response (MME-UE 4, eNB-UE 820, 1 E-RAB)",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 9,
+    "label": "InitialContextSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 4
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 820
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 51,
+          "label": "E-RABSetupListCtxtSURes",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "erab_id": 5,
+            "transport_layer_address": "10.202.0.5",
+            "gtp_teid": 304
+          }
+        ]
+      }
+    ]
+  }
+}

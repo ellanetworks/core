@@ -5,6 +5,8 @@ package nas
 
 import (
 	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -96,72 +98,21 @@ type SelectedEPSNASSecurityAlgorithms struct {
 }
 
 func getEPSCiphering(value uint8) utils.EnumField {
-	switch value {
-	case 0:
-		return utils.MakeEnum(value, "EEA0", false)
-	case 1:
-		return utils.MakeEnum(value, "EEA1", false)
-	case 2:
-		return utils.MakeEnum(value, "EEA2", false)
-	case 3:
-		return utils.MakeEnum(value, "EEA3", false)
-	default:
-		return utils.MakeEnum(value, "", true)
-	}
+	return utils.NamedEnum(value, eps.CipheringAlgorithmName(nas.CipheringAlgorithm(value)))
 }
 
 func getEPSIntegrity(value uint8) utils.EnumField {
-	switch value {
-	case 0:
-		return utils.MakeEnum(value, "EIA0", false)
-	case 1:
-		return utils.MakeEnum(value, "EIA1", false)
-	case 2:
-		return utils.MakeEnum(value, "EIA2", false)
-	case 3:
-		return utils.MakeEnum(value, "EIA3", false)
-	default:
-		return utils.MakeEnum(value, "", true)
-	}
+	return utils.NamedEnum(value, eps.IntegrityAlgorithmName(nas.IntegrityAlgorithm(value)))
 }
 
 func buildIMEISVRequest(v uint8) utils.EnumField {
-	switch v {
-	case 0:
-		return utils.MakeEnum(v, "NotRequested", false)
-	case 1:
-		return utils.MakeEnum(v, "Requested", false)
-	default:
-		return utils.MakeEnum(v, "", true)
-	}
+	return utils.NamedEnum(v, fgs.IMEISVRequest(v).String())
 }
 
 func getIntegrity(value uint8) utils.EnumField {
-	switch value {
-	case 0:
-		return utils.MakeEnum(value, "NIA0", false)
-	case 1:
-		return utils.MakeEnum(value, "NIA1", false)
-	case 2:
-		return utils.MakeEnum(value, "NIA2", false)
-	case 3:
-		return utils.MakeEnum(value, "NIA3", false)
-	default:
-		return utils.MakeEnum(value, "", true)
-	}
+	return utils.NamedEnum(value, fgs.IntegrityAlgorithmName(nas.IntegrityAlgorithm(value)))
 }
 
 func getCiphering(value uint8) utils.EnumField {
-	switch value {
-	case 0:
-		return utils.MakeEnum(value, "NEA0", false)
-	case 1:
-		return utils.MakeEnum(value, "NEA1", false)
-	case 2:
-		return utils.MakeEnum(value, "NEA2", false)
-	case 3:
-		return utils.MakeEnum(value, "NEA3", false)
-	default:
-		return utils.MakeEnum(value, "", true)
-	}
+	return utils.NamedEnum(value, fgs.CipheringAlgorithmName(nas.CipheringAlgorithm(value)))
 }

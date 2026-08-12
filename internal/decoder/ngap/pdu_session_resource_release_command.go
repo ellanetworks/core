@@ -29,12 +29,12 @@ func buildPDUSessionResourceReleaseCommand(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(idAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
-		ie(idRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
+		ie(ngap.IDAMFUENGAPID, ngap.CriticalityReject, int64(m.AMFUENGAPID)),
+		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 	}
 
 	if m.NASPDU != nil {
-		ies = append(ies, ie(idNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
+		ies = append(ies, ie(ngap.IDNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
 	}
 
 	if m.PDUSessionResourceRelease != nil {
@@ -55,7 +55,7 @@ func buildPDUSessionResourceReleaseCommand(value []byte) NGAPMessageValue {
 			out = append(out, entry)
 		}
 
-		ies = append(ies, ie(idPDUSessionResourceToReleaseListRelCmd, ngap.CriticalityReject, out))
+		ies = append(ies, ie(ngap.IDPDUSessionResourceToReleaseListRelCmd, ngap.CriticalityReject, out))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}

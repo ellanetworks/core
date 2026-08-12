@@ -254,11 +254,11 @@ func TestInitialContextSetupRequestAMBRCondition(t *testing.T) {
 // (§10.3.5); the AMF cannot set up a context without them.
 func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 	full := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
-		ieField{id: idGUAMI, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldContextGUAMI()))},
-		ieField{id: idUESecurityCapabilities, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldUESecurityCapabilities()))},
-		ieField{id: idSecurityKey, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldSecurityKey()))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDGUAMI, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldContextGUAMI()))},
+		ieField{id: IDUESecurityCapabilities, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldUESecurityCapabilities()))},
+		ieField{id: IDSecurityKey, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldSecurityKey()))},
 	)
 
 	// Without the Allowed NSSAI the request is incomplete: it is mandatory and
@@ -271,7 +271,7 @@ func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 			t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 		}
 
-		if len(ase.IEs) != 1 || ase.IEs[0].IEID != idAllowedNSSAI ||
+		if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDAllowedNSSAI ||
 			ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 			t.Errorf("diagnostics = %+v, want one missing entry for the AllowedNSSAI", ase.IEs)
 		}

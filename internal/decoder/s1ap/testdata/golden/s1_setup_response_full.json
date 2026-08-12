@@ -1,0 +1,156 @@
+{
+  "summary": "S1 Setup Response",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 17,
+    "label": "S1Setup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 61,
+          "label": "MMEname",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": "ella-core"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 105,
+          "label": "ServedGUMMEIs",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "served_plmns": [
+              {
+                "mcc": "001",
+                "mnc": "01"
+              }
+            ],
+            "served_group_ids": [
+              1
+            ],
+            "served_mme_codes": [
+              1
+            ]
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 87,
+          "label": "RelativeMMECapacity",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 255
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 58,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 17,
+            "label": "S1Setup",
+            "unknown": false
+          },
+          "triggering_message": {
+            "type": "enum",
+            "value": 0,
+            "label": "initiating-message",
+            "unknown": false
+          },
+          "procedure_criticality": {
+            "type": "enum",
+            "value": 0,
+            "label": "reject",
+            "unknown": false
+          },
+          "ies": [
+            {
+              "ie_id": {
+                "type": "enum",
+                "value": 59,
+                "label": "Global-ENB-ID",
+                "unknown": false
+              },
+              "criticality": {
+                "type": "enum",
+                "value": 0,
+                "label": "reject",
+                "unknown": false
+              },
+              "type_of_error": {
+                "type": "enum",
+                "value": 1,
+                "label": "missing",
+                "unknown": false
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 228,
+          "label": "UE-RetentionInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "ues-retained",
+          "unknown": false
+        }
+      }
+    ]
+  }
+}

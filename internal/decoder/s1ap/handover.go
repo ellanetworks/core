@@ -95,18 +95,8 @@ type ERABAdmitted struct {
 	ULGTPTEID               uint32 `json:"ul_gtp_teid,omitempty"`
 }
 
-var handoverTypeNames = map[s1ap.HandoverType]string{
-	s1ap.HandoverTypeIntraLTE:   "intralte",
-	s1ap.HandoverTypeLTEtoUTRAN: "ltetoutran",
-	s1ap.HandoverTypeLTEtoGERAN: "ltetogeran",
-	s1ap.HandoverTypeUTRANtoLTE: "utrantolte",
-	s1ap.HandoverTypeGERANtoLTE: "gerantolte",
-}
-
 func handoverType(t s1ap.HandoverType) utils.EnumField {
-	name, ok := handoverTypeNames[t]
-
-	return utils.MakeEnum(uint64(t), name, !ok)
+	return utils.NamedEnum(uint8(t), t.Name())
 }
 
 func securityContext(s s1ap.SecurityContext) SecurityContext {
@@ -132,19 +122,23 @@ func buildHandoverRequired(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idHandoverType, s1ap.CriticalityReject, handoverType(m.HandoverType)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDHandoverType, s1ap.CriticalityReject, handoverType(m.HandoverType)),
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
-	ies = append(ies,
-		ie(idTargetID, s1ap.CriticalityReject, targetID(m.TargetID)),
-		ie(idSourceToTargetContainer, s1ap.CriticalityReject, hex.EncodeToString(m.SourceToTarget)),
-	)
+	ies = append(ies, ie(s1ap.IDTargetID, s1ap.CriticalityReject, targetID(m.TargetID)))
+
+	if m.DirectForwardingPathAvailability != nil {
+		d := *m.DirectForwardingPathAvailability
+		ies = append(ies, ie(s1ap.IDDirectForwardingPathAvailability, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(d), d.Name())))
+	}
+
+	ies = append(ies, ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.SourceToTarget)))
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Required (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
@@ -172,24 +166,34 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idHandoverType, s1ap.CriticalityReject, handoverType(m.HandoverType)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDHandoverType, s1ap.CriticalityReject, handoverType(m.HandoverType)),
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	ies = append(ies,
-		ie(idUEAggregateMaximumBitrate, s1ap.CriticalityReject, AMBR{DL: uint64(m.UEAMBR.DL), UL: uint64(m.UEAMBR.UL)}),
-		ie(idERABToBeSetupListHOReq, s1ap.CriticalityReject, erabs),
-		ie(idSourceToTargetContainer, s1ap.CriticalityReject, hex.EncodeToString(m.SourceToTarget)),
-		ie(idUESecurityCapabilities, s1ap.CriticalityReject, UESecurityCapabilities{
+		ie(s1ap.IDUEAggregateMaximumBitrate, s1ap.CriticalityReject, AMBR{DL: uint64(m.UEAMBR.DL), UL: uint64(m.UEAMBR.UL)}),
+		ie(s1ap.IDERABToBeSetupListHOReq, s1ap.CriticalityReject, erabs),
+		ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.SourceToTarget)),
+		ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityReject, UESecurityCapabilities{
 			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
 			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms, "EIA"),
 		}),
-		ie(idSecurityContext, s1ap.CriticalityReject, securityContext(m.SecurityContext)),
 	)
+
+	if m.HandoverRestrictionList != nil {
+		ies = append(ies, ie(s1ap.IDHandoverRestrictionList, s1ap.CriticalityIgnore, handoverRestrictionList(*m.HandoverRestrictionList)))
+	}
+
+	ies = append(ies, ie(s1ap.IDSecurityContext, s1ap.CriticalityReject, securityContext(m.SecurityContext)))
+
+	if len(m.NASSecurityParameterstoEUTRAN) > 0 {
+		ies = append(ies, ie(s1ap.IDNASSecurityParameterstoEUTRAN, s1ap.CriticalityReject, hex.EncodeToString(m.NASSecurityParameterstoEUTRAN)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Request (MME-UE %d, %d E-RAB)", m.MMEUES1APID, len(m.ERABToBeSetup))
@@ -225,20 +229,25 @@ func buildHandoverRequestAcknowledge(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.ENBUES1APID != nil {
-		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+		ies = append(ies, ie(s1ap.IDENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
 	}
 
-	ies = append(ies, ie(idERABAdmittedList, s1ap.CriticalityIgnore, admitted))
+	ies = append(ies, ie(s1ap.IDERABAdmittedList, s1ap.CriticalityIgnore, admitted))
 
 	if len(m.ERABFailedToSetup) > 0 {
-		ies = append(ies, ie(idERABFailedToSetupListHOReqAck, s1ap.CriticalityIgnore, erabItems(m.ERABFailedToSetup)))
+		ies = append(ies, ie(s1ap.IDERABFailedToSetupListHOReqAck, s1ap.CriticalityIgnore, erabItems(m.ERABFailedToSetup)))
 	}
 
-	ies = append(ies, ie(idTargetToSourceContainer, s1ap.CriticalityReject, hex.EncodeToString(m.TargetToSource)))
+	ies = append(ies, ie(s1ap.IDTargetToSourceTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.TargetToSource)))
+
+	if m.CriticalityDiagnostics != nil {
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Request Acknowledge (MME-UE %s, eNB-UE %s, %d admitted)", ueIDText(m.MMEUES1APID), ueIDText(m.ENBUES1APID), len(m.ERABAdmitted))
@@ -253,11 +262,15 @@ func buildHandoverFailure(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+	}
+
+	if m.CriticalityDiagnostics != nil {
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -272,16 +285,29 @@ func buildHandoverCommand(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idHandoverType, s1ap.CriticalityReject, handoverType(m.HandoverType)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDHandoverType, s1ap.CriticalityReject, handoverType(m.HandoverType)),
+	}
+
+	if len(m.NASSecurityParametersfromEUTRAN) > 0 {
+		ies = append(ies, ie(s1ap.IDNASSecurityParametersfromEUTRAN, s1ap.CriticalityReject, hex.EncodeToString(m.NASSecurityParametersfromEUTRAN)))
+	}
+
+	if len(m.ERABSubjecttoDataForwarding) > 0 {
+		ies = append(ies, ie(s1ap.IDERABSubjecttoDataForwardingList, s1ap.CriticalityIgnore, erabDataForwardingItems(m.ERABSubjecttoDataForwarding)))
 	}
 
 	if len(m.ERABToRelease) > 0 {
-		ies = append(ies, ie(idERABtoReleaseListHOCmd, s1ap.CriticalityIgnore, erabItems(m.ERABToRelease)))
+		ies = append(ies, ie(s1ap.IDERABtoReleaseListHOCmd, s1ap.CriticalityIgnore, erabItems(m.ERABToRelease)))
 	}
 
-	ies = append(ies, ie(idTargetToSourceContainer, s1ap.CriticalityReject, hex.EncodeToString(m.TargetToSource)))
+	ies = append(ies, ie(s1ap.IDTargetToSourceTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.TargetToSource)))
+
+	if m.CriticalityDiagnostics != nil {
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Command (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
@@ -296,15 +322,19 @@ func buildHandoverPreparationFailure(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.ENBUES1APID != nil {
-		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityReject, uint32(*m.ENBUES1APID)))
+		ies = append(ies, ie(s1ap.IDENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+	}
+
+	if m.CriticalityDiagnostics != nil {
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -319,16 +349,16 @@ func buildHandoverNotify(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
 	}
 
 	if m.EUTRANCGI != nil {
-		ies = append(ies, ie(idEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
+		ies = append(ies, ie(s1ap.IDEUTRANCGI, s1ap.CriticalityIgnore, eutranCGI(*m.EUTRANCGI)))
 	}
 
 	if m.TAI != nil {
-		ies = append(ies, ie(idTAIList, s1ap.CriticalityIgnore, tai(*m.TAI)))
+		ies = append(ies, ie(s1ap.IDTAI, s1ap.CriticalityIgnore, tai(*m.TAI)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -343,12 +373,12 @@ func buildHandoverCancel(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -365,11 +395,15 @@ func buildHandoverCancelAcknowledge(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.ENBUES1APID != nil {
-		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+		ies = append(ies, ie(s1ap.IDENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+	}
+
+	if m.CriticalityDiagnostics != nil {
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -384,9 +418,9 @@ func buildENBStatusTransfer(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idENBStatusTransferContainer, s1ap.CriticalityReject, hex.EncodeToString(m.Container)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDENBStatusTransferTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.Container)),
 	}
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
@@ -400,9 +434,9 @@ func buildMMEStatusTransfer(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
-		ie(idENBStatusTransferContainer, s1ap.CriticalityReject, hex.EncodeToString(m.Container)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDENBStatusTransferTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.Container)),
 	}
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
@@ -415,4 +449,94 @@ func transportLayerAddressOrEmpty(b s1ap.TransportLayerAddress) string {
 	}
 
 	return transportLayerAddress(b)
+}
+
+// HandoverRestrictionList is the decoded Handover Restriction List IE
+// (TS 36.413 §9.2.1.22): where the target may hand the UE on to.
+type HandoverRestrictionList struct {
+	ServingPLMN        PLMNID           `json:"serving_plmn"`
+	EquivalentPLMNs    []PLMNID         `json:"equivalent_plmns,omitempty"`
+	ForbiddenTAs       []ForbiddenTAs   `json:"forbidden_tas,omitempty"`
+	ForbiddenLAs       []ForbiddenLAs   `json:"forbidden_las,omitempty"`
+	ForbiddenInterRATs *utils.EnumField `json:"forbidden_inter_rats,omitempty"`
+}
+
+// ForbiddenTAs is one PLMN's forbidden tracking areas (TS 36.413 §9.2.1.22).
+type ForbiddenTAs struct {
+	PLMNID PLMNID   `json:"plmn_id"`
+	TACs   []uint16 `json:"tacs"`
+}
+
+// ForbiddenLAs is one PLMN's forbidden location areas (TS 36.413 §9.2.1.22).
+type ForbiddenLAs struct {
+	PLMNID PLMNID   `json:"plmn_id"`
+	LACs   []uint16 `json:"lacs"`
+}
+
+func handoverRestrictionList(l s1ap.HandoverRestrictionList) HandoverRestrictionList {
+	out := HandoverRestrictionList{ServingPLMN: plmnToID(l.ServingPLMN)}
+
+	for _, p := range l.EquivalentPLMNs {
+		out.EquivalentPLMNs = append(out.EquivalentPLMNs, plmnToID(p))
+	}
+
+	for _, it := range l.ForbiddenTAs {
+		e := ForbiddenTAs{PLMNID: plmnToID(it.PLMNIdentity)}
+		for _, tac := range it.ForbiddenTACs {
+			e.TACs = append(e.TACs, uint16(tac))
+		}
+
+		out.ForbiddenTAs = append(out.ForbiddenTAs, e)
+	}
+
+	for _, it := range l.ForbiddenLAs {
+		e := ForbiddenLAs{PLMNID: plmnToID(it.PLMNIdentity)}
+		for _, lac := range it.ForbiddenLACs {
+			e.LACs = append(e.LACs, uint16(lac))
+		}
+
+		out.ForbiddenLAs = append(out.ForbiddenLAs, e)
+	}
+
+	if l.ForbiddenInterRATs != nil {
+		r := *l.ForbiddenInterRATs
+		e := utils.NamedEnum(uint8(r), r.Name())
+		out.ForbiddenInterRATs = &e
+	}
+
+	return out
+}
+
+// ERABDataForwarding is one E-RAB the source asked the target to forward data
+// for (TS 36.413).
+type ERABDataForwarding struct {
+	ERABID                  uint8  `json:"erab_id"`
+	DLTransportLayerAddress string `json:"dl_transport_layer_address,omitempty"`
+	DLGTPTEID               uint32 `json:"dl_gtp_teid,omitempty"`
+	ULTransportLayerAddress string `json:"ul_transport_layer_address,omitempty"`
+	ULGTPTEID               uint32 `json:"ul_gtp_teid,omitempty"`
+}
+
+func erabDataForwardingItems(items []s1ap.ERABDataForwardingItem) []ERABDataForwarding {
+	out := make([]ERABDataForwarding, 0, len(items))
+
+	for _, it := range items {
+		e := ERABDataForwarding{
+			ERABID:                  uint8(it.ERABID),
+			DLTransportLayerAddress: transportLayerAddressOrEmpty(it.DLTransportLayerAddr),
+			ULTransportLayerAddress: transportLayerAddressOrEmpty(it.ULTransportLayerAddr),
+		}
+
+		if it.DLGTPTEID != nil {
+			e.DLGTPTEID = uint32(*it.DLGTPTEID)
+		}
+
+		if it.ULGTPTEID != nil {
+			e.ULGTPTEID = uint32(*it.ULGTPTEID)
+		}
+
+		out = append(out, e)
+	}
+
+	return out
 }

@@ -142,7 +142,7 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	value := container(t, ieField{id: idUES1APIDs, crit: CriticalityReject, raw: perBytes(w)})
+	value := container(t, ieField{id: IDUES1APIDs, crit: CriticalityReject, raw: perBytes(w)})
 
 	_, err := ParseUEContextReleaseCommand(value)
 	if err == nil {
@@ -158,7 +158,7 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idUES1APIDs ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDUES1APIDs ||
 		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
 		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-S1AP-IDs", ase.IEs)
 	}

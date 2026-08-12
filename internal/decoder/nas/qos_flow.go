@@ -5,44 +5,17 @@ package nas
 
 import (
 	"encoding/binary"
-	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func qfdOpcodeToEnum(op fgs.QoSFlowOperation) utils.EnumField {
-	switch op {
-	case fgs.QoSFlowOpCreate:
-		return utils.MakeEnum(uint8(op), "Create", false)
-	case fgs.QoSFlowOpDelete:
-		return utils.MakeEnum(uint8(op), "Delete", false)
-	case fgs.QoSFlowOpModify:
-		return utils.MakeEnum(uint8(op), "Modify", false)
-	default:
-		return utils.MakeEnum(uint8(op), "", true)
-	}
+	return utils.NamedEnum(uint8(op), op.Name())
 }
 
 func qfdParamIDToEnum(id fgs.QoSFlowParameterID) utils.EnumField {
-	switch id {
-	case fgs.QoSFlowParam5QI:
-		return utils.MakeEnum(uint8(id), "5QI", false)
-	case fgs.QoSFlowParamGFBRUplink:
-		return utils.MakeEnum(uint8(id), "GFBR UL", false)
-	case fgs.QoSFlowParamGFBRDownlink:
-		return utils.MakeEnum(uint8(id), "GFBR DL", false)
-	case fgs.QoSFlowParamMFBRUplink:
-		return utils.MakeEnum(uint8(id), "MFBR UL", false)
-	case fgs.QoSFlowParamMFBRDownlink:
-		return utils.MakeEnum(uint8(id), "MFBR DL", false)
-	case fgs.QoSFlowParamAveragingWindow:
-		return utils.MakeEnum(uint8(id), "Averaging Window", false)
-	case fgs.QoSFlowParamEPSBearerID:
-		return utils.MakeEnum(uint8(id), "EPS Bearer ID", false)
-	default:
-		return utils.MakeEnum(uint8(id), fmt.Sprintf("Unknown(0x%02X)", uint8(id)), true)
-	}
+	return utils.NamedEnum(uint8(id), id.Name())
 }
 
 type QosFlowParameter struct {

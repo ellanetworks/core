@@ -34,9 +34,9 @@ func TestChoiceExtensionOnRejectIEIsAbstractSyntaxError(t *testing.T) {
 	// A TNGF, TWIF or W-AGF identifies itself through GlobalRANNodeID's
 	// choice-Extensions, which this library does not model.
 	value := container(t, ieField{
-		id:   idGlobalRANNodeID,
+		id:   IDGlobalRANNodeID,
 		crit: CriticalityReject,
-		raw:  choiceExtensionValue(t, globalRANNodeIDAlternatives, globalRANNodeIDChoiceExtensions, idGlobalRANNodeID),
+		raw:  choiceExtensionValue(t, globalRANNodeIDAlternatives, globalRANNodeIDChoiceExtensions, IDGlobalRANNodeID),
 	})
 
 	_, err := ParseNGSetupRequest(value)
@@ -53,7 +53,7 @@ func TestChoiceExtensionOnRejectIEIsAbstractSyntaxError(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idGlobalRANNodeID ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGlobalRANNodeID ||
 		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
 		t.Errorf("diagnostics = %+v, want one not-understood entry for GlobalRANNodeID", ase.IEs)
 	}
@@ -64,11 +64,11 @@ func TestChoiceExtensionOnIgnoreIEIsIgnored(t *testing.T) {
 	// id-Cause is CRITICALITY ignore in NGResetIEs.
 	value := container(t,
 		ieField{
-			id:   idCause,
+			id:   IDCause,
 			crit: CriticalityIgnore,
-			raw:  choiceExtensionValue(t, causeAlternatives, causeChoiceExtensions, idCause),
+			raw:  choiceExtensionValue(t, causeAlternatives, causeChoiceExtensions, IDCause),
 		},
-		ieField{id: idResetType, crit: CriticalityReject, val: ResetType{All: true}},
+		ieField{id: IDResetType, crit: CriticalityReject, val: ResetType{All: true}},
 	)
 
 	msg, err := ParseNGReset(value)
@@ -87,7 +87,7 @@ func TestChoiceExtensionOnIgnoreIEIsIgnored(t *testing.T) {
 	var reported bool
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.ID == idCause && ie.TypeOfError == TypeOfErrorNotUnderstood {
+		if ie.ID == IDCause && ie.TypeOfError == TypeOfErrorNotUnderstood {
 			reported = true
 		}
 	}

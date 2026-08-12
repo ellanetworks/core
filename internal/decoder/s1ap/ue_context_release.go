@@ -16,12 +16,12 @@ func buildUEContextReleaseRequest(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
-		ie(idENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
+		ie(s1ap.IDMMEUES1APID, s1ap.CriticalityReject, uint32(m.MMEUES1APID)),
+		ie(s1ap.IDENBUES1APID, s1ap.CriticalityReject, uint32(m.ENBUES1APID)),
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -36,11 +36,11 @@ func buildUEContextReleaseCommand(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies := []IE{
-		ie(idUES1APIDs, s1ap.CriticalityReject, ues1apIDs(m.UES1APIDs)),
+		ie(s1ap.IDUES1APIDs, s1ap.CriticalityReject, ues1apIDs(m.UES1APIDs)),
 	}
 
 	if m.Cause != nil {
-		ies = append(ies, ie(idCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
+		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
@@ -57,15 +57,19 @@ func buildUEContextReleaseComplete(value []byte) (S1APMessageValue, string) {
 	var ies []IE
 
 	if m.MMEUES1APID != nil {
-		ies = append(ies, ie(idMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
+		ies = append(ies, ie(s1ap.IDMMEUES1APID, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID)))
 	}
 
 	if m.ENBUES1APID != nil {
-		ies = append(ies, ie(idENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
+		ies = append(ies, ie(s1ap.IDENBUES1APID, s1ap.CriticalityIgnore, uint32(*m.ENBUES1APID)))
 	}
 
 	if m.CriticalityDiagnostics != nil {
-		ies = append(ies, ie(idCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
+		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
+	}
+
+	if m.UserLocationInformation != nil {
+		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
 	}
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())

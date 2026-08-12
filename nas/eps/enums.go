@@ -8,15 +8,19 @@ import "fmt"
 // AttachType is the EPS attach type of an ATTACH REQUEST (TS 24.301 §9.9.3.11).
 type AttachType uint8
 
-func (t AttachType) String() string {
-	return enumString(uint8(t), map[uint8]string{
-		uint8(AttachTypeEPS):          "EPS attach",
-		uint8(AttachTypeCombined):     "Combined EPS/IMSI attach",
-		uint8(AttachTypeEPSRLOS):      "EPS RLOS attach",
-		uint8(AttachTypeEPSEmergency): "EPS emergency attach",
-		uint8(AttachTypeReserved):     "Reserved",
-	})
+var attachTypeNames = map[uint8]string{
+	uint8(AttachTypeEPS):          "EPS attach",
+	uint8(AttachTypeCombined):     "Combined EPS/IMSI attach",
+	uint8(AttachTypeEPSRLOS):      "EPS RLOS attach",
+	uint8(AttachTypeEPSEmergency): "EPS emergency attach",
+	uint8(AttachTypeReserved):     "Reserved",
 }
+
+// Name returns the value's spec description, or the empty string when the value
+// is not one TS 24.301 assigns.
+func (t AttachType) Name() string { return attachTypeNames[uint8(t)] }
+
+func (t AttachType) String() string { return enumString(uint8(t), attachTypeNames) }
 
 // RequestType is the request type of a PDN CONNECTIVITY REQUEST
 // (TS 24.301 §9.9.4.14 → TS 24.008 §10.5.6.17). It is the EPS counterpart of
@@ -33,26 +37,34 @@ const (
 	RequestTypeHandoverOfEmergencyBearerServices RequestType = 6
 )
 
-func (t RequestType) String() string {
-	return enumString(uint8(t), map[uint8]string{
-		uint8(RequestTypeInitialRequest):                    "Initial request",
-		uint8(RequestTypeHandover):                          "Handover",
-		uint8(RequestTypeRLOS):                              "RLOS",
-		uint8(RequestTypeEmergency):                         "Emergency",
-		uint8(RequestTypeHandoverOfEmergencyBearerServices): "Handover of emergency bearer services",
-	})
+var requestTypeNames = map[uint8]string{
+	uint8(RequestTypeInitialRequest):                    "Initial request",
+	uint8(RequestTypeHandover):                          "Handover",
+	uint8(RequestTypeRLOS):                              "RLOS",
+	uint8(RequestTypeEmergency):                         "Emergency",
+	uint8(RequestTypeHandoverOfEmergencyBearerServices): "Handover of emergency bearer services",
 }
+
+// Name returns the value's spec description, or the empty string when the value
+// is not one TS 24.301 assigns.
+func (t RequestType) Name() string { return requestTypeNames[uint8(t)] }
+
+func (t RequestType) String() string { return enumString(uint8(t), requestTypeNames) }
 
 // AttachResult is the EPS attach result of an ATTACH ACCEPT
 // (TS 24.301 §9.9.3.10).
 type AttachResult uint8
 
-func (r AttachResult) String() string {
-	return enumString(uint8(r), map[uint8]string{
-		uint8(AttachResultEPS):      "EPS only",
-		uint8(AttachResultCombined): "Combined EPS/IMSI attach",
-	})
+var attachResultNames = map[uint8]string{
+	uint8(AttachResultEPS):      "EPS only",
+	uint8(AttachResultCombined): "Combined EPS/IMSI attach",
 }
+
+// Name returns the value's spec description, or the empty string when the value
+// is not one TS 24.301 assigns.
+func (r AttachResult) Name() string { return attachResultNames[uint8(r)] }
+
+func (r AttachResult) String() string { return enumString(uint8(r), attachResultNames) }
 
 // DetachType is the detach type of a UE-originating DETACH REQUEST
 // (TS 24.301 §9.9.3.7, table 9.9.3.7.1).
@@ -62,65 +74,77 @@ func (r AttachResult) String() string {
 // wrong procedure.
 type DetachType uint8
 
-func (t DetachType) String() string {
-	return enumString(uint8(t), map[uint8]string{
-		uint8(DetachTypeEPS):      "EPS detach",
-		uint8(DetachTypeIMSI):     "IMSI detach",
-		uint8(DetachTypeCombined): "Combined EPS/IMSI detach",
-	})
+var detachTypeNames = map[uint8]string{
+	uint8(DetachTypeEPS):      "EPS detach",
+	uint8(DetachTypeIMSI):     "IMSI detach",
+	uint8(DetachTypeCombined): "Combined EPS/IMSI detach",
 }
+
+func (t DetachType) String() string { return enumString(uint8(t), detachTypeNames) }
 
 // DetachTypeNetwork is the detach type of a network-originating DETACH REQUEST
 // (TS 24.301 §9.9.3.7, table 9.9.3.7.1).
 type DetachTypeNetwork uint8
 
-func (t DetachTypeNetwork) String() string {
-	return enumString(uint8(t), map[uint8]string{
-		uint8(DetachTypeReattachRequired):    "Re-attach required",
-		uint8(DetachTypeReattachNotRequired): "Re-attach not required",
-		uint8(DetachTypeNetworkIMSI):         "IMSI detach",
-	})
+var detachTypeNetworkNames = map[uint8]string{
+	uint8(DetachTypeReattachRequired):    "Re-attach required",
+	uint8(DetachTypeReattachNotRequired): "Re-attach not required",
+	uint8(DetachTypeNetworkIMSI):         "IMSI detach",
 }
+
+func (t DetachTypeNetwork) String() string { return enumString(uint8(t), detachTypeNetworkNames) }
 
 // EPSUpdateType is the EPS update type of a TRACKING AREA UPDATE REQUEST
 // (TS 24.301 §9.9.3.14).
 type EPSUpdateType uint8
 
-func (t EPSUpdateType) String() string {
-	return enumString(uint8(t), map[uint8]string{
-		uint8(EPSUpdateTypeTA):               "TA updating",
-		uint8(EPSUpdateTypeCombinedTALA):     "Combined TA/LA updating",
-		uint8(EPSUpdateTypeCombinedTALAIMSI): "Combined TA/LA updating with IMSI attach",
-		uint8(EPSUpdateTypePeriodic):         "Periodic updating",
-	})
+var epsUpdateTypeNames = map[uint8]string{
+	uint8(EPSUpdateTypeTA):               "TA updating",
+	uint8(EPSUpdateTypeCombinedTALA):     "Combined TA/LA updating",
+	uint8(EPSUpdateTypeCombinedTALAIMSI): "Combined TA/LA updating with IMSI attach",
+	uint8(EPSUpdateTypePeriodic):         "Periodic updating",
 }
+
+// Name returns the value's spec description, or the empty string when the value
+// is not one TS 24.301 assigns.
+func (t EPSUpdateType) Name() string { return epsUpdateTypeNames[uint8(t)] }
+
+func (t EPSUpdateType) String() string { return enumString(uint8(t), epsUpdateTypeNames) }
 
 // EPSUpdateResult is the EPS update result of a TRACKING AREA UPDATE ACCEPT
 // (TS 24.301 §9.9.3.13).
 type EPSUpdateResult uint8
 
-func (r EPSUpdateResult) String() string {
-	return enumString(uint8(r), map[uint8]string{
-		uint8(EPSUpdateResultTA):                   "TA updated",
-		uint8(EPSUpdateResultCombined):             "Combined TA/LA updated",
-		uint8(EPSUpdateResultTAISRActivated):       "TA updated and ISR activated",
-		uint8(EPSUpdateResultCombinedISRActivated): "Combined TA/LA updated and ISR activated",
-	})
+var epsUpdateResultNames = map[uint8]string{
+	uint8(EPSUpdateResultTA):                   "TA updated",
+	uint8(EPSUpdateResultCombined):             "Combined TA/LA updated",
+	uint8(EPSUpdateResultTAISRActivated):       "TA updated and ISR activated",
+	uint8(EPSUpdateResultCombinedISRActivated): "Combined TA/LA updated and ISR activated",
 }
+
+// Name returns the value's spec description, or the empty string when the value
+// is not one TS 24.301 assigns.
+func (r EPSUpdateResult) Name() string { return epsUpdateResultNames[uint8(r)] }
+
+func (r EPSUpdateResult) String() string { return enumString(uint8(r), epsUpdateResultNames) }
 
 // PDNType is the PDN type of a PDN connectivity request or PDN address
 // (TS 24.301 §9.9.4.10). It is the EPS counterpart of the 5GS PDU session type.
 type PDNType uint8
 
-func (t PDNType) String() string {
-	return enumString(uint8(t), map[uint8]string{
-		uint8(PDNTypeIPv4):     "IPv4",
-		uint8(PDNTypeIPv6):     "IPv6",
-		uint8(PDNTypeIPv4v6):   "IPv4v6",
-		uint8(PDNTypeNonIP):    "non IP",
-		uint8(PDNTypeEthernet): "Ethernet",
-	})
+var pdnTypeNames = map[uint8]string{
+	uint8(PDNTypeIPv4):     "IPv4",
+	uint8(PDNTypeIPv6):     "IPv6",
+	uint8(PDNTypeIPv4v6):   "IPv4v6",
+	uint8(PDNTypeNonIP):    "non IP",
+	uint8(PDNTypeEthernet): "Ethernet",
 }
+
+// Name returns the value's spec description, or the empty string when the value
+// is not one TS 24.301 assigns.
+func (t PDNType) Name() string { return pdnTypeNames[uint8(t)] }
+
+func (t PDNType) String() string { return enumString(uint8(t), pdnTypeNames) }
 
 func enumString(v uint8, names map[uint8]string) string {
 	if name, ok := names[v]; ok {

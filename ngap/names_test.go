@@ -25,8 +25,8 @@ func TestProtocolIEIDString(t *testing.T) {
 		in   ProtocolIEID
 		want string
 	}{
-		{idGlobalRANNodeID, "GlobalRANNodeID (27)"},
-		{idCause, "Cause (15)"},
+		{IDGlobalRANNodeID, "GlobalRANNodeID (27)"},
+		{IDCause, "Cause (15)"},
 		{ProtocolIEID(9999), "ProtocolIEID(9999)"},
 	} {
 		if got := tc.in.String(); got != tc.want {
@@ -90,8 +90,8 @@ func TestAbstractSyntaxErrorMessage(t *testing.T) {
 		Trigger:   TriggeringInitiatingMessage,
 		Cause:     Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject},
 		IEs: []CriticalityDiagnosticsIEItem{
-			{IEID: idGlobalRANNodeID, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorMissing},
-			{IEID: idSupportedTAList, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorNotUnderstood},
+			{IEID: IDGlobalRANNodeID, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorMissing},
+			{IEID: IDSupportedTAList, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorNotUnderstood},
 		},
 	}
 

@@ -21,7 +21,7 @@ type RANConfigurationUpdate struct {
 
 var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 	{
-		id: idRANNodeName, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDRANNodeName, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -43,7 +43,7 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 		},
 	},
 	{
-		id: idSupportedTAList, presence: presenceOptional, crit: CriticalityReject,
+		id: IDSupportedTAList, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.SupportedTAList)
 		},
@@ -56,7 +56,7 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 		},
 	},
 	{
-		id: idDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			var drx PagingDRX
 
@@ -77,7 +77,7 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 		},
 	},
 	{
-		id: idGlobalRANNodeID, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDGlobalRANNodeID, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			var v GlobalRANNodeID
 
@@ -100,7 +100,7 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 	{
 		// Modeled but not acted on: the IE is reject, so not comprehending it
 		// would reject an otherwise valid update (§10.3.4.2).
-		id: idNGRANTNLAssociationToRemoveList, presence: presenceOptional, crit: CriticalityReject,
+		id: IDNGRANTNLAssociationToRemoveList, presence: presenceOptional, crit: CriticalityReject,
 		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.NGRANTNLAssociationToRemoveList)
 		},
@@ -147,7 +147,7 @@ type RANConfigurationUpdateAcknowledge struct {
 
 var rANConfigurationUpdateAcknowledgeIEs = []ieSpec[RANConfigurationUpdateAcknowledge]{
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -204,7 +204,7 @@ type RANConfigurationUpdateFailure struct {
 
 var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 	{
-		id: idCause, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
 			var v Cause
 
@@ -225,7 +225,7 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: idTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
 			var ttw TimeToWait
 
@@ -246,7 +246,7 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 

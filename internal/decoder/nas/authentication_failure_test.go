@@ -24,7 +24,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Fatal("Decoded NAS message is nil")
 	}
 
-	if nasMsg.SecurityHeader.SecurityHeaderType.Label != "Plain NAS" {
+	if nasMsg.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTPlain) {
 		t.Errorf("Unexpected SecurityHeaderType: got %v", nasMsg.SecurityHeader.SecurityHeaderType.Label)
 	}
 
@@ -40,7 +40,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Fatal("GmmMessage is nil")
 	}
 
-	if nasMsg.GmmMessage.GmmHeader.MessageType.Label != "AuthenticationFailure" {
+	if nasMsg.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgAuthenticationFailure) {
 		t.Errorf("Unexpected GmmMessage Type: got %v", nasMsg.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
@@ -52,7 +52,7 @@ func TestDecodeNASMessage_AuthenticationFailure(t *testing.T) {
 		t.Fatal("AuthenticationFailure is nil")
 	}
 
-	if nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Label != "MAC failure" {
+	if nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM.Value != int64(fgs.GMMCauseMACFailure) {
 		t.Errorf("Unexpected Cause5GMM: got %v, want 'MAC failure'", nasMsg.GmmMessage.AuthenticationFailure.Cause5GMM)
 	}
 

@@ -30,16 +30,16 @@ func TestDecodeErrorIndication(t *testing.T) {
 		t.Fatalf("decode error: %s", msg.Value.Error)
 	}
 
-	if msg.ProcedureCode.Label != "ErrorIndication" {
+	if msg.ProcedureCode.Value != int64(s1ap.ProcErrorIndication) {
 		t.Fatalf("proc = %q", msg.ProcedureCode.Label)
 	}
 
-	if mustIE(t, msg, idMMEUES1APID).Value != uint32(7) || mustIE(t, msg, idENBUES1APID).Value != uint32(807) {
+	if mustIE(t, msg, s1ap.IDMMEUES1APID).Value != uint32(7) || mustIE(t, msg, s1ap.IDENBUES1APID).Value != uint32(807) {
 		t.Fatal("UE id mismatch")
 	}
 
-	c := mustIE(t, msg, idCause).Value.(Cause)
-	if c.Group.Label != "protocol" || c.Value.Label != "transfer-syntax-error" {
+	c := mustIE(t, msg, s1ap.IDCause).Value.(Cause)
+	if c.Group.Value != int64(s1ap.CauseGroupProtocol) || c.Value.Value != int64(s1ap.CauseProtocolTransferSyntaxError) {
 		t.Fatalf("cause = %+v", c)
 	}
 }

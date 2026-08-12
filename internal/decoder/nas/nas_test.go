@@ -54,8 +54,8 @@ func TestDecodeNASMessage_IntegrityProtectedNotCiphered(t *testing.T) {
 		t.Errorf("expected SecurityHeaderType=1, got %d", nasMsg.SecurityHeader.SecurityHeaderType.Value)
 	}
 
-	if nasMsg.SecurityHeader.SecurityHeaderType.Label != "Integrity Protected" {
-		t.Errorf("expected label 'Integrity Protected', got %q", nasMsg.SecurityHeader.SecurityHeaderType.Label)
+	if nasMsg.SecurityHeader.SecurityHeaderType.Value != int64(fgs.SHTIntegrityProtected) {
+		t.Errorf("expected label 'integrity protected', got %q", nasMsg.SecurityHeader.SecurityHeaderType.Label)
 	}
 
 	expectedMAC := uint32(0xDEADBEEF)
@@ -72,8 +72,8 @@ func TestDecodeNASMessage_IntegrityProtectedNotCiphered(t *testing.T) {
 		t.Fatal("GmmMessage is nil — inner NAS was not decoded")
 	}
 
-	if nasMsg.GmmMessage.GmmHeader.MessageType.Label != "RegistrationRequest" {
-		t.Errorf("expected RegistrationRequest, got %s", nasMsg.GmmMessage.GmmHeader.MessageType.Label)
+	if nasMsg.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgRegistrationRequest) {
+		t.Errorf("expected REGISTRATION REQUEST, got %s", nasMsg.GmmMessage.GmmHeader.MessageType.Label)
 	}
 
 	if nasMsg.GmmMessage.RegistrationRequest == nil {
@@ -138,8 +138,8 @@ func TestDecodeNASMessage_IntegrityProtectedWithNewContext(t *testing.T) {
 		t.Fatal("GmmMessage is nil — inner NAS was not decoded")
 	}
 
-	if nasMsg.GmmMessage.GmmHeader.MessageType.Label != "RegistrationRequest" {
-		t.Errorf("expected RegistrationRequest, got %s", nasMsg.GmmMessage.GmmHeader.MessageType.Label)
+	if nasMsg.GmmMessage.GmmHeader.MessageType.Value != int64(fgs.MsgRegistrationRequest) {
+		t.Errorf("expected REGISTRATION REQUEST, got %s", nasMsg.GmmMessage.GmmHeader.MessageType.Label)
 	}
 }
 

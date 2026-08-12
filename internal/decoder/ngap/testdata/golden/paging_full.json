@@ -1,0 +1,141 @@
+{
+  "summary": "Paging",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 24,
+    "label": "Paging",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 115,
+          "label": "UEPagingIdentity",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "five_gs_tmsi": {
+            "amf_set_id": "004",
+            "amf_pointer": "08",
+            "fiveg_tmsi": "01020304"
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 50,
+          "label": "PagingDRX",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 2,
+          "label": "v128",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 103,
+          "label": "TAIListForPaging",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "tac": "000001"
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 52,
+          "label": "PagingPriority",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "priolevel1",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 118,
+          "label": "UERadioCapabilityForPaging",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr": "abcd"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 51,
+          "label": "PagingOrigin",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "non-3gpp",
+          "unknown": false
+        }
+      }
+    ]
+  }
+}

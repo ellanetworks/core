@@ -190,11 +190,11 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 // MME cannot set up a context without them.
 func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 	partial := container(t,
-		ieField{id: idMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
-		ieField{id: idENBUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(ENBUES1APID(2)))},
-		ieField{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, raw: ieRaw(t, &UEAggregateMaximumBitRate{})},
-		ieField{id: idUESecurityCapabilities, crit: CriticalityReject, raw: ieRaw(t, &UESecurityCapabilities{})},
-		ieField{id: idSecurityKey, crit: CriticalityReject, raw: ieRaw(t, Ptr(SecurityKey{}))},
+		ieField{id: IDMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
+		ieField{id: IDENBUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(ENBUES1APID(2)))},
+		ieField{id: IDUEAggregateMaximumBitrate, crit: CriticalityReject, raw: ieRaw(t, &UEAggregateMaximumBitRate{})},
+		ieField{id: IDUESecurityCapabilities, crit: CriticalityReject, raw: ieRaw(t, &UESecurityCapabilities{})},
+		ieField{id: IDSecurityKey, crit: CriticalityReject, raw: ieRaw(t, Ptr(SecurityKey{}))},
 	)
 
 	// Without the E-RAB list the request is incomplete: it is mandatory and
@@ -207,7 +207,7 @@ func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 			t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 		}
 
-		if len(ase.IEs) != 1 || ase.IEs[0].IEID != idERABToBeSetupListCtxtSUReq ||
+		if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDERABToBeSetupListCtxtSUReq ||
 			ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 			t.Errorf("diagnostics = %+v, want one missing entry for the E-RAB To Be Setup list", ase.IEs)
 		}

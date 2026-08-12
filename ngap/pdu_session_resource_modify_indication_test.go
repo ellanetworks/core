@@ -115,8 +115,8 @@ func TestPDUSessionResourceModifyIndicationRoundTrips(t *testing.T) {
 // modifies nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceModifyIndicationMissingList(t *testing.T) {
 	value := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
 	)
 
 	_, err := ParsePDUSessionResourceModifyIndication(value)
@@ -129,7 +129,7 @@ func TestPDUSessionResourceModifyIndicationMissingList(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idPDUSessionResourceModifyListModInd ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDPDUSessionResourceModifyListModInd ||
 		ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for the modify list", ase.IEs)
 	}

@@ -24,7 +24,7 @@ var relativeAMFCapacityBounds = per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: t
 
 var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 	{
-		id: idAMFName, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDAMFName, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
 			var (
 				err error
@@ -39,14 +39,14 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 		encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return Name(m.AMFName), true },
 	},
 	{
-		id: idServedGUAMIList, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDServedGUAMIList, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.ServedGUAMIList)
 		},
 		encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return m.ServedGUAMIList, true },
 	},
 	{
-		id: idRelativeAMFCapacity, presence: presenceMandatory, crit: CriticalityIgnore,
+		id: IDRelativeAMFCapacity, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
 			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeAMFCapacityBounds)
 			if err != nil {
@@ -69,14 +69,14 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 		},
 	},
 	{
-		id: idPLMNSupportList, presence: presenceMandatory, crit: CriticalityReject,
+		id: IDPLMNSupportList, presence: presenceMandatory, crit: CriticalityReject,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
 			return perIEDecode(raw, &m.PLMNSupportList)
 		},
 		encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return m.PLMNSupportList, true },
 	},
 	{
-		id: idCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
@@ -97,7 +97,7 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 		},
 	},
 	{
-		id: idUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
+		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
 			var v UERetentionInformation
 

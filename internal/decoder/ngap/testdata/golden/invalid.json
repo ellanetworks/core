@@ -1,0 +1,18 @@
+{
+  "pdu_type": "",
+  "procedure_code": {
+    "type": "",
+    "value": 0,
+    "label": "",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "",
+    "value": 0,
+    "label": "",
+    "unknown": false
+  },
+  "value": {
+    "error": "Could not decode raw ngap message: ngap: unsupported NGAP-PDU extension alternative"
+  }
+}

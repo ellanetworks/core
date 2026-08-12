@@ -1,0 +1,45 @@
+{
+  "summary": "AMFStatusIndication",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 1,
+    "label": "AMFStatusIndication",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 120,
+          "label": "UnavailableGUAMIList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "amf_region_id": "ca",
+            "amf_set_id": "fe0",
+            "amf_pointer": "00"
+          }
+        ]
+      }
+    ]
+  }
+}

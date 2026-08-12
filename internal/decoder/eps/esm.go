@@ -94,15 +94,11 @@ func decodeESMContainer(b []byte) *ESMMessage {
 }
 
 func requestTypeToEnum(v uint8) utils.EnumField {
-	names := map[uint8]string{1: "initial request", 2: "handover", 3: "unused", 4: "emergency"}
-
-	name, ok := names[v]
-
-	return utils.MakeEnum(uint64(v), name, !ok)
+	return utils.NamedEnum(v, eps.RequestType(v).Name())
 }
 
 func pdnTypeToEnum(v eps.PDNType) utils.EnumField {
-	return typedEnum(uint8(v), v.String())
+	return utils.NamedEnum(uint8(v), v.Name())
 }
 
 // pdnAddress decodes the PDN address IE into the assigned UE address (TS 24.301

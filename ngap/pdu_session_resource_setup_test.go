@@ -141,8 +141,8 @@ func TestPDUSessionResourceSetupRoundTrips(t *testing.T) {
 // sets up nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceSetupRequestMissingSessionList(t *testing.T) {
 	value := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
 	)
 
 	_, err := ParsePDUSessionResourceSetupRequest(value)
@@ -155,7 +155,7 @@ func TestPDUSessionResourceSetupRequestMissingSessionList(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idPDUSessionResourceSetupListSUReq ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDPDUSessionResourceSetupListSUReq ||
 		ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for the session list", ase.IEs)
 	}
@@ -355,8 +355,8 @@ func TestPDUSessionResourceSetupResponseTransferGolden(t *testing.T) {
 // the missing IE named in Criticality Diagnostics.
 func TestPDUSessionResourceSetupRequestTransferMissingTunnel(t *testing.T) {
 	value := container(t,
-		ieField{id: idPDUSessionType, crit: CriticalityReject, raw: ieRaw(t, Ptr(PDUSessionTypeIPv4))},
-		ieField{id: idQosFlowSetupRequestList, crit: CriticalityReject, raw: ieRaw(t, QosFlowSetupRequestList{{
+		ieField{id: IDPDUSessionType, crit: CriticalityReject, raw: ieRaw(t, Ptr(PDUSessionTypeIPv4))},
+		ieField{id: IDQosFlowSetupRequestList, crit: CriticalityReject, raw: ieRaw(t, QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
 				QosCharacteristics: QosCharacteristics{
@@ -377,7 +377,7 @@ func TestPDUSessionResourceSetupRequestTransferMissingTunnel(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idULNGUUPTNLInformation ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDULNGUUPTNLInformation ||
 		ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for UL-NGU-UP-TNLInformation", ase.IEs)
 	}

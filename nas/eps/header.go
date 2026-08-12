@@ -21,15 +21,21 @@ const (
 	PDESM ProtocolDiscriminator = 0x02 // EPS Session Management
 )
 
+var protocolDiscriminatorNames = map[ProtocolDiscriminator]string{
+	PDEMM: "EMM",
+	PDESM: "ESM",
+}
+
+// Name returns the discriminator's spec description, or the empty string when
+// the value is not one TS 24.007 assigns.
+func (p ProtocolDiscriminator) Name() string { return protocolDiscriminatorNames[p] }
+
 func (p ProtocolDiscriminator) String() string {
-	switch p {
-	case PDEMM:
-		return "EMM"
-	case PDESM:
-		return "ESM"
-	default:
-		return fmt.Sprintf("unknown protocol discriminator (%#x)", uint8(p))
+	if name, ok := protocolDiscriminatorNames[p]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("unknown protocol discriminator (%#x)", uint8(p))
 }
 
 // SecurityHeaderType identifies the protection applied to an EMM message
@@ -65,25 +71,26 @@ func (s SecurityHeaderType) defined() bool {
 	return s <= SHTIntegrityProtectedPartiallyCiphered || s == SHTServiceRequest
 }
 
+var securityHeaderTypeNames = map[SecurityHeaderType]string{
+	SHTPlain:                                "plain",
+	SHTIntegrityProtected:                   "integrity protected",
+	SHTIntegrityProtectedCiphered:           "integrity protected and ciphered",
+	SHTIntegrityProtectedNewContext:         "integrity protected with new EPS security context",
+	SHTIntegrityProtectedCipheredNewContext: "integrity protected and ciphered with new EPS security context",
+	SHTIntegrityProtectedPartiallyCiphered:  "integrity protected and partially ciphered",
+	SHTServiceRequest:                       "service request",
+}
+
+// Name returns the type's spec description, or the empty string for a value
+// TS 24.301 table 9.3.1 reserves.
+func (s SecurityHeaderType) Name() string { return securityHeaderTypeNames[s] }
+
 func (s SecurityHeaderType) String() string {
-	switch s {
-	case SHTPlain:
-		return "plain"
-	case SHTIntegrityProtected:
-		return "integrity protected"
-	case SHTIntegrityProtectedCiphered:
-		return "integrity protected and ciphered"
-	case SHTIntegrityProtectedNewContext:
-		return "integrity protected with new EPS security context"
-	case SHTIntegrityProtectedCipheredNewContext:
-		return "integrity protected and ciphered with new EPS security context"
-	case SHTIntegrityProtectedPartiallyCiphered:
-		return "integrity protected and partially ciphered"
-	case SHTServiceRequest:
-		return "service request"
-	default:
-		return fmt.Sprintf("reserved security header type (%d)", uint8(s))
+	if name, ok := securityHeaderTypeNames[s]; ok {
+		return name
 	}
+
+	return fmt.Sprintf("reserved security header type (%d)", uint8(s))
 }
 
 // ErrNotEMM reports a protocol discriminator other than EMM.

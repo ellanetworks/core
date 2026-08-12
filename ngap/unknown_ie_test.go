@@ -25,9 +25,9 @@ func encodeWithExtraIE(t *testing.T, crit Criticality, id ProtocolIEID) []byte {
 	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: idGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID},
-		{id: idSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList},
-		{id: idDefaultPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
+		{id: IDGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID},
+		{id: IDSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList},
+		{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
 		{id: id, crit: crit, raw: []byte{0xde, 0xad}},
 	}
 

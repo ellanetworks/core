@@ -1,0 +1,280 @@
+{
+  "summary": "PDUSessionResourceSetup, AMF-UE=1, RAN-UE=1",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 29,
+    "label": "PDUSessionResourceSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 74,
+          "label": "PDUSessionResourceSetupListSUReq",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "pdu_session_nas_pdu": {
+              "protocol": "NAS",
+              "raw_hex": "7e0271dd83c4027e00680100522e0101c2110009ff000631ff0101ff09060600c80600c82905010a2d000222040110203079001001204301010904030600c805030600c87b000d80000d04080808080010020578250908696e7465726e65741201",
+              "decoded": {
+                "security_header": {
+                  "protocol_discriminator": {
+                    "type": "enum",
+                    "value": 126,
+                    "label": "5GMM",
+                    "unknown": false
+                  },
+                  "security_header_type": {
+                    "type": "enum",
+                    "value": 2,
+                    "label": "integrity protected and ciphered",
+                    "unknown": false
+                  },
+                  "authentication_code": 1910342596,
+                  "sequence_number": 2
+                },
+                "gmm_message": {
+                  "gmm_header": {
+                    "message_type": {
+                      "type": "enum",
+                      "value": 104,
+                      "label": "DL NAS TRANSPORT",
+                      "unknown": false
+                    }
+                  },
+                  "dl_nas_transport": {
+                    "spare_half_octet_and_payload_container_type": 1,
+                    "payload_container": {
+                      "raw": "LgEBwhEACf8ABjH/AQH/CQYGAMgGAMgpBQEKLQACIgQBECAweQAQASBDAQEJBAMGAMgFAwYAyHsADYAADQQICAgIABACBXglCQhpbnRlcm5ldA==",
+                      "gsm_message": {
+                        "gsm_header": {
+                          "message_type": {
+                            "type": "enum",
+                            "value": 194,
+                            "label": "PDU SESSION ESTABLISHMENT ACCEPT",
+                            "unknown": false
+                          },
+                          "pdu_session_id": 1,
+                          "pti": 1
+                        },
+                        "pdu_session_establishment_accept": {
+                          "selected_ssc_mode": 1,
+                          "selected_pdu_session_type": {
+                            "type": "enum",
+                            "value": 1,
+                            "label": "IPv4",
+                            "unknown": false
+                          },
+                          "authorized_qos_rules": [
+                            {
+                              "packet_filter_list": [
+                                {
+                                  "content": [
+                                    {
+                                      "component_value": null,
+                                      "component_type": {
+                                        "type": "enum",
+                                        "value": 1,
+                                        "label": "Match-all type",
+                                        "unknown": false
+                                      }
+                                    }
+                                  ],
+                                  "direction": {
+                                    "type": "enum",
+                                    "value": 3,
+                                    "label": "bidirectional",
+                                    "unknown": false
+                                  },
+                                  "identifier": 15
+                                }
+                              ],
+                              "identifier": 255,
+                              "operation_code": 1,
+                              "dqr": {
+                                "type": "enum",
+                                "value": 1,
+                                "label": "default",
+                                "unknown": false
+                              },
+                              "segregation": 0,
+                              "precedence": 255,
+                              "qfi": 9
+                            }
+                          ],
+                          "session_ambr": {
+                            "uplink": {
+                              "value": 200,
+                              "unit": "Mbps"
+                            },
+                            "downlink": {
+                              "value": 200,
+                              "unit": "Mbps"
+                            }
+                          },
+                          "pdu_address": "10.45.0.2",
+                          "snssai": {
+                            "sst": 1,
+                            "sd": "102030"
+                          },
+                          "authorized_qos_flow_descriptions": [
+                            {
+                              "param_list": [
+                                {
+                                  "identifier": {
+                                    "type": "enum",
+                                    "value": 1,
+                                    "label": "5QI",
+                                    "unknown": false
+                                  },
+                                  "length": 1,
+                                  "five_qi": 9
+                                },
+                                {
+                                  "identifier": {
+                                    "type": "enum",
+                                    "value": 4,
+                                    "label": "MFBR uplink",
+                                    "unknown": false
+                                  },
+                                  "length": 3,
+                                  "mfbr_ul_kbps": 200000
+                                },
+                                {
+                                  "identifier": {
+                                    "type": "enum",
+                                    "value": 5,
+                                    "label": "MFBR downlink",
+                                    "unknown": false
+                                  },
+                                  "length": 3,
+                                  "mfbr_dl_kbps": 200000
+                                }
+                              ],
+                              "qfi": 1,
+                              "op_code": {
+                                "type": "enum",
+                                "value": 1,
+                                "label": "create",
+                                "unknown": false
+                              },
+                              "e_bit": true
+                            }
+                          ],
+                          "extended_protocol_configuration_options": {
+                            "dns_server_ipv4_address_request_ul": true,
+                            "error": "unknown container ID 16"
+                          },
+                          "dnn": "internet"
+                        }
+                      }
+                    },
+                    "pdu_session_id_2_value": 1
+                  }
+                },
+                "encrypted": false
+              }
+            },
+            "snssai": {
+              "sst": 1,
+              "sd": "102030"
+            },
+            "pdu_session_resource_setup_request_transfer": {
+              "ul_ng_u_up_tnl_information": {
+                "gtp_tunnel": {
+                  "gtp_teid": 1,
+                  "transport_layer_address": "33.33.33.198"
+                }
+              },
+              "qos_flow_setup_request_list": [
+                {
+                  "qos_id": 1,
+                  "five_qi": 9,
+                  "pri_arp": 1
+                }
+              ],
+              "pdu_s_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "ipv4",
+                "unknown": false
+              },
+              "maximum_bit_rate": {
+                "downlink_n_aggregate_maximum_bit_rate": 200000000,
+                "uplink_n_aggregate_maximum_bit_rate": 200000000,
+                "unit": "bps"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 110,
+          "label": "UEAggregateMaximumBitRate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "downlink": 200000000,
+          "uplink": 200000000,
+          "unit": "bps"
+        }
+      }
+    ]
+  }
+}

@@ -90,8 +90,8 @@ func TestHandoverCancelAcknowledgeGolden(t *testing.T) {
 // continue without it; the AMF still has to see that it was missing.
 func TestHandoverCancelMissingCause(t *testing.T) {
 	value := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: idRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
 	)
 
 	out, err := ParseHandoverCancel(value)
@@ -104,14 +104,14 @@ func TestHandoverCancelMissingCause(t *testing.T) {
 	}
 
 	ies := out.meta().diagnostics.IEs
-	if len(ies) != 1 || ies[0].ID != idCause || ies[0].TypeOfError != TypeOfErrorMissing {
+	if len(ies) != 1 || ies[0].ID != IDCause || ies[0].TypeOfError != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for Cause", ies)
 	}
 }
 
 func TestHandoverCancelMissingRANUENGAPID(t *testing.T) {
 	value := container(t,
-		ieField{id: idAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
 	)
 
 	_, err := ParseHandoverCancel(value)

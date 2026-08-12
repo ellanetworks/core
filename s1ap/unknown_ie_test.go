@@ -91,7 +91,7 @@ func TestErrorIndicationCriticalityDiagnostics(t *testing.T) {
 			TriggeringMessage:    &tm,
 			ProcedureCriticality: &crit,
 			IEsCriticalityDiagnostics: []CriticalityDiagnosticsIEItem{
-				{IECriticality: CriticalityReject, IEID: idCause, TypeOfError: TypeOfErrorMissing},
+				{IECriticality: CriticalityReject, IEID: IDCause, TypeOfError: TypeOfErrorMissing},
 			},
 		},
 	}
@@ -123,7 +123,7 @@ func TestErrorIndicationCriticalityDiagnostics(t *testing.T) {
 	}
 
 	if len(cd.IEsCriticalityDiagnostics) != 1 ||
-		cd.IEsCriticalityDiagnostics[0].IEID != idCause ||
+		cd.IEsCriticalityDiagnostics[0].IEID != IDCause ||
 		cd.IEsCriticalityDiagnostics[0].TypeOfError != TypeOfErrorMissing {
 		t.Fatalf("IE list mismatch: %+v", cd.IEsCriticalityDiagnostics)
 	}
@@ -177,7 +177,7 @@ func TestUnmodeledIECriticality(t *testing.T) {
 			t.Fatalf("diagnostics = %v, want [%v not-understood]", ase.IEs, rejectID)
 		}
 
-		if !slices.ContainsFunc(ase.decoded, func(ie RawIE) bool { return ie.ID == idGlobalENBID }) {
+		if !slices.ContainsFunc(ase.decoded, func(ie RawIE) bool { return ie.ID == IDGlobalENBID }) {
 			t.Fatalf("decoded IEs = %v, want Global-eNB-ID carried on the rejection", ase.decoded)
 		}
 	})
