@@ -58,3 +58,43 @@ func TestS1APHandoverCause(t *testing.T) {
 		})
 	}
 }
+
+func TestNGAPHandoverCause(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   s1ap.Cause
+		want ngap.Cause
+	}{
+		{
+			name: "time critical",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTimeCriticalHandover},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTimeCriticalHandover},
+		},
+		{
+			name: "resource optimisation",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkResourceOptimisationHandover},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkResourceOptimisationHandover},
+		},
+		{
+			name: "reduce load",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReduceLoadInServingCell},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReduceLoadInServingCell},
+		},
+		{
+			name: "another radio cause",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio},
+		},
+		{
+			name: "another group",
+			in:   s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0},
+			want: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := amf.NGAPHandoverCause(tc.in); got != tc.want {
+				t.Errorf("cause = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}

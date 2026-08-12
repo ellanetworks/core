@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -102,6 +103,8 @@ type MME struct {
 	connIDs    *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
 
 	relocating map[etsi.SUPI]*relocation
+
+	relocationIDs atomic.Uint64
 
 	tmsi *etsi.TmsiAllocator
 

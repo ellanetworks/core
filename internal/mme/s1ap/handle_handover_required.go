@@ -38,18 +38,24 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 
 	ue.TouchLastSeen()
 
-	if req.HandoverType != s1ap.HandoverTypeIntraLTE {
-		logger.From(ctx, logger.MmeLog).Warn("Handover Required for an unsupported handover type",
-			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)), zap.Uint8("handover-type", uint8(req.HandoverType)))
-		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHOTargetNotAllowed)
-
-		return
-	}
-
 	if !ue.Secured() || !ue.HasKASME() {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required for a UE without a security context",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)))
 		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHandoverNoSecurity)
+
+		return
+	}
+
+	if req.HandoverType == s1ap.HandoverTypeEPSToFiveGS {
+		handoverRequiredToFiveGS(m, ctx, radio, req, ue, ueConn)
+
+		return
+	}
+
+	if req.HandoverType != s1ap.HandoverTypeIntraLTE {
+		logger.From(ctx, logger.MmeLog).Warn("Handover Required for an unsupported handover type",
+			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)), zap.Uint8("handover-type", uint8(req.HandoverType)))
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeHOTargetNotAllowed)
 
 		return
 	}

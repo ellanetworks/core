@@ -175,7 +175,7 @@ func (a *AMF) relocateFromEPS(
 		UESecurityCapability: ue.UESecCap(),
 		NCC:                  0,
 		NH:                   mapped.Context.TemporaryKgNB[:],
-		Cause:                req.Cause,
+		Cause:                NGAPHandoverCause(req.Cause),
 		Sessions:             sessions,
 		SourceToTarget:       ngap.SourceToTargetTransparentContainer(req.SourceToTarget),
 		SnssaiList:           snssaiList,

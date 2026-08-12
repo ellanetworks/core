@@ -9,7 +9,6 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -79,7 +78,7 @@ type FiveGSRelocationRequest struct {
 	PDNConnections  []PDNConnection
 	Target          NGRANIdentity
 	SourceToTarget  []byte
-	Cause           ngap.Cause
+	Cause           s1ap.Cause
 	UEAMBRUplink    models.BitRate
 	UEAMBRDownlink  models.BitRate
 }

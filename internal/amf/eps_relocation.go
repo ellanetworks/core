@@ -103,6 +103,21 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 	}, &mapped, nil
 }
 
+func NGAPHandoverCause(cause s1ap.Cause) ngap.Cause {
+	if cause.Group == s1ap.CauseGroupRadioNetwork {
+		switch cause.Value {
+		case s1ap.CauseRadioNetworkTimeCriticalHandover:
+			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTimeCriticalHandover}
+		case s1ap.CauseRadioNetworkResourceOptimisationHandover:
+			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkResourceOptimisationHandover}
+		case s1ap.CauseRadioNetworkReduceLoadInServingCell:
+			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReduceLoadInServingCell}
+		}
+	}
+
+	return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio}
+}
+
 // TS 29.010 §7.2, TS 29.274 §8.49
 func S1APHandoverCause(cause *ngap.Cause) s1ap.Cause {
 	if cause != nil && cause.Group == ngap.CauseGroupRadioNetwork {

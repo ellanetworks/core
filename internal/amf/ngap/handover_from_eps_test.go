@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 const (
@@ -114,7 +115,7 @@ func arrivingRequest() interworking.FiveGSRelocationRequest {
 		}},
 		Target:         arrivingTarget(),
 		SourceToTarget: []byte{0x01, 0x02},
-		Cause:          ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio},
+		Cause:          s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTimeCriticalHandover},
 		UEAMBRUplink:   models.MustParseBitRate("1 Gbps"),
 		UEAMBRDownlink: models.MustParseBitRate("1 Gbps"),
 	}
@@ -239,6 +240,10 @@ func TestForwardRelocationSendsAnInterSystemHandoverRequest(t *testing.T) {
 
 	if hoReq.SecurityContext.NextHopNH == (ngap.SecurityKey{}) {
 		t.Error("no next-hop key for the target NG-RAN node")
+	}
+
+	if hoReq.Cause == nil || *hoReq.Cause != (ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTimeCriticalHandover}) {
+		t.Errorf("cause = %+v, want the source eNB's time-critical handover mapped through", hoReq.Cause)
 	}
 
 	if hoReq.MobilityRestrictionList == nil {

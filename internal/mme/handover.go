@@ -38,12 +38,14 @@ type HandoverCandidate struct {
 }
 
 type handoverContext struct {
-	state      hoState
-	source     *UeConn
-	target     *UeConn
-	candidates []HandoverCandidate
-	admitted   []AdmittedERAB
-	relocation chan relocationOutcome
+	state        hoState
+	source       *UeConn
+	target       *UeConn
+	candidates   []HandoverCandidate
+	admitted     []AdmittedERAB
+	relocation   chan relocationOutcome
+	toFiveGS     bool
+	relocationID interworking.RelocationID
 }
 
 type relocationOutcome struct {
@@ -108,6 +110,95 @@ func (m *MME) PrepareHandover(ue *UeContext, target S1APWriter, reqMMEID s1ap.MM
 	m.mu.Unlock()
 
 	return targetMMEID, newNH, newNCC, true
+}
+
+func (m *MME) stageRelocationToFiveGS(ue *UeContext, source *UeConn, candidates []HandoverCandidate) (interworking.RelocationID, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if !ue.BeginKeyChainProc(procedure.S1Handover) {
+		return 0, false
+	}
+
+	id := interworking.RelocationID(m.relocationIDs.Add(1))
+
+	ue.handover = &handoverContext{
+		state:        hoPreparing,
+		source:       source,
+		candidates:   candidates,
+		toFiveGS:     true,
+		relocationID: id,
+	}
+
+	return id, true
+}
+
+func (m *MME) RelocationToFiveGS(ue *UeContext) (interworking.RelocationID, bool) {
+	if ue == nil {
+		return 0, false
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if ue.handover == nil || !ue.handover.toFiveGS {
+		return 0, false
+	}
+
+	return ue.handover.relocationID, true
+}
+
+func (m *MME) ClearRelocationToFiveGS(ue *UeContext, id interworking.RelocationID) (source *UeConn, ok bool) {
+	if ue == nil {
+		return nil, false
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ho := ue.handover
+	if ho == nil || !ho.toFiveGS || ho.relocationID != id {
+		return nil, false
+	}
+
+	source = ho.source
+
+	m.clearHandoverLocked(ue)
+
+	return source, true
+}
+
+func (m *MME) MarkRelocationToFiveGSPrepared(ue *UeContext, accepted map[uint8]struct{}) (unadmitted []HandoverCandidate, ok bool) {
+	if ue == nil {
+		return nil, false
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	ho := ue.handover
+	if ho == nil || !ho.toFiveGS || ho.state != hoPreparing {
+		return nil, false
+	}
+
+	reported := make(map[uint8]struct{}, len(ho.candidates))
+
+	for _, c := range ho.candidates {
+		if _, isAccepted := accepted[c.Ebi]; isAccepted {
+			continue
+		}
+
+		if _, dup := reported[c.Ebi]; dup {
+			continue
+		}
+
+		reported[c.Ebi] = struct{}{}
+		unadmitted = append(unadmitted, c)
+	}
+
+	ho.state = hoPrepared
+
+	return unadmitted, true
 }
 
 func (m *MME) prepareRelocation(ue *UeContext, target S1APWriter, candidates []HandoverCandidate) (targetMMEID s1ap.MMEUES1APID, outcome <-chan relocationOutcome, ok bool) {

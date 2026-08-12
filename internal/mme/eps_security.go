@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/epskeys"
@@ -38,6 +39,7 @@ func (ue *UeContext) InstallRelocatedSecurityContext(in interworking.EPSSecurity
 	ue.nh, ue.ncc = in.NH, in.NCC
 
 	ue.ueNetCap = relocatedNetworkCapability(in.UESecurityCapability)
+	ue.ue5GSecurityCapability = in.UE5GSecurityCapability
 
 	ue.secured = true
 
@@ -48,6 +50,43 @@ func (ue *UeContext) InstallRelocatedSecurityContext(in interworking.EPSSecurity
 	}
 
 	return nil
+}
+
+var ErrNoEPSSecurityContext = errors.New("mme: UE has no current EPS NAS security context")
+
+func (ue *UeContext) EPSSecurityContextForRelocation() (interworking.EPSSecurityContext, error) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if !ue.secured || len(ue.kasme) != len(interworking.EPSSecurityContext{}.KASME) {
+		return interworking.EPSSecurityContext{}, ErrNoEPSSecurityContext
+	}
+
+	var kasme [32]byte
+
+	copy(kasme[:], ue.kasme)
+
+	return interworking.EPSSecurityContext{
+		KASME:                  kasme,
+		EKSI:                   ue.eksi,
+		ULNASCount:             ue.ulCount.LastAccepted(),
+		DLNASCount:             ue.dlCount.Next(),
+		Algorithms:             interworking.EPSNASAlgorithms{Ciphering: ue.cipheringAlg, Integrity: ue.integrityAlg},
+		UESecurityCapability:   relocatedSecurityCapability(ue.ueNetCap),
+		NH:                     ue.nh,
+		NCC:                    ue.ncc,
+		UE5GSecurityCapability: ue.ue5GSecurityCapability,
+	}, nil
+}
+
+func relocatedSecurityCapability(c eps.UENetworkCapability) eps.UESecurityCapability {
+	return eps.UESecurityCapability{
+		EEA:     c.EEA,
+		EIA:     c.EIA,
+		HasUMTS: c.HasUMTS,
+		UEA:     c.UEA,
+		UIA:     c.UIA,
+	}
 }
 
 func relocatedNetworkCapability(c eps.UESecurityCapability) eps.UENetworkCapability {

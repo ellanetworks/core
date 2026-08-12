@@ -50,6 +50,7 @@ const (
 	CauseRadioNetworkHoTargetNotAllowed               = 8  // ho-target-not-allowed
 	CauseRadioNetworkHandoverDesirableForRadio        = 16 // handover-desirable-for-radio-reason
 	CauseRadioNetworkTimeCriticalHandover             = 17 // time-critical-handover
+	CauseRadioNetworkResourceOptimisationHandover     = 18 // resource-optimisation-handover
 	CauseRadioNetworkReduceLoadInServingCell          = 19 // reduce-load-in-serving-cell
 	CauseRadioNetworkTNGRelocOverallExpiry            = 9  // tngrelocoverall-expiry
 	CauseRadioNetworkUnknownTargetID                  = 12 // unknown-targetID
