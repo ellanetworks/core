@@ -15,7 +15,23 @@ import (
 func epsFramedTAU(t *testing.T, ue *UeContext, count nas.Count, bearer nas.Bearer) []byte {
 	t.Helper()
 
-	plain := []byte{uint8(eps.PDEMM), uint8(eps.MsgTrackingAreaUpdateRequest), 0x0b}
+	return epsFramedTAUCitingKSI(t, ue, count, bearer, 0)
+}
+
+// epsFramedTAUCitingKSI frames a TRACKING AREA UPDATE REQUEST whose NAS key set
+// identifier half-octet names eksi (TS 24.301 §8.2.29.1).
+func epsFramedTAUCitingKSI(t *testing.T, ue *UeContext, count nas.Count, bearer nas.Bearer, eksi uint8) []byte {
+	t.Helper()
+
+	return epsFramedEMM(t, ue, count, bearer, eps.MsgTrackingAreaUpdateRequest, eksi<<4|0x0b)
+}
+
+// epsFramedEMM frames a plain EMM message of type mt whose octet 3 is octet3,
+// integrity protected as a 5G NAS message over 3GPP access (TS 33.501 §8.5.2).
+func epsFramedEMM(t *testing.T, ue *UeContext, count nas.Count, bearer nas.Bearer, mt eps.MessageType, octet3 byte) []byte {
+	t.Helper()
+
+	plain := []byte{uint8(eps.PDEMM), uint8(mt), octet3}
 
 	mac, err := ue.sc.MAC(append([]byte{count.SQN()}, plain...), count, bearer, nas.DirectionUplink)
 	if err != nil {

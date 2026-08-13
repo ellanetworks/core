@@ -266,6 +266,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 
 	amf.mu.Lock()
 	amf.releaseTmsisLocked(ue)
+	amf.endRelocationFromEPSLocked(ue.supi, ue)
 
 	// Only delete the SUPI index if it still points to this context: an authenticated
 	// re-registration indexes the new context under the same SUPI before this superseded

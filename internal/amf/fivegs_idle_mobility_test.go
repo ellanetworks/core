@@ -9,6 +9,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -65,6 +66,7 @@ func leavingUE(t *testing.T, a *AMF, guti etsi.GUTI5G) *UeContext {
 	}
 
 	ue.SetSupiForTest(supi)
+	ue.ForceStateForTest(Registered)
 	ue.SetAllow4G(true)
 	ue.Ambr = &models.Ambr{
 		Uplink:   models.MustParseBitRate("50 Mbps"),
@@ -216,6 +218,121 @@ func TestEPSContextRefusals(t *testing.T) {
 		}
 	})
 
+	// The peer's mirror-image handler refuses a context that is not a registered,
+	// secured one; this one must too, and before it reads the enclosed message.
+	t.Run("a context that is not registered", func(t *testing.T) {
+		a := idleMobilityAMF()
+		guti := idleMobilityGUTI(t)
+		ue := leavingUE(t, a, guti)
+
+		count, err := ue.ulCount.Estimate(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := mappedRequest(t, ue, guti, count)
+		ue.ForceStateForTest(Deregistered)
+
+		if _, err := a.EPSContext(context.Background(), req); !errors.Is(err, interworking.ErrUnknownUEContext) {
+			t.Fatalf("error = %v, want an unknown context", err)
+		}
+	})
+
+	t.Run("a context with no security context installed", func(t *testing.T) {
+		a := idleMobilityAMF()
+		guti := idleMobilityGUTI(t)
+		ue := leavingUE(t, a, guti)
+
+		count, err := ue.ulCount.Estimate(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := mappedRequest(t, ue, guti, count)
+		ue.SetSecuredForTest(false)
+
+		if _, err := a.EPSContext(context.Background(), req); !errors.Is(err, interworking.ErrUnknownUEContext) {
+			t.Fatalf("error = %v, want an unknown context", err)
+		}
+	})
+
+	// TS 23.502 §4.11.1.3.2 step 15c leaves a deregistered context resolvable by its
+	// 5G-GUTI so a return from EPS resumes on native keys. A second context request
+	// for a UE already handed over must not export it again.
+	t.Run("a context already handed over to EPS", func(t *testing.T) {
+		a := idleMobilityAMF()
+		guti := idleMobilityGUTI(t)
+		ue := leavingUE(t, a, guti)
+
+		count, err := ue.ulCount.Estimate(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count)); err != nil {
+			t.Fatalf("EPSContext: %v", err)
+		}
+
+		if err := a.EPSContextAck(context.Background(), ue.Supi(), []uint8{3}); err != nil {
+			t.Fatalf("EPSContextAck: %v", err)
+		}
+
+		next, err := ue.ulCount.Estimate(uint8(count) + 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err := a.EPSContext(context.Background(), mappedRequest(t, ue, guti, next)); !errors.Is(err, interworking.ErrUnknownUEContext) {
+			t.Fatalf("error = %v, want an unknown context", err)
+		}
+	})
+
+	// TS 33.501 §8.5.2 steps 3-4
+	t.Run("a container holding no TAU REQUEST", func(t *testing.T) {
+		a := idleMobilityAMF()
+		guti := idleMobilityGUTI(t)
+		ue := leavingUE(t, a, guti)
+
+		count, err := ue.ulCount.Estimate(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := mappedRequest(t, ue, guti, count)
+		req.EPSNAS = epsFramedEMM(t, ue, count, nas.Bearer3GPP, eps.MsgDetachRequest, 0x01)
+
+		if _, err := a.EPSContext(context.Background(), req); !errors.Is(err, interworking.ErrIntegrityCheckFailed) {
+			t.Fatalf("error = %v, want an integrity failure", err)
+		}
+
+		if _, err := a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count)); err != nil {
+			t.Fatalf("EPSContext after a refused container: %v: the refusal spent the uplink NAS COUNT the real update needs", err)
+		}
+	})
+
+	// TS 33.501 §8.5.2 step 4
+	t.Run("a TAU citing another 5G NAS security context", func(t *testing.T) {
+		a := idleMobilityAMF()
+		guti := idleMobilityGUTI(t)
+		ue := leavingUE(t, a, guti)
+
+		count, err := ue.ulCount.Estimate(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := mappedRequest(t, ue, guti, count)
+		req.EPSNAS = epsFramedTAUCitingKSI(t, ue, count, nas.Bearer3GPP, uint8(ue.NgKsi().Ksi)+1)
+
+		if _, err := a.EPSContext(context.Background(), req); !errors.Is(err, interworking.ErrIntegrityCheckFailed) {
+			t.Fatalf("error = %v, want an integrity failure", err)
+		}
+
+		if _, err := a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count)); err != nil {
+			t.Fatalf("EPSContext after a refused eKSI: %v: the refusal spent the uplink NAS COUNT the real update needs", err)
+		}
+	})
+
 	t.Run("a TAU MAC'd over the EPS bearer", func(t *testing.T) {
 		a := idleMobilityAMF()
 		guti := idleMobilityGUTI(t)
@@ -235,16 +352,11 @@ func TestEPSContextRefusals(t *testing.T) {
 	})
 }
 
-// TS 23.502 §4.11.1.3.2 step 8
-// TS 23.401 §5.3.3.1 step 7, which TS 23.502 §4.11.1.3.2 steps 7-14 performs: an
-// inter-system change the peer abandons leaves this AMF serving the UE exactly as
-// before, so the UE that stays on NR keeps its sessions. Nothing is released until
-// the acknowledgement says what moved.
+// TS 23.401 §5.3.3.1 step 7, which TS 23.502 §4.11.1.3.2 steps 7-14 performs
 func TestEPSContextHandedOverButNeverAcknowledgedKeepsServingTheUE(t *testing.T) {
 	a := idleMobilityAMF()
 	guti := idleMobilityGUTI(t)
 	ue := leavingUE(t, a, guti)
-	ue.ForceStateForTest(Registered)
 
 	count, err := ue.ulCount.Estimate(0)
 	if err != nil {
@@ -268,6 +380,7 @@ func TestEPSContextHandedOverButNeverAcknowledgedKeepsServingTheUE(t *testing.T)
 	}
 }
 
+// TS 23.502 §4.11.1.3.2 step 8
 func TestEPSContextAckReleasesWhatDidNotTransferAndKeepsTheContext(t *testing.T) {
 	a := idleMobilityAMF()
 	guti := idleMobilityGUTI(t)
@@ -307,4 +420,50 @@ func TestEPSContextAckForAnUnknownSubscriber(t *testing.T) {
 	if err := a.EPSContextAck(context.Background(), supi, nil); !errors.Is(err, interworking.ErrUnknownUEContext) {
 		t.Fatalf("error = %v, want an unknown context", err)
 	}
+}
+
+// The subscribed UE-AMBR is written on the NAS dispatch goroutine while the peer's
+// context request reads it on its own, so both sides take ue.mu.
+func TestEPSContextReadsTheAmbrUnderTheLock(t *testing.T) {
+	const rounds = 64
+
+	a := idleMobilityAMF()
+	guti := idleMobilityGUTI(t)
+	ue := leavingUE(t, a, guti)
+
+	// Built up front: the request builder reads the security context and estimates
+	// uplink NAS COUNTs, which EPSContext then commits.
+	reqs := make([]interworking.EPSContextRequest, 0, rounds)
+
+	for i := range rounds {
+		count, err := ue.ulCount.Estimate(uint8(i))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		reqs = append(reqs, mappedRequest(t, ue, guti, count))
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for range rounds {
+			ue.SetAmbr(&models.Ambr{
+				Uplink:   models.MustParseBitRate("50 Mbps"),
+				Downlink: models.MustParseBitRate("100 Mbps"),
+			})
+		}
+	}()
+
+	for _, req := range reqs {
+		if _, err := a.EPSContext(context.Background(), req); err != nil {
+			t.Fatalf("EPSContext: %v", err)
+		}
+	}
+
+	wg.Wait()
 }

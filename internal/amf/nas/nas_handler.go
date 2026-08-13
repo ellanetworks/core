@@ -290,10 +290,6 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	additional := etsi.InvalidGUTI5G
 
-	// On an inter-system change from S1 mode the 5GS mobile identity carries a
-	// 5G-GUTI mapped from the UE's 4G-GUTI, which names the MME rather than any
-	// context here; the UE's own 5G-GUTI is the native one in the Additional GUTI IE
-	// (TS 24.501 §5.5.1.3.2 a) NOTE 6, §5.5.1.3.4 a) and c)).
 	nativeIsAdditional := false
 
 	switch msgType {
@@ -370,8 +366,6 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			continue
 		}
 
-		// A pure check, so an identity that resolves the wrong context costs nothing
-		// but the attempt and the next candidate still gets its turn.
 		if !ue.ReuseForInboundNAS(payload) {
 			logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(candidate.String()))
 			continue

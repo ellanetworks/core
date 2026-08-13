@@ -126,7 +126,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
-	ue.Ambr = &models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink}
+	ue.SetAmbr(&models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink})
 	ue.AllowedNssai = snssaiList
 	ue.SetAllow4G(subscriberProfile.Allow4G)
 	ue.smf = a.Session
@@ -460,6 +460,11 @@ func (a *AMF) endRelocationFromEPS(supi etsi.SUPI, ue *UeContext) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	a.endRelocationFromEPSLocked(supi, ue)
+}
+
+// The caller holds a.mu.
+func (a *AMF) endRelocationFromEPSLocked(supi etsi.SUPI, ue *UeContext) {
 	if held, ok := a.relocatingFromEPS[supi]; ok && held.ue == ue {
 		delete(a.relocatingFromEPS, supi)
 	}

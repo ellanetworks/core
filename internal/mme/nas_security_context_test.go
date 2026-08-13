@@ -48,11 +48,7 @@ func TestInstallNASSecurityContext_ResetsNASCounts(t *testing.T) {
 	}
 }
 
-// TestRekeyNASSecurityContextKeepsNASCounts verifies that changing the NAS
-// algorithms of the EPS security context already in use re-derives the keys from
-// the same K_ASME without restarting its NAS COUNTs (TS 24.301 §5.4.3.2,
-// TS 33.401 §6.5, §7.2.8.1.2). A context mapped from 5GS inherits the 5G NAS
-// COUNTs, which the UE keeps (TS 24.301 §4.4.3.1, §5.4.3.3).
+// TS 24.301 §5.4.3.2, TS 33.401 §6.5, §7.2.8.1.2)
 func TestRekeyNASSecurityContextKeepsNASCounts(t *testing.T) {
 	m := newTestMME(t)
 	ue := m.NewUe(&captureConn{}, 7)

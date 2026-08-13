@@ -47,8 +47,6 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 	}{
 		{name: "the 5GS peer holds no context", err: interworking.ErrUnknownUEContext},
 		{name: "the 5GS peer could not verify the update", err: interworking.ErrIntegrityCheckFailed},
-		// TS 24.301 §5.5.3.2.2 case z: a UE holding no valid 5G NAS security
-		// context sends the update without integrity protection.
 		{name: "the update carries no integrity protection", err: interworking.ErrIntegrityCheckFailed, unprotected: true},
 		{name: "the operator configured no 5GS peer", noPeer: true},
 	} {

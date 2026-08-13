@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -32,6 +33,35 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 		return none, fmt.Errorf("%w: no context for 5G-GUTI %s", interworking.ErrUnknownUEContext, presented.String())
 	}
 
+	// Only a registered, secured context is the UE's current one to hand over, and
+	// the peer's mirror-image handler guards the same way. The AMF keeps a
+	// deregistered context resolvable by its 5G-GUTI so a return from EPS can resume
+	// on native keys (TS 23.502 §4.11.1.3.2 step 15c), which is not a context to
+	// export again.
+	if ue.State() != Registered || !ue.Secured() {
+		return none, fmt.Errorf("%w: the context for 5G-GUTI %s is not a registered, secured one",
+			interworking.ErrUnknownUEContext, presented.String())
+	}
+
+	ambrUplink, ambrDownlink, ok := ue.AmbrRates()
+	if !ok {
+		return none, fmt.Errorf("amf: UE has no AMBR")
+	}
+
+	spm, err := eps.ParseSecurityProtectedMessage(req.EPSNAS)
+	if err != nil {
+		return none, fmt.Errorf("%w: %w", interworking.ErrIntegrityCheckFailed, err)
+	}
+
+	// TS 33.501 §8.5.2 steps 3-4
+	if mt, err := eps.PeekMessageType(spm.UnverifiedPayload); err != nil || mt != eps.MsgTrackingAreaUpdateRequest {
+		return none, fmt.Errorf("%w: the container holds no TRACKING AREA UPDATE REQUEST", interworking.ErrIntegrityCheckFailed)
+	}
+
+	if err := ue.CitesCurrentSecurityContext(spm.UnverifiedPayload); err != nil {
+		return none, fmt.Errorf("%w: %w", interworking.ErrIntegrityCheckFailed, err)
+	}
+
 	if _, err := ue.VerifyEnclosedEPSNAS(req.EPSNAS); err != nil {
 		return none, fmt.Errorf("%w: %w", interworking.ErrIntegrityCheckFailed, err)
 	}
@@ -39,11 +69,6 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 	security, err := ue.MapSecurityContextToEPSOnIdleMobility()
 	if err != nil {
 		return none, err
-	}
-
-	ambr := ue.Ambr
-	if ambr == nil {
-		return none, fmt.Errorf("amf: UE has no AMBR")
 	}
 
 	sessions := ue.AllTransferableEPSSessions()
@@ -55,8 +80,8 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 		SUPI:           ue.Supi(),
 		Security:       security,
 		PDNConnections: sessions,
-		AMBRUplink:     ambr.Uplink,
-		AMBRDownlink:   ambr.Downlink,
+		AMBRUplink:     ambrUplink,
+		AMBRDownlink:   ambrDownlink,
 	}, nil
 }
 

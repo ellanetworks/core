@@ -62,3 +62,41 @@ func TestRelocationCancelRejectsAnUnknownRelocation(t *testing.T) {
 		t.Fatal("a cancel naming another relocation was accepted")
 	}
 }
+
+// The relocation registry admits one handover from EPS per subscriber, so an entry
+// that outlives the context naming it locks that subscriber out for good. The MME
+// clears the mirror registry from removeContextLocked; the AMF must clear this one
+// from its own removal path, which is reached even when the connection has already
+// passed to a fresh re-registration.
+func TestRemovingAUeContextEndsItsRelocationFromEPS(t *testing.T) {
+	a, ue, _, supi := cancelWindowUE(t)
+
+	if !a.beginRelocationFromEPS(supi, 7, ue) {
+		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
+	}
+
+	a.DeregisterAndRemoveUeContext(context.Background(), ue)
+
+	if !a.beginRelocationFromEPS(supi, 8, NewUeContext()) {
+		t.Fatal("the subscriber is still marked as relocating from EPS, so every later handover for it is refused")
+	}
+}
+
+// A removal must not clear an entry another context holds: a superseded husk is torn
+// down after a fresh context has taken over the subscriber.
+func TestRemovingASupersededContextKeepsTheLiveRelocation(t *testing.T) {
+	a, husk, _, supi := cancelWindowUE(t)
+
+	live := NewUeContext()
+	live.SetSupi(supi)
+
+	if !a.beginRelocationFromEPS(supi, 7, live) {
+		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
+	}
+
+	a.DeregisterAndRemoveUeContext(context.Background(), husk)
+
+	if a.beginRelocationFromEPS(supi, 8, NewUeContext()) {
+		t.Fatal("tearing down a superseded context dropped the live relocation another context holds")
+	}
+}

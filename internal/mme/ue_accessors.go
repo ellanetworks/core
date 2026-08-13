@@ -211,10 +211,6 @@ func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia n
 	return nil
 }
 
-// RekeyNASSecurityContext re-derives the NAS keys of the EPS security context
-// already in use, from the same K_ASME with new algorithm identities as the only
-// changed input (TS 33.401 §7.2.8.1.2). The context is not a new one, so its NAS
-// COUNTs carry on (TS 24.301 §5.4.3.2, TS 33.401 §6.5).
 func (ue *UeContext) RekeyNASSecurityContext(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, _ AuthProof) error {
 	sc, err := ue.deriveNASKeys(eea, eia, keepNASCounts)
 	if err != nil {

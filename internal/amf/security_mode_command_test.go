@@ -30,13 +30,12 @@ func horizontalDerivationRequired(smc *fgs.SecurityModeCommand) bool {
 	return smc.AdditionalSecurityInformation != nil && smc.AdditionalSecurityInformation.HDP
 }
 
-func securityModeCommandUE(t *testing.T, origin amf.KeyOrigin, regType fgs.RegistrationType) *amf.UeContext {
+func securityModeCommandUE(t *testing.T, regType fgs.RegistrationType) *amf.UeContext {
 	t.Helper()
 
 	ue := buildTestUE(t)
 	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{2}, []uint8{2}))
 	attachTestConn(t, ue)
-	ue.SetKeyOriginForTest(origin)
 
 	conn := ue.Conn()
 	if conn == nil {
@@ -48,39 +47,26 @@ func securityModeCommandUE(t *testing.T, origin amf.KeyOrigin, regType fgs.Regis
 	return ue
 }
 
-func TestSecurityModeCommandDoesNotClaimHorizontalDerivationAfterPrimaryAuth(t *testing.T) {
+// TS 33.501 Annex A.13, TS 24.501 §5.4.2.2: the horizontal derivation parameter
+// tells the UE to derive a new KAMF and zero its NAS COUNTs. This AMF derives no
+// KAMF horizontally, so no registration type may claim that it did.
+func TestSecurityModeCommandNeverClaimsHorizontalDerivation(t *testing.T) {
 	for _, regType := range []fgs.RegistrationType{
 		fgs.RegistrationTypeInitial,
 		fgs.RegistrationTypeMobilityUpdating,
 		fgs.RegistrationTypePeriodicUpdating,
 		fgs.RegistrationTypeEmergency,
 	} {
-		ue := securityModeCommandUE(t, amf.KeyOriginPrimaryAuth, regType)
+		ue := securityModeCommandUE(t, regType)
 
 		if horizontalDerivationRequired(securityModeCommandForTest(t, ue)) {
-			t.Errorf("registration type %v: HDP is set, but the KAMF comes from primary authentication, not from a KAMF to K'AMF derivation", regType)
+			t.Errorf("registration type %v: HDP is set, so the UE would derive a KAMF this AMF never derived", regType)
 		}
 	}
 }
 
-func TestSecurityModeCommandDoesNotClaimHorizontalDerivationForAMappedContext(t *testing.T) {
-	ue := securityModeCommandUE(t, amf.KeyOriginMappedFromEPS, fgs.RegistrationTypeMobilityUpdating)
-
-	if horizontalDerivationRequired(securityModeCommandForTest(t, ue)) {
-		t.Error("HDP is set, but a mapped KAMF' is derived from the KASME, not horizontally")
-	}
-}
-
-func TestSecurityModeCommandSignalsHorizontalDerivation(t *testing.T) {
-	ue := securityModeCommandUE(t, amf.KeyOriginHorizontalDerivation, fgs.RegistrationTypeMobilityUpdating)
-
-	if !horizontalDerivationRequired(securityModeCommandForTest(t, ue)) {
-		t.Error("HDP is not set for a horizontally derived KAMF")
-	}
-}
-
 func TestSecurityModeCommandOmitsAdditionalSecurityInformationWhenNothingToSignal(t *testing.T) {
-	ue := securityModeCommandUE(t, amf.KeyOriginPrimaryAuth, fgs.RegistrationTypeMobilityUpdating)
+	ue := securityModeCommandUE(t, fgs.RegistrationTypeMobilityUpdating)
 
 	smc := securityModeCommandForTest(t, ue)
 	if smc.AdditionalSecurityInformation != nil {
@@ -89,7 +75,7 @@ func TestSecurityModeCommandOmitsAdditionalSecurityInformationWhenNothingToSigna
 }
 
 func TestSecurityModeCommandRequestsRetransmissionWithoutHorizontalDerivation(t *testing.T) {
-	ue := securityModeCommandUE(t, amf.KeyOriginPrimaryAuth, fgs.RegistrationTypeMobilityUpdating)
+	ue := securityModeCommandUE(t, fgs.RegistrationTypeMobilityUpdating)
 
 	conn := ue.Conn()
 	conn.RetransmissionOfInitialNASMsg = true

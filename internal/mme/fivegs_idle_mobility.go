@@ -74,8 +74,6 @@ func (m *MME) AdoptIdlePDNs(ctx context.Context, ue *UeContext, conns []interwor
 	return transferred
 }
 
-// The selection reads netCap so that it matches the one the security mode
-// command would negotiate and replay (TS 33.401 §7.2.4.3.2, §7.2.4.4).
 func (m *MME) NASAlgorithmsForMappedContext(ctx context.Context, netCap eps.UENetworkCapability, current interworking.EPSNASAlgorithms) (algorithms interworking.EPSNASAlgorithms, changed bool, err error) {
 	intOrder, encOrder, err := m.SecurityAlgorithms(ctx)
 	if err != nil {

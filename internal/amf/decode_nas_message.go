@@ -141,6 +141,27 @@ func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 
 var ErrNoUplinkNASCount = errors.New("amf: no uplink NAS COUNT admits the message")
 
+// CitesCurrentSecurityContext reports whether the enclosed EPS NAS message names
+// the UE's current 5G NAS security context. The UE carries the ngKSI value of
+// that context in the eKSI of the update it sends over S1 (TS 24.301 §4.4.2.3,
+// TS 33.501 §8.5.2 step 1), and the AMF identifies the context by that value
+// field before verifying the message with it (TS 33.501 §8.5.2 step 4). Only the
+// value is compared: the type flag describes the context in EPS terms, not the
+// 5G one the value names.
+func (ue *UeContext) CitesCurrentSecurityContext(plain []byte) error {
+	cited, err := eps.PeekKeySetIdentifier(plain)
+	if err != nil {
+		return err
+	}
+
+	if held := ue.NgKsi(); cited.Value != uint8(held.Ksi) {
+		return fmt.Errorf("amf: the enclosed message cites eKSI %d, the UE's current 5G NAS security context is ngKSI %d",
+			cited.Value, held.Ksi)
+	}
+
+	return nil
+}
+
 func (ue *UeContext) VerifyEnclosedEPSNAS(payload []byte) (nas.Count, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

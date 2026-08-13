@@ -192,9 +192,7 @@ func TestMMContextRefusals(t *testing.T) {
 	})
 }
 
-// TS 23.401 §5.3.3.1 step 7: an inter-system change the peer abandons leaves this
-// MME serving the UE exactly as before, so the UE that falls back to E-UTRAN finds
-// its context. Nothing is released until the acknowledgement says what moved.
+// TS 23.401 §5.3.3.1 step 7
 func TestMMContextHandedOverButNeverAcknowledgedKeepsServingTheUE(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleMobilityUE(t, m)

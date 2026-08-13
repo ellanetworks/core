@@ -254,10 +254,7 @@ func TestOrdinaryTAUOnABareConnectionMintsNothing(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.4.3: a subscriber maps to exactly one context. Without the
-// commit the arriving context is never indexed by SUPI, so the 5GS peer's later
-// context acknowledgement finds nothing and this MME keeps PDN connections for a
-// UE that has left (TS 23.502 §4.11.1.3.3 step 14).
+// TS 24.301 §4.4.4.3
 func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -299,10 +296,7 @@ func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 	}
 }
 
-// TS 23.401 §5.3.3.1 step 8, performed by TS 23.502 §4.11.1.3.2 steps 7-14:
-// with no bearer context at all the MME rejects the update rather than telling
-// the UE its connectivity survived. The 5GS peer keeps what it still holds
-// (TS 23.401 §5.3.3.1 step 7).
+// TS 23.401 §5.3.3.1 step 8, TS 24.301 annex A.2 cause #40
 func TestInterSystemTAUWithNothingToAdoptIsRejected(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -343,8 +337,9 @@ func TestInterSystemTAUWithNothingToAdoptIsRejected(t *testing.T) {
 				t.Fatalf("the MME answered something other than a reject, so the UE believes its bearers survived: %v", err)
 			}
 
-			if rej.Cause != eps.EMMCauseImplicitlyDetached {
-				t.Errorf("reject cause = %d, want #%d so the UE attaches afresh", rej.Cause, eps.EMMCauseImplicitlyDetached)
+			if rej.Cause != eps.EMMCauseNoEPSBearerContextActivated {
+				t.Errorf("reject cause = %d, want #%d so the UE drops its mapped bearers and attaches afresh",
+					rej.Cause, eps.EMMCauseNoEPSBearerContextActivated)
 			}
 
 			if peer.Acked {
@@ -378,11 +373,7 @@ func TestInterSystemTAURekeysOnAnAlgorithmChange(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.3.1, §5.4.3.2; TS 33.401 §6.5. A context mapped from 5GS
-// inherits the 5G NAS COUNTs; changing its algorithms re-keys it under the same
-// K'ASME, which is not a new context, so neither side restarts the counters. The
-// UE keeps its uplink NAS COUNT because the eKSI matches its current mapped
-// context (TS 24.301 §5.4.3.3).
+// TS 24.301 §4.4.3.1, §5.4.3.2; TS 33.401 §6.5.
 func TestInterSystemTAURekeyKeepsTheMappedNASCounts(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
@@ -420,10 +411,7 @@ func TestInterSystemTAURekeyKeepsTheMappedNASCounts(t *testing.T) {
 	}
 }
 
-// TS 33.401 §7.2.4.4, TS 24.301 §5.4.3.3. The UE checks the replay against what
-// it sent, and §8.2.29.7 makes the UE network capability IE mandatory in every
-// non-periodic TRACKING AREA UPDATE REQUEST, so the peer's relayed copy is never
-// the one to replay.
+// TS 33.401 §7.2.4.4, TS 24.301 §5.4.3.3.
 func TestInterSystemTAURekeyReplaysTheCapabilitiesTheUEJustSent(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,

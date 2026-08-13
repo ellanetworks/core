@@ -217,12 +217,10 @@ func (ue *UeContext) InstallMappedSecurityContextFromEPS(mapped interworking.Map
 	ue.ncc = mapped.NCC
 
 	ue.secured = true
-	ue.keyOrigin = KeyOriginMappedFromEPS
 
 	err := ue.installSecurityContextLocked()
 	if err != nil {
 		ue.secured = false
-		ue.keyOrigin = KeyOriginUnknown
 	}
 
 	sc := ue.sc

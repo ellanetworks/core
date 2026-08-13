@@ -162,11 +162,7 @@ func securedUeForTest(t *testing.T, amfInstance *amf.AMF, imsi string, guti etsi
 	return ue
 }
 
-// TestFetchUeContext_InterSystemChangeResolvesTheAdditionalGUTI covers the
-// 5G-GUTI mapped from a 4G-GUTI carrying this deployment's own GUAMI, so it
-// resolves in the AMF's own 5G-TMSI index even though it names the MME. The
-// native context lives behind the Additional GUTI IE and must still be found
-// (TS 24.501 §5.5.1.3.2 a) NOTE 6, §5.5.1.3.4 a) and c)).
+// TS 24.501 §5.5.1.3.2 a) NOTE 6, §5.5.1.3.4 a) and c)
 func TestFetchUeContext_InterSystemChangeResolvesTheAdditionalGUTI(t *testing.T) {
 	amfInstance := reuseTestAMF()
 
@@ -206,11 +202,7 @@ func TestFetchUeContext_InterSystemChangeResolvesTheAdditionalGUTI(t *testing.T)
 	}
 }
 
-// TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim is the
-// end-to-end regression for the GUTI-spoof DoS: a plain (unauthenticated)
-// initial REGISTRATION REQUEST that resolves by GUTI to a registered UE must be
-// routed to a fresh context, leaving the victim's committed context untouched
-// (TS 24.501).
+// TS 24.501
 func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing.T) {
 	gutiID := fgs.GUTIIdentity(fgs.GUTI{
 		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
