@@ -91,7 +91,7 @@ func interSystemTAU(t *testing.T, mutate func(*eps.TrackingAreaUpdateRequest)) [
 	req := &eps.TrackingAreaUpdateRequest{
 		EPSUpdateType: 0,
 		OldGUTI: eps.GUTIIdentity(eps.GUTI{
-			PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 0x0100, MMECode: 0x40,
+			PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 0x8100, MMECode: 0x40,
 			TMSI: [4]byte{0x00, 0x00, 0xde, 0xad},
 		}),
 		OldGUTIType: &native,
@@ -203,6 +203,95 @@ func TestInterSystemTAURecoversTheContextFromTheAMF(t *testing.T) {
 
 	if p := m.LookupPDN(ue, 6); p == nil {
 		t.Error("the arriving PDU session was not published as a PDN connection on EBI 6")
+	}
+}
+
+// TS 24.301 §5.5.3.2.7 d)
+func TestRepeatedInterSystemTAUReKeysTheHeldContext(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
+	})}
+
+	m, conn, _ := idleArrivalMME(t, peer)
+
+	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+	first := conn.UeContext()
+	if first == nil {
+		t.Fatal("no context was bound by the first update")
+	}
+
+	peer.Acked, peer.Transferred = false, nil
+
+	var remapped [32]byte
+	for i := range remapped {
+		remapped[i] = byte(0xa0 + i)
+	}
+
+	peer.Response.Security.KASME = remapped
+
+	repeat := m.NewUeConn(&captureConn{}, 9)
+	repeat.ServingTAI = servedAttachTAI
+
+	dispositionForNAS(context.Background(), m, repeat, interSystemTAU(t, nil))
+
+	resumed := repeat.UeContext()
+	if resumed != first {
+		t.Fatal("the repeated update built a second context, so committing it releases the sessions the first pass moved")
+	}
+
+	if len(peer.Requests) != 2 {
+		t.Fatalf("context requests = %d, want the repeated update forwarded to the AMF as well", len(peer.Requests))
+	}
+
+	held, err := resumed.EPSSecurityContextForRelocation()
+	if err != nil {
+		t.Fatalf("EPSSecurityContextForRelocation: %v", err)
+	}
+
+	if held.KASME != remapped {
+		t.Errorf("K'ASME = %x, want the one the AMF derived from the repeated TAU's count %x", held.KASME, remapped)
+	}
+
+	if p := m.LookupPDN(resumed, 6); p == nil {
+		t.Error("the PDN connection of the first pass is gone, so the UE keeps no bearer through the retransmission")
+	}
+
+	if peer.Acked {
+		t.Error("the AMF was acknowledged a second time for sessions that moved once")
+	}
+}
+
+// TS 24.301 §5.5.3.2.7 d)
+func TestInterSystemTAUAfterTheProcedureCompletedStartsAfresh(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
+	})}
+
+	m, conn, _ := idleArrivalMME(t, peer)
+
+	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+	first := conn.UeContext()
+	if first == nil {
+		t.Fatal("no context was bound by the first update")
+	}
+
+	handleTrackingAreaUpdateComplete(context.Background(), m, first, conn)
+
+	peer.Acked, peer.Transferred = false, nil
+
+	later := m.NewUeConn(&captureConn{}, 9)
+	later.ServingTAI = servedAttachTAI
+
+	dispositionForNAS(context.Background(), m, later, interSystemTAU(t, nil))
+
+	if later.UeContext() == first {
+		t.Error("a later inter-system change resumed a context whose procedure had completed, so its PDU sessions never moved")
+	}
+
+	if !peer.Acked {
+		t.Error("the AMF was not acknowledged, so it keeps serving a UE that has left again")
 	}
 }
 

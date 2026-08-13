@@ -176,6 +176,8 @@ type UeContext struct {
 
 	emmState EMMState
 
+	idleMobilityFrom5GS bool
+
 	releasing bool
 
 	regStep RegStep

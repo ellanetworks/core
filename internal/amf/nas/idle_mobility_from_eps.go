@@ -62,10 +62,13 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		logger.SUPI(resp.SUPI.String()), zap.Int("pdn-connections", len(resp.PDNConnections)))
 }
 
-func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) {
+// adoptArrivingSessions reports whether the registration may proceed. Nothing has
+// moved when the identity commit fails, so the MME still holds the UE's context and
+// PDN connections and aborting returns the UE to EPS (TS 23.502 §4.11.1.3.3).
+func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) bool {
 	arriving := conn.ArrivingFromEPS
 	if arriving == nil {
-		return
+		return true
 	}
 
 	conn.ArrivingFromEPS = nil
@@ -73,8 +76,9 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 	supi := ue.Supi()
 
 	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForInterworking()); err != nil {
-		logger.From(ctx, logger.AmfLog).Error("failed to commit the identity of a UE arriving from EPS", zap.Error(err))
-		return
+		abortRegistration(ctx, amfInstance, ue, "commit the identity of a UE arriving from EPS", err)
+
+		return false
 	}
 
 	transferred := make([]uint8, 0, len(arriving.PDN))
@@ -91,8 +95,13 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		}
 
 		if err := ue.CreateSmContext(c.PDUSessionID, ref, &snssai, c.APN); err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("failed to open the SM context of an arriving PDN connection",
+			logger.From(ctx, logger.AmfLog).Warn("failed to open the SM context of an arriving PDN connection; releasing the session it moved",
 				zap.Error(err), zap.Uint8("pdu_session_id", c.PDUSessionID))
+
+			if err := amfInstance.Session.ReleaseSmContext(ctx, ref); err != nil {
+				logger.From(ctx, logger.AmfLog).Warn("failed to release the session of a PDN connection the AMF could not adopt",
+					zap.Error(err), zap.Uint8("pdu_session_id", c.PDUSessionID))
+			}
 
 			continue
 		}
@@ -110,4 +119,6 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 	logger.From(ctx, logger.AmfLog).Info("adopted the PDN connections of a UE arriving from EPS in idle mode",
 		logger.SUPI(supi.String()), zap.Int("adopted", len(transferred)),
 		zap.Int("offered", len(arriving.PDN)))
+
+	return true
 }

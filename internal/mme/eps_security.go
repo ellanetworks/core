@@ -65,6 +65,35 @@ func (ue *UeContext) installRelocatedKeys(in interworking.EPSSecurityContext) (*
 	return sc, nil
 }
 
+func (ue *UeContext) BeginIdleMobilityFrom5GS() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.idleMobilityFrom5GS = true
+}
+
+func (ue *UeContext) EndIdleMobilityFrom5GS() {
+	if ue == nil {
+		return
+	}
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.idleMobilityFrom5GS = false
+}
+
+func (ue *UeContext) IdleMobilityFrom5GSPending() bool {
+	if ue == nil {
+		return false
+	}
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.idleMobilityFrom5GS
+}
+
 var ErrNoEPSSecurityContext = errors.New("mme: UE has no current EPS NAS security context")
 
 func (ue *UeContext) EPSSecurityContextForRelocation() (interworking.EPSSecurityContext, error) {

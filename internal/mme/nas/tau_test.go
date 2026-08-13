@@ -440,8 +440,8 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 
 	mmes1ap.HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, initialUEMessagePDU(t, 7, pdu)))
 
-	if len(cc.sent) != 1 {
-		t.Fatalf("expected one downlink (TAU Reject), got %d", len(cc.sent))
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected a TAU Reject and a UE Context Release Command, got %d messages", len(cc.sent))
 	}
 
 	rej, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, cc.sent[0]))
@@ -453,9 +453,58 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
 	}
 
-	if m.ConnCountForTest() != 0 {
-		t.Fatalf("bare connection not released after the TAU Reject: %d remain", m.ConnCountForTest())
+	// TS 24.301 §5.3.1.2.1 d), TS 36.413 §8.3.1
+	cmd := parseUEContextReleaseCommandPDU(t, cc.sent[1])
+	if cmd.UES1APIDs.ENBUES1APID != 7 {
+		t.Fatalf("release command names eNB-UE-S1AP-ID %d, want the rejected connection's 7", cmd.UES1APIDs.ENBUES1APID)
 	}
+
+	// TS 36.413 §8.3.3.1: the eNB can name the connection until it answers.
+	if m.ConnCountForTest() != 1 {
+		t.Fatalf("the MME-UE-S1AP-ID was freed before the Release Complete: %d connections remain", m.ConnCountForTest())
+	}
+
+	complete := &s1ap.UEContextReleaseComplete{
+		MMEUES1APID: s1ap.Ptr(cmd.UES1APIDs.MMEUES1APID),
+		ENBUES1APID: s1ap.Ptr(cmd.UES1APIDs.ENBUES1APID),
+	}
+
+	b, err := complete.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cpdu, err := s1ap.Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mmes1ap.HandleUEContextReleaseComplete(m, context.Background(), mme.NewRadioForTest(cc), cpdu.(*s1ap.SuccessfulOutcome).Value)
+
+	if m.ConnCountForTest() != 0 {
+		t.Fatalf("bare connection not released after the Release Complete: %d remain", m.ConnCountForTest())
+	}
+}
+
+func parseUEContextReleaseCommandPDU(t *testing.T, pdu []byte) *s1ap.UEContextReleaseCommand {
+	t.Helper()
+
+	msg, err := s1ap.Unmarshal(pdu)
+	if err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	im, ok := msg.(*s1ap.InitiatingMessage)
+	if !ok || im.ProcedureCode != s1ap.ProcUEContextRelease {
+		t.Fatalf("expected a UE Context Release Command, got %T", msg)
+	}
+
+	cmd, err := s1ap.ParseUEContextReleaseCommand(im.Value)
+	if err != nil {
+		t.Fatalf("parse command: %v", err)
+	}
+
+	return cmd
 }
 
 func TestTrackingAreaUpdateStoresReplayedCapabilities(t *testing.T) {

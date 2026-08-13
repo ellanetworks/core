@@ -4,6 +4,8 @@
 package amf
 
 import (
+	"time"
+
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
@@ -53,6 +55,20 @@ func (ue *UeContext) AmbrRates() (uplink, downlink models.BitRate, ok bool) {
 	}
 
 	return ue.Ambr.Uplink, ue.Ambr.Downlink, true
+}
+
+func (ue *UeContext) RetainForEPS(d time.Duration) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.exportableToEPSUntil = time.Now().Add(d)
+}
+
+func (ue *UeContext) ExportableToEPS() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.state == Registered || time.Now().Before(ue.exportableToEPSUntil)
 }
 
 func (ue *UeContext) Secured() bool {

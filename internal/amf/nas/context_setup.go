@@ -41,8 +41,10 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 	case fgs.RegistrationTypeInitial:
 		HandleInitialRegistration(ctx, amfInstance, ue)
 	case fgs.RegistrationTypeMobilityUpdating:
+		arrivedByHandover := ue.TakeArrivedFromEPSHandover()
+
 		if movingFromEPC(msg) {
-			if conn.ArrivingFromEPS == nil && !ue.TakeArrivedFromEPSHandover() {
+			if conn.ArrivingFromEPS == nil && !arrivedByHandover {
 				HandleInitialRegistration(ctx, amfInstance, ue)
 				return
 			}

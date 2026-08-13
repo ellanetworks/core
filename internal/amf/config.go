@@ -45,7 +45,7 @@ func (amf *AMF) operatorInfoFrom(operator *db.Operator) (*OperatorInfo, error) {
 	}
 
 	amfID := util.AMFIDToModels(
-		ngap.AMFRegionID(operator.AmfRegionID),
+		ngap.AMFRegionID(operator.AMFRegionID()),
 		ngap.AMFSetID(operator.AmfSetID),
 		ngap.AMFPointer(amf.DBInstance.NodeID()),
 	)

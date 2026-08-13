@@ -41,6 +41,10 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 		return nil, nil
 	}
 
+	if held, ok := m.LookupUeBySupi(resp.SUPI); ok && held.IdleMobilityFrom5GSPending() {
+		return remapHeldContext(ctx, m, held, conn, resp, plain)
+	}
+
 	ue := mme.NewUeContext()
 	ue.SetSupi(resp.SUPI)
 
@@ -52,6 +56,7 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 
 	ue.Ambr = &models.Ambr{Uplink: resp.AMBRUplink, Downlink: resp.AMBRDownlink}
 	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.BeginIdleMobilityFrom5GS()
 
 	m.AttachUeConn(ue, conn)
 
@@ -61,6 +66,30 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 		zap.String("imsi", ue.IMSI()), zap.Int("pdu-sessions", len(resp.PDNConnections)))
 
 	return ue, plain
+}
+
+// remapHeldContext resumes an inter-system update the UE repeated before it completed:
+// the AMF re-ran the integrity check and derived the mapped context from the new uplink
+// NAS COUNT (TS 33.501 §8.6.1), and the PDN connections of the first pass already moved,
+// so only the security context is taken over (TS 24.301 §5.5.3.2.7 d).
+func remapHeldContext(ctx context.Context, m *mme.MME, held *mme.UeContext, conn *mme.UeConn,
+	resp interworking.EPSContextResponse, plain []byte,
+) (*mme.UeContext, []byte) {
+	if err := held.InstallRelocatedSecurityContext(resp.Security, mme.MintAuthProofForInterworking()); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("failed to install the EPS context remapped for a repeated inter-system change",
+			zap.Error(err))
+
+		return nil, nil
+	}
+
+	m.AttachUeConn(held, conn)
+
+	conn.RemappedFrom5GS = true
+
+	logger.From(ctx, logger.MmeLog).Info("re-keyed a held context for an inter-system change the UE repeated",
+		zap.String("imsi", held.IMSI()))
+
+	return held, plain
 }
 
 func unprotectedBody(pdu []byte) ([]byte, bool) {
@@ -86,6 +115,13 @@ func unprotectedBody(pdu []byte) ([]byte, bool) {
 func completeIdleMobilityFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 	plain []byte,
 ) (answered bool) {
+	if ueConn.RemappedFrom5GS {
+		ueConn.RemappedFrom5GS = false
+
+		return changeNASAlgorithmsForMappedContext(ctx, m, ue, ueConn, plain,
+			interworking.EPSNASAlgorithms{Ciphering: ue.EEA(), Integrity: ue.EIA()})
+	}
+
 	arriving := ueConn.ArrivingFrom5GS
 	if arriving == nil {
 		return false

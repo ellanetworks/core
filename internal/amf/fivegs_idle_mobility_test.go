@@ -11,6 +11,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
@@ -22,7 +23,7 @@ import (
 )
 
 func idleMobilityGuami() *models.Guami {
-	return &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "010040"}
+	return &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "810040"}
 }
 
 func idleMobilityAMF() *AMF {
@@ -199,6 +200,50 @@ func TestEPSContextCommitsTheCountItVerifiedAt(t *testing.T) {
 	}
 }
 
+// TS 24.301 §5.5.3.2.7 d), TS 33.501 §8.6.1
+func TestEPSContextRemapsARepeatedTrackingAreaUpdate(t *testing.T) {
+	a := idleMobilityAMF()
+	guti := idleMobilityGUTI(t)
+	ue := leavingUE(t, a, guti)
+
+	count, err := ue.ulCount.Estimate(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count))
+	if err != nil {
+		t.Fatalf("EPSContext: %v", err)
+	}
+
+	if err := a.EPSContextAck(context.Background(), ue.Supi(), []uint8{3}); err != nil {
+		t.Fatalf("EPSContextAck: %v", err)
+	}
+
+	next, err := ue.ulCount.Estimate(uint8(count) + 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	repeat, err := a.EPSContext(context.Background(), mappedRequest(t, ue, guti, next))
+	if err != nil {
+		t.Fatalf("the repeated update was refused, so the MME can only reject it: %v", err)
+	}
+
+	want := kdfFor(t, ue.kamf, 0x73, []byte{0, 0, 0, uint8(next)})
+	if !bytes.Equal(repeat.Security.KASME[:], want) {
+		t.Errorf("K'ASME = %x, want the FC 0x73 derivation over the repeated TAU's count %x", repeat.Security.KASME, want)
+	}
+
+	if bytes.Equal(repeat.Security.KASME[:], first.Security.KASME[:]) {
+		t.Error("the repeated update returned the first mapped context, so the MME would protect the accept under a key the UE has replaced")
+	}
+
+	if repeat.Security.ULNASCount != next {
+		t.Errorf("mapped uplink NAS COUNT = %d, want the repeated TAU's %d", repeat.Security.ULNASCount, next)
+	}
+}
+
 func TestEPSContextRefusals(t *testing.T) {
 	t.Run("a 5G-GUTI this AMF did not issue", func(t *testing.T) {
 		a := idleMobilityAMF()
@@ -254,7 +299,8 @@ func TestEPSContextRefusals(t *testing.T) {
 		}
 	})
 
-	t.Run("a context already handed over to EPS", func(t *testing.T) {
+	// TS 23.502 §4.11.1.3.2 step 6
+	t.Run("a context whose EPS retention has run out", func(t *testing.T) {
 		a := idleMobilityAMF()
 		guti := idleMobilityGUTI(t)
 		ue := leavingUE(t, a, guti)
@@ -271,6 +317,8 @@ func TestEPSContextRefusals(t *testing.T) {
 		if err := a.EPSContextAck(context.Background(), ue.Supi(), []uint8{3}); err != nil {
 			t.Fatalf("EPSContextAck: %v", err)
 		}
+
+		ue.exportableToEPSUntil = time.Now().Add(-time.Second)
 
 		next, err := ue.ulCount.Estimate(uint8(count) + 1)
 		if err != nil {

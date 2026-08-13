@@ -61,7 +61,7 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 
 			tau, err := (&eps.TrackingAreaUpdateRequest{
 				OldGUTI: eps.GUTIIdentity(eps.GUTI{
-					PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 0x0100, MMECode: 0x40,
+					PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 0x8100, MMECode: 0x40,
 					TMSI: [4]byte{0x00, 0x00, 0xde, 0xad},
 				}),
 				OldGUTIType: &native,
@@ -94,8 +94,8 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 			conn := &captureConn{}
 			HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, im))
 
-			if conn.count() != 1 {
-				t.Fatalf("expected one downlink (TAU Reject), got %d", conn.count())
+			if conn.count() != 2 {
+				t.Fatalf("expected a TAU Reject and a UE Context Release Command, got %d messages", conn.count())
 			}
 
 			rej, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, conn.sent[0]))
@@ -105,6 +105,11 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 
 			if rej.Cause != eps.EMMCauseUEIdentityCannotBeDerived {
 				t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
+			}
+
+			// TS 24.301 §5.3.1.2.1 d)
+			if cmd := parseUEContextReleaseCommand(t, lastSent(t, conn)); cmd.UES1APIDs.ENBUES1APID != 1001 {
+				t.Errorf("release command names eNB-UE-S1AP-ID %d, want the rejected connection's 1001", cmd.UES1APIDs.ENBUES1APID)
 			}
 		})
 	}

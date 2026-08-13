@@ -67,8 +67,8 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 	conn := &captureConn{}
 	HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(conn), initiatingValue(t, im))
 
-	if conn.count() != 1 {
-		t.Fatalf("expected one downlink (TAU Reject), got %d", conn.count())
+	if conn.count() != 2 {
+		t.Fatalf("expected a TAU Reject and a UE Context Release Command, got %d messages", conn.count())
 	}
 
 	rej, err := eps.ParseTrackingAreaUpdateReject(decodeDownlinkNAS(t, conn.sent[0]))
@@ -79,6 +79,9 @@ func TestInitialUEMessageResumeMacFailedTAURejects(t *testing.T) {
 	if rej.Cause != eps.EMMCauseUEIdentityCannotBeDerived {
 		t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
 	}
+
+	// TS 24.301 §5.3.1.2.1 d)
+	parseUEContextReleaseCommand(t, lastSent(t, conn))
 }
 
 // TestInitialUEMessageResumeVerifiedBindsAndDispatches verifies the folded resume

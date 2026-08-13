@@ -44,10 +44,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// Ahead of any security mode command this update may start, so the command
-	// replays the capabilities of this TRACKING AREA UPDATE REQUEST rather than
-	// an earlier copy the UE cannot match (TS 33.401 §7.2.4.4,
-	// TS 24.301 §5.4.3.3, §8.2.29.7).
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
 		ueNetCap := ue.UeNetCap()
 		if req.UENetworkCapability != nil {
@@ -168,6 +164,7 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
 	ueConn.StopNASGuard()
 	m.CommitGUTIRealloc(ue)
+	ue.EndIdleMobilityFrom5GS()
 
 	ueConn.TauRequestPlain = nil
 	ueConn.TauAcceptPlain = nil

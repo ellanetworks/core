@@ -321,9 +321,9 @@ func TestGetOperatorInfo_AmfID(t *testing.T) {
 		setID    int
 		wantAmf  string
 	}{
-		{"defaults", 1, 1, "010040"},
+		{"defaults", 1, 1, "810040"},
 		{"region_255_set_1023_pointer_0", 255, 1023, "ffffc0"},
-		{"region_0_set_0_pointer_0", 0, 0, "000000"},
+		{"region_0_set_0_pointer_0", 0, 0, "800000"},
 	}
 
 	for _, tt := range tests {

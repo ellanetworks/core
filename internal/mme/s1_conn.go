@@ -51,6 +51,7 @@ type UeConn struct {
 	TauAcceptPlain            []byte
 	TauReleaseOnComplete      bool
 	ArrivingFrom5GS           *interworking.ArrivingSessions
+	RemappedFrom5GS           bool
 	DeferredTAUPlain          []byte
 	nasGuard                  guard.Guard
 	nasGuardName              string

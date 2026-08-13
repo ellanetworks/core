@@ -6,6 +6,7 @@ package amf
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/interworking"
@@ -14,6 +15,8 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
+
+const epsContextRetention = 75 * time.Second
 
 func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest) (interworking.EPSContextResponse, error) {
 	none := interworking.EPSContextResponse{}
@@ -33,7 +36,7 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 		return none, fmt.Errorf("%w: no context for 5G-GUTI %s", interworking.ErrUnknownUEContext, presented.String())
 	}
 
-	if ue.State() != Registered || !ue.Secured() {
+	if !ue.ExportableToEPS() || !ue.Secured() {
 		return none, fmt.Errorf("%w: the context for 5G-GUTI %s is not a registered, secured one",
 			interworking.ErrUnknownUEContext, presented.String())
 	}
@@ -90,6 +93,7 @@ func (a *AMF) EPSContextAck(ctx context.Context, supi etsi.SUPI, transferred []u
 		ue.DeleteSmContext(pduSessionID)
 	}
 
+	ue.RetainForEPS(epsContextRetention)
 	ue.Deregister(ctx)
 
 	logger.From(ctx, logger.AmfLog).Info("UE moved to EPS in idle mode; keeping its 5G security context for a return",

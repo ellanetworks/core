@@ -8,10 +8,24 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/util"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
+
+// TS 23.003 §2.8.2.2.2
+func TestDerivedMMEGroupIDCarriesTheNodeTypeBit(t *testing.T) {
+	for _, regionID := range []int{0, 1, 0x7f, 0x80, 0xff} {
+		op := &db.Operator{AmfRegionID: regionID}
+
+		mapped := etsi.MapGUTI5GToEPS(fgs.GUTI{AMFRegionID: op.AMFRegionID()})
+		if mapped.MMEGroupID&0x8000 == 0 {
+			t.Errorf("AMF Region ID %#x derives MME Group ID %#04x, whose most significant bit is zero: a peer reads it as a LAC",
+				regionID, mapped.MMEGroupID)
+		}
+	}
+}
 
 // TS 23.003 §2.10.2.1.3, TS 23.501 Annex B NOTE 2
 func TestGUMMEIIsTheNodeGUAMIMapped(t *testing.T) {
@@ -28,7 +42,7 @@ func TestGUMMEIIsTheNodeGUAMIMapped(t *testing.T) {
 	}
 
 	amfID := util.AMFIDToModels(
-		ngap.AMFRegionID(op.AmfRegionID),
+		ngap.AMFRegionID(op.AMFRegionID()),
 		ngap.AMFSetID(op.AmfSetID),
 		ngap.AMFPointer(fakeBearerStore{}.NodeID()),
 	)

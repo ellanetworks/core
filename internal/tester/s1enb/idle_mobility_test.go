@@ -83,7 +83,7 @@ func TestIdleTrackingAreaUpdateIsMACdWithThe5GContext(t *testing.T) {
 
 	wire, err := e.BuildIdleTrackingAreaUpdate(s1enb.IdleTrackingAreaUpdateOpts{
 		GUTI: eps.GUTI{
-			PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 0x0100, MMECode: 0x40,
+			PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 0x8100, MMECode: 0x40,
 			TMSI: [4]byte{0x00, 0x00, 0xde, 0xad},
 		},
 		ActiveFlag: true,

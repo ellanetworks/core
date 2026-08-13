@@ -299,6 +299,74 @@ func TestAdoptArrivingSessionsLeavesBehindWhatCannotMove(t *testing.T) {
 	}
 }
 
+// TS 23.502 §4.11.1.3.3 step 8
+func TestAdoptArrivingSessionsReleasesASessionItCannotAddress(t *testing.T) {
+	ue, amfInstance, peer, smf := idleArrivalUE(t)
+
+	resp := arrivingMMContext(ue.Supi())
+	resp.PDNConnections[0].PDUSessionID = 16
+	ue.Conn().ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+
+	adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn())
+
+	if len(smf.IdleTransfers) != 1 {
+		t.Fatalf("idle transfers = %d, want the session to have moved before the SM context failed", len(smf.IdleTransfers))
+	}
+
+	if len(smf.ReleaseSmContextCalls) != 1 {
+		t.Fatalf("released sessions = %d, want 1: the MME dropped its PDN connection when the session moved, so nobody else releases it",
+			len(smf.ReleaseSmContextCalls))
+	}
+
+	if got := smf.ReleaseSmContextCalls[0].SmContextRef; got != "idle-ref-16" {
+		t.Errorf("released SM context ref = %q, want the moved session's", got)
+	}
+
+	if len(peer.Transferred) != 0 {
+		t.Errorf("acknowledged sessions = %v, want none", peer.Transferred)
+	}
+}
+
+// TS 23.502 §4.11.1.3.3 step 14
+func TestIdleArrivalIsAbortedWhenTheIdentityCannotBeCommitted(t *testing.T) {
+	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	peer := &fakeEPSPeer{MMContextResponse: arrivingMMContext(ue.Supi())}
+	amfInstance.EPS = peer
+
+	resp := arrivingMMContext(ue.Supi())
+	conn := ue.Conn()
+	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	conn.ArrivedFromEPS = true
+	conn.RegistrationRequest = &fgs.RegistrationRequest{
+		RegistrationType: fgs.RegistrationTypeMobilityUpdating,
+		UEStatus:         &fgs.UEStatus{S1ModeReg: true},
+	}
+	conn.MarkICSCompleted()
+
+	ue.SetSupiForTest(etsi.SUPI{})
+
+	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+
+	if len(smf.IdleTransfers) != 0 {
+		t.Errorf("idle transfers = %d, want none: the AMF moved sessions for a UE it could not index", len(smf.IdleTransfers))
+	}
+
+	if peer.Acked {
+		t.Error("the MME was acknowledged, so it released PDN connections the AMF never adopted")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Errorf("downlink NAS messages = %d, want none: the UE was accepted on 5GS with no session while the MME still holds them all",
+			len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
+		t.Errorf("UE context release commands = %d, want 1: the half-built registration was left in place",
+			len(ngapSender.SentUEContextReleaseCommand))
+	}
+}
+
 // TS 23.502 §4.11.1.3.3 step 17
 func TestIdleArrivalAcceptReportsTheAdoptedSessions(t *testing.T) {
 	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)

@@ -87,10 +87,19 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
 			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
 		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: eps.EMMCauseUEIdentityCannotBeDerived})
-	} else {
-		logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
-			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+
+		// T3440 is the UE's grace period for the network to release the NAS signalling
+		// connection it was answered on (TS 24.301 §5.3.1.2.1 d).
+		m.ReleaseAnsweredBareConn(ctx, c, mme.CauseNASUnspecified)
+
+		return
 	}
+
+	// Nothing was answered on the connection, so the eNB's own supervision reclaims its
+	// context; holding the MME-UE-S1AP-ID for the release guard instead would let a peer
+	// exhaust them with unrecognised Initial UE Messages.
+	logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
+		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
 
 	m.ReleaseBareConn(c)
 }

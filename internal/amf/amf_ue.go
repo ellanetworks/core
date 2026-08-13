@@ -46,6 +46,7 @@ type UeContext struct {
 	regStep RegStep
 
 	arrivedFromEPSHandover bool
+	exportableToEPSUntil   time.Time
 
 	PlmnID  models.PlmnID
 	Suci    string
