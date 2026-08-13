@@ -43,3 +43,7 @@ type EPSContextResponse struct {
 	AMBRUplink     models.BitRate
 	AMBRDownlink   models.BitRate
 }
+
+type ArrivingSessions struct {
+	PDN []PDNConnection
+}

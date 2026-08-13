@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -44,7 +45,7 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
 			logger.SUPI(resp.SUPI.String()))
 
-		conn.ArrivingFromEPS = &resp
+		conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
 
 		return
 	}
@@ -55,7 +56,7 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
-	conn.ArrivingFromEPS = &resp
+	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
 
 	logger.From(ctx, logger.AmfLog).Info("mapped the UE's EPS security context onto 5GS for an idle-mode change",
 		logger.SUPI(resp.SUPI.String()), zap.Int("pdn-connections", len(resp.PDNConnections)))
@@ -76,9 +77,9 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
-	transferred := make([]uint8, 0, len(arriving.PDNConnections))
+	transferred := make([]uint8, 0, len(arriving.PDN))
 
-	for _, c := range arriving.PDNConnections {
+	for _, c := range arriving.PDN {
 		snssai := c.Snssai
 
 		ref, err := amfInstance.Session.TransferIdleTo5GS(ctx, supi, c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)
@@ -108,5 +109,5 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 
 	logger.From(ctx, logger.AmfLog).Info("adopted the PDN connections of a UE arriving from EPS in idle mode",
 		logger.SUPI(supi.String()), zap.Int("adopted", len(transferred)),
-		zap.Int("offered", len(arriving.PDNConnections)))
+		zap.Int("offered", len(arriving.PDN)))
 }

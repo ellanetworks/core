@@ -218,8 +218,6 @@ func TestEPSContextRefusals(t *testing.T) {
 		}
 	})
 
-	// The peer's mirror-image handler refuses a context that is not a registered,
-	// secured one; this one must too, and before it reads the enclosed message.
 	t.Run("a context that is not registered", func(t *testing.T) {
 		a := idleMobilityAMF()
 		guti := idleMobilityGUTI(t)
@@ -256,9 +254,6 @@ func TestEPSContextRefusals(t *testing.T) {
 		}
 	})
 
-	// TS 23.502 §4.11.1.3.2 step 15c leaves a deregistered context resolvable by its
-	// 5G-GUTI so a return from EPS resumes on native keys. A second context request
-	// for a UE already handed over must not export it again.
 	t.Run("a context already handed over to EPS", func(t *testing.T) {
 		a := idleMobilityAMF()
 		guti := idleMobilityGUTI(t)
@@ -422,8 +417,6 @@ func TestEPSContextAckForAnUnknownSubscriber(t *testing.T) {
 	}
 }
 
-// The subscribed UE-AMBR is written on the NAS dispatch goroutine while the peer's
-// context request reads it on its own, so both sides take ue.mu.
 func TestEPSContextReadsTheAmbrUnderTheLock(t *testing.T) {
 	const rounds = 64
 
@@ -431,8 +424,6 @@ func TestEPSContextReadsTheAmbrUnderTheLock(t *testing.T) {
 	guti := idleMobilityGUTI(t)
 	ue := leavingUE(t, a, guti)
 
-	// Built up front: the request builder reads the security context and estimates
-	// uplink NAS COUNTs, which EPSContext then commits.
 	reqs := make([]interworking.EPSContextRequest, 0, rounds)
 
 	for i := range rounds {

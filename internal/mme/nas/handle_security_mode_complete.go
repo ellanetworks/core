@@ -58,11 +58,15 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 		zap.String("imsi", ue.IMSI()),
 	)
 
-	if deferred := ueConn.DeferredTAU; deferred != nil {
-		plain := ueConn.DeferredTAUPlain
-		ueConn.DeferredTAU, ueConn.DeferredTAUPlain = nil, nil
+	if plain := ueConn.DeferredTAUPlain; len(plain) > 0 {
+		ueConn.DeferredTAUPlain = nil
 
-		return handleTrackingAreaUpdate(ctx, m, ue, ueConn, deferred, plain)
+		req, err := eps.ParseTrackingAreaUpdateRequest(plain)
+		if !decoded(ctx, "TrackingAreaUpdateRequest", err) || req == nil {
+			return rejectUndecodable(ctx, m, ue, ueConn, plain, err)
+		}
+
+		return handleTrackingAreaUpdate(ctx, m, ue, ueConn, req, plain)
 	}
 
 	activateDefaultBearer(ctx, m, ue, ueConn)

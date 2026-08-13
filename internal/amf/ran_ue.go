@@ -112,7 +112,7 @@ type UeConn struct {
 	RetransmissionOfInitialNASMsg     bool
 
 	ArrivedFromEPS  bool
-	ArrivingFromEPS *interworking.MMContextResponse
+	ArrivingFromEPS *interworking.ArrivingSessions
 
 	RegistrationAcceptPlain []byte
 }

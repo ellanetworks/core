@@ -453,3 +453,77 @@ func TestInterSystemTAURekeyReplaysTheCapabilitiesTheUEJustSent(t *testing.T) {
 			smc.ReplayedUESecurityCapability, want)
 	}
 }
+
+// TS 23.401 §5.3.3.1 step 8
+func TestAnArrivalWithNoSessionsIsStillAnArrival(t *testing.T) {
+	resp := arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
+	})
+	resp.PDNConnections = nil
+
+	peer := &fakeFiveGSPeer{Response: resp}
+	m, conn, _ := idleArrivalMME(t, peer)
+
+	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+	if conn.ArrivingFrom5GS != nil {
+		t.Error("the arriving context outlived the update")
+	}
+
+	if peer.Acked {
+		t.Error("the 5GS peer was acknowledged for a transfer that moved nothing")
+	}
+}
+
+// TS 24.301 §5.4.3.4, TS 33.501 §8.5.2 steps 7-11
+func TestDeferredInterSystemTAUResumesAfterTheRekey(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		tail []byte
+	}{
+		{name: "a well-formed update"},
+		{name: "an update with a truncated optional IE", tail: []byte{0x50, 0x08, 0x01}},
+	} {
+		t.Run(tc.name, func(t *testing.T) { deferredTAUResumes(t, tc.tail) })
+	}
+}
+
+func deferredTAUResumes(t *testing.T, tail []byte) {
+	t.Helper()
+
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
+	})}
+
+	m, conn, cc := idleArrivalMME(t, peer)
+
+	dispositionForNAS(context.Background(), m, conn, append(interSystemTAU(t, nil), tail...))
+
+	ue := conn.UeContext()
+	if ue == nil {
+		t.Fatal("no context was bound")
+	}
+
+	if len(conn.DeferredTAUPlain) == 0 {
+		t.Fatal("the update was not deferred behind the security mode command")
+	}
+
+	sent := cc.count()
+
+	if got := handleSecurityModeComplete(context.Background(), m, ue, conn, &eps.SecurityModeComplete{}); got.Reason != 0 {
+		t.Fatalf("disposition = %+v, want the update handled", got)
+	}
+
+	if conn.DeferredTAUPlain != nil {
+		t.Error("the deferred update outlived its resume, so a later security mode complete would replay it")
+	}
+
+	if cc.count() <= sent {
+		t.Fatal("nothing was sent after the security mode completed, so the deferred update was dropped")
+	}
+
+	plain := decodeProtectedDownlink(t, ue, cc.sent[cc.count()-1])
+	if _, err := eps.ParseTrackingAreaUpdateAccept(plain); err != nil {
+		t.Fatalf("the resumed update was not answered with a TRACKING AREA UPDATE ACCEPT: %v", err)
+	}
+}

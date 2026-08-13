@@ -55,7 +55,7 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 
 	m.AttachUeConn(ue, conn)
 
-	conn.ArrivingFrom5GS = &resp
+	conn.ArrivingFrom5GS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
 
 	logger.From(ctx, logger.MmeLog).Info("recovered the UE's context from 5GS for an idle-mode change",
 		zap.String("imsi", ue.IMSI()), zap.Int("pdu-sessions", len(resp.PDNConnections)))
@@ -84,7 +84,7 @@ func unprotectedBody(pdu []byte) ([]byte, bool) {
 }
 
 func completeIdleMobilityFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
-	req *eps.TrackingAreaUpdateRequest, plain []byte,
+	plain []byte,
 ) (answered bool) {
 	arriving := ueConn.ArrivingFrom5GS
 	if arriving == nil {
@@ -95,11 +95,11 @@ func completeIdleMobilityFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeCont
 
 	m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForInterworking())
 
-	transferred := m.AdoptIdlePDNs(ctx, ue, arriving.PDNConnections)
+	transferred := m.AdoptIdlePDNs(ctx, ue, arriving.PDN)
 
 	if len(transferred) == 0 {
 		logger.From(ctx, logger.MmeLog).Info("no PDU session of a UE arriving from 5GS could become a PDN connection; rejecting the update",
-			zap.String("imsi", ue.IMSI()), zap.Int("offered", len(arriving.PDNConnections)))
+			zap.String("imsi", ue.IMSI()), zap.Int("offered", len(arriving.PDN)))
 
 		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseNoEPSBearerContextActivated)
 
@@ -113,13 +113,14 @@ func completeIdleMobilityFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeCont
 
 	logger.From(ctx, logger.MmeLog).Info("adopted the PDU sessions of a UE arriving from 5GS in idle mode",
 		zap.String("imsi", ue.IMSI()), zap.Int("adopted", len(transferred)),
-		zap.Int("offered", len(arriving.PDNConnections)))
+		zap.Int("offered", len(arriving.PDN)))
 
-	return changeNASAlgorithmsForMappedContext(ctx, m, ue, ueConn, req, plain, arriving.Security.Algorithms)
+	return changeNASAlgorithmsForMappedContext(ctx, m, ue, ueConn, plain,
+		interworking.EPSNASAlgorithms{Ciphering: ue.EEA(), Integrity: ue.EIA()})
 }
 
 func changeNASAlgorithmsForMappedContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
-	req *eps.TrackingAreaUpdateRequest, plain []byte, current interworking.EPSNASAlgorithms,
+	plain []byte, current interworking.EPSNASAlgorithms,
 ) bool {
 	_, changed, err := m.NASAlgorithmsForMappedContext(ctx, ue.UeNetCap(), current)
 	if err != nil {
@@ -136,7 +137,6 @@ func changeNASAlgorithmsForMappedContext(ctx context.Context, m *mme.MME, ue *mm
 	logger.From(ctx, logger.MmeLog).Info("the mapped EPS context uses algorithms this MME does not select; re-keying before the update",
 		zap.String("imsi", ue.IMSI()))
 
-	ueConn.DeferredTAU = req
 	ueConn.DeferredTAUPlain = plain
 
 	startSecurityMode(ctx, m, ue, ueConn, rekeyedKeys)

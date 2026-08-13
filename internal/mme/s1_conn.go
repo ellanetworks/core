@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
-	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -51,8 +50,7 @@ type UeConn struct {
 	TauRequestPlain           []byte
 	TauAcceptPlain            []byte
 	TauReleaseOnComplete      bool
-	ArrivingFrom5GS           *interworking.EPSContextResponse
-	DeferredTAU               *eps.TrackingAreaUpdateRequest
+	ArrivingFrom5GS           *interworking.ArrivingSessions
 	DeferredTAUPlain          []byte
 	nasGuard                  guard.Guard
 	nasGuardName              string

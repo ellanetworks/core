@@ -62,7 +62,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		ue.SetUESecurityCapability(ueNetCap, msNetCap, mme.MintAuthProofForTrackingAreaUpdate())
 	}
 
-	if completeIdleMobilityFrom5GS(ctx, m, ue, ueConn, req, plain) {
+	if completeIdleMobilityFrom5GS(ctx, m, ue, ueConn, plain) {
 		return nasreply.Handled()
 	}
 

@@ -463,6 +463,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 	conn.resyncTried = false
 	conn.RetransmissionOfInitialNASMsg = false
 	conn.RegistrationAcceptPlain = nil
+	conn.ArrivedFromEPS = false
 
 	if r := ue.active.Load(); r != nil {
 		r.UeContextRequest = false

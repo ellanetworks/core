@@ -47,9 +47,7 @@ func securityModeCommandUE(t *testing.T, regType fgs.RegistrationType) *amf.UeCo
 	return ue
 }
 
-// TS 33.501 Annex A.13, TS 24.501 §5.4.2.2: the horizontal derivation parameter
-// tells the UE to derive a new KAMF and zero its NAS COUNTs. This AMF derives no
-// KAMF horizontally, so no registration type may claim that it did.
+// TS 33.501 Annex A.13, TS 24.501 §5.4.2.2
 func TestSecurityModeCommandNeverClaimsHorizontalDerivation(t *testing.T) {
 	for _, regType := range []fgs.RegistrationType{
 		fgs.RegistrationTypeInitial,

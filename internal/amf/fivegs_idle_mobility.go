@@ -33,11 +33,6 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 		return none, fmt.Errorf("%w: no context for 5G-GUTI %s", interworking.ErrUnknownUEContext, presented.String())
 	}
 
-	// Only a registered, secured context is the UE's current one to hand over, and
-	// the peer's mirror-image handler guards the same way. The AMF keeps a
-	// deregistered context resolvable by its 5G-GUTI so a return from EPS can resume
-	// on native keys (TS 23.502 §4.11.1.3.2 step 15c), which is not a context to
-	// export again.
 	if ue.State() != Registered || !ue.Secured() {
 		return none, fmt.Errorf("%w: the context for 5G-GUTI %s is not a registered, secured one",
 			interworking.ErrUnknownUEContext, presented.String())

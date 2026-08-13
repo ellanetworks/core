@@ -300,10 +300,7 @@ func TestTrackingAreaUpdateRequestRejectsMalformedCapabilities(t *testing.T) {
 	}
 }
 
-// TS 24.301 §8.2.29.1: the NAS key set identifier shares octet 3 with the EPS
-// update type, so a reader that wants only the identifier must take the high
-// half. TS 33.501 §8.5.2 step 4 has the AMF name a security context with it
-// before it holds one to decode the rest of the message with.
+// TS 24.301 §8.2.29.1
 func TestPeekKeySetIdentifierReadsTheHalfOctet(t *testing.T) {
 	for _, ksi := range []nas.KeySetIdentifier{
 		{Value: 0},

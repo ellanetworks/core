@@ -238,7 +238,7 @@ func TestAdoptArrivingSessionsMovesThemAndAcksTheMME(t *testing.T) {
 	ue, amfInstance, peer, smf := idleArrivalUE(t)
 
 	resp := arrivingMMContext(ue.Supi())
-	ue.Conn().ArrivingFromEPS = &resp
+	ue.Conn().ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
 
 	adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn())
 
@@ -282,7 +282,7 @@ func TestAdoptArrivingSessionsLeavesBehindWhatCannotMove(t *testing.T) {
 	smf.IdleTransferErr = context.DeadlineExceeded
 
 	resp := arrivingMMContext(ue.Supi())
-	ue.Conn().ArrivingFromEPS = &resp
+	ue.Conn().ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
 
 	adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn())
 
@@ -308,7 +308,7 @@ func TestIdleArrivalAcceptReportsTheAdoptedSessions(t *testing.T) {
 
 	resp := arrivingMMContext(ue.Supi())
 	conn := ue.Conn()
-	conn.ArrivingFromEPS = &resp
+	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
 	conn.ArrivedFromEPS = true
 	conn.RegistrationRequest = &fgs.RegistrationRequest{
 		RegistrationType: fgs.RegistrationTypeMobilityUpdating,

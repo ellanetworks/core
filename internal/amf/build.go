@@ -160,8 +160,6 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 		imeisv = fgs.IMEISVRequested
 	}
 
-	// HDP stays clear: horizontal K_AMF derivation (TS 33.501 Annex A.13, FC 0x72)
-	// is not performed by this AMF, so TS 24.501 §5.4.2.2 never has it signalled.
 	addInfo := fgs.AdditionalSecurityInformation{
 		RINMR: conn.RetransmissionOfInitialNASMsg,
 		HDP:   false,

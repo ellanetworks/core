@@ -63,11 +63,6 @@ func TestRelocationCancelRejectsAnUnknownRelocation(t *testing.T) {
 	}
 }
 
-// The relocation registry admits one handover from EPS per subscriber, so an entry
-// that outlives the context naming it locks that subscriber out for good. The MME
-// clears the mirror registry from removeContextLocked; the AMF must clear this one
-// from its own removal path, which is reached even when the connection has already
-// passed to a fresh re-registration.
 func TestRemovingAUeContextEndsItsRelocationFromEPS(t *testing.T) {
 	a, ue, _, supi := cancelWindowUE(t)
 
@@ -82,8 +77,6 @@ func TestRemovingAUeContextEndsItsRelocationFromEPS(t *testing.T) {
 	}
 }
 
-// A removal must not clear an entry another context holds: a superseded husk is torn
-// down after a fresh context has taken over the subscriber.
 func TestRemovingASupersededContextKeepsTheLiveRelocation(t *testing.T) {
 	a, husk, _, supi := cancelWindowUE(t)
 
