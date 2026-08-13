@@ -15,8 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 )
 
-// establishEPSOnENB brings up a PDN connection on the DNN and slice the 5GS
-// tests use, with its downlink bound to an eNB, so it can move onto 5GS.
 func establishEPSOnENB(t *testing.T, s *smf.SMF) *smf.SMContext {
 	t.Helper()
 
@@ -45,9 +43,7 @@ func establishEPSOnENB(t *testing.T, s *smf.SMF) *smf.SMContext {
 	return sc
 }
 
-// assertDownlinkBuffers reports whether the session's downlink is in the state a
-// UE in idle mode is served from: buffered, notifying the control plane, and
-// aimed at no access-network endpoint (TS 29.244 §8.2.26).
+// TS 29.244 §8.2.26
 func assertDownlinkBuffers(t *testing.T, sc *smf.SMContext) {
 	t.Helper()
 
@@ -75,8 +71,7 @@ func accessAndEBI(t *testing.T, sc *smf.SMContext) (smf.AccessType, uint8) {
 	return sc.Access, sc.EBI
 }
 
-// TS 23.401 §5.3.3.1: a TAU with the active flag clear sets up no S1-U, so the
-// PDN connection is adopted with its user plane down.
+// TS 23.401 §5.3.3.1
 func TestTransferIdle5GSToEPSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -128,9 +123,7 @@ func TestTransferIdle5GSToEPSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.2: a mobility registration update activates only the PDU
-// sessions the Uplink data status IE names, so an arriving session with none
-// pending is adopted with its user plane down.
+// TS 24.501 §5.5.1.3.2
 func TestTransferIdleEPSTo5GSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -156,8 +149,6 @@ func TestTransferIdleEPSTo5GSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 		t.Errorf("session on %s after the move, want 5GS", access)
 	}
 
-	// TS 23.502 §4.11.1.4.1: the session keeps the mapped EPS bearer identity on
-	// 5GS, so it can move back without a new one.
 	if ebi != epsTestEBI {
 		t.Errorf("session EBI = %d, want the mapped %d it keeps on 5GS", ebi, epsTestEBI)
 	}
@@ -183,8 +174,6 @@ func TestTransferIdleEPSTo5GSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 	}
 }
 
-// The commit lands in TransferIdle itself, so the supervision guard that returns
-// an unbound move to its source access has nothing left to fire on.
 func TestTransferIdleLeavesNoMoveForTheGuardToAbandon(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -264,8 +253,7 @@ func TestTransferIdleRestoresTheSourceWhenTheModifyFails(t *testing.T) {
 	}
 }
 
-// TS 23.401 §5.3.3.1: the user plane comes up on the target when the UE asks for
-// it, through the access's ordinary activation path.
+// TS 23.401 §5.3.3.1
 func TestTransferIdleTo4GLetsTheENBBindTheDownlink(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

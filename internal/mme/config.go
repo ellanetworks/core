@@ -10,15 +10,18 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 // OperatorConfig is a point-in-time view of the operator row: a handler needing
 // several derived values reads the row once and derives from this snapshot.
 type OperatorConfig struct {
-	op *db.Operator
+	op     *db.Operator
+	nodeID int
 }
 
 func (m *MME) Operator(ctx context.Context) (OperatorConfig, error) {
@@ -27,7 +30,7 @@ func (m *MME) Operator(ctx context.Context) (OperatorConfig, error) {
 		return OperatorConfig{}, fmt.Errorf("get operator: %w", err)
 	}
 
-	return OperatorConfig{op: op}, nil
+	return OperatorConfig{op: op, nodeID: m.Bearer.NodeID()}, nil
 }
 
 // PLMN returns the operator's serving PLMN (TS 23.003), the network's
@@ -145,16 +148,23 @@ func (m *MME) OperatorTAC(ctx context.Context) (uint16, error) {
 	return tacs[0], nil
 }
 
-// defaultMMEGroupID is the fixed MME Group ID of the GUMMEI (TS 23.003).
-// Ella Core is a single MME pool, so the group is constant; per-node identity
-// comes from the MME Code.
-const defaultMMEGroupID uint16 = 1
+func (o OperatorConfig) GUMMEI() (uint16, uint8) {
+	mapped := etsi.MapGUTI5GToEPS(fgs.GUTI{
+		AMFRegionID: uint8(o.op.AmfRegionID),
+		AMFSetID:    uint16(o.op.AmfSetID),
+		AMFPointer:  uint8(o.nodeID),
+	})
 
-// MmeIdentity returns the GUMMEI components (TS 23.003): a fixed MME Group
-// ID, and an MME Code derived from the cluster node ID so each HA node advertises
-// a distinct GUMMEI and a UE's GUTI routes back to its owning node.
-// The MME Code is 8 bits, so distinct codes hold for clusters up to 256 nodes;
-// beyond that the low 8 bits could collide.
-func (m *MME) MmeIdentity() (uint16, uint8) {
-	return defaultMMEGroupID, uint8(m.Bearer.NodeID() & 0xFF)
+	return mapped.MMEGroupID, mapped.MMECode
+}
+
+func (m *MME) MmeIdentity(ctx context.Context) (uint16, uint8, error) {
+	o, err := m.Operator(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	group, code := o.GUMMEI()
+
+	return group, code, nil
 }

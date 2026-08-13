@@ -343,16 +343,19 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, nil
 	}
 
-	ue, _ := amfInstance.LookupUeByGuti(guti)
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
+	if err != nil {
+		logger.WithTrace(ctx, logger.AmfLog).Error("could not get operator info; resolving no context by GUTI", zap.Error(err))
+		return nil, nil
+	}
+
+	ue, _ := amfInstance.LookupUeByGuti(operatorInfo.Guami, guti)
 	if ue == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
 		return nil, nil
 	}
 
 	if !ue.ReuseForInboundNAS(payload) {
-		// TS 24.501: this message cites an existing context but is not
-		// integrity-verified for it. Register on a fresh context; the committed
-		// context (its NAS security context and PDU sessions) is left unchanged.
 		logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(guti.String()))
 		return nil, nil
 	}

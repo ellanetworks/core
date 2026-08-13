@@ -162,12 +162,13 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 // (TS 23.401). A foreign GUTI would require S10, which Ella Core (a
 // single MME) does not implement.
 func isNativeGUTI(ctx context.Context, m *mme.MME, id eps.GUTI) bool {
-	plmn, err := m.OperatorPLMN(ctx)
+	operator, err := m.Operator(ctx)
 	if err != nil {
 		return false
 	}
 
-	group, code := m.MmeIdentity()
+	plmn := operator.PLMN()
+	group, code := operator.GUMMEI()
 
 	return id.PLMN.MCC == plmn.Mcc && id.PLMN.MNC == plmn.Mnc && id.MMEGroupID == group && id.MMECode == code
 }

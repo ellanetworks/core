@@ -235,7 +235,7 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nil, err
 	}
 
-	mmeGroupID, mmeCode := m.MmeIdentity()
+	mmeGroupID, mmeCode := operator.GUMMEI()
 
 	guti, err := m.ReallocateGUTI(ctx, ue, plmn, mmeGroupID, mmeCode)
 	if err != nil {

@@ -15,14 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TransferIdle moves a session to access and leaves it there with the user plane
-// down: the downlink FAR buffers and notifies, so data arriving for the moved
-// session pages the UE. An idle-mode inter-system change binds no AN tunnel
-// unless the UE asks for one — the active flag of a TRACKING AREA UPDATE
-// REQUEST (TS 23.401 §5.3.3.1) or the Uplink data status IE of a mobility
-// registration update (TS 24.501 §5.5.1.3.2) — so the move commits here rather
-// than at a bind that may never come, and the target's activation path brings
-// the user plane up when it does.
 func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {
 	ctx, span := tracer.Start(ctx, "smf/transfer_idle",
 		trace.WithAttributes(

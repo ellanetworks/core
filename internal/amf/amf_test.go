@@ -14,6 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
+func testGuami() *models.Guami {
+	return &models.Guami{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, AmfID: "cafe00"}
+}
+
 func newSUPI(t *testing.T, imsi string) etsi.SUPI {
 	t.Helper()
 
@@ -124,13 +128,50 @@ func TestLookupUeByGuti(t *testing.T) {
 	ue := addTestUE(t, amfInstance, "001010000000009", func(ue *amf.UeContext) {})
 	amfInstance.AssignGutiForTest(ue, guti)
 
-	found, ok := amfInstance.LookupUeByGuti(guti)
+	found, ok := amfInstance.LookupUeByGuti(testGuami(), guti)
 	if !ok {
 		t.Fatal("expected to find UE by GUTI")
 	}
 
 	if found.TmsiForTest() != guti.Tmsi {
 		t.Fatalf("5G-TMSI mismatch: got %v, want %v", found.TmsiForTest(), guti.Tmsi)
+	}
+}
+
+// TS 23.003 §2.10.2.2.3
+func TestLookupUeByGutiRefusesAGutiNamingAnotherNode(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	tmsi, err := etsi.NewTMSI(42)
+	if err != nil {
+		t.Fatalf("NewTMSI: %v", err)
+	}
+
+	native, err := etsi.NewGUTI5G("001", "01", "cafe00", tmsi)
+	if err != nil {
+		t.Fatalf("NewGUTI: %v", err)
+	}
+
+	ue := addTestUE(t, amfInstance, "001010000000012", func(ue *amf.UeContext) {})
+	amfInstance.AssignGutiForTest(ue, native)
+
+	for _, tc := range []struct {
+		name            string
+		mcc, mnc, amfID string
+	}{
+		{"another AMF", "001", "01", "cafe01"},
+		{"another PLMN", "002", "01", "cafe00"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			foreign, err := etsi.NewGUTI5G(tc.mcc, tc.mnc, tc.amfID, tmsi)
+			if err != nil {
+				t.Fatalf("NewGUTI: %v", err)
+			}
+
+			if found, ok := amfInstance.LookupUeByGuti(testGuami(), foreign); ok {
+				t.Fatalf("GUTI %s resolved to the holder of 5G-TMSI %s", foreign.String(), found.TmsiForTest())
+			}
+		})
 	}
 }
 
@@ -145,14 +186,11 @@ func TestGutiIndexLifecycle(t *testing.T) {
 		t.Fatalf("ReallocateGUTI: %v", err)
 	}
 
-	// The AMF stores only the 5G-TMSI and resolves an inbound GUTI by its TMSI part, so
-	// a lookup GUTI need only carry the UE's current TMSI.
 	guti1, _ := etsi.NewGUTI5G("001", "01", "cafe00", ue.TmsiForTest())
-	if found, ok := amfInstance.LookupUeByGuti(guti1); !ok || found != ue {
+	if found, ok := amfInstance.LookupUeByGuti(testGuami(), guti1); !ok || found != ue {
 		t.Fatal("UE not resolvable by its GUTI after allocation")
 	}
 
-	// Reallocation: both the new and the in-flight old 5G-TMSI resolve to the UE.
 	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
 		t.Fatalf("ReallocateGUTI (realloc): %v", err)
 	}
@@ -162,29 +200,28 @@ func TestGutiIndexLifecycle(t *testing.T) {
 		t.Fatal("reallocation should produce a new GUTI")
 	}
 
-	if found, ok := amfInstance.LookupUeByGuti(guti2); !ok || found != ue {
+	if found, ok := amfInstance.LookupUeByGuti(testGuami(), guti2); !ok || found != ue {
 		t.Fatal("UE not resolvable by its new GUTI")
 	}
 
-	if found, ok := amfInstance.LookupUeByGuti(guti1); !ok || found != ue {
+	if found, ok := amfInstance.LookupUeByGuti(testGuami(), guti1); !ok || found != ue {
 		t.Fatal("UE not resolvable by its old GUTI during the reallocation window")
 	}
 
-	// CommitGUTIRealloc: the old GUTI stops resolving; the current one still resolves.
 	amfInstance.CommitGUTIRealloc(ue)
 
-	if _, ok := amfInstance.LookupUeByGuti(guti1); ok {
+	if _, ok := amfInstance.LookupUeByGuti(testGuami(), guti1); ok {
 		t.Fatal("old GUTI must not resolve after CommitGUTIRealloc")
 	}
 
-	if _, ok := amfInstance.LookupUeByGuti(guti2); !ok {
+	if _, ok := amfInstance.LookupUeByGuti(testGuami(), guti2); !ok {
 		t.Fatal("current GUTI must still resolve after CommitGUTIRealloc")
 	}
 
 	// Removal: no GUTI resolves to the removed UE.
 	amfInstance.DeregisterAndRemoveUeContext(context.Background(), ue)
 
-	if _, ok := amfInstance.LookupUeByGuti(guti2); ok {
+	if _, ok := amfInstance.LookupUeByGuti(testGuami(), guti2); ok {
 		t.Fatal("removed UE must not resolve by GUTI")
 	}
 }
@@ -276,7 +313,7 @@ func TestFindUeContextByGuti_InvalidGUTI(t *testing.T) {
 
 	addTestUE(t, amfInstance, "001010000000010", func(ue *amf.UeContext) {})
 
-	_, ok := amfInstance.LookupUeByGuti(etsi.InvalidGUTI5G)
+	_, ok := amfInstance.LookupUeByGuti(testGuami(), etsi.InvalidGUTI5G)
 	if ok {
 		t.Fatal("should not find UE with InvalidGUTI")
 	}

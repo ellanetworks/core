@@ -267,7 +267,11 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	group, code := m.MmeIdentity()
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code); err != nil {
 		t.Fatal(err)
 	}

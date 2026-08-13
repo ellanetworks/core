@@ -27,7 +27,11 @@ func resumeOntoNewConnection(t *testing.T, m *mme.MME, ue *mme.UeContext) (oldMM
 		t.Fatal(err)
 	}
 
-	group, code := m.MmeIdentity()
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code); err != nil {
 		t.Fatal(err)
 	}

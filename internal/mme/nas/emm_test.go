@@ -175,7 +175,10 @@ func nativeGUTIAttach(t *testing.T, m *mme.MME, ue *mme.UeContext) []byte {
 		t.Fatal(err)
 	}
 
-	group, code := m.MmeIdentity()
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	guti, err := m.ReallocateGUTI(t.Context(), ue, plmn, group, code)
 	if err != nil {
@@ -573,10 +576,14 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	gutiID := *accept.GUTI.GUTI
 
-	// GUMMEI sourced from the operator config (fakeBearerStore returns group/code 1).
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if gutiID.PLMN.MCC != "001" || gutiID.PLMN.MNC != "01" ||
-		gutiID.MMEGroupID != 1 || gutiID.MMECode != 1 {
-		t.Fatalf("unexpected GUTI: %+v", gutiID)
+		gutiID.MMEGroupID != group || gutiID.MMECode != code {
+		t.Fatalf("GUTI = %+v, want the node's GUMMEI %d/%d on PLMN 001-01", gutiID, group, code)
 	}
 
 	if _, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(gutiID.TMSI[:])); !ok {

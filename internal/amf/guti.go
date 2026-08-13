@@ -33,18 +33,19 @@ func (amf *AMF) freeTmsiLocked(t etsi.TMSI) {
 	amf.tmsi.Free(t)
 }
 
-func (amf *AMF) LookupUeByGuti(guti etsi.GUTI5G) (*UeContext, bool) {
+func (amf *AMF) LookupUeByGuti(guami *models.Guami, guti etsi.GUTI5G) (*UeContext, bool) {
 	if guti == etsi.InvalidGUTI5G {
+		return nil, false
+	}
+
+	native, err := gutiFor(guami, guti.Tmsi)
+	if err != nil || native != guti {
 		return nil, false
 	}
 
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	// uesByTmsi indexes both the current and the in-flight old 5G-TMSI of every UE,
-	// so an inbound GUTI/5G-S-TMSI resolves in O(1) without scanning every UE. The
-	// 5G-TMSI is the unpredictable, per-UE part of the GUTI; the GUAMI is invariant,
-	// so the TMSI alone disambiguates.
 	ue, ok := amf.uesByTmsi[guti.Tmsi]
 
 	return ue, ok

@@ -184,6 +184,8 @@ func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 		SupportedTACs: `["1"]`,
 		Ciphering:     `["AES"]`,
 		Integrity:     `["AES"]`,
+		AmfRegionID:   1,
+		AmfSetID:      1,
 	}, nil
 }
 

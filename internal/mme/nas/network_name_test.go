@@ -22,6 +22,7 @@ func (spnBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 		Mcc: "001", Mnc: "01", SupportedTACs: `["1"]`,
 		Ciphering: `["AES"]`, Integrity: `["AES"]`,
 		SpnFullName: "Ella", SpnShortName: "Ella",
+		AmfRegionID: 1, AmfSetID: 1,
 	}, nil
 }
 

@@ -36,7 +36,7 @@ func TestBuildPaging(t *testing.T) {
 	ue := idleRegisteredUE(t, m)
 	ue.RadioCapabilityForPaging = []byte{0xaa, 0xbb, 0xcc}
 
-	paging, err := m.buildPaging(ue)
+	paging, err := m.buildPaging(t.Context(), ue)
 	if err != nil {
 		t.Fatalf("buildPaging: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestBuildPagingOldMTMSISentinel(t *testing.T) {
 	ue.SetTmsiForTest(0x1234)
 	ue.SetOldTmsiForTest(0)
 
-	paging, err := m.buildPaging(ue)
+	paging, err := m.buildPaging(t.Context(), ue)
 	if err != nil {
 		t.Fatalf("buildPaging: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestBuildPagingOldMTMSISentinel(t *testing.T) {
 	// paging uses the current M-TMSI.
 	ue.SetOldTmsiForTest(0xFFFFFFFF)
 
-	paging, err = m.buildPaging(ue)
+	paging, err = m.buildPaging(t.Context(), ue)
 	if err != nil {
 		t.Fatalf("buildPaging: %v", err)
 	}

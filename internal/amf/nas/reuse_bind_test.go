@@ -9,9 +9,16 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
+
+func reuseTestAMF() *amf.AMF {
+	return amf.New(&fakeDBInstance{Operator: &db.Operator{
+		Mcc: "001", Mnc: "01", AmfRegionID: 0xca, AmfSetID: 0x3f,
+	}}, nil, nil)
+}
 
 func plainRegistrationWithGuti(t *testing.T, guti fgs.MobileIdentity) []byte {
 	t.Helper()
@@ -92,7 +99,7 @@ func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T
 		t.Fatalf("NewSUPIFromPrefixed: %v", err)
 	}
 
-	amfInstance := amf.New(nil, nil, nil)
+	amfInstance := reuseTestAMF()
 
 	ue := amf.NewUeContext()
 	ue.SetSupiForTest(supi)
@@ -140,7 +147,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 		t.Fatalf("NewSUPIFromPrefixed: %v", err)
 	}
 
-	amfInstance := amf.New(nil, nil, nil)
+	amfInstance := reuseTestAMF()
 
 	victim := amf.NewUeContext()
 	victim.SetSupiForTest(supi)
