@@ -168,11 +168,7 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 	}
 }
 
-// The EPS bearer context status IE belongs to an actual S1→N1 change
-// (TS 24.501 §8.2.7.31, TS 23.502 §4.11.1.3.3 steps 17-18), so the flag that
-// records one must not outlive the registration that set it: a later mobility or
-// periodic registration on the same connection would otherwise claim the IE and
-// run the EPS bearer release with it.
+// TS 24.501 §8.2.7.31, TS 23.502 §4.11.1.3.3 steps 17-18
 func TestRegistrationAcceptDropsTheEPSBearerStatusOnceTheRegistrationIsDone(t *testing.T) {
 	ue := buildTestUE(t)
 	attachTestConn(t, ue)

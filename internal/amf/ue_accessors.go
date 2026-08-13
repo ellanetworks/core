@@ -37,9 +37,6 @@ func (ue *UeContext) SmContextRefs() []SmContextRef {
 	return refs
 }
 
-// SetAmbr and AmbrRates are the audited pair for the subscribed UE-AMBR: it is
-// written on the NAS dispatch goroutine and read from the status export and from
-// the peer's inter-system context request, which run on their own.
 func (ue *UeContext) SetAmbr(ambr *models.Ambr) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

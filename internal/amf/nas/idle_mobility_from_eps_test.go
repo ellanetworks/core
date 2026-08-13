@@ -343,9 +343,7 @@ func TestIdleArrivalAcceptReportsTheAdoptedSessions(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.2: the mapped context is taken into use by a NAS SMC. Skipping it
-// leaves the UE on keys it never activated, and leaves the AMF without the
-// non-cleartext IEs the UE replays in SECURITY MODE COMPLETE.
+// TS 33.501 §8.2
 func TestIdleArrivalFromEPSAlwaysRunsTheSecurityModeProcedure(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
