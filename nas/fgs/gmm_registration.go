@@ -67,6 +67,14 @@ type RegistrationRequest struct {
 	MICOIndication      *MICOIndication // IEI 0xB0 (type 1)
 	UpdateType5GS       *UpdateType5GS  // IEI 0x53
 
+	// EPSNASMessageContainer (IEI 0x70) carries the complete integrity-protected
+	// TRACKING AREA UPDATE REQUEST the UE would have sent in S1 mode, protected
+	// with its EPS security context, on an inter-system change performed in
+	// 5GMM-IDLE mode (TS 24.501 §8.2.6.16, §5.5.1.3.2 c). It is opaque here:
+	// §7.5.2 admits no diagnosis of its content beyond presence and length, and
+	// only the MME holds the context that verifies it.
+	EPSNASMessageContainer []byte
+
 	// EPSBearerContextStatus (IEI 0x60) reports which EPS bearer contexts are
 	// active in the UE. A UE that locally deactivated one in S1 mode without
 	// telling the network shall include it on the inter-system change
@@ -208,6 +216,10 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiRequestedDRXParameters, raw)
 	}
 
+	if m.EPSNASMessageContainer != nil {
+		o.TLVE(ieiEPSNASMessageContainer, m.EPSNASMessageContainer)
+	}
+
 	if m.UpdateType5GS != nil {
 		raw, err := m.UpdateType5GS.MarshalBinary()
 		if err != nil {
@@ -217,6 +229,10 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		o.TLV(ieiUpdateType5GS, raw)
 	}
 
+	if m.NASMessageContainer != nil {
+		o.TLVE(ieiNASMessageContainer, m.NASMessageContainer)
+	}
+
 	if m.EPSBearerContextStatus != nil {
 		raw, err := m.EPSBearerContextStatus.MarshalBinary()
 		if err != nil {
@@ -224,10 +240,6 @@ func (m *RegistrationRequest) AppendBinary(b []byte) ([]byte, error) {
 		}
 
 		o.TLV(ieiEPSBearerContextStatus, raw)
-	}
-
-	if m.NASMessageContainer != nil {
-		o.TLVE(ieiNASMessageContainer, m.NASMessageContainer)
 	}
 
 	o.Raw(m.Unrecognized...)
@@ -379,6 +391,8 @@ func ParseRegistrationRequest(b []byte) (*RegistrationRequest, error) {
 			out.RequestedDRXParameters = &drx
 		case ieiNASMessageContainer:
 			out.NASMessageContainer = value
+		case ieiEPSNASMessageContainer:
+			out.EPSNASMessageContainer = value
 		case ieiUpdateType5GS:
 			ut, err := ParseUpdateType5GS(value)
 			if err != nil {

@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -136,6 +137,48 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 // security context and PDU sessions untouched (TS 24.501).
 func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 	return ue.NasIntegrityVerified(payload)
+}
+
+// ErrNoUplinkNASCount reports an EPS-framed NAS message the UE's uplink count
+// cannot cover.
+var ErrNoUplinkNASCount = errors.New("amf: no uplink NAS COUNT admits the message")
+
+// VerifyEnclosedEPSNAS verifies an EPS-framed NAS message — the TRACKING AREA
+// UPDATE REQUEST a UE changing system to EPS sends — against this UE's current
+// 5G NAS security context, and returns the uplink NAS COUNT it was accepted at
+// (TS 33.501 §8.5.2 step 4).
+//
+// Unlike NasIntegrityVerified the count is committed here: it is the P0 of the
+// K'ASME derivation (Annex A.14.1), so a replay has to fail before it can
+// re-derive the key the peer then holds.
+func (ue *UeContext) VerifyEnclosedEPSNAS(payload []byte) (nas.Count, error) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if !ue.secured || ue.sc == nil {
+		return 0, ErrNo5GSecurityContext
+	}
+
+	spm, err := eps.ParseSecurityProtectedMessage(payload)
+	if err != nil {
+		return 0, err
+	}
+
+	counter := ue.ulCount
+
+	cnt, err := counter.Estimate(spm.SequenceNumber)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrNoUplinkNASCount, err)
+	}
+
+	if _, err := eps.VerifyWith5GContext(payload, cnt, nas.DirectionUplink, ue.sc); err != nil {
+		return 0, err
+	}
+
+	_ = counter.Commit(cnt)
+	ue.ulCount = counter
+
+	return cnt, nil
 }
 
 // GmmDecodeFailureCause maps a plain-NAS decode failure to the 5GMM STATUS cause

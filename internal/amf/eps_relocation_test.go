@@ -82,6 +82,50 @@ func TestTransferableEPSSessionsSkipsASessionWithNoBearerIdentity(t *testing.T) 
 	}
 }
 
+// TS 23.502 §4.11.1.3.2 step 5a: an idle move is not answering a target's
+// admission list, so every session holding an EBI goes.
+func TestAllTransferableEPSSessions(t *testing.T) {
+	ue := relocatableUE(t)
+
+	if err := ue.CreateSmContext(2, "ref-2", &models.Snssai{Sst: 2}, "ims"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if err := assignEBI(t, ue, 2); err != nil {
+		t.Fatalf("assign an EPS bearer identity: %v", err)
+	}
+
+	got := ue.AllTransferableEPSSessions()
+	if len(got) != 2 {
+		t.Fatalf("got %d transferable sessions, want both", len(got))
+	}
+
+	// The allow-list form selects nothing from the same UE when asked for nothing,
+	// which is why the idle path needs its own entry point.
+	if asked := ue.TransferableEPSSessions(nil); len(asked) != 0 {
+		t.Fatalf("got %d sessions for an empty allow-list, want none", len(asked))
+	}
+}
+
+func TestAllTransferableEPSSessionsAppliesTheSameFilters(t *testing.T) {
+	ue := relocatableUE(t)
+
+	// No EBI, so it cannot become a PDN connection.
+	if err := ue.CreateSmContext(2, "ref-2", &models.Snssai{Sst: 2}, "ims"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	if got := ue.AllTransferableEPSSessions(); len(got) != 1 || got[0].PDUSessionID != 1 {
+		t.Fatalf("transferable sessions = %+v, want PDU session 1 alone", got)
+	}
+
+	ue.SetAllow4G(false)
+
+	if got := ue.AllTransferableEPSSessions(); len(got) != 0 {
+		t.Fatalf("got %d transferable sessions for a UE barred from 4G, want none", len(got))
+	}
+}
+
 func TestBuildForwardRelocationRequest(t *testing.T) {
 	ue := relocatableUE(t)
 

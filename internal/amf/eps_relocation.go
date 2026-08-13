@@ -12,7 +12,31 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
+// TransferableEPSSessions is the subset of requested the UE can take to EPS.
+// requested is an allow-list, so it selects nothing when empty; the handover
+// call site names the sessions the target admitted.
 func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.PDNConnection {
+	asked := make(map[uint8]struct{}, len(requested))
+	for _, pduSessionID := range requested {
+		asked[pduSessionID] = struct{}{}
+	}
+
+	return ue.transferableEPSSessions(func(pduSessionID uint8) bool {
+		_, ok := asked[pduSessionID]
+
+		return ok
+	})
+}
+
+// AllTransferableEPSSessions is every session the UE can take to EPS. An idle
+// move transfers the lot: the AMF chooses what to hand over, and the UE reports
+// what it kept in the EPS bearer context status of the TAU
+// (TS 23.502 §4.11.1.3.2 step 5a).
+func (ue *UeContext) AllTransferableEPSSessions() []interworking.PDNConnection {
+	return ue.transferableEPSSessions(func(uint8) bool { return true })
+}
+
+func (ue *UeContext) transferableEPSSessions(include func(pduSessionID uint8) bool) []interworking.PDNConnection {
 	if !ue.TransfersToEPS() {
 		return nil
 	}
@@ -20,15 +44,10 @@ func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.P
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	asked := make(map[uint8]struct{}, len(requested))
-	for _, pduSessionID := range requested {
-		asked[pduSessionID] = struct{}{}
-	}
-
-	out := make([]interworking.PDNConnection, 0, len(requested))
+	out := make([]interworking.PDNConnection, 0, len(ue.SmContextList))
 
 	for pduSessionID, sc := range ue.SmContextList {
-		if _, ok := asked[pduSessionID]; !ok {
+		if !include(pduSessionID) {
 			continue
 		}
 
