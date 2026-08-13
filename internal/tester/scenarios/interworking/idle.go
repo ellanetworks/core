@@ -33,12 +33,23 @@ func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name:      "interworking/idle_5gs_to_eps",
 		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
-		Run:       runIdle5GSToEPS,
-		Fixture:   fixture,
+		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
+			return runIdle5GSToEPS(ctx, env, true)
+		},
+		Fixture: fixture,
+	})
+
+	scenarios.Register(scenarios.Scenario{
+		Name:      "interworking/idle_5gs_to_eps_returning_to_idle",
+		BindFlags: func(_ *pflag.FlagSet) any { return struct{}{} },
+		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
+			return runIdle5GSToEPS(ctx, env, false)
+		},
+		Fixture: fixture,
 	})
 }
 
-func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
+func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) error {
 	gNodeB, err := startGNB(env)
 	if err != nil {
 		return err
@@ -100,7 +111,7 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 
 	res, err := e.TrackingAreaUpdateFrom5GS(epsUE, s1enb.IdleTrackingAreaUpdateOpts{
 		GUTI:         guti,
-		ActiveFlag:   true,
+		ActiveFlag:   activeFlag,
 		BearerStatus: &bearerStatus,
 		Security:     security,
 	}, attachTimeout)
@@ -110,6 +121,10 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 
 	if err := assertAdoptedBearer(res); err != nil {
 		return err
+	}
+
+	if !activeFlag {
+		return assertSessionOn(ctx, env, "4G", before.addrs)
 	}
 
 	after, err := probeAfterHandover(ctx, env, e, handoverBearer{

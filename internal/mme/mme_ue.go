@@ -178,6 +178,11 @@ type UeContext struct {
 
 	idleMobilityFrom5GS bool
 
+	// localBearerDeactivation is set when the MME drops a PDN connection without
+	// peer-to-peer signalling, and cleared once a TRACKING AREA UPDATE ACCEPT has
+	// reported the surviving set (TS 24.301 §5.5.3.2.4).
+	localBearerDeactivation bool
+
 	releasing bool
 
 	regStep RegStep

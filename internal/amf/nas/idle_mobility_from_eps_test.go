@@ -455,3 +455,44 @@ func TestIdleArrivalFromEPSAlwaysRunsTheSecurityModeProcedure(t *testing.T) {
 		t.Errorf("security mode command ngKSI = %+v, want the mapped context's", smc.NgKSI)
 	}
 }
+
+// TS 24.501 §5.5.1.3.4, TS 23.502 §4.11.1.3.3 step 14
+func TestAnArrivalThatMovesNothingIsStillAccepted(t *testing.T) {
+	ue, amfInstance, peer, smf := idleArrivalUE(t)
+	smf.IdleTransferErr = context.DeadlineExceeded
+
+	conn := ue.Conn()
+	conn.ArrivedFromEPS = true
+
+	resp := arrivingMMContext(ue.Supi())
+	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+
+	if !adoptArrivingSessions(context.Background(), amfInstance, ue, conn) {
+		t.Fatal("the registration was abandoned, so the UE gets no 5GS service until it retries")
+	}
+
+	if !peer.Acked {
+		t.Error("the MME was not acknowledged, so it keeps serving a UE that has left EPS")
+	}
+
+	plain, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil,
+		models.PlmnID{Mcc: "001", Mnc: "01"})
+	if err != nil {
+		t.Fatalf("BuildRegistrationAccept: %v", err)
+	}
+
+	accept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("parse the registration accept: %v", err)
+	}
+
+	if accept.EPSBearerContextStatus == nil {
+		t.Fatal("the accept carries no EPS bearer context status, so the UE keeps QoS rules for bearers that no longer exist")
+	}
+
+	for ebi, active := range accept.EPSBearerContextStatus.Active {
+		if active {
+			t.Errorf("EPS bearer %d reported active though no PDN connection moved onto 5GS", ebi)
+		}
+	}
+}

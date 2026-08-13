@@ -19,7 +19,15 @@ const (
 	rekeyedKeys
 )
 
-func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, install keyInstall) {
+type securityModeOutcome uint8
+
+const (
+	securityModeCommandSent securityModeOutcome = iota
+	securityModeNoCommonAlgorithm
+	securityModeNotSent
+)
+
+func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, install keyInstall) securityModeOutcome {
 	// TS 33.501 §6.9.5.1 / TS 33.401 §7.2.8: the security mode procedure re-keys the
 	// AS context, so it must not run concurrently with an S1 handover or Path Switch
 	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer.
@@ -27,7 +35,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		logger.From(ctx, logger.MmeLog).Warn("not starting Security Mode Command: a key-changing procedure is in progress (TS 33.401 §7.2.8)",
 			zap.String("imsi", ue.IMSI()))
 
-		return
+		return securityModeNotSent
 	}
 
 	// Release the claim if the SECURITY MODE COMMAND is not sent, so a failure before
@@ -45,16 +53,15 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	intOrder, encOrder, err := m.SecurityAlgorithms(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to resolve operator security policy", zap.Error(err))
-		return
+		return securityModeNotSent
 	}
 
 	eea, eia, ok := eps.SelectNASAlgorithms(ue.UeNetCap(), intOrder, encOrder)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("no NAS security algorithm common to UE and operator policy",
 			zap.Stringer("ue-network-capability", ue.UeNetCap()))
-		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseUESecurityCapabilitiesMismatch)
 
-		return
+		return securityModeNoCommonAlgorithm
 	}
 
 	installKeys := ue.InstallNASSecurityContext
@@ -64,7 +71,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 
 	if err := installKeys(eea, eia, mme.MintAuthProofForSecurityMode()); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to install NAS security context", zap.Error(err))
-		return
+		return securityModeNotSent
 	}
 
 	imeisvRequested := eps.IMEISVRequested
@@ -81,7 +88,7 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	plain, err := smc.MarshalBinary()
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Security Mode Command", zap.Error(err))
-		return
+		return securityModeNotSent
 	}
 
 	logger.From(ctx, logger.MmeLog).Info("Security Mode Command",
@@ -91,10 +98,12 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		zap.Stringer("replayed-ue-security-capability", smc.ReplayedUESecurityCapability))
 
 	if err := ueConn.SendGuardedProtected(ctx, "Security Mode Command", plain, eps.SHTIntegrityProtectedNewContext); err != nil {
-		return
+		return securityModeNotSent
 	}
 
 	ue.AdvanceRegStep(mme.RegStepSecurityMode)
 
 	committed = true
+
+	return securityModeCommandSent
 }

@@ -206,6 +206,41 @@ func TestInterSystemTAURecoversTheContextFromTheAMF(t *testing.T) {
 	}
 }
 
+// TS 24.301 §5.1.3.4.3, §5.5.3.2.4
+func TestInterSystemTAULeavesTheUERegistered(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
+	})}
+
+	m, conn, _ := idleArrivalMME(t, peer)
+
+	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+	ue := conn.UeContext()
+	if ue == nil {
+		t.Fatal("no context was bound")
+	}
+
+	if got := ue.EMMState(); got != mme.EMMRegistered {
+		t.Fatalf("EMM state after the accepted update = %v, want %v", got, mme.EMMRegistered)
+	}
+
+	m.ReleaseUEContextLocally(ue, "test")
+
+	if p := m.LookupPDN(ue, 6); p == nil {
+		t.Error("the S1 release destroyed the PDN connection the inter-system change moved")
+	}
+
+	supi, err := etsi.NewSUPIFromIMSI(testSubscriber.IMSI)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := m.LookupUeBySupi(supi); !ok {
+		t.Error("the S1 release removed the context, so the UE cannot be paged and cannot move back to 5GS")
+	}
+}
+
 // TS 24.301 §5.5.3.2.7 d)
 func TestRepeatedInterSystemTAUReKeysTheHeldContext(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
@@ -292,6 +327,91 @@ func TestInterSystemTAUAfterTheProcedureCompletedStartsAfresh(t *testing.T) {
 
 	if !peer.Acked {
 		t.Error("the AMF was not acknowledged, so it keeps serving a UE that has left again")
+	}
+}
+
+type crossAccessSessionManager struct {
+	fakeSessionManager
+	onEPS     map[string]bool
+	destroyed map[string]bool
+}
+
+func newCrossAccessSessionManager() *crossAccessSessionManager {
+	return &crossAccessSessionManager{onEPS: map[string]bool{}, destroyed: map[string]bool{}}
+}
+
+func (f *crossAccessSessionManager) ReleaseEPSSession(_ context.Context, ref string) error {
+	if f.onEPS[ref] {
+		f.destroyed[ref] = true
+		delete(f.onEPS, ref)
+	}
+
+	return nil
+}
+
+func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
+	bearer, err := f.fakeSessionManager.TransferIdleToEPS(ctx, supi, pduSessionID, epsBearerIdentity, dnn, snssai)
+	if err != nil {
+		return models.EPSBearer{}, err
+	}
+
+	if f.destroyed[bearer.Ref] {
+		return models.EPSBearer{}, interworking.ErrUnknownUEContext
+	}
+
+	f.onEPS[bearer.Ref] = true
+
+	return bearer, nil
+}
+
+// TS 24.301 §4.4.4.3, §5.5.1.2.7 f)
+func TestInterSystemTAUKeepsTheArrivingSessionAStaleContextStillNames(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
+	})}
+
+	sessions := newCrossAccessSessionManager()
+
+	m, conn, _ := idleArrivalMME(t, peer)
+	m.Session = sessions
+
+	supi, err := etsi.NewSUPIFromIMSI(testSubscriber.IMSI)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stale := mme.NewUeContext()
+	stale.SetSupi(supi)
+
+	if got := m.AdoptIdlePDNs(context.Background(), stale, peer.Response.PDNConnections); len(got) != 1 {
+		t.Fatalf("the stale context adopted %d sessions, want the 1 it later names", len(got))
+	}
+
+	sessions.onEPS = map[string]bool{}
+
+	m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking())
+
+	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+	ue := conn.UeContext()
+	if ue == nil {
+		t.Fatal("no context was bound")
+	}
+
+	if ue == stale {
+		t.Fatal("the update resumed the stale context")
+	}
+
+	for ref := range sessions.destroyed {
+		t.Errorf("superseding the stale context destroyed session %q, the one the update is moving onto EPS", ref)
+	}
+
+	if p := m.LookupPDN(ue, 6); p == nil {
+		t.Error("the arriving PDU session was not published as a PDN connection on EBI 6")
+	}
+
+	if len(peer.Transferred) != 1 || peer.Transferred[0] != 3 {
+		t.Errorf("acknowledged sessions = %v, want the adopted PDU session 3", peer.Transferred)
 	}
 }
 
@@ -614,5 +734,44 @@ func deferredTAUResumes(t *testing.T, tail []byte) {
 	plain := decodeProtectedDownlink(t, ue, cc.sent[cc.count()-1])
 	if _, err := eps.ParseTrackingAreaUpdateAccept(plain); err != nil {
 		t.Fatalf("the resumed update was not answered with a TRACKING AREA UPDATE ACCEPT: %v", err)
+	}
+
+	if got := ue.EMMState(); got != mme.EMMRegistered {
+		t.Errorf("EMM state after the resumed update = %v, want %v", got, mme.EMMRegistered)
+	}
+}
+
+// TS 24.301 §4.4.2.3, §5.4.3.7 a); TS 33.501 §8.5.2 step 7
+func TestInterSystemTAUIsAnsweredWhenTheRekeyCannotStart(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
+	})}
+
+	m, conn, cc := idleArrivalMME(t, peer)
+
+	plain := interSystemTAU(t, nil)
+
+	dispositionForNAS(context.Background(), m, conn, plain)
+
+	ue := conn.UeContext()
+	if ue == nil {
+		t.Fatal("no context was bound")
+	}
+
+	if cc.count() == 0 {
+		t.Fatal("the update sent nothing, want a SECURITY MODE COMMAND holding the key chain")
+	}
+
+	conn.DeferredTAUPlain = nil
+
+	answered := changeNASAlgorithmsForMappedContext(context.Background(), m, ue, conn, plain,
+		interworking.EPSNASAlgorithms{Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G})
+
+	if answered {
+		t.Error("the update is reported as answered though no Security Mode Command was sent, so the UE waits out T3430")
+	}
+
+	if conn.DeferredTAUPlain != nil {
+		t.Error("the update was buffered behind a command that never left, so nothing will replay it")
 	}
 }

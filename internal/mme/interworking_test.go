@@ -19,7 +19,7 @@ func TestDerivedMMEGroupIDCarriesTheNodeTypeBit(t *testing.T) {
 	for _, regionID := range []int{0, 1, 0x7f, 0x80, 0xff} {
 		op := &db.Operator{AmfRegionID: regionID}
 
-		mapped := etsi.MapGUTI5GToEPS(fgs.GUTI{AMFRegionID: op.AMFRegionID()})
+		mapped := etsi.MapGUTI5GToEPS(fgs.GUTI{AMFRegionID: op.GUAMIRegionID()})
 		if mapped.MMEGroupID&0x8000 == 0 {
 			t.Errorf("AMF Region ID %#x derives MME Group ID %#04x, whose most significant bit is zero: a peer reads it as a LAC",
 				regionID, mapped.MMEGroupID)
@@ -42,7 +42,7 @@ func TestGUMMEIIsTheNodeGUAMIMapped(t *testing.T) {
 	}
 
 	amfID := util.AMFIDToModels(
-		ngap.AMFRegionID(op.AMFRegionID()),
+		ngap.AMFRegionID(op.GUAMIRegionID()),
 		ngap.AMFSetID(op.AmfSetID),
 		ngap.AMFPointer(fakeBearerStore{}.NodeID()),
 	)

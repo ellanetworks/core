@@ -106,7 +106,7 @@ func (e *ENB) TrackingAreaUpdateAfterHandover(ue *UE, mmeUEID, enbUEID int64, gu
 		return fmt.Errorf("s1enb: send Tracking Area Update Request: %w", err)
 	}
 
-	if _, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout); err != nil {
+	if _, _, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout); err != nil {
 		return fmt.Errorf("s1enb: await Tracking Area Update Accept: %w", err)
 	}
 

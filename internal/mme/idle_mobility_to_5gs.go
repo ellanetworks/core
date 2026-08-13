@@ -32,13 +32,13 @@ func (m *MME) ServesGUTI(ctx context.Context, id eps.GUTI) bool {
 func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) (interworking.MMContextResponse, error) {
 	none := interworking.MMContextResponse{}
 
-	if !m.ServesGUTI(ctx, req.MappedEPSGUTI) {
-		return none, fmt.Errorf("%w: GUTI %s was not assigned by this MME", interworking.ErrUnknownUEContext, req.MappedEPSGUTI)
-	}
-
 	ue, ok := m.LookupUeByMTMSI(binary.BigEndian.Uint32(req.MappedEPSGUTI.TMSI[:]))
 	if !ok {
 		return none, fmt.Errorf("%w: no context for M-TMSI %x", interworking.ErrUnknownUEContext, req.MappedEPSGUTI.TMSI)
+	}
+
+	if !m.ServesGUTI(ctx, req.MappedEPSGUTI) {
+		return none, fmt.Errorf("%w: GUTI %s was not assigned by this MME", interworking.ErrUnknownUEContext, req.MappedEPSGUTI)
 	}
 
 	if ue.EMMState() != EMMRegistered || !ue.Secured() {

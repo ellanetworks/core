@@ -41,7 +41,10 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	c.SetResyncTried(false)
 
 	logger.From(ctx, logger.MmeLog).Info("authentication succeeded")
-	startSecurityMode(ctx, m, ue, ueConn, freshKeys)
+
+	if startSecurityMode(ctx, m, ue, ueConn, freshKeys) == securityModeNoCommonAlgorithm {
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseUESecurityCapabilitiesMismatch)
+	}
 
 	return nasreply.Handled()
 }

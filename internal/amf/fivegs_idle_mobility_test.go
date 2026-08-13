@@ -447,6 +447,10 @@ func TestEPSContextAckReleasesWhatDidNotTransferAndKeepsTheContext(t *testing.T)
 		t.Error("the native 5G security context was discarded, so a return from EPS could not resume on native keys")
 	}
 
+	if !ue.MobileReachableActiveForTest() {
+		t.Error("idle supervision was not restarted at the transfer, so the escalation left running from before it can remove the retained context at any moment")
+	}
+
 	if found, ok := a.LookupUeByGuti(idleMobilityGuami(), guti); !ok || found != ue {
 		t.Error("the UE context is no longer resolvable by its 5G-GUTI, so the Additional GUTI of a later registration names nothing")
 	}

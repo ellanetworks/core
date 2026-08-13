@@ -150,7 +150,7 @@ func (m *MME) OperatorTAC(ctx context.Context) (uint16, error) {
 
 func (o OperatorConfig) GUMMEI() (uint16, uint8) {
 	mapped := etsi.MapGUTI5GToEPS(fgs.GUTI{
-		AMFRegionID: o.op.AMFRegionID(),
+		AMFRegionID: o.op.GUAMIRegionID(),
 		AMFSetID:    uint16(o.op.AmfSetID),
 		AMFPointer:  uint8(o.nodeID),
 	})

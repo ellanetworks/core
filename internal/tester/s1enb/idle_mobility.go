@@ -126,7 +126,7 @@ func (e *ENB) TrackingAreaUpdateFrom5GS(ue *UE, opts IdleTrackingAreaUpdateOpts,
 	}
 
 	if !opts.ActiveFlag {
-		return nil, fmt.Errorf("s1enb: an idle-mode update without the active flag establishes no bearer to report")
+		return e.idleTrackingAreaUpdateReturningToIdle(ue, enbUEID, timeout)
 	}
 
 	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
@@ -188,6 +188,41 @@ func (e *ENB) TrackingAreaUpdateFrom5GS(ue *UE, opts IdleTrackingAreaUpdateOpts,
 		UpfAddress:   upf.Unmap().String(),
 		ULTEID:       uint32(erab.GTPTEID),
 		DLTEID:       dlTEID,
+		BearerStatus: accept.EPSBearerContextStatus,
+	}, nil
+}
+
+func (e *ENB) idleTrackingAreaUpdateReturningToIdle(ue *UE, enbUEID int64, timeout time.Duration) (*AttachResult, error) {
+	mmeUEID, acceptPlain, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: await Tracking Area Update Accept: %w", err)
+	}
+
+	accept, err := expectDownlink[*eps.TrackingAreaUpdateAccept](acceptPlain)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: parse Tracking Area Update Accept: %w", err)
+	}
+
+	complete, err := ue.buildTrackingAreaUpdateComplete()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, complete); err != nil {
+		return nil, fmt.Errorf("s1enb: send Tracking Area Update Complete: %w", err)
+	}
+
+	if err := e.completeContextRelease(enbUEID, timeout); err != nil {
+		return nil, fmt.Errorf("s1enb: release the UE back to ECM-IDLE: %w", err)
+	}
+
+	logger.GnbLogger.Debug("Tracking area update from 5GS complete, UE returned to idle",
+		zap.String("imsi", ue.IMSI), zap.Int64("mme-ue-id", mmeUEID), zap.Int64("enb-ue-id", enbUEID))
+
+	return &AttachResult{
+		MMEUES1APID:  mmeUEID,
+		ENBUES1APID:  enbUEID,
+		GUTI:         accept.GUTI,
 		BearerStatus: accept.EPSBearerContextStatus,
 	}, nil
 }

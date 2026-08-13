@@ -16,10 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleTrackingAreaUpdate handles a verified TRACKING AREA UPDATE REQUEST
-// (TS 24.301). A UE already ECM-CONNECTED keeps its bearers; a UE returning from
-// ECM-IDLE re-establishes them when it sets the active flag, else is released back
-// to ECM-IDLE after acknowledging the accept.
 func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.TrackingAreaUpdateRequest, plain []byte) nasreply.Disposition {
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Request",
 		zap.String("imsi", ue.IMSI()),
@@ -58,17 +54,20 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		ue.SetUESecurityCapability(ueNetCap, msNetCap, mme.MintAuthProofForTrackingAreaUpdate())
 	}
 
-	if completeIdleMobilityFrom5GS(ctx, m, ue, ueConn, plain) {
-		return nasreply.Handled()
-	}
+	adoptIdlePDNsFrom5GS(ctx, m, ue, ueConn)
 
 	if req.EPSBearerContextStatus != nil {
 		reconcileBearerContextStatus(ctx, m, ue, *req.EPSBearerContextStatus)
 	}
 
+	if completeIdleMobilityFrom5GS(ctx, m, ue, ueConn, plain) {
+		return nasreply.Handled()
+	}
+
 	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
-		combined:     isCombinedUpdate(uint8(req.EPSUpdateType)),
-		bearerStatus: req.EPSBearerContextStatus != nil && len(m.SnapshotPDNs(ue)) > 0,
+		combined: isCombinedUpdate(uint8(req.EPSUpdateType)),
+		bearerStatus: (req.EPSBearerContextStatus != nil || ue.LocalBearerDeactivationPending()) &&
+			len(m.SnapshotPDNs(ue)) > 0,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
@@ -131,6 +130,10 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
+	if ue.IdleMobilityFrom5GSPending() {
+		ue.TransitionTo(mme.EMMRegistered)
+	}
+
 	ueConn.TauRequestPlain = plain
 	ueConn.TauAcceptPlain = acceptPlain
 
@@ -165,6 +168,7 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 	ueConn.StopNASGuard()
 	m.CommitGUTIRealloc(ue)
 	ue.EndIdleMobilityFrom5GS()
+	ue.ClearLocalBearerDeactivation()
 
 	ueConn.TauRequestPlain = nil
 	ueConn.TauAcceptPlain = nil

@@ -117,3 +117,22 @@ func TestInstallRelocatedSecurityContextCapability(t *testing.T) {
 		t.Fatal("a security capability carries no feature bits")
 	}
 }
+
+// TS 24.301 §5.5.3.2.4
+func TestIdleMobilityFrom5GSEndsWithTheRegistration(t *testing.T) {
+	ue := mme.NewUeContext()
+	ue.TransitionTo(mme.EMMRegistrationInitiated)
+	ue.BeginIdleMobilityFrom5GS()
+
+	ue.TransitionTo(mme.EMMRegistered)
+
+	if !ue.IdleMobilityFrom5GSPending() {
+		t.Fatal("the inter-system change ended before the UE confirmed the update, so a repeated update builds a second context")
+	}
+
+	ue.TransitionTo(mme.EMMDeregistered)
+
+	if ue.IdleMobilityFrom5GSPending() {
+		t.Error("a deregistered context still reports an inter-system change in progress, so a later arrival resumes it and adopts no session")
+	}
+}

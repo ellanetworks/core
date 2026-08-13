@@ -16,19 +16,22 @@ import (
 	"go.uber.org/zap"
 )
 
-const epsContextRetention = 75 * time.Second
+// epsContextRetention keeps the 5G context exportable for the UE's own tracking
+// area updating budget — five T3430 expiries — so a repeated update still finds a
+// context to map (TS 24.301 §5.5.3.2.7 d).
+const epsContextRetention = 5 * 15 * time.Second
 
 func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest) (interworking.EPSContextResponse, error) {
 	none := interworking.EPSContextResponse{}
 
-	operatorInfo, err := a.OperatorInfo(ctx)
-	if err != nil {
-		return none, fmt.Errorf("amf: get operator info: %w", err)
-	}
-
 	presented, err := etsi.NewGUTI5GFromNAS(fgs.GUTIIdentity(req.Mapped5GGUTI))
 	if err != nil {
 		return none, fmt.Errorf("%w: %w", interworking.ErrUnknownUEContext, err)
+	}
+
+	operatorInfo, err := a.OperatorInfo(ctx)
+	if err != nil {
+		return none, fmt.Errorf("amf: get operator info: %w", err)
 	}
 
 	ue, ok := a.LookupUeByGuti(operatorInfo.Guami, presented)
@@ -95,6 +98,11 @@ func (a *AMF) EPSContextAck(ctx context.Context, supi etsi.SUPI, transferred []u
 
 	ue.RetainForEPS(epsContextRetention)
 	ue.Deregister(ctx)
+
+	// Supervision is still running against the deadline set when the UE went idle on
+	// NR, which can be moments away. Restart it from the transfer so the escalation
+	// cannot remove the context this ack just chose to retain.
+	a.StartMobileReachable(ue)
 
 	logger.From(ctx, logger.AmfLog).Info("UE moved to EPS in idle mode; keeping its 5G security context for a return",
 		logger.SUPI(supi.String()), zap.Int("adopted", len(transferred)))

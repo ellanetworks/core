@@ -257,6 +257,64 @@ func TestTrackingAreaUpdateOmitsTheBearerStatusWhenNoneWasAsked(t *testing.T) {
 	}
 }
 
+// TS 24.301 §5.5.3.2.4
+func TestTrackingAreaUpdateReportsALocalDeactivation(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	m.AddDefaultPDN(ue)
+
+	dropped := ue.EnsurePDN(6)
+	m.ReleasePDN(context.Background(), ue, dropped)
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
+	}
+
+	var want nas.EPSBearerContextStatus
+
+	want.Active[5] = true
+
+	parsed := parseTAUAccept(t, ue, cc.sent[0])
+	if parsed.EPSBearerContextStatus == nil {
+		t.Fatal("TAU Accept carries no bearer status, so the UE keeps sending on a bearer the MME dropped")
+	}
+
+	if *parsed.EPSBearerContextStatus != want {
+		t.Fatalf("TAU Accept bearer status = %v, want only EBI 5", parsed.EPSBearerContextStatus)
+	}
+}
+
+// The obligation is discharged once the UE acknowledges the accept that carried it.
+func TestTrackingAreaUpdateReportsALocalDeactivationOnce(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	ue.Conn().ICS = mme.ICSCompleted // stay connected across both updates
+
+	m.AddDefaultPDN(ue)
+
+	dropped := ue.EnsurePDN(6)
+	m.ReleasePDN(context.Background(), ue, dropped)
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+
+	handleTrackingAreaUpdateComplete(context.Background(), m, ue, ue.Conn())
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+
+	if len(cc.sent) != 2 {
+		t.Fatalf("expected a second TAU Accept, got %d downlinks", len(cc.sent))
+	}
+
+	if parsed := parseTAUAccept(t, ue, cc.sent[1]); parsed.EPSBearerContextStatus != nil {
+		t.Fatalf("TAU Accept bearer status = %v, want the IE omitted once the deactivation was reported",
+			parsed.EPSBearerContextStatus)
+	}
+}
+
 func parseTAUAccept(t *testing.T, ue *mme.UeContext, sent []byte) *eps.TrackingAreaUpdateAccept {
 	t.Helper()
 

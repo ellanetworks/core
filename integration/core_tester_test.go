@@ -73,6 +73,7 @@ var scenarioFollowsDeploymentIPFamily = map[string]bool{
 	"interworking/handover_eps_to_5gs":                true,
 	"interworking/handover_eps_to_5gs_target_refuses": true,
 	"interworking/idle_5gs_to_eps":                    true,
+	"interworking/idle_5gs_to_eps_returning_to_idle":  true,
 	"interworking/idle_eps_to_5gs":                    true,
 }
 
