@@ -80,7 +80,7 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	e, err := startENB(env)
+	e, err := startENBOnSecondaryN3(env)
 	if err != nil {
 		return err
 	}
@@ -191,7 +191,7 @@ const (
 )
 
 func runIdleEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
-	e, err := startENB(env)
+	e, err := startENBOnSecondaryN3(env)
 	if err != nil {
 		return err
 	}
