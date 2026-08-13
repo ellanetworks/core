@@ -86,9 +86,7 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	}
 
 	return s.commitAccessBinding(ctx, sc, accessBinding{
-		access: access,
-		// TS 23.502 §4.11.1.3.3: a move that does not commit leaves the UE served on
-		// the access it has not left.
+		access:         access,
 		keepOnRollback: true,
 		build: func(commit *transferCommit) (bindingRules, error) {
 			if commit == nil {

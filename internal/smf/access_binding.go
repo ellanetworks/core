@@ -94,10 +94,6 @@ func (sc *SMContext) pendingTransferTo(access AccessType) bool {
 	return sc.pending != nil && sc.pending.to == access
 }
 
-// finishAccessBinding applies the outcome of a downlink re-binding: one that unwound a
-// transfer leaves the session with nowhere to be, so it is released and the peer that
-// asked for the move is told it did not happen; a successful one drops the routing of
-// the access the session left.
 func (s *SMF) finishAccessBinding(ctx context.Context, sc *SMContext, dropped *droppedSource, err error) error {
 	if err != nil {
 		if errors.Is(err, errTransferRolledBack) {

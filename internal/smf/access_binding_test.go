@@ -160,8 +160,7 @@ func TestEPSBindModificationCarriesBothPDRs(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.3.2.2.1: the gNB's setup response rebinds the downlink and carries the
-// PDRs the N2 transfer resolved.
+// TS 23.502 §4.3.2.2.1
 func TestNGRANBindModificationCarriesTheN2Rules(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	pcf.policy.PolicyID = "policy-1"

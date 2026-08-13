@@ -160,8 +160,6 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContext.Ref)
 	}
 
-	// A session whose user plane is already down and that no transfer is waiting on has
-	// nothing to switch; the source binding is simply forgotten.
 	if !smContext.Tunnel.Activated && !smContext.pendingTransferTo(Access5G) {
 		smContext.handoverSourceAN = nil
 

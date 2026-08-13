@@ -287,7 +287,6 @@ func TestTrackingAreaUpdateReportsALocalDeactivation(t *testing.T) {
 	}
 }
 
-// The obligation is discharged once the UE acknowledges the accept that carried it.
 func TestTrackingAreaUpdateReportsALocalDeactivationOnce(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -511,13 +510,11 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 		t.Fatalf("TAU Reject cause = %d, want %d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
 	}
 
-	// TS 24.301 §5.3.1.2.1 d), TS 36.413 §8.3.1
 	cmd := parseUEContextReleaseCommandPDU(t, cc.sent[1])
 	if cmd.UES1APIDs.ENBUES1APID != 7 {
 		t.Fatalf("release command names eNB-UE-S1AP-ID %d, want the rejected connection's 7", cmd.UES1APIDs.ENBUES1APID)
 	}
 
-	// TS 36.413 §8.3.3.1: the eNB can name the connection until it answers.
 	if m.ConnCountForTest() != 1 {
 		t.Fatalf("the MME-UE-S1AP-ID was freed before the Release Complete: %d connections remain", m.ConnCountForTest())
 	}
