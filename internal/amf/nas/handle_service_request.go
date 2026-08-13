@@ -354,29 +354,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 			switch {
 			case requestData.Standalone():
-				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami); err != nil {
+				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 					return
 				}
 
-				if err := amf.DeliverStandaloneN1N2(ctx, ue, ueConn, requestData); err != nil {
-					logger.From(ctx, logger.AmfLog).Warn("failed to deliver buffered downlink message", zap.Error(err))
-				}
-
-				ue.ClearN1N2Message()
-
-			// Paging was triggered for downlink signaling only
-			case n2Info == nil && n1Msg != nil:
-				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami); err != nil {
-					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
-					return
-				}
-
-				amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, fgs.PDUSessionID(requestData.PduSessionID), 0)
-
-				logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
-
-				ue.ClearN1N2Message()
 			default:
 				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
@@ -401,6 +383,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 					return
 				}
+
+				ue.ClearN1N2Message()
 			}
 		} else {
 			if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
@@ -434,8 +418,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	if len(errPduSessionID) != 0 {
 		logger.From(ctx, logger.AmfLog).Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	}
-
-	ue.ClearN1N2Message()
 }
 
 // rejectService answers a service request the AMF cannot accept with a SERVICE REJECT

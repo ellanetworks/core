@@ -40,15 +40,17 @@ func DeliverStandaloneN1N2(ctx context.Context, ue *UeContext, conn *UeConn, req
 			return fmt.Errorf("build DL NAS Transport (%s): %w", req.N1Class, err)
 		}
 
-		return ue.SendDownlinkNAS(nasPdu, uint8(fgs.SHTIntegrityProtected), func(wire []byte) error {
+		if err := ue.SendDownlinkNAS(nasPdu, uint8(fgs.SHTIntegrityProtectedCiphered), func(wire []byte) error {
 			if err := conn.SendDownlinkNASTransport(ctx, wire); err != nil {
 				return fmt.Errorf("send DL NAS Transport (%s): %w", req.N1Class, err)
 			}
-			
+
 			logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport to UE", logger.SUPI(ue.Supi().String()))
 
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
 	}
 
 	if req.BinaryDataN2Information != nil {

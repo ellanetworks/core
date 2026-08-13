@@ -66,7 +66,8 @@ func standaloneBufferUE(t *testing.T) (*amf.AMF, *amf.UeContext, *fakeNGAPSender
 	return amfInstance, ue, ngapSender, key, nas.CipheringAES
 }
 
-// answerPaging drives an MT service request, the branch a paged UE takes.
+// answerPaging drives an MT service request and the subsequent Configuration Update Complete,
+// the full branch a paged UE takes for a buffered standalone N1N2 message.
 func answerPaging(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext, algo nas.CipheringAlgorithm, key [16]uint8) {
 	t.Helper()
 
@@ -76,6 +77,7 @@ func answerPaging(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext, algo na
 	}
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
+	handleConfigurationUpdateComplete(amfInstance, ue)
 }
 
 // A UE answering a page for a buffered LPP message is sent that message in a DL NAS
@@ -96,15 +98,16 @@ func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {
 	answerPaging(t, amfInstance, ue, algo, key)
 
 	// With no PDU session to reactivate the Service Accept goes out on its own, so the
-	// buffered message follows it: Service Accept, buffered LPP, Configuration Update
-	// Command (the GUTI reallocation an MT service request triggers).
+	// buffered message is delivered after the Configuration Update Command: Service
+	// Accept, Configuration Update Command (the GUTI reallocation an MT service request
+	// triggers), buffered LPP.
 	if len(ngapSender.SentDownlinkNASTransport) != 3 {
 		t.Fatalf("DL NAS Transports sent = %d, want 3", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	decipherGmm(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgServiceAccept))
-	plain := decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[1].NASPDU, ue.ULCount()+1, uint8(fgs.MsgDLNASTransport))
-	decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[2].NASPDU, ue.ULCount()+2, uint8(fgs.MsgConfigurationUpdateCommand))
+	decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[1].NASPDU, ue.ULCount()+1, uint8(fgs.MsgConfigurationUpdateCommand))
+	plain := decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[2].NASPDU, ue.ULCount()+2, uint8(fgs.MsgDLNASTransport))
 
 	dl, err := fgs.ParseDLNASTransport(plain)
 	if err != nil {
