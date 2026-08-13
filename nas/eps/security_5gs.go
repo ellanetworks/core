@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
+// VerifyWith5GContext checks that the given NAS message is a valid 5G NAS message with the given security context, and returns the inner plain payload if so.
 func VerifyWith5GContext(b []byte, count nas.Count, dir nas.Direction, sc *nas.SecurityContext) ([]byte, error) {
 	if sc == nil {
 		return nil, nas.ErrNoSecurityContext
