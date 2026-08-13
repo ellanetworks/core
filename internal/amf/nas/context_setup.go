@@ -42,7 +42,11 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 		HandleInitialRegistration(ctx, amfInstance, ue)
 	case fgs.RegistrationTypeMobilityUpdating:
 		if movingFromEPC(msg) {
-			if !ue.TakeArrivedFromEPSHandover() {
+			// An idle-mode change whose context the MME handed over is served as a
+			// mobility update: the UE keeps its PDU sessions and its addresses
+			// (TS 23.502 §4.11.1.3.3). Without one there is nothing to update, so
+			// the UE registers afresh (TS 24.501 §5.5.1.3.5 b).
+			if conn.ArrivingFromEPS == nil && !ue.TakeArrivedFromEPSHandover() {
 				HandleInitialRegistration(ctx, amfInstance, ue)
 				return
 			}

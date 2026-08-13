@@ -16,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -111,6 +112,12 @@ type UeConn struct {
 	RetransmissionOfInitialNASMsg     bool
 
 	ArrivedFromEPS bool
+
+	// ArrivingFromEPS is the MM context the MME handed over for an idle-mode
+	// inter-system change, held from the context request until the PDN
+	// connections it names have been adopted (TS 23.502 §4.11.1.3.3 steps 5a-14).
+	// Nil on every other registration.
+	ArrivingFromEPS *interworking.MMContextResponse
 
 	RegistrationAcceptPlain []byte
 }

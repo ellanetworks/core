@@ -15,6 +15,16 @@ import (
 	"go.uber.org/zap"
 )
 
+// TransferIdleTo5GS is TransferIdle onto 5GS, for the AMF's idle-mode adoption.
+func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, error) {
+	return s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
+}
+
+// TransferIdleToEPS is TransferIdle onto EPS, for the MME's idle-mode adoption.
+func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, error) {
+	return s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access4G)
+}
+
 func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {
 	ctx, span := tracer.Start(ctx, "smf/transfer_idle",
 		trace.WithAttributes(

@@ -26,7 +26,12 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}, nil, MintAuthProofForAttachRequest())
 	testPDN(ue).SgwFTEID = testSGWFTEID
 
-	if _, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1); err != nil {
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, group, code); err != nil {
 		t.Fatal(err)
 	}
 

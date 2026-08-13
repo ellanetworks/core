@@ -291,6 +291,14 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		ue.TransitionTo(amf.RegistrationInitiated)
 
+		// Before the authentication decision: a context recovered from the MME is
+		// what makes authenticationProcedure skip primary authentication and the
+		// security mode procedure activate the mapped context instead
+		// (TS 33.501 §8.2).
+		if movingFromEPCInIdleMode(ue.Conn(), req) {
+			recoverContextFromEPS(ctx, amfInstance, ue, req)
+		}
+
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed, rejecting registration", zap.Error(err))

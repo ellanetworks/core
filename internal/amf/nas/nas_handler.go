@@ -288,11 +288,20 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	guti := etsi.InvalidGUTI5G
 
+	// additional is the native 5G-GUTI a UE changing system from S1 mode carries
+	// alongside the mapped one in its 5GS mobile identity IE (TS 24.501
+	// §8.2.6.12 a). Only this one can name a context this AMF holds.
+	additional := etsi.InvalidGUTI5G
+
 	switch msgType {
 	case fgs.MsgRegistrationRequest:
 		req, err := fgs.ParseRegistrationRequest(body)
 		if !decoded(ctx, "RegistrationRequest", err) {
 			return nil, fmt.Errorf("error decoding plain nas: %w", err)
+		}
+
+		if req.AdditionalGUTI != nil {
+			additional, _ = etsi.NewGUTI5GFromNAS(*req.AdditionalGUTI)
 		}
 
 		switch {
@@ -339,7 +348,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		}
 	}
 
-	if guti == etsi.InvalidGUTI5G {
+	if guti == etsi.InvalidGUTI5G && additional == etsi.InvalidGUTI5G {
 		return nil, nil
 	}
 
@@ -349,7 +358,15 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, nil
 	}
 
+	// The 5GS mobile identity of a UE arriving from EPS is a 5G-GUTI mapped from
+	// its 4G one, which names the MME; the native 5G-GUTI it may still hold is in
+	// the Additional GUTI IE (TS 24.501 §5.5.1.3.2 case e).
 	ue, _ := amfInstance.LookupUeByGuti(operatorInfo.Guami, guti)
+	if ue == nil {
+		guti = additional
+		ue, _ = amfInstance.LookupUeByGuti(operatorInfo.Guami, additional)
+	}
+
 	if ue == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
 		return nil, nil

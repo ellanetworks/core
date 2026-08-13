@@ -17,6 +17,17 @@ func MapGUTI5GToEPS(g fgs.GUTI) eps.GUTI {
 	}
 }
 
+// MappedEPSGUTI is the 4G-GUTI a UE derives from this 5G-GUTI to address the
+// peer MME on an inter-system change (TS 23.003 §2.10.2.1.3).
+func (g GUTI5G) MappedEPSGUTI() (eps.GUTI, error) {
+	id, err := g.MobileIdentity()
+	if err != nil {
+		return eps.GUTI{}, err
+	}
+
+	return MapGUTI5GToEPS(*id.GUTI), nil
+}
+
 func MapGUTIEPSTo5G(g eps.GUTI) fgs.GUTI {
 	return fgs.GUTI{
 		PLMN:        g.PLMN,

@@ -157,22 +157,6 @@ func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeC
 	}
 }
 
-// isNativeGUTI reports whether a GUTI was assigned by this MME (its serving PLMN
-// and GUMMEI), so its M-TMSI can be resolved against the local context index
-// (TS 23.401). A foreign GUTI would require S10, which Ella Core (a
-// single MME) does not implement.
-func isNativeGUTI(ctx context.Context, m *mme.MME, id eps.GUTI) bool {
-	operator, err := m.Operator(ctx)
-	if err != nil {
-		return false
-	}
-
-	plmn := operator.PLMN()
-	group, code := operator.GUMMEI()
-
-	return id.PLMN.MCC == plmn.Mcc && id.PLMN.MNC == plmn.Mnc && id.MMEGroupID == group && id.MMECode == code
-}
-
 // resolveAttachContext resolves the UE context an ATTACH REQUEST runs on BEFORE the
 // message is decoded, so the decode verifies against the right keys and integrity is
 // settled once. A native GUTI whose MAC verifies against a held EPS security
@@ -196,7 +180,7 @@ func resolveAttachContext(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 	}
 
 	guti := req.EPSMobileIdentity.GUTI
-	if guti == nil || !isNativeGUTI(ctx, m, *guti) {
+	if guti == nil || !m.ServesGUTI(ctx, *guti) {
 		return ue, false
 	}
 
