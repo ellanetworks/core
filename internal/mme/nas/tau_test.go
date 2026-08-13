@@ -222,6 +222,62 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 	}
 }
 
+// TS 24.301 §5.5.3.2.4: the accept reports the active bearers when the request
+// asked for them, "except for the case no EPS bearer context exists on the
+// network side".
+func TestTrackingAreaUpdateOmitsTheBearerStatusWithNoBearer(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	status := uint16(1 << 5)
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, &status))
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
+	}
+
+	if parsed := parseTAUAccept(t, ue, cc.sent[0]); parsed.EPSBearerContextStatus != nil {
+		t.Fatalf("TAU Accept bearer status = %v, want the IE omitted for a UE with no bearer", parsed.EPSBearerContextStatus)
+	}
+}
+
+func TestTrackingAreaUpdateOmitsTheBearerStatusWhenNoneWasAsked(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+
+	m.AddDefaultPDN(ue)
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
+	}
+
+	if parsed := parseTAUAccept(t, ue, cc.sent[0]); parsed.EPSBearerContextStatus != nil {
+		t.Fatalf("TAU Accept bearer status = %v, want the IE omitted: the request carried none and nothing was deactivated",
+			parsed.EPSBearerContextStatus)
+	}
+}
+
+func parseTAUAccept(t *testing.T, ue *mme.UeContext, sent []byte) *eps.TrackingAreaUpdateAccept {
+	t.Helper()
+
+	dl := decodeDownlinkNAS(t, sent)
+
+	accept, err := unprotected(eps.Unprotect(dl, nas.MakeCount(0, dl[5]), nas.DirectionDownlink,
+		mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest())))
+	if err != nil {
+		t.Fatalf("unprotect TAU Accept: %v", err)
+	}
+
+	parsed, err := eps.ParseTrackingAreaUpdateAccept(accept)
+	if err != nil {
+		t.Fatalf("parse TAU Accept: %v", err)
+	}
+
+	return parsed
+}
+
 // TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable checks that a
 // combined TAU (the UE also requesting CS-domain registration) is accepted for
 // EPS services only with EMM cause #18, so the UE stops attempting CS

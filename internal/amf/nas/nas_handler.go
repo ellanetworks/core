@@ -288,9 +288,6 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	guti := etsi.InvalidGUTI5G
 
-	// additional is the native 5G-GUTI a UE changing system from S1 mode carries
-	// alongside the mapped one in its 5GS mobile identity IE (TS 24.501
-	// §8.2.6.12 a). Only this one can name a context this AMF holds.
 	additional := etsi.InvalidGUTI5G
 
 	switch msgType {
@@ -309,10 +306,6 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			guti, _ = etsi.NewGUTI5GFromNAS(req.MobileIdentity)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
 		case req.MobileIdentity.SUCI != nil:
-			// A SUCI is a one-time concealed identity, not a handle to an existing
-			// context. Always register on a fresh context; any prior context for
-			// the same subscriber is superseded only once this registration is
-			// authenticated (TS 24.501, reconciled by SUPI on accept).
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context",
 				zap.Stringer("suci", req.MobileIdentity.SUCI))
 
@@ -358,9 +351,6 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, nil
 	}
 
-	// The 5GS mobile identity of a UE arriving from EPS is a 5G-GUTI mapped from
-	// its 4G one, which names the MME; the native 5G-GUTI it may still hold is in
-	// the Additional GUTI IE (TS 24.501 §5.5.1.3.2 case e).
 	ue, _ := amfInstance.LookupUeByGuti(operatorInfo.Guami, guti)
 	if ue == nil {
 		guti = additional

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -59,8 +60,12 @@ type AttachResult struct {
 	UEIPv4     string // UE IPv4 assigned in the Attach Accept
 	UEIPv6     string // UE IPv6 link-local derived from the Attach Accept PDN IID
 	UpfAddress string // S-GW/UPF S1-U address (uplink target)
-	ULTEID     uint32 // S-GW/UPF uplink TEID
-	DLTEID     uint32 // eNB downlink TEID reported to the MME
+
+	// BearerStatus is the EPS bearer context status of a Tracking Area Update
+	// Accept, naming the bearers active in the MME (TS 24.301 §5.5.3.2.4).
+	BearerStatus *nas.EPSBearerContextStatus
+	ULTEID       uint32 // S-GW/UPF uplink TEID
+	DLTEID       uint32 // eNB downlink TEID reported to the MME
 }
 
 // Attach drives a full EPS attach for ue (TS 24.301 §5.5.1.2), returning once

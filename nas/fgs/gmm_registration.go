@@ -34,56 +34,26 @@ const (
 // reads the fields below; the many other optional IEs are still walked (so a later
 // IE Ella reads is reached) but their values are discarded.
 type RegistrationRequest struct {
-	RegistrationType RegistrationType     // bits 1-3 of the ngKSI/registration-type octet
-	FOR              bool                 // follow-on request pending, bit 4
-	NgKSI            nas.KeySetIdentifier // bits 5-8
-	MobileIdentity   MobileIdentity       // mandatory 5GS mobile identity (type 6, LVE)
-
-	GMMCapability        *GMMCapability        // IEI 0x10
-	UESecurityCapability *UESecurityCapability // IEI 0x2E
-
-	// Opaque for the same reason SECURITY MODE COMMAND's replayed copy is: the UE
-	// compares the replay byte-for-byte (TS 33.501 §6.7.2), so decoding and
-	// re-encoding could only lose that. Modelled rather than left to Unrecognized
-	// because Critical is only consulted when the parse callback rejects a value,
-	// so an element with no case there can never fire it.
-	S1UENetworkCapability []byte // IEI 0x17
-
-	RequestedNSSAI          NSSAI         // IEI 0x2F
-	UplinkDataStatus        *PSIBitmap    // IEI 0x40
-	PDUSessionStatus        *PSIBitmap    // IEI 0x50
-	AllowedPDUSessionStatus *PSIBitmap    // IEI 0x25
-	UEStatus                *UEStatus     // IEI 0x2B
-	RequestedDRXParameters  *DRXParameter // IEI 0x51
-
-	// AdditionalGUTI is the UE's native 5G-GUTI (IEI 0x77), which it includes
-	// when registering after an inter-system change from S1 mode in
-	// single-registration mode (TS 24.501 §8.2.6.12 a). The 5GS mobile identity
-	// IE of the message itself then carries the 5G-GUTI mapped from the 4G-GUTI,
-	// so this is what names the context the AMF can still recover
-	// (§5.5.1.3.2 case e).
-	AdditionalGUTI      *MobileIdentity
-	NASMessageContainer []byte          // IEI 0x71
-	MICOIndication      *MICOIndication // IEI 0xB0 (type 1)
-	UpdateType5GS       *UpdateType5GS  // IEI 0x53
-
-	// EPSNASMessageContainer (IEI 0x70) carries the complete integrity-protected
-	// TRACKING AREA UPDATE REQUEST the UE would have sent in S1 mode, protected
-	// with its EPS security context, on an inter-system change performed in
-	// 5GMM-IDLE mode (TS 24.501 §8.2.6.16, §5.5.1.3.2 c). It is opaque here:
-	// §7.5.2 admits no diagnosis of its content beyond presence and length, and
-	// only the MME holds the context that verifies it.
-	EPSNASMessageContainer []byte
-
-	// EPSBearerContextStatus (IEI 0x60) reports which EPS bearer contexts are
-	// active in the UE. A UE that locally deactivated one in S1 mode without
-	// telling the network shall include it on the inter-system change
-	// (TS 24.501 §5.5.1.3.2 d, §8.2.6.23).
-	EPSBearerContextStatus *nas.EPSBearerContextStatus
-
-	// Unrecognized carries the optional information elements this message does
-	// not model, so they survive decoding and re-encode unchanged.
-	Unrecognized []nas.RawIE
+	RegistrationType        RegistrationType      // bits 1-3 of the ngKSI/registration-type octet
+	FOR                     bool                  // follow-on request pending, bit 4
+	NgKSI                   nas.KeySetIdentifier  // bits 5-8
+	MobileIdentity          MobileIdentity        // mandatory 5GS mobile identity (type 6, LVE)
+	GMMCapability           *GMMCapability        // IEI 0x10
+	UESecurityCapability    *UESecurityCapability // IEI 0x2E
+	S1UENetworkCapability   []byte                // IEI 0x17
+	RequestedNSSAI          NSSAI                 // IEI 0x2F
+	UplinkDataStatus        *PSIBitmap            // IEI 0x40
+	PDUSessionStatus        *PSIBitmap            // IEI 0x50
+	AllowedPDUSessionStatus *PSIBitmap            // IEI 0x25
+	UEStatus                *UEStatus             // IEI 0x2B
+	RequestedDRXParameters  *DRXParameter         // IEI 0x51
+	AdditionalGUTI          *MobileIdentity
+	NASMessageContainer     []byte          // IEI 0x71
+	MICOIndication          *MICOIndication // IEI 0xB0 (type 1)
+	UpdateType5GS           *UpdateType5GS  // IEI 0x53
+	EPSNASMessageContainer  []byte
+	EPSBearerContextStatus  *nas.EPSBearerContextStatus
+	Unrecognized            []nas.RawIE
 }
 
 // registrationRequestIEs is the full-octet optional-IE table of the REGISTRATION

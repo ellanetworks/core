@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// fakeFiveGSPeer stands in for the AMF an inter-system change recovers from.
 type fakeFiveGSPeer struct {
 	Requests    []interworking.EPSContextRequest
 	Response    interworking.EPSContextResponse
@@ -53,8 +52,6 @@ func (p *fakeFiveGSPeer) EPSContextAck(_ context.Context, _ etsi.SUPI, transferr
 	return nil
 }
 
-// arrivingEPSContext is the context an AMF returns for a UE changing system in
-// idle mode: an EPS context mapped from the 5G one, and one PDU session.
 func arrivingEPSContext(t *testing.T, algorithms interworking.EPSNASAlgorithms) interworking.EPSContextResponse {
 	t.Helper()
 
@@ -86,10 +83,6 @@ func arrivingEPSContext(t *testing.T, algorithms interworking.EPSNASAlgorithms) 
 	}
 }
 
-// interSystemTAU is the TRACKING AREA UPDATE REQUEST of TS 24.301 §5.5.3.2.2
-// case z: a mapped Old GUTI typed native, the UE status reporting
-// 5GMM-REGISTERED, and an integrity-protected frame the MME cannot verify —
-// its MAC is computed over the 5G security context.
 func interSystemTAU(t *testing.T, mutate func(*eps.TrackingAreaUpdateRequest)) []byte {
 	t.Helper()
 
@@ -114,8 +107,6 @@ func interSystemTAU(t *testing.T, mutate func(*eps.TrackingAreaUpdateRequest)) [
 		t.Fatalf("encode TAU: %v", err)
 	}
 
-	// The MAC is the UE's, computed with keys no node in EPS holds; the MME reads
-	// the message without checking it and asks the AMF instead.
 	return append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x00}, plain...)
 }
 
@@ -157,8 +148,6 @@ func TestMovingFrom5GSInIdleModeNeedsTheMappedIdentity(t *testing.T) {
 	}
 }
 
-// idleArrivalMME is an MME with a bare S1 connection: a UE arriving from 5GS is
-// one this node has never seen.
 func idleArrivalMME(t *testing.T, peer *fakeFiveGSPeer) (*mme.MME, *mme.UeConn, *captureConn) {
 	t.Helper()
 
@@ -173,8 +162,7 @@ func idleArrivalMME(t *testing.T, peer *fakeFiveGSPeer) (*mme.MME, *mme.UeConn, 
 	return m, conn, cc
 }
 
-// TS 33.501 §8.5.2 steps 3-6: the MME cannot verify this message, so it asks the
-// AMF, and serves the update on the context that comes back.
+// TS 33.501 §8.5.2 steps 3-6
 func TestInterSystemTAURecoversTheContextFromTheAMF(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -192,8 +180,6 @@ func TestInterSystemTAURecoversTheContextFromTheAMF(t *testing.T) {
 		t.Fatalf("context requests = %d, want 1", len(peer.Requests))
 	}
 
-	// TS 23.003 §2.10.2.2.3: the MME reverse-maps the presented identity and the
-	// AMF compares it against its stored values.
 	if got := peer.Requests[0].Mapped5GGUTI.TMSI; got != [4]byte{0x00, 0x00, 0xde, 0xad} {
 		t.Errorf("the AMF was asked about 5G-TMSI %x, want the one the Old GUTI maps back to", got)
 	}
@@ -220,8 +206,7 @@ func TestInterSystemTAURecoversTheContextFromTheAMF(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.5: with no context to recover, the update resolves nothing
-// and the S1AP layer answers EMM cause #9, which sends the UE to re-attach.
+// TS 24.301 §5.5.3.2.5
 func TestInterSystemTAUWithoutARecoverableContext(t *testing.T) {
 	peer := &fakeFiveGSPeer{Err: interworking.ErrUnknownUEContext}
 	m, conn, _ := idleArrivalMME(t, peer)
@@ -249,8 +234,6 @@ func TestInterSystemTAUWithAFailedIntegrityCheck(t *testing.T) {
 	}
 }
 
-// An ordinary TAU on a bare connection still resolves nothing: only the
-// inter-system form recovers a context from the peer.
 func TestOrdinaryTAUOnABareConnectionMintsNothing(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -271,8 +254,7 @@ func TestOrdinaryTAUOnABareConnectionMintsNothing(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.5.2 steps 7-10: when the MME's policy names other algorithms than
-// the mapped context carries, it re-keys before answering the update.
+// TS 33.501 §8.5.2 steps 7-10
 func TestInterSystemTAURekeysOnAnAlgorithmChange(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,

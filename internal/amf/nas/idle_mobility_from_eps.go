@@ -13,11 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// movingFromEPCInIdleMode reports whether this registration is an inter-system
-// change performed in 5GMM-IDLE mode: a mobility registration update reporting
-// EMM-REGISTERED, carrying the TRACKING AREA UPDATE REQUEST the UE would have
-// sent in S1 mode. A UE that changed system in connected mode sends no such
-// container (TS 24.501 §5.5.1.3.2 c), so its arrival is the handover path.
 func movingFromEPCInIdleMode(conn *amf.UeConn, req *fgs.RegistrationRequest) bool {
 	return conn != nil &&
 		conn.RegistrationType5GS == fgs.RegistrationTypeMobilityUpdating &&
@@ -25,14 +20,6 @@ func movingFromEPCInIdleMode(conn *amf.UeConn, req *fgs.RegistrationRequest) boo
 		len(req.EPSNASMessageContainer) > 0
 }
 
-// recoverContextFromEPS fetches the UE's context from the MME and takes it onto
-// ue, so the registration proceeds on a context the MME authenticated rather
-// than on primary authentication (TS 23.502 §4.11.1.3.3 steps 5a-6,
-// TS 33.501 §8.2).
-//
-// A failure is not fatal: the caller carries on to primary authentication and
-// the registration is served as an initial one (TS 24.501 §5.5.1.3.5 b), which
-// costs the UE its PDU sessions but not its service.
 func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest) {
 	conn := ue.Conn()
 	if conn == nil {
@@ -53,9 +40,6 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
-	// TS 24.501 §5.5.1.3.4 case a: a native 5G context that already verified this
-	// request stays current, and the EPS security parameters are discarded. Only
-	// the PDN connections are taken from the MME.
 	if ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
 		logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
 			logger.SUPI(resp.SUPI.String()))
@@ -77,14 +61,6 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		logger.SUPI(resp.SUPI.String()), zap.Int("pdn-connections", len(resp.PDNConnections)))
 }
 
-// adoptArrivingSessions takes the PDN connections the MME handed over onto 5GS
-// and releases the UE from EPS.
-//
-// Each session moves with its address and EPS bearer identity but with no user
-// plane on the target: an idle move establishes none unless the UE asks for one
-// in the Uplink data status IE (TS 23.502 §4.11.1.3.3 step 14). The MME is
-// acknowledged once the moves are done, which releases whatever 5GS did not take
-// (step 8).
 func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) {
 	arriving := conn.ArrivingFromEPS
 	if arriving == nil {
@@ -95,8 +71,6 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 
 	supi := ue.Supi()
 
-	// The MME verified the enclosed TRACKING AREA UPDATE REQUEST against the EPS
-	// security context, so this identity is an authenticated one (TS 33.501 §8.2).
 	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("failed to commit the identity of a UE arriving from EPS", zap.Error(err))
 		return

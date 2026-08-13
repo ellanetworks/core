@@ -82,8 +82,7 @@ func TestTransferableEPSSessionsSkipsASessionWithNoBearerIdentity(t *testing.T) 
 	}
 }
 
-// TS 23.502 §4.11.1.3.2 step 5a: an idle move is not answering a target's
-// admission list, so every session holding an EBI goes.
+// TS 23.502 §4.11.1.3.2 step 5a
 func TestAllTransferableEPSSessions(t *testing.T) {
 	ue := relocatableUE(t)
 
@@ -100,8 +99,6 @@ func TestAllTransferableEPSSessions(t *testing.T) {
 		t.Fatalf("got %d transferable sessions, want both", len(got))
 	}
 
-	// The allow-list form selects nothing from the same UE when asked for nothing,
-	// which is why the idle path needs its own entry point.
 	if asked := ue.TransferableEPSSessions(nil); len(asked) != 0 {
 		t.Fatalf("got %d sessions for an empty allow-list, want none", len(asked))
 	}
@@ -110,7 +107,6 @@ func TestAllTransferableEPSSessions(t *testing.T) {
 func TestAllTransferableEPSSessionsAppliesTheSameFilters(t *testing.T) {
 	ue := relocatableUE(t)
 
-	// No EBI, so it cannot become a PDN connection.
 	if err := ue.CreateSmContext(2, "ref-2", &models.Snssai{Sst: 2}, "ims"); err != nil {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
@@ -164,7 +160,6 @@ func TestBuildForwardRelocationRequest(t *testing.T) {
 		t.Fatal("the NAS transparent container must accompany the request")
 	}
 
-	// TS 33.501 §8.3.2 step 2, §8.6.1
 	if got, want := mapped.Container.SequenceNumber, consumed.SQN(); got != want {
 		t.Fatalf("container sequence number = %d, want the consumed count's %d", got, want)
 	}
@@ -218,8 +213,6 @@ func TestENBIdentityFromNGAP(t *testing.T) {
 		t.Fatalf("PLMN = %+v, want 001/01", got.PlmnID)
 	}
 
-	// TS 23.502 §4.11.1.2.1: the selected PLMN travels in the TAI, and on a shared
-	// RAN it is not the eNB's own.
 	if got.SelectedEPSTAI.PlmnID.Mcc != "002" || got.SelectedEPSTAI.PlmnID.Mnc != "01" {
 		t.Fatalf("selected TAI PLMN = %+v, want the 002/01 the source chose", got.SelectedEPSTAI.PlmnID)
 	}

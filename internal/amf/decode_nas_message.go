@@ -139,18 +139,8 @@ func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 	return ue.NasIntegrityVerified(payload)
 }
 
-// ErrNoUplinkNASCount reports an EPS-framed NAS message the UE's uplink count
-// cannot cover.
 var ErrNoUplinkNASCount = errors.New("amf: no uplink NAS COUNT admits the message")
 
-// VerifyEnclosedEPSNAS verifies an EPS-framed NAS message — the TRACKING AREA
-// UPDATE REQUEST a UE changing system to EPS sends — against this UE's current
-// 5G NAS security context, and returns the uplink NAS COUNT it was accepted at
-// (TS 33.501 §8.5.2 step 4).
-//
-// Unlike NasIntegrityVerified the count is committed here: it is the P0 of the
-// K'ASME derivation (Annex A.14.1), so a replay has to fail before it can
-// re-derive the key the peer then holds.
 func (ue *UeContext) VerifyEnclosedEPSNAS(payload []byte) (nas.Count, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

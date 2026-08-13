@@ -67,7 +67,8 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	}
 
 	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
-		combined: isCombinedUpdate(uint8(req.EPSUpdateType)),
+		combined:     isCombinedUpdate(uint8(req.EPSUpdateType)),
+		bearerStatus: req.EPSBearerContextStatus != nil && len(m.SnapshotPDNs(ue)) > 0,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
@@ -203,6 +204,10 @@ func isCombinedUpdate(updateType uint8) bool {
 
 type tauAcceptOptions struct {
 	combined bool
+	// bearerStatus reports the active EPS bearer contexts, which the accept
+	// carries when the request asked for them and the MME holds at least one
+	// (TS 24.301 §5.5.3.2.4).
+	bearerStatus bool
 }
 
 // trackingAreaUpdateAccept builds a TRACKING AREA UPDATE ACCEPT with the operator's
@@ -248,8 +253,10 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		accept.Cause = &cause
 	}
 
-	status := bearerContextStatus(m, ue)
-	accept.EPSBearerContextStatus = &status
+	if opts.bearerStatus {
+		status := bearerContextStatus(m, ue)
+		accept.EPSBearerContextStatus = &status
+	}
 
 	return accept, nil
 }

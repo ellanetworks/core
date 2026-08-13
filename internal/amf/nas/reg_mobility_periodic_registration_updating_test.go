@@ -984,15 +984,12 @@ func TestMobilityReg_OmitsTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *te
 }
 
 type fakeEPSPeer struct {
-	// MMContext fields
 	MMContextRequests []interworking.MMContextRequest
 	MMContextResponse interworking.MMContextResponse
 	MMContextErr      error
-
-	// MMContextAck fields
-	Acked       bool
-	AckedSupi   etsi.SUPI
-	Transferred []uint8
+	Acked             bool
+	AckedSupi         etsi.SUPI
+	Transferred       []uint8
 }
 
 func (*fakeEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {

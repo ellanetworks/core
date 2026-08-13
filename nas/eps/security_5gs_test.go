@@ -11,9 +11,6 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// protectWithBearer frames plain as an EPS security-protected message whose
-// NAS-MAC is computed over the named bearer, standing in for a UE that MACs its
-// TAU REQUEST as a 5G NAS message (bearer 3GPP) or as an EPS one (bearer EPS).
 func protectWithBearer(t *testing.T, sc *nas.SecurityContext, plain []byte, count nas.Count, bearer nas.Bearer) []byte {
 	t.Helper()
 
@@ -37,9 +34,7 @@ func protectWithBearer(t *testing.T, sc *nas.SecurityContext, plain []byte, coun
 	return raw
 }
 
-// TS 33.501 §8.5.2: the UE computes the NAS-MAC for the TAU REQUEST as it is
-// done for a 5G NAS message over a 3GPP access, so the bearer is the 3GPP access
-// connection identifier and not the EPS constant Unprotect uses.
+// TS 33.501 §8.5.2
 func TestVerifyWith5GContextTakesTheThreeGPPBearer(t *testing.T) {
 	sc := testContext(t, "aes")
 	count := nas.Count(7)
@@ -61,8 +56,6 @@ func TestVerifyWith5GContextTakesTheThreeGPPBearer(t *testing.T) {
 	}
 }
 
-// The count is the caller's replay gate, so a message whose sequence number does
-// not belong to it is refused before the MAC is even checked.
 func TestVerifyWith5GContextChecksTheSequenceNumber(t *testing.T) {
 	sc := testContext(t, "aes")
 
@@ -73,8 +66,7 @@ func TestVerifyWith5GContextChecksTheSequenceNumber(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.2.3: the message arrives unciphered so the MME can read its Old
-// GUTI and UE status. A ciphered header type would hide them.
+// TS 24.301 §4.4.2.3
 func TestVerifyWith5GContextRefusesCipheredAndPlainHeaders(t *testing.T) {
 	sc := testContext(t, "aes")
 	count := nas.Count(7)
@@ -108,8 +100,7 @@ func TestVerifyWith5GContextRefusesCipheredAndPlainHeaders(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.2.3 case 1 has the MME run a NAS SMC when it changes algorithm,
-// so the UE's next message carries the new-context header type.
+// TS 24.301 §4.4.2.3 case 1
 func TestVerifyWith5GContextAdmitsTheNewContextHeaderType(t *testing.T) {
 	sc := testContext(t, "aes")
 	count := nas.Count(3)

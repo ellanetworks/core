@@ -16,9 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// ServesGUTI reports whether a 4G-GUTI was assigned by this node: its serving
-// PLMN and its GUMMEI (TS 23.003). A foreign GUTI would require S10, which Ella
-// Core does not implement.
 func (m *MME) ServesGUTI(ctx context.Context, id eps.GUTI) bool {
 	operator, err := m.Operator(ctx)
 	if err != nil {
@@ -32,15 +29,6 @@ func (m *MME) ServesGUTI(ctx context.Context, id eps.GUTI) bool {
 		id.MMEGroupID == group && id.MMECode == code
 }
 
-// MMContext answers the AMF's request for the UE's EPS context on an idle-mode
-// inter-system change to 5GS (TS 23.502 §4.11.1.3.3 step 5a).
-//
-// The MME is the only node holding the EPS security context the UE protected
-// its TRACKING AREA UPDATE REQUEST with, so verifying that message here is what
-// authenticates the whole move: the AMF acts on the SUPI this returns
-// (TS 33.501 §8.2). The count it verified at is committed before the context
-// goes out, so a replayed REGISTRATION REQUEST carrying the same container
-// cannot re-derive K'AMF.
 func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) (interworking.MMContextResponse, error) {
 	none := interworking.MMContextResponse{}
 
@@ -63,9 +51,6 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 		return none, fmt.Errorf("%w: %w", interworking.ErrIntegrityCheckFailed, err)
 	}
 
-	// The container of a mobility registration update carries a TRACKING AREA
-	// UPDATE REQUEST (TS 24.501 §8.2.6.16); an ATTACH REQUEST belongs to the
-	// initial-registration case, which this path does not serve.
 	if mt, err := eps.PeekMessageType(plain); err != nil || mt != eps.MsgTrackingAreaUpdateRequest {
 		return none, fmt.Errorf("%w: the container holds no TRACKING AREA UPDATE REQUEST", interworking.ErrIntegrityCheckFailed)
 	}
@@ -94,13 +79,6 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 	}, nil
 }
 
-// MMContextAck is the AMF's Context Acknowledge: the UE is served from 5GS from
-// here on (TS 23.502 §4.11.1.3.3 step 8, TS 23.401 §5.3.3.1 step 7). transferred
-// names the PDU sessions 5GS adopted; every PDN connection left behind is
-// released, and the EMM context goes with them.
-//
-// Withholding the acknowledgement leaves this context untouched, so a move the
-// AMF abandons costs the UE nothing on EPS.
 func (m *MME) MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []uint8) error {
 	ue, ok := m.LookupUeBySupi(supi)
 	if !ok {

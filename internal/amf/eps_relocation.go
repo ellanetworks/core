@@ -12,9 +12,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TransferableEPSSessions is the subset of requested the UE can take to EPS.
-// requested is an allow-list, so it selects nothing when empty; the handover
-// call site names the sessions the target admitted.
 func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.PDNConnection {
 	asked := make(map[uint8]struct{}, len(requested))
 	for _, pduSessionID := range requested {
@@ -28,10 +25,6 @@ func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.P
 	})
 }
 
-// AllTransferableEPSSessions is every session the UE can take to EPS. An idle
-// move transfers the lot: the AMF chooses what to hand over, and the UE reports
-// what it kept in the EPS bearer context status of the TAU
-// (TS 23.502 §4.11.1.3.2 step 5a).
 func (ue *UeContext) AllTransferableEPSSessions() []interworking.PDNConnection {
 	return ue.transferableEPSSessions(func(uint8) bool { return true })
 }

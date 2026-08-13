@@ -18,9 +18,6 @@ import (
 
 const idleEKSI uint8 = 4
 
-// arrivingMMContext is the context an MME returns for a UE changing system in
-// idle mode: an EPS security context whose uplink count is the one the TAU
-// verified at, and one PDN connection.
 func arrivingMMContext(supi etsi.SUPI) interworking.MMContextResponse {
 	var kasme [32]byte
 	for i := range kasme {
@@ -46,8 +43,6 @@ func arrivingMMContext(supi etsi.SUPI) interworking.MMContextResponse {
 	}
 }
 
-// idleArrivalRequest is the REGISTRATION REQUEST of an inter-system change
-// performed in 5GMM-IDLE mode (TS 24.501 §5.5.1.3.2 a, c).
 func idleArrivalRequest() *fgs.RegistrationRequest {
 	return &fgs.RegistrationRequest{
 		RegistrationType:       fgs.RegistrationTypeMobilityUpdating,
@@ -72,9 +67,7 @@ func idleArrivalUE(t *testing.T) (*amf.UeContext, *amf.AMF, *fakeEPSPeer, *fakeS
 	return ue, amfInstance, peer, smf
 }
 
-// A registration in connected mode carries no EPS NAS message container
-// (TS 24.501 §5.5.1.3.2 c), which is what separates the idle path from the
-// arrival of a handover.
+// TS 24.501 §5.5.1.3.2 c
 func TestMovingFromEPCInIdleModeNeedsTheContainer(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -102,9 +95,7 @@ func TestMovingFromEPCInIdleModeNeedsTheContainer(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.2: the mapped context is installed before the authentication
-// decision, so the security mode command activates it — carrying the mapped
-// ngKSI and the EPS NAS algorithms already in use.
+// TS 33.501 §8.2
 func TestRecoverContextFromEPSInstallsTheMappedContext(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 
@@ -136,8 +127,6 @@ func TestRecoverContextFromEPSInstallsTheMappedContext(t *testing.T) {
 		t.Errorf("security mode command ngKSI = %+v, want the mapped %d", smc.NgKSI, idleEKSI)
 	}
 
-	// TS 33.501 §8.6.1: the EPS algorithms the AMF signals now are the ones a
-	// later move back to EPS maps the context under.
 	if smc.SelectedEPSNASSecurityAlgorithms == nil {
 		t.Fatal("no selected EPS NAS security algorithms: the UE could not derive the same mapped EPS context on its way back")
 	}
@@ -152,8 +141,7 @@ func TestRecoverContextFromEPSInstallsTheMappedContext(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.5 b: with no context to recover the UE is authenticated,
-// and the registration proceeds as an initial one.
+// TS 24.501 §5.5.1.3.5 b
 func TestRecoverContextFromEPSFallsBackWhenTheMMEHasNoContext(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 	peer.MMContextErr = interworking.ErrUnknownUEContext
@@ -180,8 +168,7 @@ func TestRecoverContextFromEPSFallsBackOnAFailedIntegrityCheck(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.4 case a: a native 5G context that already verified the
-// request stays current, and the EPS security parameters are discarded.
+// TS 24.501 §5.5.1.3.4 case a
 func TestRecoverContextFromEPSKeepsANativeContext(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 
@@ -247,8 +234,7 @@ func TestAdoptArrivingSessionsMovesThemAndAcksTheMME(t *testing.T) {
 	}
 }
 
-// A session the SMF refuses is left behind rather than reported as adopted, so
-// the MME releases it (TS 23.502 §4.11.1.3.3 step 8).
+// TS 23.502 §4.11.1.3.3 step 8
 func TestAdoptArrivingSessionsLeavesBehindWhatCannotMove(t *testing.T) {
 	ue, amfInstance, peer, smf := idleArrivalUE(t)
 	smf.IdleTransferErr = context.DeadlineExceeded
@@ -271,8 +257,7 @@ func TestAdoptArrivingSessionsLeavesBehindWhatCannotMove(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.11.1.3.3 step 17: the accept reports the adopted sessions to the
-// UE, both as PDU sessions and as the EPS bearers they map to.
+// TS 23.502 §4.11.1.3.3 step 17
 func TestIdleArrivalAcceptReportsTheAdoptedSessions(t *testing.T) {
 	ue, ngapSender, smf, amfInstance := buildMobilityRegUeAndAMF(t)
 

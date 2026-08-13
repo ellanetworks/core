@@ -210,37 +210,25 @@ type SmfReleaseSmContextCall struct {
 }
 
 type fakeSmf struct {
-	Error             error
-	ReleasedSmContext []string
-
-	// TransferIdleTo5GS fields
-	IdleTransfers   []idleTransfer
-	IdleTransferErr error
-
-	// ActivateSmContext fields
+	Error                     error
+	ReleasedSmContext         []string
+	IdleTransfers             []idleTransfer
+	IdleTransferErr           error
 	ActivateSmContextResponse []byte
 	ActivateSmContextError    error
 	ActivateSmContextCalls    []SmfActivateSmContextCall
-
-	// ReleaseSmContext fields
-	ReleaseSmContextError error
-	ReleaseSmContextCalls []SmfReleaseSmContextCall
-
-	// UpdateSmContextN1Msg fields
-	UpdateN1MsgResponse *smf.UpdateResult
-	UpdateN1MsgError    error
-	UpdateN1MsgCalls    []SmfUpdateN1MsgCall
-
-	// CreateSmContext fields
-	CreateSmContextRef     string
-	CreateSmContextErrResp []byte
-	CreateSmContextError   error
-	CreateSmContextCalls   []SmfCreateSmContextCall
-
-	// UpdateSmContextCauseDuplicatePDUSessionID fields
-	DuplicatePDUResponse []byte
-	DuplicatePDUError    error
-	DuplicatePDUCalls    []SmfDuplicatePDUCall
+	ReleaseSmContextError     error
+	ReleaseSmContextCalls     []SmfReleaseSmContextCall
+	UpdateN1MsgResponse       *smf.UpdateResult
+	UpdateN1MsgError          error
+	UpdateN1MsgCalls          []SmfUpdateN1MsgCall
+	CreateSmContextRef        string
+	CreateSmContextErrResp    []byte
+	CreateSmContextError      error
+	CreateSmContextCalls      []SmfCreateSmContextCall
+	DuplicatePDUResponse      []byte
+	DuplicatePDUError         error
+	DuplicatePDUCalls         []SmfDuplicatePDUCall
 }
 
 type SmfUpdateN1MsgCall struct {

@@ -111,12 +111,7 @@ type UeConn struct {
 	IdentityTypeUsedForRegistration   uint8
 	RetransmissionOfInitialNASMsg     bool
 
-	ArrivedFromEPS bool
-
-	// ArrivingFromEPS is the MM context the MME handed over for an idle-mode
-	// inter-system change, held from the context request until the PDN
-	// connections it names have been adopted (TS 23.502 §4.11.1.3.3 steps 5a-14).
-	// Nil on every other registration.
+	ArrivedFromEPS  bool
 	ArrivingFromEPS *interworking.MMContextResponse
 
 	RegistrationAcceptPlain []byte

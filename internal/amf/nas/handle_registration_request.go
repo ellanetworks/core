@@ -281,9 +281,6 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	switch {
 	case state == amf.Deregistered, state == amf.Registered, step == amf.RegStepAuthenticating:
 		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, req, plain, integrityVerified, arrivedPlain); err != nil {
-			// Release the half-registered UE at the point of failure; a failed
-			// handleRegistrationRequestMessage (which may already have sent a REGISTRATION
-			// REJECT) releases nothing, leaking its open RAN connection under no supervision.
 			abortRegistration(ctx, amfInstance, ue, "handle registration request message", err)
 
 			return nasreply.Handled()
@@ -291,10 +288,6 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		ue.TransitionTo(amf.RegistrationInitiated)
 
-		// Before the authentication decision: a context recovered from the MME is
-		// what makes authenticationProcedure skip primary authentication and the
-		// security mode procedure activate the mapped context instead
-		// (TS 33.501 §8.2).
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
 			recoverContextFromEPS(ctx, amfInstance, ue, req)
 		}

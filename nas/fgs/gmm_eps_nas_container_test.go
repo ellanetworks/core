@@ -11,10 +11,7 @@ import (
 	"github.com/ellanetworks/core/nas"
 )
 
-// TS 24.501 §8.2.6.16: a single-registration UE moving from S1 mode in
-// 5GMM-IDLE mode carries its complete TRACKING AREA UPDATE REQUEST here,
-// protected with the EPS security context. Only the MME can verify it, so the
-// bytes have to survive the AMF's decode unaltered.
+// TS 24.501 §8.2.6.16
 func TestRegistrationRequestCarriesTheEPSNASMessageContainer(t *testing.T) {
 	// Opaque to this codec (§7.5.2), so the content only has to be recognisable.
 	tau := []byte{0x07, 0x48, 0x0b, 0xf6, 0x00, 0xf1, 0x10, 0x00, 0x01, 0x01, 0x02, 0x03, 0x04}
@@ -46,8 +43,6 @@ func TestRegistrationRequestCarriesTheEPSNASMessageContainer(t *testing.T) {
 	}
 }
 
-// A container long enough to need a two-octet length is the ordinary case: a TAU
-// REQUEST carrying its own optional IEs exceeds 255 octets.
 func TestEPSNASMessageContainerSurvivesALongTAU(t *testing.T) {
 	tau := make([]byte, 300)
 	for i := range tau {
@@ -75,10 +70,7 @@ func TestEPSNASMessageContainerSurvivesALongTAU(t *testing.T) {
 	}
 }
 
-// TS 24.501 table 8.2.6.1.1 orders the optional IEs, and a UE is entitled to
-// stop at the first IEI it does not expect. The encoder emits them in that
-// order; this pins the three the inter-system change adds against the order the
-// table lists them in (§8.2.6.15, §8.2.6.16, §8.2.6.20, §8.2.6.21, §8.2.6.23).
+// TS 24.501 table 8.2.6.1.1
 func TestRegistrationRequestEmitsOptionalIEsInTableOrder(t *testing.T) {
 	m := &RegistrationRequest{
 		RegistrationType:       RegistrationTypeMobilityUpdating,

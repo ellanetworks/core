@@ -11,8 +11,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// A TRACKING AREA UPDATE REQUEST as the UE frames it for an idle change to EPS:
-// EPS framing, MAC'd as a 5G NAS message over a 3GPP access (TS 33.501 §8.5.2).
+// TS 33.501 §8.5.2
 func epsFramedTAU(t *testing.T, ue *UeContext, count nas.Count, bearer nas.Bearer) []byte {
 	t.Helper()
 
@@ -36,9 +35,7 @@ func epsFramedTAU(t *testing.T, ue *UeContext, count nas.Count, bearer nas.Beare
 	return raw
 }
 
-// TS 33.501 §8.5.2 step 4: the AMF verifies the enclosed TAU REQUEST as if it
-// were a 5G NAS message received over 3GPP access, and the count it verified at
-// is the K'ASME input.
+// TS 33.501 §8.5.2 step 4
 func TestVerifyEnclosedEPSNASReturnsTheCountItVerifiedAt(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -57,9 +54,7 @@ func TestVerifyEnclosedEPSNASReturnsTheCountItVerifiedAt(t *testing.T) {
 	}
 }
 
-// The count is committed, so the same message cannot verify again and re-derive
-// the key the MME already holds (TS 33.501 §8.5.2 step 1: the UE's own stored
-// count increases when it sends the TAU).
+// TS 33.501 §8.5.2 step 1
 func TestVerifyEnclosedEPSNASCommitsTheCount(t *testing.T) {
 	ue := newSecuredUE(t)
 
@@ -83,8 +78,6 @@ func TestVerifyEnclosedEPSNASCommitsTheCount(t *testing.T) {
 	}
 }
 
-// A message MAC'd over the EPS bearer is one protected with an EPS context, not
-// the 5G one this path verifies against.
 func TestVerifyEnclosedEPSNASRefusesTheEPSBearer(t *testing.T) {
 	ue := newSecuredUE(t)
 

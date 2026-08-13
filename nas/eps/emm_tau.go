@@ -83,11 +83,10 @@ var tauRequestOptionalIEs = []nas.OptionalIE{
 	{IEI: ieiRequestedWUSAssistance, Format: nas.IETLV, Name: "Requested WUS assistance"},
 }
 
-// AppendBinary encodes the plain TRACKING AREA UPDATE REQUEST. Only the mandatory EPS
-// update type octet (NAS key set identifier | active flag | update type) is
-// written; the UE is resolved from the S-TMSI in the S1AP Initial UE Message, so
-// the old GUTI is omitted (the receiver here ignores it, TS 24.301).
-// The encoding is appended to b.
+// AppendBinary encodes the plain TRACKING AREA UPDATE REQUEST: the mandatory EPS
+// update type octet (NAS key set identifier | active flag | update type), the
+// mandatory Old GUTI, and the optional IEs this message models
+// (TS 24.301 table 8.2.29.1). The encoding is appended to b.
 func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 	w := nas.NewWriter(b)
 
@@ -163,9 +162,11 @@ func (m *TrackingAreaUpdateRequest) AppendBinary(b []byte) ([]byte, error) {
 // MarshalBinary encodes the message.
 func (m *TrackingAreaUpdateRequest) MarshalBinary() ([]byte, error) { return marshalMessage(m) }
 
-// ParseTrackingAreaUpdateRequest decodes a plain TRACKING AREA UPDATE REQUEST.
-// The old GUTI and optional IEs are not decoded; the UE is resolved from the
-// S-TMSI carried in the S1AP Initial UE Message.
+// ParseTrackingAreaUpdateRequest decodes a plain TRACKING AREA UPDATE REQUEST,
+// including the mandatory Old GUTI and the optional IEs of
+// TS 24.301 table 8.2.29.1. An inter-system change from N1 mode is recognised
+// from those elements alone, before any security context exists for the UE
+// (§5.5.3.2.2 case z).
 func ParseTrackingAreaUpdateRequest(b []byte) (*TrackingAreaUpdateRequest, error) {
 	r := nas.NewReader(b)
 

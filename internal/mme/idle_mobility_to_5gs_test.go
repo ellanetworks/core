@@ -14,8 +14,6 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// idleMobilityUE is a registered UE with a PDN connection, as it sits in
-// ECM-IDLE when it moves to 5GS.
 func idleMobilityUE(t *testing.T, m *MME) (*UeContext, eps.GUTI) {
 	t.Helper()
 
@@ -44,9 +42,6 @@ func idleMobilityUE(t *testing.T, m *MME) (*UeContext, eps.GUTI) {
 	}
 }
 
-// enclosedTAU is the TRACKING AREA UPDATE REQUEST the UE puts in the EPS NAS
-// message container: protected with the EPS security context, which is the
-// MME's alone (TS 24.501 §8.2.6.16).
 func enclosedTAU(t *testing.T, ue *UeContext, count nas.Count) []byte {
 	t.Helper()
 
@@ -78,9 +73,7 @@ func testGUTIIdentity(t *testing.T, ue *UeContext) eps.EPSMobileIdentity {
 	})
 }
 
-// TS 23.502 §4.11.1.3.3 step 5a, TS 33.501 §8.2: the MME hands the UE's context
-// to the AMF only for a request whose enclosed TAU REQUEST verifies against the
-// EPS security context.
+// TS 23.502 §4.11.1.3.3 step 5a, TS 33.501 §8.2
 func TestMMContextReturnsTheContextForAVerifiedTAU(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleMobilityUE(t, m)
@@ -106,14 +99,12 @@ func TestMMContextReturnsTheContextForAVerifiedTAU(t *testing.T) {
 			resp.AMBRUplink, resp.AMBRDownlink, ue.Ambr.Uplink, ue.Ambr.Downlink)
 	}
 
-	// The count the TAU verified at is the K'AMF input (TS 33.501 A.15.1).
 	if resp.Security.ULNASCount != nas.MakeCount(0, 0) {
 		t.Errorf("uplink NAS COUNT = %d, want the TAU's 0", resp.Security.ULNASCount)
 	}
 }
 
-// The count is committed before the context goes out, so the same container
-// cannot be replayed to derive K'AMF a second time (TS 33.501 §8.2).
+// TS 33.501 §8.2
 func TestMMContextCommitsTheCountItVerifiedAt(t *testing.T) {
 	m := newTestMME(t)
 	ue, guti := idleMobilityUE(t, m)
@@ -184,8 +175,6 @@ func TestMMContextRefusals(t *testing.T) {
 		sc := ue.sc
 		ue.mu.Unlock()
 
-		// A DETACH REQUEST verifies against the same context, but the container of
-		// a mobility registration update carries a TAU (TS 24.501 §8.2.6.16).
 		plain, err := (&eps.DetachRequestUE{TypeOfDetach: 1, EPSMobileIdentity: testGUTIIdentity(t, ue)}).MarshalBinary()
 		if err != nil {
 			t.Fatal(err)
@@ -203,8 +192,7 @@ func TestMMContextRefusals(t *testing.T) {
 	})
 }
 
-// TS 23.502 §4.11.1.3.3 step 8: the acknowledgement releases the UE from EPS —
-// the PDN connections 5GS did not take go with it.
+// TS 23.502 §4.11.1.3.3 step 8
 func TestMMContextAckReleasesWhatDidNotTransfer(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := idleMobilityUE(t, m)

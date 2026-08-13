@@ -90,9 +90,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.Ambr = subscriberProfile.Ambr
 	ue.SetAllow4G(subscriberProfile.Allow4G)
 
-	// After the subscription checks above and before the session work below: the
-	// UE is released from EPS only once this AMF has accepted to serve it
-	// (TS 23.502 §4.11.1.3.3 step 8).
 	adoptArrivingSessions(ctx, amfInstance, ue, conn)
 
 	releaseLocallyDeactivatedEPSBearers(ctx, amfInstance, ue, conn)
