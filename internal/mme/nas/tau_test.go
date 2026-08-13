@@ -222,9 +222,7 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.4: the accept reports the active bearers when the request
-// asked for them, "except for the case no EPS bearer context exists on the
-// network side".
+// TS 24.301 §5.5.3.2.4
 func TestTrackingAreaUpdateOmitsTheBearerStatusWithNoBearer(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -278,15 +276,11 @@ func parseTAUAccept(t *testing.T, ue *mme.UeContext, sent []byte) *eps.TrackingA
 	return parsed
 }
 
-// TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable checks that a
-// combined TAU (the UE also requesting CS-domain registration) is accepted for
-// EPS services only with EMM cause #18, so the UE stops attempting CS
-// registration (TS 24.301 §8.2.26.8, §5.5.3.3.4.3).
+// TS 24.301 §8.2.26.8, §5.5.3.3.4.3
 func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
-	// EPS update type 2 = combined TA/LA updating with IMSI attach.
 	handleTAU(t, m, ue, tauRequest(2))
 
 	if len(cc.sent) != 1 {
@@ -310,10 +304,7 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	}
 }
 
-// TestTrackingAreaUpdateReallocatesGUTI checks that a TAU reallocates the GUTI:
-// the accept carries a new GUTI, both old and new M-TMSIs resolve during the
-// window, and TAU Complete commits the new one and frees the old (TS 24.301
-// §5.5.3.2.4).
+// TS 24.301 §5.5.3.2.4
 func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -383,10 +374,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	}
 }
 
-// TestTrackingAreaUpdateIdleNoActiveFlagReleases checks that a TAU from an idle
-// UE without the active flag is accepted (reallocating the GUTI), and that the
-// S1 release back to ECM-IDLE is deferred until the UE acknowledges the new GUTI
-// with TAU Complete (TS 24.301 §5.5.3.2.4).
+// TS 24.301 §5.5.3.2.4
 func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
@@ -394,14 +382,10 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 
 	handleTAU(t, m, ue, tauRequest(0))
 
-	// Only the TAU Accept goes out; the release waits for TAU Complete.
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected only a TAU Accept before TAU Complete, got %d", len(cc.sent))
 	}
 
-	// The UE is ECM-CONNECTED for the exchange so its TAU Complete resolves on the
-	// re-established connection (would be dropped as "no active connection"
-	// otherwise, TS 36.413 §10.6).
 	if !ue.Connected() {
 		t.Fatal("UE not ECM-CONNECTED for the TAU exchange; TAU Complete would be rejected")
 	}
@@ -427,9 +411,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	}
 }
 
-// TestTrackingAreaUpdateIdleActiveFlagReestablishes checks that a TAU from an
-// idle UE with the active flag re-establishes the radio bearer via the Initial
-// Context Setup and moves the UE to ECM-CONNECTED (TS 24.301 §5.5.3.2.4).
+// TS 24.301 §5.5.3.2.4
 func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := idleRegisteredUE(t, m)
@@ -449,17 +431,11 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	parseInitialContextSetup(t, cc.sent[0])
 }
 
-// TestTrackingAreaUpdateRecovery checks that an integrity-protected TRACKING AREA
-// UPDATE REQUEST arriving as an Initial UE Message that the MME cannot resolve (no
-// security context, e.g. after an MME restart, TS 24.301 §5.5.3.2.5) is answered
-// with TAU REJECT #9 over the bare connection rather than dropped, and that no UE
-// context or connection is left behind, so the UE re-attaches at once.
+// TTS 24.301 §5.5.3.2.5
 func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	m := newTestMME(t)
 	cc := &captureConn{}
 
-	// Security-protected NAS: SHT=integrity-protected | PD=EMM, a MAC the MME
-	// cannot reproduce (no context), sequence 1, and an inner plain TAU REQUEST.
 	pdu := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
 
 	mmes1ap.HandleInitialUEMessage(m, context.Background(), mme.NewRadioForTest(cc), initiatingValue(t, initialUEMessagePDU(t, 7, pdu)))

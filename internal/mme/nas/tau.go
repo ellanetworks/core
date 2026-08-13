@@ -203,10 +203,7 @@ func isCombinedUpdate(updateType uint8) bool {
 }
 
 type tauAcceptOptions struct {
-	combined bool
-	// bearerStatus reports the active EPS bearer contexts, which the accept
-	// carries when the request asked for them and the MME holds at least one
-	// (TS 24.301 §5.5.3.2.4).
+	combined     bool
 	bearerStatus bool
 }
 

@@ -37,9 +37,7 @@ func (p *refusingFiveGSPeer) EPSContext(context.Context, interworking.EPSContext
 
 func (*refusingFiveGSPeer) EPSContextAck(context.Context, etsi.SUPI, []uint8) error { return nil }
 
-// TS 24.301 §5.5.3.2.5: an inter-system change whose context no peer can return
-// resolves nothing, and the UE is told to re-attach with EMM cause #9 rather
-// than left waiting out T3430.
+// TS 24.301 §5.5.3.2.5
 func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 	for _, tc := range []struct {
 		name string

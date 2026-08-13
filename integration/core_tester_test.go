@@ -73,6 +73,7 @@ var scenarioFollowsDeploymentIPFamily = map[string]bool{
 	"interworking/handover_eps_to_5gs":                true,
 	"interworking/handover_eps_to_5gs_target_refuses": true,
 	"interworking/idle_5gs_to_eps":                    true,
+	"interworking/idle_eps_to_5gs":                    true,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP

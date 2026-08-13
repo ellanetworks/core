@@ -191,3 +191,48 @@ func (e *ENB) TrackingAreaUpdateFrom5GS(ue *UE, opts IdleTrackingAreaUpdateOpts,
 		BearerStatus: accept.EPSBearerContextStatus,
 	}, nil
 }
+
+func (ue *UE) BuildTrackingAreaUpdateForContainer(guti eps.GUTI, status *nas.EPSBearerContextStatus) ([]byte, error) {
+	gutiType := eps.GUTITypeNative
+
+	plain, err := (&eps.TrackingAreaUpdateRequest{
+		EPSUpdateType:          eps.EPSUpdateTypeTA,
+		NASKeySetIdentifier:    nas.KeySetIdentifier{Value: ue.eksi},
+		OldGUTI:                eps.GUTIIdentity(guti),
+		OldGUTIType:            &gutiType,
+		UEStatus:               &eps.UEStatus{S1ModeReg: true},
+		EPSBearerContextStatus: status,
+		UENetworkCapability:    &eps.UENetworkCapability{EEA: ue.netCapEEA, EIA: ue.netCapEIA},
+	}).MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: build the enclosed Tracking Area Update Request: %w", err)
+	}
+
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtected,
+		nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: protect the enclosed Tracking Area Update Request: %w", err)
+	}
+
+	ue.ulCount++
+
+	return wire, nil
+}
+
+func (ue *UE) MappedContextForIdleMobility() MappedFromEPSIdle {
+	var kasme [32]byte
+
+	copy(kasme[:], ue.kasme)
+
+	return MappedFromEPSIdle{
+		KASME:          kasme,
+		UplinkNASCount: nas.MakeCount(0, ue.ulCount-1),
+		EKSI:           ue.eksi,
+	}
+}
+
+type MappedFromEPSIdle struct {
+	KASME          [32]byte
+	UplinkNASCount nas.Count
+	EKSI           uint8
+}

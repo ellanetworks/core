@@ -16,9 +16,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// TS 33.501 §8.6.2, Annex A.15.1: the UE and the AMF derive the same mapped 5G
-// context from K_ASME and the uplink EPS NAS COUNT of the enclosed TRACKING AREA
-// UPDATE REQUEST — not the NH the handover variant uses.
+// TS 33.501 §8.6.2, Annex A.15.1
 func TestIdleMappedSecurityContextFromEPSAgreesWithTheCore(t *testing.T) {
 	logger.Init(zapcore.ErrorLevel)
 
@@ -80,9 +78,7 @@ func TestIdleMappedSecurityContextFromEPSAgreesWithTheCore(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.2 c: the registration of an inter-system change in idle
-// mode carries the TAU REQUEST the UE would have sent in S1 mode, plus the
-// native 5G-GUTI it still holds (§8.2.6.12 a).
+// TS 24.501 §5.5.1.3.2 c
 func TestRegistrationRequestCarriesTheEPSNASContainerAndAdditionalGUTI(t *testing.T) {
 	logger.Init(zapcore.ErrorLevel)
 

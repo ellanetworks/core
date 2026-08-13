@@ -13,9 +13,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TS 33.501 §8.6.1, Annex A.14.1: the UE and the AMF derive the same mapped EPS
-// context from K_AMF and the uplink 5G NAS COUNT of the TRACKING AREA UPDATE
-// REQUEST — not the downlink one the handover variant uses.
+// TS 33.501 §8.6.1, Annex A.14.1
 func TestIdleMappedSecurityContextAgreesWithTheCore(t *testing.T) {
 	const (
 		ulCount = 7
@@ -68,8 +66,7 @@ func TestIdleMappedSecurityContextAgreesWithTheCore(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.5.2 step 4: the AMF verifies the TAU as a 5G NAS message over
-// 3GPP access, so the tester has to MAC it that way for the core to accept it.
+// TS 33.501 §8.5.2 step 4
 func TestIdleTrackingAreaUpdateIsMACdWithThe5GContext(t *testing.T) {
 	security := s1enb.IdleMobilityFrom5GS{
 		KAMF:             testKAMF(),
