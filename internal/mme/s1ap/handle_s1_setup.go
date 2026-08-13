@@ -56,7 +56,7 @@ func handleS1Setup(m *mme.MME, ctx context.Context, conn *sctp.SCTPConn, value [
 		return
 	}
 
-	mmeGroupID, mmeCode := m.MmeIdentity()
+	mmeGroupID, mmeCode := operator.GUMMEI()
 
 	req, outBytes, accepted, reason, err := s1SetupOutcomeFor(value, plmn, tacs, mmeGroupID, mmeCode, m.Name, m.RelativeCapacity)
 	if err != nil {

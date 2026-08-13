@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -136,6 +137,52 @@ func (ue *UeContext) NasIntegrityVerified(payload []byte) bool {
 // security context and PDU sessions untouched (TS 24.501).
 func (ue *UeContext) ReuseForInboundNAS(payload []byte) bool {
 	return ue.NasIntegrityVerified(payload)
+}
+
+var ErrNoUplinkNASCount = errors.New("amf: no uplink NAS COUNT admits the message")
+
+func (ue *UeContext) CitesCurrentSecurityContext(plain []byte) error {
+	cited, err := eps.PeekKeySetIdentifier(plain)
+	if err != nil {
+		return err
+	}
+
+	if held := ue.NgKsi(); cited.Value != uint8(held.Ksi) {
+		return fmt.Errorf("amf: the enclosed message cites eKSI %d, the UE's current 5G NAS security context is ngKSI %d",
+			cited.Value, held.Ksi)
+	}
+
+	return nil
+}
+
+func (ue *UeContext) VerifyEnclosedEPSNAS(payload []byte) (nas.Count, error) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if !ue.secured || ue.sc == nil {
+		return 0, ErrNo5GSecurityContext
+	}
+
+	spm, err := eps.ParseSecurityProtectedMessage(payload)
+	if err != nil {
+		return 0, err
+	}
+
+	counter := ue.ulCount
+
+	cnt, err := counter.Estimate(spm.SequenceNumber)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrNoUplinkNASCount, err)
+	}
+
+	if _, err := eps.VerifyWith5GContext(payload, cnt, nas.DirectionUplink, ue.sc); err != nil {
+		return 0, err
+	}
+
+	_ = counter.Commit(cnt)
+	ue.ulCount = counter
+
+	return cnt, nil
 }
 
 // GmmDecodeFailureCause maps a plain-NAS decode failure to the 5GMM STATUS cause

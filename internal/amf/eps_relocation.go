@@ -13,6 +13,23 @@ import (
 )
 
 func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.PDNConnection {
+	asked := make(map[uint8]struct{}, len(requested))
+	for _, pduSessionID := range requested {
+		asked[pduSessionID] = struct{}{}
+	}
+
+	return ue.transferableEPSSessions(func(pduSessionID uint8) bool {
+		_, ok := asked[pduSessionID]
+
+		return ok
+	})
+}
+
+func (ue *UeContext) AllTransferableEPSSessions() []interworking.PDNConnection {
+	return ue.transferableEPSSessions(func(uint8) bool { return true })
+}
+
+func (ue *UeContext) transferableEPSSessions(include func(pduSessionID uint8) bool) []interworking.PDNConnection {
 	if !ue.TransfersToEPS() {
 		return nil
 	}
@@ -20,15 +37,10 @@ func (ue *UeContext) TransferableEPSSessions(requested []uint8) []interworking.P
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	asked := make(map[uint8]struct{}, len(requested))
-	for _, pduSessionID := range requested {
-		asked[pduSessionID] = struct{}{}
-	}
-
-	out := make([]interworking.PDNConnection, 0, len(requested))
+	out := make([]interworking.PDNConnection, 0, len(ue.SmContextList))
 
 	for pduSessionID, sc := range ue.SmContextList {
-		if _, ok := asked[pduSessionID]; !ok {
+		if !include(pduSessionID) {
 			continue
 		}
 

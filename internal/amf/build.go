@@ -162,7 +162,7 @@ func BuildSecurityModeCommand(ue *UeContext) ([]byte, error) {
 
 	addInfo := fgs.AdditionalSecurityInformation{
 		RINMR: conn.RetransmissionOfInitialNASMsg,
-		HDP:   ue.KeyOrigin() == KeyOriginHorizontalDerivation,
+		HDP:   false,
 	}
 
 	ngksi := ue.NgKsi()

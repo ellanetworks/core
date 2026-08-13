@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
@@ -16,51 +17,25 @@ import (
 
 // AttachResult reports the identifiers and GUTI established by a completed attach.
 type AttachResult struct {
-	MMEUES1APID int64
-	ENBUES1APID int64
-	ERABID      s1ap.ERABID
-	GUTI        *eps.EPSMobileIdentity
-
-	// IdentityRequested is set when the MME answered the Attach Request with an
-	// Identity Request (an unresolvable GUTI, TS 24.301 §5.4.4).
-	IdentityRequested bool
-
-	// PDNType is the PDN type negotiated for the default bearer in the Attach
-	// Accept (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
-	PDNType eps.PDNType
-
-	// QCI is the default bearer's QoS Class Identifier from the Activate Default
-	// EPS Bearer Context Request (TS 24.301 §9.9.4.3, octet 1 of the EPS QoS IE).
-	// Ella Core aligns it with the policy's 5QI for the standardized values.
-	QCI byte
-
-	// ARP is the default bearer's Allocation and Retention Priority level (1-15)
-	// from the S1AP E-RAB Level QoS Parameters in the Initial Context Setup
-	// Request (TS 36.413 §9.2.1.60).
-	ARP byte
-
-	// UEAmbrDownlinkBps / UEAmbrUplinkBps are the UE Aggregate Maximum Bit Rate
-	// (bits/s) from the Initial Context Setup Request (TS 36.413 §9.2.1.20), the
-	// per-UE aggregate across all non-GBR bearers.
-	UEAmbrDownlinkBps uint64
-	UEAmbrUplinkBps   uint64
-
-	// APN is the Access Point Name carried in the Activate Default EPS Bearer
-	// Context Request — the EPS analogue of the 5G DNN.
-	APN string
-
-	// SessAmbrDownlinkBps / SessAmbrUplinkBps are the per-APN Session-AMBR (bits
-	// per second) decoded from the APN-AMBR IE (TS 24.301 §9.9.4.2), the EPS
-	// analogue of the 5G Session-AMBR. Zero when the network omits the IE.
+	MMEUES1APID         int64
+	ENBUES1APID         int64
+	ERABID              s1ap.ERABID
+	GUTI                *eps.EPSMobileIdentity
+	IdentityRequested   bool
+	PDNType             eps.PDNType
+	QCI                 byte
+	ARP                 byte
+	UEAmbrDownlinkBps   uint64
+	UEAmbrUplinkBps     uint64
+	APN                 string
 	SessAmbrDownlinkBps uint64
 	SessAmbrUplinkBps   uint64
-
-	// User-plane endpoints for a GTP-U tunnel.
-	UEIPv4     string // UE IPv4 assigned in the Attach Accept
-	UEIPv6     string // UE IPv6 link-local derived from the Attach Accept PDN IID
-	UpfAddress string // S-GW/UPF S1-U address (uplink target)
-	ULTEID     uint32 // S-GW/UPF uplink TEID
-	DLTEID     uint32 // eNB downlink TEID reported to the MME
+	UEIPv4              string // UE IPv4 assigned in the Attach Accept
+	UEIPv6              string // UE IPv6 link-local derived from the Attach Accept PDN IID
+	UpfAddress          string // S-GW/UPF S1-U address (uplink target)
+	BearerStatus        *nas.EPSBearerContextStatus
+	ULTEID              uint32 // S-GW/UPF uplink TEID
+	DLTEID              uint32 // eNB downlink TEID reported to the MME
 }
 
 // Attach drives a full EPS attach for ue (TS 24.301 §5.5.1.2), returning once

@@ -48,6 +48,7 @@ type UE struct {
 	sc                        *nas.SecurityContext
 	eea                       uint8
 	eia                       uint8
+	eksi                      uint8
 	ulCount                   uint8           // uplink NAS COUNT for protected uplink messages
 	dlCount                   downlinkCounter // largest downlink NAS COUNT accepted
 	kenbCount                 uint32
@@ -225,6 +226,7 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 
 	ue.eea = uint8(smc.CipheringAlgorithm)
 	ue.eia = uint8(smc.IntegrityAlgorithm)
+	ue.eksi = smc.NASKeySetIdentifier.Value
 
 	if ue.contextFromAuthentication {
 		ue.ulCount = 0

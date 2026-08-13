@@ -40,12 +40,27 @@ func (m *MME) SnapshotPDNs(ue *UeContext) []*PdnConnection {
 	return out
 }
 
+func (ue *UeContext) ClearLocalBearerDeactivation() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.localBearerDeactivation = false
+}
+
+func (ue *UeContext) LocalBearerDeactivationPending() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.localBearerDeactivation
+}
+
 func (m *MME) ReleasePDN(ctx context.Context, ue *UeContext, p *PdnConnection) {
 	m.releaseAnchorSession(ctx, ue, p)
 
 	ue.mu.Lock()
 	if held, ok := ue.Pdns[p.Ebi]; ok && held == p {
 		delete(ue.Pdns, p.Ebi)
+		ue.localBearerDeactivation = true
 	}
 
 	last := len(ue.Pdns) == 0
@@ -146,6 +161,7 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 	}
 
 	delete(ue.Pdns, ebi)
+	ue.localBearerDeactivation = true
 
 	return p, len(ue.Pdns) == 0
 }

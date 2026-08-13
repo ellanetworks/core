@@ -16,17 +16,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleTrackingAreaUpdate handles a verified TRACKING AREA UPDATE REQUEST
-// (TS 24.301). A UE already ECM-CONNECTED keeps its bearers; a UE returning from
-// ECM-IDLE re-establishes them when it sets the active flag, else is released back
-// to ECM-IDLE after acknowledging the accept.
 func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.TrackingAreaUpdateRequest, plain []byte) nasreply.Disposition {
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Request",
 		zap.String("imsi", ue.IMSI()),
 		zap.String("update-type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
 		zap.Bool("active-flag", req.ActiveFlag))
 
-	// TS 24.301 §5.5.3.2.7 case d: an identical retransmission gets the stored accept.
 	if len(ueConn.TauAcceptPlain) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept",
 			zap.String("imsi", ue.IMSI()))
@@ -35,8 +30,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// The UE's serving cell must be in this MME's served area, as at attach, or TAU
-	// REJECT #12 (TS 24.301 §5.5.3.2.5).
 	if served, err := m.ServesTAI(ctx, ueConn.ServingTAI); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for Tracking Area Update", zap.Error(err))
 		return nasreply.Handled()
@@ -45,13 +38,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseTrackingAreaNotAllowed)
 
 		return nasreply.Handled()
-	}
-
-	// When the UE reports its EPS bearer context status, the MME deactivates the
-	// bearers it holds but the UE considers inactive, then reflects the resulting
-	// active set in the accept (TS 24.301 §5.5.3.2.4).
-	if req.EPSBearerContextStatus != nil {
-		reconcileBearerContextStatus(ctx, m, ue, *req.EPSBearerContextStatus)
 	}
 
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
@@ -68,8 +54,20 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		ue.SetUESecurityCapability(ueNetCap, msNetCap, mme.MintAuthProofForTrackingAreaUpdate())
 	}
 
+	adoptIdlePDNsFrom5GS(ctx, m, ue, ueConn)
+
+	if req.EPSBearerContextStatus != nil {
+		reconcileBearerContextStatus(ctx, m, ue, *req.EPSBearerContextStatus)
+	}
+
+	if completeIdleMobilityFrom5GS(ctx, m, ue, ueConn, plain) {
+		return nasreply.Handled()
+	}
+
 	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
 		combined: isCombinedUpdate(uint8(req.EPSUpdateType)),
+		bearerStatus: (req.EPSBearerContextStatus != nil || ue.LocalBearerDeactivationPending()) &&
+			len(m.SnapshotPDNs(ue)) > 0,
 	})
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.IMSI()), zap.Error(err))
@@ -104,8 +102,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	var releaseOnComplete bool
 
-	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
-	// TAU needs re-establishment or a deferred release.
 	switch {
 	case ueConn.ICS == mme.ICSCompleted:
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted", zap.String("imsi", ue.IMSI()))
@@ -134,6 +130,10 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
+	if ue.IdleMobilityFrom5GSPending() {
+		ue.TransitionTo(mme.EMMRegistered)
+	}
+
 	ueConn.TauRequestPlain = plain
 	ueConn.TauAcceptPlain = acceptPlain
 
@@ -152,8 +152,6 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 	ueConn.StopNASGuard()
 
-	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
-	// plain form is for the rejects preceding security activation.
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
 	if ue.Secured() {
 		ueConn.SendDownlinkProtected(ctx, reject)
@@ -169,6 +167,8 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) nasreply.Disposition {
 	ueConn.StopNASGuard()
 	m.CommitGUTIRealloc(ue)
+	ue.EndIdleMobilityFrom5GS()
+	ue.ClearLocalBearerDeactivation()
 
 	ueConn.TauRequestPlain = nil
 	ueConn.TauAcceptPlain = nil
@@ -208,7 +208,8 @@ func isCombinedUpdate(updateType uint8) bool {
 }
 
 type tauAcceptOptions struct {
-	combined bool
+	combined     bool
+	bearerStatus bool
 }
 
 // trackingAreaUpdateAccept builds a TRACKING AREA UPDATE ACCEPT with the operator's
@@ -235,7 +236,7 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nil, err
 	}
 
-	mmeGroupID, mmeCode := m.MmeIdentity()
+	mmeGroupID, mmeCode := operator.GUMMEI()
 
 	guti, err := m.ReallocateGUTI(ctx, ue, plmn, mmeGroupID, mmeCode)
 	if err != nil {
@@ -254,8 +255,10 @@ func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		accept.Cause = &cause
 	}
 
-	status := bearerContextStatus(m, ue)
-	accept.EPSBearerContextStatus = &status
+	if opts.bearerStatus {
+		status := bearerContextStatus(m, ue)
+		accept.EPSBearerContextStatus = &status
+	}
 
 	return accept, nil
 }

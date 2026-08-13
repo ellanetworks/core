@@ -87,8 +87,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		ue.DRXParameter = drx
 	}
 
-	ue.Ambr = subscriberProfile.Ambr
+	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllow4G(subscriberProfile.Allow4G)
+
+	if !adoptArrivingSessions(ctx, amfInstance, ue, conn) {
+		return
+	}
 
 	releaseLocallyDeactivatedEPSBearers(ctx, amfInstance, ue, conn)
 

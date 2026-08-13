@@ -62,3 +62,34 @@ func TestRelocationCancelRejectsAnUnknownRelocation(t *testing.T) {
 		t.Fatal("a cancel naming another relocation was accepted")
 	}
 }
+
+func TestRemovingAUeContextEndsItsRelocationFromEPS(t *testing.T) {
+	a, ue, _, supi := cancelWindowUE(t)
+
+	if !a.beginRelocationFromEPS(supi, 7, ue) {
+		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
+	}
+
+	a.DeregisterAndRemoveUeContext(context.Background(), ue)
+
+	if !a.beginRelocationFromEPS(supi, 8, NewUeContext()) {
+		t.Fatal("the subscriber is still marked as relocating from EPS, so every later handover for it is refused")
+	}
+}
+
+func TestRemovingASupersededContextKeepsTheLiveRelocation(t *testing.T) {
+	a, husk, _, supi := cancelWindowUE(t)
+
+	live := NewUeContext()
+	live.SetSupi(supi)
+
+	if !a.beginRelocationFromEPS(supi, 7, live) {
+		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
+	}
+
+	a.DeregisterAndRemoveUeContext(context.Background(), husk)
+
+	if a.beginRelocationFromEPS(supi, 8, NewUeContext()) {
+		t.Fatal("tearing down a superseded context dropped the live relocation another context holds")
+	}
+}

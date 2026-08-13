@@ -82,6 +82,24 @@ func PeekMessageType(b []byte) (MessageType, error) {
 	return MessageType(mt), nil
 }
 
+// PeekKeySetIdentifier returns the NAS key set identifier of a plain EMM message
+// that carries it in the high half of octet 3, which the ATTACH REQUEST, the
+// TRACKING AREA UPDATE REQUEST and the DETACH REQUEST all do (TS 24.301
+// §8.2.4, §8.2.29, §8.2.11). It reads the identifier alone, so a receiver can
+// name the security context a message cites before it has a context to decode
+// the rest with.
+func PeekKeySetIdentifier(b []byte) (nas.KeySetIdentifier, error) {
+	if _, err := PeekMessageType(b); err != nil {
+		return nas.KeySetIdentifier{}, err
+	}
+
+	if len(b) < 3 {
+		return nas.KeySetIdentifier{}, fmt.Errorf("nas/eps: message is %d octets, too short for its NAS key set identifier", len(b))
+	}
+
+	return nas.ParseKeySetIdentifier(b[2] >> 4), nil
+}
+
 // PeekProtocolDiscriminator returns the protocol discriminator of a NAS message
 // (PDEMM or PDESM), so the receiver can route between the EMM and ESM handlers
 // before calling the matching Peek/Parse function.

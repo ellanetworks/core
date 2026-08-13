@@ -26,7 +26,12 @@ func idleRegisteredUE(t *testing.T, m *MME) *UeContext {
 	ue.SetUESecurityCapability(eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}, nil, MintAuthProofForAttachRequest())
 	testPDN(ue).SgwFTEID = testSGWFTEID
 
-	if _, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1); err != nil {
+	group, code, err := m.MmeIdentity(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := m.ReallocateGUTI(t.Context(), ue, models.PlmnID{Mcc: "001", Mnc: "01"}, group, code); err != nil {
 		t.Fatal(err)
 	}
 
@@ -54,6 +59,8 @@ var (
 // fakeSessionManager stands in for the SMF+PGW-C anchor. CreateEPSSession honors
 // the requested PDN type so tests can drive IPv4/IPv6/IPv4v6.
 type fakeSessionManager struct {
+	idleTransfers   []idleEPSTransfer
+	idleTransferErr error
 	lastRequest     models.EPSBearerRequest
 	modifiedENB     models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
 	released        bool
@@ -69,6 +76,37 @@ type fakeSessionManager struct {
 
 	suppressCalls         int // counts HandleEPSPagingFailure calls
 	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
+}
+
+type idleEPSTransfer struct {
+	Supi              etsi.SUPI
+	PDUSessionID      uint8
+	EPSBearerIdentity uint8
+	Dnn               string
+	Snssai            *models.Snssai
+}
+
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
+	f.idleTransfers = append(f.idleTransfers, idleEPSTransfer{
+		Supi:              supi,
+		PDUSessionID:      pduSessionID,
+		EPSBearerIdentity: epsBearerIdentity,
+		Dnn:               dnn,
+		Snssai:            snssai,
+	})
+
+	if f.idleTransferErr != nil {
+		return models.EPSBearer{}, f.idleTransferErr
+	}
+
+	return models.EPSBearer{
+		Ref:          fmt.Sprintf("idle-ref-%d", pduSessionID),
+		PDNType:      eps.PDNTypeIPv4,
+		IPv4:         testUEIP,
+		SGW:          testSGWFTEID,
+		PDUSessionID: pduSessionID,
+		Snssai:       snssai,
+	}, nil
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -184,6 +222,8 @@ func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 		SupportedTACs: `["1"]`,
 		Ciphering:     `["AES"]`,
 		Integrity:     `["AES"]`,
+		AmfRegionID:   1,
+		AmfSetID:      1,
 	}, nil
 }
 

@@ -288,6 +288,10 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	guti := etsi.InvalidGUTI5G
 
+	additional := etsi.InvalidGUTI5G
+
+	nativeIsAdditional := false
+
 	switch msgType {
 	case fgs.MsgRegistrationRequest:
 		req, err := fgs.ParseRegistrationRequest(body)
@@ -295,15 +299,17 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			return nil, fmt.Errorf("error decoding plain nas: %w", err)
 		}
 
+		if req.AdditionalGUTI != nil {
+			additional, _ = etsi.NewGUTI5GFromNAS(*req.AdditionalGUTI)
+		}
+
+		nativeIsAdditional = movingFromEPC(req)
+
 		switch {
 		case req.MobileIdentity.GUTI != nil:
 			guti, _ = etsi.NewGUTI5GFromNAS(req.MobileIdentity)
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
 		case req.MobileIdentity.SUCI != nil:
-			// A SUCI is a one-time concealed identity, not a handle to an existing
-			// context. Always register on a fresh context; any prior context for
-			// the same subscriber is superseded only once this registration is
-			// authenticated (TS 24.501, reconciled by SUPI on accept).
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Suci received in Registration Request Message; using a fresh context",
 				zap.Stringer("suci", req.MobileIdentity.SUCI))
 
@@ -339,25 +345,38 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		}
 	}
 
-	if guti == etsi.InvalidGUTI5G {
+	if guti == etsi.InvalidGUTI5G && additional == etsi.InvalidGUTI5G {
 		return nil, nil
 	}
 
-	ue, _ := amfInstance.LookupUeByGuti(guti)
-	if ue == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
+	operatorInfo, err := amfInstance.OperatorInfo(ctx)
+	if err != nil {
+		logger.WithTrace(ctx, logger.AmfLog).Error("could not get operator info; resolving no context by GUTI", zap.Error(err))
 		return nil, nil
 	}
 
-	if !ue.ReuseForInboundNAS(payload) {
-		// TS 24.501: this message cites an existing context but is not
-		// integrity-verified for it. Register on a fresh context; the committed
-		// context (its NAS security context and PDU sessions) is left unchanged.
-		logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(guti.String()))
-		return nil, nil
+	candidates := [2]etsi.GUTI5G{guti, additional}
+	if nativeIsAdditional {
+		candidates = [2]etsi.GUTI5G{additional, guti}
 	}
 
-	logger.From(ctx, logger.AmfLog).Info("UE Context derived from Guti", logger.GUTI(guti.String()))
+	for _, candidate := range candidates {
+		ue, _ := amfInstance.LookupUeByGuti(operatorInfo.Guami, candidate)
+		if ue == nil {
+			continue
+		}
 
-	return ue, nil
+		if !ue.ReuseForInboundNAS(payload) {
+			logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(candidate.String()))
+			continue
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("UE Context derived from Guti", logger.GUTI(candidate.String()))
+
+		return ue, nil
+	}
+
+	logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(candidates[0].String()))
+
+	return nil, nil
 }

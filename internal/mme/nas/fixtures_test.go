@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
@@ -82,10 +83,43 @@ func initiatingValue(t *testing.T, b []byte) []byte {
 
 // fakeSessionManager stands in for the SMF+PGW-C anchor.
 type fakeSessionManager struct {
-	lastRequest models.EPSBearerRequest
-	modifiedENB models.FTEID
-	released    bool
-	deactivated bool
+	lastRequest     models.EPSBearerRequest
+	modifiedENB     models.FTEID
+	released        bool
+	deactivated     bool
+	idleTransfers   []idleEPSTransfer
+	idleTransferErr error
+}
+
+type idleEPSTransfer struct {
+	Supi              etsi.SUPI
+	PDUSessionID      uint8
+	EPSBearerIdentity uint8
+	Dnn               string
+	Snssai            *models.Snssai
+}
+
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
+	f.idleTransfers = append(f.idleTransfers, idleEPSTransfer{
+		Supi:              supi,
+		PDUSessionID:      pduSessionID,
+		EPSBearerIdentity: epsBearerIdentity,
+		Dnn:               dnn,
+		Snssai:            snssai,
+	})
+
+	if f.idleTransferErr != nil {
+		return models.EPSBearer{}, f.idleTransferErr
+	}
+
+	return models.EPSBearer{
+		Ref:          fmt.Sprintf("idle-ref-%d", pduSessionID),
+		PDNType:      eps.PDNTypeIPv4,
+		IPv4:         testUEIP,
+		SGW:          testSGWFTEID,
+		PDUSessionID: pduSessionID,
+		Snssai:       snssai,
+	}, nil
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -190,7 +224,7 @@ func (fakeBearerStore) GetNetworkSliceByID(_ context.Context, id string) (*db.Ne
 }
 
 func (fakeBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
-	return &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["1"]`, Ciphering: `["AES"]`, Integrity: `["AES"]`}, nil
+	return &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["1"]`, Ciphering: `["AES"]`, Integrity: `["AES"]`, AmfRegionID: 1, AmfSetID: 1}, nil
 }
 
 func (fakeBearerStore) NodeID() int { return 1 }

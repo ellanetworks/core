@@ -126,7 +126,6 @@ func TestMapToEPSDerivesTheNHChainTwice(t *testing.T) {
 		t.Fatalf("NCC = %d, want 2", got.Context.NCC)
 	}
 
-	// The first hop must not be what is sent: a UE deriving twice would not match.
 	if bytes.Equal(got.Context.NH[:], nh1) {
 		t.Fatal("NH is the first hop, so the chain was walked only once")
 	}
@@ -144,7 +143,6 @@ func TestMapToEPSInitialKeNBUsesTheOutOfRangeCount(t *testing.T) {
 
 	kasme := kdf(t, kamf, 0x74, u32(dl.Value()))
 
-	// The same chain seeded from the 24-bit truncation of 2³²−1 must differ.
 	truncated := kdf(t, kasme, 0x11, u32(0x00FFFFFF))
 	nh1 := kdf(t, kasme, 0x12, truncated)
 
@@ -181,7 +179,6 @@ func TestMapToEPSCarriesTheEPSParameters(t *testing.T) {
 	}
 }
 
-// aesOnly is an operator policy of 128-NEA2 / 128-NIA2.
 var (
 	aesInt = []nas.IntegrityAlgorithm{nas.IntegrityAES}
 	aesEnc = []nas.CipheringAlgorithm{nas.CipheringAES}
@@ -206,8 +203,7 @@ func epsContext(t *testing.T) interworking.EPSSecurityContext {
 	return in
 }
 
-// K'AMF is KDF(K_ASME, FC=0x76, P0 = the NH of the EPS context) — the NH, not the
-// EPS NAS COUNTs (TS 33.501 Annex A.15.2, §8.6.2).
+// TS 33.501 Annex A.15.2, §8.6.2
 func TestMapTo5GSDerivesKAMFFromTheNH(t *testing.T) {
 	in := epsContext(t)
 
@@ -226,8 +222,7 @@ func TestMapTo5GSDerivesKAMFFromTheNH(t *testing.T) {
 	}
 }
 
-// The 5G NAS COUNTs start at zero, and the downlink one is already past zero
-// because building the container consumed it (TS 33.501 §8.6.2, §8.4.2 step 3).
+// TS 33.501 §8.6.2, §8.4.2 step 3
 func TestMapTo5GSResetsTheNASCounts(t *testing.T) {
 	got, err := interworking.MapTo5GSOnHandover(epsContext(t), aesInt, aesEnc)
 	if err != nil {
@@ -239,8 +234,7 @@ func TestMapTo5GSResetsTheNASCounts(t *testing.T) {
 	}
 }
 
-// The gNB is handed {NCC=0, NH=temporary K_gNB} derived from K'AMF at 2³²−1, and
-// the AMF keeps the chain advanced once to {NCC=1, NH} (§8.4.2 steps 3 and 4).
+// §8.4.2 steps 3 and 4
 func TestMapTo5GSDerivesTheASKeyChain(t *testing.T) {
 	in := epsContext(t)
 

@@ -39,7 +39,7 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 		return models.EPSBearer{}, err
 	}
 
-	bearer, err := epsBearerForSession(sc, req)
+	bearer, err := epsBearerForSession(sc, req.DNS)
 	if err != nil {
 		sc.abandonTransferTo(Access4G)
 
@@ -53,12 +53,23 @@ func (s *SMF) transferToEPS(ctx context.Context, supi etsi.SUPI, req models.EPSB
 	return bearer, nil
 }
 
-func epsBearerForSession(sc *SMContext, req models.EPSBearerRequest) (models.EPSBearer, error) {
+func sessionDNS(sc *SMContext) string {
+	sc.Mutex.Lock()
+	defer sc.Mutex.Unlock()
+
+	if sc.PolicyData == nil || sc.PolicyData.DNS == nil {
+		return ""
+	}
+
+	return sc.PolicyData.DNS.String()
+}
+
+func epsBearerForSession(sc *SMContext, dns string) (models.EPSBearer, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
 	if sc.Tunnel == nil {
-		return models.EPSBearer{}, fmt.Errorf("%w: PDU session %d has no tunnel to report", ErrSessionNotMovable, req.PDUSessionID)
+		return models.EPSBearer{}, fmt.Errorf("%w: PDU session %d has no tunnel to report", ErrSessionNotMovable, sc.PDUSessionID)
 	}
 
 	pdnType, err := pdnTypeFor(sc.PDUSessionType)
@@ -88,7 +99,7 @@ func epsBearerForSession(sc *SMContext, req models.EPSBearerRequest) (models.EPS
 		}
 	}
 
-	if dns := net.ParseIP(req.DNS); dns != nil {
+	if dns := net.ParseIP(dns); dns != nil {
 		if addr, ok := netip.AddrFromSlice(dns); ok {
 			bearer.DNS = addr.Unmap()
 		}
