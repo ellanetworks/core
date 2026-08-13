@@ -73,17 +73,43 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 	ue.UeSecurity.Guti = &opts.MappedGUTI
 	ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(opts.Mapped.EKSI), Tsc: models.ScTypeMapped}
 
-	plain, err := BuildRegistrationRequest(&RegistrationRequestOpts{
+	cleartext := &RegistrationRequestOpts{
 		RegistrationType:       uint8(fgs.RegistrationTypeMobilityUpdating),
 		IncludeCapability:      true,
 		UESecurity:             ue.UeSecurity,
 		UEStatus:               &fgs.UEStatus{S1ModeReg: true},
 		EPSNASMessageContainer: opts.EPSNASMessageContainer,
-		PDUSessionStatus:       opts.PDUSessionStatus,
-	})
+	}
+
+	plain, err := BuildRegistrationRequest(cleartext)
 	if err != nil {
 		return fmt.Errorf("could not build the Registration Request of an inter-system change: %w", err)
 	}
+
+	replayMsg := &fgs.RegistrationRequest{
+		RegistrationType:       fgs.RegistrationTypeMobilityUpdating,
+		FOR:                    true,
+		NgKSI:                  nas.KeySetIdentifier{Value: opts.Mapped.EKSI, Mapped: true},
+		MobileIdentity:         opts.MappedGUTI,
+		UEStatus:               &fgs.UEStatus{S1ModeReg: true},
+		EPSNASMessageContainer: opts.EPSNASMessageContainer,
+		GMMCapability:          &fgs.GMMCapability{RestrictEC: true, LPP: true, HOAttach: true, S1Mode: true},
+		UESecurityCapability:   &ue.UeSecurity.UeSecurityCapability,
+	}
+
+	if opts.PDUSessionStatus != nil {
+		var bitmap fgs.PSIBitmap
+
+		bitmap.PSI = *opts.PDUSessionStatus
+		replayMsg.PDUSessionStatus = &bitmap
+	}
+
+	replayBytes, err := replayMsg.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("could not build the replayed Registration Request: %w", err)
+	}
+
+	ue.replayRegistration = replayBytes
 
 	gutiIE, err := opts.MappedGUTI.MarshalBinary()
 	if err != nil {

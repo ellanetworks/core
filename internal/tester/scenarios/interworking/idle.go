@@ -62,12 +62,12 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	before, err := probeOver5GS(ctx, env, gNodeB, u, ranUENGAPID, "over N3 before the idle move")
-	if err != nil {
+	if err := provisionEPSNASAlgorithms(gNodeB, u, ranUENGAPID); err != nil {
 		return err
 	}
 
-	if err := provisionEPSNASAlgorithms(gNodeB, u, ranUENGAPID); err != nil {
+	before, err := probeOver5GS(ctx, env, gNodeB, u, mobilityRANUENGAPID, "over N3 before the idle move")
+	if err != nil {
 		return err
 	}
 

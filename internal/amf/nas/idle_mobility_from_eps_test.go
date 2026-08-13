@@ -300,3 +300,50 @@ func TestIdleArrivalAcceptReportsTheAdoptedSessions(t *testing.T) {
 		t.Errorf("EPS bearer context status = %+v, want EBI 6 active", accept.EPSBearerContextStatus)
 	}
 }
+
+// TS 33.501 §8.2: the mapped context is taken into use by a NAS SMC. Skipping it
+// leaves the UE on keys it never activated, and leaves the AMF without the
+// non-cleartext IEs the UE replays in SECURITY MODE COMPLETE.
+func TestIdleArrivalFromEPSAlwaysRunsTheSecurityModeProcedure(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{MMContextResponse: arrivingMMContext(ue.Supi())}
+
+	ue.SetSecuredForTest(false)
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+
+	if !ue.SecurityContextIsValid() {
+		t.Fatal("no mapped context was installed")
+	}
+
+	conn := ue.Conn()
+	conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeMobilityUpdating))
+	conn.RegistrationRequest = idleArrivalRequest()
+
+	securityMode(context.Background(), amfInstance, ue)
+
+	if ue.RegStep() != amf.RegStepSecurityMode {
+		t.Fatalf("registration step = %v, want the security mode sub-phase: the AMF skipped the command that activates the mapped context",
+			ue.RegStep())
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("downlink NAS messages = %d, want the SECURITY MODE COMMAND", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	wire := ngapSender.SentDownlinkNASTransport[0].NASPDU
+	if len(wire) < 7 {
+		t.Fatalf("downlink NAS PDU is %d octets, too short to carry a SECURITY MODE COMMAND", len(wire))
+	}
+
+	smc, err := fgs.ParseSecurityModeCommand(wire[7:])
+	if err != nil {
+		t.Fatalf("the AMF sent something other than a SECURITY MODE COMMAND: %v", err)
+	}
+
+	if !smc.NgKSI.Mapped {
+		t.Errorf("security mode command ngKSI = %+v, want the mapped context's", smc.NgKSI)
+	}
+}

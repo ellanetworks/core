@@ -45,6 +45,7 @@ func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGA
 	securityModeComplete, err := BuildSecurityModeComplete(&SecurityModeCompleteOpts{
 		UESecurity: ue.UeSecurity,
 		IMEISV:     ue.IMEISV,
+		Replay:     ue.replayRegistration,
 	})
 	if err != nil {
 		return fmt.Errorf("error sending Security Mode Complete: %w", err)
