@@ -64,11 +64,6 @@ func (m *MME) AnswerDetachedRelease(ctx context.Context, conn S1APWriter, mmeUEI
 	return true
 }
 
-// ReleaseAnsweredBareConn orders the eNB to release the UE-associated logical
-// S1-connection of a bare connection the MME answered a NAS message on, and guards the
-// Complete (TS 36.413 §8.3.1). The MME-UE-S1AP-ID stays reserved until the Complete
-// arrives or the guard reaps it, so the eNB can still name the connection. A connection
-// that has since bound a UE context is left to its own release.
 func (m *MME) ReleaseAnsweredBareConn(ctx context.Context, c *UeConn, cause s1ap.Cause) {
 	if c == nil {
 		return

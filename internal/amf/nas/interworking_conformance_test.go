@@ -160,8 +160,7 @@ func TestRegistrationAfterAnEPSHandoverKeepsTheMovedSessions(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.11.2.3: the mark stands for the one mobility update that follows a
-// completed handover, so any mobility update spends it.
+// TS 23.502 §4.11.2.3
 func TestIdleArrivalSpendsALeftoverHandoverMark(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 

@@ -81,37 +81,26 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	commit, err := s.beginTransferCommit(ctx, sc, access)
-	if err != nil {
-		return nil, fmt.Errorf("failed to move the session to %s: %w", access, err)
+	if sc.PFCPContext == nil {
+		return nil, fmt.Errorf("pfcp session context not found for %q", sc.Ref)
 	}
 
-	if commit == nil {
-		return nil, fmt.Errorf("%w: the move of session %q to %s was abandoned before it committed", ErrSessionNotMovable, sc.Ref, access)
-	}
+	return s.commitAccessBinding(ctx, sc, accessBinding{
+		access: access,
+		// TS 23.502 §4.11.1.3.3: a move that does not commit leaves the UE served on
+		// the access it has not left.
+		keepOnRollback: true,
+		build: func(commit *transferCommit) (bindingRules, error) {
+			if commit == nil {
+				return bindingRules{}, fmt.Errorf("%w: the move of session %q to %s was abandoned before it committed", ErrSessionNotMovable, sc.Ref, access)
+			}
 
-	restoreBinding := sc.stageAccessBinding()
+			farList, err := handleUpCnxStateDeactivate(sc)
+			if err != nil {
+				return bindingRules{}, fmt.Errorf("failed to stage the downlink of a session moved in idle mode: %w", err)
+			}
 
-	farList, err := handleUpCnxStateDeactivate(sc)
-	if err != nil {
-		restoreBinding()
-		commit.restore()
-
-		return nil, fmt.Errorf("failed to stage the downlink of a session moved in idle mode: %w", err)
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		sc.PFCPContext.SEID,
-		commit.policy.PolicyID,
-		nil,
-		farList,
-		commit.qers,
-	)); err != nil {
-		restoreBinding()
-		commit.restore()
-
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %w", err)
-	}
-
-	return sc.finishTransferCommit(commit), nil
+			return bindingRules{policyID: commit.policy.PolicyID, fars: farList, qers: commit.qers}, nil
+		},
+	})
 }

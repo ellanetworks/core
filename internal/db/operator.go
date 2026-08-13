@@ -49,10 +49,6 @@ type Operator struct {
 	ClusterID     string `db:"clusterID"`
 }
 
-// AMFRegionID is the AMF Region ID of the GUAMI, carrying the node-type bit. It
-// maps verbatim into the high octet of the MME Group ID derived for E-UTRAN
-// (TS 23.003 §2.10.2.1.2), whose most significant bit shall be one so a peer can
-// tell an MME Group ID from a LAC (TS 23.003 §2.8.2.2.2).
 func (operator *Operator) AMFRegionID() uint8 {
 	return uint8(operator.AmfRegionID) | 0x80
 }

@@ -62,9 +62,6 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		logger.SUPI(resp.SUPI.String()), zap.Int("pdn-connections", len(resp.PDNConnections)))
 }
 
-// adoptArrivingSessions reports whether the registration may proceed. Nothing has
-// moved when the identity commit fails, so the MME still holds the UE's context and
-// PDN connections and aborting returns the UE to EPS (TS 23.502 §4.11.1.3.3).
 func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) bool {
 	arriving := conn.ArrivingFromEPS
 	if arriving == nil {

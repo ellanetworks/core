@@ -68,10 +68,6 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 	return ue, plain
 }
 
-// remapHeldContext resumes an inter-system update the UE repeated before it completed:
-// the AMF re-ran the integrity check and derived the mapped context from the new uplink
-// NAS COUNT (TS 33.501 §8.6.1), and the PDN connections of the first pass already moved,
-// so only the security context is taken over (TS 24.301 §5.5.3.2.7 d).
 func remapHeldContext(ctx context.Context, m *mme.MME, held *mme.UeContext, conn *mme.UeConn,
 	resp interworking.EPSContextResponse, plain []byte,
 ) (*mme.UeContext, []byte) {

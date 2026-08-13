@@ -5,7 +5,6 @@ package smf
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -149,22 +148,8 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 	}
 
 	dropped, err := s.switchDownlinkToTargetNGRAN(ctx, smContext, span)
-	if err != nil {
-		if errors.Is(err, errTransferRolledBack) {
-			s.reportSessionNotMovedTo5GS(ctx, smContext)
 
-			if releaseErr := s.releaseSession(ctx, smContextRef); releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release a session whose move onto 5GS was rolled back",
-					zap.Error(releaseErr), zap.String("ref", smContextRef))
-			}
-		}
-
-		return err
-	}
-
-	s.dropSourceRouting(ctx, smContext.Ref, dropped)
-
-	return nil
+	return s.finishAccessBinding(ctx, smContext, dropped, err)
 }
 
 func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMContext, span trace.Span) (*droppedSource, error) {
@@ -175,95 +160,52 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContext.Ref)
 	}
 
-	commit, err := s.beginTransferCommit(ctx, smContext, Access5G)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to move a PDN connection onto 5GS")
+	// A session whose user plane is already down and that no transfer is waiting on has
+	// nothing to switch; the source binding is simply forgotten.
+	if !smContext.Tunnel.Activated && !smContext.pendingTransferTo(Access5G) {
+		smContext.handoverSourceAN = nil
 
-		return nil, fmt.Errorf("failed to move a PDN connection onto 5GS: %w", err)
-	}
-
-	if commit == nil && smContext.Access != Access5G {
-		err := fmt.Errorf("session %q is on %s, not 5GS", smContext.Ref, smContext.Access)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "session is not on 5GS")
-
-		return nil, err
-	}
-
-	if !smContext.Tunnel.Activated {
-		if commit == nil {
-			smContext.handoverSourceAN = nil
-
-			return nil, nil
-		}
-
-		commit.restore()
-
-		return nil, fmt.Errorf("session %q has no activated user plane to switch onto 5GS", smContext.Ref)
+		return nil, nil
 	}
 
 	if smContext.PFCPContext == nil {
-		if commit != nil {
-			commit.restore()
-		}
-
-		span.RecordError(fmt.Errorf("pfcp session context not found"))
-		span.SetStatus(codes.Error, "pfcp session context not found")
-
-		return nil, fmt.Errorf("pfcp session context not found")
+		return nil, failBinding(span, "pfcp session context not found", fmt.Errorf("pfcp session context not found"))
 	}
 
-	var (
-		policyID string
-		qers     []*QER
-	)
+	return s.commitAccessBinding(ctx, smContext, accessBinding{
+		access: Access5G,
+		build: func(commit *transferCommit) (bindingRules, error) {
+			if commit == nil && smContext.Access != Access5G {
+				return bindingRules{}, fmt.Errorf("session %q is on %s, not 5GS", smContext.Ref, smContext.Access)
+			}
 
-	restoreBinding := func() {}
+			if !smContext.Tunnel.Activated {
+				return bindingRules{}, fmt.Errorf("session %q has no activated user plane to switch onto 5GS", smContext.Ref)
+			}
 
-	if commit != nil {
-		policyID = commit.policy.PolicyID
-		qers = commit.qers
-		restoreBinding = smContext.stageAccessBinding()
-		smContext.Tunnel.DownlinkPDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
-	}
+			rules := bindingRules{
+				pdrs: []*PDR{smContext.Tunnel.UplinkPDR},
+				fars: []*FAR{smContext.Tunnel.DownlinkPDR.FAR},
+			}
 
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		policyID,
-		[]*PDR{smContext.Tunnel.UplinkPDR},
-		[]*FAR{smContext.Tunnel.DownlinkPDR.FAR},
-		qers,
-	)); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to modify PFCP session")
+			if commit != nil {
+				rules.policyID = commit.policy.PolicyID
+				rules.qers = commit.qers
+				smContext.Tunnel.DownlinkPDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
+			}
 
-		if commit != nil {
-			restoreBinding()
-			commit.restore()
+			return rules, nil
+		},
+		onBound: func() {
+			smContext.handoverSourceAN = nil
 
-			smContext.releasing = true
+			s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
-			return nil, fmt.Errorf("%w: %v", errTransferRolledBack, err)
-		}
-
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
-	}
-
-	smContext.handoverSourceAN = nil
-
-	var dropped *droppedSource
-	if commit != nil {
-		dropped = smContext.finishTransferCommit(commit)
-	}
-
-	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
-
-	logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
-		logger.SUPI(smContext.Supi.String()),
-		logger.PDUSessionID(smContext.PDUSessionID))
-
-	return dropped, nil
+			logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
+				logger.SUPI(smContext.Supi.String()),
+				logger.PDUSessionID(smContext.PDUSessionID))
+		},
+	})
 }
 
 func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) error {
