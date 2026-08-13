@@ -96,8 +96,8 @@ func TestToN3N6EntrypointPdrInfoCarriesFARAndQER(t *testing.T) {
 		t.Fatalf("ToN3N6EntrypointPdrInfo: %v", err)
 	}
 
-	if got.Imsi != 1010000000001 {
-		t.Errorf("Imsi = %d, want 1010000000001", got.Imsi)
+	if DecodeIMSITag(got.Imsi) != "001010000000001" {
+		t.Errorf("Imsi = %q, want %q", DecodeIMSITag(got.Imsi), "001010000000001")
 	}
 
 	if got.Far.Action != 2 || got.Far.Teid != 0x1234 {

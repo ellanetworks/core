@@ -76,6 +76,22 @@ func MintAuthProofForInterworking() AuthProof {
 	return AuthProof{}
 }
 
+type KeyOrigin uint8
+
+const (
+	KeyOriginUnknown KeyOrigin = iota
+	KeyOriginPrimaryAuth
+	KeyOriginHorizontalDerivation
+	KeyOriginMappedFromEPS
+)
+
+func (ue *UeContext) KeyOrigin() KeyOrigin {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.keyOrigin
+}
+
 // VerifyResult reports the outcome of comparing a peer-reported value
 // against the AMF's locally stored value.
 type VerifyResult int

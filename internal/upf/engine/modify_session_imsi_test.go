@@ -92,8 +92,8 @@ func TestModifySessionCreatePDRCarriesSessionIMSI(t *testing.T) {
 		t.Fatalf("created PDR is absent from pdrs_downlink_ip4: %v", err)
 	}
 
-	if v.Imsi != 1010000000001 {
-		t.Errorf("datapath IMSI = %d, want %d (from the establish request %q)", v.Imsi, 1010000000001, imsi)
+	if got := upfebpf.DecodeIMSITag(v.Imsi); got != imsi {
+		t.Errorf("datapath IMSI = %q, want %q (from the establish request)", got, imsi)
 	}
 
 	if v.LocalSeid != seid {
@@ -127,8 +127,8 @@ func TestModifySessionUpdateWithoutPredecessorCarriesSessionIMSI(t *testing.T) {
 		t.Fatalf("updated PDR is absent from pdrs_downlink_ip4: %v", err)
 	}
 
-	if v.Imsi != 1010000000002 {
-		t.Errorf("datapath IMSI = %d, want %d (from the establish request %q)", v.Imsi, 1010000000002, imsi)
+	if got := upfebpf.DecodeIMSITag(v.Imsi); got != imsi {
+		t.Errorf("datapath IMSI = %q, want %q (from the establish request)", got, imsi)
 	}
 
 	if v.LocalSeid != seid {

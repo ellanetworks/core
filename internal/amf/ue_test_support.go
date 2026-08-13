@@ -186,6 +186,8 @@ func (ue *UeContext) SetKnasEncForTest(k [16]uint8) {
 }
 func (ue *UeContext) KnasEncForTest() [16]uint8 { return ue.knasEnc }
 
+func (ue *UeContext) SetKeyOriginForTest(o KeyOrigin) { ue.keyOrigin = o }
+
 func (ue *UeContext) SetNgKsiForTest(n models.NgKsi) { ue.ngKsi = n }
 func (ue *UeContext) NgKsiForTest() models.NgKsi     { return ue.ngKsi }
 

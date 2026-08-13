@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -33,7 +34,7 @@ func init() {
 		BindFlags: func(fs *pflag.FlagSet) any {
 			p := &clusterTrafficParams{}
 			fs.IntVar(&p.UECount, "ue-count", 5, "number of UEs to drive on this gNB")
-			fs.StringVar(&p.IMSIBase, "imsi-base", "", "IMSI of the first UE; subsequent UEs increment the last digit (required, 15 digits)")
+			fs.StringVar(&p.IMSIBase, "imsi-base", "", "IMSI of the first UE; subsequent UEs increment the last digit (required, 6 to 15 digits)")
 			fs.StringVar(&p.GnbID, "gnb-id", scenarios.DefaultGNBID, "gNB-ID for this scenario")
 
 			return p
@@ -57,8 +58,8 @@ func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTraffic
 		return fmt.Errorf("--ue-count must be >= 1, got %d", p.UECount)
 	}
 
-	if len(p.IMSIBase) != 15 {
-		return fmt.Errorf("--imsi-base must be 15 digits, got %q", p.IMSIBase)
+	if _, err := etsi.NewSUPIFromIMSI(p.IMSIBase); err != nil {
+		return fmt.Errorf("--imsi-base %q: %w", p.IMSIBase, err)
 	}
 
 	g := env.FirstGNB()

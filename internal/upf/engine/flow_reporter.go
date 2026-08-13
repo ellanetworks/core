@@ -5,7 +5,6 @@ package engine
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net/netip"
 	"time"
 
@@ -75,7 +74,7 @@ func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6Entrypo
 	}
 
 	return &models.FlowReportRequest{
-		IMSI:            fmt.Sprintf("%015d", flow.Imsi),
+		IMSI:            ebpf.DecodeIMSITag(flow.Imsi),
 		SourceIP:        saddr.String(),
 		DestinationIP:   daddr.String(),
 		SourcePort:      sport,

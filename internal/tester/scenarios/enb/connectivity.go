@@ -49,7 +49,7 @@ func buildEnbSubscribers(numSubscribers int, startIMSI string) ([]enbSubscriber,
 		}
 
 		newIMSI := intBaseIMSI + i
-		imsi := fmt.Sprintf("%015d", newIMSI)
+		imsi := fmt.Sprintf("%0*d", len(startIMSI), newIMSI)
 
 		subs = append(subs, enbSubscriber{
 			IMSI:           imsi,

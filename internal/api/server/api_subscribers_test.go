@@ -986,25 +986,25 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 			imsi:           "12345",
 			key:            Key,
 			sequenceNumber: SequenceNumber,
-			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+			error:          "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           "00101010000748812",
 			key:            Key,
 			sequenceNumber: SequenceNumber,
-			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+			error:          "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           "002010100007488",
 			key:            Key,
 			sequenceNumber: SequenceNumber,
-			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+			error:          "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           "00101",
 			key:            Key,
 			sequenceNumber: SequenceNumber,
-			error:          "Invalid IMSI format. Must be a 15-digit string starting with `<mcc><mnc>`.",
+			error:          "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`.",
 		},
 		{
 			imsi:           Imsi,
@@ -1088,6 +1088,21 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 			mnc:  "001",
 			imsi: "001001975613993",
 		},
+		{
+			mcc:  "001",
+			mnc:  "01",
+			imsi: "001011",
+		},
+		{
+			mcc:  "001",
+			mnc:  "01",
+			imsi: "0010112345",
+		},
+		{
+			mcc:  "001",
+			mnc:  "001",
+			imsi: "0010017",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.imsi, func(t *testing.T) {
@@ -1130,6 +1145,52 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 				t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 			}
 		})
+	}
+}
+
+func TestCreateSubscriberRejectsEmptyMSIN(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	statusCode, _, err := updateOperatorID(env.Server.URL, client, token, &UpdateOperatorIDParams{Mcc: "001", Mnc: "001"})
+	if err != nil {
+		t.Fatalf("couldn't update operator ID: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	statusCode, response, err := createSubscriber(env.Server.URL, client, token, &CreateSubscriberParams{
+		Imsi:           "001001",
+		Key:            Key,
+		SequenceNumber: SequenceNumber,
+		ProfileName:    "default",
+	})
+	if err != nil {
+		t.Fatalf("couldn't create subscriber: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("an IMSI that is only MCC+MNC was accepted: status %d", statusCode)
+	}
+
+	want := "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`."
+	if response.Error != want {
+		t.Errorf("error = %q, want %q", response.Error, want)
 	}
 }
 

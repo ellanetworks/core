@@ -59,7 +59,7 @@ func GetSubscriberUsage(dbInstance *db.Database) http.Handler {
 		subscriber := q.Get("subscriber")
 		if subscriber != "" {
 			if _, err := etsi.NewSUPIFromIMSI(subscriber); err != nil {
-				writeError(r.Context(), w, http.StatusBadRequest, "invalid subscriber: must be a valid 15-digit IMSI", nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, "invalid subscriber: must be a valid IMSI of 6 to 15 digits", nil, logger.APILog)
 				return
 			}
 		}
