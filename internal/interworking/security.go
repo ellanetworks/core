@@ -219,10 +219,6 @@ func macForContainer(c fgs.S1ModeToN1ModeNASTransparentContainer, knasInt nas.In
 	return mac, nil
 }
 
-// mapped5GSecurityCapability is the UE's 5G security capability for a context
-// mapped from EPS: the one the AMF holds when the UE has been on 5GS before,
-// else the EPS capability carried across, with EIA0 masked off since the UE
-// signals it only in the EPS form (TS 33.501 §8.6.2).
 func mapped5GSecurityCapability(in EPSSecurityContext) fgs.UESecurityCapability {
 	if in.UE5GSecurityCapability != nil {
 		return *in.UE5GSecurityCapability

@@ -27,7 +27,6 @@ type ENBIdentity struct {
 	SelectedEPSTAI EPSTAI
 }
 
-// EPSTAI is an E-UTRAN Tracking Area Identity: a PLMN and a TAC (TS 23.003).
 type EPSTAI struct {
 	PlmnID models.PlmnID
 	TAC    uint16
@@ -109,9 +108,6 @@ type EPSPeer interface {
 	ForwardRelocation(ctx context.Context, req ForwardRelocationRequest) (ForwardRelocationResponse, error)
 	RelocationCancel(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 	RelocationComplete(ctx context.Context, supi etsi.SUPI, id RelocationID) error
-
-	// MMContext and MMContextAck carry an idle-mode change to 5GS
-	// (TS 23.502 §4.11.1.3.3 steps 5a and 8).
 	MMContext(ctx context.Context, req MMContextRequest) (MMContextResponse, error)
 	MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []uint8) error
 }
@@ -120,4 +116,6 @@ type FiveGSPeer interface {
 	ForwardRelocation(ctx context.Context, req FiveGSRelocationRequest) (FiveGSRelocationResponse, error)
 	RelocationCancel(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 	RelocationComplete(ctx context.Context, supi etsi.SUPI, id RelocationID) error
+	EPSContext(ctx context.Context, req EPSContextRequest) (EPSContextResponse, error)
+	EPSContextAck(ctx context.Context, supi etsi.SUPI, transferred []uint8) error
 }

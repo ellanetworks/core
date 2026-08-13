@@ -26,7 +26,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		zap.String("update-type", epsUpdateTypeName(uint8(req.EPSUpdateType))),
 		zap.Bool("active-flag", req.ActiveFlag))
 
-	// TS 24.301 §5.5.3.2.7 case d: an identical retransmission gets the stored accept.
 	if len(ueConn.TauAcceptPlain) > 0 && bytes.Equal(plain, ueConn.TauRequestPlain) {
 		logger.From(ctx, logger.MmeLog).Info("duplicate Tracking Area Update Request with identical IEs; resending Tracking Area Update Accept",
 			zap.String("imsi", ue.IMSI()))
@@ -35,8 +34,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// The UE's serving cell must be in this MME's served area, as at attach, or TAU
-	// REJECT #12 (TS 24.301 §5.5.3.2.5).
 	if served, err := m.ServesTAI(ctx, ueConn.ServingTAI); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for Tracking Area Update", zap.Error(err))
 		return nasreply.Handled()
@@ -47,9 +44,10 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	// When the UE reports its EPS bearer context status, the MME deactivates the
-	// bearers it holds but the UE considers inactive, then reflects the resulting
-	// active set in the accept (TS 24.301 §5.5.3.2.4).
+	if completeIdleMobilityFrom5GS(ctx, m, ue, ueConn, req, plain) {
+		return nasreply.Handled()
+	}
+
 	if req.EPSBearerContextStatus != nil {
 		reconcileBearerContextStatus(ctx, m, ue, *req.EPSBearerContextStatus)
 	}
@@ -104,8 +102,6 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 
 	var releaseOnComplete bool
 
-	// A fully connected UE (bearers up) keeps its connection; a UE resuming for this
-	// TAU needs re-establishment or a deferred release.
 	switch {
 	case ueConn.ICS == mme.ICSCompleted:
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update accepted", zap.String("imsi", ue.IMSI()))
@@ -152,8 +148,6 @@ func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 	ueConn.StopNASGuard()
 
-	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the
-	// plain form is for the rejects preceding security activation.
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
 	if ue.Secured() {
 		ueConn.SendDownlinkProtected(ctx, reject)

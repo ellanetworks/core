@@ -469,6 +469,12 @@ func (f *fakeFiveGSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI, i
 	return f.err
 }
 
+func (f *fakeFiveGSPeer) EPSContext(context.Context, interworking.EPSContextRequest) (interworking.EPSContextResponse, error) {
+	return interworking.EPSContextResponse{}, interworking.ErrUnknownUEContext
+}
+
+func (f *fakeFiveGSPeer) EPSContextAck(context.Context, etsi.SUPI, []uint8) error { return nil }
+
 func (f *fakeFiveGSPeer) ForwardRelocation(_ context.Context, _ interworking.FiveGSRelocationRequest) (interworking.FiveGSRelocationResponse, error) {
 	return interworking.FiveGSRelocationResponse{}, errors.New("the 5GS peer was asked to admit a handover")
 }

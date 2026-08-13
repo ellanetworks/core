@@ -12,9 +12,7 @@ import (
 	"github.com/ellanetworks/core/nas/eps"
 )
 
-// TS 33.501 Annex A.14.1: idle-mode mobility derives K'ASME with FC 0x73 over
-// the uplink NAS COUNT, where the handover variant uses FC 0x74 over the
-// downlink one.
+// TS 33.501 Annex A.14.1
 func TestMapToEPSOnIdleMobilityDerivesKASMEFromTheUplinkCount(t *testing.T) {
 	kamf := mustHex(t, testKAMF)
 	ul := nas.MakeCount(0x0102, 0x03)
@@ -45,9 +43,7 @@ func TestMapToEPSOnIdleMobilityDerivesKASMEFromTheUplinkCount(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.6.1: the EPS NAS COUNTs are the 5G ones. Nothing consumes a
-// downlink count on this path — no transparent container is built — so the
-// downlink count is carried across untouched and stays available to the AMF.
+// TS 33.501 §8.6.1
 func TestMapToEPSOnIdleMobilityCarriesBothCounts(t *testing.T) {
 	ul := nas.MakeCount(7, 8)
 	dl := nas.MakeCount(9, 10)
@@ -70,8 +66,7 @@ func TestMapToEPSOnIdleMobilityCarriesBothCounts(t *testing.T) {
 	}
 }
 
-// The MME derives K_eNB from K'ASME and the TAU's uplink count when the active
-// flag brings up S1-U (TS 33.401 §7.2.6.2); no NH reaches the UE on this path.
+// TS 33.401 §7.2.6.2
 func TestMapToEPSOnIdleMobilityCarriesNoNextHop(t *testing.T) {
 	got, err := interworking.MapToEPSOnIdleMobility(interworking.FiveGToEPSInput{
 		KAMF:       mustHex(t, testKAMF),
@@ -86,9 +81,7 @@ func TestMapToEPSOnIdleMobilityCarriesNoNextHop(t *testing.T) {
 	}
 }
 
-// TS 33.501 Annex A.15.1: K'AMF comes from K_ASME and the uplink EPS NAS COUNT
-// of the TAU REQUEST the REGISTRATION REQUEST enclosed, with FC 0x75 where the
-// handover variant uses 0x76 over the NH.
+// TS 33.501 Annex A.15.1
 func TestMapTo5GSOnIdleMobilityDerivesKAMFFromTheUplinkCount(t *testing.T) {
 	kasme := mustHex(t, testKASME)
 	ul := nas.MakeCount(0x0011, 0x22)
@@ -132,7 +125,7 @@ func TestMapTo5GSOnIdleMobilityDerivesKAMFFromTheUplinkCount(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.6.2: the 5G NAS COUNTs of the mapped context are 0.
+// TS 33.501 §8.6.2
 func TestMapTo5GSOnIdleMobilityStartsBothCountsAtZero(t *testing.T) {
 	var key [32]byte
 
@@ -152,15 +145,12 @@ func TestMapTo5GSOnIdleMobilityStartsBothCountsAtZero(t *testing.T) {
 		t.Errorf("5G downlink NAS COUNT = %d, want 0", got.DLNASCount)
 	}
 
-	// The AMF signals the mapped context in a NAS SMC (§8.2), not in a
-	// transparent container, so nothing is MAC'd here and no AN key is derived.
 	if got.TemporaryKgNB != ([32]byte{}) || got.NH != ([32]byte{}) || got.NCC != 0 {
 		t.Errorf("AN key material = %x/%x/%d, want it unset", got.TemporaryKgNB, got.NH, got.NCC)
 	}
 }
 
-// TS 33.501 §8.6.2: the algorithms are the AMF's own selection over the UE's 5G
-// capability, and K_NASenc/K_NASint follow from K'AMF and that selection.
+// TS 33.501 §8.6.2
 func TestMapTo5GSOnIdleMobilitySelectsAndKeysThe5GAlgorithms(t *testing.T) {
 	kasme := mustHex(t, testKASME)
 
@@ -196,8 +186,6 @@ func TestMapTo5GSOnIdleMobilitySelectsAndKeysThe5GAlgorithms(t *testing.T) {
 	}
 }
 
-// A context is never mapped under an algorithm the operator policy does not
-// name: the AMF has nothing to put in the NAS SMC that follows.
 func TestMapTo5GSOnIdleMobilityRefusesWithNoCommonAlgorithm(t *testing.T) {
 	var key [32]byte
 

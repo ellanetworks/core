@@ -11,14 +11,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// MapToEPSOnIdleMobility maps the UE's 5G security context to the EPS one the
-// MME adopts on an idle-mode inter-system change (TS 33.501 §8.6.1). K'ASME
-// comes from K_AMF and the uplink 5G NAS COUNT of the verified TRACKING AREA
-// UPDATE REQUEST (Annex A.14.1), and both EPS NAS COUNTs are the 5G ones.
-//
-// No NH is derived: nothing carries one to the UE on this path, and the MME
-// derives K_eNB from K'ASME and the same uplink count if the active flag brings
-// up S1-U (TS 33.401 §7.2.6.2).
 func MapToEPSOnIdleMobility(in FiveGToEPSInput) (EPSSecurityContext, error) {
 	if len(in.KAMF) != keyLen {
 		return EPSSecurityContext{}, fmt.Errorf("interworking: K_AMF is %d octets, want %d", len(in.KAMF), keyLen)
@@ -40,16 +32,6 @@ func MapToEPSOnIdleMobility(in FiveGToEPSInput) (EPSSecurityContext, error) {
 	}, nil
 }
 
-// MapTo5GSOnIdleMobility maps an EPS security context to the 5G one the AMF
-// adopts on an idle-mode inter-system change (TS 33.501 §8.6.2). K'AMF comes
-// from K_ASME and the uplink EPS NAS COUNT of the TRACKING AREA UPDATE REQUEST
-// enclosed in the REGISTRATION REQUEST (Annex A.15.1), and both 5G NAS COUNTs
-// are 0.
-//
-// The selected 5G algorithms reach the UE in a NAS SMC rather than a transparent
-// container (§8.2), so no container MAC is computed here and no K_gNB is
-// derived: the security mode procedure settles the context, and the AN key
-// follows from it.
 func MapTo5GSOnIdleMobility(in EPSSecurityContext, intOrder []nas.IntegrityAlgorithm, encOrder []nas.CipheringAlgorithm) (Mapped5GSecurityContext, error) {
 	kamf, err := deriveKey(in.KASME[:], fcKAMFPrimeIdle, count32(in.ULNASCount.Value()))
 	if err != nil {

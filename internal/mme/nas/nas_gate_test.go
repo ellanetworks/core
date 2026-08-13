@@ -29,8 +29,8 @@ func TestIsAttachRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isAttachRequest(tt.nas); got != tt.want {
-				t.Fatalf("isAttachRequest = %v, want %v", got, tt.want)
+			if got := peekEMMMessageType(tt.nas) == eps.MsgAttachRequest; got != tt.want {
+				t.Fatalf("peekEMMMessageType names an ATTACH REQUEST = %v, want %v", got, tt.want)
 			}
 		})
 	}

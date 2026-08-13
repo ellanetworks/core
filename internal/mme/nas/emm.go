@@ -28,21 +28,27 @@ func HandleNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []byte) {
 func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []byte) nasreply.Disposition {
 	ue := conn.UeContext()
 	if ue == nil {
-		// A bare connection binds a persistent context only for an ATTACH REQUEST —
-		// the only message warranting one (TS 24.301) — so an unauthenticated peer
-		// cannot exhaust UE contexts. A connection left bare here is released by the
-		// S1AP layer.
-		if !isAttachRequest(pdu) {
+		switch peekEMMMessageType(pdu) {
+		case eps.MsgAttachRequest:
+			ue = mme.NewUeContext()
+			m.AttachUeConn(ue, conn)
+		case eps.MsgTrackingAreaUpdateRequest:
+			resolved, plain := recoverContextFrom5GS(ctx, m, conn, pdu)
+			if resolved == nil {
+				return nasreply.Silent(nasreply.ReasonNoContext)
+			}
+
+			ueConn := resolved.Conn()
+			if ueConn == nil {
+				return nasreply.Silent(nasreply.ReasonNoContext)
+			}
+
+			return HandleEmmMessage(ctx, m, resolved, ueConn, plain, true)
+		default:
 			return nasreply.Silent(nasreply.ReasonNoContext)
 		}
-
-		ue = mme.NewUeContext()
-		m.AttachUeConn(ue, conn)
 	}
 
-	// Resolve-first: for an as-yet-unsecured context (a fresh Attach), a native GUTI
-	// that verifies against a held EPS security context adopts it before decode, so
-	// everything below runs on the right context.
 	if !ue.Secured() {
 		resolved, drop := resolveAttachContext(ctx, m, ue, conn, pdu)
 		if drop {
@@ -52,9 +58,6 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		ue = resolved
 	}
 
-	// Snapshotted once: the handlers below make unlocked calls, and a concurrent
-	// detach nils ue.Conn() at any point. A nil dereference here panics the
-	// dispatch goroutine, which aborts the whole S1 association.
 	ueConn := ue.Conn()
 	if ueConn == nil {
 		return nasreply.Silent(nasreply.ReasonNoContext)
@@ -127,9 +130,6 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 	case *eps.EMMStatus:
 		return handleEMMStatus(msg)
 	case *eps.UnknownEMMMessage:
-		// TS 24.301 §7.4: a message type the receiver does not implement draws a
-		// STATUS in its own protocol. The ESM counterpart reaches
-		// handleESMMessage through the default arm below.
 		logger.From(ctx, logger.MmeLog).Warn("unimplemented NAS message type", zap.Stringer("message", msg))
 
 		return nasreply.StatusMM(nasreply.CauseMessageTypeNotImplemented)
@@ -169,32 +169,21 @@ func rejectUndecodable(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 	return nasreply.StatusMM(nasreply.CauseInvalidMandatoryInfo)
 }
 
-func isAttachRequest(pdu []byte) bool {
+func peekEMMMessageType(pdu []byte) eps.MessageType {
 	pd, err := eps.PeekProtocolDiscriminator(pdu)
 	if err != nil || pd != eps.PDEMM {
-		return false
+		return 0
 	}
 
-	sht, err := eps.PeekSecurityHeaderType(pdu)
-	if err != nil {
-		return false
-	}
-
-	body := pdu
-
-	switch sht {
-	case eps.SHTPlain:
-	case eps.SHTIntegrityProtected, eps.SHTIntegrityProtectedNewContext:
-		if len(pdu) < 6 {
-			return false
-		}
-
-		body = pdu[6:]
-	default:
-		return false
+	body, ok := unprotectedBody(pdu)
+	if !ok {
+		return 0
 	}
 
 	mt, err := eps.PeekMessageType(body)
+	if err != nil {
+		return 0
+	}
 
-	return err == nil && mt == eps.MsgAttachRequest
+	return mt
 }

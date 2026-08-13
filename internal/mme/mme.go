@@ -31,6 +31,7 @@ type NASHandler interface {
 
 type epsSessionManager interface {
 	CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error)
+	TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error)
 	ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb models.FTEID) error
 	UpdateEPSSessionAMBR(ctx context.Context, ref string, ambrUplink, ambrDownlink models.BitRate) error
 	DeactivateEPSSession(ctx context.Context, ref string) error

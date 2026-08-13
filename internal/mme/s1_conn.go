@@ -7,8 +7,10 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -32,92 +34,30 @@ const (
 // on each idle→active transition; the persistent UeContext it belongs to survives
 // across them. Fields are guarded by MME.mu unless noted.
 type UeConn struct {
-	ENBUES1APID s1ap.ENBUES1APID
-	MMEUES1APID s1ap.MMEUES1APID
-
-	// Atomic rather than a plain interface: CommitPathSwitch re-points a live
-	// connection under MME.mu while SendS1AP reads it on the eNB dispatch
-	// goroutine without it, and an interface value is two words — a torn read
-	// calls through a method table that does not belong to the value.
-	conn atomic.Pointer[S1APWriter]
-
-	// Log carries the connection's MME-UE-S1AP-ID (the temporary identity, TS
-	// 33.401 §7.1) so handlers correlate by it. Per-connection with an immutable id.
-	Log *zap.Logger
-
-	// ue is the persistent UE context bound to this connection, nil until a UE
-	// is identified (a bare connection carries an Initial UE Message not yet
-	// attached to a context). Guarded by MME.mu.
-	ue *UeContext
-
-	// ServingTAI is the UE's current serving-cell TAI, from the User Location of its
-	// INITIAL UE MESSAGE and refreshed on each UPLINK NAS TRANSPORT (TS 36.413). It
-	// gates attach/TAU against the operator's served area (EMM cause #12).
-	// Dispatch-confined.
-	ServingTAI s1ap.TAI
-
-	// Location is the UE's serving-cell User Location (E-UTRAN CGI + TAI) from the
-	// same messages as ServingTAI, mirrored to the persistent UeContext when one is
-	// bound (TS 36.413). Dispatch-confined.
-	Location models.UserLocation
-
-	m *MME
-
-	// ICS is the S1AP Initial Context Setup progress: it distinguishes a
-	// fully-established connection (ICSCompleted) from one a UE is still resuming on
-	// (e.g. a TAU resume that has not re-established bearers). Dispatch-confined
-	// (mutated only on the eNB's S1AP goroutine), so a plain field suffices.
-	ICS ICSState
-
-	// secureExchangeEstablished records that secure NAS exchange is established on
-	// this connection (a message integrity-checked, or a verified resume). Once
-	// set, TS 24.301 §4.4.4.3 requires discarding any further message that is not
-	// integrity protected or fails the check. Per-connection, as the spec scopes
-	// it to the NAS signalling connection.
+	ENBUES1APID               s1ap.ENBUES1APID
+	MMEUES1APID               s1ap.MMEUES1APID
+	conn                      atomic.Pointer[S1APWriter]
+	Log                       *zap.Logger
+	ue                        *UeContext
+	ServingTAI                s1ap.TAI
+	Location                  models.UserLocation
+	m                         *MME
+	ICS                       ICSState
 	secureExchangeEstablished bool
-
-	// In-flight authentication working-state, scoped to this connection's attach: a
-	// dropped connection re-authenticates from scratch, so it lives on the connection,
-	// not the persistent context. AuthVector is the EPS challenge vector, resyncTried
-	// whether SQN re-synchronisation has been attempted this exchange
-	// (TS 24.301 §5.4.2.7). Dispatch-confined.
-	AuthVector  *udm.EPSAV
-	resyncTried bool
-
-	// In-flight attach working-state (TS 24.301 §5.5.1.2.7 case d): AttachRequestPlain
-	// is the plaintext ATTACH REQUEST that started the attach, AttachAcceptPlain the
-	// plaintext ATTACH ACCEPT last sent — kept to resend the ACCEPT on a duplicate
-	// ATTACH REQUEST with identical IEs while awaiting ATTACH COMPLETE. The resend is
-	// protected afresh, under the next downlink NAS COUNT (TS 24.301 §4.4.3.1).
-	// Connection-scoped like the auth state above. Dispatch-confined.
-	AttachRequestPlain []byte
-	AttachAcceptPlain  []byte
-
-	// In-flight TAU working-state (TS 24.301 §5.5.3.2.7 case d), like the attach
-	// state above; cleared when TAU COMPLETE commits the reallocated GUTI.
-	TauRequestPlain []byte
-	TauAcceptPlain  []byte
-
-	// TauReleaseOnComplete defers the S1 release of a no-active TAU until the
-	// GUTI reallocation it carried is acknowledged.
-	TauReleaseOnComplete bool
-
-	// EMM common-procedure guard (TS 24.301: T3450/T3460/T3470). EMM common and
-	// specific procedures are mutually exclusive, so a single guard suffices; it
-	// invalidates a callback whose firing races a release or re-arm. ESM bearer
-	// procedures are guarded per-bearer on PdnConnection, running on the
-	// independent ESM sublayer concurrently with each other and EMM.
-	nasGuard guard.Guard
-	// nasGuardName is the EMM procedure the guard currently supervises, for the status
-	// export. Set at arm and cleared at stop under m.mu, so a plain string suffices.
-	nasGuardName string
-	// T3489. Separate from nasGuard because it runs inside the attach, whose own
-	// guard is already armed.
-	esmInfoGuard guard.Guard
-	// releaseGuard supervises a sent UE Context Release Command: armed when the command
-	// is sent, stopped on the Release Complete; a lost Complete fires it once and runs
-	// the EMMState-keyed local cleanup so the UeConn + M-TMSI cannot leak.
-	releaseGuard guard.Guard
+	AuthVector                *udm.EPSAV
+	resyncTried               bool
+	AttachRequestPlain        []byte
+	AttachAcceptPlain         []byte
+	TauRequestPlain           []byte
+	TauAcceptPlain            []byte
+	TauReleaseOnComplete      bool
+	ArrivingFrom5GS           *interworking.EPSContextResponse
+	DeferredTAU               *eps.TrackingAreaUpdateRequest
+	DeferredTAUPlain          []byte
+	nasGuard                  guard.Guard
+	nasGuardName              string
+	esmInfoGuard              guard.Guard
+	releaseGuard              guard.Guard
 }
 
 // StopReleaseGuard cancels the Release-Complete supervision timer. Nil-safe.

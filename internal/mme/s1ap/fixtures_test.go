@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/mme/nas"
@@ -119,6 +120,17 @@ func (f *fakeSessionManager) failModify(ebi uint8, err error) {
 	}
 
 	f.modifyErr[ebi] = err
+}
+
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, _ etsi.SUPI, pduSessionID, _ uint8, _ string, snssai *models.Snssai) (models.EPSBearer, error) {
+	return models.EPSBearer{
+		Ref:          fmt.Sprintf("idle-ref-%d", pduSessionID),
+		PDNType:      eps.PDNTypeIPv4,
+		IPv4:         testUEIP,
+		SGW:          testSGWFTEID,
+		PDUSessionID: pduSessionID,
+		Snssai:       snssai,
+	}, nil
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {

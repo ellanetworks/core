@@ -16,9 +16,6 @@ import (
 )
 
 func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, smc *eps.SecurityModeComplete) nasreply.Disposition {
-	// A SECURITY MODE COMPLETE is valid only during the security mode sub-phase;
-	// out of order, ignore it. A genuine one is integrity-protected against the
-	// context installed at command send, so this is defence in depth.
 	if ue.RegStep() != mme.RegStepSecurityMode {
 		logger.From(ctx, logger.MmeLog).Warn("ignoring Security Mode Complete outside the security mode sub-phase")
 
@@ -26,12 +23,9 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	}
 
 	ueConn.StopNASGuard()
-	// Release the key-chain claim so a subsequent handover or Path Switch can
-	// proceed (TS 33.401 §7.2.8).
+
 	m.ClearKeyChainBusy(ue)
 
-	// The Security Mode Command requested the IMEISV (TS 24.301); parse it into the
-	// shared equipment-identity type for the status API.
 	var pei etsi.IMEI
 
 	if smc.IMEISV != nil && smc.IMEISV.IMEISV != nil {
@@ -45,9 +39,6 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	ue.MarkSecured(pei)
 	ue.PinKeNBFreshness()
 
-	// Anti-tamper recovery: on a HASHMME mismatch the UE returns the complete plain
-	// ATTACH REQUEST in the Replayed NAS message container. Re-ingest it so a tampered
-	// initial Attach cannot alter the completed attach (TS 24.301 §5.4.3.4).
 	if len(smc.ReplayedNASMessageContainer) > 0 {
 		req, err := eps.ParseAttachRequest(smc.ReplayedNASMessageContainer)
 		if !decoded(ctx, "AttachRequest", err) {
@@ -66,6 +57,13 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 	logger.From(ctx, logger.MmeLog).Info("NAS security context established",
 		zap.String("imsi", ue.IMSI()),
 	)
+
+	if deferred := ueConn.DeferredTAU; deferred != nil {
+		plain := ueConn.DeferredTAUPlain
+		ueConn.DeferredTAU, ueConn.DeferredTAUPlain = nil, nil
+
+		return handleTrackingAreaUpdate(ctx, m, ue, ueConn, deferred, plain)
+	}
 
 	activateDefaultBearer(ctx, m, ue, ueConn)
 

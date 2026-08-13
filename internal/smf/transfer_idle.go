@@ -15,14 +15,22 @@ import (
 	"go.uber.org/zap"
 )
 
-// TransferIdleTo5GS is TransferIdle onto 5GS, for the AMF's idle-mode adoption.
 func (s *SMF) TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, error) {
 	return s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access5G)
 }
 
-// TransferIdleToEPS is TransferIdle onto EPS, for the MME's idle-mode adoption.
-func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (string, error) {
-	return s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access4G)
+func (s *SMF) TransferIdleToEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
+	ref, err := s.TransferIdle(ctx, supi, pduSessionID, ebi, dnn, snssai, Access4G)
+	if err != nil {
+		return models.EPSBearer{}, err
+	}
+
+	sc := s.GetSession(ref)
+	if sc == nil {
+		return models.EPSBearer{}, fmt.Errorf("%w: session %q left the pool as it moved", ErrSessionNotMovable, ref)
+	}
+
+	return epsBearerForSession(sc, sessionDNS(sc))
 }
 
 func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, ebi uint8, dnn string, snssai *models.Snssai, access AccessType) (string, error) {

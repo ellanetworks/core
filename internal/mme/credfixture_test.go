@@ -59,6 +59,8 @@ var (
 // fakeSessionManager stands in for the SMF+PGW-C anchor. CreateEPSSession honors
 // the requested PDN type so tests can drive IPv4/IPv6/IPv4v6.
 type fakeSessionManager struct {
+	idleTransfers   []idleEPSTransfer
+	idleTransferErr error
 	lastRequest     models.EPSBearerRequest
 	modifiedENB     models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
 	released        bool
@@ -74,6 +76,37 @@ type fakeSessionManager struct {
 
 	suppressCalls         int // counts HandleEPSPagingFailure calls
 	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
+}
+
+type idleEPSTransfer struct {
+	Supi              etsi.SUPI
+	PDUSessionID      uint8
+	EPSBearerIdentity uint8
+	Dnn               string
+	Snssai            *models.Snssai
+}
+
+func (f *fakeSessionManager) TransferIdleToEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (models.EPSBearer, error) {
+	f.idleTransfers = append(f.idleTransfers, idleEPSTransfer{
+		Supi:              supi,
+		PDUSessionID:      pduSessionID,
+		EPSBearerIdentity: epsBearerIdentity,
+		Dnn:               dnn,
+		Snssai:            snssai,
+	})
+
+	if f.idleTransferErr != nil {
+		return models.EPSBearer{}, f.idleTransferErr
+	}
+
+	return models.EPSBearer{
+		Ref:          fmt.Sprintf("idle-ref-%d", pduSessionID),
+		PDNType:      eps.PDNTypeIPv4,
+		IPv4:         testUEIP,
+		SGW:          testSGWFTEID,
+		PDUSessionID: pduSessionID,
+		Snssai:       snssai,
+	}, nil
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
