@@ -24,6 +24,11 @@ func handleSecurityModeCommand(ue *UE, plain []byte, amfUENGAPID int64, ranUENGA
 		return fmt.Errorf("could not parse Security Mode Command: %v", err)
 	}
 
+	if !smc.ReplayedUESecurityCapability.Equal(ue.UeSecurity.UeSecurityCapability) {
+		return fmt.Errorf("replayed UE security capability is %s, want the %s the UE sent: a real UE answers Security Mode Reject (TS 33.501 §6.7.2)",
+			smc.ReplayedUESecurityCapability, ue.UeSecurity.UeSecurityCapability)
+	}
+
 	ksi := int32(smc.NgKSI.Value)
 
 	tsc := models.ScTypeNative

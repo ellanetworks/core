@@ -41,7 +41,7 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	c.SetResyncTried(false)
 
 	logger.From(ctx, logger.MmeLog).Info("authentication succeeded")
-	startSecurityMode(ctx, m, ue, ueConn)
+	startSecurityMode(ctx, m, ue, ueConn, freshKeys)
 
 	return nasreply.Handled()
 }

@@ -254,6 +254,106 @@ func TestOrdinaryTAUOnABareConnectionMintsNothing(t *testing.T) {
 	}
 }
 
+// TS 24.301 §4.4.4.3: a subscriber maps to exactly one context. Without the
+// commit the arriving context is never indexed by SUPI, so the 5GS peer's later
+// context acknowledgement finds nothing and this MME keeps PDN connections for a
+// UE that has left (TS 23.502 §4.11.1.3.3 step 14).
+func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
+	})}
+
+	m, conn, _ := idleArrivalMME(t, peer)
+
+	supi, err := etsi.NewSUPIFromIMSI(testSubscriber.IMSI)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stale := mme.NewUeContext()
+	stale.SetSupi(supi)
+	m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking())
+
+	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+	ue := conn.UeContext()
+	if ue == nil {
+		t.Fatal("no context was bound")
+	}
+
+	held, ok := m.LookupUeBySupi(supi)
+	if !ok {
+		t.Fatal("the subscriber resolves to no context, so the 5GS peer cannot acknowledge a later move back")
+	}
+
+	if held == stale {
+		t.Error("the subscriber still resolves to the context it held before the move")
+	}
+
+	if held != ue {
+		t.Errorf("the subscriber resolves to a context other than the one serving the update")
+	}
+
+	if err := m.MMContextAck(context.Background(), supi, nil); err != nil {
+		t.Errorf("MMContextAck: %v: a move back to 5GS would leave this MME serving PDN connections the UE has left", err)
+	}
+}
+
+// TS 23.401 §5.3.3.1 step 8, performed by TS 23.502 §4.11.1.3.2 steps 7-14:
+// with no bearer context at all the MME rejects the update rather than telling
+// the UE its connectivity survived. The 5GS peer keeps what it still holds
+// (TS 23.401 §5.3.3.1 step 7).
+func TestInterSystemTAUWithNothingToAdoptIsRejected(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		conns []interworking.PDNConnection
+	}{
+		{
+			name: "the offered session has no subscription on this MME",
+			conns: []interworking.PDNConnection{
+				{PDUSessionID: 3, EPSBearerIdentity: 6, APN: "unsubscribed", Snssai: models.Snssai{Sst: 1, Sd: "010203"}},
+			},
+		},
+		{name: "the 5GS peer offered no session at all"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+				Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
+			})
+			resp.PDNConnections = tc.conns
+
+			peer := &fakeFiveGSPeer{Response: resp}
+			m, conn, cc := idleArrivalMME(t, peer)
+
+			dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+			ue := conn.UeContext()
+			if ue == nil {
+				t.Fatal("no context was bound")
+			}
+
+			if cc.count() == 0 {
+				t.Fatal("the MME sent nothing, want a TRACKING AREA UPDATE REJECT")
+			}
+
+			plain := decodeProtectedDownlink(t, ue, cc.sent[0])
+
+			rej, err := eps.ParseTrackingAreaUpdateReject(plain)
+			if err != nil {
+				t.Fatalf("the MME answered something other than a reject, so the UE believes its bearers survived: %v", err)
+			}
+
+			if rej.Cause != eps.EMMCauseImplicitlyDetached {
+				t.Errorf("reject cause = %d, want #%d so the UE attaches afresh", rej.Cause, eps.EMMCauseImplicitlyDetached)
+			}
+
+			if peer.Acked {
+				t.Error("the 5GS peer was acknowledged for a transfer that moved nothing, so it released sessions the UE still needs")
+			}
+		})
+	}
+}
+
 // TS 33.501 §8.5.2 steps 7-10
 func TestInterSystemTAURekeysOnAnAlgorithmChange(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
@@ -275,5 +375,93 @@ func TestInterSystemTAURekeysOnAnAlgorithmChange(t *testing.T) {
 
 	if ue.RegStep() != mme.RegStepSecurityMode {
 		t.Errorf("registration step = %v, want the security mode sub-phase", ue.RegStep())
+	}
+}
+
+// TS 24.301 §4.4.3.1, §5.4.3.2; TS 33.401 §6.5. A context mapped from 5GS
+// inherits the 5G NAS COUNTs; changing its algorithms re-keys it under the same
+// K'ASME, which is not a new context, so neither side restarts the counters. The
+// UE keeps its uplink NAS COUNT because the eKSI matches its current mapped
+// context (TS 24.301 §5.4.3.3).
+func TestInterSystemTAURekeyKeepsTheMappedNASCounts(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
+	})}
+
+	m, conn, cc := idleArrivalMME(t, peer)
+
+	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
+
+	ue := conn.UeContext()
+	if ue == nil {
+		t.Fatal("no context was bound")
+	}
+
+	if cc.count() == 0 {
+		t.Fatal("the MME sent nothing, want a SECURITY MODE COMMAND")
+	}
+
+	if got := ue.ULCount(); got != 8 {
+		t.Errorf("next expected uplink NAS COUNT = %d, want 8 after the inherited 7: the MME would reject the Security Mode Complete the UE sends", got)
+	}
+
+	wire := decodeDownlinkNAS(t, cc.sent[0])
+	if len(wire) < 6 {
+		t.Fatalf("downlink NAS message is %d octets, too short to be security protected", len(wire))
+	}
+
+	if wire[5] != 2 {
+		t.Errorf("Security Mode Command rides NAS sequence number %d, want the inherited downlink COUNT 2", wire[5])
+	}
+
+	plain := decodeProtectedDownlink(t, ue, cc.sent[0])
+	if _, err := eps.ParseSecurityModeCommand(plain); err != nil {
+		t.Fatalf("the re-keyed Security Mode Command does not verify under the new algorithms: %v", err)
+	}
+}
+
+// TS 33.401 §7.2.4.4, TS 24.301 §5.4.3.3. The UE checks the replay against what
+// it sent, and §8.2.29.7 makes the UE network capability IE mandatory in every
+// non-periodic TRACKING AREA UPDATE REQUEST, so the peer's relayed copy is never
+// the one to replay.
+func TestInterSystemTAURekeyReplaysTheCapabilitiesTheUEJustSent(t *testing.T) {
+	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
+		Ciphering: nas.CipheringNull, Integrity: nas.IntegritySNOW3G,
+	})}
+
+	m, conn, cc := idleArrivalMME(t, peer)
+
+	sent := eps.UENetworkCapability{EEA: 0x20, EIA: 0x20, HasUMTS: true, UEA: 0x40, UIA: 0x40}
+
+	ms, err := eps.ParseMSNetworkCapability([]byte{0x80, 0x00})
+	if err != nil {
+		t.Fatalf("ParseMSNetworkCapability: %v", err)
+	}
+
+	pdu := interSystemTAU(t, func(req *eps.TrackingAreaUpdateRequest) {
+		req.UENetworkCapability = &sent
+		req.MSNetworkCapability = &ms
+	})
+
+	dispositionForNAS(context.Background(), m, conn, pdu)
+
+	ue := conn.UeContext()
+	if ue == nil {
+		t.Fatal("no context was bound")
+	}
+
+	if cc.count() == 0 {
+		t.Fatal("the MME sent nothing, want a SECURITY MODE COMMAND")
+	}
+
+	smc, err := eps.ParseSecurityModeCommand(decodeProtectedDownlink(t, ue, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("parse Security Mode Command: %v", err)
+	}
+
+	want := eps.ReplayedUESecurityCapability(sent, &ms)
+	if smc.ReplayedUESecurityCapability != want {
+		t.Errorf("replayed UE security capability = %+v, want the %+v derived from the update's own IEs: the UE answers Security Mode Reject on a mismatch",
+			smc.ReplayedUESecurityCapability, want)
 	}
 }

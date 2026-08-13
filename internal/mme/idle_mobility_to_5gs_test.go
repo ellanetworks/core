@@ -192,6 +192,34 @@ func TestMMContextRefusals(t *testing.T) {
 	})
 }
 
+// TS 23.401 §5.3.3.1 step 7: an inter-system change the peer abandons leaves this
+// MME serving the UE exactly as before, so the UE that falls back to E-UTRAN finds
+// its context. Nothing is released until the acknowledgement says what moved.
+func TestMMContextHandedOverButNeverAcknowledgedKeepsServingTheUE(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleMobilityUE(t, m)
+
+	if _, err := m.MMContext(t.Context(), interworking.MMContextRequest{
+		MappedEPSGUTI: guti,
+		EPSNAS:        enclosedTAU(t, ue, nas.MakeCount(0, 0)),
+	}); err != nil {
+		t.Fatalf("MMContext: %v", err)
+	}
+
+	if ue.EMMState() != EMMRegistered {
+		t.Errorf("EMM state = %v, want registered: the UE was released before 5GS said it took the context", ue.EMMState())
+	}
+
+	if ue.PDNCount() != 1 {
+		t.Errorf("PDN connections = %d, want the one the UE still has on E-UTRAN", ue.PDNCount())
+	}
+
+	held, ok := m.LookupUeBySupi(ue.Supi())
+	if !ok || held != ue {
+		t.Error("the subscriber no longer resolves to its context, so a fallback to E-UTRAN would re-attach from scratch")
+	}
+}
+
 // TS 23.502 §4.11.1.3.3 step 8
 func TestMMContextAckReleasesWhatDidNotTransfer(t *testing.T) {
 	m := newTestMME(t)

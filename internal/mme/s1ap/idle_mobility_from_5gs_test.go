@@ -40,15 +40,24 @@ func (*refusingFiveGSPeer) EPSContextAck(context.Context, etsi.SUPI, []uint8) er
 // TS 24.301 §5.5.3.2.5
 func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		err  error
+		name        string
+		err         error
+		noPeer      bool
+		unprotected bool
 	}{
-		{"the 5GS peer holds no context", interworking.ErrUnknownUEContext},
-		{"the 5GS peer could not verify the update", interworking.ErrIntegrityCheckFailed},
+		{name: "the 5GS peer holds no context", err: interworking.ErrUnknownUEContext},
+		{name: "the 5GS peer could not verify the update", err: interworking.ErrIntegrityCheckFailed},
+		// TS 24.301 §5.5.3.2.2 case z: a UE holding no valid 5G NAS security
+		// context sends the update without integrity protection.
+		{name: "the update carries no integrity protection", err: interworking.ErrIntegrityCheckFailed, unprotected: true},
+		{name: "the operator configured no 5GS peer", noPeer: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
-			m.FiveGS = &refusingFiveGSPeer{err: tc.err}
+
+			if !tc.noPeer {
+				m.FiveGS = &refusingFiveGSPeer{err: tc.err}
+			}
 
 			native := eps.GUTITypeNative
 
@@ -65,6 +74,9 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 			}
 
 			wire := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x00}, tau...)
+			if tc.unprotected {
+				wire = tau
+			}
 
 			plmnID := s1ap.PLMNIdentity{0x00, 0xf1, 0x10}
 

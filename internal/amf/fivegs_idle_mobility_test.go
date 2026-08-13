@@ -236,6 +236,38 @@ func TestEPSContextRefusals(t *testing.T) {
 }
 
 // TS 23.502 §4.11.1.3.2 step 8
+// TS 23.401 §5.3.3.1 step 7, which TS 23.502 §4.11.1.3.2 steps 7-14 performs: an
+// inter-system change the peer abandons leaves this AMF serving the UE exactly as
+// before, so the UE that stays on NR keeps its sessions. Nothing is released until
+// the acknowledgement says what moved.
+func TestEPSContextHandedOverButNeverAcknowledgedKeepsServingTheUE(t *testing.T) {
+	a := idleMobilityAMF()
+	guti := idleMobilityGUTI(t)
+	ue := leavingUE(t, a, guti)
+	ue.ForceStateForTest(Registered)
+
+	count, err := ue.ulCount.Estimate(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count)); err != nil {
+		t.Fatalf("EPSContext: %v", err)
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(3); !ok {
+		t.Error("the PDU session was released before EPS said it took the context")
+	}
+
+	if ue.State() == Deregistered {
+		t.Error("the UE was deregistered before EPS said it took the context")
+	}
+
+	if found, ok := a.LookupUeByGuti(idleMobilityGuami(), guti); !ok || found != ue {
+		t.Error("the UE context is no longer resolvable by its 5G-GUTI, so a retry would re-authenticate")
+	}
+}
+
 func TestEPSContextAckReleasesWhatDidNotTransferAndKeepsTheContext(t *testing.T) {
 	a := idleMobilityAMF()
 	guti := idleMobilityGUTI(t)

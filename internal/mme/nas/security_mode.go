@@ -12,7 +12,14 @@ import (
 	"go.uber.org/zap"
 )
 
-func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+type keyInstall uint8
+
+const (
+	freshKeys keyInstall = iota
+	rekeyedKeys
+)
+
+func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, install keyInstall) {
 	// TS 33.501 §6.9.5.1 / TS 33.401 §7.2.8: the security mode procedure re-keys the
 	// AS context, so it must not run concurrently with an S1 handover or Path Switch
 	// advancing the {NH, NCC} chain. Claim the chain; if a handover holds it, defer.
@@ -50,7 +57,12 @@ func startSecurityMode(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueCon
 		return
 	}
 
-	if err := ue.InstallNASSecurityContext(eea, eia, mme.MintAuthProofForSecurityMode()); err != nil {
+	installKeys := ue.InstallNASSecurityContext
+	if install == rekeyedKeys {
+		installKeys = ue.RekeyNASSecurityContext
+	}
+
+	if err := installKeys(eea, eia, mme.MintAuthProofForSecurityMode()); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to install NAS security context", zap.Error(err))
 		return
 	}

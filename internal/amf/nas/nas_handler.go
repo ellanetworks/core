@@ -290,6 +290,12 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	additional := etsi.InvalidGUTI5G
 
+	// On an inter-system change from S1 mode the 5GS mobile identity carries a
+	// 5G-GUTI mapped from the UE's 4G-GUTI, which names the MME rather than any
+	// context here; the UE's own 5G-GUTI is the native one in the Additional GUTI IE
+	// (TS 24.501 §5.5.1.3.2 a) NOTE 6, §5.5.1.3.4 a) and c)).
+	nativeIsAdditional := false
+
 	switch msgType {
 	case fgs.MsgRegistrationRequest:
 		req, err := fgs.ParseRegistrationRequest(body)
@@ -300,6 +306,8 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		if req.AdditionalGUTI != nil {
 			additional, _ = etsi.NewGUTI5GFromNAS(*req.AdditionalGUTI)
 		}
+
+		nativeIsAdditional = movingFromEPC(req)
 
 		switch {
 		case req.MobileIdentity.GUTI != nil:
@@ -351,23 +359,30 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 		return nil, nil
 	}
 
-	ue, _ := amfInstance.LookupUeByGuti(operatorInfo.Guami, guti)
-	if ue == nil {
-		guti = additional
-		ue, _ = amfInstance.LookupUeByGuti(operatorInfo.Guami, additional)
+	candidates := [2]etsi.GUTI5G{guti, additional}
+	if nativeIsAdditional {
+		candidates = [2]etsi.GUTI5G{additional, guti}
 	}
 
-	if ue == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
-		return nil, nil
+	for _, candidate := range candidates {
+		ue, _ := amfInstance.LookupUeByGuti(operatorInfo.Guami, candidate)
+		if ue == nil {
+			continue
+		}
+
+		// A pure check, so an identity that resolves the wrong context costs nothing
+		// but the attempt and the next candidate still gets its turn.
+		if !ue.ReuseForInboundNAS(payload) {
+			logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(candidate.String()))
+			continue
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("UE Context derived from Guti", logger.GUTI(candidate.String()))
+
+		return ue, nil
 	}
 
-	if !ue.ReuseForInboundNAS(payload) {
-		logger.WithTrace(ctx, logger.AmfLog).Info("NAS message cites a known GUTI but is not authenticated for that context; using a fresh context", logger.GUTI(guti.String()))
-		return nil, nil
-	}
+	logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(candidates[0].String()))
 
-	logger.From(ctx, logger.AmfLog).Info("UE Context derived from Guti", logger.GUTI(guti.String()))
-
-	return ue, nil
+	return nil, nil
 }

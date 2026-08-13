@@ -35,6 +35,10 @@ func (a *AMF) AdoptMMContext(ctx context.Context, ue *UeContext, resp interworki
 		return fmt.Errorf("amf: resolve the NAS security algorithms: %w", err)
 	}
 
+	if attested := ue.UESecCap(); attested != nil {
+		resp.Security.UE5GSecurityCapability = attested
+	}
+
 	mapped, err := interworking.MapTo5GSOnIdleMobility(resp.Security, intOrder, encOrder)
 	if err != nil {
 		return err

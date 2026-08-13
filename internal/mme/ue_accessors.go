@@ -199,7 +199,7 @@ func protectEPSDownlink(plain []byte, sht uint8, count nas.Count, sc *nas.Securi
 // algorithms and installs the EPS NAS security context (TS 33.401). The
 // AuthProof witnesses that EPS-AKA authentication has succeeded.
 func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, _ AuthProof) error {
-	sc, err := ue.deriveNASKeys(eea, eia)
+	sc, err := ue.deriveNASKeys(eea, eia, resetNASCounts)
 	if err != nil {
 		ue.downlink().Clear()
 
@@ -211,7 +211,31 @@ func (ue *UeContext) InstallNASSecurityContext(eea nas.CipheringAlgorithm, eia n
 	return nil
 }
 
-func (ue *UeContext) deriveNASKeys(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm) (*nas.SecurityContext, error) {
+// RekeyNASSecurityContext re-derives the NAS keys of the EPS security context
+// already in use, from the same K_ASME with new algorithm identities as the only
+// changed input (TS 33.401 §7.2.8.1.2). The context is not a new one, so its NAS
+// COUNTs carry on (TS 24.301 §5.4.3.2, TS 33.401 §6.5).
+func (ue *UeContext) RekeyNASSecurityContext(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, _ AuthProof) error {
+	sc, err := ue.deriveNASKeys(eea, eia, keepNASCounts)
+	if err != nil {
+		ue.downlink().Clear()
+
+		return err
+	}
+
+	ue.downlink().Rekey(sc)
+
+	return nil
+}
+
+type nasCountHandling uint8
+
+const (
+	resetNASCounts nasCountHandling = iota
+	keepNASCounts
+)
+
+func (ue *UeContext) deriveNASKeys(eea nas.CipheringAlgorithm, eia nas.IntegrityAlgorithm, counts nasCountHandling) (*nas.SecurityContext, error) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
@@ -233,8 +257,10 @@ func (ue *UeContext) deriveNASKeys(eea nas.CipheringAlgorithm, eia nas.Integrity
 		return nil, err
 	}
 
-	ue.ulCount.Reset()
-	ue.kenbCount = 0
+	if counts == resetNASCounts {
+		ue.ulCount.Reset()
+		ue.kenbCount = 0
+	}
 
 	return sc, nil
 }

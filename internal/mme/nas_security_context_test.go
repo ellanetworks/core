@@ -3,7 +3,11 @@
 
 package mme
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ellanetworks/core/nas"
+)
 
 // TestNextEksi verifies the eKSI cycles to a distinct value and skips 7 ("no key
 // available"), so a new authentication never reuses the stored eKSI (TS 24.301
@@ -41,5 +45,46 @@ func TestInstallNASSecurityContext_ResetsNASCounts(t *testing.T) {
 
 	if got := ue.DLCountForTest(); got != 0 {
 		t.Errorf("downlink NAS COUNT = %d, want 0 after installing a new security context", got)
+	}
+}
+
+// TestRekeyNASSecurityContextKeepsNASCounts verifies that changing the NAS
+// algorithms of the EPS security context already in use re-derives the keys from
+// the same K_ASME without restarting its NAS COUNTs (TS 24.301 §5.4.3.2,
+// TS 33.401 §6.5, §7.2.8.1.2). A context mapped from 5GS inherits the 5G NAS
+// COUNTs, which the UE keeps (TS 24.301 §4.4.3.1, §5.4.3.3).
+func TestRekeyNASSecurityContextKeepsNASCounts(t *testing.T) {
+	m := newTestMME(t)
+	ue := m.NewUe(&captureConn{}, 7)
+
+	ue.SetKASMEForTest(make([]byte, 32))
+
+	if err := ue.InstallNASSecurityContext(nas.CipheringAES, nas.IntegritySNOW3G, MintAuthProofForSecurityMode()); err != nil {
+		t.Fatalf("InstallNASSecurityContext: %v", err)
+	}
+
+	ue.SetULCountForTest(5)
+	ue.SetDLCountForTest(9)
+
+	before := ue.KnasIntForTest()
+
+	if err := ue.RekeyNASSecurityContext(nas.CipheringAES, nas.IntegrityAES, MintAuthProofForSecurityMode()); err != nil {
+		t.Fatalf("RekeyNASSecurityContext: %v", err)
+	}
+
+	if got := ue.ULCount(); got != 5 {
+		t.Errorf("uplink NAS COUNT = %d, want the inherited 5: the UE does not reset it when the eKSI matches its current mapped context", got)
+	}
+
+	if got := ue.DLCountForTest(); got != 9 {
+		t.Errorf("downlink NAS COUNT = %d, want the inherited 9: the Security Mode Command must not reuse a COUNT under the same K_ASME", got)
+	}
+
+	if ue.KnasIntForTest() == before {
+		t.Error("K_NASint is unchanged, so the new integrity algorithm was never taken into use")
+	}
+
+	if ue.EIA() != nas.IntegrityAES {
+		t.Errorf("integrity algorithm = %v, want the re-selected %v", ue.EIA(), nas.IntegrityAES)
 	}
 }

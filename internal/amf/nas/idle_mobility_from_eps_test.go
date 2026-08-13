@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
@@ -138,6 +139,47 @@ func TestRecoverContextFromEPSInstallsTheMappedContext(t *testing.T) {
 
 	if ue.Ambr == nil || ue.Ambr.Uplink != models.MustParseBitRate("50 Mbps") {
 		t.Errorf("AMBR = %+v, want the subscribed one the MME returned", ue.Ambr)
+	}
+}
+
+// TS 33.501 §6.7.2 step 2a, §8.2
+func TestIdleArrivalReplaysTheUEsOwn5GSecurityCapability(t *testing.T) {
+	ue, amfInstance, _, _ := idleArrivalUE(t)
+
+	amfInstance.DBInstance = &fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: `["000001"]`,
+			Ciphering:     `["NULL","AES"]`,
+			Integrity:     `["AES"]`,
+		},
+	}
+
+	req := idleArrivalRequest()
+	req.UESecurityCapability = &fgs.UESecurityCapability{EA: 0x20, IA: 0x20}
+
+	ue.SetUESecurityCapabilityForTest(req.UESecurityCapability)
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, req)
+
+	raw, err := amf.BuildSecurityModeCommand(ue)
+	if err != nil {
+		t.Fatalf("BuildSecurityModeCommand: %v", err)
+	}
+
+	smc, err := fgs.ParseSecurityModeCommand(raw)
+	if err != nil {
+		t.Fatalf("parse SecurityModeCommand: %v", err)
+	}
+
+	if !smc.ReplayedUESecurityCapability.Equal(*req.UESecurityCapability) {
+		t.Errorf("replayed UE security capability = %+v, want the %+v the UE sent: the UE answers SECURITY MODE REJECT on a mismatch",
+			smc.ReplayedUESecurityCapability, *req.UESecurityCapability)
+	}
+
+	if smc.CipheringAlgorithm == nas.CipheringNull {
+		t.Error("the AMF selected NEA0 for a UE that advertised NEA2, so it negotiated against a capability set the UE never sent")
 	}
 }
 
