@@ -659,6 +659,30 @@ func (m *Manager) VoterIDs() []int {
 	return ids
 }
 
+// MemberIDs returns the server IDs of every member of the current Raft
+// configuration, voters and nonvoters alike — the set of nodes that
+// receive and apply committed log entries. Returns nil on error (e.g. no
+// quorum).
+func (m *Manager) MemberIDs() []int {
+	future := m.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return nil
+	}
+
+	var ids []int
+
+	for _, srv := range future.Configuration().Servers {
+		id, err := strconv.Atoi(string(srv.ID))
+		if err != nil {
+			continue
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids
+}
+
 // Shutdown gracefully shuts down the Raft node.
 func (m *Manager) Shutdown() error {
 	if m.observer != nil {

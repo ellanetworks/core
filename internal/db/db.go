@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -324,9 +325,13 @@ type Database struct {
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
 	appliedSchemaCache atomic.Int64
 
-	// probeVoterSchema reads a peer's live SchemaVersion. Field-injected
+	// probeMemberSchema reads a peer's live SchemaVersion. Field-injected
 	// so tests can stub it.
-	probeVoterSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
+	probeMemberSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
+
+	// raftMemberIDs lists the node IDs in the live Raft configuration.
+	// Field-injected so tests can stub it.
+	raftMemberIDs func() []int
 }
 
 // conn returns the current *sqlair.DB handle.
@@ -764,10 +769,13 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 }
 
 // CheckPendingMigrations proposes one CmdMigrateShared per missing
-// migration, bounded by the minimum SchemaVersion across voters.
-// Leader-only; an unreachable voter blocks the gate. Learners are
-// ignored — they can crash on an unsupported migration without breaking
-// quorum.
+// migration, bounded by the minimum SchemaVersion across cluster
+// members. Leader-only; an unreachable member blocks the gate.
+//
+// Deferring a migration is recoverable; proposing one a member cannot
+// apply is not, because the entry is durable and the failed apply
+// repeats on every restart. That holds for learners as much as voters:
+// a learner's crash spares quorum but strands the node.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
 		return nil
@@ -787,7 +795,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		return nil
 	}
 
-	floor, laggard, err := db.minVoterSchemaSupport(ctx)
+	floor, laggard, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return err
 	}
@@ -825,11 +833,11 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 type PendingMigrationStatus struct {
 	Pending       bool
 	CurrentSchema int
-	TargetSchema  int // bounded by min(binaryMax, voter floor); equals current when blocked
-	LaggardNodeID int // voter holding target == current; zero when unblocked
+	TargetSchema  int // bounded by min(binaryMax, member floor); equals current when blocked
+	LaggardNodeID int // member holding target == current; zero when unblocked
 }
 
-// PendingMigrationInfo computes the snapshot. Probes every voter when
+// PendingMigrationInfo computes the snapshot. Probes every member when
 // a migration is pending; short-circuits to a single schema_version
 // read once the cluster has converged.
 func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationStatus, error) {
@@ -856,7 +864,7 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 		}, nil
 	}
 
-	floor, laggard, err := db.minVoterSchemaSupport(ctx)
+	floor, laggard, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return PendingMigrationStatus{}, err
 	}
@@ -879,13 +887,17 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	return status, nil
 }
 
-// minVoterSchemaSupport returns the minimum SchemaVersion across
-// voters and the laggard's nodeID. The local node answers in-process;
-// peers are probed live. Probe failure returns floor=0 with that voter
-// as laggard. With no voter rows the floor is the local binary's
-// SchemaVersion, so a fresh leader is not blocked from its own
+// minMemberSchemaSupport returns the minimum SchemaVersion across every
+// cluster member and the laggard's nodeID. The local node answers
+// in-process; peers are probed live. Probe failure returns floor=0 with
+// that member as laggard. With no member rows the floor is the local
+// binary's SchemaVersion, so a fresh leader is not blocked from its own
 // migrations.
-func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error) {
+//
+// Nonvoters count: raft replicates committed entries to them and they run
+// the same FSM, so a nonvoter on an older binary fails to apply an entry
+// its binary does not understand exactly as a voter would.
+func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("list cluster members: %w", err)
@@ -902,8 +914,18 @@ func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error)
 		}
 	}
 
+	// A cluster_members row outlives removal from the Raft configuration
+	// (the two are separate commits). Such a node receives no entries, so
+	// probing it would block the gate on a node that cannot be harmed. An
+	// unreadable configuration falls back to every row, which can only
+	// over-block.
+	var inConfiguration []int
+	if db.raftMemberIDs != nil {
+		inConfiguration = db.raftMemberIDs()
+	}
+
 	for _, m := range members {
-		if m.Suffrage != "voter" {
+		if len(inConfiguration) > 0 && !slices.Contains(inConfiguration, m.NodeID) {
 			continue
 		}
 
@@ -912,11 +934,12 @@ func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error)
 			continue
 		}
 
-		v, err := db.probeVoterSchema(ctx, m.NodeID, m.RaftAddress)
+		v, err := db.probeMemberSchema(ctx, m.NodeID, m.RaftAddress)
 		if err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: voter capability unknown, deferring",
+			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
 				zap.Int("nodeID", m.NodeID),
 				zap.String("raftAddress", m.RaftAddress),
+				zap.String("suffrage", m.Suffrage),
 				zap.Error(err),
 			)
 
@@ -1136,7 +1159,8 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
-	db.probeVoterSchema = raftMgr.ProbePeerSchemaVersion
+	db.probeMemberSchema = raftMgr.ProbePeerSchemaVersion
+	db.raftMemberIDs = raftMgr.MemberIDs
 
 	// Ensure the FSM migration marker exists so future FSM.Restore
 	// calls know the new code is active and use the snapshot's

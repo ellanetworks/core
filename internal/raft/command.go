@@ -11,6 +11,18 @@ import (
 
 // CommandType identifies a shared-DB write operation in the Raft log.
 // Each type maps to exactly one applyX function in the FSM.
+//
+// Adding a value here is a wire-compatibility change. Every node applies
+// every committed entry, and a node whose binary has no case for the type
+// fails the apply, which halts it (FSM.Apply). The entry is durable, so
+// the halt repeats on restart.
+//
+// So a new CommandType must ship with a schema migration, and the
+// operation that proposes it must declare db.RequireSchema(N) for that
+// migration's version. A migration only applies once every cluster member
+// reported a binary supporting it, and the join handshake then refuses
+// older ones — which makes "the applied schema is N" a durable statement
+// that every member can apply commands introduced in N.
 type CommandType uint16
 
 const (
@@ -18,7 +30,9 @@ const (
 	CmdChangeset CommandType = 0
 
 	// Gaps are intentional: retired command ids are never reused so
-	// logs and snapshots stay decodable across versions.
+	// logs and snapshots stay decodable across versions. Decodable is not
+	// appliable — a retired id replayed on a binary that dropped its case
+	// halts that node, so retiring one is gated the same way as adding one.
 
 	// Intent-based bulk deletes kept explicit for log-size control.
 	CmdDeleteOldDailyUsage    CommandType = 12

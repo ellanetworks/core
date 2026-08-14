@@ -15,7 +15,7 @@ import (
 )
 
 // Whitebox tests for the migration gate. Seeds cluster_members via the
-// public upsert API and stubs probeVoterSchema to avoid real peers.
+// public upsert API and stubs probeMemberSchema to avoid real peers.
 
 func newStandaloneDB(t *testing.T) *Database {
 	t.Helper()
@@ -50,7 +50,7 @@ func (s stubProbe) probe(_ context.Context, nodeID int, _ string) (int, error) {
 	return v, nil
 }
 
-func TestMinVoterSchemaSupport_FloorIsLaggard(t *testing.T) {
+func TestMinMemberSchemaSupport_FloorIsLaggard(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
@@ -64,11 +64,12 @@ func TestMinVoterSchemaSupport_FloorIsLaggard(t *testing.T) {
 		}
 	}
 
-	database.probeVoterSchema = stubProbe{versions: map[int]int{1: 10, 2: 9, 3: 11}}.probe
+	database.raftMemberIDs = func() []int { return []int{1, 2, 3} }
+	database.probeMemberSchema = stubProbe{versions: map[int]int{1: 10, 2: 9, 3: 11}}.probe
 
-	floor, laggard, err := database.minVoterSchemaSupport(ctx)
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
-		t.Fatalf("minVoterSchemaSupport: %v", err)
+		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
 	if floor != 9 {
@@ -80,7 +81,7 @@ func TestMinVoterSchemaSupport_FloorIsLaggard(t *testing.T) {
 	}
 }
 
-func TestMinVoterSchemaSupport_UnreachableBlocks(t *testing.T) {
+func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
@@ -93,14 +94,15 @@ func TestMinVoterSchemaSupport_UnreachableBlocks(t *testing.T) {
 		}
 	}
 
-	database.probeVoterSchema = stubProbe{
+	database.raftMemberIDs = func() []int { return []int{1, 2} }
+	database.probeMemberSchema = stubProbe{
 		versions:    map[int]int{1: 10},
 		unreachable: map[int]bool{2: true},
 	}.probe
 
-	floor, laggard, err := database.minVoterSchemaSupport(ctx)
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
-		t.Fatalf("minVoterSchemaSupport: %v", err)
+		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
 	if floor != 0 {
@@ -112,7 +114,9 @@ func TestMinVoterSchemaSupport_UnreachableBlocks(t *testing.T) {
 	}
 }
 
-func TestMinVoterSchemaSupport_IgnoresLearners(t *testing.T) {
+// Learners apply committed entries like voters, so an old-binary learner
+// holds the floor down.
+func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
@@ -125,31 +129,62 @@ func TestMinVoterSchemaSupport_IgnoresLearners(t *testing.T) {
 		}
 	}
 
+	database.raftMemberIDs = func() []int { return []int{1, 2} }
+
 	probed := map[int]bool{}
 
-	database.probeVoterSchema = func(_ context.Context, nodeID int, _ string) (int, error) {
+	database.probeMemberSchema = func(_ context.Context, nodeID int, _ string) (int, error) {
 		probed[nodeID] = true
-		return 10, nil
+		return 3, nil
 	}
 
-	floor, laggard, err := database.minVoterSchemaSupport(ctx)
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
-		t.Fatalf("minVoterSchemaSupport: %v", err)
+		t.Fatalf("minMemberSchemaSupport: %v", err)
+	}
+
+	if !probed[2] {
+		t.Fatalf("learner node 2 was not probed")
+	}
+
+	if floor != 3 {
+		t.Fatalf("floor: want 3 (learner), got %d", floor)
+	}
+
+	if laggard != 2 {
+		t.Fatalf("laggard: want 2, got %d", laggard)
+	}
+}
+
+// A cluster_members row for a node absent from the Raft configuration
+// must not block the gate: it receives no entries.
+func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	for _, m := range []*ClusterMember{
+		{NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
+		{NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
+	} {
+		if err := database.UpsertClusterMember(ctx, m); err != nil {
+			t.Fatalf("seed member %d: %v", m.NodeID, err)
+		}
+	}
+
+	database.raftMemberIDs = func() []int { return []int{1} }
+
+	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+
+	floor, _, err := database.minMemberSchemaSupport(ctx)
+	if err != nil {
+		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
 	// node 1 matches the standalone selfID, so its contribution is the
 	// in-process SchemaVersion(). Tracking the literal would require a
 	// test update on every migration bump.
 	if floor != SchemaVersion() {
-		t.Fatalf("floor: want %d (learner ignored), got %d", SchemaVersion(), floor)
-	}
-
-	if laggard != 1 {
-		t.Fatalf("laggard: want 1, got %d", laggard)
-	}
-
-	if probed[2] {
-		t.Fatalf("learner node 2 must not be probed")
+		t.Fatalf("floor: want %d (phantom row skipped), got %d", SchemaVersion(), floor)
 	}
 }
 
