@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -131,6 +132,9 @@ type Manager struct {
 	followerTracker *followerTracker
 	boltNoSync      bool
 	clusterListener *listener.Listener
+
+	// barrieredTerm is the leadership term whose WriteBarrier has completed.
+	barrieredTerm atomic.Uint64
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -537,6 +541,42 @@ func (m *Manager) AppliedIndex() uint64 {
 // ensuring subsequent reads reflect every committed write.
 func (m *Manager) Barrier(timeout time.Duration) error {
 	return m.raft.Barrier(timeout).Error()
+}
+
+// WriteBarrier makes the local database safe to read as the basis of a new
+// log entry. raft.State() reports Leader as soon as the election is won,
+// while entries committed under the previous leader are still queued for
+// the FSM, so a capture taken in that window reads pre-images that the
+// queued entries invalidate before the capture's own entry applies.
+//
+// One barrier per term is sufficient: it orders every prior entry ahead of
+// everything this node appends for the rest of the term, and callers hold
+// db.proposeMu so no entry slips between a capture and its propose.
+//
+// Returns raft.ErrNotLeader on a node that is not the leader, so callers
+// can treat it like any other failed leader write and forward instead.
+// raft.Barrier alone would park the caller on the leader-only apply channel
+// for the whole timeout.
+func (m *Manager) WriteBarrier(timeout time.Duration) error {
+	term := m.raft.CurrentTerm()
+	if term != 0 && m.barrieredTerm.Load() == term {
+		return nil
+	}
+
+	if m.raft.State() != raft.Leader {
+		return raft.ErrNotLeader
+	}
+
+	if err := m.raft.Barrier(timeout).Error(); err != nil {
+		return err
+	}
+
+	// The barrier only returns nil while leadership is held for its whole
+	// duration, and a leader that survives keeps its term, so term is still
+	// the term the barrier covered.
+	m.barrieredTerm.Store(term)
+
+	return nil
 }
 
 // Snapshot triggers a user-requested Raft snapshot and blocks until it

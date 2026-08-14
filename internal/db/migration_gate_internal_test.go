@@ -180,9 +180,6 @@ func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
 		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
-	// node 1 matches the standalone selfID, so its contribution is the
-	// in-process SchemaVersion(). Tracking the literal would require a
-	// test update on every migration bump.
 	if floor != SchemaVersion() {
 		t.Fatalf("floor: want %d (phantom row skipped), got %d", SchemaVersion(), floor)
 	}

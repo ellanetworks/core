@@ -769,13 +769,9 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 }
 
 // CheckPendingMigrations proposes one CmdMigrateShared per missing
-// migration, bounded by the minimum SchemaVersion across cluster
-// members. Leader-only; an unreachable member blocks the gate.
-//
-// Deferring a migration is recoverable; proposing one a member cannot
-// apply is not, because the entry is durable and the failed apply
-// repeats on every restart. That holds for learners as much as voters:
-// a learner's crash spares quorum but strands the node.
+// migration, up to the minimum SchemaVersion across cluster members.
+// Nonvoters bind the floor too: they apply committed entries with the
+// same FSM as voters.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
 		return nil
@@ -887,16 +883,9 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	return status, nil
 }
 
-// minMemberSchemaSupport returns the minimum SchemaVersion across every
-// cluster member and the laggard's nodeID. The local node answers
-// in-process; peers are probed live. Probe failure returns floor=0 with
-// that member as laggard. With no member rows the floor is the local
-// binary's SchemaVersion, so a fresh leader is not blocked from its own
-// migrations.
-//
-// Nonvoters count: raft replicates committed entries to them and they run
-// the same FSM, so a nonvoter on an older binary fails to apply an entry
-// its binary does not understand exactly as a voter would.
+// minMemberSchemaSupport returns the minimum SchemaVersion across cluster
+// members and the laggard's nodeID; with no member rows, the local
+// binary's SchemaVersion, so a fresh leader can run its own migrations.
 func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
@@ -915,10 +904,8 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 	}
 
 	// A cluster_members row outlives removal from the Raft configuration
-	// (the two are separate commits). Such a node receives no entries, so
-	// probing it would block the gate on a node that cannot be harmed. An
-	// unreadable configuration falls back to every row, which can only
-	// over-block.
+	// (separate commits). Only nodes in the configuration receive entries,
+	// so only their schema versions bind the gate.
 	var inConfiguration []int
 	if db.raftMemberIDs != nil {
 		inConfiguration = db.raftMemberIDs()
