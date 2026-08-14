@@ -85,10 +85,6 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 	}
 }
 
-// The uplink PDR's OuterHeaderRemoval follows the endpoint's family as much as
-// the downlink FAR does, so sending only the FAR would leave the UPF
-// decapsulating uplink GTP-U as the previous family when the RAN moves between
-// IPv4 and IPv6.
 func TestUpdateSmContextN2ModifyIndication_SendsUplinkPDR(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -139,9 +135,6 @@ func TestUpdateSmContextN2ModifyIndication_SendsUplinkPDR(t *testing.T) {
 	}
 }
 
-// A session torn down but still in the pool — startRelease leaves it there for
-// the whole T3592 window — has a nil Tunnel. An NGAP handler reaching it must
-// report an error, not panic the dispatch goroutine and abort the association.
 func TestUpdateSmContextN2ModifyIndication_HollowedSession(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

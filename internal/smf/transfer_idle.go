@@ -77,8 +77,6 @@ func (s *SMF) TransferIdle(ctx context.Context, supi etsi.SUPI, pduSessionID, eb
 	return sc.Ref, nil
 }
 
-// The UE is idle on both sides of the move, so the downlink buffers and pages on
-// the target access; no access-network endpoint is bound until it reactivates.
 func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access AccessType) (*droppedSource, error) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
@@ -95,8 +93,6 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	next := sc.Tunnel.dataPlane
 	next.Access = access
 	next.Downlink = DownlinkBuffering
-	// The endpoint belonged to the access the UE has left; the target's arrives
-	// when it reactivates.
 	next.AN = AnchorBinding{}
 	next.QFI, next.AMBR = commit.policy.QosData.QFI, commit.policy.Ambr
 

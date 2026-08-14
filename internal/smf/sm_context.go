@@ -20,15 +20,10 @@ import (
 // One SEID, not the local/remote pair PFCP defines for two nodes (TS 29.244
 // §7.2.2.4.3): the UPF is in-process and keys its session map on the SMF's value.
 type PFCPSessionContext struct {
-	SEID uint64
-	// SEID is assigned when the data path is built, before the establish, so it
-	// cannot double as this flag.
+	SEID        uint64
 	Established bool
 }
 
-// UPTunnel is a session's user plane: the facts the UPF's rules are derived
-// from, plus the UPF end of the tunnel, which the UPF itself assigns at
-// establish.
 type UPTunnel struct {
 	N3TEID uint32
 	N3IPv4 netip.Addr
@@ -86,10 +81,6 @@ type SMContext struct {
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
-	// The endpoint the target NG-RAN offered in its Handover Request Acknowledge
-	// (TS 23.502 §4.9.1.3.2 step 10). It is bound only once the UE has arrived
-	// (§4.9.1.3.3 step 10a); until then the downlink belongs to the source
-	// NG-RAN. A handover that never completes drops it. Guarded by Mutex.
 	handoverTargetAN *AnchorBinding
 
 	pending *pendingTransfer
@@ -103,8 +94,6 @@ func (smContext *SMContext) stopProcedureTimer() {
 	smContext.procedureTimer.Stop()
 }
 
-// upConnectionActive reports whether the downlink is forwarding, as opposed to
-// idle/buffering after DeactivateSmContext (CM-IDLE). Caller must hold Mutex.
 func (smContext *SMContext) upConnectionActive() bool {
 	return smContext.Tunnel != nil && smContext.Tunnel.Downlink == DownlinkForwarding
 }

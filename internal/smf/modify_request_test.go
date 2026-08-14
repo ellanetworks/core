@@ -97,9 +97,6 @@ func assertSEID(t *testing.T, sc *smf.SMContext, req *models.ModifyRequest) {
 	}
 }
 
-// Every modification carries the session's whole rule set, so what a procedure
-// changes is visible in the values, not in which rules it chose to send.
-//
 // TS 23.502 §4.11.1.3.3 step 8
 func TestIdleTransferModificationBuffersTheDownlink(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()

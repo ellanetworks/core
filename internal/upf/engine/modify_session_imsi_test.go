@@ -65,10 +65,6 @@ func modifyIMSITestEngine(t *testing.T, seid uint64, imsi string) (*engine.Sessi
 	return conn, obj
 }
 
-// The IMSI reaches the datapath only via the establish request, and an update
-// naming a PDR ID the session never installed builds its rule from a zero value,
-// which carries neither SEID nor IMSI; getting this wrong fails the whole modify
-// on an unparseable empty IMSI.
 func TestModifySessionUpdateWithoutPredecessorCarriesSessionIMSI(t *testing.T) {
 	const (
 		seid = uint64(22)

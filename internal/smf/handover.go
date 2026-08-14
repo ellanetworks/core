@@ -163,10 +163,6 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContext.Ref)
 	}
 
-	// The UE has arrived, so the endpoint the target NG-RAN offered at prepare
-	// becomes the session's (TS 23.502 §4.9.1.3.3 step 10a). Without one, this is
-	// a completion for a handover that was never prepared and the downlink stays
-	// where it is.
 	an := smContext.Tunnel.AN
 	if target := smContext.handoverTargetAN; target != nil {
 		an = *target
@@ -241,9 +237,6 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 	return nil
 }
 
-// Idempotent: a session with no prepared handover, or one already completed, is
-// a no-op. The target's endpoint was only ever a proposal, so dropping it needs
-// no signalling: the downlink never left the source NG-RAN.
 func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRef string) error {
 	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_canceled",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),

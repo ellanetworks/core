@@ -174,9 +174,6 @@ func (sc *SMContext) abandonTransferTo(access AccessType) {
 	}
 }
 
-// transferCommit is the non-data-plane half of a move: the session's access and
-// EPS bearer identity, already switched to the target, and what it takes to put
-// them back if the data plane refuses the move.
 type transferCommit struct {
 	source   AccessType
 	sourceID SessionIdentity

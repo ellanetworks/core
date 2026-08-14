@@ -243,8 +243,6 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}, nil
 }
 
-// The apply-action bits the eBPF data plane reads (enum far_action_mask in
-// utils/pdr.h), named for the flags TS 29.244 §8.2.26 defines.
 const (
 	farDrop uint8 = 1 << iota
 	farForward

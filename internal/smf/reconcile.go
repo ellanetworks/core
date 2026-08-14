@@ -424,14 +424,6 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
 }
 
-// applySessionQERs programs the given QFI and AMBR into the data plane.
-//
-// QER MBR is set to the session AMBR because this implementation supports a single
-// QoS flow per session (non-GBR only): per TS 23.501 the session AMBR is the
-// aggregate non-GBR limit, which with one flow equals the per-flow MBR. If
-// multiple or GBR flows are ever supported, this must use per-flow MBR values.
-//
-// The caller holds smContext.Mutex.
 func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
 		return fmt.Errorf("PFCP session not established")

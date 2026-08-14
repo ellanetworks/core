@@ -57,8 +57,6 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 
-	// A failure unwinds its eBPF writes and restores the snapshot, so the request
-	// either lands whole or leaves the session as it was.
 	snapPDRs, snapFARs, snapQERs := session.snapshot()
 
 	var txn sessionTxn
@@ -162,9 +160,6 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			}
 		}
 
-		// The paging marker belongs to the buffering state: clearing it while the
-		// downlink is still buffered would let the next downlink packet raise a
-		// second notification inside one paging cycle.
 		if spdrInfo.PdrInfo.Far.Action&farForward != 0 {
 			bpfObjects.ClearNotified(req.SEID, pdr.PDRID)
 		}

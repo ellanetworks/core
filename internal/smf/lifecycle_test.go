@@ -2067,11 +2067,7 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 	}
 }
 
-// ===========================
-// TestUpdateSmContextN2HandoverPrepared_Complete verifies that UpdateSmContextN2HandoverPrepared
-// only updates in-memory state (no PFCP calls), and that UpdateSmContextN2HandoverComplete
-// performs the PFCP N4 Session Modification as required by 3GPP TS 23.502 §4.9.1.3.3 step 7.
-
+// TS 23.502 §4.9.1.3.3 step 7
 func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2162,8 +2158,6 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 	}
 }
 
-// buildHandoverRequestAcknowledgeTransfer builds an APER-encoded
-// HandoverRequestAcknowledgeTransfer with the given target gNB DL GTP tunnel info.
 func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, error) {
 	return buildHandoverRequestAcknowledgeTransferWithQFI(teid, ip, models.DefaultQFI)
 }
@@ -2219,12 +2213,7 @@ func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 	}
 }
 
-// TestUpdateSmContextN1Msg_AuthenticationCompletePTIPoliced checks that a PDU
-// SESSION AUTHENTICATION COMPLETE reaches the PTI policy. TS 24.501 §7.3.1 b)
-// requires the unassigned PTI on it, and a message the codec does not model
-// arrives as an unknown message that never reaches PolicePTI, so a UE could send
-// one carrying an assigned PTI and be silently ignored instead of answered with a
-// 5GSM STATUS #81.
+// TS 24.501 §7.3.1 b)
 func TestUpdateSmContextN1Msg_AuthenticationCompletePTIPoliced(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2260,8 +2249,6 @@ func TestUpdateSmContextN1Msg_AuthenticationCompletePTIPoliced(t *testing.T) {
 	}
 }
 
-// teardownRecorder is an ordered log shared by the store and UPF fakes to assert
-// DeleteSession happens before the IP lease release.
 type teardownRecorder struct {
 	mu  sync.Mutex
 	seq []string
@@ -2285,8 +2272,6 @@ func (r *teardownRecorder) events() []string {
 	return slices.Clone(r.seq)
 }
 
-// The IP lease must not be released until the UPF session (and its NAT conntrack)
-// is torn down, else a reallocation could inherit the previous subscriber's flows.
 func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 
@@ -2308,8 +2293,6 @@ func TestReleaseSmContext_PurgesDatapathBeforeReleasingLease(t *testing.T) {
 	}
 }
 
-// On teardown failure the lease is kept, so the address is not reused with stale
-// conntrack.
 func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2333,12 +2316,7 @@ func TestReleaseSmContext_KeepsLeaseWhenDatapathTeardownFails(t *testing.T) {
 	}
 }
 
-// TestCreateSmContext_UnknownMessageTypeAnswers5GSMStatus pins the answer to a
-// 5GSM message whose type is not defined: TS 24.501 §7.4 has the network ignore
-// it except to return a 5GSM STATUS with cause #97, where #98 reports a message
-// the receiver understands arriving in a state that does not expect it. A PDU
-// SESSION ESTABLISHMENT REJECT is doubly wrong — it rejects a procedure the UE
-// never started, under a cause that names a different fault.
+// TS 24.501 §7.4
 func TestCreateSmContext_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2376,8 +2354,6 @@ func TestCreateSmContext_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
 	}
 }
 
-// TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus is the same rule
-// on an established session, where the message was silently dropped.
 func TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2415,7 +2391,6 @@ func TestUpdateSmContextN1Msg_UnknownMessageTypeAnswers5GSMStatus(t *testing.T) 
 	}
 }
 
-// testTunnel builds the NG-U tunnel an NG-RAN node would report.
 func testTunnel(teid uint32, ip net.IP) libngap.UPTransportLayerInformation {
 	addr := ip.To4()
 	if addr == nil {
@@ -2428,8 +2403,6 @@ func testTunnel(teid uint32, ip net.IP) libngap.UPTransportLayerInformation {
 	}}
 }
 
-// The UPF still holds the session, its PDRs, its TEID and its UE-IP map entries;
-// dropping the SEID strands all of them, because nothing sweeps orphans.
 func TestDeactivateSmContext_TransientModifyFailureKeepsSEID(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2460,8 +2433,6 @@ func TestDeactivateSmContext_TransientModifyFailureKeepsSEID(t *testing.T) {
 	}
 }
 
-// The converse: once the UPF reports it no longer holds the session, the stale
-// SEID must be cleared so a later Activate/Release does not reuse it.
 func TestDeactivateSmContext_SessionGoneClearsSEID(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2482,9 +2453,6 @@ func TestDeactivateSmContext_SessionGoneClearsSEID(t *testing.T) {
 	}
 }
 
-// The target acknowledged, but the UE never moved. Its endpoint was only ever a
-// proposal, so the session stays on the source and the UPF is never told
-// anything.
 func TestUpdateSmContextN2HandoverCanceled_LeavesTheSourceTunnel(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2546,8 +2514,6 @@ func TestUpdateSmContextN2HandoverCanceled_LeavesTheSourceTunnel(t *testing.T) {
 	}
 }
 
-// A completed handover must leave nothing for a later cancel to act on: the UE
-// really is on the target, so putting the source back would black-hole it.
 func TestUpdateSmContextN2HandoverComplete_ClearsTheTargetProposal(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -2580,10 +2546,6 @@ func TestUpdateSmContextN2HandoverComplete_ClearsTheTargetProposal(t *testing.T)
 	}
 }
 
-// The SEID is allocated when the data path is built, before the UPF is told
-// anything, so it cannot itself mark establishment. A failed establish must
-// leave the next attempt on the Establish path rather than sending a
-// modification for a SEID the UPF has never seen.
 func TestSendPFCPRules_EstablishesOnceThenModifies(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	upf.err = errors.New("upf establish failed")

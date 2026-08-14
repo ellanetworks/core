@@ -33,8 +33,6 @@ func validHandoverRequestAcknowledgeTransfer(t *testing.T) []byte {
 	return b
 }
 
-// The target's endpoint is held as a proposal: the session's own endpoint stays
-// on the source NG-RAN until the UE arrives.
 func TestHandleHandoverRequestAcknowledgeTransfer_ProposesTarget(t *testing.T) {
 	source := AnchorBinding{TEID: 0x99}
 	smContext := &SMContext{

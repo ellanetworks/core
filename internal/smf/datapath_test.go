@@ -11,9 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 )
 
-// The rule IDs are scoped to the PFCP session (TS 29.244 §5.2), so every session
-// uses the same fixed set. A dual-stack session adds a second downlink PDR,
-// which names the same downlink FAR.
+// TS 29.244 §5.2
 func TestRules_FixedRuleIDs(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
@@ -95,9 +93,6 @@ func TestRules_FixedRuleIDs(t *testing.T) {
 	}
 }
 
-// The uplink PDR asks the UPF to decapsulate the family the access network's
-// endpoint is on, and every modification re-sends it: an endpoint that moves
-// between families would otherwise leave the UPF decapsulating the wrong one.
 func TestRules_UplinkOuterHeaderRemovalFollowsTheEndpoint(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -122,8 +117,6 @@ func TestRules_UplinkOuterHeaderRemovalFollowsTheEndpoint(t *testing.T) {
 	}
 }
 
-// The downlink FAR keeps encapsulating towards the endpoint while buffering, so
-// a UE that reactivates needs only the apply-action back.
 func TestRules_DownlinkFAR(t *testing.T) {
 	an := AnchorBinding{TEID: 42, IPv4: net.ParseIP("10.0.0.100")}
 
@@ -155,7 +148,6 @@ func TestRules_DownlinkFAR(t *testing.T) {
 	}
 }
 
-// A 4G S1-U bearer carries no PDU Session Container (TS 38.415).
 func TestRules_S1UMarkedOnEPS(t *testing.T) {
 	for _, tc := range []struct {
 		access AccessType
@@ -182,8 +174,7 @@ func qersOf(d dataPlane) []models.QER {
 	return qers
 }
 
-// One QoS flow per session, so the session QER's MBR is the session AMBR
-// (TS 23.501 §5.7.2.6).
+// TS 23.501 §5.7.2.6
 func TestRules_QERCarriesTheEnforcedQoS(t *testing.T) {
 	dp := dataPlane{
 		QFI: 5,
@@ -204,8 +195,6 @@ func TestRules_QERCarriesTheEnforcedQoS(t *testing.T) {
 	}
 }
 
-// A modification carries every rule but the URRs, which are created with the
-// session and removed with it.
 func TestModifyRequest_CarriesTheWholeRuleSet(t *testing.T) {
 	dp := dataPlane{UEIPv4: netip.MustParseAddr("10.0.0.1"), Downlink: DownlinkForwarding}
 

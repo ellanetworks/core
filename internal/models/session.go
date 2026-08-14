@@ -181,8 +181,6 @@ type URR struct {
 	URRID uint32
 }
 
-// A session's rules are created with it and removed with it, so a modification
-// only ever updates, and it carries the whole rule set every time.
 type ModifyRequest struct {
 	SEID       uint64
 	PolicyID   string

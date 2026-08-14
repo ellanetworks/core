@@ -69,8 +69,7 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 	return n2buf, nil
 }
 
-// handleModifyIndicationTransfer reads the NG-RAN's new downlink endpoint and
-// the QoS flows it carries (TS 38.413 §8.2.5.2).
+// TS 38.413 §8.2.5.2
 func handleModifyIndicationTransfer(b []byte) (AnchorBinding, []int64, error) {
 	transfer, err := libngap.ParsePDUSessionResourceModifyIndicationTransfer(b)
 	if err != nil {

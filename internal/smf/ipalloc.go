@@ -121,9 +121,6 @@ func narrowPDUType(requested, negotiated uint8) pduTypeNarrowing {
 	return narrowIPv6Only
 }
 
-// allocateUEAddresses allocates the UE address(es) for sc.PDUSessionType and
-// stores them on sc. On failure it releases whatever it had allocated. The
-// caller holds sc.Mutex.
 func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContext) (ueAddresses, error) {
 	imsi := sc.Supi.IMSI()
 

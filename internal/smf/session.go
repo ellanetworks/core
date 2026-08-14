@@ -247,10 +247,6 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 	return nil
 }
 
-// applyDataPlane sends next as the session's whole rule set and, on success,
-// makes it the session's state. ModifySession is all-or-nothing, so a failure
-// leaves both sides on the previous rules and there is nothing to undo. Caller
-// holds sc.Mutex.
 func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane, policyID string) error {
 	if sc.Tunnel == nil {
 		return fmt.Errorf("session %q has no user plane", sc.Ref)
@@ -269,9 +265,6 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 	return nil
 }
 
-// bindDownlink points the session's downlink at the endpoint the access network
-// gave and starts forwarding, committing an outstanding move onto that access in
-// the same step. Caller holds sc.Mutex.
 func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType, an AnchorBinding) (*droppedSource, error) {
 	commit, err := s.beginTransferCommit(ctx, sc, access)
 	if err != nil {
@@ -311,10 +304,6 @@ func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType
 	return sc.finishTransferCommit(commit), nil
 }
 
-// finishBinding turns the outcome of bindDownlink into the caller's result: a
-// move that rolled back leaves the session on an access the UE has already been
-// told it left, so the session goes; a move that landed drops the source
-// access's routing.
 func (s *SMF) finishBinding(ctx context.Context, sc *SMContext, dropped *droppedSource, err error) error {
 	if err != nil {
 		if errors.Is(err, errTransferRolledBack) {
