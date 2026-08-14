@@ -1,0 +1,57 @@
+name: Xn Handover 5G integration tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  xn-handover-5g-integration-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        attach_mode: [xdp-generic, tcx]
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Ella Core image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-amd64
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+          docker load -i ellacore_tester_latest-amd64.tar
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install libpcap headers
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Run Xn Handover 5G integration tests
+        env:
+          INTEGRATION: "1"
+          ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
+        run: |
+          go test ./integration/... -run TestIntegration5GXnHandover -v -timeout 10m
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xn-handover-5g-logs
+          path: /tmp/xn-handover-5g-logs
+          if-no-files-found: ignore
+          retention-days: 7
