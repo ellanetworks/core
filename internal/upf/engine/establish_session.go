@@ -141,14 +141,15 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			},
 		}
 
-		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
+		allocated, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
+		if err != nil {
 			txn.rollback(ctx)
 			span.RecordError(err)
 
 			return nil, fmt.Errorf("couldn't extract PDR info: %w", err)
 		}
 
-		if spdrInfo.Allocated {
+		if allocated {
 			txn.onRollback(func() error {
 				pdrContext.FteIDResourceManager.ReleaseTEID(sess.SEID, spdrInfo.TeID)
 				return nil
@@ -277,7 +278,7 @@ func encodeApplyAction(a models.ApplyAction) uint8 {
 // was requested.
 func uplinkTEID(createdPDRs []SPDRInfo) uint32 {
 	for _, pdr := range createdPDRs {
-		if pdr.Allocated && !pdr.UEIP.IsValid() {
+		if pdr.TeID != 0 && !pdr.UEIP.IsValid() {
 			return pdr.TeID
 		}
 	}

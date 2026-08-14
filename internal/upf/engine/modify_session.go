@@ -110,19 +110,18 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		spdrInfo := old
 		if !hadOld {
-			// `old` is the zero value, so the rule would otherwise reach the
-			// datapath with neither SEID nor IMSI.
 			spdrInfo.PdrID = uint32(pdr.PDRID)
 			spdrInfo.PdrInfo.SEID = req.SEID
 			spdrInfo.PdrInfo.PdrID = uint32(pdr.PDRID)
 			spdrInfo.PdrInfo.IMSI = session.IMSI()
 		}
 
-		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
+		allocated, err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
+		if err != nil {
 			return fail(fmt.Errorf("couldn't extract PDR info: %w", err))
 		}
 
-		if spdrInfo.Allocated {
+		if allocated {
 			txn.onRollback(func() error {
 				pdrContext.FteIDResourceManager.ReleaseTEID(session.SEID, spdrInfo.TeID)
 				return nil

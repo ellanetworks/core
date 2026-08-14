@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
+
 package engine
 
 import (
@@ -11,20 +12,11 @@ import (
 )
 
 type Session struct {
-	// opMu serializes a whole control-plane operation on this session — modify,
-	// delete, and the reconciler's filter propagation — so their compound
-	// read-modify-apply sequences never interleave. Acquired while holding
-	// filterMu and never the reverse — a filter release propagates into sessions
-	// under filterMu, so the other order deadlocks — and never while holding
-	// conn.mu.
 	opMu    sync.Mutex
 	deleted bool // guarded by opMu
 
-	mu   sync.RWMutex
-	SEID uint64
-	// Every PDR the datapath installs is keyed by subscriber, so a modify that
-	// creates or replaces one has to reproduce the IMSI established here; it is
-	// not carried on ModifyRequest because it cannot change for a live session.
+	mu           sync.RWMutex
+	SEID         uint64
 	imsi         string
 	policyID     string
 	pdrs         map[uint32]SPDRInfo
@@ -45,11 +37,10 @@ func NewSession(seid uint64) *Session {
 }
 
 type SPDRInfo struct {
-	PdrID     uint32
-	PdrInfo   ebpf.PdrInfo
-	TeID      uint32
-	UEIP      netip.Addr
-	Allocated bool
+	PdrID   uint32
+	PdrInfo ebpf.PdrInfo
+	TeID    uint32
+	UEIP    netip.Addr
 }
 
 func (s *Session) PolicyID() string {
