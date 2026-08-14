@@ -198,18 +198,27 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 				DLIP:         targetN3IP,
 			},
 		},
+		TargetToSourceTransparentContainer: n2HandoverRRCContainer,
 	})
 	if err != nil {
 		return fmt.Errorf("send HandoverRequestAcknowledge: %w", err)
 	}
 
-	_, err = sourceGNB.WaitForMessage(
+	hoCmdFrame, err := sourceGNB.WaitForMessage(
 		gnb.Successful,
 		ngaplib.ProcHandoverPreparation,
 		5*time.Second,
 	)
 	if err != nil {
 		return fmt.Errorf("source gNB: wait HandoverCommand: %w", err)
+	}
+
+	if err := assertN2HandoverCommand(hoCmdFrame, amfUENGAPID, ranUENGAPID); err != nil {
+		return err
+	}
+
+	if err := probe.Run(context.Background(), probe.ICMP, n2HandoverTunInterface, pingDest, scenarios.DefaultProbePort, false); err != nil {
+		return fmt.Errorf("ping during handover preparation via the source gNB (UPF switched too early?): %w", err)
 	}
 
 	err = targetGNB.SendHandoverNotify(&gnb.HandoverNotifyOpts{

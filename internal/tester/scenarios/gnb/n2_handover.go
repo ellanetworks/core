@@ -4,6 +4,7 @@
 package gnb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/netip"
@@ -23,6 +24,45 @@ import (
 const (
 	n2HandoverIMSI = "001017271246590"
 )
+
+var n2HandoverRRCContainer = []byte{0xC0, 0xDE, 0x5A, 0xFE}
+
+func assertN2HandoverCommand(frame gnb.SCTPFrame, amfUENGAPID, ranUENGAPID int64) error {
+	cmd, err := ngaplib.ParseHandoverCommand(frame.Value)
+	if err != nil {
+		return fmt.Errorf("parse HandoverCommand: %w", err)
+	}
+
+	if int64(cmd.AMFUENGAPID) != amfUENGAPID {
+		return fmt.Errorf("HandoverCommand AMF-UE-NGAP-ID = %d, want %d", cmd.AMFUENGAPID, amfUENGAPID)
+	}
+
+	if int64(cmd.RANUENGAPID) != ranUENGAPID {
+		return fmt.Errorf("HandoverCommand RAN-UE-NGAP-ID = %d, want the source's %d", cmd.RANUENGAPID, ranUENGAPID)
+	}
+
+	if cmd.HandoverType != ngaplib.HandoverTypeIntra5GS {
+		return fmt.Errorf("HandoverCommand handover type = %d, want intra-5GS", cmd.HandoverType)
+	}
+
+	if !bytes.Equal(cmd.TargetToSourceTransparentContainer, n2HandoverRRCContainer) {
+		return fmt.Errorf("HandoverCommand target-to-source container = %x, want the target's %x", cmd.TargetToSourceTransparentContainer, n2HandoverRRCContainer)
+	}
+
+	if len(cmd.PDUSessionResourceToReleaseList) != 0 {
+		return fmt.Errorf("HandoverCommand told the source to release %d PDU session(s), want 0", len(cmd.PDUSessionResourceToReleaseList))
+	}
+
+	if len(cmd.PDUSessionResourceHandoverList) != 1 {
+		return fmt.Errorf("HandoverCommand handed over %d PDU sessions, want 1", len(cmd.PDUSessionResourceHandoverList))
+	}
+
+	if got := cmd.PDUSessionResourceHandoverList[0].PDUSessionID; int(got) != scenarios.DefaultPDUSessionID {
+		return fmt.Errorf("HandoverCommand handed over PDU session %d, want %d", got, scenarios.DefaultPDUSessionID)
+	}
+
+	return nil
+}
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
@@ -164,18 +204,23 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 				DLIP:         targetN3IP,
 			},
 		},
+		TargetToSourceTransparentContainer: n2HandoverRRCContainer,
 	})
 	if err != nil {
 		return fmt.Errorf("send HandoverRequestAcknowledge: %w", err)
 	}
 
-	_, err = sourceGNB.WaitForMessage(
+	hoCmdFrame, err := sourceGNB.WaitForMessage(
 		gnb.Successful,
 		ngaplib.ProcHandoverPreparation,
 		5*time.Second,
 	)
 	if err != nil {
 		return fmt.Errorf("source gNB: wait HandoverCommand: %w", err)
+	}
+
+	if err := assertN2HandoverCommand(hoCmdFrame, amfUENGAPID, ranUENGAPID); err != nil {
+		return err
 	}
 
 	err = targetGNB.SendHandoverNotify(&gnb.HandoverNotifyOpts{
