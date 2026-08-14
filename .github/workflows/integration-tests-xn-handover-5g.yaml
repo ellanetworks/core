@@ -11,7 +11,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        attach_mode: [xdp-generic, tcx]
+        include:
+          - ip_version: ipv4
+            attach_mode: tcx
+          - ip_version: ipv6
+            attach_mode: xdp-generic
     runs-on: ubuntu-26.04
 
     steps:
@@ -44,6 +48,7 @@ jobs:
         env:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
+          IP_VERSION: ${{ matrix.ip_version }}
         run: |
           go test ./integration/... -run TestIntegration5GXnHandover -v -timeout 10m
 

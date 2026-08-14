@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	ngaplib "github.com/ellanetworks/core/ngap"
@@ -83,7 +82,7 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 
-	newUE, err := newDefaultUE(sourceGNB, xnHandoverConnIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, scenarios.DefaultPDUSessionTypeIPv4)
+	newUE, err := newDefaultUE(sourceGNB, xnHandoverConnIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, env.PDUSessionType())
 	if err != nil {
 		return fmt.Errorf("create UE: %w", err)
 	}
@@ -110,7 +109,7 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 		return fmt.Errorf("source gNB: wait PDU session: %w", err)
 	}
 
-	ueIP := newUE.GetPDUSession(scenarios.DefaultPDUSessionID).UEIP + "/16"
+	ueIP := handoverTunnelAddress(env, newUE.GetPDUSession(scenarios.DefaultPDUSessionID))
 	qfi := newUE.GetPDUSession(scenarios.DefaultPDUSessionID).QFI
 
 	if _, err := sourceGNB.AddTunnel(&gnb.NewTunnelOpts{
@@ -125,8 +124,12 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 		return fmt.Errorf("create source GTP tunnel: %w", err)
 	}
 
+	if err := awaitHandoverTunnelReady(env, xnHandoverSourceTun); err != nil {
+		return err
+	}
+
 	pingDest := env.PingDestination()
-	if err := probe.Run(ctx, probe.ICMP, xnHandoverSourceTun, pingDest, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(ctx, env, xnHandoverSourceTun); err != nil {
 		return fmt.Errorf("ping before the Xn handover failed: %w", err)
 	}
 
@@ -160,9 +163,11 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 		return fmt.Errorf("create target GTP tunnel: %w", err)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	if err := awaitHandoverTunnelReady(env, xnHandoverTargetTun); err != nil {
+		return err
+	}
 
-	if err := probe.Run(ctx, probe.ICMP, xnHandoverTargetTun, pingDest, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(ctx, env, xnHandoverTargetTun); err != nil {
 		return fmt.Errorf("ping after the Xn handover FAILED (UPF downlink not switched to the target gNB): %w", err)
 	}
 

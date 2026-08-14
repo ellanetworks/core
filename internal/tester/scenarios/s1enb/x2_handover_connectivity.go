@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/s1ap"
@@ -84,27 +83,28 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 	defer func() { _ = target.Close() }()
 
 	ue := source.NewUE(x2ConnIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := source.Attach(ue, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("attach on source eNB: %w", err)
 	}
 
-	if res.UEIPv4 == "" {
-		return fmt.Errorf("attach assigned no IPv4 address")
+	sourceTunnel, err := handoverTunnelOpts(env, res, res.DLTEID, x2ConnSourceTun)
+	if err != nil {
+		return err
 	}
 
-	if err := source.AddTunnel(&s1enb.TunnelOpts{
-		UEIPv4: res.UEIPv4 + "/16", UpfAddress: res.UpfAddress, ULTEID: res.ULTEID, DLTEID: res.DLTEID,
-		TunInterfaceName: x2ConnSourceTun,
-	}); err != nil {
+	if err := source.AddTunnel(sourceTunnel); err != nil {
 		return fmt.Errorf("add source GTP tunnel: %w", err)
 	}
 
 	// Let the UPF program the downlink endpoint before pinging.
-	time.Sleep(500 * time.Millisecond)
+	if err := awaitHandoverTunnelReady(env, x2ConnSourceTun); err != nil {
+		return err
+	}
 
-	if err := probe.Run(ctx, probe.ICMP, x2ConnSourceTun, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(ctx, env, x2ConnSourceTun); err != nil {
 		return fmt.Errorf("ping before handover via source eNB: %w", err)
 	}
 
@@ -123,19 +123,23 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 
 	// The UPF now forwards downlink to the target's DL TEID; the uplink endpoint
 	// (UPF address + UL TEID) is unchanged by the path switch.
-	if err := target.AddTunnel(&s1enb.TunnelOpts{
-		UEIPv4: res.UEIPv4 + "/16", UpfAddress: res.UpfAddress, ULTEID: res.ULTEID, DLTEID: dlTEID,
-		TunInterfaceName: x2ConnTargetTun,
-	}); err != nil {
+	targetTunnel, err := handoverTunnelOpts(env, res, dlTEID, x2ConnTargetTun)
+	if err != nil {
+		return err
+	}
+
+	if err := target.AddTunnel(targetTunnel); err != nil {
 		return fmt.Errorf("add target GTP tunnel: %w", err)
 	}
 
 	defer target.CloseTunnel(dlTEID)
 
 	// Let the MME's ModifyEPSSession reprogram the UPF downlink before pinging.
-	time.Sleep(500 * time.Millisecond)
+	if err := awaitHandoverTunnelReady(env, x2ConnTargetTun); err != nil {
+		return err
+	}
 
-	if err := probe.Run(ctx, probe.ICMP, x2ConnTargetTun, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(ctx, env, x2ConnTargetTun); err != nil {
 		return fmt.Errorf("ping after X2 path switch via target eNB (UPF downlink not switched?): %w", err)
 	}
 

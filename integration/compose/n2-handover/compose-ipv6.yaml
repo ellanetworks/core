@@ -1,0 +1,111 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          address: "2001:db8:1::10"
+        n3:
+          name: "n3"
+        n6:
+          name: "n6"
+        api:
+          address: "2001:db8:1::10"
+          port: 5002
+      datapath:
+        attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
+
+services:
+  ella-core:
+    image: ella-core:latest
+    configs:
+      - source: ella_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    privileged: true
+    ports:
+      - "5002:5002"
+    networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv6_address: 2001:db8:1::10
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv6_address: 2001:db8:3::10
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv6_address: fd00:6::2
+
+  # Single tester container with both gNB identities.
+  # Source gNB: N2=2001:db8:1::11, N3=2001:db8:3::21
+  # Target gNB: N2=2001:db8:1::12 (secondary), N3=2001:db8:3::22 (secondary)
+  ella-core-tester:
+    image: ella-core-tester:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        ip addr add 2001:db8:1::12/64 dev eth0 nodad || true;
+        ip addr add 2001:db8:3::21/64 dev n3 nodad || true;
+        ip addr add 2001:db8:3::22/64 dev n3 nodad || true;
+        sleep infinity
+    restart: unless-stopped
+    privileged: true
+    networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv6_address: 2001:db8:1::11
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv6_address: 2001:db8:3::11
+
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip -6 route add fd45::/48 dev n6 via fd00:6::2;
+        ethtool -K n6 tx off;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv6_address: fd00:6::3
+
+networks:
+  default:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 2001:db8:1::/64
+  n3:
+    internal: true
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 2001:db8:3::/64
+  n6:
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: fd00:6::/64
