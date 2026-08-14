@@ -5,6 +5,7 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,6 +21,8 @@ import (
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
+
+var ErrBarrierTimeout = errors.New("raft barrier timed out")
 
 // umaskMu serialises the process-wide umask window used by
 // withTightUmask.
@@ -553,14 +556,24 @@ func (m *Manager) WriteBarrier(timeout time.Duration) error {
 		return nil
 	}
 
-	// raft.Barrier on a follower parks on the leader-only apply channel until
-	// the timeout instead of reporting the obvious.
+	// raft.Barrier on a follower parks on the leader-only apply channel for the
+	// whole timeout.
 	if m.raft.State() != raft.Leader {
 		return raft.ErrNotLeader
 	}
 
-	if err := m.raft.Barrier(timeout).Error(); err != nil {
-		return err
+	// raft.Barrier's timeout bounds only the enqueue; Error() then waits for
+	// the apply without a deadline, and callers hold a mutex across it.
+	done := make(chan error, 1)
+	go func() { done <- m.raft.Barrier(timeout).Error() }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			return err
+		}
+	case <-time.After(timeout):
+		return ErrBarrierTimeout
 	}
 
 	// Barrier succeeds only while leadership is held, so term still covers it.
@@ -661,32 +674,6 @@ func (m *Manager) BoltNoSync() bool {
 // LeadershipTransfer triggers a leadership transfer to another node.
 func (m *Manager) LeadershipTransfer() error {
 	return m.raft.LeadershipTransfer().Error()
-}
-
-// VoterIDs returns the server IDs of all voting members in the current Raft
-// configuration. Returns nil on error (e.g. no quorum).
-func (m *Manager) VoterIDs() []int {
-	future := m.raft.GetConfiguration()
-	if err := future.Error(); err != nil {
-		return nil
-	}
-
-	var ids []int
-
-	for _, srv := range future.Configuration().Servers {
-		if srv.Suffrage != raft.Voter {
-			continue
-		}
-
-		var id int
-		if _, err := fmt.Sscanf(string(srv.ID), "%d", &id); err != nil {
-			continue
-		}
-
-		ids = append(ids, id)
-	}
-
-	return ids
 }
 
 // MemberIDs returns the current Raft configuration, nonvoters included: they

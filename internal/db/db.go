@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -797,10 +796,10 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	}
 
 	if current >= target {
-		logger.WithTrace(ctx, logger.DBLog).Info("Migration deferred: waiting on voter upgrades",
+		logger.WithTrace(ctx, logger.DBLog).Info("Migration deferred: waiting on cluster member upgrades",
 			zap.Int("current", current),
 			zap.Int("binaryMax", binaryMax),
-			zap.Int("voterFloor", floor),
+			zap.Int("memberFloor", floor),
 			zap.Int("laggardNodeID", laggard),
 		)
 
@@ -828,9 +827,6 @@ type PendingMigrationStatus struct {
 	LaggardNodeID int // member holding target == current; zero when unblocked
 }
 
-// PendingMigrationInfo computes the snapshot. Probes every member when
-// a migration is pending; short-circuits to a single schema_version
-// read once the cluster has converged.
 func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationStatus, error) {
 	current, err := db.CurrentSchemaVersion(ctx)
 	if err != nil {
@@ -865,6 +861,12 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 		target = floor
 	}
 
+	// A probe failure reports floor 0; a target below the applied schema is
+	// not a meaningful thing to publish.
+	if target < current {
+		target = current
+	}
+
 	status := PendingMigrationStatus{
 		Pending:       true,
 		CurrentSchema: current,
@@ -887,6 +889,25 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		return 0, 0, fmt.Errorf("list cluster members: %w", err)
 	}
 
+	// The configuration is the set of nodes that receive entries, so it decides
+	// who binds the floor: a row can outlive removal from it, and a node can
+	// enter it before its row is written.
+	var configuration []int
+	if db.raftMemberIDs != nil {
+		configuration = db.raftMemberIDs()
+	}
+
+	if len(configuration) == 0 {
+		logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
+
+		return 0, 0, nil
+	}
+
+	rows := make(map[int]ClusterMember, len(members))
+	for _, m := range members {
+		rows[m.NodeID] = m
+	}
+
 	selfID := db.raftManager.NodeID()
 	floor := -1
 	laggard := 0
@@ -898,40 +919,34 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		}
 	}
 
-	// A cluster_members row outlives removal from the Raft configuration, and
-	// a node outside the configuration receives no entries to choke on.
-	var inConfiguration []int
-	if db.raftMemberIDs != nil {
-		inConfiguration = db.raftMemberIDs()
-	}
-
-	for _, m := range members {
-		if len(inConfiguration) > 0 && !slices.Contains(inConfiguration, m.NodeID) {
-			continue
-		}
-
-		if m.NodeID == selfID {
+	for _, nodeID := range configuration {
+		if nodeID == selfID {
 			consider(selfID, SchemaVersion())
 			continue
 		}
 
-		v, err := db.probeMemberSchema(ctx, m.NodeID, m.RaftAddress)
+		m, ok := rows[nodeID]
+		if !ok {
+			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: configuration member has no cluster_members row, deferring",
+				zap.Int("nodeID", nodeID),
+			)
+
+			return 0, nodeID, nil
+		}
+
+		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
 		if err != nil {
 			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
-				zap.Int("nodeID", m.NodeID),
+				zap.Int("nodeID", nodeID),
 				zap.String("raftAddress", m.RaftAddress),
 				zap.String("suffrage", m.Suffrage),
 				zap.Error(err),
 			)
 
-			return 0, m.NodeID, nil
+			return 0, nodeID, nil
 		}
 
-		consider(m.NodeID, v)
-	}
-
-	if floor < 0 {
-		return SchemaVersion(), selfID, nil
+		consider(nodeID, v)
 	}
 
 	return floor, laggard, nil

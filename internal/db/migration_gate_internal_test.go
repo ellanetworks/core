@@ -14,9 +14,6 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// Whitebox tests for the migration gate: cluster_members is seeded through the
-// public upsert API and probeMemberSchema is stubbed to avoid real peers.
-
 func newStandaloneDB(t *testing.T) *Database {
 	t.Helper()
 
@@ -180,6 +177,93 @@ func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
 
 	if floor != SchemaVersion() {
 		t.Fatalf("floor: want %d (phantom row skipped), got %d", SchemaVersion(), floor)
+	}
+}
+
+func TestMinMemberSchemaSupport_ConfigurationMemberWithoutRowBlocks(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &ClusterMember{
+		NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter",
+	}); err != nil {
+		t.Fatalf("seed member 1: %v", err)
+	}
+
+	database.raftMemberIDs = func() []int { return []int{1, 2} }
+	database.probeMemberSchema = stubProbe{versions: map[int]int{1: 10}}.probe
+
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
+	if err != nil {
+		t.Fatalf("minMemberSchemaSupport: %v", err)
+	}
+
+	if floor != 0 {
+		t.Fatalf("floor: want 0 (member with no row blocks), got %d", floor)
+	}
+
+	if laggard != 2 {
+		t.Fatalf("laggard: want 2, got %d", laggard)
+	}
+}
+
+func TestMinMemberSchemaSupport_UnavailableConfigurationBlocks(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &ClusterMember{
+		NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter",
+	}); err != nil {
+		t.Fatalf("seed member 2: %v", err)
+	}
+
+	database.raftMemberIDs = func() []int { return nil }
+	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+
+	floor, _, err := database.minMemberSchemaSupport(ctx)
+	if err != nil {
+		t.Fatalf("minMemberSchemaSupport: %v", err)
+	}
+
+	if floor != 0 {
+		t.Fatalf("floor: want 0 (configuration unavailable blocks), got %d", floor)
+	}
+}
+
+func TestPendingMigrationInfo_UnreachableMemberReportsLaggard(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &ClusterMember{
+		NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "nonvoter",
+	}); err != nil {
+		t.Fatalf("seed member 2: %v", err)
+	}
+
+	current, err := database.CurrentSchemaVersion(ctx)
+	if err != nil {
+		t.Fatalf("CurrentSchemaVersion: %v", err)
+	}
+
+	if _, err := database.PlainDB().ExecContext(ctx,
+		"UPDATE schema_version SET version = ? WHERE id = 1", current-1); err != nil {
+		t.Fatalf("lower schema version: %v", err)
+	}
+
+	database.raftMemberIDs = func() []int { return []int{2} }
+	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+
+	status, err := database.PendingMigrationInfo(ctx)
+	if err != nil {
+		t.Fatalf("PendingMigrationInfo: %v", err)
+	}
+
+	if status.TargetSchema != current-1 {
+		t.Fatalf("TargetSchema: want %d (current), got %d", current-1, status.TargetSchema)
+	}
+
+	if status.LaggardNodeID != 2 {
+		t.Fatalf("LaggardNodeID: want 2, got %d", status.LaggardNodeID)
 	}
 }
 

@@ -78,7 +78,7 @@ func awaitLeader(t *testing.T, tc *TestCluster, survivors []int, appliers []*slo
 		select {
 		case <-deadline:
 			t.Fatal("no new leader elected")
-		default:
+		case <-time.After(2 * time.Millisecond):
 		}
 
 		for _, i := range survivors {
@@ -128,6 +128,31 @@ func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 
 	if got := len(applier.seen()); got < proposals {
 		t.Fatalf("commands applied after barrier: want at least %d, got %d", proposals, got)
+	}
+}
+
+func TestWriteBarrier_TimesOutOnBacklog(t *testing.T) {
+	const proposals = 30
+
+	tc, appliers := newLaggingCluster(t, 150*time.Millisecond)
+
+	proposeN(t, tc.Nodes[0], proposals)
+
+	if err := tc.Nodes[0].Shutdown(); err != nil {
+		t.Fatalf("shutdown leader: %v", err)
+	}
+
+	tc.Listeners[0].Stop()
+
+	newLeader, appliedAtElection := awaitLeader(t, tc, []int{1, 2}, appliers)
+
+	if appliedAtElection >= proposals {
+		t.Fatalf("FSM already caught up at election (%d of %d commands applied): the lag this test needs did not occur",
+			appliedAtElection, proposals)
+	}
+
+	if err := newLeader.WriteBarrier(10 * time.Millisecond); !errors.Is(err, ErrBarrierTimeout) {
+		t.Fatalf("write barrier against a backlog: want ErrBarrierTimeout, got %v", err)
 	}
 }
 
