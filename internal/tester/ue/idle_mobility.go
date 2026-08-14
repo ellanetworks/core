@@ -51,7 +51,7 @@ func (ue *UE) InstallMappedSecurityContextForIdleMobility(in MappedFromEPSIdle) 
 	ue.UeSecurity.KnasEnc, ue.UeSecurity.KnasInt = knasEnc, knasInt
 	ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(in.EKSI), Tsc: models.ScTypeMapped}
 	ue.UeSecurity.ULCount = 0
-	ue.UeSecurity.DLCount = 0
+	ue.UeSecurity.DLRecv.Reset()
 	ue.UeSecurity.contextFromAuthentication = false
 
 	return nil

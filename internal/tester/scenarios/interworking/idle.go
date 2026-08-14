@@ -175,7 +175,7 @@ func idleMobilityMaterial(u *ue.UE) (s1enb.IdleMobilityFrom5GS, eps.GUTI, error)
 		KNASInt:          u.UeSecurity.KnasInt,
 		NIA:              u.UeSecurity.IntegrityAlg,
 		UplinkNASCount:   u.UeSecurity.ULCount,
-		DownlinkNASCount: u.UeSecurity.DLCount,
+		DownlinkNASCount: u.UeSecurity.DLRecv.LastAccepted(),
 		EPSCiphering:     uint8(u.UeSecurity.EPSNASAlgorithms.Ciphering),
 		EPSIntegrity:     uint8(u.UeSecurity.EPSNASAlgorithms.Integrity),
 		EKSI:             uint8(u.UeSecurity.NgKsi.Ksi),
