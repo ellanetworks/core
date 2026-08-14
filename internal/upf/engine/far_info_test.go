@@ -46,7 +46,7 @@ func buildFAR(ohcDesc uint16, teid uint32, ipv4Addr, ipv6Addr string) models.FAR
 // TestFarInfoFromModel_IPv4 verifies that an IPv4 OHC FAR is encoded correctly.
 func TestFarInfoFromModel_IPv4(t *testing.T) {
 	far := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 100, "192.168.0.10", "")
-	info := farInfoFromModel(far, localIPv4, localIPv6)
+	info := farInfoFromMerge(far, localIPv4, localIPv6, ebpf.FarInfo{})
 
 	// OHC byte: Description >> 8 = 256 >> 8 = 1
 	if info.OuterHeaderCreation != 1 {
@@ -71,7 +71,7 @@ func TestFarInfoFromModel_IPv4(t *testing.T) {
 // TestFarInfoFromModel_IPv6 verifies that an IPv6 OHC FAR is encoded correctly.
 func TestFarInfoFromModel_IPv6(t *testing.T) {
 	far := buildFAR(models.OuterHeaderCreationGtpUUdpIpv6, 200, "", "2001:db8::cafe")
-	info := farInfoFromModel(far, localIPv4, localIPv6)
+	info := farInfoFromMerge(far, localIPv4, localIPv6, ebpf.FarInfo{})
 
 	// OHC byte: Description >> 8 = 512 >> 8 = 2
 	if info.OuterHeaderCreation != 2 {
@@ -107,7 +107,7 @@ func TestFarInfoFromModel_NoAddress(t *testing.T) {
 			},
 		},
 	}
-	info := farInfoFromModel(far, localIPv4, localIPv6)
+	info := farInfoFromMerge(far, localIPv4, localIPv6, ebpf.FarInfo{})
 
 	wantLocal := ebpf.IPToIn6Addr(localIPv4)
 	if info.LocalIP != wantLocal {
@@ -126,7 +126,7 @@ func TestFarInfoFromModel_ApplyActionDrop(t *testing.T) {
 		FARID:       2,
 		ApplyAction: models.ApplyAction{Drop: true},
 	}
-	info := farInfoFromModel(far, localIPv4, localIPv6)
+	info := farInfoFromMerge(far, localIPv4, localIPv6, ebpf.FarInfo{})
 
 	if info.Action != 0x01 {
 		t.Errorf("Action (Drop): got %d, want 0x01", info.Action)
@@ -138,7 +138,7 @@ func TestFarInfoFromModel_ApplyActionDrop(t *testing.T) {
 func TestFarInfoFromMerge_IPv4ToIPv6(t *testing.T) {
 	// Existing FAR uses IPv4 transport
 	existingFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
-	existing := farInfoFromModel(existingFAR, localIPv4, localIPv6)
+	existing := farInfoFromMerge(existingFAR, localIPv4, localIPv6, ebpf.FarInfo{})
 
 	// Update FAR switches to IPv6 transport
 	updateFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv6, 20, "", "2001:db8::2")
@@ -168,7 +168,7 @@ func TestFarInfoFromMerge_IPv4ToIPv6(t *testing.T) {
 // parameters preserves the existing FAR fields.
 func TestFarInfoFromMerge_NoUpdate(t *testing.T) {
 	existingFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 42, "10.0.0.5", "")
-	existing := farInfoFromModel(existingFAR, localIPv4, localIPv6)
+	existing := farInfoFromMerge(existingFAR, localIPv4, localIPv6, ebpf.FarInfo{})
 
 	update := models.FAR{
 		FARID:       1,
@@ -190,7 +190,7 @@ func TestFarInfoFromMerge_S1UKeepsNoPSC(t *testing.T) {
 	establishFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
 	establishFAR.ForwardingParameters.OuterHeaderCreation.S1U = true
 
-	existing := farInfoFromModel(establishFAR, localIPv4, localIPv6)
+	existing := farInfoFromMerge(establishFAR, localIPv4, localIPv6, ebpf.FarInfo{})
 	if existing.OuterHeaderCreation != 0x11 {
 		t.Fatalf("OuterHeaderCreation after establish: got %#x, want 0x11", existing.OuterHeaderCreation)
 	}

@@ -19,7 +19,9 @@ import (
 
 // TS 33.501 Annex A.14, A.15
 const (
+	fcKASMEPrimeIdle     = "73" // A.14.1: K_AMF → K'ASME, P0 = uplink 5G NAS COUNT
 	fcKASMEPrimeHandover = "74" // A.14.2: K_AMF → K'ASME, P0 = downlink 5G NAS COUNT
+	fcKAMFPrimeIdle      = "75" // A.15.1: K_ASME → K'AMF, P0 = uplink EPS NAS COUNT of the TAU
 	fcKAMFPrimeHandover  = "76" // A.15.2: K_ASME → K'AMF, P0 = NH
 )
 
@@ -130,14 +132,7 @@ func MapTo5GSOnHandover(in EPSSecurityContext, intOrder []nas.IntegrityAlgorithm
 		return EPSTo5GSHandover{}, fmt.Errorf("derive K'AMF: %w", err)
 	}
 
-	capability := DefaultUE5GSecurityCapability
-	if in.UE5GSecurityCapability != nil {
-		capability = *in.UE5GSecurityCapability
-	} else {
-		capability.HasEPS = true
-		capability.EEA = in.UESecurityCapability.EEA
-		capability.EIA = in.UESecurityCapability.EIA &^ 1
-	}
+	capability := mapped5GSecurityCapability(in)
 
 	nea, nia, ok := fgs.SelectNASAlgorithms(capability, intOrder, encOrder)
 	if !ok {
@@ -222,6 +217,19 @@ func macForContainer(c fgs.S1ModeToN1ModeNASTransparentContainer, knasInt nas.In
 	}
 
 	return mac, nil
+}
+
+func mapped5GSecurityCapability(in EPSSecurityContext) fgs.UESecurityCapability {
+	if in.UE5GSecurityCapability != nil {
+		return *in.UE5GSecurityCapability
+	}
+
+	capability := DefaultUE5GSecurityCapability
+	capability.HasEPS = true
+	capability.EEA = in.UESecurityCapability.EEA
+	capability.EIA = in.UESecurityCapability.EIA &^ 1
+
+	return capability
 }
 
 func mappedKSI(k nas.KeySetIdentifier) nas.KeySetIdentifier {

@@ -54,7 +54,7 @@ func (m *MME) page(ctx context.Context, ue *UeContext, arm func()) error {
 		return errPagingSkipped
 	}
 
-	paging, err := m.buildPaging(ue)
+	paging, err := m.buildPaging(ctx, ue)
 	if err != nil {
 		return err
 	}
@@ -150,8 +150,11 @@ func (m *MME) abandonPaging(ue *UeContext) {
 
 // buildPaging assembles the Paging message for a UE (TS 36.413). The TAI list is the
 // UE's registration area.
-func (m *MME) buildPaging(ue *UeContext) (*s1ap.Paging, error) {
-	_, mmeCode := m.MmeIdentity()
+func (m *MME) buildPaging(ctx context.Context, ue *UeContext) (*s1ap.Paging, error) {
+	_, mmeCode, err := m.MmeIdentity(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("paging: %w", err)
+	}
 
 	taiList, err := areaToS1APTAIs(ue.RegistrationArea())
 	if err != nil {

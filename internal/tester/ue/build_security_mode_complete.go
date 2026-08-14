@@ -13,6 +13,7 @@ type SecurityModeCompleteOpts struct {
 	UESecurity       *UESecurity
 	IMEISV           string
 	PDUSessionStatus *[16]bool
+	Replay           []byte
 }
 
 func BuildSecurityModeComplete(opts *SecurityModeCompleteOpts) ([]byte, error) {
@@ -34,9 +35,15 @@ func BuildSecurityModeComplete(opts *SecurityModeCompleteOpts) ([]byte, error) {
 		regReqOpts.S1UENetworkCapability = s1
 	}
 
-	registrationRequest, err := BuildRegistrationRequest(regReqOpts)
-	if err != nil {
-		return nil, fmt.Errorf("error encoding %s IMSI UE  NAS Registration Request message: %v", opts.UESecurity.Supi, err)
+	registrationRequest := opts.Replay
+
+	if registrationRequest == nil {
+		built, err := BuildRegistrationRequest(regReqOpts)
+		if err != nil {
+			return nil, fmt.Errorf("error encoding %s IMSI UE  NAS Registration Request message: %v", opts.UESecurity.Supi, err)
+		}
+
+		registrationRequest = built
 	}
 
 	imeisv := fgs.PEIIdentity(fgs.PEI{Type: fgs.IdentityIMEISV, Digits: opts.IMEISV})

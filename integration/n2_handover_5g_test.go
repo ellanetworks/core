@@ -15,33 +15,24 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestIntegration5GN2Handover runs the N2 (inter-gNB without Xn) handover
-// scenarios against a single core with two gNB tester containers.
-//
-// Topology: 1 Ella Core + 2 gNB testers (source + target) + 1 router.
-// Compose: integration/compose/n2-handover/compose.yaml
-//
-// Per 3GPP TS 23.502 §4.9.1.3.3, the SMF sends N4 Session Modification to
-// the UPF during the handover completion phase (after HandoverNotify),
-// ensuring downlink traffic is only redirected after the UE has moved.
+// TS 23.502 §4.9.1.3.3
 func TestIntegration5GN2Handover(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	if f := DetectIPFamily(); f == IPv6Only || f == DualStack {
-		t.Skipf("skipping: TestIntegration5GN2Handover is IPv4-only (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
+	if DetectIPFamily() == DualStack {
+		t.Skipf("skipping: TestIntegration5GN2Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	const (
-		composeDir  = "compose/n2-handover/"
-		composeFile = "compose.yaml"
-		coreAPI     = "http://10.3.0.2:5002"
-		coreN2      = "10.3.0.2:38412"
-	)
+	const composeDir = "compose/n2-handover/"
+
+	composeFile := HandoverComposeFile()
+	coreAPI := APIAddress()
+	coreN2 := HandoverCoreN2Address()
 
 	dc, err := NewDockerClient()
 	if err != nil {
@@ -100,12 +91,23 @@ func TestIntegration5GN2Handover(t *testing.T) {
 		t.Fatalf("enable NAT: %v", err)
 	}
 
-	if err := coreClient.CreateRoute(ctx, &client.CreateRouteOptions{
+	route := &client.CreateRouteOptions{
 		Destination: "8.8.8.8/32",
-		Gateway:     "10.6.0.3",
+		Gateway:     N6RouterIPv4Address(),
 		Interface:   "n6",
 		Metric:      0,
-	}); err != nil {
+	}
+
+	if DetectIPFamily() == IPv6Only {
+		route = &client.CreateRouteOptions{
+			Destination: "2001:4860:4860::8888/128",
+			Gateway:     N6RouterIPv6Address(),
+			Interface:   "n6",
+			Metric:      0,
+		}
+	}
+
+	if err := coreClient.CreateRoute(ctx, route); err != nil {
 		t.Fatalf("create route: %v", err)
 	}
 
@@ -118,17 +120,17 @@ func TestIntegration5GN2Handover(t *testing.T) {
 	fx.Policy(fixture.DefaultPolicySpec())
 
 	// Provision subscribers for both scenarios.
-	scenarioSpecs := []scenarios.FixtureSpec{}
+	scenarioSpecsByName := map[string]scenarios.FixtureSpec{}
 
-	if s, ok := scenarios.Get("gnb/ngap/n2_handover"); ok && s.Fixture != nil {
-		scenarioSpecs = append(scenarioSpecs, s.Fixture(scenarios.Env{}))
-	}
+	for _, name := range []string{"gnb/ngap/n2_handover", "gnb/n2_handover_connectivity"} {
+		s, ok := scenarios.Get(name)
+		if !ok || s.Fixture == nil {
+			continue
+		}
 
-	if s, ok := scenarios.Get("gnb/n2_handover_connectivity"); ok && s.Fixture != nil {
-		scenarioSpecs = append(scenarioSpecs, s.Fixture(scenarios.Env{}))
-	}
+		spec := s.Fixture(scenarios.Env{})
+		scenarioSpecsByName[name] = spec
 
-	for _, spec := range scenarioSpecs {
 		fx.Apply(spec)
 	}
 
@@ -154,9 +156,12 @@ func TestIntegration5GN2Handover(t *testing.T) {
 			argv := []string{
 				"core-tester", "run", sr.name,
 				"--ella-core-n2-address", coreN2,
-				"--gnb", "source,n2=10.3.0.3,n3=10.3.0.21",
-				"--gnb", "target,n2=10.3.0.4,n3=10.3.0.22",
+				"--ip-version", string(DetectIPFamily()),
 				"--verbose",
+			}
+
+			for _, spec := range HandoverRadioSpecs() {
+				argv = append(argv, "--gnb", spec)
 			}
 
 			out, execErr := dc.Exec(ctx, testerContainer, argv, false, 3*time.Minute, nil)
@@ -165,6 +170,10 @@ func TestIntegration5GN2Handover(t *testing.T) {
 			}
 
 			t.Logf("scenario %s passed\n%s", sr.name, out)
+
+			if spec, ok := scenarioSpecsByName[sr.name]; ok && len(spec.AssertUsageForIMSIs) > 0 {
+				fixture.AssertUsagePositive(ctx, t, coreClient, spec.AssertUsageForIMSIs, 30*time.Second)
+			}
 		})
 	}
 }

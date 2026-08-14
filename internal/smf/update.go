@@ -210,148 +210,44 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data, span)
+	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to bind the downlink")
+
 		if errors.Is(err, errTransferRolledBack) {
 			s.rejectUnforwardedEstablishment(ctx, smContext)
-			s.reportSessionNotMovedTo5GS(ctx, smContext)
-
-			if releaseErr := s.releaseSession(ctx, smContextRef); releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
-					zap.Error(releaseErr), zap.String("ref", smContextRef))
-			}
 		}
-
-		return err
 	}
 
-	s.dropSourceRouting(ctx, smContext.Ref, dropped)
-
-	return nil
+	return s.finishBinding(ctx, smContext, dropped, err)
 }
 
-func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Data []byte, span trace.Span) (*droppedSource, error) {
+func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Data []byte) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
-		span.RecordError(fmt.Errorf("session already released"))
-		span.SetStatus(codes.Error, "session already released")
-
+	if smContext.Tunnel == nil {
 		return nil, fmt.Errorf("session already released")
 	}
 
-	if smContext.PFCPContext == nil {
-		span.RecordError(fmt.Errorf("pfcp session context not found"))
-		span.SetStatus(codes.Error, "pfcp session context not found")
-
-		return nil, fmt.Errorf("pfcp session context not found")
-	}
-
-	commit, err := s.beginTransferCommit(ctx, smContext, Access5G)
+	an, err := anchorFromSetupResponse(n2Data)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to move the session to 5GS")
-
-		return nil, fmt.Errorf("failed to move the session to 5GS: %w", err)
+		return nil, fmt.Errorf("error handling N2 message: %w", err)
 	}
 
-	if commit == nil && smContext.Access != Access5G {
-		err := fmt.Errorf("session %q is on %s, not 5GS", smContext.Ref, smContext.Access)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "session is not on 5GS")
-
+	dropped, err := s.bindDownlink(ctx, smContext, Access5G, an)
+	if err != nil {
 		return nil, err
 	}
 
-	restoreBinding := smContext.stageAccessBinding()
-
-	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
-	if err != nil {
-		restoreBinding()
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to handle N2 message")
-
-		if commit != nil {
-			commit.restore()
-
-			smContext.releasing = true
-
-			return nil, fmt.Errorf("%w: %v", errTransferRolledBack, err)
-		}
-
-		return nil, fmt.Errorf("error handling N2 message: %v", err)
-	}
-
-	var qers []*QER
-
-	policyID := ""
-
-	if commit != nil {
-		qers = commit.qers
-		policyID = commit.policy.PolicyID
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		policyID,
-		pdrList, farList, qers,
-	)); err != nil {
-		restoreBinding()
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to modify PFCP session")
-
-		if commit != nil {
-			commit.restore()
-
-			smContext.releasing = true
-
-			return nil, fmt.Errorf("%w: %v", errTransferRolledBack, err)
-		}
-
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
-	}
-
 	smContext.establishmentOutstanding = false
-
-	var dropped *droppedSource
-	if commit != nil {
-		dropped = smContext.finishTransferCommit(commit)
-	}
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return dropped, nil
-}
-
-func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smContext *SMContext) ([]*PDR, []*FAR, error) {
-	logger.SmfLog.Debug("received n2 sm info type", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	var pdrList []*PDR
-
-	var farList []*FAR
-
-	if smContext.Tunnel.Activated {
-		smContext.Tunnel.DownlinkPDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
-		smContext.Tunnel.DownlinkPDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
-
-		pdrList = append(pdrList, smContext.Tunnel.DownlinkPDR)
-		farList = append(farList, smContext.Tunnel.DownlinkPDR.FAR)
-
-		// Initial PDR creation set the UL OuterHeaderRemoval before the gNB IP was
-		// known, so the corrected value has to reach the UPF too.
-		pdrList = append(pdrList, smContext.Tunnel.UplinkPDR)
-	}
-
-	if err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext); err != nil {
-		return nil, nil, fmt.Errorf("handle PDUSessionResourceSetupResponseTransfer failed: %v", err)
-	}
-
-	return pdrList, farList, nil
 }
 
 func anchorFromGTPTunnel(t libngap.GTPTunnel) AnchorBinding {
@@ -364,17 +260,15 @@ func anchorFromGTPTunnel(t libngap.GTPTunnel) AnchorBinding {
 	}
 }
 
-func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContext) error {
+func anchorFromSetupResponse(b []byte) (AnchorBinding, error) {
 	transfer, err := libngap.ParsePDUSessionResourceSetupResponseTransfer(b)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshall resource setup response transfer: %w", err)
+		return AnchorBinding{}, fmt.Errorf("failed to unmarshall resource setup response transfer: %w", err)
 	}
 
 	// UPTransportLayerInformation is a CHOICE whose only modelled alternative is
 	// gTPTunnel; the decoder refuses choice-Extensions on our behalf.
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), Access5G)
-
-	return nil
+	return anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), nil
 }
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.

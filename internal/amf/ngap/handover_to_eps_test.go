@@ -41,6 +41,12 @@ type epsPeerStub struct {
 	gate      chan struct{}
 }
 
+func (p *epsPeerStub) MMContext(context.Context, interworking.MMContextRequest) (interworking.MMContextResponse, error) {
+	return interworking.MMContextResponse{}, interworking.ErrUnknownUEContext
+}
+
+func (p *epsPeerStub) MMContextAck(context.Context, etsi.SUPI, []uint8) error { return nil }
+
 func (p *epsPeerStub) ForwardRelocation(_ context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	p.mu.Lock()
 	p.request = &req

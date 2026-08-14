@@ -87,10 +87,14 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
 			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
 		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: eps.EMMCauseUEIdentityCannotBeDerived})
-	} else {
-		logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
-			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
+
+		m.ReleaseAnsweredBareConn(ctx, c, mme.CauseNASUnspecified)
+
+		return
 	}
+
+	logger.From(ctx, logger.MmeLog).Debug("dropping non-Attach Initial UE Message",
+		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
 
 	m.ReleaseBareConn(c)
 }

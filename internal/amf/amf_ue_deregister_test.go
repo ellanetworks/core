@@ -92,6 +92,10 @@ func (s *deregisterTestSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Co
 	return nil, nil
 }
 
+func (s *deregisterTestSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, error) {
+	return "", nil
+}
+
 func (s *deregisterTestSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, error) {
 	return "", nil, nil
 }

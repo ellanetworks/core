@@ -33,6 +33,12 @@ type fakeEPSPeer struct {
 	block        chan struct{}
 }
 
+func (f *fakeEPSPeer) MMContext(context.Context, interworking.MMContextRequest) (interworking.MMContextResponse, error) {
+	return interworking.MMContextResponse{}, interworking.ErrUnknownUEContext
+}
+
+func (f *fakeEPSPeer) MMContextAck(context.Context, etsi.SUPI, []uint8) error { return nil }
+
 func (f *fakeEPSPeer) ForwardRelocation(ctx context.Context, req interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	f.mu.Lock()
 	f.request = req

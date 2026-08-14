@@ -60,7 +60,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
+	if smContext.Tunnel == nil {
 		logger.SmfLog.Debug("session not activated, skipping reconciliation",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
@@ -424,59 +424,20 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 	return s.applySessionQERs(ctx, smContext, policy.PolicyID, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
 }
 
-// applySessionQERs sets every distinct session QER (deduped across UL/DL) to the
-// given QFI and AMBR-derived MBR, marks them for update, and sends a PFCP Session
-// Modification. On a failed modify it restores each QER's prior MBR/QFI/state, so
-// the cached rules never run ahead of the data plane.
-//
-// QER MBR is set to the session AMBR because this implementation supports a single
-// QoS flow per session (non-GBR only): per TS 23.501 the session AMBR is the
-// aggregate non-GBR limit, which with one flow equals the per-flow MBR. If
-// multiple or GBR flows are ever supported, this must use per-flow MBR values.
-//
-// The caller holds smContext.Mutex.
 func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policyID string, qfi uint8, ambrUplink, ambrDownlink models.BitRate) error {
-	qers, restore, err := stageSessionQERs(smContext, qfi, ambrUplink, ambrDownlink)
-	if err != nil {
-		return err
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		policyID,
-		nil, nil, qers,
-	)); err != nil {
-		restore()
-
-		return fmt.Errorf("failed to modify PFCP session: %w", err)
-	}
-
-	return nil
-}
-
-func stageSessionQERs(smContext *SMContext, qfi uint8, ambrUplink, ambrDownlink models.BitRate) ([]*QER, func(), error) {
 	if smContext.PFCPContext == nil || !smContext.PFCPContext.Established {
-		return nil, nil, fmt.Errorf("PFCP session not established")
+		return fmt.Errorf("PFCP session not established")
 	}
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
-		return nil, nil, fmt.Errorf("data path not available")
+	if smContext.Tunnel == nil {
+		return fmt.Errorf("data path not available")
 	}
 
-	qer := smContext.Tunnel.QER
-	if qer == nil {
-		return nil, nil, fmt.Errorf("no QER to update")
-	}
+	next := smContext.Tunnel.dataPlane
+	next.QFI = qfi
+	next.AMBR = models.Ambr{Uplink: ambrUplink, Downlink: ambrDownlink}
 
-	prevMBR, prevQFI := qer.MBR, qer.QFI
-
-	qer.QFI = qfi
-	qer.MBR = &models.MBR{
-		ULMBR: ambrUplink.Kbps(),
-		DLMBR: ambrDownlink.Kbps(),
-	}
-
-	return []*QER{qer}, func() { qer.MBR, qer.QFI = prevMBR, prevQFI }, nil
+	return s.applyDataPlane(ctx, smContext, next, policyID)
 }
 
 // framedRoutesChanged reports whether the subscriber's currently provisioned

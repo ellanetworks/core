@@ -100,6 +100,8 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 				Mcc:           "001",
 				Mnc:           "01",
 				SupportedTACs: "[\"000001\"]",
+				Ciphering:     `["AES"]`,
+				Integrity:     `["AES"]`,
 			},
 		},
 		nil,
@@ -981,17 +983,40 @@ func TestMobilityReg_OmitsTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *te
 	}
 }
 
-type fakeEPSPeer struct{}
+type fakeEPSPeer struct {
+	MMContextRequests []interworking.MMContextRequest
+	MMContextResponse interworking.MMContextResponse
+	MMContextErr      error
+	Acked             bool
+	AckedSupi         etsi.SUPI
+	Transferred       []uint8
+}
 
-func (fakeEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
+func (*fakeEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
 	return interworking.ForwardRelocationResponse{}, nil
 }
 
-func (fakeEPSPeer) RelocationCancel(context.Context, etsi.SUPI, interworking.RelocationID) error {
+func (*fakeEPSPeer) RelocationCancel(context.Context, etsi.SUPI, interworking.RelocationID) error {
 	return nil
 }
 
-func (fakeEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.RelocationID) error {
+func (*fakeEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+func (p *fakeEPSPeer) MMContext(_ context.Context, req interworking.MMContextRequest) (interworking.MMContextResponse, error) {
+	p.MMContextRequests = append(p.MMContextRequests, req)
+
+	if p.MMContextErr != nil {
+		return interworking.MMContextResponse{}, p.MMContextErr
+	}
+
+	return p.MMContextResponse, nil
+}
+
+func (p *fakeEPSPeer) MMContextAck(_ context.Context, supi etsi.SUPI, transferred []uint8) error {
+	p.Acked, p.AckedSupi, p.Transferred = true, supi, transferred
+
 	return nil
 }
 

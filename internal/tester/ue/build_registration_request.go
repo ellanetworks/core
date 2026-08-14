@@ -21,7 +21,9 @@ type RegistrationRequestOpts struct {
 	PDUSessionStatus      *[16]bool
 	S1UENetworkCapability []byte
 
-	UEStatus *fgs.UEStatus
+	UEStatus               *fgs.UEStatus
+	EPSNASMessageContainer []byte
+	AdditionalGUTI         *fgs.MobileIdentity
 }
 
 func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
@@ -41,8 +43,10 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 			Value:  uint8(opts.UESecurity.NgKsi.Ksi),
 			Mapped: opts.UESecurity.NgKsi.Tsc == models.ScTypeMapped,
 		},
-		MobileIdentity: mobileIdentity,
-		UEStatus:       opts.UEStatus,
+		MobileIdentity:         mobileIdentity,
+		UEStatus:               opts.UEStatus,
+		EPSNASMessageContainer: opts.EPSNASMessageContainer,
+		AdditionalGUTI:         opts.AdditionalGUTI,
 	}
 
 	if opts.IncludeCapability {

@@ -11,13 +11,11 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 func validateEPSBearerRequest(req models.EPSBearerRequest) (models.Ambr, error) {
@@ -157,48 +155,20 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, ref string, ebi uint8, enb m
 
 	dropped, err := s.bindEPSDownlink(ctx, smContext, enb)
 	if err != nil {
-		if errors.Is(err, errTransferRolledBack) {
-			s.reportSessionNotMovedTo5GS(ctx, smContext)
-
-			if releaseErr := s.releaseSession(ctx, ref); releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
-					zap.Error(releaseErr), zap.String("ref", ref))
-			}
-		}
-
-		return err
+		span.RecordError(err)
 	}
 
-	s.dropSourceRouting(ctx, smContext.Ref, dropped)
-
-	return nil
+	return s.finishBinding(ctx, smContext, dropped, err)
 }
 
 func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb models.FTEID) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
-		return nil, fmt.Errorf("EPS session %q is not activated", smContext.Ref)
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("EPS session %q has no user plane", smContext.Ref)
 	}
 
-	commit, err := s.beginTransferCommit(ctx, smContext, Access4G)
-	if err != nil {
-		return nil, fmt.Errorf("failed to move the session to EPS: %w", err)
-	}
-
-	if smContext.Access != Access4G {
-		return nil, fmt.Errorf("session %q is on %s, not EPS", smContext.Ref, smContext.Access)
-	}
-
-	restoreBinding := smContext.stageAccessBinding()
-
-	dl := smContext.Tunnel.DownlinkPDR
-	ul := smContext.Tunnel.UplinkPDR
-	dl.FAR.ApplyAction = models.ApplyAction{Forw: true}
-
-	// bindAccessTunnel aligns the uplink OuterHeaderRemoval, which defaults to IPv4
-	// at session creation, to the eNB's address family.
 	enbIP := net.IP(enb.Addr.AsSlice())
 
 	an := AnchorBinding{TEID: enb.TEID}
@@ -208,55 +178,9 @@ func (s *SMF) bindEPSDownlink(ctx context.Context, smContext *SMContext, enb mod
 		an.IPv4 = enbIP
 	}
 
-	smContext.bindAccessTunnel(an, Access4G)
-
-	var (
-		policyID string
-		qers     []*QER
-	)
-
-	if smContext.PolicyData != nil {
-		policyID = smContext.PolicyData.PolicyID
-	}
-
-	if commit != nil {
-		policyID = commit.policy.PolicyID
-		qers = commit.qers
-	}
-
-	if smContext.PFCPContext == nil {
-		restoreBinding()
-
-		if commit != nil {
-			commit.restore()
-		}
-
-		return nil, fmt.Errorf("pfcp session context not found for %q", smContext.Ref)
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		policyID,
-		[]*PDR{dl, ul},
-		[]*FAR{dl.FAR},
-		qers,
-	)); err != nil {
-		restoreBinding()
-
-		if commit != nil {
-			commit.restore()
-
-			smContext.releasing = true
-
-			return nil, fmt.Errorf("%w: %v", errTransferRolledBack, err)
-		}
-
+	dropped, err := s.bindDownlink(ctx, smContext, Access4G, an)
+	if err != nil {
 		return nil, err
-	}
-
-	var dropped *droppedSource
-	if commit != nil {
-		dropped = smContext.finishTransferCommit(commit)
 	}
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext, Access4G)

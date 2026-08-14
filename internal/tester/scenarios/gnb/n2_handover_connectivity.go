@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
@@ -40,6 +39,7 @@ func fixtureN2HandoverConnectivity(_ scenarios.Env) scenarios.FixtureSpec {
 		Subscribers: []scenarios.SubscriberSpec{
 			scenarios.DefaultSubscriberWith(n2HandoverConnIMSI, ""),
 		},
+		AssertUsageForIMSIs: []string{n2HandoverConnIMSI},
 	}
 }
 
@@ -107,7 +107,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 
-	newUE, err := newDefaultUE(sourceGNB, n2HandoverConnIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, scenarios.DefaultPDUSessionTypeIPv4)
+	newUE, err := newDefaultUE(sourceGNB, n2HandoverConnIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, env.PDUSessionType())
 	if err != nil {
 		return fmt.Errorf("create UE: %w", err)
 	}
@@ -135,7 +135,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 		return fmt.Errorf("source gNB: wait PDU session: %w", err)
 	}
 
-	ueIP := newUE.GetPDUSession(scenarios.DefaultPDUSessionID).UEIP + "/16"
+	ueIP := handoverTunnelAddress(env, newUE.GetPDUSession(scenarios.DefaultPDUSessionID))
 
 	_, err = sourceGNB.AddTunnel(&gnb.NewTunnelOpts{
 		UEIP:             ueIP,
@@ -150,8 +150,12 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 		return fmt.Errorf("create source GTP tunnel: %w", err)
 	}
 
+	if err := awaitHandoverTunnelReady(env, n2HandoverTunInterface); err != nil {
+		return err
+	}
+
 	pingDest := env.PingDestination()
-	if err := probe.Run(context.Background(), probe.ICMP, n2HandoverTunInterface, pingDest, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(context.Background(), env, n2HandoverTunInterface); err != nil {
 		return fmt.Errorf("ping before handover failed: %w", err)
 	}
 
@@ -198,18 +202,27 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 				DLIP:         targetN3IP,
 			},
 		},
+		TargetToSourceTransparentContainer: n2HandoverRRCContainer,
 	})
 	if err != nil {
 		return fmt.Errorf("send HandoverRequestAcknowledge: %w", err)
 	}
 
-	_, err = sourceGNB.WaitForMessage(
+	hoCmdFrame, err := sourceGNB.WaitForMessage(
 		gnb.Successful,
 		ngaplib.ProcHandoverPreparation,
 		5*time.Second,
 	)
 	if err != nil {
 		return fmt.Errorf("source gNB: wait HandoverCommand: %w", err)
+	}
+
+	if err := assertN2HandoverCommand(hoCmdFrame, amfUENGAPID, ranUENGAPID); err != nil {
+		return err
+	}
+
+	if err := handoverProbe(context.Background(), env, n2HandoverTunInterface); err != nil {
+		return fmt.Errorf("ping during handover preparation via the source gNB (UPF switched too early?): %w", err)
 	}
 
 	err = targetGNB.SendHandoverNotify(&gnb.HandoverNotifyOpts{
@@ -231,8 +244,6 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 
 	_ = sourceGNB.CloseTunnel(gnbPDUSession.DLTeid)
 
-	time.Sleep(500 * time.Millisecond)
-
 	_, err = targetGNB.AddTunnel(&gnb.NewTunnelOpts{
 		UEIP:             ueIP,
 		UpfIP:            gnbPDUSession.UpfAddress,
@@ -248,7 +259,11 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 
 	// TS 23.502 §4.9.1.3.3: the UPF is updated with the new AN tunnel during
 	// handover completion, so downlink must flow through the target gNB.
-	if err := probe.Run(context.Background(), probe.ICMP, n2HandoverTargetTunPrefix, pingDest, scenarios.DefaultProbePort, false); err != nil {
+	if err := awaitHandoverTunnelReady(env, n2HandoverTargetTunPrefix); err != nil {
+		return err
+	}
+
+	if err := handoverProbe(context.Background(), env, n2HandoverTargetTunPrefix); err != nil {
 		return fmt.Errorf("ping after N2 handover FAILED (UPF not updated with new AN tunnel info): %w", err)
 	}
 

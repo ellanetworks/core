@@ -84,6 +84,9 @@ jobs:
   integration-tests-n2-handover:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-n2-handover.yaml
+  integration-tests-xn-handover-5g:
+    needs: [image-build, image-build-tester]
+    uses: ./.github/workflows/integration-tests-xn-handover-5g.yaml
   integration-tests-x2-handover-4g:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-x2-handover-4g.yaml

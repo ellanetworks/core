@@ -32,7 +32,7 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
+	if smContext.Tunnel == nil {
 		return nil, fmt.Errorf("session %s has no active tunnel (supi=%s, pduSessionID=%d)", smContextRef, smContext.Supi, smContext.PDUSessionID)
 	}
 

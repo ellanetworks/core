@@ -133,6 +133,10 @@ func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, str
 	return nil, nil
 }
 
+func (f *fakeSmf) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, error) {
+	return "", nil
+}
+
 func (f *fakeSmf) PrepareSmContextFromEPS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, []byte, error) {
 	return "", nil, nil
 }

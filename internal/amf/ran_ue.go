@@ -16,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -110,7 +111,8 @@ type UeConn struct {
 	IdentityTypeUsedForRegistration   uint8
 	RetransmissionOfInitialNASMsg     bool
 
-	ArrivedFromEPS bool
+	ArrivedFromEPS  bool
+	ArrivingFromEPS *interworking.ArrivingSessions
 
 	RegistrationAcceptPlain []byte
 }

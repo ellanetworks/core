@@ -107,7 +107,7 @@ func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *am
 		logger.WithTrace(ctx, ueConn.Log).Warn("invalid guti", zap.Error(err))
 	}
 
-	amfUe, ok := amfInstance.LookupUeByGuti(guti)
+	amfUe, ok := amfInstance.LookupUeByGuti(operatorInfo.Guami, guti)
 	if !ok {
 		logger.WithTrace(ctx, ueConn.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
 		return

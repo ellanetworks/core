@@ -213,33 +213,25 @@ type SmfReleaseSmContextCall struct {
 }
 
 type fakeSmf struct {
-	Error             error
-	ReleasedSmContext []string
-
-	// ActivateSmContext fields
+	Error                     error
+	ReleasedSmContext         []string
+	IdleTransfers             []idleTransfer
+	IdleTransferErr           error
 	ActivateSmContextResponse []byte
 	ActivateSmContextError    error
 	ActivateSmContextCalls    []SmfActivateSmContextCall
-
-	// ReleaseSmContext fields
-	ReleaseSmContextError error
-	ReleaseSmContextCalls []SmfReleaseSmContextCall
-
-	// UpdateSmContextN1Msg fields
-	UpdateN1MsgResponse *smf.UpdateResult
-	UpdateN1MsgError    error
-	UpdateN1MsgCalls    []SmfUpdateN1MsgCall
-
-	// CreateSmContext fields
-	CreateSmContextRef     string
-	CreateSmContextErrResp []byte
-	CreateSmContextError   error
-	CreateSmContextCalls   []SmfCreateSmContextCall
-
-	// UpdateSmContextCauseDuplicatePDUSessionID fields
-	DuplicatePDUResponse []byte
-	DuplicatePDUError    error
-	DuplicatePDUCalls    []SmfDuplicatePDUCall
+	ReleaseSmContextError     error
+	ReleaseSmContextCalls     []SmfReleaseSmContextCall
+	UpdateN1MsgResponse       *smf.UpdateResult
+	UpdateN1MsgError          error
+	UpdateN1MsgCalls          []SmfUpdateN1MsgCall
+	CreateSmContextRef        string
+	CreateSmContextErrResp    []byte
+	CreateSmContextError      error
+	CreateSmContextCalls      []SmfCreateSmContextCall
+	DuplicatePDUResponse      []byte
+	DuplicatePDUError         error
+	DuplicatePDUCalls         []SmfDuplicatePDUCall
 }
 
 type SmfUpdateN1MsgCall struct {
@@ -371,6 +363,30 @@ func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string)
 
 func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ etsi.SUPI, _, _ uint8, _ string, _ *models.Snssai) (string, []byte, error) {
 	return "", nil, nil
+}
+
+type idleTransfer struct {
+	Supi              etsi.SUPI
+	PDUSessionID      uint8
+	EPSBearerIdentity uint8
+	Dnn               string
+	Snssai            *models.Snssai
+}
+
+func (s *fakeSmf) TransferIdleTo5GS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, error) {
+	s.IdleTransfers = append(s.IdleTransfers, idleTransfer{
+		Supi:              supi,
+		PDUSessionID:      pduSessionID,
+		EPSBearerIdentity: epsBearerIdentity,
+		Dnn:               dnn,
+		Snssai:            snssai,
+	})
+
+	if s.IdleTransferErr != nil {
+		return "", s.IdleTransferErr
+	}
+
+	return fmt.Sprintf("idle-ref-%d", pduSessionID), nil
 }
 
 func (s *fakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {

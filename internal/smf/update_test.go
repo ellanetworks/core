@@ -33,52 +33,27 @@ func validHandoverRequestAcknowledgeTransfer(t *testing.T) []byte {
 	return b
 }
 
-// An activated data path whose downlink FAR has no forwarding parameters must
-// gain them from the handover target's tunnel, without panicking.
-func TestHandleHandoverRequestAcknowledgeTransfer_ActivatedNilForwarding(t *testing.T) {
-	dlFAR := &FAR{}
+func TestHandleHandoverRequestAcknowledgeTransfer_ProposesTarget(t *testing.T) {
+	source := AnchorBinding{TEID: 0x99}
 	smContext := &SMContext{
 		PolicyData: &Policy{QosData: models.QosData{QFI: models.DefaultQFI}},
-		Tunnel: &UPTunnel{
-			Activated:   true,
-			DownlinkPDR: &PDR{FAR: dlFAR},
-			UplinkPDR:   &PDR{},
-		},
+		Tunnel:     &UPTunnel{dataPlane: dataPlane{AN: source, Downlink: DownlinkForwarding}},
 	}
 
 	if err := handleHandoverRequestAcknowledgeTransfer(validHandoverRequestAcknowledgeTransfer(t), smContext); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if smContext.Tunnel.AN.TEID != testHandoverTEID {
-		t.Errorf("AN.TEID = %#x, want %#x", smContext.Tunnel.AN.TEID, testHandoverTEID)
+	if smContext.handoverTargetAN == nil {
+		t.Fatal("the target endpoint was not recorded")
 	}
 
-	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
-		t.Fatal("downlink FAR forwarding parameters were not populated")
+	if smContext.handoverTargetAN.TEID != testHandoverTEID {
+		t.Errorf("handoverTargetAN.TEID = %#x, want %#x", smContext.handoverTargetAN.TEID, testHandoverTEID)
 	}
 
-	ohc := dlFAR.ForwardingParameters.OuterHeaderCreation
-	if ohc.TEID != testHandoverTEID {
-		t.Errorf("OuterHeaderCreation.TEID = %#x, want %#x", ohc.TEID, testHandoverTEID)
-	}
-
-	if ohc.Description != models.OuterHeaderCreationGtpUUdpIpv4 {
-		t.Errorf("OuterHeaderCreation.Description = %v, want IPv4 GTP-U", ohc.Description)
-	}
-}
-
-// With no active data path the tunnel endpoint is recorded but no FAR is
-// touched, so a nil downlink tunnel must not panic.
-func TestHandleHandoverRequestAcknowledgeTransfer_NotActivated(t *testing.T) {
-	smContext := &SMContext{PolicyData: &Policy{QosData: models.QosData{QFI: models.DefaultQFI}}, Tunnel: &UPTunnel{}}
-
-	if err := handleHandoverRequestAcknowledgeTransfer(validHandoverRequestAcknowledgeTransfer(t), smContext); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if smContext.Tunnel.AN.TEID != testHandoverTEID {
-		t.Errorf("AN.TEID = %#x, want %#x", smContext.Tunnel.AN.TEID, testHandoverTEID)
+	if smContext.Tunnel.AN.TEID != source.TEID {
+		t.Errorf("AN.TEID = %#x, want the source endpoint's %#x", smContext.Tunnel.AN.TEID, source.TEID)
 	}
 }
 

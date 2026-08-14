@@ -152,7 +152,7 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 
 	// mmeUEID is taken from the Accept so the Complete is delivered on the
 	// connection the MME re-keyed for this update.
-	mmeUEID, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout)
+	mmeUEID, _, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout)
 	if err != nil {
 		return fmt.Errorf("await Tracking Area Update Accept: %w", err)
 	}
@@ -171,36 +171,32 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 	return e.completeContextRelease(enbUEID, timeout)
 }
 
-// awaitDownlinkNAS waits for a protected downlink NAS message of the wanted EMM
-// message type, skipping any proactive messages the MME interleaves (e.g. EMM
-// INFORMATION 0x61), which a real UE ignores. It returns the MME-UE-S1AP-ID the
-// matching message arrived on.
-func (e *ENB) awaitDownlinkNAS(ue *UE, enbUEID int64, want eps.MessageType, timeout time.Duration) (int64, error) {
+func (e *ENB) awaitDownlinkNAS(ue *UE, enbUEID int64, want eps.MessageType, timeout time.Duration) (int64, []byte, error) {
 	deadline := time.Now().Add(timeout)
 
 	for {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
-			return 0, fmt.Errorf("timed out awaiting message type %#x", want)
+			return 0, nil, fmt.Errorf("timed out awaiting message type %#x", want)
 		}
 
 		wire, mmeUEID, err := e.WaitForDownlinkNAS(enbUEID, remaining)
 		if err != nil {
-			return 0, err
+			return 0, nil, err
 		}
 
 		plain, err := ue.unprotectDownlink(wire)
 		if err != nil {
-			return 0, fmt.Errorf("unprotect downlink NAS: %w", err)
+			return 0, nil, fmt.Errorf("unprotect downlink NAS: %w", err)
 		}
 
 		mt, err := eps.PeekMessageType(plain)
 		if err != nil {
-			return 0, fmt.Errorf("peek downlink NAS: %w", err)
+			return 0, nil, fmt.Errorf("peek downlink NAS: %w", err)
 		}
 
 		if mt == want {
-			return mmeUEID, nil
+			return mmeUEID, plain, nil
 		}
 	}
 }

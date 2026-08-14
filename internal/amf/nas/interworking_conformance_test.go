@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -156,5 +157,27 @@ func TestRegistrationAfterAnEPSHandoverKeepsTheMovedSessions(t *testing.T) {
 
 	if _, ok := ue.SmContextFindByPDUSessionID(1); !ok {
 		t.Error("the AMF dropped the PDU session the handover moved")
+	}
+}
+
+// TS 23.502 §4.11.2.3
+func TestIdleArrivalSpendsALeftoverHandoverMark(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	ue.MarkArrivedFromEPSHandover()
+
+	conn := ue.Conn()
+	conn.RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
+	conn.ArrivingFromEPS = &interworking.ArrivingSessions{}
+
+	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)
+
+	conn.ArrivingFromEPS = nil
+	conn.ArrivedFromEPS = false
+
+	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)
+
+	if conn.ArrivedFromEPS {
+		t.Error("an update the AMF holds no EPS arrival for was taken as one: the handover mark outlived the idle arrival that short-circuited it")
 	}
 }

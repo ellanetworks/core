@@ -299,3 +299,44 @@ func TestTrackingAreaUpdateRequestRejectsMalformedCapabilities(t *testing.T) {
 		})
 	}
 }
+
+// TS 24.301 §8.2.29.1
+func TestPeekKeySetIdentifierReadsTheHalfOctet(t *testing.T) {
+	for _, ksi := range []nas.KeySetIdentifier{
+		{Value: 0},
+		{Value: 5},
+		{Value: 3, Mapped: true},
+		{Value: 7},
+	} {
+		b, err := (&TrackingAreaUpdateRequest{
+			EPSUpdateType:       EPSUpdateTypeCombinedTALA,
+			NASKeySetIdentifier: ksi,
+			OldGUTI: GUTIIdentity(GUTI{
+				PLMN: nas.PLMN{MCC: "001", MNC: "01"}, MMEGroupID: 1, MMECode: 1, TMSI: [4]byte{1, 2, 3, 4},
+			}),
+		}).MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		got, err := PeekKeySetIdentifier(b)
+		if err != nil {
+			t.Fatalf("PeekKeySetIdentifier: %v", err)
+		}
+
+		if got != ksi {
+			t.Errorf("key set identifier = %+v, want %+v", got, ksi)
+		}
+	}
+}
+
+func TestPeekKeySetIdentifierRefusals(t *testing.T) {
+	if _, err := PeekKeySetIdentifier([]byte{uint8(PDEMM), uint8(MsgTrackingAreaUpdateRequest)}); err == nil {
+		t.Error("a message with no octet 3 yielded a key set identifier")
+	}
+
+	protected := []byte{uint8(SHTIntegrityProtected)<<4 | uint8(PDEMM), 0xde, 0xad, 0xbe, 0xef, 0x00}
+	if _, err := PeekKeySetIdentifier(protected); err == nil {
+		t.Error("a security protected message yielded a key set identifier, but its octet 3 is a MAC byte")
+	}
+}

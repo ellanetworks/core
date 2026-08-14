@@ -159,7 +159,7 @@ func TestHandoverFromEPSKeepsTheSession(t *testing.T) {
 
 	sc.Mutex.Lock()
 	access, ebi := sc.Access, sc.EBI
-	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	an, dpAccess := sc.Tunnel.AN, sc.Tunnel.Access
 	sc.Mutex.Unlock()
 
 	if access != smf.Access5G {
@@ -170,12 +170,12 @@ func TestHandoverFromEPSKeepsTheSession(t *testing.T) {
 		t.Errorf("session EPS bearer identity = %d, want the %d it arrived with: a later handover to EPS needs it", ebi, epsTestEBI)
 	}
 
-	if dl.TEID != targetGnbTEID || !dl.IPv4Address.Equal(targetGnbIPv4) {
-		t.Errorf("downlink points at %s/%#x, want the target gNB %s/%#x", dl.IPv4Address, dl.TEID, targetGnbIPv4, targetGnbTEID)
+	if an.TEID != targetGnbTEID || !an.IPv4.Equal(targetGnbIPv4) {
+		t.Errorf("downlink points at %s/%#x, want the target gNB %s/%#x", an.IPv4, an.TEID, targetGnbIPv4, targetGnbTEID)
 	}
 
-	if dl.S1U {
-		t.Error("the downlink is still addressed as S1-U after the session moved onto 5GS")
+	if dpAccess != smf.Access5G {
+		t.Errorf("the downlink is still addressed as %s after the session moved onto 5GS", dpAccess)
 	}
 
 	if got := modifyCount(upf) - pfcpBefore; got != 1 {
@@ -261,19 +261,19 @@ func TestCanceledArrivalRestoresTheSourceENBDownlink(t *testing.T) {
 
 	sc.Mutex.Lock()
 	access := sc.Access
-	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	an, dpAccess := sc.Tunnel.AN, sc.Tunnel.Access
 	sc.Mutex.Unlock()
 
 	if access != smf.Access4G {
 		t.Errorf("session is on %s after the handover was cancelled", access)
 	}
 
-	if dl.TEID != sourceENB.TEID || dl.IPv4Address.String() != sourceENB.Addr.String() {
-		t.Errorf("downlink points at %s/%#x, want the source eNB %s/%#x", dl.IPv4Address, dl.TEID, sourceENB.Addr, sourceENB.TEID)
+	if an.TEID != sourceENB.TEID || an.IPv4.String() != sourceENB.Addr.String() {
+		t.Errorf("downlink points at %s/%#x, want the source eNB %s/%#x", an.IPv4, an.TEID, sourceENB.Addr, sourceENB.TEID)
 	}
 
-	if !dl.S1U {
-		t.Error("the restored downlink is not addressed as S1-U, so the UPF would send it on the N3 endpoint")
+	if dpAccess != smf.Access4G {
+		t.Errorf("the downlink is addressed as %s, so the UPF would send it on the N3 endpoint", dpAccess)
 	}
 
 	if _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), arrivingPDUSessionID, epsTestEBI, testDNN, testSnssai); err != nil {
@@ -343,7 +343,7 @@ func TestAbandonedArrivalPutsTheDownlinkBackOnTheSourceENB(t *testing.T) {
 
 	sc.Mutex.Lock()
 	pending, access := sc.TransferPendingForTest(), sc.Access
-	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	an, dpAccess := sc.Tunnel.AN, sc.Tunnel.Access
 	sc.Mutex.Unlock()
 
 	if pending {
@@ -354,9 +354,9 @@ func TestAbandonedArrivalPutsTheDownlinkBackOnTheSourceENB(t *testing.T) {
 		t.Errorf("session is on %s after the arrival was abandoned", access)
 	}
 
-	if dl.TEID != sourceENB.TEID || !dl.S1U {
-		t.Errorf("downlink points at %s/%#x s1u=%t, want the source eNB %s/%#x s1u=true",
-			dl.IPv4Address, dl.TEID, dl.S1U, sourceENB.Addr, sourceENB.TEID)
+	if an.TEID != sourceENB.TEID || dpAccess != smf.Access4G {
+		t.Errorf("downlink points at %s/%#x on %s, want the source eNB %s/%#x on 4G",
+			an.IPv4, an.TEID, dpAccess, sourceENB.Addr, sourceENB.TEID)
 	}
 }
 
@@ -385,19 +385,19 @@ func TestReleasingAPreparedArrivalRestoresTheSourceENBDownlink(t *testing.T) {
 
 	sc.Mutex.Lock()
 	access := sc.Access
-	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	an, dpAccess := sc.Tunnel.AN, sc.Tunnel.Access
 	sc.Mutex.Unlock()
 
 	if access != smf.Access4G {
 		t.Errorf("session is on %s after the arrival was released", access)
 	}
 
-	if dl.TEID != sourceENB.TEID || dl.IPv4Address.String() != sourceENB.Addr.String() {
-		t.Errorf("downlink points at %s/%#x, want the source eNB %s/%#x", dl.IPv4Address, dl.TEID, sourceENB.Addr, sourceENB.TEID)
+	if an.TEID != sourceENB.TEID || an.IPv4.String() != sourceENB.Addr.String() {
+		t.Errorf("downlink points at %s/%#x, want the source eNB %s/%#x", an.IPv4, an.TEID, sourceENB.Addr, sourceENB.TEID)
 	}
 
-	if !dl.S1U {
-		t.Error("the restored downlink is not addressed as S1-U, so the UPF would GTP-U it to a gNB the UE never reached")
+	if dpAccess != smf.Access4G {
+		t.Errorf("the downlink is addressed as %s, so the UPF would GTP-U it to a gNB the UE never reached", dpAccess)
 	}
 }
 
@@ -428,11 +428,11 @@ func TestAFailedCompletionKeepsTheRollbackAnchor(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	stranded := sc.HandoverSourceANForTest() == nil
+	dropped := sc.HandoverTargetANForTest() == nil
 	sc.Mutex.Unlock()
 
-	if stranded {
-		t.Error("the rollback anchor was discarded on a failed completion, so the cancel that follows restores nothing")
+	if dropped {
+		t.Error("the target endpoint was discarded on a failed completion, so a retry has nothing to bind")
 	}
 }
 
@@ -483,19 +483,19 @@ func TestArrivalAdmittedUnderAForeignQFIIsRefused(t *testing.T) {
 
 	sc.Mutex.Lock()
 	access := sc.Access
-	stranded := sc.HandoverSourceANForTest()
-	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	target := sc.HandoverTargetANForTest()
+	an, dpAccess := sc.Tunnel.AN, sc.Tunnel.Access
 	sc.Mutex.Unlock()
 
 	if access != smf.Access4G {
 		t.Errorf("session moved to %s on a refused admission", access)
 	}
 
-	if stranded != nil {
-		t.Error("a rollback anchor was captured for an admission that was refused")
+	if target != nil {
+		t.Error("a target endpoint was recorded for an admission that was refused")
 	}
 
-	if dl.TEID != sourceENB.TEID || !dl.S1U {
-		t.Errorf("downlink points at %s/%#x, want the source eNB", dl.IPv4Address, dl.TEID)
+	if an.TEID != sourceENB.TEID || dpAccess != smf.Access4G {
+		t.Errorf("downlink points at %s/%#x on %s, want the source eNB", an.IPv4, an.TEID, dpAccess)
 	}
 }

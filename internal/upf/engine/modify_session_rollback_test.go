@@ -75,7 +75,7 @@ func TestModifySessionRollsBackOnFailure(t *testing.T) {
 	// PDR (no F-TEID, no UE IP → ExtractPDR fails) forces a mid-modify rollback.
 	modify := &models.ModifyRequest{
 		SEID: seid,
-		CreatePDRs: []models.PDR{
+		UpdatePDRs: []models.PDR{
 			{PDRID: 2, FARID: 1, PDI: models.PDI{UEIPAddress: ueIP}},
 			{PDRID: 3, FARID: 1, PDI: models.PDI{}},
 		},
@@ -91,7 +91,7 @@ func TestModifySessionRollsBackOnFailure(t *testing.T) {
 	}
 
 	if _, ok := after[2]; ok {
-		t.Fatal("created PDR 2 leaked into the session after rollback")
+		t.Fatal("PDR 2 leaked into the session after rollback")
 	}
 
 	var v upfebpf.N3N6EntrypointPdrInfo

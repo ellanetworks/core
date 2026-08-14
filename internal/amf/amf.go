@@ -77,6 +77,7 @@ type SmfSbi interface {
 	UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
 	PrepareSmContextFromEPS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, error)
+	TransferIdleTo5GS(ctx context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, error)
 	UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error
@@ -266,6 +267,7 @@ func (amf *AMF) DeregisterAndRemoveUeContext(ctx context.Context, ue *UeContext)
 
 	amf.mu.Lock()
 	amf.releaseTmsisLocked(ue)
+	amf.endRelocationFromEPSLocked(ue.supi, ue)
 
 	// Only delete the SUPI index if it still points to this context: an authenticated
 	// re-registration indexes the new context under the same SUPI before this superseded

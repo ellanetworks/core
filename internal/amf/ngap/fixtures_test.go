@@ -88,6 +88,10 @@ type SmfPrepareFromEPSCall struct {
 	Snssai            *models.Snssai
 }
 
+func (f *fakeSmfSbi) TransferIdleTo5GS(context.Context, etsi.SUPI, uint8, uint8, string, *models.Snssai) (string, error) {
+	return "", nil
+}
+
 func (f *fakeSmfSbi) PrepareSmContextFromEPS(_ context.Context, supi etsi.SUPI, pduSessionID, epsBearerIdentity uint8, dnn string, snssai *models.Snssai) (string, []byte, error) {
 	f.PrepareFromEPSCalls = append(f.PrepareFromEPSCalls, &SmfPrepareFromEPSCall{
 		Supi:              supi,

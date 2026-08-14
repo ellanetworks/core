@@ -49,6 +49,17 @@ type Operator struct {
 	ClusterID     string `db:"clusterID"`
 }
 
+const guamiRegionIDNodeType = 0x80
+
+const (
+	maxAmfRegionID = 0x7f
+	maxAmfSetID    = 1023
+)
+
+func (operator *Operator) GUAMIRegionID() uint8 {
+	return uint8(operator.AmfRegionID) | guamiRegionIDNodeType
+}
+
 func (operator *Operator) GetSupportedTacs() ([]string, error) {
 	if operator.SupportedTACs == "" {
 		return nil, nil
@@ -477,6 +488,14 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 // UpdateOperatorAMFIdentity updates the AMF Region ID and Set ID used to
 // compute the 24-bit AMF ID (3GPP TS 23.003 §2.10.1).
 func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, setID int) error {
+	if regionID < 0 || regionID > maxAmfRegionID {
+		return fmt.Errorf("amfRegionID must be between 0 and %d (the node-type bit is reserved), got %d", maxAmfRegionID, regionID)
+	}
+
+	if setID < 0 || setID > maxAmfSetID {
+		return fmt.Errorf("amfSetID must be between 0 and %d (constrained by the 10-bit AMF Set ID field), got %d", maxAmfSetID, setID)
+	}
+
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (amf identity)", "UPDATE", OperatorTableName),

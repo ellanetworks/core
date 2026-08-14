@@ -8,6 +8,14 @@ on:
 
 jobs:
   x2-handover-4g-integration-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ip_version: ipv4
+            attach_mode: tcx
+          - ip_version: ipv6
+            attach_mode: xdp-generic
     runs-on: ubuntu-26.04
 
     steps:
@@ -39,6 +47,8 @@ jobs:
       - name: Run X2 Handover 4G integration tests
         env:
           INTEGRATION: "1"
+          ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
+          IP_VERSION: ${{ matrix.ip_version }}
         run: |
           go test ./integration/... -run TestIntegration4GX2Handover -v -timeout 10m
 

@@ -9,9 +9,16 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
+
+func reuseTestAMF() *amf.AMF {
+	return amf.New(&fakeDBInstance{Operator: &db.Operator{
+		Mcc: "001", Mnc: "01", AmfRegionID: 0xca, AmfSetID: 0x3f,
+	}}, nil, nil)
+}
 
 func plainRegistrationWithGuti(t *testing.T, guti fgs.MobileIdentity) []byte {
 	t.Helper()
@@ -92,7 +99,7 @@ func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T
 		t.Fatalf("NewSUPIFromPrefixed: %v", err)
 	}
 
-	amfInstance := amf.New(nil, nil, nil)
+	amfInstance := reuseTestAMF()
 
 	ue := amf.NewUeContext()
 	ue.SetSupiForTest(supi)
@@ -119,11 +126,83 @@ func TestFetchUeContext_DeregistrationResolvesExistingContextByGuti(t *testing.T
 	}
 }
 
-// TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim is the
-// end-to-end regression for the GUTI-spoof DoS: a plain (unauthenticated)
-// initial REGISTRATION REQUEST that resolves by GUTI to a registered UE must be
-// routed to a fresh context, leaving the victim's committed context untouched
-// (TS 24.501).
+func gutiWithTMSI(t *testing.T, tmsi [4]byte) (fgs.MobileIdentity, etsi.GUTI5G) {
+	t.Helper()
+
+	id := fgs.GUTIIdentity(fgs.GUTI{
+		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
+		TMSI: tmsi,
+	})
+
+	guti, err := etsi.NewGUTI5GFromNAS(id)
+	if err != nil {
+		t.Fatalf("NewGUTI5GFromNAS: %v", err)
+	}
+
+	return id, guti
+}
+
+func securedUeForTest(t *testing.T, amfInstance *amf.AMF, imsi string, guti etsi.GUTI5G, knasInt [16]uint8) *amf.UeContext {
+	t.Helper()
+
+	supi, err := etsi.NewSUPIFromPrefixed(imsi)
+	if err != nil {
+		t.Fatalf("NewSUPIFromPrefixed: %v", err)
+	}
+
+	ue := amf.NewUeContext()
+	ue.SetSupiForTest(supi)
+	ue.SetSecuredForTest(true)
+	ue.SetIntegrityAlgForTest(nas.IntegrityAES)
+	ue.SetKnasIntForTest(knasInt)
+	ue.ForceStateForTest(amf.Registered)
+
+	amfInstance.AssignGutiForTest(ue, guti)
+
+	return ue
+}
+
+// TS 24.501 §5.5.1.3.2 a) NOTE 6, §5.5.1.3.4 a) and c)
+func TestFetchUeContext_InterSystemChangeResolvesTheAdditionalGUTI(t *testing.T) {
+	amfInstance := reuseTestAMF()
+
+	collidingID, collidingGuti := gutiWithTMSI(t, [4]byte{0x00, 0x00, 0x00, 0x01})
+	nativeID, nativeGuti := gutiWithTMSI(t, [4]byte{0x00, 0x00, 0x00, 0x02})
+
+	stranger := securedUeForTest(t, amfInstance, "imsi-001010000000001", collidingGuti,
+		[16]uint8{9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9})
+	mover := securedUeForTest(t, amfInstance, "imsi-001010000000002", nativeGuti,
+		[16]uint8{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+
+	inner, err := (&fgs.RegistrationRequest{
+		RegistrationType:       fgs.RegistrationTypeMobilityUpdating,
+		FOR:                    true,
+		MobileIdentity:         collidingID,
+		AdditionalGUTI:         &nativeID,
+		UEStatus:               &fgs.UEStatus{S1ModeReg: true},
+		UESecurityCapability:   &fgs.UESecurityCapability{},
+		EPSNASMessageContainer: []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x07, 0x48},
+	}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode RegistrationRequest: %v", err)
+	}
+
+	got, err := fetchUeContextWithMobileIdentity(context.Background(), amfInstance,
+		wrapIntegrityProtected(t, mover, inner, 0))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got == stranger {
+		t.Fatal("the mapped 5G-GUTI resolved another subscriber's context")
+	}
+
+	if got != mover {
+		t.Fatal("the UE's native 5G context was not found behind the Additional GUTI, so the AMF re-authenticates a UE it can already verify")
+	}
+}
+
+// TS 24.501
 func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing.T) {
 	gutiID := fgs.GUTIIdentity(fgs.GUTI{
 		PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 0xca, AMFSetID: 0x3f, AMFPointer: 0x00,
@@ -140,7 +219,7 @@ func TestFetchUeContext_PlainRegistrationDoesNotReuseRegisteredVictim(t *testing
 		t.Fatalf("NewSUPIFromPrefixed: %v", err)
 	}
 
-	amfInstance := amf.New(nil, nil, nil)
+	amfInstance := reuseTestAMF()
 
 	victim := amf.NewUeContext()
 	victim.SetSupiForTest(supi)

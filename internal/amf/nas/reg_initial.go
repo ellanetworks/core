@@ -103,7 +103,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 	}
 
 	ue.AllowedNssai = subscriberProfile.AllowedNssai
-	ue.Ambr = subscriberProfile.Ambr
+	ue.SetAmbr(subscriberProfile.Ambr)
 	ue.SetAllow4G(subscriberProfile.Allow4G)
 
 	if conn.RegistrationRequest.MICOIndication != nil {

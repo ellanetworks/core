@@ -167,3 +167,52 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 		t.Fatal("expected AllowedNSSAI to be absent when list is empty")
 	}
 }
+
+// TS 24.501 §8.2.7.31, TS 23.502 §4.11.1.3.3 steps 17-18
+func TestRegistrationAcceptDropsTheEPSBearerStatusOnceTheRegistrationIsDone(t *testing.T) {
+	ue := buildTestUE(t)
+	attachTestConn(t, ue)
+
+	if err := ue.CreateSmContext(3, "ref-3", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.SetEPSBearerIdentity(3, 6)
+
+	amfInstance := amf.New(nil, nil, nil)
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	conn := ue.Conn()
+	if conn == nil {
+		t.Fatal("no NAS connection")
+	}
+
+	conn.ArrivedFromEPS = true
+
+	if status := epsBearerStatusOf(t, amfInstance, ue); status == nil || !status.Active[6] {
+		t.Fatalf("EPS bearer context status = %+v, want EBI 6 active while the arrival is being registered", status)
+	}
+
+	ue.ClearRegistrationRequestData()
+
+	if status := epsBearerStatusOf(t, amfInstance, ue); status != nil {
+		t.Errorf("EPS bearer context status = %+v, want the IE omitted: the arrival flag outlived its registration", status)
+	}
+}
+
+func epsBearerStatusOf(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext) *nas.EPSBearerContextStatus {
+	t.Helper()
+
+	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil,
+		models.PlmnID{Mcc: "001", Mnc: "01"})
+	if err != nil {
+		t.Fatalf("BuildRegistrationAccept: %v", err)
+	}
+
+	ra, err := fgs.ParseRegistrationAccept(raw)
+	if err != nil {
+		t.Fatalf("parse RegistrationAccept: %v", err)
+	}
+
+	return ra.EPSBearerContextStatus
+}

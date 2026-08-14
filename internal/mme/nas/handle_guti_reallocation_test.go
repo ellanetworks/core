@@ -21,7 +21,10 @@ func TestGUTIReallocationCommitsOnComplete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gid, code := m.MmeIdentity()
+	gid, code, err := m.MmeIdentity(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	first, err := m.ReallocateGUTI(context.Background(), ue, plmn, gid, code)
 	if err != nil {

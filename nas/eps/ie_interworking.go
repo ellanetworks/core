@@ -11,10 +11,6 @@ import "fmt"
 // move rather than a fresh arrival — TS 24.301 §5.5.3.2.2 case zd has a UE
 // handed over from 5GS report "UE is in 5GMM-REGISTERED state" in the TAU that
 // follows.
-//
-// It is the EPS counterpart of fgs.UEStatus, and the two are the same element:
-// TS 24.301 defines it by reference. They stay separate types because neither
-// generation's codec reaches across the boundary.
 type UEStatus struct {
 	// S1ModeReg reports the UE is in EMM-REGISTERED state (octet 3, bit 1).
 	S1ModeReg bool

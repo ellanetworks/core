@@ -46,6 +46,7 @@ type UeContext struct {
 	regStep RegStep
 
 	arrivedFromEPSHandover bool
+	exportableToEPSUntil   time.Time
 
 	PlmnID  models.PlmnID
 	Suci    string
@@ -67,7 +68,6 @@ type UeContext struct {
 	procedures *procedure.Registry
 
 	secured              bool
-	keyOrigin            KeyOrigin
 	ueSecurityCapability *fgs.UESecurityCapability // TS 24.501 §9.11.3.54
 
 	gmmCapability         *fgs.GMMCapability
@@ -336,7 +336,6 @@ func (ue *UeContext) InstallNASSecurityContext(nea nas.CipheringAlgorithm, nia n
 
 	if err == nil {
 		ue.ulCount.Reset()
-		ue.keyOrigin = KeyOriginPrimaryAuth
 	}
 	ue.mu.Unlock()
 
@@ -465,6 +464,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 	conn.resyncTried = false
 	conn.RetransmissionOfInitialNASMsg = false
 	conn.RegistrationAcceptPlain = nil
+	conn.ArrivedFromEPS = false
 
 	if r := ue.active.Load(); r != nil {
 		r.UeContextRequest = false

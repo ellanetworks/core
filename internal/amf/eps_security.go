@@ -165,6 +165,35 @@ func (ue *UeContext) MapSecurityContextToEPS() (interworking.FiveGToEPSHandover,
 	return interworking.MapToEPSOnHandover(in)
 }
 
+func (ue *UeContext) MapSecurityContextToEPSOnIdleMobility() (interworking.EPSSecurityContext, error) {
+	dl := ue.dl.Next()
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if !ue.secured || ue.sc == nil {
+		return interworking.EPSSecurityContext{}, ErrNo5GSecurityContext
+	}
+
+	if ue.epsNASAlgorithms == nil {
+		return interworking.EPSSecurityContext{}, ErrNoEPSNASAlgorithms
+	}
+
+	if ue.epsSecurityCapability == nil {
+		return interworking.EPSSecurityContext{}, ErrNoEPSSecurityCapability
+	}
+
+	return interworking.MapToEPSOnIdleMobility(interworking.FiveGToEPSInput{
+		KAMF:                   ue.kamf,
+		NgKSI:                  ngKsi(ue.ngKsi),
+		ULNASCount:             ue.ulCount.LastAccepted(),
+		DLNASCount:             dl,
+		Algorithms:             *ue.epsNASAlgorithms,
+		UESecurityCapability:   *ue.epsSecurityCapability,
+		UE5GSecurityCapability: ue.ueSecurityCapability,
+	})
+}
+
 func (ue *UeContext) InstallMappedSecurityContextFromEPS(mapped interworking.Mapped5GSecurityContext, _ AuthProof) error {
 	ue.mu.Lock()
 
@@ -188,12 +217,10 @@ func (ue *UeContext) InstallMappedSecurityContextFromEPS(mapped interworking.Map
 	ue.ncc = mapped.NCC
 
 	ue.secured = true
-	ue.keyOrigin = KeyOriginMappedFromEPS
 
 	err := ue.installSecurityContextLocked()
 	if err != nil {
 		ue.secured = false
-		ue.keyOrigin = KeyOriginUnknown
 	}
 
 	sc := ue.sc

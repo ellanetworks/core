@@ -95,6 +95,7 @@ type UE struct {
 	Snssai                 models.Snssai
 	amfInfo                Amf
 	IMEISV                 string
+	replayRegistration     []byte
 	Gnb                    air.UplinkSender
 	mu                     sync.Mutex
 	cond                   *sync.Cond

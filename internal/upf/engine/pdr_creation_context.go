@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
+
 package engine
 
 import (
@@ -56,9 +57,7 @@ func (pdrContext *PDRCreationContext) allocateTEID() (uint32, error) {
 	return allocatedTeID, nil
 }
 
-// ExtractPDR populates spdrInfo from a models.PDR, looking up
-// the referenced FAR and QER from the provided maps.
-func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRInfo, farMap map[uint32]ebpf.FarInfo, qerMap map[uint32]ebpf.QerInfo) error {
+func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRInfo, farMap map[uint32]ebpf.FarInfo, qerMap map[uint32]ebpf.QerInfo) (allocated bool, err error) {
 	if pdr.OuterHeaderRemoval != nil {
 		spdrInfo.PdrInfo.OuterHeaderRemoval = *pdr.OuterHeaderRemoval
 	}
@@ -72,28 +71,25 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRI
 	spdrInfo.PdrInfo.UrrID = pdr.URRID
 
 	if pdr.PDI.LocalFTEID != nil {
-		// If the spdrInfo already carries a TEID (i.e. this is an update of an existing
-		// uplink PDR), keep that TEID instead of allocating a new one. Allocating a new
-		// TEID on update would create a stale BPF map entry under the old TEID while
-		// the gNB continues to send traffic to the original TEID.
-		if spdrInfo.TeID == 0 {
-			teid, err := pdrContext.allocateTEID()
-			if err != nil {
-				return fmt.Errorf("can't allocate TEID: %w", err)
-			}
-
-			spdrInfo.Allocated = true
-			spdrInfo.TeID = teid
+		if spdrInfo.TeID != 0 {
+			return false, nil
 		}
 
-		return nil
+		teid, err := pdrContext.allocateTEID()
+		if err != nil {
+			return false, fmt.Errorf("can't allocate TEID: %w", err)
+		}
+
+		spdrInfo.TeID = teid
+
+		return true, nil
 	}
 
 	if pdr.PDI.UEIPAddress.IsValid() {
 		spdrInfo.UEIP = pdr.PDI.UEIPAddress
 
-		return nil
+		return false, nil
 	}
 
-	return fmt.Errorf("both F-TEID and UE IP Address are missing")
+	return false, fmt.Errorf("both F-TEID and UE IP Address are missing")
 }

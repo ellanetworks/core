@@ -48,6 +48,18 @@ func (s *DownlinkSender) Install(sc *SecurityContext, count DownlinkCounter) {
 	s.count = count
 }
 
+// Rekey makes sc the security context protecting downlink messages, leaving the
+// downlink NAS COUNT as it is. It takes into use keys re-derived from the same
+// root key with new algorithm identities, which is not a new security context
+// and so does not restart its COUNTs (TS 24.301 §5.4.3.2, TS 33.401 §6.5,
+// TS 24.501 §5.4.2.1, TS 33.501 §6.4.5).
+func (s *DownlinkSender) Rekey(sc *SecurityContext) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.sc = sc
+}
+
 // Clear drops the security context, leaving the counter as it is.
 // [DownlinkSender.Send] reports [ErrNoSecurityContext] until another context is
 // installed.

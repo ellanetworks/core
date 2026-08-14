@@ -21,6 +21,7 @@ import (
 var scenariosSkipped = map[string]string{
 	"gnb/ngap/n2_handover":                   "multi-gNB, covered by TestIntegration5GN2Handover",
 	"gnb/n2_handover_connectivity":           "multi-gNB, covered by TestIntegration5GN2Handover",
+	"gnb/xn_handover_connectivity":           "multi-gNB datapath, covered by TestIntegration5GXnHandover",
 	"s1enb/x2_handover_connectivity":         "multi-eNB datapath, covered by TestIntegration4GX2Handover",
 	"s1enb/s1_handover":                      "multi-eNB datapath, covered by TestIntegration4GS1Handover",
 	"ha/failover_connectivity_5g":            "multi-core HA topology, covered by TestIntegration5GHAFailover",
@@ -71,6 +72,9 @@ var scenarioFollowsDeploymentIPFamily = map[string]bool{
 	"interworking/handover_5gs_to_eps_target_refuses": true,
 	"interworking/handover_eps_to_5gs":                true,
 	"interworking/handover_eps_to_5gs_target_refuses": true,
+	"interworking/idle_5gs_to_eps":                    true,
+	"interworking/idle_5gs_to_eps_returning_to_idle":  true,
+	"interworking/idle_eps_to_5gs":                    true,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP

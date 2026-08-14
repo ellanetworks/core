@@ -36,6 +36,12 @@ type fiveGSPeerStub struct {
 	gate      chan struct{}
 }
 
+func (p *fiveGSPeerStub) EPSContext(context.Context, interworking.EPSContextRequest) (interworking.EPSContextResponse, error) {
+	return interworking.EPSContextResponse{}, interworking.ErrUnknownUEContext
+}
+
+func (p *fiveGSPeerStub) EPSContextAck(context.Context, etsi.SUPI, []uint8) error { return nil }
+
 func (p *fiveGSPeerStub) ForwardRelocation(_ context.Context, req interworking.FiveGSRelocationRequest) (interworking.FiveGSRelocationResponse, error) {
 	p.mu.Lock()
 	p.request = &req
