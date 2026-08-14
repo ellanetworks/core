@@ -9,9 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
-// Merging a rule into the PDRs that reference it must not reach the datapath:
-// the caller writes each affected PDR once, after every rule is merged. A nil
-// BpfObjects is the assertion — any write would dereference it.
 func TestRestampReferencingPDRsLeavesTheDatapathAlone(t *testing.T) {
 	eng := newTestEngine()
 
@@ -32,7 +29,6 @@ func TestRestampReferencingPDRsLeavesTheDatapathAlone(t *testing.T) {
 	restampReferencingPDRs(sess, touched, func(SPDRInfo) bool { return true },
 		func(p *SPDRInfo) { p.PdrInfo.Qer = qer })
 
-	// Both rules belong to both PDRs, so each is recorded once, not once per rule.
 	if len(touched) != 2 {
 		t.Fatalf("touched = %v, want one entry for each of the session's 2 PDRs", touched)
 	}

@@ -99,7 +99,6 @@ func (s *Session) GetPDR(id uint32) SPDRInfo {
 	return s.pdrs[id]
 }
 
-// LookupPDR returns the PDR and whether it exists.
 func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -109,7 +108,6 @@ func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
 	return info, ok
 }
 
-// ListPDRs returns a snapshot copy of the PDR map.
 func (s *Session) ListPDRs() map[uint32]SPDRInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -120,7 +118,6 @@ func (s *Session) ListPDRs() map[uint32]SPDRInfo {
 	return c
 }
 
-// ListFARs returns a snapshot copy of the FAR map.
 func (s *Session) ListFARs() map[uint32]ebpf.FarInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -131,7 +128,6 @@ func (s *Session) ListFARs() map[uint32]ebpf.FarInfo {
 	return c
 }
 
-// GetQer returns the QER with the given ID.
 func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -139,7 +135,6 @@ func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	return s.qers[id]
 }
 
-// PutQer stores a QER by ID so that PDR creation can look it up.
 func (s *Session) PutQer(id uint32, qerInfo ebpf.QerInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

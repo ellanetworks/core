@@ -42,9 +42,6 @@ const (
 	urrIDDownlink uint32 = 2
 )
 
-// An unbound anchor produces a downlink FAR with no Outer Header Creation, which
-// the UPF merges as "unchanged": forwarding on it sends the UE's traffic to
-// whichever access node the session last held, under that node's encapsulation.
 func (d dataPlane) valid() error {
 	if d.Downlink == DownlinkForwarding && !d.AN.bound() {
 		return fmt.Errorf("the downlink cannot forward with no access-network endpoint")
