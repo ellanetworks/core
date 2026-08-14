@@ -27,20 +27,21 @@ func TestIntegration4GX2Handover(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	if f := DetectIPFamily(); f == IPv6Only || f == DualStack {
-		t.Skipf("skipping: TestIntegration4GX2Handover is IPv4-only (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
+	if DetectIPFamily() == DualStack {
+		t.Skipf("skipping: TestIntegration4GX2Handover has no dualstack topology (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	const (
-		composeDir  = "compose/x2-handover/"
-		composeFile = "compose.yaml"
-		coreAPI     = "http://10.3.0.2:5002"
-		coreN2      = "10.3.0.2:38412"
-		scenario    = "s1enb/x2_handover_connectivity"
+		composeDir = "compose/x2-handover/"
+		scenario   = "s1enb/x2_handover_connectivity"
 	)
+
+	composeFile := HandoverComposeFile()
+	coreAPI := APIAddress()
+	coreN2 := HandoverCoreN2Address()
 
 	dc, err := NewDockerClient()
 	if err != nil {
@@ -91,8 +92,11 @@ func TestIntegration4GX2Handover(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
+	spec := scenarios.FixtureSpec{}
+
 	if s, ok := scenarios.Get(scenario); ok && s.Fixture != nil {
-		fx.Apply(s.Fixture(scenarios.Env{}))
+		spec = s.Fixture(scenarios.Env{})
+		fx.Apply(spec)
 	}
 
 	testerContainer, err := dc.ResolveComposeContainer(ctx, "x2-handover", "ella-core-tester")
@@ -103,9 +107,12 @@ func TestIntegration4GX2Handover(t *testing.T) {
 	argv := []string{
 		"core-tester", "run", scenario,
 		"--ella-core-n2-address", coreN2,
-		"--gnb", "source,n2=10.3.0.3,n3=10.3.0.21",
-		"--gnb", "target,n2=10.3.0.4,n3=10.3.0.22",
+		"--ip-version", string(DetectIPFamily()),
 		"--verbose",
+	}
+
+	for _, spec := range HandoverRadioSpecs() {
+		argv = append(argv, "--gnb", spec)
 	}
 
 	out, execErr := dc.Exec(ctx, testerContainer, argv, false, 3*time.Minute, nil)
@@ -114,4 +121,8 @@ func TestIntegration4GX2Handover(t *testing.T) {
 	}
 
 	t.Logf("scenario %s passed\n%s", scenario, out)
+
+	if len(spec.AssertUsageForIMSIs) > 0 {
+		fixture.AssertUsagePositive(ctx, t, coreClient, spec.AssertUsageForIMSIs, 30*time.Second)
+	}
 }

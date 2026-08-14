@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
@@ -28,7 +27,8 @@ func init() {
 		Run:       runS1ENBHandover,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(s1hoIMSI, "")},
+				Subscribers:         []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(s1hoIMSI, "")},
+				AssertUsageForIMSIs: []string{s1hoIMSI},
 			}
 		},
 	})
@@ -82,26 +82,27 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 	defer func() { _ = target.Close() }()
 
 	ue := source.NewUE(s1hoIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := source.Attach(ue, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("attach on source eNB: %w", err)
 	}
 
-	if res.UEIPv4 == "" {
-		return fmt.Errorf("attach assigned no IPv4 address")
+	sourceTunnel, err := handoverTunnelOpts(env, res, res.DLTEID, s1hoSourceTun)
+	if err != nil {
+		return err
 	}
 
-	if err := source.AddTunnel(&s1enb.TunnelOpts{
-		UEIPv4: res.UEIPv4 + "/16", UpfAddress: res.UpfAddress, ULTEID: res.ULTEID, DLTEID: res.DLTEID,
-		TunInterfaceName: s1hoSourceTun,
-	}); err != nil {
+	if err := source.AddTunnel(sourceTunnel); err != nil {
 		return fmt.Errorf("add source GTP tunnel: %w", err)
 	}
 
-	time.Sleep(500 * time.Millisecond)
+	if err := awaitHandoverTunnelReady(env, s1hoSourceTun); err != nil {
+		return err
+	}
 
-	if err := probe.Run(ctx, probe.ICMP, s1hoSourceTun, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(ctx, env, s1hoSourceTun); err != nil {
 		return fmt.Errorf("ping before handover via source eNB: %w", err)
 	}
 
@@ -143,7 +144,7 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 	}
 
 	// The downlink must still run via the source before notify.
-	if err := probe.Run(ctx, probe.ICMP, s1hoSourceTun, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(ctx, env, s1hoSourceTun); err != nil {
 		return fmt.Errorf("ping during handover preparation via source eNB (UPF switched too early?): %w", err)
 	}
 
@@ -161,18 +162,22 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 
 	source.CloseTunnel(res.DLTEID)
 
-	if err := target.AddTunnel(&s1enb.TunnelOpts{
-		UEIPv4: res.UEIPv4 + "/16", UpfAddress: res.UpfAddress, ULTEID: res.ULTEID, DLTEID: dlTEID,
-		TunInterfaceName: s1hoTargetTun,
-	}); err != nil {
+	targetTunnel, err := handoverTunnelOpts(env, res, dlTEID, s1hoTargetTun)
+	if err != nil {
+		return err
+	}
+
+	if err := target.AddTunnel(targetTunnel); err != nil {
 		return fmt.Errorf("add target GTP tunnel: %w", err)
 	}
 
 	defer target.CloseTunnel(dlTEID)
 
-	time.Sleep(500 * time.Millisecond)
+	if err := awaitHandoverTunnelReady(env, s1hoTargetTun); err != nil {
+		return err
+	}
 
-	if err := probe.Run(ctx, probe.ICMP, s1hoTargetTun, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+	if err := handoverProbe(ctx, env, s1hoTargetTun); err != nil {
 		return fmt.Errorf("ping after S1 handover via target eNB (UPF downlink not switched?): %w", err)
 	}
 

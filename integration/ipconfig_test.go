@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 )
@@ -206,6 +207,43 @@ func UERANSIMGNBN3Address() string {
 		return "2001:db8:3::11"
 	default: // IPv4Only
 		return "10.3.0.11"
+	}
+}
+
+// HandoverComposeFile returns the compose file the two-radio handover
+// topologies use for the current IP family. Those topologies only ship an IPv4
+// and an IPv6 variant; dualstack runs are skipped by the tests themselves.
+func HandoverComposeFile() string {
+	if DetectIPFamily() == IPv6Only {
+		return "compose-ipv6.yaml"
+	}
+
+	return "compose.yaml"
+}
+
+// HandoverCoreN2Address returns the core N2 endpoint, host:port, of the
+// two-radio handover topologies.
+func HandoverCoreN2Address() string {
+	if DetectIPFamily() == IPv6Only {
+		return net.JoinHostPort("2001:db8:1::10", "38412")
+	}
+
+	return net.JoinHostPort("10.3.0.2", "38412")
+}
+
+// HandoverRadioSpecs returns the --gnb arguments naming the source and target
+// radios of the two-radio handover topologies.
+func HandoverRadioSpecs() []string {
+	if DetectIPFamily() == IPv6Only {
+		return []string{
+			"source,n2=2001:db8:1::11,n3=2001:db8:3::21",
+			"target,n2=2001:db8:1::12,n3=2001:db8:3::22",
+		}
+	}
+
+	return []string{
+		"source,n2=10.3.0.3,n3=10.3.0.21",
+		"target,n2=10.3.0.4,n3=10.3.0.22",
 	}
 }
 
