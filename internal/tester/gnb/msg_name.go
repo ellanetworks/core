@@ -34,6 +34,8 @@ func messageName(cat Category, code ngap.ProcedureCode) string {
 		ngap.ProcHandoverResourceAllocation:         "HandoverResourceAllocation",
 		ngap.ProcHandoverNotification:               "HandoverNotification",
 		ngap.ProcHandoverCancel:                     "HandoverCancel",
+		ngap.ProcUplinkRANStatusTransfer:            "UplinkRANStatusTransfer",
+		ngap.ProcDownlinkRANStatusTransfer:          "DownlinkRANStatusTransfer",
 		ngap.ProcDownlinkUEAssociatedNRPPaTransport: "DownlinkUEAssociatedNRPPaTransport",
 		ngap.ProcUplinkUEAssociatedNRPPaTransport:   "UplinkUEAssociatedNRPPaTransport",
 	}[code]

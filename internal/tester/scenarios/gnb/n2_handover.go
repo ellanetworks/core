@@ -27,6 +27,33 @@ const (
 
 var n2HandoverRRCContainer = []byte{0xC0, 0xDE, 0x5A, 0xFE}
 
+var n2HandoverStatusContainer = []byte{0x5A, 0x71, 0x03, 0x11}
+
+func relayRANStatusTransfer(sourceGNB, targetGNB *gnb.GnodeB, sourceAMFUENGAPID, sourceRANUENGAPID, targetRANUENGAPID int64) error {
+	if err := sourceGNB.SendUplinkRANStatusTransfer(&gnb.UplinkRANStatusTransferOpts{
+		AMFUENGAPID: sourceAMFUENGAPID,
+		RANUENGAPID: sourceRANUENGAPID,
+		Container:   n2HandoverStatusContainer,
+	}); err != nil {
+		return fmt.Errorf("send UplinkRANStatusTransfer: %w", err)
+	}
+
+	transfer, err := targetGNB.WaitForDownlinkRANStatusTransfer(5 * time.Second)
+	if err != nil {
+		return fmt.Errorf("the target gNB got no relayed RAN status: %w", err)
+	}
+
+	if int64(transfer.RANUENGAPID) != targetRANUENGAPID {
+		return fmt.Errorf("the relayed RAN status names RAN-UE-NGAP-ID %d, want the target's %d", transfer.RANUENGAPID, targetRANUENGAPID)
+	}
+
+	if !bytes.Equal(transfer.Container, n2HandoverStatusContainer) {
+		return fmt.Errorf("the relayed RAN status container = %x, want the source's %x", transfer.Container, n2HandoverStatusContainer)
+	}
+
+	return nil
+}
+
 func assertN2HandoverCommand(frame gnb.SCTPFrame, amfUENGAPID, ranUENGAPID int64) error {
 	cmd, err := ngaplib.ParseHandoverCommand(frame.Value)
 	if err != nil {
@@ -220,6 +247,10 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	if err := assertN2HandoverCommand(hoCmdFrame, amfUENGAPID, ranUENGAPID); err != nil {
+		return err
+	}
+
+	if err := relayRANStatusTransfer(sourceGNB, targetGNB, amfUENGAPID, ranUENGAPID, targetRanUENGAPID); err != nil {
 		return err
 	}
 

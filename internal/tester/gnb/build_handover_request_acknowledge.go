@@ -16,8 +16,17 @@ type HandoverRequestAcknowledgeOpts struct {
 
 	PDUSessions []HandoverAdmittedPDUSession
 
+	// Sessions the target refuses, reported so the AMF tells the source to
+	// release them (TS 38.413 §9.2.1.2).
+	FailedPDUSessions []HandoverFailedPDUSession
+
 	// Opaque RRC container.
 	TargetToSourceTransparentContainer []byte
+}
+
+type HandoverFailedPDUSession struct {
+	PDUSessionID int64
+	Cause        ngap.Cause
 }
 
 type HandoverAdmittedPDUSession struct {
@@ -45,6 +54,20 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 		})
 	}
 
+	var failed ngap.PDUSessionResourceFailedToSetupListHOAck
+
+	for _, ps := range opts.FailedPDUSessions {
+		transfer, err := (&ngap.HandoverResourceAllocationUnsuccessfulTransfer{Cause: ps.Cause}).Marshal()
+		if err != nil {
+			return nil, fmt.Errorf("build unsuccessful transfer for session %d: %w", ps.PDUSessionID, err)
+		}
+
+		failed = append(failed, ngap.PDUSessionResourceFailedToSetupItemHOAck{
+			PDUSessionID: ngap.PDUSessionID(ps.PDUSessionID),
+			Transfer:     transfer,
+		})
+	}
+
 	container := opts.TargetToSourceTransparentContainer
 	if container == nil {
 		container = []byte{0x00}
@@ -54,6 +77,7 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 		AMFUENGAPID:                        ngap.Ptr(ngap.AMFUENGAPID(opts.AMFUENGAPID)),
 		RANUENGAPID:                        ngap.Ptr(ngap.RANUENGAPID(opts.RANUENGAPID)),
 		PDUSessionResourceAdmittedList:     admitted,
+		PDUSessionResourceFailedToSetup:    failed,
 		TargetToSourceTransparentContainer: container,
 	}
 
