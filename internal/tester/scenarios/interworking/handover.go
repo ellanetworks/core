@@ -204,7 +204,7 @@ func handoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, u *ue.UE, ranUENGAPID int64
 
 // TS 33.501 §8.3.2 steps 8-9
 func installMappedContext(u *ue.UE, cmd *gnb.HandoverToEPSCommand) (*s1enb.UE, error) {
-	dl, err := s1enb.EstimateDownlinkNASCount(u.UeSecurity.DLCount, cmd.DownlinkNASCountSequenceNumber)
+	dl, err := s1enb.EstimateDownlinkNASCount(u.UeSecurity.DLRecv.LastAccepted(), cmd.DownlinkNASCountSequenceNumber)
 	if err != nil {
 		return nil, fmt.Errorf("rebuild the downlink NAS COUNT: %w", err)
 	}

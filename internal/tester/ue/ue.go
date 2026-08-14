@@ -41,12 +41,15 @@ const (
 const ngKSINoKey = 7
 
 type UESecurity struct {
-	Supi                      string
-	Msin                      string
-	mcc                       string
-	mnc                       string
-	ULCount                   nas.Count
-	DLCount                   nas.Count
+	Supi    string
+	Msin    string
+	mcc     string
+	mnc     string
+	ULCount nas.Count
+	// DLRecv is the receive-side counter of the downlink direction. It is a
+	// nas.UplinkCounter because that type is the receiver side of a NAS COUNT and is
+	// direction-agnostic: the direction feeds the crypto, not the counter.
+	DLRecv                    nas.UplinkCounter
 	UeSecurityCapability      fgs.UESecurityCapability
 	IntegrityAlg              uint8
 	CipheringAlg              uint8
