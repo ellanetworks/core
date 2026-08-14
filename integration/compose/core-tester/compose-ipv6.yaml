@@ -3,7 +3,7 @@ configs:
     content: |
       logging:
         system:
-          level: "info"
+          level: "debug"
           output: "stdout"
         audit:
           output: "stdout"
