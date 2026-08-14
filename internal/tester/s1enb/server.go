@@ -674,6 +674,10 @@ func frameENBUEID(f Frame) int64 {
 		if m, err := s1ap.ParseHandoverPreparationFailure(f.Value); err == nil && m.ENBUES1APID != nil {
 			return int64(*m.ENBUES1APID)
 		}
+	case f.Category == Unsuccessful && f.ProcedureCode == s1ap.ProcPathSwitchRequest:
+		if m, err := s1ap.ParsePathSwitchRequestFailure(f.Value); err == nil && m.ENBUES1APID != nil {
+			return int64(*m.ENBUES1APID)
+		}
 	case f.Category == Successful && f.ProcedureCode == s1ap.ProcHandoverCancel:
 		if m, err := s1ap.ParseHandoverCancelAcknowledge(f.Value); err == nil && m.ENBUES1APID != nil {
 			return int64(*m.ENBUES1APID)

@@ -285,3 +285,27 @@ func TestBuildPDUSessionResponsesRoundTrip(t *testing.T) {
 		}
 	})
 }
+
+func TestBuildUplinkRANStatusTransferRoundTrips(t *testing.T) {
+	pdu, err := gnb.BuildUplinkRANStatusTransfer(&gnb.UplinkRANStatusTransferOpts{
+		AMFUENGAPID: 7,
+		RANUENGAPID: 11,
+		Container:   []byte{0x5A, 0x71, 0x03, 0x11},
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+
+	msg, err := ngap.ParseUplinkRANStatusTransfer(initiatingValue(t, pdu, ngap.ProcUplinkRANStatusTransfer))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	if msg.AMFUENGAPID != 7 || msg.RANUENGAPID != 11 {
+		t.Errorf("AP ids = (%d, %d), want (7, 11)", msg.AMFUENGAPID, msg.RANUENGAPID)
+	}
+
+	if string(msg.Container) != string([]byte{0x5A, 0x71, 0x03, 0x11}) {
+		t.Errorf("container = %x, want 5a710311", msg.Container)
+	}
+}

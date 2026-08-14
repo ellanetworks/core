@@ -1,4 +1,4 @@
-name: X2 Handover 4G integration tests
+name: Xn Handover 5G integration tests
 
 permissions:
   contents: read
@@ -7,7 +7,7 @@ on:
   workflow_call:
 
 jobs:
-  x2-handover-4g-integration-test:
+  xn-handover-5g-integration-test:
     strategy:
       fail-fast: false
       matrix:
@@ -44,19 +44,19 @@ jobs:
       - name: Install libpcap headers
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
-      - name: Run X2 Handover 4G integration tests
+      - name: Run Xn Handover 5G integration tests
         env:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
           IP_VERSION: ${{ matrix.ip_version }}
         run: |
-          go test ./integration/... -run TestIntegration4GX2Handover -v -timeout 10m
+          go test ./integration/... -run TestIntegration5GXnHandover -v -timeout 10m
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: x2-handover-4g-logs
-          path: /tmp/x2-handover-4g-logs
+          name: xn-handover-5g-logs
+          path: /tmp/xn-handover-5g-logs
           if-no-files-found: ignore
           retention-days: 7
