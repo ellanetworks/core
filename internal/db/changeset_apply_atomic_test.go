@@ -170,3 +170,61 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 		t.Fatalf("lastApplied after conflict: want 42 (rolled back), got %d", got)
 	}
 }
+
+func captureSPNChangeset(t *testing.T, database *Database, spn string) []byte {
+	t.Helper()
+
+	bytes, _, err := database.captureChangeset(context.Background(),
+		func(ctx context.Context) (any, error) {
+			return database.applyUpdateOperatorSPN(ctx, &Operator{
+				ID:           1,
+				SpnFullName:  spn,
+				SpnShortName: spn,
+			})
+		}, "UpdateOperatorSPN")
+	if err != nil {
+		t.Fatalf("capture changeset: %v", err)
+	}
+
+	if len(bytes) == 0 {
+		t.Fatalf("capture changeset returned zero bytes")
+	}
+
+	return bytes
+}
+
+// TestApplyChangeset_StalePreImageConflicts states the cost of capturing
+// against a database that has not applied every preceding log entry: the
+// UPDATE carries the pre-image the capture saw, sqlite3changeset_apply finds
+// a row that no longer matches it, and the apply aborts.
+//
+// The bytes are identical on every node, so the abort is not node-local —
+// which is what Manager.WriteBarrier exists to prevent.
+func TestApplyChangeset_StalePreImageConflicts(t *testing.T) {
+	database := newAtomicTestDB(t)
+	ctx := context.Background()
+
+	// Two captures against the same pre-image: one committed by the
+	// previous leader, one taken before its entry reaches SQLite.
+	pending := captureSPNChangeset(t, database, "pending")
+	stale := captureSPNChangeset(t, database, "stale")
+
+	if _, err := database.applyChangeset(ctx, &bytesPayload{
+		Value:     pending,
+		Operation: "UpdateOperatorSPN",
+	}, 100); err != nil {
+		t.Fatalf("apply pending entry: %v", err)
+	}
+
+	_, err := database.applyChangeset(ctx, &bytesPayload{
+		Value:     stale,
+		Operation: "UpdateOperatorSPN",
+	}, 101)
+	if err == nil {
+		t.Fatalf("apply changeset with stale pre-image: want a conflict error, got nil")
+	}
+
+	if got := readLastApplied(t, database); got != 100 {
+		t.Fatalf("lastApplied after conflict: want 100 (rolled back), got %d", got)
+	}
+}
