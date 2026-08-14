@@ -81,7 +81,7 @@ func answerPaging(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext, algo na
 }
 
 // A UE answering a page for a buffered LPP message is sent that message in a DL NAS
-// Transport with the LPP payload container 
+// Transport with the LPP payload container
 func TestHandleServiceRequest_MT_BufferedLPP_Delivered(t *testing.T) {
 	amfInstance, ue, ngapSender, key, algo := standaloneBufferUE(t)
 
