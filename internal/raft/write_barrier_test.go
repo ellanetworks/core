@@ -13,8 +13,6 @@ import (
 	hraft "github.com/hashicorp/raft"
 )
 
-// slowApplier delays every ApplyCommand so a node's FSM lags the committed
-// Raft log by a controllable amount.
 type slowApplier struct {
 	*testApplier
 
@@ -29,9 +27,8 @@ func (a *slowApplier) ApplyCommand(ctx context.Context, cmd *Command, idx uint64
 	return a.testApplier.ApplyCommand(ctx, cmd, idx)
 }
 
-// newLaggingCluster returns a 3-node cluster whose followers apply each
-// command with delay, so a follower promoted after the leader fails carries
-// a backlog of committed-but-unapplied entries.
+// newLaggingCluster slows the followers only, so whichever one is promoted
+// carries a backlog of committed-but-unapplied entries.
 func newLaggingCluster(t *testing.T, delay time.Duration) (*TestCluster, []*slowApplier) {
 	t.Helper()
 
@@ -57,8 +54,6 @@ func newLaggingCluster(t *testing.T, delay time.Duration) (*TestCluster, []*slow
 	return tc, appliers
 }
 
-// proposeN proposes n commands on the leader and returns once all are
-// committed.
 func proposeN(t *testing.T, leader *Manager, n int) {
 	t.Helper()
 
@@ -74,8 +69,6 @@ func proposeN(t *testing.T, leader *Manager, n int) {
 	}
 }
 
-// awaitLeader returns the first survivor whose raft.State() is Leader, along
-// with the number of commands its FSM has applied at that moment.
 func awaitLeader(t *testing.T, tc *TestCluster, survivors []int, appliers []*slowApplier) (*Manager, int) {
 	t.Helper()
 
@@ -96,13 +89,6 @@ func awaitLeader(t *testing.T, tc *TestCluster, survivors []int, appliers []*slo
 	}
 }
 
-// TestWriteBarrier_WaitsForPriorTermEntries pins the guarantee the capture
-// path depends on: once WriteBarrier returns, every entry committed under
-// the previous leader is in the local database.
-//
-// raft.State() reports Leader as soon as the election is won, so a capture
-// taken before the barrier reads pre-images that the queued entries
-// invalidate before the capture's own entry applies.
 func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 	const proposals = 30
 
@@ -145,9 +131,6 @@ func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 	}
 }
 
-// TestWriteBarrier_OncePerTerm confirms the barrier is paid on the first
-// leader write of a term and skipped afterwards: a second call appends no
-// Raft log entry.
 func TestWriteBarrier_OncePerTerm(t *testing.T) {
 	applier := newTestApplier(t)
 	tc := SetupTestCluster(t, 3, applier)
@@ -172,9 +155,6 @@ func TestWriteBarrier_OncePerTerm(t *testing.T) {
 	}
 }
 
-// TestWriteBarrier_NotLeader confirms a follower reports ErrNotLeader rather
-// than parking on the leader-only apply channel until the timeout, so the
-// caller can forward the write instead.
 func TestWriteBarrier_NotLeader(t *testing.T) {
 	applier := newTestApplier(t)
 	tc := SetupTestCluster(t, 3, applier)

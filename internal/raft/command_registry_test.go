@@ -5,10 +5,8 @@ package raft
 
 import "testing"
 
-// pinnedCommandTypes is the replicated command vocabulary as of the
-// current release. Editing it is the deliberate act that adding or
-// retiring a CommandType requires; see the CommandType doc comment for
-// what else that change has to carry.
+// Editing pinnedCommandTypes is the deliberate act that adding or retiring a
+// CommandType requires.
 var pinnedCommandTypes = map[CommandType]string{
 	0:   "Changeset",
 	12:  "DeleteOldDailyUsage",

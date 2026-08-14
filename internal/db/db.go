@@ -325,13 +325,9 @@ type Database struct {
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
 	appliedSchemaCache atomic.Int64
 
-	// probeMemberSchema reads a peer's live SchemaVersion. Field-injected
-	// so tests can stub it.
+	// Field-injected so tests can stub them.
 	probeMemberSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
-
-	// raftMemberIDs lists the node IDs in the live Raft configuration.
-	// Field-injected so tests can stub it.
-	raftMemberIDs func() []int
+	raftMemberIDs     func() []int
 }
 
 // conn returns the current *sqlair.DB handle.
@@ -768,10 +764,9 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 	return nil
 }
 
-// CheckPendingMigrations proposes one CmdMigrateShared per missing
-// migration, up to the minimum SchemaVersion across cluster members.
-// Nonvoters bind the floor too: they apply committed entries with the
-// same FSM as voters.
+// CheckPendingMigrations proposes one CmdMigrateShared per missing migration,
+// up to the minimum SchemaVersion across cluster members. Nonvoters bind the
+// floor too: they run the same FSM over the same committed entries.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
 		return nil
@@ -884,8 +879,8 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 }
 
 // minMemberSchemaSupport returns the minimum SchemaVersion across cluster
-// members and the laggard's nodeID; with no member rows, the local
-// binary's SchemaVersion, so a fresh leader can run its own migrations.
+// members and the laggard's nodeID. With no member rows it returns the local
+// binary's version, so a fresh leader can run its own migrations.
 func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
@@ -903,9 +898,8 @@ func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error
 		}
 	}
 
-	// A cluster_members row outlives removal from the Raft configuration
-	// (separate commits). Only nodes in the configuration receive entries,
-	// so only their schema versions bind the gate.
+	// A cluster_members row outlives removal from the Raft configuration, and
+	// a node outside the configuration receives no entries to choke on.
 	var inConfiguration []int
 	if db.raftMemberIDs != nil {
 		inConfiguration = db.raftMemberIDs()

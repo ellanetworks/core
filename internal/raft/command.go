@@ -9,22 +9,15 @@ import (
 	"fmt"
 )
 
-// CommandType identifies a shared-DB write operation in the Raft log.
-//
-// A new type ships with a schema migration, and the operation proposing
-// it declares db.RequireSchema(N) for that migration's version. A
-// migration applies only once every member reports a binary supporting
-// it, and the join handshake holds that floor, making the applied schema
-// a durable cluster-wide statement of which commands every member can
-// apply.
+// CommandType identifies a shared-DB write operation in the Raft log. Every
+// member applies every committed entry, so adding or retiring a type needs a
+// schema migration and db.RequireSchema(N) on the operation proposing it.
 type CommandType uint16
 
 const (
 	CmdChangeset CommandType = 0
 
-	// Retired ids are never reused, keeping old logs and snapshots
-	// decodable. Decoding is not applying, so retiring an id is gated
-	// like adding one.
+	// Retired ids are never reused: old logs and snapshots stay decodable.
 
 	// Intent-based bulk deletes kept explicit for log-size control.
 	CmdDeleteOldDailyUsage    CommandType = 12
@@ -52,9 +45,9 @@ func (c CommandType) String() string {
 	return fmt.Sprintf("CommandType(%d)", c)
 }
 
-// Command is the Raft log entry for shared-DB writes. Payloads are JSON
-// because shared writes are low-volume configuration data, where being
-// self-describing and debuggable outweighs a protoc toolchain dependency.
+// Command is the Raft log entry for shared-DB writes. Payloads are JSON:
+// shared writes are low-volume config data, so being debuggable outweighs a
+// protoc toolchain dependency.
 type Command struct {
 	Type    CommandType     `json:"type"`
 	Payload json.RawMessage `json:"payload"`
@@ -88,7 +81,6 @@ func NewCommand(cmdType CommandType, payload any) (*Command, error) {
 	return &Command{Type: cmdType, Payload: data}, nil
 }
 
-// Label renders a command as e.g. "Changeset(UpsertClusterMember)".
 func (c *Command) Label() string {
 	name := c.Type.String()
 	if c.Type != CmdChangeset || len(c.Payload) == 0 {

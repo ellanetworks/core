@@ -193,19 +193,14 @@ func captureSPNChangeset(t *testing.T, database *Database, spn string) []byte {
 	return bytes
 }
 
-// TestApplyChangeset_StalePreImageConflicts states the cost of capturing
-// against a database that has not applied every preceding log entry: the
-// UPDATE carries the pre-image the capture saw, sqlite3changeset_apply finds
-// a row that no longer matches it, and the apply aborts.
-//
-// The bytes are identical on every node, so the abort is not node-local —
-// which is what Manager.WriteBarrier exists to prevent.
+// The changeset bytes are identical on every node, so this abort is not
+// node-local — it is what Manager.WriteBarrier exists to prevent.
 func TestApplyChangeset_StalePreImageConflicts(t *testing.T) {
 	database := newAtomicTestDB(t)
 	ctx := context.Background()
 
-	// Two captures against the same pre-image: one committed by the
-	// previous leader, one taken before its entry reaches SQLite.
+	// Two captures against the same pre-image: one committed by the previous
+	// leader, one taken before its entry reaches SQLite.
 	pending := captureSPNChangeset(t, database, "pending")
 	stale := captureSPNChangeset(t, database, "stale")
 

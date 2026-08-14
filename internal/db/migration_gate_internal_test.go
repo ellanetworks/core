@@ -14,8 +14,8 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// Whitebox tests for the migration gate. Seeds cluster_members via the
-// public upsert API and stubs probeMemberSchema to avoid real peers.
+// Whitebox tests for the migration gate: cluster_members is seeded through the
+// public upsert API and probeMemberSchema is stubbed to avoid real peers.
 
 func newStandaloneDB(t *testing.T) *Database {
 	t.Helper()
@@ -156,8 +156,6 @@ func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 	}
 }
 
-// A cluster_members row for a node absent from the Raft configuration
-// must not block the gate: it receives no entries.
 func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()

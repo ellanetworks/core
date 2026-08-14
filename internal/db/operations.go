@@ -365,10 +365,9 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 	return narrowResult[R](op.name, result.Value)
 }
 
-// leaderProposeIntent proposes an intent command under proposeMu. Intent
-// commands are re-executed against replicated tables on every node, so one
-// appended between a capture and its propose would apply first and
-// invalidate the pre-images the captured changeset carries.
+// leaderProposeIntent holds proposeMu because intent commands re-execute
+// against replicated tables on every node: one appended between a capture and
+// its propose applies first and invalidates the captured pre-images.
 func (db *Database) leaderProposeIntent(data []byte) (*ellaraft.ProposeResult, error) {
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
@@ -376,12 +375,8 @@ func (db *Database) leaderProposeIntent(data []byte) (*ellaraft.ProposeResult, e
 	return db.raftManager.ApplyBytes(data, db.proposeTimeout)
 }
 
-// writeBarrier blocks until the local SQLite reflects every entry committed
-// before this write, so a capture cannot read a pre-image that a queued
-// entry is about to invalidate. Callers hold proposeMu.
-//
-// The barrier commits nothing, so the leadership sentinels are preserved
-// unwrapped for the caller's fall-through to the forward path.
+// writeBarrier keeps the leadership sentinels unwrapped: the barrier commits
+// nothing, so the caller is free to fall through to the forward path.
 func (db *Database) writeBarrier() error {
 	err := db.raftManager.WriteBarrier(db.proposeTimeout)
 	switch {

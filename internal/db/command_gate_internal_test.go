@@ -9,9 +9,8 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// baselineIntentCmds shipped before command types were gated on schema.
-// Every member of every released cluster already applies them, so they
-// carry no schema requirement. The list does not grow.
+// baselineIntentCmds predate the schema gate: every released cluster already
+// applies them. The list does not grow.
 var baselineIntentCmds = map[ellaraft.CommandType]bool{
 	ellaraft.CmdDeleteOldDailyUsage:    true,
 	ellaraft.CmdDeleteAllDynamicLeases: true,
@@ -20,9 +19,6 @@ var baselineIntentCmds = map[ellaraft.CommandType]bool{
 	ellaraft.CmdMigrateShared:          true,
 }
 
-// An intent op proposes its CommandType directly, so a member whose
-// binary predates that type halts on the entry. RequireSchema is what
-// holds the entry back until every member can apply it.
 func TestIntentOpsOutsideBaselineDeclareSchema(t *testing.T) {
 	for name, h := range intentOps {
 		if baselineIntentCmds[h.cmdType] {
