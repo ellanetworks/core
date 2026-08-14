@@ -861,8 +861,6 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 		target = floor
 	}
 
-	// A probe failure reports floor 0; a target below the applied schema is
-	// not a meaningful thing to publish.
 	if target < current {
 		target = current
 	}

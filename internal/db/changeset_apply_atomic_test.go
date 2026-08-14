@@ -193,14 +193,10 @@ func captureSPNChangeset(t *testing.T, database *Database, spn string) []byte {
 	return bytes
 }
 
-// The changeset bytes are identical on every node, so this abort is not
-// node-local — it is what Manager.WriteBarrier exists to prevent.
 func TestApplyChangeset_StalePreImageConflicts(t *testing.T) {
 	database := newAtomicTestDB(t)
 	ctx := context.Background()
 
-	// Two captures against the same pre-image: one committed by the previous
-	// leader, one taken before its entry reaches SQLite.
 	pending := captureSPNChangeset(t, database, "pending")
 	stale := captureSPNChangeset(t, database, "stale")
 

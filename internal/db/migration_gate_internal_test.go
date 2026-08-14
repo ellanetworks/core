@@ -111,8 +111,6 @@ func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 	}
 }
 
-// Learners apply committed entries like voters, so an old-binary learner
-// holds the floor down.
 func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()

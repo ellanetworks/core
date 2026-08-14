@@ -27,8 +27,6 @@ func (a *slowApplier) ApplyCommand(ctx context.Context, cmd *Command, idx uint64
 	return a.testApplier.ApplyCommand(ctx, cmd, idx)
 }
 
-// newLaggingCluster slows the followers only, so whichever one is promoted
-// carries a backlog of committed-but-unapplied entries.
 func newLaggingCluster(t *testing.T, delay time.Duration) (*TestCluster, []*slowApplier) {
 	t.Helper()
 

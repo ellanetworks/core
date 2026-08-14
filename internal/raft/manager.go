@@ -564,14 +564,10 @@ func (m *Manager) WriteBarrier(timeout time.Duration) error {
 		return nil
 	}
 
-	// raft.Barrier on a follower parks on the leader-only apply channel for the
-	// whole timeout.
 	if m.raft.State() != raft.Leader {
 		return raft.ErrNotLeader
 	}
 
-	// raft.Barrier's timeout bounds only the enqueue; Error() then waits for
-	// the apply without a deadline, and callers hold a mutex across it.
 	att := m.barrierFor(term, timeout)
 
 	select {
@@ -598,8 +594,6 @@ func (m *Manager) barrierFor(term uint64, timeout time.Duration) *barrierAttempt
 	go func() {
 		att.err = m.raft.Barrier(timeout).Error()
 
-		// Barrier succeeds only while leadership is held, so term still covers
-		// it even when the caller that started it has already given up.
 		if att.err == nil {
 			m.barrieredTerm.Store(term)
 		}

@@ -35,10 +35,6 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	}
 }
 
-// authRejectCause maps a failed authentication to an EMM cause. #2 invalidates
-// the USIM for EPS until it is re-inserted (TS 24.301 §5.5.1.2.5), so a core
-// that could not reach its own database answers #17 and keeps the UE retrying.
-// #22 would oblige the reject to carry T3346, which it has no IE for.
 func authRejectCause(err error) eps.EMMCause {
 	if errors.Is(err, db.ErrProposeTimeout) || errors.Is(err, db.ErrMigrationPending) {
 		return eps.EMMCauseNetworkFailure

@@ -9,8 +9,6 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// baselineIntentCmds are exempt from the schema gate: every released cluster
-// applies them. The list does not grow.
 var baselineIntentCmds = map[ellaraft.CommandType]bool{
 	ellaraft.CmdDeleteOldDailyUsage:    true,
 	ellaraft.CmdDeleteAllDynamicLeases: true,
