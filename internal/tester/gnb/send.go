@@ -33,6 +33,7 @@ const (
 	NGAPProcedureHandoverRequestAcknowledge        NGAPProcedure = "HandoverRequestAcknowledge"
 	NGAPProcedureHandoverNotify                    NGAPProcedure = "HandoverNotify"
 	NGAPProcedureHandoverFailure                   NGAPProcedure = "HandoverFailure"
+	NGAPProcedureHandoverCancel                    NGAPProcedure = "HandoverCancel"
 	NGAPProcedureUplinkNRPPaTransport              NGAPProcedure = "UplinkNRPPaTransport"
 )
 
@@ -48,6 +49,7 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedurePathSwitchRequest,
 		NGAPProcedureHandoverRequired, NGAPProcedureHandoverRequestAcknowledge,
 		NGAPProcedureHandoverNotify, NGAPProcedureHandoverFailure,
+		NGAPProcedureHandoverCancel,
 		NGAPProcedureUplinkNRPPaTransport:
 		return 1, nil
 	default:

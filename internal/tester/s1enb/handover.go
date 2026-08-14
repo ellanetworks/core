@@ -148,6 +148,35 @@ func (e *ENB) AnchorAddress(tla s1ap.TransportLayerAddress) (string, error) {
 	return addr.Unmap().String(), nil
 }
 
+func (e *ENB) SendHandoverCancel(mmeUEID, enbUEID int64, cause s1ap.Cause) error {
+	cancel := &s1ap.HandoverCancel{
+		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
+		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
+		Cause:       &cause,
+	}
+
+	b, err := cancel.Marshal()
+	if err != nil {
+		return fmt.Errorf("s1enb: build Handover Cancel: %w", err)
+	}
+
+	return e.SendMessage(b, true)
+}
+
+func (e *ENB) WaitForHandoverCancelAcknowledge(enbUEID int64, timeout time.Duration) (*s1ap.HandoverCancelAcknowledge, error) {
+	f, err := e.WaitForMessage(enbUEID, Successful, s1ap.ProcHandoverCancel, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	ack, err := s1ap.ParseHandoverCancelAcknowledge(f.Value)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: parse Handover Cancel Acknowledge: %w", err)
+	}
+
+	return ack, nil
+}
+
 func (e *ENB) SendHandoverFailure(mmeUEID int64, cause s1ap.Cause) error {
 	fail := &s1ap.HandoverFailure{
 		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(mmeUEID)),
