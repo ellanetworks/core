@@ -5,8 +5,10 @@ package nas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/nas"
@@ -29,8 +31,20 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	if err := sendAuthRequest(ctx, m, ue, ueConn, "", ""); err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseIMSIUnknownInHSS)
+		rejectAttach(ctx, m, ue, ueConn, authRejectCause(err))
 	}
+}
+
+// authRejectCause maps a failed authentication to an EMM cause. #2 invalidates
+// the USIM for EPS until it is re-inserted (TS 24.301 §5.5.1.2.5), so a core
+// that could not reach its own database answers #17 and keeps the UE retrying.
+// #22 would oblige the reject to carry T3346, which it has no IE for.
+func authRejectCause(err error) eps.EMMCause {
+	if errors.Is(err, db.ErrProposeTimeout) || errors.Is(err, db.ErrMigrationPending) {
+		return eps.EMMCauseNetworkFailure
+	}
+
+	return eps.EMMCauseIMSIUnknownInHSS
 }
 
 // sendAuthRequest sends an AUTHENTICATION REQUEST; a set resync pair drives an

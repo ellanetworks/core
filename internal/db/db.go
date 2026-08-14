@@ -881,8 +881,7 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 }
 
 // minMemberSchemaSupport returns the minimum SchemaVersion across cluster
-// members and the laggard's nodeID. With no member rows it returns the local
-// binary's version, so a fresh leader can run its own migrations.
+// members and the laggard's nodeID.
 func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {

@@ -154,6 +154,22 @@ func TestWriteBarrier_TimesOutOnBacklog(t *testing.T) {
 	if err := newLeader.WriteBarrier(10 * time.Millisecond); !errors.Is(err, ErrBarrierTimeout) {
 		t.Fatalf("write barrier against a backlog: want ErrBarrierTimeout, got %v", err)
 	}
+
+	beforeRetries := newLeader.raft.LastIndex()
+
+	for range 5 {
+		if err := newLeader.WriteBarrier(10 * time.Millisecond); !errors.Is(err, ErrBarrierTimeout) {
+			t.Fatalf("write barrier retry: want ErrBarrierTimeout, got %v", err)
+		}
+	}
+
+	if got := newLeader.raft.LastIndex(); got != beforeRetries {
+		t.Fatalf("last index after 5 timed-out retries: want %d (one barrier in flight), got %d", beforeRetries, got)
+	}
+
+	if err := newLeader.WriteBarrier(30 * time.Second); err != nil {
+		t.Fatalf("write barrier after backlog drains: %v", err)
+	}
 }
 
 func TestWriteBarrier_OncePerTerm(t *testing.T) {

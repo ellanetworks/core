@@ -137,6 +137,14 @@ type Manager struct {
 	clusterListener *listener.Listener
 
 	barrieredTerm atomic.Uint64
+	barrierMu     sync.Mutex
+	barrier       *barrierAttempt
+}
+
+type barrierAttempt struct {
+	term uint64
+	done chan struct{}
+	err  error
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -564,22 +572,48 @@ func (m *Manager) WriteBarrier(timeout time.Duration) error {
 
 	// raft.Barrier's timeout bounds only the enqueue; Error() then waits for
 	// the apply without a deadline, and callers hold a mutex across it.
-	done := make(chan error, 1)
-	go func() { done <- m.raft.Barrier(timeout).Error() }()
+	att := m.barrierFor(term, timeout)
 
 	select {
-	case err := <-done:
-		if err != nil {
-			return err
-		}
+	case <-att.done:
+		return att.err
 	case <-time.After(timeout):
 		return ErrBarrierTimeout
 	}
+}
 
-	// Barrier succeeds only while leadership is held, so term still covers it.
-	m.barrieredTerm.Store(term)
+// barrierFor shares one in-flight barrier per term: a caller that gives up
+// leaves it running, so repeated timeouts still cost the log a single entry.
+func (m *Manager) barrierFor(term uint64, timeout time.Duration) *barrierAttempt {
+	m.barrierMu.Lock()
+	defer m.barrierMu.Unlock()
 
-	return nil
+	if m.barrier != nil && m.barrier.term == term {
+		return m.barrier
+	}
+
+	att := &barrierAttempt{term: term, done: make(chan struct{})}
+	m.barrier = att
+
+	go func() {
+		att.err = m.raft.Barrier(timeout).Error()
+
+		// Barrier succeeds only while leadership is held, so term still covers
+		// it even when the caller that started it has already given up.
+		if att.err == nil {
+			m.barrieredTerm.Store(term)
+		}
+
+		m.barrierMu.Lock()
+		if m.barrier == att {
+			m.barrier = nil
+		}
+		m.barrierMu.Unlock()
+
+		close(att.done)
+	}()
+
+	return att
 }
 
 // Snapshot triggers a user-requested Raft snapshot and blocks until it

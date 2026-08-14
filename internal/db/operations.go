@@ -384,7 +384,7 @@ func (db *Database) writeBarrier() error {
 		return nil
 	case errors.Is(err, hraft.ErrNotLeader), errors.Is(err, hraft.ErrLeadershipLost):
 		return err
-	case isTransientRaftErr(err):
+	case errors.Is(err, ellaraft.ErrBarrierTimeout), isTransientRaftErr(err):
 		return fmt.Errorf("%w: %v", ErrProposeTimeout, err)
 	default:
 		return err
