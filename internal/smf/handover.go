@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	libngap "github.com/ellanetworks/core/ngap"
 	"go.opentelemetry.io/otel/attribute"
@@ -147,12 +146,16 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	dropped, err := s.switchDownlinkToTargetNGRAN(ctx, smContext, span)
+	dropped, err := s.switchDownlinkToTargetNGRAN(ctx, smContext)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to bind the downlink")
+	}
 
-	return s.finishAccessBinding(ctx, smContext, dropped, err)
+	return s.finishBinding(ctx, smContext, dropped, err)
 }
 
-func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMContext, span trace.Span) (*droppedSource, error) {
+func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMContext) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
@@ -160,50 +163,25 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContext.Ref)
 	}
 
-	if !smContext.Tunnel.Activated && !smContext.pendingTransferTo(Access5G) {
-		smContext.handoverSourceAN = nil
-
-		return nil, nil
+	target := smContext.handoverTargetAN
+	if target == nil {
+		return nil, fmt.Errorf("session %q has no prepared handover to complete", smContext.Ref)
 	}
 
-	if smContext.PFCPContext == nil {
-		return nil, failBinding(span, "pfcp session context not found", fmt.Errorf("pfcp session context not found"))
+	dropped, err := s.bindDownlink(ctx, smContext, Access5G, *target)
+	if err != nil {
+		return nil, err
 	}
 
-	return s.commitAccessBinding(ctx, smContext, accessBinding{
-		access: Access5G,
-		build: func(commit *transferCommit) (bindingRules, error) {
-			if commit == nil && smContext.Access != Access5G {
-				return bindingRules{}, fmt.Errorf("session %q is on %s, not 5GS", smContext.Ref, smContext.Access)
-			}
+	smContext.handoverTargetAN = nil
 
-			if !smContext.Tunnel.Activated {
-				return bindingRules{}, fmt.Errorf("session %q has no activated user plane to switch onto 5GS", smContext.Ref)
-			}
+	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
 
-			rules := bindingRules{
-				pdrs: []*PDR{smContext.Tunnel.UplinkPDR},
-				fars: []*FAR{smContext.Tunnel.DownlinkPDR.FAR},
-			}
+	logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
+		logger.SUPI(smContext.Supi.String()),
+		logger.PDUSessionID(smContext.PDUSessionID))
 
-			if commit != nil {
-				rules.policyID = commit.policy.PolicyID
-				rules.qers = commit.qers
-				smContext.Tunnel.DownlinkPDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
-			}
-
-			return rules, nil
-		},
-		onBound: func() {
-			smContext.handoverSourceAN = nil
-
-			s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
-
-			logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
-				logger.SUPI(smContext.Supi.String()),
-				logger.PDUSessionID(smContext.PDUSessionID))
-		},
-	})
+	return dropped, nil
 }
 
 func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) error {
@@ -221,10 +199,8 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 		return err
 	}
 
-	source := smContext.Tunnel.AN
-	smContext.handoverSourceAN = &source
-
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
+	target := anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel)
+	smContext.handoverTargetAN = &target
 
 	return nil
 }
@@ -261,10 +237,8 @@ func (s *SMF) UpdateSmContextN2HandoverFailed(ctx context.Context, smContextRef 
 	return nil
 }
 
-// Idempotent: a session with no prepared handover, or one already completed, is
-// a no-op.
 func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_canceled",
+	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_canceled",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -285,34 +259,13 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 		smContext.clearPendingLocked()
 	}
 
-	source := smContext.handoverSourceAN
-	if source == nil || smContext.Tunnel == nil {
+	if smContext.handoverTargetAN == nil {
 		return nil
 	}
 
-	smContext.handoverSourceAN = nil
+	smContext.handoverTargetAN = nil
 
-	smContext.bindAccessTunnel(*source, smContext.Access)
-
-	if !smContext.Tunnel.Activated || smContext.PFCPContext == nil {
-		return nil
-	}
-
-	dlFAR := smContext.Tunnel.DownlinkPDR.FAR
-	ulPDR := smContext.Tunnel.UplinkPDR
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		"",
-		[]*PDR{ulPDR}, []*FAR{dlFAR}, nil,
-	)); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to restore the source access tunnel")
-
-		return fmt.Errorf("failed to restore the source access tunnel: %w", err)
-	}
-
-	logger.WithTrace(ctx, logger.SmfLog).Info("restored the source access tunnel after an abandoned N2 handover",
+	logger.WithTrace(ctx, logger.SmfLog).Info("dropped the target endpoint of an abandoned N2 handover",
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
@@ -341,29 +294,23 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
 	}
 
-	restoreBinding := smContext.stageAccessBinding()
+	logger.SmfLog.Debug("handle Path Switch Request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-	pdrList, farList, n2buf, err := handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data, smContext)
+	an, err := anchorFromPathSwitchRequest(n2Data, smContext)
 	if err != nil {
-		restoreBinding()
-
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
-	if smContext.PFCPContext == nil {
-		restoreBinding()
-
-		return nil, fmt.Errorf("pfcp session context not found for upf")
+	n2buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6)
+	if err != nil {
+		return nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
 	}
 
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		"",
-		pdrList, farList, nil,
-	)); err != nil {
-		restoreBinding()
+	next := smContext.Tunnel.dataPlane
+	next.AN = an
 
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
+	if err := s.applyDataPlane(ctx, smContext, next, ""); err != nil {
+		return nil, err
 	}
 
 	// Re-register the IPv6 session with the new gNB tunnel endpoint.
@@ -374,35 +321,10 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 	return n2buf, nil
 }
 
-func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContext) ([]*PDR, []*FAR, []byte, error) {
-	logger.SmfLog.Debug("handle Path Switch Request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	if err := handlePathSwitchRequestTransfer(n2Data, smContext); err != nil {
-		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
-	}
-
-	n2Buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.N3TEID, smContext.Tunnel.N3IPv4, smContext.Tunnel.N3IPv6)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
-	}
-
-	var (
-		pdrList []*PDR
-		farList []*FAR
-	)
-
-	if smContext.Tunnel.Activated {
-		pdrList = []*PDR{smContext.Tunnel.UplinkPDR}
-		farList = []*FAR{smContext.Tunnel.DownlinkPDR.FAR}
-	}
-
-	return pdrList, farList, n2Buf, nil
-}
-
-func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
+func anchorFromPathSwitchRequest(b []byte, smContext *SMContext) (AnchorBinding, error) {
 	pathSwitchRequestTransfer, err := libngap.ParsePathSwitchRequestTransfer(b)
 	if err != nil {
-		return err
+		return AnchorBinding{}, err
 	}
 
 	accepted := make([]libngap.QosFlowIdentifier, 0, len(pathSwitchRequestTransfer.QosFlowAccepted))
@@ -411,12 +333,10 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	}
 
 	if err := smContext.admittedSignalledFlow(accepted); err != nil {
-		return err
+		return AnchorBinding{}, err
 	}
 
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel), Access5G)
-
-	return nil
+	return anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel), nil
 }
 
 func (s *SMF) UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {

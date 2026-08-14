@@ -40,12 +40,8 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContextRef)
 	}
 
-	restoreBinding := smContext.stageAccessBinding()
-
-	qfis, err := handleModifyIndicationTransfer(n2Data, smContext)
+	an, qfis, err := handleModifyIndicationTransfer(n2Data)
 	if err != nil {
-		restoreBinding()
-
 		return nil, fmt.Errorf("error handling N2 message: %v", err)
 	}
 
@@ -56,39 +52,14 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 		qfis,
 	)
 	if err != nil {
-		restoreBinding()
-
 		return nil, fmt.Errorf("build modify confirm transfer: %v", err)
 	}
 
-	if smContext.PFCPContext == nil {
-		restoreBinding()
+	next := smContext.Tunnel.dataPlane
+	next.AN = an
 
-		return nil, fmt.Errorf("pfcp session context not found for upf")
-	}
-
-	// bindAccessTunnel realigned the uplink PDR's OuterHeaderRemoval as well as
-	// the downlink FAR, so both have to reach the UPF: an indication that moves
-	// the RAN between address families would otherwise leave it decapsulating
-	// uplink GTP-U as the wrong family.
-	var (
-		pdrList []*PDR
-		farList []*FAR
-	)
-
-	if smContext.Tunnel.Activated {
-		pdrList = []*PDR{smContext.Tunnel.UplinkPDR}
-		farList = []*FAR{smContext.Tunnel.DownlinkPDR.FAR}
-	}
-
-	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
-		smContext.PFCPContext.SEID,
-		"",
-		pdrList, farList, nil,
-	)); err != nil {
-		restoreBinding()
-
-		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
+	if err := s.applyDataPlane(ctx, smContext, next, ""); err != nil {
+		return nil, err
 	}
 
 	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
@@ -98,21 +69,17 @@ func (s *SMF) UpdateSmContextN2ModifyIndication(ctx context.Context, smContextRe
 	return n2buf, nil
 }
 
-// handleModifyIndicationTransfer rebinds the downlink access tunnel to the
-// address in the Modify Indication Transfer and returns the associated QoS
-// flows (TS 38.413 §8.2.5.2).
-func handleModifyIndicationTransfer(b []byte, smContext *SMContext) ([]int64, error) {
+// TS 38.413 §8.2.5.2
+func handleModifyIndicationTransfer(b []byte) (AnchorBinding, []int64, error) {
 	transfer, err := libngap.ParsePDUSessionResourceModifyIndicationTransfer(b)
 	if err != nil {
-		return nil, err
+		return AnchorBinding{}, nil, err
 	}
-
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), Access5G)
 
 	qfis := make([]int64, 0, len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList))
 	for _, item := range transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList {
 		qfis = append(qfis, int64(item.QosFlowIdentifier))
 	}
 
-	return qfis, nil
+	return anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), qfis, nil
 }

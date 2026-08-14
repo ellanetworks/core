@@ -1084,7 +1084,7 @@ func TestRefusedCommitRestoresTheSourceBinding(t *testing.T) {
 	sc := s.GetSession(bearer.Ref)
 
 	sc.Mutex.Lock()
-	before := ohcSummary(sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation)
+	before := anchorSummary(sc.Tunnel.AN)
 	sc.Mutex.Unlock()
 
 	ref, reject, err := s.CreateSmContext(ctx, testSUPI(), movedPDUSessionID, testDNN, testSnssai,
@@ -1105,7 +1105,7 @@ func TestRefusedCommitRestoresTheSourceBinding(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	after := ohcSummary(sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation)
+	after := anchorSummary(sc.Tunnel.AN)
 	access := sc.Access
 	sc.Mutex.Unlock()
 
@@ -1114,16 +1114,12 @@ func TestRefusedCommitRestoresTheSourceBinding(t *testing.T) {
 	}
 
 	if after != before {
-		t.Errorf("downlink outer header = %s, want the eNB's %s: the data plane still holds it", after, before)
+		t.Errorf("downlink endpoint = %s, want the eNB's %s: the data plane still holds it", after, before)
 	}
 }
 
-func ohcSummary(o *models.OuterHeaderCreation) string {
-	if o == nil {
-		return "<none>"
-	}
-
-	return fmt.Sprintf("desc=%d teid=%#x v4=%s v6=%s s1u=%v", o.Description, o.TEID, o.IPv4Address, o.IPv6Address, o.S1U)
+func anchorSummary(a smf.AnchorBinding) string {
+	return fmt.Sprintf("teid=%#x v4=%s v6=%s", a.TEID, a.IPv4, a.IPv6)
 }
 
 func TestBindingTo5GSIsRefusedWithoutACommit(t *testing.T) {

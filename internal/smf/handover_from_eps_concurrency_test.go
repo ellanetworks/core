@@ -77,7 +77,7 @@ func TestHandoverFromEPSCommitsWhileAPolicyChangeRacesIt(t *testing.T) {
 
 	sc.Mutex.Lock()
 	access, ebi := sc.Access, sc.EBI
-	dl := sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation
+	an, dpAccess := sc.Tunnel.AN, sc.Tunnel.Access
 	sc.Mutex.Unlock()
 
 	if access != smf.Access5G {
@@ -88,12 +88,12 @@ func TestHandoverFromEPSCommitsWhileAPolicyChangeRacesIt(t *testing.T) {
 		t.Errorf("session EPS bearer identity = %d, want the %d it arrived with", ebi, epsTestEBI)
 	}
 
-	if dl.TEID != targetGnbTEID || !dl.IPv4Address.Equal(targetGnbIPv4) {
-		t.Errorf("downlink points at %s/%#x, want the target gNB %s/%#x", dl.IPv4Address, dl.TEID, targetGnbIPv4, targetGnbTEID)
+	if an.TEID != targetGnbTEID || !an.IPv4.Equal(targetGnbIPv4) {
+		t.Errorf("downlink points at %s/%#x, want the target gNB %s/%#x", an.IPv4, an.TEID, targetGnbIPv4, targetGnbTEID)
 	}
 
-	if dl.S1U {
-		t.Error("the downlink is still addressed as S1-U after the session moved onto 5GS")
+	if dpAccess != smf.Access5G {
+		t.Errorf("the downlink is still addressed as %s after the session moved onto 5GS", dpAccess)
 	}
 
 	if s.SessionCount() != 1 {

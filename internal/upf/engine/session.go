@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
+
 package engine
 
 import (
@@ -11,20 +12,11 @@ import (
 )
 
 type Session struct {
-	// opMu serializes a whole control-plane operation on this session — modify,
-	// delete, and the reconciler's filter propagation — so their compound
-	// read-modify-apply sequences never interleave. Acquired while holding
-	// filterMu and never the reverse — a filter release propagates into sessions
-	// under filterMu, so the other order deadlocks — and never while holding
-	// conn.mu.
 	opMu    sync.Mutex
 	deleted bool // guarded by opMu
 
-	mu   sync.RWMutex
-	SEID uint64
-	// Every PDR the datapath installs is keyed by subscriber, so a modify that
-	// creates or replaces one has to reproduce the IMSI established here; it is
-	// not carried on ModifyRequest because it cannot change for a live session.
+	mu           sync.RWMutex
+	SEID         uint64
 	imsi         string
 	policyID     string
 	pdrs         map[uint32]SPDRInfo
@@ -45,11 +37,10 @@ func NewSession(seid uint64) *Session {
 }
 
 type SPDRInfo struct {
-	PdrID     uint32
-	PdrInfo   ebpf.PdrInfo
-	TeID      uint32
-	UEIP      netip.Addr
-	Allocated bool
+	PdrID   uint32
+	PdrInfo ebpf.PdrInfo
+	TeID    uint32
+	UEIP    netip.Addr
 }
 
 func (s *Session) PolicyID() string {
@@ -94,13 +85,6 @@ func (s *Session) GetFar(id uint32) ebpf.FarInfo {
 	return s.fars[id]
 }
 
-func (s *Session) RemoveFar(id uint32) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.fars, id)
-}
-
 func (s *Session) PutPDR(id uint32, info SPDRInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -115,16 +99,6 @@ func (s *Session) GetPDR(id uint32) SPDRInfo {
 	return s.pdrs[id]
 }
 
-func (s *Session) HasPDR(id uint32) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	_, ok := s.pdrs[id]
-
-	return ok
-}
-
-// LookupPDR returns the PDR and whether it exists.
 func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -134,17 +108,6 @@ func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
 	return info, ok
 }
 
-func (s *Session) RemovePDR(id uint32) SPDRInfo {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	sPdrInfo := s.pdrs[id]
-	delete(s.pdrs, id)
-
-	return sPdrInfo
-}
-
-// ListPDRs returns a snapshot copy of the PDR map.
 func (s *Session) ListPDRs() map[uint32]SPDRInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -155,7 +118,6 @@ func (s *Session) ListPDRs() map[uint32]SPDRInfo {
 	return c
 }
 
-// ListFARs returns a snapshot copy of the FAR map.
 func (s *Session) ListFARs() map[uint32]ebpf.FarInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -166,15 +128,6 @@ func (s *Session) ListFARs() map[uint32]ebpf.FarInfo {
 	return c
 }
 
-// NewQer stores a QER by ID so that future PDR creation can look it up.
-func (s *Session) NewQer(id uint32, qerInfo ebpf.QerInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.qers[id] = qerInfo
-}
-
-// GetQer returns the QER with the given ID.
 func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -182,20 +135,11 @@ func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	return s.qers[id]
 }
 
-// PutQer updates a QER in the session.
 func (s *Session) PutQer(id uint32, qerInfo ebpf.QerInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.qers[id] = qerInfo
-}
-
-// RemoveQer removes a QER from the session.
-func (s *Session) RemoveQer(id uint32) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.qers, id)
 }
 
 // SetUEAddresses records the UE source addresses (v4 /32, v6 /64 base) for uplink

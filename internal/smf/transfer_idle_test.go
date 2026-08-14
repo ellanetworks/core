@@ -50,15 +50,12 @@ func assertDownlinkBuffers(t *testing.T, sc *smf.SMContext) {
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	far := sc.Tunnel.DownlinkPDR.FAR
-
-	if want := (models.ApplyAction{Buff: true, Nocp: true}); far.ApplyAction != want {
-		t.Errorf("downlink apply action = %+v, want %+v", far.ApplyAction, want)
+	if got := sc.Tunnel.Downlink; got != smf.DownlinkBuffering {
+		t.Errorf("downlink state = %d, want buffering", got)
 	}
 
-	if far.ForwardingParameters != nil && far.ForwardingParameters.OuterHeaderCreation != nil {
-		t.Errorf("downlink still aims at %s, want no outer header: the UE left that access",
-			ohcSummary(far.ForwardingParameters.OuterHeaderCreation))
+	if an := sc.Tunnel.AN; an.IPv4 != nil || an.IPv6 != nil {
+		t.Errorf("downlink still aims at %+v, want no endpoint: the UE left that access", an)
 	}
 }
 
@@ -212,8 +209,8 @@ func TestTransferIdleRestoresTheSourceWhenTheModifyFails(t *testing.T) {
 	sc := establishEPSOnENB(t, s)
 
 	sc.Mutex.Lock()
-	before := ohcSummary(sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation)
-	beforeAction := sc.Tunnel.DownlinkPDR.FAR.ApplyAction
+	before := anchorSummary(sc.Tunnel.AN)
+	beforeState := sc.Tunnel.Downlink
 	sc.Mutex.Unlock()
 
 	upf.err = errors.New("PFCP modify refused")
@@ -234,16 +231,16 @@ func TestTransferIdleRestoresTheSourceWhenTheModifyFails(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	after := ohcSummary(sc.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation)
-	afterAction := sc.Tunnel.DownlinkPDR.FAR.ApplyAction
+	after := anchorSummary(sc.Tunnel.AN)
+	afterState := sc.Tunnel.Downlink
 	sc.Mutex.Unlock()
 
 	if after != before {
-		t.Errorf("downlink outer header = %s, want the eNB's %s: the data plane still holds it", after, before)
+		t.Errorf("downlink endpoint = %s, want the eNB's %s: the data plane still holds it", after, before)
 	}
 
-	if afterAction != beforeAction {
-		t.Errorf("downlink apply action = %+v, want %+v", afterAction, beforeAction)
+	if afterState != beforeState {
+		t.Errorf("downlink state = %d, want %d", afterState, beforeState)
 	}
 
 	assertMovable(t, sc)
@@ -274,17 +271,15 @@ func TestTransferIdleTo4GLetsTheENBBindTheDownlink(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	far := sc.Tunnel.DownlinkPDR.FAR
-	forwarding := far.ApplyAction.Forw
-	ohc := far.ForwardingParameters.OuterHeaderCreation
+	state, an := sc.Tunnel.Downlink, sc.Tunnel.AN
 	sc.Mutex.Unlock()
 
-	if !forwarding {
+	if state != smf.DownlinkForwarding {
 		t.Error("the downlink still buffers after the eNB bound it")
 	}
 
-	if ohc == nil || ohc.TEID != enb.TEID {
-		t.Errorf("downlink outer header = %s, want the eNB's TEID %#x", ohcSummary(ohc), enb.TEID)
+	if an.TEID != enb.TEID {
+		t.Errorf("downlink endpoint = %s, want the eNB's TEID %#x", anchorSummary(an), enb.TEID)
 	}
 }
 
@@ -316,16 +311,14 @@ func TestTransferIdleTo5GSLetsTheGNBBindTheDownlink(t *testing.T) {
 	}
 
 	sc.Mutex.Lock()
-	far := sc.Tunnel.DownlinkPDR.FAR
-	forwarding := far.ApplyAction.Forw
-	ohc := far.ForwardingParameters.OuterHeaderCreation
+	state, an := sc.Tunnel.Downlink, sc.Tunnel.AN
 	sc.Mutex.Unlock()
 
-	if !forwarding {
+	if state != smf.DownlinkForwarding {
 		t.Error("the downlink still buffers after the gNB bound it")
 	}
 
-	if ohc == nil || ohc.TEID != 0x7001 {
-		t.Errorf("downlink outer header = %s, want the gNB's TEID 0x7001", ohcSummary(ohc))
+	if an.TEID != 0x7001 {
+		t.Errorf("downlink endpoint = %s, want the gNB's TEID 0x7001", anchorSummary(an))
 	}
 }

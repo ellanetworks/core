@@ -20,34 +20,16 @@ import (
 // One SEID, not the local/remote pair PFCP defines for two nodes (TS 29.244
 // §7.2.2.4.3): the UPF is in-process and keys its session map on the SMF's value.
 type PFCPSessionContext struct {
-	SEID uint64
-	// SEID is assigned when the data path is built, before the establish, so it
-	// cannot double as this flag.
+	SEID        uint64
 	Established bool
 }
 
-// The rule set never varies, so the rules are named fields rather than a graph
-// to walk, and each is held exactly once.
 type UPTunnel struct {
-	// The access-network end: gNB N3 (5G) or eNB S1-U (4G).
-	AN AnchorBinding
-
-	// The UPF end, allocated by the UPF at establish.
 	N3TEID uint32
 	N3IPv4 netip.Addr
 	N3IPv6 netip.Addr
 
-	UplinkPDR   *PDR
-	DownlinkPDR *PDR
-	// A PDR matches one UE address, so a dual-stack session needs a second.
-	DownlinkPDRv6 *PDR
-
-	QER         *QER
-	UplinkURR   *URR
-	DownlinkURR *URR
-
-	// The endpoints outlive it: a deactivated session keeps AN for reactivation.
-	Activated bool
+	dataPlane
 }
 
 type SMContext struct {
@@ -99,11 +81,7 @@ type SMContext struct {
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
-	// The endpoint the UE is still on, captured when an N2 handover binds the
-	// target's at prepare (TS 23.502 §4.9.1.3.2). A handover that never completes
-	// has to put this back, or the downlink FAR keeps aiming at a gNB the UE left.
-	// Guarded by Mutex.
-	handoverSourceAN *AnchorBinding
+	handoverTargetAN *AnchorBinding
 
 	pending *pendingTransfer
 
@@ -116,14 +94,8 @@ func (smContext *SMContext) stopProcedureTimer() {
 	smContext.procedureTimer.Stop()
 }
 
-// upConnectionActive reports whether the downlink FAR is forwarding, as opposed
-// to idle/buffering after DeactivateSmContext (CM-IDLE). Caller must hold Mutex.
 func (smContext *SMContext) upConnectionActive() bool {
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated || smContext.Tunnel.DownlinkPDR.FAR == nil {
-		return false
-	}
-
-	return smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Forw
+	return smContext.Tunnel != nil && smContext.Tunnel.Downlink == DownlinkForwarding
 }
 
 // MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding

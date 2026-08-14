@@ -17,9 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-func modifyIMSITestEngine(t *testing.T, seid uint64, imsi string) (*engine.SessionEngine, *upfebpf.BpfObjects) {
-	t.Helper()
-
+func TestModifySessionFailureKeepsTheLiveUplinkTEID(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
 		if os.Getenv("EBPF_REQUIRE_PRIVILEGED") != "" {
@@ -40,7 +38,7 @@ func modifyIMSITestEngine(t *testing.T, seid uint64, imsi string) (*engine.Sessi
 
 	t.Cleanup(func() { _ = obj.Close() })
 
-	rm, err := engine.NewFteIDResourceManager(1024)
+	rm, err := engine.NewFteIDResourceManager(1)
 	if err != nil {
 		t.Fatalf("new fteid resource manager: %v", err)
 	}
@@ -50,50 +48,55 @@ func modifyIMSITestEngine(t *testing.T, seid uint64, imsi string) (*engine.Sessi
 		t.Fatalf("new session engine: %v", err)
 	}
 
+	ctx := context.Background()
+
+	const seid = uint64(41)
+
+	ueIP := netip.MustParseAddr("10.0.0.21")
+
 	establish := &models.EstablishRequest{
 		SEID: seid,
-		IMSI: imsi,
+		IMSI: "001010000000001",
 		URRs: []models.URR{{URRID: 1}},
 		FARs: []models.FAR{{FARID: 1, ApplyAction: models.ApplyAction{Forw: true}}},
-		PDRs: []models.PDR{{PDRID: 1, FARID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}}},
+		PDRs: []models.PDR{
+			{PDRID: 1, FARID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
+			{PDRID: 2, FARID: 1, URRID: 1, PDI: models.PDI{UEIPAddress: ueIP}},
+		},
 	}
 
-	if _, err := conn.EstablishSession(context.Background(), establish); err != nil {
+	resp, err := conn.EstablishSession(ctx, establish)
+	if err != nil {
 		t.Fatalf("establish: %v", err)
 	}
 
-	return conn, obj
-}
-
-func TestModifySessionUpdateWithoutPredecessorCarriesSessionIMSI(t *testing.T) {
-	const (
-		seid = uint64(22)
-		imsi = "001010000000002"
-	)
-
-	conn, obj := modifyIMSITestEngine(t, seid, imsi)
-
-	ueIP := netip.MustParseAddr("10.0.0.8")
+	if resp.N3TEID == 0 {
+		t.Fatal("establish assigned no uplink TEID")
+	}
 
 	modify := &models.ModifyRequest{
-		SEID:       seid,
-		UpdatePDRs: []models.PDR{{PDRID: 9, FARID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
+		SEID: seid,
+		UpdatePDRs: []models.PDR{
+			{PDRID: 1, FARID: 1, URRID: 1, PDI: models.PDI{LocalFTEID: &models.FTEID{}}},
+			{PDRID: 3, FARID: 1, PDI: models.PDI{}},
+		},
 	}
 
-	if err := conn.ModifySession(context.Background(), modify); err != nil {
-		t.Fatalf("modify with an update for an absent PDR: %v", err)
+	if err := conn.ModifySession(ctx, modify); err == nil {
+		t.Fatal("expected the modification to fail on the malformed PDR")
 	}
 
-	var v upfebpf.N3N6EntrypointPdrInfo
-	if err := obj.PdrsDownlinkIp4.Lookup(ueIP.As4(), &v); err != nil {
-		t.Fatalf("updated PDR is absent from pdrs_downlink_ip4: %v", err)
+	if teid, err := rm.AllocateTEID(seid + 1); err == nil {
+		t.Fatalf("the allocator handed out TEID %d after a failed modification: the session is still serving on %d",
+			teid, resp.N3TEID)
 	}
 
-	if got := upfebpf.DecodeIMSITag(v.Imsi); got != imsi {
-		t.Errorf("datapath IMSI = %q, want %q (from the establish request)", got, imsi)
+	session := conn.GetSession(seid)
+	if session == nil {
+		t.Fatal("session is gone after the failed modification")
 	}
 
-	if v.LocalSeid != seid {
-		t.Errorf("datapath SEID = %d, want %d", v.LocalSeid, seid)
+	if got := session.GetPDR(1).TeID; got != resp.N3TEID {
+		t.Errorf("uplink PDR holds TEID %d, want the %d it was established with", got, resp.N3TEID)
 	}
 }
