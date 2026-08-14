@@ -15,15 +15,7 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestIntegration5GN2Handover runs the N2 (inter-gNB without Xn) handover
-// scenarios against a single core with two gNB tester containers.
-//
-// Topology: 1 Ella Core + 2 gNB testers (source + target) + 1 router.
-// Compose: integration/compose/n2-handover/compose.yaml
-//
-// Per 3GPP TS 23.502 §4.9.1.3.3, the SMF sends N4 Session Modification to
-// the UPF during the handover completion phase (after HandoverNotify),
-// ensuring downlink traffic is only redirected after the UE has moved.
+// TS 23.502 §4.9.1.3.3
 func TestIntegration5GN2Handover(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

@@ -628,53 +628,6 @@ func TestAllocateSEID_Increments(t *testing.T) {
 	}
 }
 
-// --- PDR/FAR/QER/URR Construction Tests ---
-
-func TestNewPDR_BuildsPDRWithFAR(t *testing.T) {
-	pdr := smf.NewPDR(1, 1)
-
-	if pdr.PDRID != 1 {
-		t.Fatalf("expected PDR ID 1, got %d", pdr.PDRID)
-	}
-
-	if pdr.FAR == nil || pdr.FAR.FARID != 1 {
-		t.Fatal("expected FAR with ID 1")
-	}
-
-	if !pdr.FAR.ApplyAction.Drop {
-		t.Fatal("expected default FAR action to be Drop")
-	}
-}
-
-func TestNewQER_SetsPolicy(t *testing.T) {
-	policy := &smf.Policy{
-		Ambr: models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
-		QosData: models.QosData{
-			Var5qi: 9,
-			Arp:    &models.Arp{PriorityLevel: 1},
-			QFI:    5,
-		},
-	}
-
-	qer := smf.NewQER(policy, 1)
-
-	if qer.QFI != 5 {
-		t.Fatalf("expected QFI 5, got %d", qer.QFI)
-	}
-
-	if qer.MBR.ULMBR != 100000 {
-		t.Fatalf("expected ULMBR 100000, got %d", qer.MBR.ULMBR)
-	}
-
-	if qer.MBR.DLMBR != 200000 {
-		t.Fatalf("expected DLMBR 200000, got %d", qer.MBR.DLMBR)
-	}
-
-	if qer.GateStatus.ULGate != models.GateOpen || qer.GateStatus.DLGate != models.GateOpen {
-		t.Fatal("expected gates to be open")
-	}
-}
-
 // --- Store Delegation Tests ---
 
 func TestGetSessionPolicy_DelegatesToStore(t *testing.T) {

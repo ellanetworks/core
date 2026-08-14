@@ -137,8 +137,7 @@ func (s *SMF) prepareTransfer(sc *SMContext, req transferRequest) error {
 
 		sc.pending = nil
 		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
-
-		sc.restoreHandoverSourceLocked()
+		sc.handoverTargetAN = nil
 
 		sc.Mutex.Unlock()
 
@@ -163,17 +162,7 @@ func (sc *SMContext) clearPendingLocked() {
 
 func (sc *SMContext) abandonPendingLocked() {
 	sc.clearPendingLocked()
-	sc.restoreHandoverSourceLocked()
-}
-
-func (sc *SMContext) restoreHandoverSourceLocked() {
-	source := sc.handoverSourceAN
-	if source == nil {
-		return
-	}
-
-	sc.handoverSourceAN = nil
-	sc.bindAccessTunnel(*source, sc.Access)
+	sc.handoverTargetAN = nil
 }
 
 func (sc *SMContext) abandonTransferTo(access AccessType) {
@@ -190,7 +179,6 @@ type transferCommit struct {
 	sourceID SessionIdentity
 	sourceUP bool
 	policy   *Policy
-	qers     []*QER
 	restore  func()
 }
 
@@ -218,25 +206,12 @@ func (s *SMF) beginTransferCommit(ctx context.Context, sc *SMContext, access Acc
 
 	sc.Access = access
 
-	policy := transferPolicy(sc.PolicyData, move.policy)
-
-	qers, restoreQERs, err := stageSessionQERs(sc, policy.QosData.QFI, policy.Ambr.Uplink, policy.Ambr.Downlink)
-	if err != nil {
-		sc.Access = source
-		s.assignEPSBearerIdentity(ctx, sc, sourceID.EBI)
-
-		return nil, fmt.Errorf("stage target access QoS: %w", err)
-	}
-
 	return &transferCommit{
 		source:   source,
 		sourceID: sourceID,
 		sourceUP: sourceUP,
-		policy:   policy,
-		qers:     qers,
+		policy:   transferPolicy(sc.PolicyData, move.policy),
 		restore: func() {
-			restoreQERs()
-
 			sc.Access = source
 			s.assignEPSBearerIdentity(ctx, sc, sourceID.EBI)
 		},

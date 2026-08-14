@@ -81,24 +81,26 @@ func (s *SMF) commitIdleTransfer(ctx context.Context, sc *SMContext, access Acce
 	sc.Mutex.Lock()
 	defer sc.Mutex.Unlock()
 
-	if sc.PFCPContext == nil {
-		return nil, fmt.Errorf("pfcp session context not found for %q", sc.Ref)
+	commit, err := s.beginTransferCommit(ctx, sc, access)
+	if err != nil {
+		return nil, fmt.Errorf("failed to move session %q to %s: %w", sc.Ref, access, err)
 	}
 
-	return s.commitAccessBinding(ctx, sc, accessBinding{
-		access:         access,
-		keepOnRollback: true,
-		build: func(commit *transferCommit) (bindingRules, error) {
-			if commit == nil {
-				return bindingRules{}, fmt.Errorf("%w: the move of session %q to %s was abandoned before it committed", ErrSessionNotMovable, sc.Ref, access)
-			}
+	if commit == nil {
+		return nil, fmt.Errorf("%w: the move of session %q to %s was abandoned before it committed", ErrSessionNotMovable, sc.Ref, access)
+	}
 
-			farList, err := handleUpCnxStateDeactivate(sc)
-			if err != nil {
-				return bindingRules{}, fmt.Errorf("failed to stage the downlink of a session moved in idle mode: %w", err)
-			}
+	next := sc.Tunnel.dataPlane
+	next.Access = access
+	next.Downlink = DownlinkBuffering
+	next.AN = AnchorBinding{}
+	next.QFI, next.AMBR = commit.policy.QosData.QFI, commit.policy.Ambr
 
-			return bindingRules{policyID: commit.policy.PolicyID, fars: farList, qers: commit.qers}, nil
-		},
-	})
+	if err := s.applyDataPlane(ctx, sc, next, commit.policy.PolicyID); err != nil {
+		commit.restore()
+
+		return nil, err
+	}
+
+	return sc.finishTransferCommit(commit), nil
 }

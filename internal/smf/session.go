@@ -78,7 +78,7 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 	sc.PDUSessionType = req.PDUType
 	sc.PolicyData = req.Policy
 
-	dlPdrIP, addrs, err := s.allocateUEAddresses(ctx, dn, sc)
+	addrs, err := s.allocateUEAddresses(ctx, dn, sc)
 	if err != nil {
 		sc.Mutex.Unlock()
 		return nil, ueAddresses{}, fmt.Errorf("%w: %v", errUEAddressAllocation, err)
@@ -121,15 +121,16 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		}
 	}
 
-	var v6Prefix net.IP
-	if sc.PDUIPV4Address != nil && sc.PDUIPV6Prefix != nil {
-		v6Prefix = sc.PDUIPV6Prefix
-	}
+	sc.Tunnel = &UPTunnel{dataPlane: dataPlane{
+		UEIPv4: addrs.IPv4,
+		UEIPv6: addrs.IPv6Prefix,
+		Access: req.Access,
+		QFI:    req.Policy.QosData.QFI,
+		AMBR:   req.Policy.Ambr,
+	}}
 
-	sc.Tunnel = &UPTunnel{}
 	seid := s.AllocateSEID()
 	sc.SetPFCPSession(seid)
-	sc.Tunnel.Activate(req.Policy, dlPdrIP, v6Prefix)
 
 	sc.Mutex.Unlock() // establishPFCPSession re-acquires it
 
@@ -198,47 +199,8 @@ type AnchorBinding struct {
 	IPv6 net.IP
 }
 
-// bindAccessTunnel points the downlink FAR at the AN tunnel endpoint and aligns
-// the uplink OuterHeaderRemoval to its IP family.
-func (sc *SMContext) bindAccessTunnel(an AnchorBinding, access AccessType) {
-	if sc.Tunnel == nil {
-		return
-	}
-
-	sc.Tunnel.AN = an
-
-	if !sc.Tunnel.Activated {
-		return
-	}
-
-	dl := sc.Tunnel.DownlinkPDR
-	ul := sc.Tunnel.UplinkPDR
-
-	if dl.FAR.ForwardingParameters == nil {
-		dl.FAR.ForwardingParameters = &models.ForwardingParameters{}
-	}
-
-	s1u := access == Access4G
-
-	if an.IPv6 != nil {
-		dl.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: models.OuterHeaderCreationGtpUUdpIpv6,
-			TEID:        an.TEID,
-			IPv6Address: an.IPv6,
-			S1U:         s1u,
-		}
-		ohr := models.OuterHeaderRemovalGtpUUdpIpv6
-		ul.OuterHeaderRemoval = &ohr
-	} else {
-		dl.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: models.OuterHeaderCreationGtpUUdpIpv4,
-			TEID:        an.TEID,
-			IPv4Address: an.IPv4.To4(),
-			S1U:         s1u,
-		}
-		ohr := models.OuterHeaderRemovalGtpUUdpIpv4
-		ul.OuterHeaderRemoval = &ohr
-	}
+func (a AnchorBinding) bound() bool {
+	return a.IPv4 != nil || a.IPv6 != nil
 }
 
 func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) error {
@@ -251,9 +213,8 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 	defer smContext.Mutex.Unlock()
 
 	tunnel := smContext.Tunnel
-	if !tunnel.Activated {
-		logger.WithTrace(ctx, logger.SmfLog).Debug("data path is not activated, skip sending PFCP rules")
-		return nil
+	if tunnel == nil {
+		return fmt.Errorf("session %q has no user plane", smContext.Ref)
 	}
 
 	if smContext.PFCPContext == nil {
@@ -272,13 +233,7 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 		return fmt.Errorf("PFCP session already established")
 	}
 
-	req := BuildEstablishRequest(
-		smContext.PFCPContext.SEID,
-		smContext.Supi.IMSI(),
-		policyID,
-		tunnel.PDRs(), tunnel.FARs(), tunnel.QERs(), tunnel.URRs(),
-	)
-	req.FramedRoutes = smContext.FramedRoutes
+	req := tunnel.establishRequest(smContext.PFCPContext.SEID, smContext.Supi.IMSI(), policyID, smContext.FramedRoutes)
 
 	resp, err := s.upf.EstablishSession(ctx, req)
 	if err != nil {
@@ -296,48 +251,90 @@ func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) er
 	return nil
 }
 
-func (sc *SMContext) stageAccessBinding() func() {
+func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane, policyID string) error {
 	if sc.Tunnel == nil {
-		return func() {}
+		return fmt.Errorf("session %q has no user plane", sc.Ref)
 	}
 
-	tun := sc.Tunnel
-	an := tun.AN
+	if sc.PFCPContext == nil {
+		return fmt.Errorf("pfcp session context not found for %q", sc.Ref)
+	}
 
-	var (
-		dlAction models.ApplyAction
-		dlParams *models.ForwardingParameters
-		dlOHC    *models.OuterHeaderCreation
-		ulOHR    *uint8
-	)
+	if err := next.valid(); err != nil {
+		return fmt.Errorf("session %q: %w", sc.Ref, err)
+	}
 
-	if dl := tun.DownlinkPDR; dl != nil && dl.FAR != nil {
-		dlAction = dl.FAR.ApplyAction
-		dlParams = dl.FAR.ForwardingParameters
+	if err := s.upf.ModifySession(ctx, next.modifyRequest(sc.PFCPContext.SEID, policyID)); err != nil {
+		return fmt.Errorf("failed to send PFCP session modification request: %w", err)
+	}
 
-		if dlParams != nil {
-			dlOHC = dlParams.OuterHeaderCreation
+	sc.Tunnel.dataPlane = next
+
+	return nil
+}
+
+func (s *SMF) bindDownlink(ctx context.Context, sc *SMContext, access AccessType, an AnchorBinding) (*droppedSource, error) {
+	commit, err := s.beginTransferCommit(ctx, sc, access)
+	if err != nil {
+		return nil, fmt.Errorf("failed to move session %q to %s: %w", sc.Ref, access, err)
+	}
+
+	if commit == nil && sc.Access != access {
+		return nil, fmt.Errorf("session %q is on %s, not %s", sc.Ref, sc.Access, access)
+	}
+
+	next := sc.Tunnel.dataPlane
+	next.AN, next.Access, next.Downlink = an, access, DownlinkForwarding
+
+	policyID := sc.policyID()
+
+	if commit != nil {
+		policyID = commit.policy.PolicyID
+		next.QFI, next.AMBR = commit.policy.QosData.QFI, commit.policy.Ambr
+	}
+
+	if err := s.applyDataPlane(ctx, sc, next, policyID); err != nil {
+		if commit == nil {
+			return nil, err
 		}
+
+		commit.restore()
+
+		sc.releasing = true
+
+		return nil, fmt.Errorf("%w: %v", errTransferRolledBack, err)
 	}
 
-	if ul := tun.UplinkPDR; ul != nil {
-		ulOHR = ul.OuterHeaderRemoval
+	if commit == nil {
+		return nil, nil
 	}
 
-	return func() {
-		tun.AN = an
+	return sc.finishTransferCommit(commit), nil
+}
 
-		if dl := tun.DownlinkPDR; dl != nil && dl.FAR != nil {
-			dl.FAR.ApplyAction = dlAction
-			dl.FAR.ForwardingParameters = dlParams
+func (s *SMF) finishBinding(ctx context.Context, sc *SMContext, dropped *droppedSource, err error) error {
+	if err != nil {
+		if errors.Is(err, errTransferRolledBack) {
+			s.reportSessionNotMovedTo5GS(ctx, sc)
 
-			if dlParams != nil {
-				dlParams.OuterHeaderCreation = dlOHC
+			if releaseErr := s.releaseSession(ctx, sc.Ref); releaseErr != nil {
+				logger.WithTrace(ctx, logger.SmfLog).Warn("failed to release a session whose move was rolled back",
+					zap.Error(releaseErr), zap.String("ref", sc.Ref))
 			}
 		}
 
-		if ul := tun.UplinkPDR; ul != nil {
-			ul.OuterHeaderRemoval = ulOHR
-		}
+		return err
 	}
+
+	s.dropSourceRouting(ctx, sc.Ref, dropped)
+
+	return nil
+}
+
+func (sc *SMContext) policyID() string {
+	if sc.PolicyData == nil {
+		return ""
+	}
+
+	return sc.PolicyData.PolicyID
 }

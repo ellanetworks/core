@@ -121,34 +121,26 @@ func narrowPDUType(requested, negotiated uint8) pduTypeNarrowing {
 	return narrowIPv6Only
 }
 
-// allocateUEAddresses allocates the UE address(es) for sc.PDUSessionType, stores
-// them on sc, and returns the downlink-PDR key (the IPv4 address, or the /64
-// prefix base for IPv6-only). On failure it releases whatever it had allocated.
-// The caller holds sc.Mutex.
-func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContext) (netip.Addr, ueAddresses, error) {
+func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContext) (ueAddresses, error) {
 	imsi := sc.Supi.IMSI()
 
-	var (
-		dlPdrIP netip.Addr
-		addrs   ueAddresses
-	)
+	var addrs ueAddresses
 
 	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
 		ipv4, err := dn.AllocateIP(ctx, imsi, sc.sessionKey())
 		if err != nil {
-			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv4: %w", err)
+			return ueAddresses{}, fmt.Errorf("allocate UE IPv4: %w", err)
 		}
 
 		sc.PDUIPV4Address = netipToIP(ipv4)
 		addrs.IPv4 = ipv4
-		dlPdrIP = ipv4
 	}
 
 	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv6 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {
 		ipv6Prefix, err := dn.AllocateIPv6(ctx, imsi, sc.sessionKey())
 		if err != nil {
 			s.releaseAllocatedAddresses(ctx, dn, sc)
-			return netip.Addr{}, ueAddresses{}, fmt.Errorf("allocate UE IPv6 prefix: %w", err)
+			return ueAddresses{}, fmt.Errorf("allocate UE IPv6 prefix: %w", err)
 		}
 
 		sc.PDUIPV6Prefix = netipToIP(ipv6Prefix)
@@ -157,18 +149,14 @@ func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContex
 		iid, err := GenerateIID()
 		if err != nil {
 			s.releaseAllocatedAddresses(ctx, dn, sc)
-			return netip.Addr{}, ueAddresses{}, fmt.Errorf("assign IPv6 IID: %w", err)
+			return ueAddresses{}, fmt.Errorf("assign IPv6 IID: %w", err)
 		}
 
 		sc.IPv6IID = iid
 		addrs.IPv6IID = iid
-
-		if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv6 {
-			dlPdrIP = ipv6Prefix
-		}
 	}
 
-	return dlPdrIP, addrs, nil
+	return addrs, nil
 }
 
 // releaseAllocatedAddresses releases the UE IP leases recorded on smContext and

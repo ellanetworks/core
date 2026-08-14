@@ -476,28 +476,13 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	smCtx.PFCPContext.SEID = 100
 	smCtx.PFCPContext.Established = true
 
-	ulPdr := smf.NewPDR(1, 1)
-	dlPdr := smf.NewPDR(2, 2)
-
-	dlPdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
-	dlPdr.FAR.ForwardingParameters = &models.ForwardingParameters{
-		OuterHeaderCreation: &models.OuterHeaderCreation{
-			Description: models.OuterHeaderCreationGtpUUdpIpv4,
-			TEID:        6000,
-			IPv4Address: net.ParseIP("10.0.0.100").To4(),
-		},
-	}
-
 	smCtx.Tunnel = &smf.UPTunnel{
-		UplinkPDR:   ulPdr,
-		DownlinkPDR: dlPdr,
-		QER:         ulPdr.QER,
-		N3TEID:      5000,
-		N3IPv4:      netip.MustParseAddr("192.168.1.1"),
-		Activated:   true,
+		N3TEID: 5000,
+		N3IPv4: netip.MustParseAddr("192.168.1.1"),
 	}
-	smCtx.Tunnel.AN.IPv4 = net.ParseIP("10.0.0.100").To4()
-	smCtx.Tunnel.AN.TEID = 6000
+	smCtx.Tunnel.UEIPv6 = netip.MustParseAddr("2001:db8::")
+	smCtx.Tunnel.AN = smf.AnchorBinding{TEID: 6000, IPv4: net.ParseIP("10.0.0.100").To4()}
+	smCtx.Tunnel.Downlink = smf.DownlinkForwarding
 	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 	smCtx.PDUSessionType = uint8(fgs.PDUSessionTypeIPv6)
 
