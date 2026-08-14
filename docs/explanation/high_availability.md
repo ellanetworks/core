@@ -90,7 +90,7 @@ HA clusters recover from total loss through an offline, backup-driven path. An o
 
 Upgrades proceed one node at a time: drain the node, refresh its binary, then resume. Each node retains its node-id, certificate, and Raft membership across the swap. Writes continue throughout; the cluster is briefly mixed-version during each step.
 
-When the new binary carries schema changes, the cluster keeps running on the old schema until every member of the Raft configuration reports support live via its cluster-internal status endpoint; only then does the migration commit through Raft. Non-voters count: they apply the same committed entries as voters, so an old binary on a non-voter holds the migration back exactly as a voter does.
+When the new binary carries schema changes, the cluster keeps running on the old schema until every member of the Raft configuration reports support live via its cluster-internal status endpoint; only then does the migration commit through Raft.
 
 Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
 
