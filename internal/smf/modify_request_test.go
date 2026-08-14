@@ -97,8 +97,11 @@ func assertSEID(t *testing.T, sc *smf.SMContext, req *models.ModifyRequest) {
 	}
 }
 
+// Every modification carries the session's whole rule set, so what a procedure
+// changes is visible in the values, not in which rules it chose to send.
+//
 // TS 23.502 §4.11.1.3.3 step 8
-func TestIdleTransferModificationRebindsTheDownlinkAlone(t *testing.T) {
+func TestIdleTransferModificationBuffersTheDownlink(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	pcf.policy.PolicyID = "policy-1"
 
@@ -114,14 +117,14 @@ func TestIdleTransferModificationRebindsTheDownlinkAlone(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="policy-1" pdrs=[] fars=[id=2 buff+nocp ohc=none] qers=[id=1 qfi=1]`
+	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 buff+nocp ohc=none] qers=[id=1 qfi=1]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("idle transfer modification:\n got %s\nwant %s", got, want)
 	}
 }
 
 // TS 23.401 §5.3.3.1
-func TestEPSBindModificationCarriesBothPDRs(t *testing.T) {
+func TestEPSBindModificationAimsTheDownlinkAtTheENB(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	pcf.policy.PolicyID = "policy-1"
 
@@ -154,14 +157,14 @@ func TestEPSBindModificationCarriesBothPDRs(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="eps-policy" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none] fars=[id=2 forw ohc=teid=0x6001 desc=256 s1u=true] qers=[]`
+	const want = `policy="eps-policy" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x6001 desc=256 s1u=true] qers=[id=1 qfi=0]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("EPS downlink bind modification:\n got %s\nwant %s", got, want)
 	}
 }
 
 // TS 23.502 §4.3.2.2.1
-func TestNGRANBindModificationCarriesTheN2Rules(t *testing.T) {
+func TestNGRANBindModificationAimsTheDownlinkAtTheGNB(t *testing.T) {
 	pcf, store, upf, amfCb, mmeCb := interworkingFakes()
 	pcf.policy.PolicyID = "policy-1"
 
@@ -184,7 +187,7 @@ func TestNGRANBindModificationCarriesTheN2Rules(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none] fars=[id=2 forw ohc=teid=0x7001 desc=256 s1u=false] qers=[]`
+	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x7001 desc=256 s1u=false] qers=[id=1 qfi=1]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("NG-RAN downlink bind modification:\n got %s\nwant %s", got, want)
 	}
@@ -223,7 +226,7 @@ func TestHandoverFromEPSModificationSwitchesTheDownlink(t *testing.T) {
 	req := lastModify(t, upf)
 	assertSEID(t, sc, req)
 
-	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=0] fars=[id=2 forw ohc=teid=0x8001 desc=256 s1u=false] qers=[id=1 qfi=1]`
+	const want = `policy="policy-1" pdrs=[id=1 far=1 qer=1 ohr=0; id=2 far=2 qer=1 ohr=none; id=3 far=2 qer=1 ohr=none] fars=[id=1 forw ohc=none; id=2 forw ohc=teid=0x8001 desc=256 s1u=false] qers=[id=1 qfi=1]`
 	if got := modifySummary(req); got != want {
 		t.Errorf("handover-from-EPS modification:\n got %s\nwant %s", got, want)
 	}

@@ -26,28 +26,15 @@ type PFCPSessionContext struct {
 	Established bool
 }
 
-// The rule set never varies, so the rules are named fields rather than a graph
-// to walk, and each is held exactly once.
+// UPTunnel is a session's user plane: the facts the UPF's rules are derived
+// from, plus the UPF end of the tunnel, which the UPF itself assigns at
+// establish.
 type UPTunnel struct {
-	// The access-network end: gNB N3 (5G) or eNB S1-U (4G).
-	AN AnchorBinding
-
-	// The UPF end, allocated by the UPF at establish.
 	N3TEID uint32
 	N3IPv4 netip.Addr
 	N3IPv6 netip.Addr
 
-	UplinkPDR   *PDR
-	DownlinkPDR *PDR
-	// A PDR matches one UE address, so a dual-stack session needs a second.
-	DownlinkPDRv6 *PDR
-
-	QER         *QER
-	UplinkURR   *URR
-	DownlinkURR *URR
-
-	// The endpoints outlive it: a deactivated session keeps AN for reactivation.
-	Activated bool
+	dataPlane
 }
 
 type SMContext struct {
@@ -99,11 +86,11 @@ type SMContext struct {
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
-	// The endpoint the UE is still on, captured when an N2 handover binds the
-	// target's at prepare (TS 23.502 §4.9.1.3.2). A handover that never completes
-	// has to put this back, or the downlink FAR keeps aiming at a gNB the UE left.
-	// Guarded by Mutex.
-	handoverSourceAN *AnchorBinding
+	// The endpoint the target NG-RAN offered in its Handover Request Acknowledge
+	// (TS 23.502 §4.9.1.3.2 step 10). It is bound only once the UE has arrived
+	// (§4.9.1.3.3 step 10a); until then the downlink belongs to the source
+	// NG-RAN. A handover that never completes drops it. Guarded by Mutex.
+	handoverTargetAN *AnchorBinding
 
 	pending *pendingTransfer
 
@@ -116,14 +103,10 @@ func (smContext *SMContext) stopProcedureTimer() {
 	smContext.procedureTimer.Stop()
 }
 
-// upConnectionActive reports whether the downlink FAR is forwarding, as opposed
-// to idle/buffering after DeactivateSmContext (CM-IDLE). Caller must hold Mutex.
+// upConnectionActive reports whether the downlink is forwarding, as opposed to
+// idle/buffering after DeactivateSmContext (CM-IDLE). Caller must hold Mutex.
 func (smContext *SMContext) upConnectionActive() bool {
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated || smContext.Tunnel.DownlinkPDR.FAR == nil {
-		return false
-	}
-
-	return smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Forw
+	return smContext.Tunnel != nil && smContext.Tunnel.Downlink == DownlinkForwarding
 }
 
 // MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding

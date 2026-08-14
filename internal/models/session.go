@@ -181,23 +181,14 @@ type URR struct {
 	URRID uint32
 }
 
-// The SMF only ever sends updates: a session's rules are created with it and
-// removed with it.
+// A session's rules are created with it and removed with it, so a modification
+// only ever updates, and it carries the whole rule set every time.
 type ModifyRequest struct {
-	SEID     uint64
-	PolicyID string
-
-	CreatePDRs   []PDR
-	UpdatePDRs   []PDR
-	RemovePDRIDs []uint16
-
-	CreateFARs   []FAR
-	UpdateFARs   []FAR
-	RemoveFARIDs []uint32
-
-	CreateQERs   []QER
-	UpdateQERs   []QER
-	RemoveQERIDs []uint32
+	SEID       uint64
+	PolicyID   string
+	UpdatePDRs []PDR
+	UpdateFARs []FAR
+	UpdateQERs []QER
 }
 
 // DeleteRequest asks the UPF to delete a session by its SEID.

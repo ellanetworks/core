@@ -88,38 +88,20 @@ func setupSessionWithTunnelIdentity(t *testing.T, s *smf.SMF, id smf.SessionIden
 	s.AssignPFCPSession(smCtx, 100)
 	smCtx.PFCPContext.Established = true
 
-	ulPdr := smf.NewPDR(1, 1)
-	dlPdr := smf.NewPDR(2, 2)
-
-	dlPdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
-	dlPdr.FAR.ForwardingParameters = &models.ForwardingParameters{
-		OuterHeaderCreation: &models.OuterHeaderCreation{
-			Description: models.OuterHeaderCreationGtpUUdpIpv4,
-			TEID:        6000,
-			IPv4Address: net.ParseIP("10.0.0.100").To4(),
-		},
-	}
-
 	policy := &smf.Policy{
 		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
-	qer := smf.NewQER(policy, 1)
-
-	ulPdr.QER = qer
-	dlPdr.QER = qer
-
 	smCtx.Tunnel = &smf.UPTunnel{
-		UplinkPDR:   ulPdr,
-		DownlinkPDR: dlPdr,
-		QER:         qer,
-		N3TEID:      5000,
-		N3IPv4:      netip.MustParseAddr("192.168.1.1"),
-		Activated:   true,
+		N3TEID: 5000,
+		N3IPv4: netip.MustParseAddr("192.168.1.1"),
 	}
-	smCtx.Tunnel.AN.IPv4 = net.ParseIP("10.0.0.100").To4()
-	smCtx.Tunnel.AN.TEID = 6000
+	smCtx.Tunnel.UEIPv4 = netip.MustParseAddr("10.0.0.1")
+	smCtx.Tunnel.AN = smf.AnchorBinding{TEID: 6000, IPv4: net.ParseIP("10.0.0.100").To4()}
+	smCtx.Tunnel.Downlink = smf.DownlinkForwarding
+	smCtx.Tunnel.QFI = policy.QosData.QFI
+	smCtx.Tunnel.AMBR = policy.Ambr
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 
 	smCtx.PolicyData = policy
@@ -149,119 +131,6 @@ func modificationSMPayload(t *testing.T, n1Msg []byte) []byte {
 
 // ===========================
 // ===========================
-
-func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	s := newTestSMF(pcf, store, upf, amfCb)
-	supi := testSUPI()
-
-	smCtx, _ := s.NewSession(supi, smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
-	smCtx.Tunnel = &smf.UPTunnel{}
-
-	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
-		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
-	}
-
-	smCtx.Tunnel.Activate(policy, netip.MustParseAddr("10.0.0.1"), nil)
-
-	if !smCtx.Tunnel.Activated {
-		t.Fatal("expected the tunnel to be Activated")
-	}
-
-	if smCtx.Tunnel.UplinkPDR == nil {
-		t.Fatal("expected UL PDR to be set")
-	}
-
-	if smCtx.Tunnel.DownlinkPDR == nil {
-		t.Fatal("expected DL PDR to be set")
-	}
-
-	if !smCtx.Tunnel.UplinkPDR.FAR.ApplyAction.Forw {
-		t.Fatal("UL FAR should forward")
-	}
-}
-
-// TestActivateTunnelAndPDR_FixedRuleIDs pins the per-session rule IDs. They are
-// scoped to the PFCP session (TS 29.244 §5.2), so every session uses the same
-// fixed set and the second PDR shares the downlink FAR. Dual-stack adds the
-// second downlink PDR.
-func TestActivateTunnelAndPDR_FixedRuleIDs(t *testing.T) {
-	policy := &smf.Policy{
-		Ambr:    models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("200 Mbps")},
-		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
-	}
-
-	for _, tc := range []struct {
-		name      string
-		dualStack bool
-	}{
-		{"single-stack", false},
-		{"dual-stack", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			pcf, store, upf, amfCb := defaultFakes()
-			s := newTestSMF(pcf, store, upf, amfCb)
-
-			smCtx, _ := s.NewSession(testSUPI(), smf.Access5G, smf.SessionIdentity{PDUSessionID: 1}, testDNN, testSnssai)
-			smCtx.Tunnel = &smf.UPTunnel{}
-
-			var v6Prefix net.IP
-
-			if tc.dualStack {
-				smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1")
-				smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:1::")
-				v6Prefix = smCtx.PDUIPV6Prefix
-			}
-
-			smCtx.Tunnel.Activate(policy, netip.MustParseAddr("10.0.0.1"), v6Prefix)
-
-			dp := smCtx.Tunnel
-
-			if got := dp.UplinkPDR.PDRID; got != 1 {
-				t.Errorf("uplink PDR ID = %d, want 1", got)
-			}
-
-			if got := dp.UplinkPDR.FAR.FARID; got != 1 {
-				t.Errorf("uplink FAR ID = %d, want 1", got)
-			}
-
-			if got := dp.DownlinkPDR.PDRID; got != 2 {
-				t.Errorf("downlink PDR ID = %d, want 2", got)
-			}
-
-			if got := dp.DownlinkPDR.FAR.FARID; got != 2 {
-				t.Errorf("downlink FAR ID = %d, want 2", got)
-			}
-
-			if got := dp.QER.QERID; got != 1 {
-				t.Errorf("QER ID = %d, want 1", got)
-			}
-
-			if got := dp.UplinkURR.URRID; got != 1 {
-				t.Errorf("uplink URR ID = %d, want 1", got)
-			}
-
-			if got := dp.DownlinkURR.URRID; got != 2 {
-				t.Errorf("downlink URR ID = %d, want 2", got)
-			}
-
-			if tc.dualStack {
-				if dp.DownlinkPDRv6 == nil {
-					t.Fatal("expected second PDR for dual-stack session")
-				}
-
-				if got := dp.DownlinkPDRv6.PDRID; got != 3 {
-					t.Errorf("second PDR ID = %d, want 3", got)
-				}
-
-				if dp.DownlinkPDRv6.FAR != dp.DownlinkPDR.FAR {
-					t.Error("second PDR should share the downlink FAR")
-				}
-			}
-		})
-	}
-}
 
 // ===========================
 // ActivateSmContext tests
@@ -327,18 +196,13 @@ func TestDeactivateSmContext_HappyPath(t *testing.T) {
 	}
 
 	smCtx := s.GetSession(ref)
-	dlFar := smCtx.Tunnel.DownlinkPDR.FAR
-
-	if dlFar.ApplyAction.Forw {
-		t.Fatal("expected Forw to be false after deactivation")
+	if got := smCtx.Tunnel.Downlink; got != smf.DownlinkBuffering {
+		t.Fatalf("downlink state = %d after deactivation, want buffering", got)
 	}
 
-	if !dlFar.ApplyAction.Buff {
-		t.Fatal("expected Buff to be true after deactivation")
-	}
-
-	if !dlFar.ApplyAction.Nocp {
-		t.Fatal("expected Nocp to be true after deactivation")
+	dlFAR := upf.modifyCalls[0].UpdateFARs[1]
+	if dlFAR.ApplyAction != (models.ApplyAction{Buff: true, Nocp: true}) {
+		t.Fatalf("downlink FAR sent to the UPF = %+v, want buffer and notify", dlFAR.ApplyAction)
 	}
 }
 
@@ -1187,7 +1051,7 @@ func TestHandleDownlinkDataReport(t *testing.T) {
 
 	err := s.HandleDownlinkDataReport(ctx, &models.DownlinkDataReport{
 		SEID:  smCtx.PFCPContext.SEID,
-		PDRID: smCtx.Tunnel.UplinkPDR.PDRID,
+		PDRID: 1,
 		QFI:   smCtx.PolicyData.QosData.QFI,
 	})
 	if err != nil {
@@ -2121,17 +1985,19 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 		t.Fatalf("expected AN TEID %d, got %d", gnbTEID, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
-	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
+	dlFAR := upf.modifyCalls[len(upf.modifyCalls)-1].UpdateFARs[1]
+
+	ohc := dlFAR.ForwardingParameters.OuterHeaderCreation
+	if ohc == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
 
-	if dlFAR.ForwardingParameters.OuterHeaderCreation.TEID != gnbTEID {
-		t.Fatalf("expected DL FAR TEID %d, got %d", gnbTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
+	if ohc.TEID != gnbTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", gnbTEID, ohc.TEID)
 	}
 
-	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(gnbIP) {
-		t.Fatalf("expected DL FAR IP %s, got %s", gnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
+	if !ohc.IPv4Address.Equal(gnbIP) {
+		t.Fatalf("expected DL FAR IP %s, got %s", gnbIP, ohc.IPv4Address)
 	}
 
 	upf.mu.Lock()
@@ -2178,17 +2044,19 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
-	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
+	dlFAR := upf.modifyCalls[len(upf.modifyCalls)-1].UpdateFARs[1]
+
+	ohc := dlFAR.ForwardingParameters.OuterHeaderCreation
+	if ohc == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
 
-	if dlFAR.ForwardingParameters.OuterHeaderCreation.TEID != targetTEID {
-		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
+	if ohc.TEID != targetTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, ohc.TEID)
 	}
 
-	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(targetGnbIP) {
-		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
+	if !ohc.IPv4Address.Equal(targetGnbIP) {
+		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, ohc.IPv4Address)
 	}
 
 	upf.mu.Lock()
@@ -2247,7 +2115,24 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 		t.Fatal("expected non-nil N2 response (HandoverCommandTransfer) from Prepared phase")
 	}
 
-	// Verify the session's ANInformation was updated to the target gNB.
+	// Per 3GPP TS 23.502 §4.9.1.3.3 the N4 modification happens after
+	// HandoverNotify, so the target's endpoint is only a proposal until then.
+	upf.mu.Lock()
+	if len(upf.modifyCalls) != 0 {
+		t.Fatalf("expected 0 PFCP modify calls after N2 handover prepared, got %d", len(upf.modifyCalls))
+	}
+	upf.mu.Unlock()
+
+	if smCtx.Tunnel.AN.TEID == targetTEID {
+		t.Fatal("prepare moved the downlink onto the target before the UE arrived")
+	}
+
+	// Phase 3: "Complete" — AMF calls UpdateSmContextN2HandoverComplete after
+	// the UE has successfully moved to the target gNB.
+	if err := s.UpdateSmContextN2HandoverComplete(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverComplete: %v", err)
+	}
+
 	if !smCtx.Tunnel.AN.IPv4.Equal(targetGnbIP) {
 		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.AN.IPv4)
 	}
@@ -2256,38 +2141,24 @@ func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
 		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
-	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
-		t.Fatal("expected DL FAR outer header creation to be set")
-	}
-
-	if dlFAR.ForwardingParameters.OuterHeaderCreation.TEID != targetTEID {
-		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
-	}
-
-	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(targetGnbIP) {
-		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
-	}
-
-	// Verify UpdateSmContextN2HandoverPrepared did NOT call ModifySession.
-	// Per 3GPP TS 23.502 §4.9.1.3.3, the N4 modification happens after HandoverNotify.
-	upf.mu.Lock()
-	if len(upf.modifyCalls) != 0 {
-		t.Fatalf("expected 0 PFCP modify calls after N2 handover prepared, got %d", len(upf.modifyCalls))
-	}
-	upf.mu.Unlock()
-
-	// Phase 3: "Complete" — AMF calls UpdateSmContextN2HandoverComplete after
-	// the UE has successfully moved to the target gNB.
-	if err := s.UpdateSmContextN2HandoverComplete(ctx, ref); err != nil {
-		t.Fatalf("UpdateSmContextN2HandoverComplete: %v", err)
-	}
-
 	upf.mu.Lock()
 	defer upf.mu.Unlock()
 
 	if len(upf.modifyCalls) != 1 {
 		t.Fatalf("expected 1 PFCP modify call after N2 handover complete, got %d", len(upf.modifyCalls))
+	}
+
+	ohc := upf.modifyCalls[0].UpdateFARs[1].ForwardingParameters.OuterHeaderCreation
+	if ohc == nil {
+		t.Fatal("expected DL FAR outer header creation to be set")
+	}
+
+	if ohc.TEID != targetTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, ohc.TEID)
+	}
+
+	if !ohc.IPv4Address.Equal(targetGnbIP) {
+		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, ohc.IPv4Address)
 	}
 }
 
@@ -2611,10 +2482,10 @@ func TestDeactivateSmContext_SessionGoneClearsSEID(t *testing.T) {
 	}
 }
 
-// The target acknowledged, so the SMF bound its endpoint, but the UE never
-// moved. Without the source binding back, every later PFCP modification pushes a
-// downlink FAR aimed at a gNB the UE is not on.
-func TestUpdateSmContextN2HandoverCanceled_RestoresSourceTunnel(t *testing.T) {
+// The target acknowledged, but the UE never moved. Its endpoint was only ever a
+// proposal, so the session stays on the source and the UPF is never told
+// anything.
+func TestUpdateSmContextN2HandoverCanceled_LeavesTheSourceTunnel(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
@@ -2633,8 +2504,12 @@ func TestUpdateSmContextN2HandoverCanceled_RestoresSourceTunnel(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2HandoverPrepared: %v", err)
 	}
 
-	if smCtx.Tunnel.AN.TEID != 8000 {
-		t.Fatalf("prepare did not bind the target: TEID = %d", smCtx.Tunnel.AN.TEID)
+	if smCtx.HandoverTargetANForTest() == nil {
+		t.Fatal("prepare did not record the target endpoint")
+	}
+
+	if smCtx.Tunnel.AN.TEID != sourceTEID {
+		t.Fatalf("prepare moved the downlink off the source: TEID = %d", smCtx.Tunnel.AN.TEID)
 	}
 
 	if err := s.UpdateSmContextN2HandoverCanceled(ctx, ref); err != nil {
@@ -2649,19 +2524,13 @@ func TestUpdateSmContextN2HandoverCanceled_RestoresSourceTunnel(t *testing.T) {
 		t.Fatalf("AN IP = %s after cancel, want the source's %s", smCtx.Tunnel.AN.IPv4, sourceIP)
 	}
 
-	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
-	if ohc := dlFAR.ForwardingParameters.OuterHeaderCreation; ohc.TEID != sourceTEID || !ohc.IPv4Address.Equal(sourceIP) {
-		t.Fatalf("downlink FAR still aims at the target: TEID %d, IP %s", ohc.TEID, ohc.IPv4Address)
-	}
-
-	// Pushed, so a modification that landed while the target binding was in place
-	// does not leave the UPF forwarding there.
+	// The downlink never left the source, so there is nothing to push back.
 	upf.mu.Lock()
 	modifyCalls := len(upf.modifyCalls)
 	upf.mu.Unlock()
 
-	if modifyCalls != 1 {
-		t.Fatalf("expected the restored FAR to be pushed once, got %d PFCP modify calls", modifyCalls)
+	if modifyCalls != 0 {
+		t.Fatalf("a cancelled handover signalled the UPF: %d PFCP modify calls", modifyCalls)
 	}
 
 	// Idempotent.
@@ -2672,14 +2541,14 @@ func TestUpdateSmContextN2HandoverCanceled_RestoresSourceTunnel(t *testing.T) {
 	upf.mu.Lock()
 	defer upf.mu.Unlock()
 
-	if len(upf.modifyCalls) != 1 {
-		t.Fatalf("a repeat cancel pushed again: %d PFCP modify calls", len(upf.modifyCalls))
+	if len(upf.modifyCalls) != 0 {
+		t.Fatalf("a repeat cancel signalled the UPF: %d PFCP modify calls", len(upf.modifyCalls))
 	}
 }
 
-// A completed handover must leave nothing for a later cancel to restore: the UE
+// A completed handover must leave nothing for a later cancel to act on: the UE
 // really is on the target, so putting the source back would black-hole it.
-func TestUpdateSmContextN2HandoverComplete_ClearsCancelSnapshot(t *testing.T) {
+func TestUpdateSmContextN2HandoverComplete_ClearsTheTargetProposal(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()

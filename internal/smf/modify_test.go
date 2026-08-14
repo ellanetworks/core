@@ -59,13 +59,13 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 		t.Fatalf("expected AN TEID %d, got %d", teid, smCtx.Tunnel.AN.TEID)
 	}
 
-	dlFAR := smCtx.Tunnel.DownlinkPDR.FAR
-	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
+	ohc := upf.modifyCalls[0].UpdateFARs[1].ForwardingParameters.OuterHeaderCreation
+	if ohc == nil {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
 
-	if dlFAR.ForwardingParameters.OuterHeaderCreation.TEID != teid {
-		t.Fatalf("expected DL FAR TEID %d, got %d", teid, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
+	if ohc.TEID != teid {
+		t.Fatalf("expected DL FAR TEID %d, got %d", teid, ohc.TEID)
 	}
 
 	confirm, err := libngap.ParsePDUSessionResourceModifyConfirmTransfer(n2Rsp)
@@ -85,9 +85,10 @@ func TestUpdateSmContextN2ModifyIndication_HappyPath(t *testing.T) {
 	}
 }
 
-// bindAccessTunnel realigns the uplink PDR's OuterHeaderRemoval as well as the
-// downlink FAR, so sending only the FAR leaves the UPF decapsulating uplink
-// GTP-U as the previous family when the RAN moves between IPv4 and IPv6.
+// The uplink PDR's OuterHeaderRemoval follows the endpoint's family as much as
+// the downlink FAR does, so sending only the FAR would leave the UPF
+// decapsulating uplink GTP-U as the previous family when the RAN moves between
+// IPv4 and IPv6.
 func TestUpdateSmContextN2ModifyIndication_SendsUplinkPDR(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -107,9 +108,8 @@ func TestUpdateSmContextN2ModifyIndication_SendsUplinkPDR(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2ModifyIndication: %v", err)
 	}
 
-	ulPDR := smCtx.Tunnel.UplinkPDR
-	if ulPDR.OuterHeaderRemoval == nil || *ulPDR.OuterHeaderRemoval != models.OuterHeaderRemovalGtpUUdpIpv6 {
-		t.Fatalf("uplink OuterHeaderRemoval = %v, want the IPv6 descriptor", ulPDR.OuterHeaderRemoval)
+	if smCtx.Tunnel.AN.IPv6 == nil {
+		t.Fatalf("AN = %+v, want the IPv6 endpoint the indication named", smCtx.Tunnel.AN)
 	}
 
 	upf.mu.Lock()
@@ -124,7 +124,7 @@ func TestUpdateSmContextN2ModifyIndication_SendsUplinkPDR(t *testing.T) {
 	var sawUplink bool
 
 	for _, p := range req.UpdatePDRs {
-		if p.PDRID == ulPDR.PDRID {
+		if p.PDI.LocalFTEID != nil {
 			sawUplink = true
 
 			if p.OuterHeaderRemoval == nil || *p.OuterHeaderRemoval != models.OuterHeaderRemovalGtpUUdpIpv6 {

@@ -58,23 +58,16 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		return nil
 	}
 
-	farList, err := handleUpCnxStateDeactivate(smContext)
-	if err != nil {
-		return fmt.Errorf("error handling UP connection state: %v", err)
-	}
-
-	if smContext.PFCPContext == nil {
-		return fmt.Errorf("pfcp session context not found for upf")
+	if smContext.Tunnel == nil || smContext.PFCPContext == nil {
+		return fmt.Errorf("session %q has half a user plane to deactivate", smContextRef)
 	}
 
 	seid := smContext.PFCPContext.SEID
 
-	err = s.upf.ModifySession(ctx, BuildModifyRequest(
-		seid,
-		"",
-		nil, farList, nil,
-	))
-	if err != nil {
+	next := smContext.Tunnel.dataPlane
+	next.Downlink = DownlinkBuffering
+
+	if err := s.applyDataPlane(ctx, smContext, next, ""); err != nil {
 		// Any other failure leaves the UPF holding the session, its PDRs, its TEID
 		// and its UE-IP map entries; nothing sweeps orphaned SEIDs, so dropping the
 		// SEID there strands all of them.
@@ -93,32 +86,10 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 				logger.SEID(seid))
 		}
 
-		return fmt.Errorf("failed to send PFCP session modification request (seid=%d): %v", seid, err)
+		return fmt.Errorf("deactivate the user plane of session %d: %w", seid, err)
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return nil
-}
-
-func handleUpCnxStateDeactivate(smContext *SMContext) ([]*FAR, error) {
-	if smContext.Tunnel == nil {
-		return nil, nil
-	}
-
-	if smContext.Tunnel.DownlinkPDR == nil {
-		return nil, fmt.Errorf("AN Release Error, PDR is nil")
-	}
-
-	smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Forw = false
-	smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Buff = true
-	smContext.Tunnel.DownlinkPDR.FAR.ApplyAction.Nocp = true
-
-	if smContext.Tunnel.DownlinkPDR.FAR.ForwardingParameters != nil {
-		smContext.Tunnel.DownlinkPDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
-	}
-
-	farList := []*FAR{smContext.Tunnel.DownlinkPDR.FAR}
-
-	return farList, nil
 }

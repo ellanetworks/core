@@ -210,80 +210,44 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
-	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data, span)
-	if errors.Is(err, errTransferRolledBack) {
-		s.rejectUnforwardedEstablishment(ctx, smContext)
+	dropped, err := s.bindNGRANDownlink(ctx, smContext, n2Data)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to bind the downlink")
+
+		if errors.Is(err, errTransferRolledBack) {
+			s.rejectUnforwardedEstablishment(ctx, smContext)
+		}
 	}
 
-	return s.finishAccessBinding(ctx, smContext, dropped, err)
+	return s.finishBinding(ctx, smContext, dropped, err)
 }
 
-func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Data []byte, span trace.Span) (*droppedSource, error) {
+func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Data []byte) (*droppedSource, error) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.Tunnel == nil || !smContext.Tunnel.Activated {
-		return nil, failBinding(span, "session already released", fmt.Errorf("session already released"))
+	if smContext.Tunnel == nil {
+		return nil, fmt.Errorf("session already released")
 	}
 
-	if smContext.PFCPContext == nil {
-		return nil, failBinding(span, "pfcp session context not found", fmt.Errorf("pfcp session context not found"))
+	an, err := anchorFromSetupResponse(n2Data)
+	if err != nil {
+		return nil, fmt.Errorf("error handling N2 message: %w", err)
 	}
 
-	return s.commitAccessBinding(ctx, smContext, accessBinding{
-		access: Access5G,
-		build: func(commit *transferCommit) (bindingRules, error) {
-			if commit == nil && smContext.Access != Access5G {
-				return bindingRules{}, fmt.Errorf("session %q is on %s, not 5GS", smContext.Ref, smContext.Access)
-			}
-
-			pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
-			if err != nil {
-				return bindingRules{}, fmt.Errorf("error handling N2 message: %v", err)
-			}
-
-			rules := bindingRules{pdrs: pdrList, fars: farList}
-			if commit != nil {
-				rules.policyID = commit.policy.PolicyID
-				rules.qers = commit.qers
-			}
-
-			return rules, nil
-		},
-		onBound: func() {
-			smContext.establishmentOutstanding = false
-
-			s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
-
-			logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		},
-	})
-}
-
-func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smContext *SMContext) ([]*PDR, []*FAR, error) {
-	logger.SmfLog.Debug("received n2 sm info type", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	var pdrList []*PDR
-
-	var farList []*FAR
-
-	if smContext.Tunnel.Activated {
-		smContext.Tunnel.DownlinkPDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
-		smContext.Tunnel.DownlinkPDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
-
-		pdrList = append(pdrList, smContext.Tunnel.DownlinkPDR)
-		farList = append(farList, smContext.Tunnel.DownlinkPDR.FAR)
-
-		// Initial PDR creation set the UL OuterHeaderRemoval before the gNB IP was
-		// known, so the corrected value has to reach the UPF too.
-		pdrList = append(pdrList, smContext.Tunnel.UplinkPDR)
+	dropped, err := s.bindDownlink(ctx, smContext, Access5G, an)
+	if err != nil {
+		return nil, err
 	}
 
-	if err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext); err != nil {
-		return nil, nil, fmt.Errorf("handle PDUSessionResourceSetupResponseTransfer failed: %v", err)
-	}
+	smContext.establishmentOutstanding = false
 
-	return pdrList, farList, nil
+	s.registerIPv6SessionIfNeeded(ctx, smContext, Access5G)
+
+	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+	return dropped, nil
 }
 
 func anchorFromGTPTunnel(t libngap.GTPTunnel) AnchorBinding {
@@ -296,17 +260,15 @@ func anchorFromGTPTunnel(t libngap.GTPTunnel) AnchorBinding {
 	}
 }
 
-func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContext) error {
+func anchorFromSetupResponse(b []byte) (AnchorBinding, error) {
 	transfer, err := libngap.ParsePDUSessionResourceSetupResponseTransfer(b)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshall resource setup response transfer: %w", err)
+		return AnchorBinding{}, fmt.Errorf("failed to unmarshall resource setup response transfer: %w", err)
 	}
 
 	// UPTransportLayerInformation is a CHOICE whose only modelled alternative is
 	// gTPTunnel; the decoder refuses choice-Extensions on our behalf.
-	smContext.bindAccessTunnel(anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), Access5G)
-
-	return nil
+	return anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), nil
 }
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.

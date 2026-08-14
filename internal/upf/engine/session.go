@@ -94,13 +94,6 @@ func (s *Session) GetFar(id uint32) ebpf.FarInfo {
 	return s.fars[id]
 }
 
-func (s *Session) RemoveFar(id uint32) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.fars, id)
-}
-
 func (s *Session) PutPDR(id uint32, info SPDRInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -115,15 +108,6 @@ func (s *Session) GetPDR(id uint32) SPDRInfo {
 	return s.pdrs[id]
 }
 
-func (s *Session) HasPDR(id uint32) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	_, ok := s.pdrs[id]
-
-	return ok
-}
-
 // LookupPDR returns the PDR and whether it exists.
 func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
 	s.mu.RLock()
@@ -132,16 +116,6 @@ func (s *Session) LookupPDR(id uint32) (SPDRInfo, bool) {
 	info, ok := s.pdrs[id]
 
 	return info, ok
-}
-
-func (s *Session) RemovePDR(id uint32) SPDRInfo {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	sPdrInfo := s.pdrs[id]
-	delete(s.pdrs, id)
-
-	return sPdrInfo
 }
 
 // ListPDRs returns a snapshot copy of the PDR map.
@@ -166,14 +140,6 @@ func (s *Session) ListFARs() map[uint32]ebpf.FarInfo {
 	return c
 }
 
-// NewQer stores a QER by ID so that future PDR creation can look it up.
-func (s *Session) NewQer(id uint32, qerInfo ebpf.QerInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.qers[id] = qerInfo
-}
-
 // GetQer returns the QER with the given ID.
 func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	s.mu.RLock()
@@ -182,20 +148,12 @@ func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	return s.qers[id]
 }
 
-// PutQer updates a QER in the session.
+// PutQer stores a QER by ID so that PDR creation can look it up.
 func (s *Session) PutQer(id uint32, qerInfo ebpf.QerInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.qers[id] = qerInfo
-}
-
-// RemoveQer removes a QER from the session.
-func (s *Session) RemoveQer(id uint32) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.qers, id)
 }
 
 // SetUEAddresses records the UE source addresses (v4 /32, v6 /64 base) for uplink

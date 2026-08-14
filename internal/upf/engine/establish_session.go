@@ -67,7 +67,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	var txn sessionTxn
 
 	for _, far := range req.FARs {
-		farInfo := farInfoFromModel(far, conn.n3AddressIPv4, conn.n3AddressIPv6)
+		farInfo := farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, ebpf.FarInfo{})
 
 		go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
@@ -79,9 +79,9 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}
 
 	for _, qer := range req.QERs {
-		qerInfo := qerInfoFromModel(qer)
+		qerInfo := qerInfoFromMerge(qer, ebpf.QerInfo{})
 
-		sess.NewQer(qer.QERID, qerInfo)
+		sess.PutQer(qer.QERID, qerInfo)
 		qerMap[qer.QERID] = qerInfo
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Created QoS Enforcement Rule",
@@ -243,98 +243,41 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	}, nil
 }
 
-// farInfoFromModel converts a models.FAR to an ebpf.FarInfo.
-func farInfoFromModel(far models.FAR, localIPv4 netip.Addr, localIPv6 netip.Addr) ebpf.FarInfo {
-	info := ebpf.FarInfo{
-		Action: encodeApplyAction(far.ApplyAction),
-	}
-
-	if fp := far.ForwardingParameters; fp != nil {
-		if ohc := fp.OuterHeaderCreation; ohc != nil {
-			info.OuterHeaderCreation = uint8(ohc.Description >> 8)
-
-			// S1-U bearers emit plain GTP-U with no PDU Session Container
-			// (TS 38.415: the container is N3/N9-only); ohcNoPSC tells the
-			// datapath to omit it.
-			if ohc.S1U {
-				info.OuterHeaderCreation |= ohcNoPSC
-			}
-
-			info.TeID = ohc.TEID
-
-			if ohc.Description == models.OuterHeaderCreationGtpUUdpIpv6 && ohc.IPv6Address != nil {
-				info.LocalIP = ebpf.IPToIn6Addr(localIPv6)
-
-				v6 := ohc.IPv6Address.To16()
-				if v6 != nil {
-					var v6arr [16]byte
-					copy(v6arr[:], v6)
-					info.RemoteIP = v6arr
-				}
-			} else if ohc.IPv4Address != nil {
-				info.LocalIP = ebpf.IPToIn6Addr(localIPv4)
-
-				ip4 := ohc.IPv4Address.To4()
-				if ip4 != nil {
-					var ip4arr [4]byte
-					copy(ip4arr[:], ip4)
-					info.RemoteIP = ebpf.IPToIn6Addr(netip.AddrFrom4(ip4arr))
-				}
-			} else {
-				// No remote IP set yet (e.g. DL FAR before gNB responds) —
-				// default to IPv4 local address.
-				info.LocalIP = ebpf.IPToIn6Addr(localIPv4)
-			}
-		}
-	}
-
-	return info
-}
+// The apply-action bits the eBPF data plane reads (enum far_action_mask in
+// utils/pdr.h), named for the flags TS 29.244 §8.2.26 defines.
+const (
+	farDrop uint8 = 1 << iota
+	farForward
+	farBuffer
+	farNotifyCP
+	farDuplicate
+)
 
 // encodeApplyAction packs ApplyAction bools into the uint8 bit layout
 // expected by the eBPF data plane.
 func encodeApplyAction(a models.ApplyAction) uint8 {
 	var v uint8
 	if a.Drop {
-		v |= 0x01
+		v |= farDrop
 	}
 
 	if a.Forw {
-		v |= 0x02
+		v |= farForward
 	}
 
 	if a.Buff {
-		v |= 0x04
+		v |= farBuffer
 	}
 
 	if a.Nocp {
-		v |= 0x08
+		v |= farNotifyCP
 	}
 
 	if a.Dupl {
-		v |= 0x10
+		v |= farDuplicate
 	}
 
 	return v
-}
-
-// qerInfoFromModel converts a models.QER to an ebpf.QerInfo.
-func qerInfoFromModel(qer models.QER) ebpf.QerInfo {
-	info := ebpf.QerInfo{
-		Qfi: qer.QFI,
-	}
-
-	if qer.GateStatus != nil {
-		info.GateStatusDL = qer.GateStatus.DLGate
-		info.GateStatusUL = qer.GateStatus.ULGate
-	}
-
-	if qer.MBR != nil {
-		info.MaxBitrateDL = qer.MBR.DLMBR * 1000
-		info.MaxBitrateUL = qer.MBR.ULMBR * 1000
-	}
-
-	return info
 }
 
 // A session has exactly one uplink PDR that asks for an F-TEID; 0 means none

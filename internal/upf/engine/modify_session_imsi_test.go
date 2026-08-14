@@ -65,44 +65,10 @@ func modifyIMSITestEngine(t *testing.T, seid uint64, imsi string) (*engine.Sessi
 	return conn, obj
 }
 
-// The IMSI reaches the datapath only via the establish request, so a modify that
-// builds a PDR from scratch has to recover it from the session; getting this
-// wrong fails the whole modify on an unparseable empty IMSI.
-func TestModifySessionCreatePDRCarriesSessionIMSI(t *testing.T) {
-	const (
-		seid = uint64(21)
-		imsi = "001010000000001"
-	)
-
-	conn, obj := modifyIMSITestEngine(t, seid, imsi)
-
-	ueIP := netip.MustParseAddr("10.0.0.7")
-
-	modify := &models.ModifyRequest{
-		SEID:       seid,
-		CreatePDRs: []models.PDR{{PDRID: 2, FARID: 1, PDI: models.PDI{UEIPAddress: ueIP}}},
-	}
-
-	if err := conn.ModifySession(context.Background(), modify); err != nil {
-		t.Fatalf("modify with a created PDR: %v", err)
-	}
-
-	var v upfebpf.N3N6EntrypointPdrInfo
-	if err := obj.PdrsDownlinkIp4.Lookup(ueIP.As4(), &v); err != nil {
-		t.Fatalf("created PDR is absent from pdrs_downlink_ip4: %v", err)
-	}
-
-	if got := upfebpf.DecodeIMSITag(v.Imsi); got != imsi {
-		t.Errorf("datapath IMSI = %q, want %q (from the establish request)", got, imsi)
-	}
-
-	if v.LocalSeid != seid {
-		t.Errorf("datapath SEID = %d, want %d", v.LocalSeid, seid)
-	}
-}
-
-// An update naming a PDR ID the session never installed builds its rule from a
-// zero value, which carries neither SEID nor IMSI.
+// The IMSI reaches the datapath only via the establish request, and an update
+// naming a PDR ID the session never installed builds its rule from a zero value,
+// which carries neither SEID nor IMSI; getting this wrong fails the whole modify
+// on an unparseable empty IMSI.
 func TestModifySessionUpdateWithoutPredecessorCarriesSessionIMSI(t *testing.T) {
 	const (
 		seid = uint64(22)
