@@ -138,7 +138,12 @@ func (g *GnodeB) StorePDUSession(ranUeId int64, pduSessionInfo *PDUSessionInform
 		g.PDUSessions[ranUeId] = make(map[int64]*PDUSessionInformation)
 	}
 
-	g.PDUSessions[ranUeId][pduSessionInfo.PDUSessionID] = pduSessionInfo
+	if existing, ok := g.PDUSessions[ranUeId][pduSessionInfo.PDUSessionID]; ok {
+		*existing = *pduSessionInfo
+	} else {
+		g.PDUSessions[ranUeId][pduSessionInfo.PDUSessionID] = pduSessionInfo
+	}
+
 	g.cond.Broadcast()
 }
 
