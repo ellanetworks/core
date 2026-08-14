@@ -199,6 +199,10 @@ type AnchorBinding struct {
 	IPv6 net.IP
 }
 
+func (a AnchorBinding) bound() bool {
+	return a.IPv4 != nil || a.IPv6 != nil
+}
+
 func (s *SMF) establishPFCPSession(ctx context.Context, smContext *SMContext) error {
 	ctx, span := tracer.Start(ctx, "smf/send_pfcp_rules",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -254,6 +258,10 @@ func (s *SMF) applyDataPlane(ctx context.Context, sc *SMContext, next dataPlane,
 
 	if sc.PFCPContext == nil {
 		return fmt.Errorf("pfcp session context not found for %q", sc.Ref)
+	}
+
+	if err := next.valid(); err != nil {
+		return fmt.Errorf("session %q: %w", sc.Ref, err)
 	}
 
 	if err := s.upf.ModifySession(ctx, next.modifyRequest(sc.PFCPContext.SEID, policyID)); err != nil {

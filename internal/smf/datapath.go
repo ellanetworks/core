@@ -1,9 +1,10 @@
-// Modified by Ella Networks Inc.
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
 package smf
 
 import (
+	"fmt"
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -40,6 +41,17 @@ const (
 	urrIDUplink   uint32 = 1
 	urrIDDownlink uint32 = 2
 )
+
+// An unbound anchor produces a downlink FAR with no Outer Header Creation, which
+// the UPF merges as "unchanged": forwarding on it sends the UE's traffic to
+// whichever access node the session last held, under that node's encapsulation.
+func (d dataPlane) valid() error {
+	if d.Downlink == DownlinkForwarding && !d.AN.bound() {
+		return fmt.Errorf("the downlink cannot forward with no access-network endpoint")
+	}
+
+	return nil
+}
 
 func (d dataPlane) rules() (pdrs []models.PDR, fars []models.FAR, qers []models.QER, urrs []models.URR) {
 	ohr := models.OuterHeaderRemovalGtpUUdpIpv4

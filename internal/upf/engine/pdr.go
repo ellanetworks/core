@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
@@ -32,6 +33,14 @@ func applyPDR(spdrInfo SPDRInfo, sess *Session, bpfObjects *ebpf.BpfObjects) err
 	}
 
 	return nil
+}
+
+func pdrDirection(spdrInfo SPDRInfo) models.Direction {
+	if spdrInfo.UEIP.IsValid() {
+		return models.DirectionDownlink
+	}
+
+	return models.DirectionUplink
 }
 
 // pdrKeyChanged reports whether updated installs under a different map entry

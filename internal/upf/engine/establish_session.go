@@ -156,12 +156,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 		}
 
 		if req.PolicyID != "" {
-			dir := models.DirectionUplink
-			if spdrInfo.UEIP.IsValid() {
-				dir = models.DirectionDownlink
-			}
-
-			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndexLocked(req.PolicyID, dir)
+			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndexLocked(req.PolicyID, pdrDirection(spdrInfo))
 		}
 
 		sess.PutPDR(spdrInfo.PdrID, spdrInfo)

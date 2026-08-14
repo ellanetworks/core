@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"net/netip"
+	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -69,6 +70,8 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		return err
 	}
 
+	touched := make(map[uint32]struct{}, len(req.UpdatePDRs))
+
 	for _, far := range req.UpdateFARs {
 		sFarInfo := session.GetFar(far.FARID)
 		sFarInfo = farInfoFromMerge(far, conn.n3AddressIPv4, conn.n3AddressIPv6, sFarInfo)
@@ -77,10 +80,8 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		session.PutFar(far.FARID, sFarInfo)
 
-		if err := conn.reapplyReferencingPDRs(session, &txn, func(p SPDRInfo) bool { return p.PdrInfo.FarID == far.FARID },
-			func(p *SPDRInfo) { p.PdrInfo.Far = sFarInfo }); err != nil {
-			return fail(fmt.Errorf("can't update PDR after FAR update: %w", err))
-		}
+		restampReferencingPDRs(session, touched, func(p SPDRInfo) bool { return p.PdrInfo.FarID == far.FARID },
+			func(p *SPDRInfo) { p.PdrInfo.Far = sFarInfo })
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Updated Forwarding Action Rule",
 			logger.FARID(far.FARID), zap.Any("farInfo", sFarInfo))
@@ -91,10 +92,8 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		session.PutQer(qer.QERID, qerInfo)
 
-		if err := conn.reapplyReferencingPDRs(session, &txn, func(p SPDRInfo) bool { return p.PdrInfo.QerID == qer.QERID },
-			func(p *SPDRInfo) { p.PdrInfo.Qer = qerInfo }); err != nil {
-			return fail(fmt.Errorf("can't update PDR after QER update: %w", err))
-		}
+		restampReferencingPDRs(session, touched, func(p SPDRInfo) bool { return p.PdrInfo.QerID == qer.QERID },
+			func(p *SPDRInfo) { p.PdrInfo.Qer = qerInfo })
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Updated QoS Enforcement Rule",
 			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
@@ -130,15 +129,23 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			})
 		}
 
+		if policyID := modifyPolicyID(req, session); policyID != "" {
+			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndexLocked(policyID, pdrDirection(spdrInfo))
+		}
+
 		session.PutPDR(uint32(pdr.PDRID), spdrInfo)
+
+		touched[uint32(pdr.PDRID)] = struct{}{}
+	}
+
+	for _, pdrID := range slices.Sorted(maps.Keys(touched)) {
+		spdrInfo := session.GetPDR(pdrID)
+		old, hadOld := snapPDRs[pdrID]
 
 		if err := applyPDR(spdrInfo, session, bpfObjects); err != nil {
 			return fail(fmt.Errorf("couldn't apply PDR: %w", err))
 		}
 
-		// Rollback removes the entry just written (which may be under a new key if
-		// the update changed UEIP/TEID) and restores the prior one, if any.
-		// Before the removal below, so a failure there unwinds it.
 		txn.onRollback(func() error {
 			if err := unapplyPDR(spdrInfo, bpfObjects); err != nil {
 				return err
@@ -151,9 +158,6 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			return nil
 		})
 
-		// A stale entry holds a downlink slot that survives teardown, which
-		// iterates the current PDR set, and source_allowed keeps authorising
-		// the old address: SetUEAddresses runs only at establishment.
 		if hadOld && pdrKeyChanged(old, spdrInfo) {
 			if err := unapplyPDR(old, bpfObjects); err != nil {
 				return fail(fmt.Errorf("couldn't remove the superseded PDR entry: %w", err))
@@ -161,7 +165,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		}
 
 		if spdrInfo.PdrInfo.Far.Action&farForward != 0 {
-			bpfObjects.ClearNotified(req.SEID, pdr.PDRID)
+			bpfObjects.ClearNotified(req.SEID, uint16(pdrID))
 		}
 	}
 
@@ -180,26 +184,25 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	return nil
 }
 
-// reapplyReferencingPDRs re-applies every PDR that matches, after mutate updates
-// its embedded FAR/QER, registering an undo that restores the prior entry.
-func (conn *SessionEngine) reapplyReferencingPDRs(session *Session, txn *sessionTxn, matches func(SPDRInfo) bool, mutate func(*SPDRInfo)) error {
+func modifyPolicyID(req *models.ModifyRequest, session *Session) string {
+	if req.PolicyID != "" {
+		return req.PolicyID
+	}
+
+	return session.PolicyID()
+}
+
+func restampReferencingPDRs(session *Session, touched map[uint32]struct{}, matches func(SPDRInfo) bool, mutate func(*SPDRInfo)) {
 	for _, spdrInfo := range session.ListPDRs() {
 		if !matches(spdrInfo) {
 			continue
 		}
 
-		old := spdrInfo
 		mutate(&spdrInfo)
 		session.PutPDR(spdrInfo.PdrID, spdrInfo)
 
-		if err := applyPDR(spdrInfo, session, conn.BpfObjects); err != nil {
-			return err
-		}
-
-		txn.onRollback(func() error { return applyPDR(old, session, conn.BpfObjects) })
+		touched[spdrInfo.PdrID] = struct{}{}
 	}
-
-	return nil
 }
 
 // farInfoFromMerge merges a models.FAR into an existing ebpf.FarInfo.

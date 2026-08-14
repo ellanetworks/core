@@ -163,12 +163,12 @@ func (s *SMF) switchDownlinkToTargetNGRAN(ctx context.Context, smContext *SMCont
 		return nil, fmt.Errorf("sm context has no user-plane tunnel: %s", smContext.Ref)
 	}
 
-	an := smContext.Tunnel.AN
-	if target := smContext.handoverTargetAN; target != nil {
-		an = *target
+	target := smContext.handoverTargetAN
+	if target == nil {
+		return nil, fmt.Errorf("session %q has no prepared handover to complete", smContext.Ref)
 	}
 
-	dropped, err := s.bindDownlink(ctx, smContext, Access5G, an)
+	dropped, err := s.bindDownlink(ctx, smContext, Access5G, *target)
 	if err != nil {
 		return nil, err
 	}
