@@ -302,7 +302,7 @@ func (m *MME) PageAndRetryLPPa(ctx context.Context, supi etsi.SUPI, measID int64
 
 // CancelBufferedLPPa discards the LPPa payload buffered under measID, once the LMF stops
 // waiting. Paging supervision outlives the LMF's timeout, so a UE answering late would
-// otherwise be sent a request nobody awaits. The paging procedure is left running.
+// otherwise be sent a request nobody awaits.
 func (m *MME) CancelBufferedLPPa(supi etsi.SUPI, measID int64) {
 	ue, ok := m.LookupUeBySupi(supi)
 	if !ok {

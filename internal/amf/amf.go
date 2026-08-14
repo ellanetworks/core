@@ -729,11 +729,7 @@ func (amf *AMF) IsUERegistered(supi etsi.SUPI) bool {
 	return ue.State() == Registered
 }
 
-// RefreshLocation starts an active location refresh; the caller polls the UE's location
-// timestamp and falls back to the last known location (TS 23.273 §6.1.2 step 6).
-//
-// A CM-IDLE UE is only paged (§6.5.1 step 11): the Initial UE Message it then sends
-// carries current location, which the AMF answers from directly (step 12).
+// RefreshLocation starts an active location refresh in the background, returning immediately.
 func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
@@ -767,8 +763,7 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 }
 
 // CancelBufferedN1N2 discards a buffered request of one of the given classes, once its
-// consumer stops waiting for it. Paging supervision outlives a consumer's own timeout, so a
-// UE answering late would otherwise be sent a request nobody awaits. Matching on class
+// consumer stops waiting for it. Matching on class
 // keeps one consumer from discarding another's request.
 func (amf *AMF) CancelBufferedN1N2(supi etsi.SUPI, n1 models.N1MessageClass, n2 models.N2InformationClass) {
 	ue, ok := amf.LookupUeBySupi(supi)

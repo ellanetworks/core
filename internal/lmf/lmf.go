@@ -55,8 +55,6 @@ type LMF struct {
 	// UE reply that arrives with no active session (TS 37.355 §4.3.2).
 	ackSeq         atomic.Uint32
 	maxLocationAge int32
-	// refreshTimeout bounds the wait for a location refresh before the last known
-	// location is returned instead (TS 23.273 §6.1.2 step 6).
 	refreshTimeout time.Duration
 }
 

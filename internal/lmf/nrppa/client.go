@@ -91,8 +91,7 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 }
 
 // CancelMeasurements discards a request buffered for a paged UE, once the LMF stops
-// waiting. Safe to call unconditionally: a delivered or never-buffered request leaves
-// nothing to discard.
+// waiting. Safe to call unconditionally.
 func (c *Client) CancelMeasurements(supi etsi.SUPI, _ int64) {
 	c.amf.CancelBufferedN1N2(supi, "", coremodels.N2ClassNRPPa)
 }

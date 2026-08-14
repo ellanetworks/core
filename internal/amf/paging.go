@@ -108,8 +108,8 @@ func (amf *AMF) abandonPaging(ue *UeContext) {
 }
 
 // pageIdleUE pages an idle UE and starts paging supervision (TS 23.502 §4.2.3.3). A
-// non-nil req is buffered for delivery when the UE answers. Callers guard first, via
-// guardIdlePaging.
+// non-nil req is buffered for delivery when the UE answers. Callers should guard 
+// first, via guardIdlePaging.
 func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *models.N1N2MessageTransferRequest) error {
 	if amf.DBInstance == nil {
 		return fmt.Errorf("AMF not configured with database, cannot page")
