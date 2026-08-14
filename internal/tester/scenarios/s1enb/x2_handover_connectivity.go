@@ -29,7 +29,8 @@ func init() {
 		Run:       runS1ENBX2HandoverConnectivity,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(x2ConnIMSI, "")},
+				Subscribers:         []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(x2ConnIMSI, "")},
+				AssertUsageForIMSIs: []string{x2ConnIMSI},
 			}
 		},
 	})

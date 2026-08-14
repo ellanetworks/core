@@ -110,17 +110,17 @@ func TestIntegration5GN2Handover(t *testing.T) {
 	fx.Policy(fixture.DefaultPolicySpec())
 
 	// Provision subscribers for both scenarios.
-	scenarioSpecs := []scenarios.FixtureSpec{}
+	scenarioSpecsByName := map[string]scenarios.FixtureSpec{}
 
-	if s, ok := scenarios.Get("gnb/ngap/n2_handover"); ok && s.Fixture != nil {
-		scenarioSpecs = append(scenarioSpecs, s.Fixture(scenarios.Env{}))
-	}
+	for _, name := range []string{"gnb/ngap/n2_handover", "gnb/n2_handover_connectivity"} {
+		s, ok := scenarios.Get(name)
+		if !ok || s.Fixture == nil {
+			continue
+		}
 
-	if s, ok := scenarios.Get("gnb/n2_handover_connectivity"); ok && s.Fixture != nil {
-		scenarioSpecs = append(scenarioSpecs, s.Fixture(scenarios.Env{}))
-	}
+		spec := s.Fixture(scenarios.Env{})
+		scenarioSpecsByName[name] = spec
 
-	for _, spec := range scenarioSpecs {
 		fx.Apply(spec)
 	}
 
@@ -157,6 +157,10 @@ func TestIntegration5GN2Handover(t *testing.T) {
 			}
 
 			t.Logf("scenario %s passed\n%s", sr.name, out)
+
+			if spec, ok := scenarioSpecsByName[sr.name]; ok && len(spec.AssertUsageForIMSIs) > 0 {
+				fixture.AssertUsagePositive(ctx, t, coreClient, spec.AssertUsageForIMSIs, 30*time.Second)
+			}
 		})
 	}
 }

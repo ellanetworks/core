@@ -74,7 +74,7 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 		return fmt.Errorf("source gNB: wait NGSetupResponse: %w", err)
 	}
 
-	targetGNB, err := startXnTargetGNB(env, "000002", targetGNBSpec.N2Address, targetGNBSpec.N3Address)
+	targetGNB, err := startXnTargetGNB(env, targetGNBSpec.N2Address, targetGNBSpec.N3Address)
 	if err != nil {
 		return err
 	}

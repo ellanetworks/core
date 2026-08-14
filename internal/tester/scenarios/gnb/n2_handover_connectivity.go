@@ -40,6 +40,7 @@ func fixtureN2HandoverConnectivity(_ scenarios.Env) scenarios.FixtureSpec {
 		Subscribers: []scenarios.SubscriberSpec{
 			scenarios.DefaultSubscriberWith(n2HandoverConnIMSI, ""),
 		},
+		AssertUsageForIMSIs: []string{n2HandoverConnIMSI},
 	}
 }
 

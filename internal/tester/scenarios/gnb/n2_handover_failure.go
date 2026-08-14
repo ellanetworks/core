@@ -18,10 +18,9 @@ import (
 )
 
 const (
-	n2RefuseIMSI      = "001017271246594"
-	n2CancelIMSI      = "001017271246595"
-	n2FailureTargetID = "000002"
-	n2FailureTimeout  = 5 * time.Second
+	n2RefuseIMSI     = "001017271246594"
+	n2CancelIMSI     = "001017271246595"
+	n2FailureTimeout = 5 * time.Second
 )
 
 func init() {
@@ -65,7 +64,7 @@ func startN2HandoverPair(env scenarios.Env, imsi string) (*n2HandoverPair, func(
 		return nil, nil, err
 	}
 
-	targetGNB, err := startXnTargetGNB(env, n2FailureTargetID, env.FirstGNB().N2Address, "")
+	targetGNB, err := startXnTargetGNB(env, env.FirstGNB().N2Address, "")
 	if err != nil {
 		sourceGNB.Close()
 
@@ -117,7 +116,7 @@ func (p *n2HandoverPair) requireHandover() (*ngaplib.HandoverRequest, error) {
 		AMFUENGAPID:  p.AMFUENGAPID,
 		RANUENGAPID:  p.RANUENGAPID,
 		HandoverType: ngaplib.HandoverTypeIntra5GS,
-		TargetGnbID:  n2FailureTargetID,
+		TargetGnbID:  handoverTargetGnbID,
 		PDUSessions: []gnb.HandoverRequiredPDUSession{
 			{PDUSessionID: int64(scenarios.DefaultPDUSessionID)},
 		},

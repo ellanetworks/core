@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	handoverTargetGnbID     = "000002"
 	xnPathSwitchIMSI        = "001017271246592"
 	xnPathSwitchTargetRANID = int64(200)
 	xnPathSwitchTargetTEID  = uint32(9200)
@@ -45,7 +46,7 @@ func runXnPathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 
 	defer sourceGNB.Close()
 
-	targetGNB, err := startXnTargetGNB(env, "000002", env.FirstGNB().N2Address, "")
+	targetGNB, err := startXnTargetGNB(env, env.FirstGNB().N2Address, "")
 	if err != nil {
 		return err
 	}
@@ -113,9 +114,9 @@ func runXnPathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 	return nil
 }
 
-func startXnTargetGNB(env scenarios.Env, gnbID, n2Address, n3Address string) (*gnb.GnodeB, error) {
+func startXnTargetGNB(env scenarios.Env, n2Address, n3Address string) (*gnb.GnodeB, error) {
 	targetGNB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:           gnbID,
+		GnbID:           handoverTargetGnbID,
 		MCC:             scenarios.DefaultMCC,
 		MNC:             scenarios.DefaultMNC,
 		SST:             scenarios.DefaultSST,

@@ -148,6 +148,20 @@ func (e *ENB) AnchorAddress(tla s1ap.TransportLayerAddress) (string, error) {
 	return addr.Unmap().String(), nil
 }
 
+func (e *ENB) WaitForPathSwitchRequestFailure(enbUEID int64, timeout time.Duration) (*s1ap.PathSwitchRequestFailure, error) {
+	f, err := e.WaitForMessage(enbUEID, Unsuccessful, s1ap.ProcPathSwitchRequest, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	fail, err := s1ap.ParsePathSwitchRequestFailure(f.Value)
+	if err != nil {
+		return nil, fmt.Errorf("s1enb: parse Path Switch Request Failure: %w", err)
+	}
+
+	return fail, nil
+}
+
 func (e *ENB) SendHandoverCancel(mmeUEID, enbUEID int64, cause s1ap.Cause) error {
 	cancel := &s1ap.HandoverCancel{
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),

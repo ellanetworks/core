@@ -49,6 +49,7 @@ func init() {
 type s1HandoverPair struct {
 	Source   *s1enb.ENB
 	Target   *s1enb.ENB
+	UE       *s1enb.UE
 	Attached *s1enb.AttachResult
 }
 
@@ -103,7 +104,7 @@ func startS1HandoverPair(env scenarios.Env, imsi string) (*s1HandoverPair, func(
 		return nil, nil, fmt.Errorf("attach on source eNB: %w", err)
 	}
 
-	return &s1HandoverPair{Source: source, Target: target, Attached: attached}, closeBoth, nil
+	return &s1HandoverPair{Source: source, Target: target, UE: ue, Attached: attached}, closeBoth, nil
 }
 
 func (p *s1HandoverPair) requireHandover() (*s1ap.HandoverRequest, error) {

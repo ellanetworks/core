@@ -28,7 +28,8 @@ func init() {
 		Run:       runS1ENBHandover,
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(s1hoIMSI, "")},
+				Subscribers:         []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(s1hoIMSI, "")},
+				AssertUsageForIMSIs: []string{s1hoIMSI},
 			}
 		},
 	})

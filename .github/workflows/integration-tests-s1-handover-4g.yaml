@@ -8,6 +8,10 @@ on:
 
 jobs:
   s1-handover-4g-integration-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        attach_mode: [xdp-generic, tcx]
     runs-on: ubuntu-26.04
 
     steps:
@@ -39,6 +43,7 @@ jobs:
       - name: Run S1 Handover 4G integration tests
         env:
           INTEGRATION: "1"
+          ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
         run: |
           go test ./integration/... -run TestIntegration4GS1Handover -v -timeout 10m
 

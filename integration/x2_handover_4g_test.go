@@ -91,8 +91,11 @@ func TestIntegration4GX2Handover(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
+	spec := scenarios.FixtureSpec{}
+
 	if s, ok := scenarios.Get(scenario); ok && s.Fixture != nil {
-		fx.Apply(s.Fixture(scenarios.Env{}))
+		spec = s.Fixture(scenarios.Env{})
+		fx.Apply(spec)
 	}
 
 	testerContainer, err := dc.ResolveComposeContainer(ctx, "x2-handover", "ella-core-tester")
@@ -114,4 +117,8 @@ func TestIntegration4GX2Handover(t *testing.T) {
 	}
 
 	t.Logf("scenario %s passed\n%s", scenario, out)
+
+	if len(spec.AssertUsageForIMSIs) > 0 {
+		fixture.AssertUsagePositive(ctx, t, coreClient, spec.AssertUsageForIMSIs, 30*time.Second)
+	}
 }
