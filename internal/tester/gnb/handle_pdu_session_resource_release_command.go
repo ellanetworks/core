@@ -43,7 +43,7 @@ func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, value []byte) error {
 	for _, item := range cmd.PDUSessionResourceRelease {
 		pduSessionID := int64(item.PDUSessionID)
 		ids = append(ids, pduSessionID)
-		gnb.RemovePDUSession(ranUeNgapID, pduSessionID)
+		gnb.removePDUSession(ranUeNgapID, pduSessionID)
 
 		logger.GnbLogger.Debug(
 			"Released PDU session",

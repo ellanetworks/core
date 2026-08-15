@@ -6,12 +6,8 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/ellanetworks/core/internal/tester/ue"
-	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 )
 
@@ -47,55 +43,26 @@ func runServiceRequestData(_ context.Context, env scenarios.Env, _ any) error {
 
 	gNodeB.AddUE(int64(scenarios.DefaultRANUENGAPID), newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  int64(scenarios.DefaultRANUENGAPID),
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	_, err = gNodeB.Register(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
 
-	pduSessionStatus := [16]bool{}
-	pduSessionStatus[scenarios.DefaultPDUSessionID] = true
+	pduSessionStatus := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID)),
-		RANUENGAPID:   int64(scenarios.DefaultRANUENGAPID),
-		GnodeB:        gNodeB,
-		UE:            newUE,
-		PDUSessionIDs: pduSessionStatus,
-	})
+	err = gNodeB.ReleaseContext(newUE, int64(scenarios.DefaultRANUENGAPID), pduSessionStatus, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}
 
-	err = runServiceRequestOnUE(int64(scenarios.DefaultRANUENGAPID), pduSessionStatus, newUE)
+	_, err = gNodeB.ServiceRequest(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("service request procedure failed: %v", err)
 	}
 
-	err = procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID)),
-		RANUENGAPID: int64(scenarios.DefaultRANUENGAPID),
-	})
+	err = gNodeB.Deregister(newUE, int64(scenarios.DefaultRANUENGAPID), releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("DeregistrationProcedure failed: %v", err)
-	}
-
-	return nil
-}
-
-func runServiceRequestOnUE(ranUENGAPID int64, pduSessionStatus [16]bool, u *ue.UE) error {
-	err := u.SendServiceRequest(ranUENGAPID, pduSessionStatus, uint8(fgs.ServiceTypeData))
-	if err != nil {
-		return fmt.Errorf("could not send Service Request NAS message: %v", err)
-	}
-
-	_, err = u.WaitForNASGMMMessage(uint8(fgs.MsgServiceAccept), 500*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("did not receive Service Accept NAS message: %v", err)
 	}
 
 	return nil

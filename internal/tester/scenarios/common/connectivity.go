@@ -14,14 +14,17 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
 
-const pduSessionType = fgs.PDUSessionTypeIPv4
+const (
+	pduSessionType = fgs.PDUSessionTypeIPv4
+
+	registrationTimeout = 8 * time.Second
+)
 
 // RegisterAndPingOpts: Key/OpC/SQN/PDUSessionID default to
 // scenarios.Default* when zero; IMSI and TunInterfaceName are required.
@@ -106,34 +109,21 @@ func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
 
 	opts.GNB.AddUE(opts.RANUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  opts.RANUENGAPID,
-		PDUSessionID: pduID,
-		UE:           newUE,
-	}); err != nil {
+	registration, err := opts.GNB.Register(newUE, opts.RANUENGAPID, pduID, registrationTimeout)
+	if err != nil {
 		return fmt.Errorf("initial registration: %w", err)
 	}
 
-	if _, err := newUE.WaitForPDUSession(pduID, 5*time.Second); err != nil {
-		return fmt.Errorf("wait UE PDU session: %w", err)
-	}
+	session := registration.Session
 
-	uePduSession := newUE.GetPDUSession(pduID)
-	ueIP := uePduSession.UEIP + "/16"
-
-	gnbPDUSession, err := opts.GNB.WaitForPDUSession(opts.RANUENGAPID, int64(pduID), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("wait gNB PDU session: %w", err)
-	}
-
-	if _, err := opts.GNB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	if err := opts.GNB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           session.UEIPv4 + "/16",
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: opts.TunInterfaceName,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           gnbPDUSession.DLTeid,
-		MTU:              uePduSession.MTU,
-		QFI:              uePduSession.QFI,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 	}); err != nil {
 		return fmt.Errorf("create GTP tunnel %q: %w", opts.TunInterfaceName, err)
 	}

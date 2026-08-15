@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	ngaplib "github.com/ellanetworks/core/ngap"
@@ -179,11 +178,7 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 
 	sourceGNB.AddUE(ranUENGAPID, ue)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           ue,
-	})
+	_, err = sourceGNB.Register(ue, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration: %w", err)
 	}
@@ -227,7 +222,7 @@ func runN2Handover(_ context.Context, env scenarios.Env, _ any) error {
 		PDUSessions: []gnb.HandoverAdmittedPDUSession{
 			{
 				PDUSessionID: int64(scenarios.DefaultPDUSessionID),
-				DLTeid:       targetDLTEID,
+				DLTEID:       targetDLTEID,
 				DLIP:         targetN3IP,
 			},
 		},

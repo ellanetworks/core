@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
@@ -39,7 +38,7 @@ func runS1ENBAttachRejectUnknownIMSI(_ context.Context, env scenarios.Env, _ any
 
 	ue := e.NewUE(unknownIMSI, k, opc)
 
-	cause, err := e.AttachExpectReject(ue, 15*time.Second)
+	cause, err := e.AttachExpectReject(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

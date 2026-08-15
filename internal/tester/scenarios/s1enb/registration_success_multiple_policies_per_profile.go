@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
@@ -87,7 +86,7 @@ func runS1ENBMultiplePoliciesPerProfile(_ context.Context, env scenarios.Env, _ 
 	ueDefault := e.NewUE(ppDefaultIMSI, k, opc)
 	ueDefault.RequestPDNType(env.PDUSessionType())
 
-	resDefault, err := e.Attach(ueDefault, 15*time.Second)
+	resDefault, err := e.Attach(ueDefault, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("default-APN attach: %w", err)
 	}
@@ -100,7 +99,7 @@ func runS1ENBMultiplePoliciesPerProfile(_ context.Context, env scenarios.Env, _ 
 	ueEnterprise.RequestPDNType(env.PDUSessionType())
 	ueEnterprise.RequestAPN(ppEnterpriseDNN)
 
-	resEnterprise, err := e.Attach(ueEnterprise, 15*time.Second)
+	resEnterprise, err := e.Attach(ueEnterprise, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("enterprise-APN attach: %w", err)
 	}

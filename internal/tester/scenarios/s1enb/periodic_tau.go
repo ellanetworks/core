@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -44,7 +43,7 @@ func runS1ENBPeriodicTAU(_ context.Context, env scenarios.Env, _ any) error {
 	ue := e.NewUE(periodicTAUIMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
@@ -53,11 +52,11 @@ func runS1ENBPeriodicTAU(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach completed without a GUTI, cannot tracking-area-update")
 	}
 
-	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, 10*time.Second); err != nil {
+	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, releaseTimeout); err != nil {
 		return fmt.Errorf("release to ECM-IDLE: %w", err)
 	}
 
-	if err := e.PeriodicTrackingAreaUpdate(ue, res.GUTI, 10*time.Second); err != nil {
+	if err := e.PeriodicTrackingAreaUpdate(ue, res.GUTI, releaseTimeout); err != nil {
 		return fmt.Errorf("periodic tracking area update: %w", err)
 	}
 

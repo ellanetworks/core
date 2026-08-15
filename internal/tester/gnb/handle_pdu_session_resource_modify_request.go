@@ -44,7 +44,7 @@ func handlePDUSessionResourceModifyRequest(gnb *GnodeB, value []byte) error {
 				zap.Int64("PDU Session ID", pduSessionID),
 			)
 		} else {
-			gnb.UpdatePDUSessionQoS(ranUeNgapID, pduSessionID, modInfo)
+			gnb.updatePDUSessionQoS(ranUeNgapID, pduSessionID, modInfo)
 
 			logger.GnbLogger.Debug(
 				"Updated PDU session QoS from Modify Request Transfer",

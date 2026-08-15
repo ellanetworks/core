@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas/eps"
@@ -128,15 +127,12 @@ func establishOn5GS(ctx context.Context, env scenarios.Env) (sessionFacts, error
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: movedPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, movedPDUSessionID, registrationTimeout)
+	if err != nil {
 		return sessionFacts{}, fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	return probeOver5GS(ctx, env, gNodeB, newUE, ranUENGAPID, "over N3")
+	return probeOver5GS(ctx, env, gNodeB, registration.Session, "over N3")
 }
 
 func moveToEPS(ctx context.Context, env scenarios.Env) (sessionFacts, error) {
@@ -212,19 +208,17 @@ func moveTo5GS(ctx context.Context, env scenarios.Env) (sessionFacts, error) {
 		return sessionFacts{}, fmt.Errorf("registration accept over NR: %w", err)
 	}
 
-	if err := newUE.MovePDUSessionFromEPC(
-		gNodeB.GetAMFUENGAPID(ranUENGAPID), ranUENGAPID, movedPDUSessionID,
+	moved, err := gNodeB.MovePDUSessionFromEPS(
+		newUE, ranUENGAPID, movedPDUSessionID,
 		scenarios.DefaultDNN,
 		models.Snssai{Sst: scenarios.DefaultSST, Sd: scenarios.DefaultSD},
-	); err != nil {
-		return sessionFacts{}, fmt.Errorf("request the existing PDU session over NR: %w", err)
+		attachTimeout,
+	)
+	if err != nil {
+		return sessionFacts{}, fmt.Errorf("move the existing PDU session onto 5GS: %w", err)
 	}
 
-	if _, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), attachTimeout); err != nil {
-		return sessionFacts{}, fmt.Errorf("the anchor refused to move the session onto 5GS: %w", err)
-	}
-
-	return probeOver5GS(ctx, env, gNodeB, newUE, ranUENGAPID, "over N3 after the move to 5GS")
+	return probeOver5GS(ctx, env, gNodeB, *moved, "over N3 after the move to 5GS")
 }
 
 func probeOverEPS(ctx context.Context, env scenarios.Env, e *s1enb.ENB, res *s1enb.AttachResult, stage string) (sessionFacts, error) {
@@ -292,42 +286,30 @@ func sessionFactsFor(ctx context.Context, env scenarios.Env, addrs ueAddresses, 
 	}, nil
 }
 
-func probeOver5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, u *ue.UE, ranUENGAPID int64, stage string) (sessionFacts, error) {
-	uePDUSession, err := u.WaitForPDUSession(movedPDUSessionID, attachTimeout)
-	if err != nil {
-		return sessionFacts{}, fmt.Errorf("waiting for the PDU session: %w", err)
-	}
-
-	session := u.GetPDUSession(movedPDUSessionID)
-
-	addrs, err := sessionAddresses(env, session.UEIP, session.UEIPV6)
+func probeOver5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, session gnb.PDUSessionResult, stage string) (sessionFacts, error) {
+	addrs, err := sessionAddresses(env, session.UEIPv4, session.UEIPv6)
 	if err != nil {
 		return sessionFacts{}, err
 	}
 
-	gnbSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(movedPDUSessionID), attachTimeout)
-	if err != nil {
-		return sessionFacts{}, fmt.Errorf("waiting for the gNB's PDU session resources: %w", err)
-	}
-
-	tunnel := &gnb.NewTunnelOpts{
-		UpfIP:            gnbSession.UpfAddress,
+	tunnel := &gnb.TunnelOpts{
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: gnbTunIface,
-		ULteid:           gnbSession.ULTeid,
-		DLteid:           gnbSession.DLTeid,
-		MTU:              uePDUSession.MTU,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
 		QFI:              session.QFI,
 	}
 
 	if addrs.v4 != "" {
-		tunnel.UEIP = addrs.v4 + ipv4TunPrefix
+		tunnel.UEIPv4 = addrs.v4 + ipv4TunPrefix
 	}
 
 	if env.HasIPv6() {
-		tunnel.UEIPV6 = addrs.v6 + ipv6TunPrefix
+		tunnel.UEIPv6 = addrs.v6 + ipv6TunPrefix
 	}
 
-	if _, err := gNodeB.AddTunnel(tunnel); err != nil {
+	if err := gNodeB.AddTunnel(tunnel); err != nil {
 		return sessionFacts{}, fmt.Errorf("add N3 tunnel: %w", err)
 	}
 
@@ -343,7 +325,7 @@ func probeOver5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, u 
 		return sessionFacts{}, fmt.Errorf("ping %s: %w", stage, err)
 	}
 
-	return sessionFactsFor(ctx, env, addrs, gnbTunIface, gnbSession.UpfAddress, gnbSession.ULTeid, "N3 "+stage)
+	return sessionFactsFor(ctx, env, addrs, gnbTunIface, session.UpfAddress, session.ULTEID, "N3 "+stage)
 }
 
 func attachAddresses(env scenarios.Env, res *s1enb.AttachResult) (ueAddresses, error) {

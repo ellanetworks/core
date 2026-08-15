@@ -97,7 +97,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, opc [16]byte, tunIface string) error {
 	ue := e.NewUE(imsi, k, opc)
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
@@ -137,7 +137,7 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 		return err
 	}
 
-	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, 10*time.Second); err != nil {
+	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, releaseTimeout); err != nil {
 		return fmt.Errorf("release to ECM-IDLE: %w", err)
 	}
 
@@ -150,7 +150,7 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 
 	e.CloseTunnel(res.DLTEID)
 
-	sr, err := e.ServiceRequest(ue, res.GUTI, 10*time.Second)
+	sr, err := e.ServiceRequest(ue, res.GUTI, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("service request: %w", err)
 	}
@@ -174,5 +174,5 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 		return fmt.Errorf("ping after service request: %w", err)
 	}
 
-	return e.Detach(ue, sr.MMEUES1APID, sr.ENBUES1APID, 10*time.Second)
+	return e.Detach(ue, sr.MMEUES1APID, sr.ENBUES1APID, releaseTimeout)
 }

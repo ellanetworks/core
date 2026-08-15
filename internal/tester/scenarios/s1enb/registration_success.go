@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -77,7 +76,7 @@ func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) er
 	ue := e.NewUE(s1enbIMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

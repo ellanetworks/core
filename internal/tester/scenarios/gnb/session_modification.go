@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -145,11 +144,7 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration failed: %v", err)
 	}
@@ -160,14 +155,9 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	gnbPDUSession := gNodeB.GetPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID))
-	if gnbPDUSession == nil {
-		return fmt.Errorf("PDU session not stored on gNB after initial registration")
-	}
-
-	err = validate.PDUSessionInformation(gnbPDUSession, &validate.ExpectedPDUSessionInformation{
-		FiveQi: 9,
-		PriArp: 15,
+	err = validate.PDUSessionInformation(registration.Session, &validate.ExpectedPDUSessionInformation{
+		FiveQI: 9,
+		ARP:    15,
 		QFI:    1,
 	})
 	if err != nil {
@@ -252,15 +242,15 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		}
 	}
 
-	updatedSession := gNodeB.GetPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID))
-	if updatedSession == nil {
+	updatedSession, ok := gNodeB.PDUSession(ranUENGAPID, scenarios.DefaultPDUSessionID)
+	if !ok {
 		return fmt.Errorf("PDU session not found on gNB after modification")
 	}
 
 	if cfg.var5qi != 0 || cfg.arp != 0 {
 		err = validate.PDUSessionInformation(updatedSession, &validate.ExpectedPDUSessionInformation{
-			FiveQi: int64(cfg.var5qi),
-			PriArp: int64(cfg.arp),
+			FiveQI: int64(cfg.var5qi),
+			ARP:    int64(cfg.arp),
 			QFI:    1,
 		})
 		if err != nil {
@@ -268,21 +258,14 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 		}
 
 		logger.Logger.Info("Session modification validated successfully",
-			zap.Int64("New 5QI", updatedSession.FiveQi),
-			zap.Int64("New ARP", updatedSession.PriArp),
+			zap.Int64("New 5QI", updatedSession.FiveQI),
+			zap.Int64("New ARP", updatedSession.ARP),
 		)
 	}
 
-	pduSessionIDs := [16]bool{}
-	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
+	pduSessionIDs := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID:   ranUENGAPID,
-		GnodeB:        gNodeB,
-		UE:            newUE,
-		PDUSessionIDs: pduSessionIDs,
-	})
+	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UE context release failed: %v", err)
 	}

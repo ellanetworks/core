@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -96,7 +97,8 @@ type GnodeB struct {
 	mu                sync.Mutex
 	cond              *sync.Cond
 	N3Address         netip.Addr
-	PDUSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
+	pduSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
+	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
 	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
@@ -126,25 +128,67 @@ const (
 	n2StateFailed
 )
 
-func (g *GnodeB) StorePDUSession(ranUeId int64, pduSessionInfo *PDUSessionInformation) {
+// storePDUSession records what the network set up for one PDU session. Every
+// store stamps a fresh generation, so a procedure can await the session its own
+// signalling established instead of one an earlier procedure left behind.
+func (g *GnodeB) storePDUSession(ranUeID int64, info *PDUSessionInformation) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if g.PDUSessions == nil {
-		g.PDUSessions = make(map[int64]map[int64]*PDUSessionInformation)
+	if g.pduSessions == nil {
+		g.pduSessions = make(map[int64]map[int64]*PDUSessionInformation)
 	}
 
-	if g.PDUSessions[ranUeId] == nil {
-		g.PDUSessions[ranUeId] = make(map[int64]*PDUSessionInformation)
+	if g.pduSessions[ranUeID] == nil {
+		g.pduSessions[ranUeID] = make(map[int64]*PDUSessionInformation)
 	}
 
-	if existing, ok := g.PDUSessions[ranUeId][pduSessionInfo.PDUSessionID]; ok {
-		*existing = *pduSessionInfo
+	g.sessionGen++
+	info.generation = g.sessionGen
+
+	if existing, ok := g.pduSessions[ranUeID][info.PDUSessionID]; ok {
+		*existing = *info
 	} else {
-		g.PDUSessions[ranUeId][pduSessionInfo.PDUSessionID] = pduSessionInfo
+		g.pduSessions[ranUeID][info.PDUSessionID] = info
 	}
 
 	g.cond.Broadcast()
+}
+
+// sessionGeneration reports the store's current generation. Read it before
+// sending, then hand it to awaitPDUSession to ignore anything already stored.
+func (g *GnodeB) sessionGeneration() uint64 {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.sessionGen
+}
+
+// awaitPDUSession blocks until the network establishes PDU session
+// pduSessionID for ranUeID with a generation newer than after, then returns it
+// by value. Nothing outside this package ever holds the stored struct:
+// storePDUSession updates it in place, so a shared pointer would report a later
+// TEID reallocation to a caller that had already built its tunnel.
+func (g *GnodeB) awaitPDUSession(ranUeID, pduSessionID int64, after uint64, timeout time.Duration) (PDUSessionInformation, error) {
+	deadline := time.Now().Add(timeout)
+
+	timer := time.AfterFunc(timeout, func() { g.cond.Broadcast() })
+	defer timer.Stop()
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	for {
+		if s, ok := g.pduSessions[ranUeID][pduSessionID]; ok && s.generation > after {
+			return *s, nil
+		}
+
+		if time.Now().After(deadline) {
+			return PDUSessionInformation{}, fmt.Errorf("timeout waiting for PDU session %d of RAN UE NGAP ID %d", pduSessionID, ranUeID)
+		}
+
+		g.cond.Wait()
+	}
 }
 
 type UEAmbrInformation struct {
@@ -174,55 +218,35 @@ func (g *GnodeB) GetUEAmbr(ranUeId int64) *UEAmbrInformation {
 	return g.UEAmbr[ranUeId]
 }
 
-func (g *GnodeB) GetPDUSession(ranUeId int64, pduSessionID int64) *PDUSessionInformation {
+// pduSessionsFor returns the sessions currently stored for ranUeID, by value
+// and ordered by PDU session ID, for building a response that must list them
+// all.
+func (g *GnodeB) pduSessionsFor(ranUeID int64) []PDUSessionInformation {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	sessions := g.PDUSessions[ranUeId]
-	if sessions == nil {
-		return nil
+	sessions := make([]PDUSessionInformation, 0, len(g.pduSessions[ranUeID]))
+	for _, s := range g.pduSessions[ranUeID] {
+		sessions = append(sessions, *s)
 	}
 
-	return sessions[pduSessionID]
+	sort.Slice(sessions, func(i, j int) bool { return sessions[i].PDUSessionID < sessions[j].PDUSessionID })
+
+	return sessions
 }
 
-func (g *GnodeB) GetPDUSessions(ranUeId int64) map[int64]*PDUSessionInformation {
+func (g *GnodeB) removePDUSession(ranUeID int64, pduSessionID int64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	return g.PDUSessions[ranUeId]
+	delete(g.pduSessions[ranUeID], pduSessionID)
 }
 
-func (g *GnodeB) RemovePDUSession(ranUeId int64, pduSessionID int64) {
+func (g *GnodeB) updatePDUSessionQoS(ranUeID int64, pduSessionID int64, info *PDUSessionModifyInfo) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if g.PDUSessions == nil {
-		return
-	}
-
-	sessions := g.PDUSessions[ranUeId]
-	if sessions == nil {
-		return
-	}
-
-	delete(sessions, pduSessionID)
-}
-
-func (g *GnodeB) UpdatePDUSessionQoS(ranUeId int64, pduSessionID int64, info *PDUSessionModifyInfo) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	if g.PDUSessions == nil {
-		return
-	}
-
-	sessions := g.PDUSessions[ranUeId]
-	if sessions == nil {
-		return
-	}
-
-	session := sessions[pduSessionID]
+	session := g.pduSessions[ranUeID][pduSessionID]
 	if session == nil {
 		return
 	}
@@ -249,32 +273,6 @@ func (g *GnodeB) UpdatePDUSessionQoS(ranUeId int64, pduSessionID int64, info *PD
 	}
 
 	g.cond.Broadcast()
-}
-
-func (g *GnodeB) WaitForPDUSession(ranUeId int64, pduSessionID int64, timeout time.Duration) (*PDUSessionInformation, error) {
-	deadline := time.Now().Add(timeout)
-
-	timer := time.AfterFunc(timeout, func() {
-		g.cond.Broadcast()
-	})
-	defer timer.Stop()
-
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	for {
-		if sessions, ok := g.PDUSessions[ranUeId]; ok {
-			if pduSession, ok := sessions[pduSessionID]; ok {
-				return pduSession, nil
-			}
-		}
-
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("timeout waiting for PDU session %d for RAN UE ID %d", pduSessionID, ranUeId)
-		}
-
-		g.cond.Wait()
-	}
 }
 
 func (g *GnodeB) GetAMFUENGAPID(ranUeId int64) int64 {
@@ -803,7 +801,7 @@ func (g *GnodeB) RotateToNextPeer() error {
 	return fmt.Errorf("gnb rotate: all candidates failed")
 }
 
-func (g *GnodeB) GenerateTEID() uint32 {
+func (g *GnodeB) allocTEID() uint32 {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 

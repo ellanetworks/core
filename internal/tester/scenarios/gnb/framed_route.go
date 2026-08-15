@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/spf13/pflag"
 )
 
@@ -79,47 +78,34 @@ func runFramedRoute(ctx context.Context, env scenarios.Env, imsi, subnet, host, 
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
+	if err != nil {
 		return fmt.Errorf("initial registration: %v", err)
 	}
 
-	uePDUSession, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("wait for PDU session: %v", err)
-	}
-
-	ueSess := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-
-	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("wait for gNB PDU session: %v", err)
-	}
+	session := registration.Session
 
 	// Both hosts sit on the UE TUN; only the framed subnet has an N6 return route.
 	mask := "/24"
 	hostMask := "/32"
-	ueCIDR := ueSess.UEIP + "/16"
+	ueCIDR := session.UEIPv4 + "/16"
 
 	if ipv6 {
 		mask = "/64"
 		hostMask = "/128"
-		ueCIDR = ueSess.UEIPV6 + "/64"
+		ueCIDR = session.UEIPv6 + "/64"
 	}
 
 	dst := env.PingDestination()
 
-	if _, err := gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueCIDR,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	if err := gNodeB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueCIDR,
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: tunInterfaceName,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           gnbPDUSession.DLTeid,
-		MTU:              uePDUSession.MTU,
-		QFI:              ueSess.QFI,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 		ExtraAddrs:       []string{host + mask, offRouteHost + mask},
 		ExtraRoutes:      []string{dst + hostMask},
 	}); err != nil {
@@ -140,9 +126,5 @@ func runFramedRoute(ctx context.Context, env scenarios.Env, imsi, subnet, host, 
 		return fmt.Errorf("off-route host %s reached %s, but should not have", offRouteHost, dst)
 	}
 
-	return procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-	})
+	return gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
 }
