@@ -21,6 +21,15 @@ func handleConfigurationUpdateCommand(ue *UE, plain []byte, amfUENGAPID int64, r
 		ue.Set5gGuti(cmd.GUTI)
 	}
 
+	if cmd.ConfigurationUpdateIndication == nil || !cmd.ConfigurationUpdateIndication.ACK {
+		logger.UeLogger.Debug(
+			"Configuration Update Command without acknowledgement requested, not replying",
+			zap.String("IMSI", ue.UeSecurity.Supi),
+		)
+
+		return nil
+	}
+
 	commandComplete, err := BuildConfigurationUpdateComplete()
 	if err != nil {
 		return fmt.Errorf("could not build Configuration Update Complete NAS PDU: %v", err)

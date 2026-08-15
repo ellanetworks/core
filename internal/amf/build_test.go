@@ -70,6 +70,10 @@ func TestBuildConfigurationUpdateCommand_WithoutGUTI(t *testing.T) {
 	if cuc.ShortNameForNetwork == nil {
 		t.Fatal("expected ShortNameForNetwork to be present")
 	}
+
+	if cuc.ConfigurationUpdateIndication != nil {
+		t.Fatalf("expected no ConfigurationUpdateIndication for a NITZ-only command, got %s", cuc.ConfigurationUpdateIndication)
+	}
 }
 
 func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
@@ -107,6 +111,14 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 
 	if cuc.ShortNameForNetwork == nil {
 		t.Fatal("expected ShortNameForNetwork to be present")
+	}
+
+	if cuc.ConfigurationUpdateIndication == nil {
+		t.Fatal("expected ConfigurationUpdateIndication when a 5G-GUTI is included")
+	}
+
+	if !cuc.ConfigurationUpdateIndication.ACK {
+		t.Error("expected acknowledgement requested when a 5G-GUTI is included")
 	}
 }
 

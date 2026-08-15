@@ -339,14 +339,15 @@ func BuildRegistrationAccept(
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
 func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
-	ack := fgs.ConfigurationUpdateIndication{ACK: true}
-
-	m := &fgs.ConfigurationUpdateCommand{ConfigurationUpdateIndication: &ack}
+	m := &fgs.ConfigurationUpdateCommand{}
 
 	if includeGUTI {
 		if guti == etsi.InvalidGUTI5G {
 			return nil, fmt.Errorf("5G-GUTI is required")
 		}
+
+		ack := fgs.ConfigurationUpdateIndication{ACK: true}
+		m.ConfigurationUpdateIndication = &ack
 
 		gutiNas, err := guti.MobileIdentity()
 		if err != nil {

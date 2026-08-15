@@ -516,7 +516,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		return
 	}
 
-	if amfInstance.NASGuardCfg.Enable {
+	if includeGUTI && amfInstance.NASGuardCfg.Enable {
 		cfg := amfInstance.NASGuardCfg
 
 		logger.From(ctx, logger.AmfLog).Info("start T3555 timer")
