@@ -362,6 +362,10 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
@@ -409,6 +413,11 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -514,6 +523,11 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -531,8 +545,7 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
-// A request differing only by a decoder-invisible IE (0x35) must still be treated
-// as differing, since the comparison is on message bytes (TS 24.501 §5.5.1.2.8 case d).
+// TS 24.501 §5.5.1.2.8 case d
 func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -557,6 +570,11 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -610,6 +628,11 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -627,8 +650,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
-// An identical retransmission during authentication is ignored, not restarted
-// (TS 24.501 §5.5.1.2.8 case e).
+// TS 24.501 §5.5.1.2.8 case e
 func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -653,6 +675,11 @@ func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testin
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -699,6 +726,11 @@ func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -719,10 +751,6 @@ func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.
 	}
 }
 
-// TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest validates
-// that a registration request coming in while the security mode procedure is
-// on-going resets the state of the UE to deregistered, triggering a new
-// AuthenticationRequest.
 func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -748,6 +776,11 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -814,6 +847,11 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -873,6 +911,11 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.SetSecuredForTest(true)
 	{
 		ng := ue.NgKsiForTest()
@@ -939,6 +982,11 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	// Simulate MAC verification failure (amf.AMF has no valid security context)
 	ue.SetSecuredForTest(false)
 
@@ -992,6 +1040,10 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 3)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
@@ -1031,6 +1083,10 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
 
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 6)
 	if err != nil {
@@ -1072,6 +1128,10 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 7)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
@@ -1096,10 +1156,7 @@ func buildTestRegistrationRequestMessageWithNgKsi(cipherAlg nas.CipheringAlgorit
 	return buildRegReqBytes(uint8(fgs.RegistrationTypeInitial), testMobileIdentity(), &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0}, cipherAlg, key, ulcount, ngKsi)
 }
 
-// buildRegReqBytes builds a plain REGISTRATION REQUEST. When key is non-nil, the
-// plain message is ciphered and carried in the NAS message container, as a UE
-// bootstraps after a re-registration (TS 24.501 §5.5.1.2.2). A nil ueSecCap omits
-// the UE security capability IE.
+// TS 24.501 §5.5.1.2.2
 func buildRegReqBytes(regType uint8, mobileIdentity fgs.MobileIdentity, ueSecCap *fgs.UESecurityCapability, cipherAlg nas.CipheringAlgorithm, key *[16]uint8, ulcount uint32, ngKsi uint8) ([]byte, error) {
 	m := &fgs.RegistrationRequest{
 		RegistrationType:     fgs.RegistrationType(regType),
@@ -1133,9 +1190,7 @@ func buildRegReqBytes(regType uint8, mobileIdentity fgs.MobileIdentity, ueSecCap
 	return m.MarshalBinary()
 }
 
-// A container-carrying registration stores the outer message bytes for duplicate
-// detection, so a retransmission (which arrives as the same outer message) still
-// compares equal — the container's inner contents would not (TS 24.501 §5.5.1.2.8).
+// TS 24.501 §5.5.1.2.8
 func TestHandleRegistrationRequestMessage_ContainerStoresOuterBytes(t *testing.T) {
 	ctx := context.TODO()
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
@@ -1157,6 +1212,11 @@ func TestHandleRegistrationRequestMessage_ContainerStoresOuterBytes(t *testing.T
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.SetSecuredForTest(true)
 	ue.SetKnasEncForTest(key)
 	ue.SetCipheringAlgForTest(algo)

@@ -114,6 +114,11 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 	}
 
 	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
 	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
@@ -145,8 +150,8 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if ue.State() != amf.Deregistered {
-		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
+	if ue.Conn().ReleaseAction != amf.UeContextReleaseAbortRegistration {
+		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction)
 	}
 }
 
@@ -267,8 +272,8 @@ func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if ue.State() != amf.Deregistered {
-		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
+	if ue.Conn().ReleaseAction != amf.UeContextReleaseAbortRegistration {
+		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction)
 	}
 }
 
@@ -588,8 +593,8 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	if ue.State() != amf.Deregistered {
-		t.Fatalf("UE should be released to Deregistered, got %v", ue.State())
+	if ue.Conn().ReleaseAction != amf.UeContextReleaseAbortRegistration {
+		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction)
 	}
 }
 
@@ -796,6 +801,11 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	}
 
 	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
 	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
 	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
@@ -1105,5 +1115,46 @@ func TestMobilityReg_RejectsASubscriberBarredFrom5G(t *testing.T) {
 	pdu := ngapSender.SentDownlinkNASTransport[0].NASPDU
 	if len(pdu) < 3 || pdu[2] != uint8(fgs.MsgRegistrationReject) {
 		t.Fatalf("sent % x, want a Registration Reject", pdu)
+	}
+}
+
+// TS 24.501 §5.5.1.3.4
+func TestMobilityReg_AcceptedRegistrationIsFindableBySupi(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		typ  fgs.RegistrationType
+	}{
+		{"mobility", fgs.RegistrationTypeMobilityUpdating},
+		{"periodic", fgs.RegistrationTypePeriodicUpdating},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+			ue.Conn().RegistrationType5GS = tc.typ
+
+			HandleMobilityAndPeriodicRegistrationUpdating(t.Context(), amfInstance, ue)
+
+			if len(ngapSender.SentDownlinkNASTransport) != 1 {
+				t.Fatalf("DownlinkNASTransport count = %d, want the registration accept", len(ngapSender.SentDownlinkNASTransport))
+			}
+
+			held, ok := amfInstance.LookupUeBySupi(ue.Supi())
+			if !ok || held != ue {
+				t.Fatalf("LookupUeBySupi = (%p, %v), want the accepted context %p", held, ok, ue)
+			}
+		})
+	}
+}
+
+func TestMobilityReg_AcceptedRegistrationCanReceiveAnN1N2Transfer(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	HandleMobilityAndPeriodicRegistrationUpdating(t.Context(), amfInstance, ue)
+
+	err := amfInstance.TransferN1N2Message(t.Context(), ue.Supi(), models.N1N2MessageTransferRequest{
+		PduSessionID:        1,
+		BinaryDataN1Message: []byte{0x2e, 0x01, 0x01},
+	})
+	if err != nil && err.Error() == "ue context not found" {
+		t.Fatal("the SMF cannot reach a UE the AMF has just accepted: no PDU session can ever be established")
 	}
 }

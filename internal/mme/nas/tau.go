@@ -6,6 +6,7 @@ package nas
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -64,7 +65,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
+	accept, err := buildTrackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
 		combined: isCombinedUpdate(uint8(req.EPSUpdateType)),
 		bearerStatus: (req.EPSBearerContextStatus != nil || ue.LocalBearerDeactivationPending()) &&
 			len(m.SnapshotPDNs(ue)) > 0,
@@ -216,7 +217,11 @@ type tauAcceptOptions struct {
 // current TAI list and a reallocated GUTI (TS 24.301). A combined update includes
 // EMM cause #18, since the MME has no SGs interface, to stop the UE attempting CS
 // registration.
-func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
+func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
+	if !m.ServesUeContext(ue) {
+		return nil, fmt.Errorf("refusing to build tracking area update accept: UE context is not indexed by IMSI")
+	}
+
 	operator, err := m.Operator(ctx)
 	if err != nil {
 		return nil, err

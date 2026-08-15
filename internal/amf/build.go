@@ -249,6 +249,10 @@ func BuildRegistrationAccept(
 	errPduSessionID, errCause []uint8,
 	equivalentPlmnID models.PlmnID,
 ) ([]byte, error) {
+	if !amfInstance.ServesUeContext(ue) {
+		return nil, fmt.Errorf("refusing to build registration accept: UE context is not indexed by SUPI")
+	}
+
 	equivalentPLMNs := nas.PLMNList{{MCC: equivalentPlmnID.Mcc, MNC: equivalentPlmnID.Mnc}}
 
 	t3512, err := nas.GPRSTimer3FromDuration(amfInstance.T3512Value)
