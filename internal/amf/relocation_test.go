@@ -265,6 +265,7 @@ func TestRelocationCompleteReleasesTheFiveGSSide(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
+	ue.ForceStateForTest(amf.Registered)
 	if err := a.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
@@ -339,6 +340,7 @@ func TestRelocationCompleteReleasesAUEWhoseHandoverWasDiscarded(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)
 
+	ue.ForceStateForTest(amf.Registered)
 	if err := a.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}

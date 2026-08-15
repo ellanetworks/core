@@ -445,6 +445,8 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
+	amfUe.ForceStateForTest(amf.Registered)
+
 	if err := amfInstance.CommitUEIdentity(context.Background(), amfUe, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}

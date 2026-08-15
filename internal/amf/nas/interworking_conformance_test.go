@@ -41,10 +41,12 @@ func TestInterworkingRegistrationWithoutUEStatusStaysOnTheMobilityPath(t *testin
 	req := &fgs.RegistrationRequest{GMMCapability: &fgs.GMMCapability{}}
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 
+	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
+
 	contextSetup(context.TODO(), amfInstance, ue, req, nil)
 
-	if _, ok := amfInstance.LookupUeBySupi(ue.Supi()); ok {
-		t.Error("an ordinary mobility update was routed through the initial-registration path")
+	if _, ok := ue.SmContextFindByPDUSessionID(1); !ok {
+		t.Error("the UE's PDU session was torn down: an ordinary mobility update was routed through the initial-registration path")
 	}
 }
 
@@ -179,5 +181,57 @@ func TestIdleArrivalSpendsALeftoverHandoverMark(t *testing.T) {
 
 	if conn.ArrivedFromEPS {
 		t.Error("an update the AMF holds no EPS arrival for was taken as one: the handover mark outlived the idle arrival that short-circuited it")
+	}
+}
+
+// TS 24.501 §4.4.4.3
+func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
+	for _, typ := range []fgs.RegistrationType{
+		fgs.RegistrationTypeInitial,
+		fgs.RegistrationTypeMobilityUpdating,
+		fgs.RegistrationTypePeriodicUpdating,
+	} {
+		t.Run(typ.String(), func(t *testing.T) {
+			ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+			fresh := amf.NewUeContext()
+			amfInstance.AttachUeConn(fresh, ue.Conn())
+			fresh.Conn().RegistrationType5GS = typ
+			fresh.TransitionTo(amf.RegistrationInitiated)
+
+			if _, ok := amfInstance.LookupUeBySupi(ue.Supi()); !ok {
+				t.Fatal("fixture precondition: the incumbent context should be served")
+			}
+
+			supi := ue.Supi()
+			if err := amfInstance.AdoptAuthenticatedSupi(t.Context(), fresh, supi,
+				amf.MintAuthProofForRegistrationCommit()); err != nil {
+				t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+			}
+
+			held, ok := amfInstance.LookupUeBySupi(supi)
+			if !ok || held != fresh {
+				t.Fatalf("LookupUeBySupi = (%p, %v), want the newly authenticated context %p", held, ok, fresh)
+			}
+		})
+	}
+}
+
+// A deregistered context stays resolvable: the AMF keeps it as a husk with its
+// security context so a later registration can reuse it and skip authentication,
+// mirroring the MME's implicit-detach husk (TS 24.301 §4.4.2 / annex C). Callers that
+// need a registered UE check the 5GMM state themselves.
+func TestDeregisteredContextIsRetainedAsAHusk(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	ue.Deregister(t.Context())
+
+	held, ok := amfInstance.LookupUeBySupi(ue.Supi())
+	if !ok || held != ue {
+		t.Fatal("the husk was dropped, so a re-registration cannot reuse its security context")
+	}
+
+	if !amfInstance.ServesUeContext(ue) {
+		t.Error("ServesUeContext denies a context the AMF still holds")
 	}
 }

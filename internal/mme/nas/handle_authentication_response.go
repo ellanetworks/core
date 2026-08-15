@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.uber.org/zap"
 )
 
 func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, resp *eps.AuthenticationResponse) nasreply.Disposition {
@@ -41,6 +42,13 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 	c.SetResyncTried(false)
 
 	logger.From(ctx, logger.MmeLog).Info("authentication succeeded")
+
+	if err := m.AdoptAuthenticatedSupi(ctx, ue, ue.Supi(), mme.MintAuthProofForAttachCommit()); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("could not adopt the authenticated IMSI", zap.Error(err))
+		rejectAuthentication(ctx, m, ue, ueConn)
+
+		return nasreply.Handled()
+	}
 
 	if startSecurityMode(ctx, m, ue, ueConn, freshKeys) == securityModeNoCommonAlgorithm {
 		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseUESecurityCapabilitiesMismatch)

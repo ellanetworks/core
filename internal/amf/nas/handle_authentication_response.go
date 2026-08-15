@@ -85,7 +85,13 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return nasreply.Handled()
 	}
 
-	ue.SetSupi(supi)
+	if err := amfInstance.AdoptAuthenticatedSupi(ctx, ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		logger.From(ctx, logger.AmfLog).Error("could not adopt the authenticated SUPI", zap.Error(err))
+
+		failAuthentication(ctx, ue, ueConn)
+
+		return nasreply.Handled()
+	}
 
 	err = ue.DeriveKamf(kseaf)
 	if err != nil {

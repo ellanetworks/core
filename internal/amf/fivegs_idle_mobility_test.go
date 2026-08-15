@@ -82,6 +82,7 @@ func leavingUE(t *testing.T, a *AMF, guti etsi.GUTI5G) *UeContext {
 
 	ue.MarkEPSNASAlgorithmsDelivered()
 
+	ue.ForceStateForTest(Registered)
 	if err := a.CommitUEIdentity(context.Background(), ue, MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}

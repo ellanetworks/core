@@ -289,3 +289,54 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		t.Fatalf("expected a security mode command message, got '%v'", inner[2])
 	}
 }
+
+// TS 24.501 §4.4.4.3, §5.5.1.3.4
+func TestHandleAuthenticationResponse_SuccessMakesTheAMFServeTheUE(t *testing.T) {
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"1\"]",
+			Integrity:     `["SNOW3G","NULL"]`,
+			Ciphering:     `["SNOW3G","NULL"]`,
+		},
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  supi,
+		Kseaf: []byte{0xC0, 0xFF, 0xEE},
+	}, nil)
+
+	// What an unresolvable 5G-GUTI leaves behind: a fresh context with no identity the
+	// AMF has adopted, on any registration type.
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
+	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
+		Rand:      "DEADBEEF",
+		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+	}
+	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))
+
+	if _, ok := amfInstance.LookupUeBySupi(supi); ok {
+		t.Fatal("precondition: the AMF must not already serve this subscriber")
+	}
+
+	handleAuthenticationResponse(t.Context(), amfInstance, ue, buildAuthResponse(make([]byte, 16)))
+
+	held, ok := amfInstance.LookupUeBySupi(supi)
+	if !ok || held != ue {
+		t.Fatalf("LookupUeBySupi = (%p, %v), want the authenticated context %p: the SMF can never reach this UE", held, ok, ue)
+	}
+
+	if !amfInstance.ServesUeContext(ue) {
+		t.Error("the AMF does not serve a UE it has just authenticated, so no registration accept can be built for it")
+	}
+}

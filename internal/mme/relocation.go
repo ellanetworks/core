@@ -265,7 +265,15 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 	id := held.id
 
 	ue.TransitionTo(EMMRegistered)
-	m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking())
+
+	// Deferred to here, not to where the relocation request first named the IMSI: an
+	// in-flight handover must leave the incumbent context serving the subscriber until
+	// it actually completes.
+	if err := m.AdoptAuthenticatedSupi(ctx, ue, supi, MintAuthProofForInterworking()); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("could not index a UE that arrived from 5GS",
+			logger.SUPI(supi.String()), zap.Error(err))
+	}
+
 	m.endRelocation(supi, ue)
 
 	logger.From(ctx, logger.MmeLog).Info("handover from 5GS complete", logger.SUPI(supi.String()))

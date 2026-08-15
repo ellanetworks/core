@@ -363,7 +363,7 @@ func (a *AMF) CompleteRelocationFromEPS(ctx context.Context, ue *UeContext) {
 	ue.MarkArrivedFromEPSHandover()
 	ue.TransitionTo(Registered)
 
-	if err := a.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
+	if err := a.AdoptAuthenticatedSupi(ctx, ue, supi, MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.AmfLog).Error("could not index a UE that arrived from EPS",
 			logger.SUPI(supi.String()), zap.Error(err))
 	}

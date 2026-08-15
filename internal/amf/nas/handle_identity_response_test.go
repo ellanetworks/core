@@ -396,6 +396,11 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	}
+
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Tai = ue.Conn().Tai
 	ue.SetSecuredForTest(true)
@@ -464,6 +469,11 @@ func TestHandleIdentityResponse_UnsolicitedIsIgnored(t *testing.T) {
 
 			ue.Suci = "testsuci"
 			ue.SetSupiForTest(supi)
+
+			if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
+				t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+			}
+
 			ue.ForceRegStepForTest(step.step)
 			ue.Tai = ue.Conn().Tai
 			ue.SetSecuredForTest(true)
