@@ -120,10 +120,6 @@ func TestPrefixToIPNet(t *testing.T) {
 	}
 }
 
-// TestPrefixFromIPNet_V4Default pins the conversion of the Dst that netlink
-// synthesises for an IPv4 default route. It pairs the 16-byte IPv4-mapped
-// net.IPv4zero with a 4-byte CIDRMask(0, 32), so a naive AddrFromSlice yields
-// "::ffff:0.0.0.0/0" — which matches no true-IPv4 prefix and cannot be deleted.
 func TestPrefixFromIPNet_V4Default(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -189,9 +185,6 @@ func TestAddrFromNetIP_Unmaps(t *testing.T) {
 	}
 }
 
-// TestPrefixToIPNet_V4Mapped covers the send side: masking an IPv4-mapped
-// prefix at /0 zeroes the ::ffff: marker, so without an unmap netlink infers
-// AF_INET6 for what is really an IPv4 route.
 func TestPrefixToIPNet_V4Mapped(t *testing.T) {
 	p := netip.PrefixFrom(netip.MustParseAddr("::ffff:0.0.0.0"), 0)
 
@@ -209,9 +202,6 @@ func TestPrefixToIPNet_V4Mapped(t *testing.T) {
 	}
 }
 
-// TestGwOrVia_V4MappedDestination guards the third independent family
-// decision: an IPv4-mapped destination with an IPv4 gateway is same-family,
-// so it must use RTA_GATEWAY rather than an RTA_VIA the kernel rejects.
 func TestGwOrVia_V4MappedDestination(t *testing.T) {
 	p := netip.PrefixFrom(netip.MustParseAddr("::ffff:0.0.0.0"), 0)
 

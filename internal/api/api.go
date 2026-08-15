@@ -458,10 +458,6 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 			return fmt.Errorf("invalid gateway: %v", route.Gateway)
 		}
 
-		// Both sides of the diff below must agree on how an IPv4 address is
-		// spelled. The kernel listing is normalised to true IPv4; a stored
-		// destination is whatever the operator typed, and "::ffff:0.0.0.0/0"
-		// parses just as happily as "0.0.0.0/0".
 		destPrefix = kernel.UnmapPrefix(destPrefix)
 		gwAddr = gwAddr.Unmap()
 

@@ -294,9 +294,6 @@ func (b *BGPService) cleanStaleRoutes() {
 			continue
 		}
 
-		// Delete with the route's own gateway. A wildcard gateway omits
-		// RTA_GATEWAY, which for IPv6 sets fc_delete_all_nh and removes
-		// every ECMP nexthop of the matched prefix rather than this one.
 		err := b.kernel.DeleteRoute(r.Destination, r.Gateway, r.Priority, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove stale BGP route",

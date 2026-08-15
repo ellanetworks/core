@@ -137,8 +137,6 @@ func TestCleanStaleRoutes(t *testing.T) {
 
 	defer func() { _ = svc.Stop() }()
 
-	// cleanStaleRoutes should have been called during Start, deleting the
-	// metric-200 routes with their own gateways and leaving the rest alone.
 	fk.mu.Lock()
 	deleted := append([]fakeRoute(nil), fk.deleted...)
 	fk.mu.Unlock()

@@ -14,11 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 )
 
-// sameRoute reports whether two route identities refer to the same kernel
-// route. Matching is family-normalised because that is what the kernel does:
-// RealKernel narrows an IPv4-mapped prefix to true IPv4 before handing it to
-// netlink, so "::ffff:0.0.0.0/0" and "0.0.0.0/0" address one and the same
-// route.
 func sameRoute(a kernel.ManagedRoute, dest netip.Prefix, gw netip.Addr, prio int) bool {
 	return kernel.UnmapPrefix(a.Destination) == kernel.UnmapPrefix(dest) &&
 		a.Gateway.Unmap() == gw.Unmap() &&
@@ -52,11 +47,14 @@ func newRecordingKernel() *recordingKernel {
 	}
 }
 
-func (k *recordingKernel) seedManaged(ifKey kernel.NetworkInterface, routes ...kernel.ManagedRoute) {
+// seedManaged adds routes to the N6 view. The set stays keyed by interface
+// because the reconciler sweeps every entry in interfaceDBKernelMap, and N3
+// having no managed routes is part of what these tests exercise.
+func (k *recordingKernel) seedManaged(routes ...kernel.ManagedRoute) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	k.managed[ifKey] = append(k.managed[ifKey], routes...)
+	k.managed[kernel.N6] = append(k.managed[kernel.N6], routes...)
 }
 
 func (k *recordingKernel) EnableIPForwarding() error {
@@ -196,7 +194,7 @@ func TestReconcileKernelRouting_RemovesStaleRoute(t *testing.T) {
 		Gateway:     netip.MustParseAddr("192.168.1.1"),
 		Priority:    100,
 	}
-	k.seedManaged(kernel.N6, stale)
+	k.seedManaged(stale)
 
 	if err := ReconcileKernelRouting(context.Background(), dbInstance, k); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -220,7 +218,7 @@ func TestReconcileKernelRouting_PreservesBGPMetricRoutes(t *testing.T) {
 		Gateway:     netip.MustParseAddr("10.0.0.1"),
 		Priority:    bgpRouteMetric,
 	}
-	k.seedManaged(kernel.N6, bgpLearned)
+	k.seedManaged(bgpLearned)
 
 	if err := ReconcileKernelRouting(context.Background(), dbInstance, k); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -244,7 +242,7 @@ func TestReconcileKernelRouting_KeepsExistingRouteUntouched(t *testing.T) {
 		t.Fatalf("seed route: %v", err)
 	}
 
-	k.seedManaged(kernel.N6, kernel.ManagedRoute{
+	k.seedManaged(kernel.ManagedRoute{
 		Destination: netip.MustParsePrefix("10.0.0.0/24"),
 		Gateway:     netip.MustParseAddr("192.168.1.1"),
 		Priority:    100,
@@ -277,11 +275,6 @@ func TestReconcileKernelRouting_EnablesIPForwardingWhenOff(t *testing.T) {
 	}
 }
 
-// TestReconcileKernelRouting_V4DefaultNotStale covers the IPv4 default route.
-// netlink synthesises its Dst from the 16-byte IPv4-mapped net.IPv4zero, so an
-// unnormalised listing reports "::ffff:0.0.0.0/0", which never matches the
-// "0.0.0.0/0" parsed from the database. The live N6 route was then classified
-// stale on every cycle and a delete attempted against it.
 func TestReconcileKernelRouting_V4DefaultNotStale(t *testing.T) {
 	v4MappedDefault := netip.PrefixFrom(netip.MustParseAddr("::ffff:0.0.0.0"), 0)
 
@@ -302,7 +295,7 @@ func TestReconcileKernelRouting_V4DefaultNotStale(t *testing.T) {
 				t.Fatalf("seed route: %v", err)
 			}
 
-			k.seedManaged(kernel.N6, kernel.ManagedRoute{
+			k.seedManaged(kernel.ManagedRoute{
 				Destination: listed,
 				Gateway:     netip.MustParseAddr("10.0.20.129"),
 				Priority:    100,
@@ -323,9 +316,6 @@ func TestReconcileKernelRouting_V4DefaultNotStale(t *testing.T) {
 	}
 }
 
-// TestReconcileKernelRouting_V4MappedDBDestination is the same mismatch from
-// the other side: netip.ParsePrefix accepts "::ffff:0.0.0.0/0", so an operator
-// can store a destination that no kernel listing will ever equal.
 func TestReconcileKernelRouting_V4MappedDBDestination(t *testing.T) {
 	dbInstance := newReconcileTestDB(t)
 	k := newRecordingKernel()
@@ -339,7 +329,7 @@ func TestReconcileKernelRouting_V4MappedDBDestination(t *testing.T) {
 		t.Fatalf("seed route: %v", err)
 	}
 
-	k.seedManaged(kernel.N6, kernel.ManagedRoute{
+	k.seedManaged(kernel.ManagedRoute{
 		Destination: netip.MustParsePrefix("0.0.0.0/0"),
 		Gateway:     netip.MustParseAddr("10.0.20.129"),
 		Priority:    100,

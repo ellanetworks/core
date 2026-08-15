@@ -68,14 +68,6 @@ func NewRealKernel(n3Interface, n6Interface string) *RealKernel {
 	}
 }
 
-// UnmapPrefix rewrites an IPv4-mapped IPv6 prefix (::ffff:a.b.c.d/n) as the
-// equivalent true IPv4 prefix, and leaves anything else alone.
-//
-// Prefix lengths on such a prefix can be expressed against either width: a
-// length of 96 or more is relative to the 128-bit address and is rebased,
-// while a shorter one is already relative to the 32-bit address and is kept.
-// netlink produces the latter — a 16-byte net.IPv4zero paired with a 4-byte
-// CIDRMask(0, 32) — so an IPv4 default route arrives as ::ffff:0.0.0.0/0.
 func UnmapPrefix(p netip.Prefix) netip.Prefix {
 	if !p.Addr().Is4In6() {
 		return p
@@ -93,9 +85,6 @@ func UnmapPrefix(p netip.Prefix) netip.Prefix {
 	return netip.PrefixFrom(p.Addr().Unmap(), bits)
 }
 
-// prefixFromIPNet converts a netlink-supplied *net.IPNet to a netip.Prefix,
-// normalising IPv4-mapped IPv6 destinations to true IPv4 so the result
-// compares equal to the prefixes the rest of the system parses from config.
 func prefixFromIPNet(n *net.IPNet) (netip.Prefix, bool) {
 	addr, ok := netip.AddrFromSlice(n.IP)
 	if !ok {
@@ -104,8 +93,6 @@ func prefixFromIPNet(n *net.IPNet) (netip.Prefix, bool) {
 
 	ones, bits := n.Mask.Size()
 	if bits == 0 {
-		// Absent or non-canonical mask. netlink never produces one, but
-		// treating it as zero ones would invent a default route.
 		return netip.Prefix{}, false
 	}
 
@@ -117,8 +104,6 @@ func prefixFromIPNet(n *net.IPNet) (netip.Prefix, bool) {
 	return p, true
 }
 
-// addrFromNetIP converts a netlink-supplied net.IP to a netip.Addr,
-// normalising IPv4-mapped IPv6 addresses to true IPv4.
 func addrFromNetIP(ip net.IP) (netip.Addr, bool) {
 	addr, ok := netip.AddrFromSlice(ip)
 	if !ok {
@@ -130,9 +115,6 @@ func addrFromNetIP(ip net.IP) (netip.Addr, bool) {
 
 // prefixToIPNet converts a netip.Prefix to a *net.IPNet for netlink.
 func prefixToIPNet(p netip.Prefix) *net.IPNet {
-	// Unmap before masking: masking an IPv4-mapped prefix at /0 zeroes the
-	// ::ffff: marker along with the host bits, leaving netlink to infer
-	// AF_INET6 for what is really an IPv4 route.
 	p = UnmapPrefix(p)
 
 	addr := p.Masked().Addr()
@@ -168,9 +150,6 @@ func gwOrVia(destination netip.Prefix, gateway netip.Addr) (net.IP, *netlink.Via
 		return nil, nil
 	}
 
-	// Compare the true families: an IPv4-mapped address is IPv4 as far as
-	// the kernel is concerned, and treating it as IPv6 here would emit an
-	// RTA_VIA that the destination's own family rejects.
 	dst := destination.Addr().Unmap()
 	gw := gateway.Unmap()
 
