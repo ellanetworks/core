@@ -324,9 +324,9 @@ type Database struct {
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
 	appliedSchemaCache atomic.Int64
 
-	// probeVoterSchema reads a peer's live SchemaVersion. Field-injected
-	// so tests can stub it.
-	probeVoterSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
+	// Field-injected so tests can stub them.
+	probeMemberSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
+	raftMemberIDs     func() []int
 }
 
 // conn returns the current *sqlair.DB handle.
@@ -763,11 +763,9 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 	return nil
 }
 
-// CheckPendingMigrations proposes one CmdMigrateShared per missing
-// migration, bounded by the minimum SchemaVersion across voters.
-// Leader-only; an unreachable voter blocks the gate. Learners are
-// ignored — they can crash on an unsupported migration without breaking
-// quorum.
+// CheckPendingMigrations proposes one CmdMigrateShared per missing migration,
+// up to the minimum SchemaVersion across cluster members. Nonvoters bind the
+// floor too: they run the same FSM over the same committed entries.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
 		return nil
@@ -787,7 +785,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		return nil
 	}
 
-	floor, laggard, err := db.minVoterSchemaSupport(ctx)
+	floor, laggard, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return err
 	}
@@ -798,10 +796,10 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	}
 
 	if current >= target {
-		logger.WithTrace(ctx, logger.DBLog).Info("Migration deferred: waiting on voter upgrades",
+		logger.WithTrace(ctx, logger.DBLog).Info("Migration deferred: waiting on cluster member upgrades",
 			zap.Int("current", current),
 			zap.Int("binaryMax", binaryMax),
-			zap.Int("voterFloor", floor),
+			zap.Int("memberFloor", floor),
 			zap.Int("laggardNodeID", laggard),
 		)
 
@@ -825,13 +823,10 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 type PendingMigrationStatus struct {
 	Pending       bool
 	CurrentSchema int
-	TargetSchema  int // bounded by min(binaryMax, voter floor); equals current when blocked
-	LaggardNodeID int // voter holding target == current; zero when unblocked
+	TargetSchema  int // bounded by min(binaryMax, member floor); equals current when blocked
+	LaggardNodeID int // member holding target == current; zero when unblocked
 }
 
-// PendingMigrationInfo computes the snapshot. Probes every voter when
-// a migration is pending; short-circuits to a single schema_version
-// read once the cluster has converged.
 func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationStatus, error) {
 	current, err := db.CurrentSchemaVersion(ctx)
 	if err != nil {
@@ -856,7 +851,7 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 		}, nil
 	}
 
-	floor, laggard, err := db.minVoterSchemaSupport(ctx)
+	floor, laggard, err := db.minMemberSchemaSupport(ctx)
 	if err != nil {
 		return PendingMigrationStatus{}, err
 	}
@@ -864,6 +859,10 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	target := binaryMax
 	if floor < target {
 		target = floor
+	}
+
+	if target < current {
+		target = current
 	}
 
 	status := PendingMigrationStatus{
@@ -879,16 +878,31 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	return status, nil
 }
 
-// minVoterSchemaSupport returns the minimum SchemaVersion across
-// voters and the laggard's nodeID. The local node answers in-process;
-// peers are probed live. Probe failure returns floor=0 with that voter
-// as laggard. With no voter rows the floor is the local binary's
-// SchemaVersion, so a fresh leader is not blocked from its own
-// migrations.
-func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error) {
+// minMemberSchemaSupport returns the minimum SchemaVersion across cluster
+// members and the laggard's nodeID.
+func (db *Database) minMemberSchemaSupport(ctx context.Context) (int, int, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("list cluster members: %w", err)
+	}
+
+	// The configuration is the set of nodes that receive entries, so it decides
+	// who binds the floor: a row can outlive removal from it, and a node can
+	// enter it before its row is written.
+	var configuration []int
+	if db.raftMemberIDs != nil {
+		configuration = db.raftMemberIDs()
+	}
+
+	if len(configuration) == 0 {
+		logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: Raft configuration unavailable, deferring")
+
+		return 0, 0, nil
+	}
+
+	rows := make(map[int]ClusterMember, len(members))
+	for _, m := range members {
+		rows[m.NodeID] = m
 	}
 
 	selfID := db.raftManager.NodeID()
@@ -902,32 +916,34 @@ func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error)
 		}
 	}
 
-	for _, m := range members {
-		if m.Suffrage != "voter" {
-			continue
-		}
-
-		if m.NodeID == selfID {
+	for _, nodeID := range configuration {
+		if nodeID == selfID {
 			consider(selfID, SchemaVersion())
 			continue
 		}
 
-		v, err := db.probeVoterSchema(ctx, m.NodeID, m.RaftAddress)
+		m, ok := rows[nodeID]
+		if !ok {
+			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: configuration member has no cluster_members row, deferring",
+				zap.Int("nodeID", nodeID),
+			)
+
+			return 0, nodeID, nil
+		}
+
+		v, err := db.probeMemberSchema(ctx, nodeID, m.RaftAddress)
 		if err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: voter capability unknown, deferring",
-				zap.Int("nodeID", m.NodeID),
+			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: member capability unknown, deferring",
+				zap.Int("nodeID", nodeID),
 				zap.String("raftAddress", m.RaftAddress),
+				zap.String("suffrage", m.Suffrage),
 				zap.Error(err),
 			)
 
-			return 0, m.NodeID, nil
+			return 0, nodeID, nil
 		}
 
-		consider(m.NodeID, v)
-	}
-
-	if floor < 0 {
-		return SchemaVersion(), selfID, nil
+		consider(nodeID, v)
 	}
 
 	return floor, laggard, nil
@@ -1136,7 +1152,8 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
-	db.probeVoterSchema = raftMgr.ProbePeerSchemaVersion
+	db.probeMemberSchema = raftMgr.ProbePeerSchemaVersion
+	db.raftMemberIDs = raftMgr.MemberIDs
 
 	// Ensure the FSM migration marker exists so future FSM.Restore
 	// calls know the new code is active and use the snapshot's

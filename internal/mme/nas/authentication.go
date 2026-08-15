@@ -5,8 +5,10 @@ package nas
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/nas"
@@ -29,8 +31,16 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	if err := sendAuthRequest(ctx, m, ue, ueConn, "", ""); err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseIMSIUnknownInHSS)
+		rejectAttach(ctx, m, ue, ueConn, authRejectCause(err))
 	}
+}
+
+func authRejectCause(err error) eps.EMMCause {
+	if errors.Is(err, db.ErrProposeTimeout) || errors.Is(err, db.ErrMigrationPending) {
+		return eps.EMMCauseNetworkFailure
+	}
+
+	return eps.EMMCauseIMSIUnknownInHSS
 }
 
 // sendAuthRequest sends an AUTHENTICATION REQUEST; a set resync pair drives an

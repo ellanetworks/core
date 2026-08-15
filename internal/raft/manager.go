@@ -5,12 +5,14 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -19,6 +21,8 @@ import (
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
+
+var ErrBarrierTimeout = errors.New("raft barrier timed out")
 
 // umaskMu serialises the process-wide umask window used by
 // withTightUmask.
@@ -131,6 +135,16 @@ type Manager struct {
 	followerTracker *followerTracker
 	boltNoSync      bool
 	clusterListener *listener.Listener
+
+	barrieredTerm atomic.Uint64
+	barrierMu     sync.Mutex
+	barrier       *barrierAttempt
+}
+
+type barrierAttempt struct {
+	term uint64
+	done chan struct{}
+	err  error
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -539,6 +553,63 @@ func (m *Manager) Barrier(timeout time.Duration) error {
 	return m.raft.Barrier(timeout).Error()
 }
 
+// WriteBarrier blocks until the FSM has applied every entry committed before
+// this call. raft.State() reports Leader while entries from the previous term
+// are still queued for the FSM, so a changeset captured in that window carries
+// pre-images those entries invalidate. Once per term is enough: everything
+// this node appends afterwards is ordered behind the barrier.
+func (m *Manager) WriteBarrier(timeout time.Duration) error {
+	term := m.raft.CurrentTerm()
+	if term != 0 && m.barrieredTerm.Load() == term {
+		return nil
+	}
+
+	if m.raft.State() != raft.Leader {
+		return raft.ErrNotLeader
+	}
+
+	att := m.barrierFor(term, timeout)
+
+	select {
+	case <-att.done:
+		return att.err
+	case <-time.After(timeout):
+		return ErrBarrierTimeout
+	}
+}
+
+// barrierFor shares one in-flight barrier per term: a caller that gives up
+// leaves it running, so repeated timeouts still cost the log a single entry.
+func (m *Manager) barrierFor(term uint64, timeout time.Duration) *barrierAttempt {
+	m.barrierMu.Lock()
+	defer m.barrierMu.Unlock()
+
+	if m.barrier != nil && m.barrier.term == term {
+		return m.barrier
+	}
+
+	att := &barrierAttempt{term: term, done: make(chan struct{})}
+	m.barrier = att
+
+	go func() {
+		att.err = m.raft.Barrier(timeout).Error()
+
+		if att.err == nil {
+			m.barrieredTerm.Store(term)
+		}
+
+		m.barrierMu.Lock()
+		if m.barrier == att {
+			m.barrier = nil
+		}
+		m.barrierMu.Unlock()
+
+		close(att.done)
+	}()
+
+	return att
+}
+
 // Snapshot triggers a user-requested Raft snapshot and blocks until it
 // completes. Callers use this to force log truncation after large log
 // entries so followers don't carry large blobs in their log indefinitely.
@@ -633,9 +704,9 @@ func (m *Manager) LeadershipTransfer() error {
 	return m.raft.LeadershipTransfer().Error()
 }
 
-// VoterIDs returns the server IDs of all voting members in the current Raft
-// configuration. Returns nil on error (e.g. no quorum).
-func (m *Manager) VoterIDs() []int {
+// MemberIDs returns the current Raft configuration, nonvoters included: they
+// apply committed entries too. Nil on error.
+func (m *Manager) MemberIDs() []int {
 	future := m.raft.GetConfiguration()
 	if err := future.Error(); err != nil {
 		return nil
@@ -644,12 +715,8 @@ func (m *Manager) VoterIDs() []int {
 	var ids []int
 
 	for _, srv := range future.Configuration().Servers {
-		if srv.Suffrage != raft.Voter {
-			continue
-		}
-
-		var id int
-		if _, err := fmt.Sscanf(string(srv.ID), "%d", &id); err != nil {
+		id, err := strconv.Atoi(string(srv.ID))
+		if err != nil {
 			continue
 		}
 
