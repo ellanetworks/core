@@ -389,7 +389,9 @@ func TestInterSystemTAUKeepsTheArrivingSessionAStaleContextStillNames(t *testing
 
 	sessions.onEPS = map[string]bool{}
 
-	m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking())
+	if err := m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
 
 	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
 
@@ -478,7 +480,10 @@ func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 
 	stale := mme.NewUeContext()
 	stale.SetSupi(supi)
-	m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking())
+
+	if err := m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
 
 	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
 

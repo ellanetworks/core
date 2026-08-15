@@ -62,6 +62,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
 	ue.ForceStateForTest(amf.Registered)
+
 	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("could not add UE to amf.AMF pool: %v", err)
 	}

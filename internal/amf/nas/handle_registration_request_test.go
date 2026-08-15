@@ -527,6 +527,7 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
 	}
+
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
