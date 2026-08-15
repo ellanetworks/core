@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
@@ -49,11 +48,7 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 
 	gNodeB.AddUE(int64(scenarios.DefaultRANUENGAPID), newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  int64(scenarios.DefaultRANUENGAPID),
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	_, err = gNodeB.Register(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("InitialRegistrationProcedure failed: %v", err)
 	}
@@ -63,16 +58,9 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
 
-	pduSessionStatus := [16]bool{}
-	pduSessionStatus[scenarios.DefaultPDUSessionID] = true
+	pduSessionStatus := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID)),
-		RANUENGAPID:   int64(scenarios.DefaultRANUENGAPID),
-		GnodeB:        gNodeB,
-		UE:            newUE,
-		PDUSessionIDs: pduSessionStatus,
-	})
+	err = gNodeB.ReleaseContext(newUE, int64(scenarios.DefaultRANUENGAPID), pduSessionStatus, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}
@@ -94,11 +82,7 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 
 	logger.UeLogger.Debug("Received Registration Accept for periodic update")
 
-	err = procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID)),
-		RANUENGAPID: int64(scenarios.DefaultRANUENGAPID),
-	})
+	err = gNodeB.Deregister(newUE, int64(scenarios.DefaultRANUENGAPID), releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("DeregistrationProcedure failed: %v", err)
 	}

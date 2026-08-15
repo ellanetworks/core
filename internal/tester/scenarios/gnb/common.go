@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
@@ -325,25 +324,17 @@ func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, d
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	pduSessAcceptMsg, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration procedure failed for subscriber %v: %v", newUE.UeSecurity.Msin, err)
 	}
 
-	err = validate.PDUSessionEstablishmentAccept(pduSessAcceptMsg, exp)
+	err = validate.PDUSessionEstablishmentAccept(registration.Session.Accept, exp)
 	if err != nil {
 		return fmt.Errorf("PDUSessionResourceSetupRequest validation failed: %v", err)
 	}
 
-	err = procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-	})
+	err = gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("DeregistrationProcedure failed: %v", err)
 	}

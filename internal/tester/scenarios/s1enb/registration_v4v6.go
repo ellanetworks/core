@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
@@ -44,7 +43,7 @@ func runS1ENBRegistrationV4V6(_ context.Context, env scenarios.Env, _ any) error
 	ue := e.NewUE(v4v6IMSI, k, opc)
 	ue.RequestPDNType(uint8(eps.PDNTypeIPv4v6))
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

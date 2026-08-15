@@ -104,7 +104,7 @@ func runS1ENBFramedRoute(ctx context.Context, env scenarios.Env, imsi, subnet, h
 		ue.RequestPDNType(uint8(eps.PDNTypeIPv6))
 	}
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
@@ -159,5 +159,5 @@ func runS1ENBFramedRoute(ctx context.Context, env scenarios.Env, imsi, subnet, h
 		return fmt.Errorf("off-route host %s reached %s, but should not have", offRouteHost, dst)
 	}
 
-	return e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, 10*time.Second)
+	return e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout)
 }

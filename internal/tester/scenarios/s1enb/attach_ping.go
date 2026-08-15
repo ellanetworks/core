@@ -14,7 +14,7 @@ import (
 )
 
 func attachAndPing(ctx context.Context, e *s1enb.ENB, ue *s1enb.UE, tunIface string) error {
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

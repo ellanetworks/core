@@ -44,7 +44,7 @@ func runS1ENBContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 	ue := e.NewUE(ctxReleaseIMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

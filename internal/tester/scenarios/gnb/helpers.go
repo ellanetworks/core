@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -19,12 +18,12 @@ func wantsIPv6Probe(env scenarios.Env) bool {
 	return env.IPFamily() == scenarios.IPv6Only
 }
 
-func handoverTunnelAddress(env scenarios.Env, session ue.PDUSessionInfo) string {
+func handoverTunnelAddress(env scenarios.Env, session gnb.PDUSessionResult) string {
 	if wantsIPv6Probe(env) {
-		return session.UEIPV6 + "/64"
+		return session.UEIPv6 + "/64"
 	}
 
-	return session.UEIP + "/16"
+	return session.UEIPv4 + "/16"
 }
 
 func awaitHandoverTunnelReady(env scenarios.Env, iface string) error {

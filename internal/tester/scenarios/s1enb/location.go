@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/logger"
@@ -73,7 +72,7 @@ func runS1ENBLocation(ctx context.Context, env scenarios.Env, p *locationParams)
 	ue := e.NewUE(s1enbLocationIMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	if _, err := e.Attach(ue, 15*time.Second); err != nil {
+	if _, err := e.Attach(ue, attachTimeout); err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 

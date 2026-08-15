@@ -69,7 +69,7 @@ func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any
 	ue := e.NewUE(connDualStackIMSI, k, opc)
 	ue.RequestPDNType(uint8(eps.PDNTypeIPv4v6))
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

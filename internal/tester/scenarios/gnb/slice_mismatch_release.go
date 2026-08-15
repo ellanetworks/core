@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
@@ -111,11 +110,7 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	_, err = gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration failed: %v", err)
 	}
@@ -176,16 +171,9 @@ func runSliceMismatchRelease(ctx context.Context, env scenarios.Env, p *sliceMis
 		ProfileName: scenarios.DefaultProfileName,
 	})
 
-	pduSessionIDs := [16]bool{}
-	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
+	pduSessionIDs := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID:   ranUENGAPID,
-		GnodeB:        gNodeB,
-		UE:            newUE,
-		PDUSessionIDs: pduSessionIDs,
-	})
+	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UE context release failed: %v", err)
 	}

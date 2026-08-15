@@ -55,8 +55,8 @@ func handlePDUSessionEstablishmentAccept(ue *UE, payload []byte) error {
 
 	ue.SetPDUSession(PDUSessionInfo{
 		PDUSessionID: uint8(acc.PDUSessionID),
-		UEIP:         ueIP,
-		UEIPV6:       ueIPV6,
+		UEIPv4:       ueIP,
+		UEIPv6:       ueIPV6,
 		MTU:          mtu,
 		QFI:          qfi,
 	})
