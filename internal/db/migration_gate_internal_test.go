@@ -14,9 +14,6 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// Whitebox tests for the migration gate. Seeds cluster_members via the
-// public upsert API and stubs probeVoterSchema to avoid real peers.
-
 func newStandaloneDB(t *testing.T) *Database {
 	t.Helper()
 
@@ -50,7 +47,7 @@ func (s stubProbe) probe(_ context.Context, nodeID int, _ string) (int, error) {
 	return v, nil
 }
 
-func TestMinVoterSchemaSupport_FloorIsLaggard(t *testing.T) {
+func TestMinMemberSchemaSupport_FloorIsLaggard(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
@@ -64,11 +61,12 @@ func TestMinVoterSchemaSupport_FloorIsLaggard(t *testing.T) {
 		}
 	}
 
-	database.probeVoterSchema = stubProbe{versions: map[int]int{1: 10, 2: 9, 3: 11}}.probe
+	database.raftMemberIDs = func() []int { return []int{1, 2, 3} }
+	database.probeMemberSchema = stubProbe{versions: map[int]int{1: 10, 2: 9, 3: 11}}.probe
 
-	floor, laggard, err := database.minVoterSchemaSupport(ctx)
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
-		t.Fatalf("minVoterSchemaSupport: %v", err)
+		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
 	if floor != 9 {
@@ -80,7 +78,7 @@ func TestMinVoterSchemaSupport_FloorIsLaggard(t *testing.T) {
 	}
 }
 
-func TestMinVoterSchemaSupport_UnreachableBlocks(t *testing.T) {
+func TestMinMemberSchemaSupport_UnreachableBlocks(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
@@ -93,14 +91,15 @@ func TestMinVoterSchemaSupport_UnreachableBlocks(t *testing.T) {
 		}
 	}
 
-	database.probeVoterSchema = stubProbe{
+	database.raftMemberIDs = func() []int { return []int{1, 2} }
+	database.probeMemberSchema = stubProbe{
 		versions:    map[int]int{1: 10},
 		unreachable: map[int]bool{2: true},
 	}.probe
 
-	floor, laggard, err := database.minVoterSchemaSupport(ctx)
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
-		t.Fatalf("minVoterSchemaSupport: %v", err)
+		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
 	if floor != 0 {
@@ -112,7 +111,7 @@ func TestMinVoterSchemaSupport_UnreachableBlocks(t *testing.T) {
 	}
 }
 
-func TestMinVoterSchemaSupport_IgnoresLearners(t *testing.T) {
+func TestMinMemberSchemaSupport_LearnerHoldsFloor(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := context.Background()
 
@@ -125,31 +124,144 @@ func TestMinVoterSchemaSupport_IgnoresLearners(t *testing.T) {
 		}
 	}
 
+	database.raftMemberIDs = func() []int { return []int{1, 2} }
+
 	probed := map[int]bool{}
 
-	database.probeVoterSchema = func(_ context.Context, nodeID int, _ string) (int, error) {
+	database.probeMemberSchema = func(_ context.Context, nodeID int, _ string) (int, error) {
 		probed[nodeID] = true
-		return 10, nil
+		return 3, nil
 	}
 
-	floor, laggard, err := database.minVoterSchemaSupport(ctx)
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
 	if err != nil {
-		t.Fatalf("minVoterSchemaSupport: %v", err)
+		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
-	// node 1 matches the standalone selfID, so its contribution is the
-	// in-process SchemaVersion(). Tracking the literal would require a
-	// test update on every migration bump.
+	if !probed[2] {
+		t.Fatalf("learner node 2 was not probed")
+	}
+
+	if floor != 3 {
+		t.Fatalf("floor: want 3 (learner), got %d", floor)
+	}
+
+	if laggard != 2 {
+		t.Fatalf("laggard: want 2, got %d", laggard)
+	}
+}
+
+func TestMinMemberSchemaSupport_SkipsRowsOutsideConfiguration(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	for _, m := range []*ClusterMember{
+		{NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter"},
+		{NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter"},
+	} {
+		if err := database.UpsertClusterMember(ctx, m); err != nil {
+			t.Fatalf("seed member %d: %v", m.NodeID, err)
+		}
+	}
+
+	database.raftMemberIDs = func() []int { return []int{1} }
+
+	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+
+	floor, _, err := database.minMemberSchemaSupport(ctx)
+	if err != nil {
+		t.Fatalf("minMemberSchemaSupport: %v", err)
+	}
+
 	if floor != SchemaVersion() {
-		t.Fatalf("floor: want %d (learner ignored), got %d", SchemaVersion(), floor)
+		t.Fatalf("floor: want %d (phantom row skipped), got %d", SchemaVersion(), floor)
+	}
+}
+
+func TestMinMemberSchemaSupport_ConfigurationMemberWithoutRowBlocks(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &ClusterMember{
+		NodeID: 1, RaftAddress: "a:1", APIAddress: "a:2", Suffrage: "voter",
+	}); err != nil {
+		t.Fatalf("seed member 1: %v", err)
 	}
 
-	if laggard != 1 {
-		t.Fatalf("laggard: want 1, got %d", laggard)
+	database.raftMemberIDs = func() []int { return []int{1, 2} }
+	database.probeMemberSchema = stubProbe{versions: map[int]int{1: 10}}.probe
+
+	floor, laggard, err := database.minMemberSchemaSupport(ctx)
+	if err != nil {
+		t.Fatalf("minMemberSchemaSupport: %v", err)
 	}
 
-	if probed[2] {
-		t.Fatalf("learner node 2 must not be probed")
+	if floor != 0 {
+		t.Fatalf("floor: want 0 (member with no row blocks), got %d", floor)
+	}
+
+	if laggard != 2 {
+		t.Fatalf("laggard: want 2, got %d", laggard)
+	}
+}
+
+func TestMinMemberSchemaSupport_UnavailableConfigurationBlocks(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &ClusterMember{
+		NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "voter",
+	}); err != nil {
+		t.Fatalf("seed member 2: %v", err)
+	}
+
+	database.raftMemberIDs = func() []int { return nil }
+	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+
+	floor, _, err := database.minMemberSchemaSupport(ctx)
+	if err != nil {
+		t.Fatalf("minMemberSchemaSupport: %v", err)
+	}
+
+	if floor != 0 {
+		t.Fatalf("floor: want 0 (configuration unavailable blocks), got %d", floor)
+	}
+}
+
+func TestPendingMigrationInfo_UnreachableMemberReportsLaggard(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	if err := database.UpsertClusterMember(ctx, &ClusterMember{
+		NodeID: 2, RaftAddress: "b:1", APIAddress: "b:2", Suffrage: "nonvoter",
+	}); err != nil {
+		t.Fatalf("seed member 2: %v", err)
+	}
+
+	current, err := database.CurrentSchemaVersion(ctx)
+	if err != nil {
+		t.Fatalf("CurrentSchemaVersion: %v", err)
+	}
+
+	if _, err := database.PlainDB().ExecContext(ctx,
+		"UPDATE schema_version SET version = ? WHERE id = 1", current-1); err != nil {
+		t.Fatalf("lower schema version: %v", err)
+	}
+
+	database.raftMemberIDs = func() []int { return []int{2} }
+	database.probeMemberSchema = stubProbe{unreachable: map[int]bool{2: true}}.probe
+
+	status, err := database.PendingMigrationInfo(ctx)
+	if err != nil {
+		t.Fatalf("PendingMigrationInfo: %v", err)
+	}
+
+	if status.TargetSchema != current-1 {
+		t.Fatalf("TargetSchema: want %d (current), got %d", current-1, status.TargetSchema)
+	}
+
+	if status.LaggardNodeID != 2 {
+		t.Fatalf("LaggardNodeID: want 2, got %d", status.LaggardNodeID)
 	}
 }
 

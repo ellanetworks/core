@@ -170,3 +170,52 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 		t.Fatalf("lastApplied after conflict: want 42 (rolled back), got %d", got)
 	}
 }
+
+func captureSPNChangeset(t *testing.T, database *Database, spn string) []byte {
+	t.Helper()
+
+	bytes, _, err := database.captureChangeset(context.Background(),
+		func(ctx context.Context) (any, error) {
+			return database.applyUpdateOperatorSPN(ctx, &Operator{
+				ID:           1,
+				SpnFullName:  spn,
+				SpnShortName: spn,
+			})
+		}, "UpdateOperatorSPN")
+	if err != nil {
+		t.Fatalf("capture changeset: %v", err)
+	}
+
+	if len(bytes) == 0 {
+		t.Fatalf("capture changeset returned zero bytes")
+	}
+
+	return bytes
+}
+
+func TestApplyChangeset_StalePreImageConflicts(t *testing.T) {
+	database := newAtomicTestDB(t)
+	ctx := context.Background()
+
+	pending := captureSPNChangeset(t, database, "pending")
+	stale := captureSPNChangeset(t, database, "stale")
+
+	if _, err := database.applyChangeset(ctx, &bytesPayload{
+		Value:     pending,
+		Operation: "UpdateOperatorSPN",
+	}, 100); err != nil {
+		t.Fatalf("apply pending entry: %v", err)
+	}
+
+	_, err := database.applyChangeset(ctx, &bytesPayload{
+		Value:     stale,
+		Operation: "UpdateOperatorSPN",
+	}, 101)
+	if err == nil {
+		t.Fatalf("apply changeset with stale pre-image: want a conflict error, got nil")
+	}
+
+	if got := readLastApplied(t, database); got != 100 {
+		t.Fatalf("lastApplied after conflict: want 100 (rolled back), got %d", got)
+	}
+}

@@ -337,7 +337,7 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 			return zero, fmt.Errorf("marshal intent command: %w", err)
 		}
 
-		result, applyErr := db.raftManager.ApplyBytes(data, db.proposeTimeout)
+		result, applyErr := db.leaderProposeIntent(data)
 		if applyErr == nil {
 			return narrowResult[R](op.name, result.Value)
 		}
@@ -365,6 +365,27 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 	return narrowResult[R](op.name, result.Value)
 }
 
+func (db *Database) leaderProposeIntent(data []byte) (*ellaraft.ProposeResult, error) {
+	db.proposeMu.Lock()
+	defer db.proposeMu.Unlock()
+
+	return db.raftManager.ApplyBytes(data, db.proposeTimeout)
+}
+
+func (db *Database) writeBarrier() error {
+	err := db.raftManager.WriteBarrier(db.proposeTimeout)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, hraft.ErrNotLeader), errors.Is(err, hraft.ErrLeadershipLost):
+		return err
+	case errors.Is(err, ellaraft.ErrBarrierTimeout), isTransientRaftErr(err):
+		return fmt.Errorf("%w: %v", ErrProposeTimeout, err)
+	default:
+		return err
+	}
+}
+
 // leaderCaptureAndPropose runs the capture→propose cycle on the leader.
 // proposeMu serialises captures so concurrent writers don't observe
 // the same pre-mutation state. minSchema is stamped on bytesPayload as
@@ -372,6 +393,10 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, applyFn func(context.Context) (any, error)) (any, error) {
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
+
+	if err := db.writeBarrier(); err != nil {
+		return nil, err
+	}
 
 	changeset, applyResult, err := db.captureChangeset(context.Background(), applyFn, operation)
 	if err != nil {
@@ -470,6 +495,10 @@ func (db *Database) applyForwardedChangesetOp(opName string, h changesetOpHandle
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
 
+	if err := db.writeBarrier(); err != nil {
+		return nil, err
+	}
+
 	changeset, applyResult, err := db.captureChangeset(context.Background(), func(ctx context.Context) (any, error) {
 		return h.applyJSON(db, ctx, payload)
 	}, opName)
@@ -515,5 +544,5 @@ func (db *Database) applyForwardedIntentOp(h intentOpHandler, payload json.RawMe
 		return nil, fmt.Errorf("marshal intent command: %w", err)
 	}
 
-	return db.raftManager.ApplyBytes(data, db.proposeTimeout)
+	return db.leaderProposeIntent(data)
 }
