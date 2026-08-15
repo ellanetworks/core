@@ -21,8 +21,6 @@ func handleConfigurationUpdateCommand(ue *UE, plain []byte, amfUENGAPID int64, r
 		ue.Set5gGuti(cmd.GUTI)
 	}
 
-	// TS 24.501 §5.4.4.3: the UE answers only when "acknowledgement requested" is
-	// indicated in the Configuration update indication IE.
 	if cmd.ConfigurationUpdateIndication == nil || !cmd.ConfigurationUpdateIndication.ACK {
 		logger.UeLogger.Debug(
 			"Configuration Update Command without acknowledgement requested, not replying",

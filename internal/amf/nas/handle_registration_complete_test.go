@@ -138,9 +138,6 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 		t.Fatal("expected ShortNameForNetwork in ConfigurationUpdateCommand")
 	}
 
-	// TS 24.501 §5.4.4.2: acknowledgement is requested for all parameters except
-	// when only NITZ information is included, so this NITZ-only command asks for
-	// none — and with nothing to acknowledge, T3555 must not be armed.
 	if cuc.ConfigurationUpdateIndication != nil {
 		t.Errorf("expected no ConfigurationUpdateIndication on the NITZ-only path, got %s", cuc.ConfigurationUpdateIndication)
 	}

@@ -342,9 +342,6 @@ func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName
 			return nil, fmt.Errorf("5G-GUTI is required")
 		}
 
-		// TS 24.501 §5.4.4.2: acknowledgement is requested for all parameters
-		// except when only NITZ information is included. The 5G-GUTI is the only
-		// non-NITZ parameter this message carries, so it alone warrants the ACK.
 		ack := fgs.ConfigurationUpdateIndication{ACK: true}
 		m.ConfigurationUpdateIndication = &ack
 

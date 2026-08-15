@@ -516,9 +516,6 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		return
 	}
 
-	// T3555 guards only a command that requested an acknowledgement (TS 24.501
-	// clause 10 timer table); a NITZ-only command asks for none, so there is
-	// nothing to wait for and retransmitting it is pure signalling noise.
 	if includeGUTI && amfInstance.NASGuardCfg.Enable {
 		cfg := amfInstance.NASGuardCfg
 
