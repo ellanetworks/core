@@ -280,28 +280,35 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 // cleanStaleRoutes removes leftover metric-200 routes from a prior crash.
 // Called before the BGP speaker starts so we begin with a clean slate.
 func (b *BGPService) cleanStaleRoutes() {
-	stale, err := b.kernel.ListRoutesByPriority(bgpRouteMetric, kernel.N6)
+	managed, err := b.kernel.ListManagedRoutes(kernel.N6)
 	if err != nil {
 		b.logger.Warn("failed to list stale BGP routes", zap.Error(err))
 
 		return
 	}
 
-	for i := range stale {
-		dst := stale[i]
+	var count int
 
-		// We don't know the original gateway, but DeleteRoute with an invalid
-		// gateway will match on destination + priority + interface.
-		err := b.kernel.DeleteRoute(dst, netip.Addr{}, bgpRouteMetric, kernel.N6)
+	for _, r := range managed {
+		if r.Priority != bgpRouteMetric {
+			continue
+		}
+
+		err := b.kernel.DeleteRoute(r.Destination, r.Gateway, r.Priority, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove stale BGP route",
-				zap.String("prefix", dst.String()), zap.Error(err))
+				zap.String("prefix", r.Destination.String()),
+				zap.String("gateway", r.Gateway.String()), zap.Error(err))
+
+			continue
 		}
+
+		count++
 	}
 
-	if len(stale) > 0 {
+	if count > 0 {
 		b.logger.Info("cleaned stale BGP routes from prior run",
-			zap.Int("count", len(stale)))
+			zap.Int("count", count))
 	}
 }
 

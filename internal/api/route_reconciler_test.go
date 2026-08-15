@@ -14,6 +14,12 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 )
 
+func sameRoute(a kernel.ManagedRoute, dest netip.Prefix, gw netip.Addr, prio int) bool {
+	return kernel.UnmapPrefix(a.Destination) == kernel.UnmapPrefix(dest) &&
+		a.Gateway.Unmap() == gw.Unmap() &&
+		a.Priority == prio
+}
+
 // recordingKernel captures route operations and exposes a configurable
 // "managed routes" view so the reconciler's deletion pass can be
 // exercised without netlink.
@@ -41,11 +47,14 @@ func newRecordingKernel() *recordingKernel {
 	}
 }
 
-func (k *recordingKernel) seedManaged(ifKey kernel.NetworkInterface, routes ...kernel.ManagedRoute) {
+// seedManaged adds routes to the N6 view. The set stays keyed by interface
+// because the reconciler sweeps every entry in interfaceDBKernelMap, and N3
+// having no managed routes is part of what these tests exercise.
+func (k *recordingKernel) seedManaged(routes ...kernel.ManagedRoute) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	k.managed[ifKey] = append(k.managed[ifKey], routes...)
+	k.managed[kernel.N6] = append(k.managed[kernel.N6], routes...)
 }
 
 func (k *recordingKernel) EnableIPForwarding() error {
@@ -84,7 +93,7 @@ func (k *recordingKernel) DeleteRoute(dest netip.Prefix, gw netip.Addr, prio int
 	filtered := k.managed[ifKey][:0]
 
 	for _, r := range k.managed[ifKey] {
-		if r.Destination == dest && r.Gateway == gw && r.Priority == prio {
+		if sameRoute(r, dest, gw, prio) {
 			continue
 		}
 
@@ -98,21 +107,6 @@ func (k *recordingKernel) DeleteRoute(dest netip.Prefix, gw netip.Addr, prio int
 
 func (k *recordingKernel) ReplaceRoute(_ netip.Prefix, _ netip.Addr, _ int, _ kernel.NetworkInterface) error {
 	return nil
-}
-
-func (k *recordingKernel) ListRoutesByPriority(prio int, ifKey kernel.NetworkInterface) ([]netip.Prefix, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	var out []netip.Prefix
-
-	for _, r := range k.managed[ifKey] {
-		if r.Priority == prio {
-			out = append(out, r.Destination)
-		}
-	}
-
-	return out, nil
 }
 
 func (k *recordingKernel) ListManagedRoutes(ifKey kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
@@ -136,7 +130,7 @@ func (k *recordingKernel) RouteExists(dest netip.Prefix, gw netip.Addr, prio int
 	defer k.mu.Unlock()
 
 	for _, r := range k.managed[ifKey] {
-		if r.Destination == dest && r.Gateway == gw && r.Priority == prio {
+		if sameRoute(r, dest, gw, prio) {
 			return true, nil
 		}
 	}
@@ -200,7 +194,7 @@ func TestReconcileKernelRouting_RemovesStaleRoute(t *testing.T) {
 		Gateway:     netip.MustParseAddr("192.168.1.1"),
 		Priority:    100,
 	}
-	k.seedManaged(kernel.N6, stale)
+	k.seedManaged(stale)
 
 	if err := ReconcileKernelRouting(context.Background(), dbInstance, k); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -224,7 +218,7 @@ func TestReconcileKernelRouting_PreservesBGPMetricRoutes(t *testing.T) {
 		Gateway:     netip.MustParseAddr("10.0.0.1"),
 		Priority:    bgpRouteMetric,
 	}
-	k.seedManaged(kernel.N6, bgpLearned)
+	k.seedManaged(bgpLearned)
 
 	if err := ReconcileKernelRouting(context.Background(), dbInstance, k); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -248,7 +242,7 @@ func TestReconcileKernelRouting_KeepsExistingRouteUntouched(t *testing.T) {
 		t.Fatalf("seed route: %v", err)
 	}
 
-	k.seedManaged(kernel.N6, kernel.ManagedRoute{
+	k.seedManaged(kernel.ManagedRoute{
 		Destination: netip.MustParsePrefix("10.0.0.0/24"),
 		Gateway:     netip.MustParseAddr("192.168.1.1"),
 		Priority:    100,
@@ -278,5 +272,78 @@ func TestReconcileKernelRouting_EnablesIPForwardingWhenOff(t *testing.T) {
 
 	if !k.enableCalled {
 		t.Fatal("expected EnableIPForwarding to be called when forwarding was off")
+	}
+}
+
+func TestReconcileKernelRouting_V4DefaultNotStale(t *testing.T) {
+	v4MappedDefault := netip.PrefixFrom(netip.MustParseAddr("::ffff:0.0.0.0"), 0)
+
+	for _, listed := range []netip.Prefix{
+		netip.MustParsePrefix("0.0.0.0/0"), // normalised, as RealKernel now returns
+		v4MappedDefault,                    // raw netlink spelling, belt and braces
+	} {
+		t.Run(listed.String(), func(t *testing.T) {
+			dbInstance := newReconcileTestDB(t)
+			k := newRecordingKernel()
+
+			if _, err := dbInstance.CreateRoute(context.Background(), &db.Route{
+				Destination: "0.0.0.0/0",
+				Gateway:     "10.0.20.129",
+				Interface:   db.N6,
+				Metric:      100,
+			}); err != nil {
+				t.Fatalf("seed route: %v", err)
+			}
+
+			k.seedManaged(kernel.ManagedRoute{
+				Destination: listed,
+				Gateway:     netip.MustParseAddr("10.0.20.129"),
+				Priority:    100,
+			})
+
+			if err := ReconcileKernelRouting(context.Background(), dbInstance, k); err != nil {
+				t.Fatalf("reconcile: %v", err)
+			}
+
+			if got := len(k.deleted); got != 0 {
+				t.Errorf("live default route must not be deleted, but DeleteRoute called %d times: %v", got, k.deleted)
+			}
+
+			if got := len(k.created); got != 0 {
+				t.Errorf("live default route must not be re-created, but CreateRoute called %d times: %v", got, k.created)
+			}
+		})
+	}
+}
+
+func TestReconcileKernelRouting_V4MappedDBDestination(t *testing.T) {
+	dbInstance := newReconcileTestDB(t)
+	k := newRecordingKernel()
+
+	if _, err := dbInstance.CreateRoute(context.Background(), &db.Route{
+		Destination: "::ffff:0.0.0.0/0",
+		Gateway:     "::ffff:10.0.20.129",
+		Interface:   db.N6,
+		Metric:      100,
+	}); err != nil {
+		t.Fatalf("seed route: %v", err)
+	}
+
+	k.seedManaged(kernel.ManagedRoute{
+		Destination: netip.MustParsePrefix("0.0.0.0/0"),
+		Gateway:     netip.MustParseAddr("10.0.20.129"),
+		Priority:    100,
+	})
+
+	if err := ReconcileKernelRouting(context.Background(), dbInstance, k); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := len(k.deleted); got != 0 {
+		t.Errorf("expected no DeleteRoute, got %d (%v)", got, k.deleted)
+	}
+
+	if got := len(k.created); got != 0 {
+		t.Errorf("expected no CreateRoute, got %d (%v)", got, k.created)
 	}
 }

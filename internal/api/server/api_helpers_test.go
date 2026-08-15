@@ -64,10 +64,6 @@ func (fk FakeKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr, 
 	return nil
 }
 
-func (fk FakeKernel) ListRoutesByPriority(priority int, networkInterface kernel.NetworkInterface) ([]netip.Prefix, error) {
-	return nil, nil
-}
-
 func (fk FakeKernel) ListManagedRoutes(networkInterface kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
 	return nil, nil
 }
