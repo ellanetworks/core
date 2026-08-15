@@ -72,8 +72,8 @@ type Amf struct {
 
 type PDUSessionInfo struct {
 	PDUSessionID uint8
-	UEIP         string
-	UEIPV6       string
+	UEIPv4       string
+	UEIPv6       string
 	MTU          uint16
 	QFI          uint8
 }
@@ -96,7 +96,7 @@ type UE struct {
 	Gnb                    air.UplinkSender
 	mu                     sync.Mutex
 	cond                   *sync.Cond
-	PDUSessions            map[uint8]PDUSessionInfo
+	pduSessions            map[uint8]PDUSessionInfo
 	receivedNASGMMMessages map[uint8][][]byte // msgType -> plaintext GMM messages
 	receivedNASGSMMessages map[uint8][][]byte // msgType -> plaintext GSM messages
 	receivedRRCRelease     bool
@@ -108,7 +108,7 @@ func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.PDUSessions[pduSession.PDUSessionID] = pduSession
+	ue.pduSessions[pduSession.PDUSessionID] = pduSession
 	ue.cond.Broadcast()
 }
 
@@ -116,7 +116,7 @@ func (ue *UE) GetPDUSession(pduSessionID uint8) PDUSessionInfo {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.PDUSessions[pduSessionID]
+	return ue.pduSessions[pduSessionID]
 }
 
 func (ue *UE) WaitForPDUSession(pduSessionID uint8, timeout time.Duration) (PDUSessionInfo, error) {
@@ -131,7 +131,7 @@ func (ue *UE) WaitForPDUSession(pduSessionID uint8, timeout time.Duration) (PDUS
 	defer ue.mu.Unlock()
 
 	for {
-		if session, ok := ue.PDUSessions[pduSessionID]; ok {
+		if session, ok := ue.pduSessions[pduSessionID]; ok {
 			return session, nil
 		}
 
@@ -210,7 +210,7 @@ func NewUE(opts *UEOpts) (*UE, error) {
 
 	ue.IMEISV = opts.IMEISV
 
-	ue.PDUSessions = make(map[uint8]PDUSessionInfo)
+	ue.pduSessions = make(map[uint8]PDUSessionInfo)
 	ue.receivedNASGMMMessages = make(map[uint8][][]byte)
 	ue.receivedNASGSMMessages = make(map[uint8][][]byte)
 	ue.lppRequests = make([]*LPPRequest, 0)

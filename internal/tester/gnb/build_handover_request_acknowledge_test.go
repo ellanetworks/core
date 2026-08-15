@@ -16,7 +16,7 @@ func TestBuildHandoverRequestAcknowledgeRoundTrips(t *testing.T) {
 	b, err := BuildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: 1, RANUENGAPID: 2,
 		PDUSessions: []HandoverAdmittedPDUSession{{
-			PDUSessionID: 5, DLTeid: 0x11223344, DLIP: netip.MustParseAddr("10.0.0.2"),
+			PDUSessionID: 5, DLTEID: 0x11223344, DLIP: netip.MustParseAddr("10.0.0.2"),
 		}},
 	})
 	if err != nil {

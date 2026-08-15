@@ -6,11 +6,9 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -52,22 +50,16 @@ func runSessionHold(ctx context.Context, env scenarios.Env) error {
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
+	if err != nil {
 		return fmt.Errorf("initial registration failed: %v", err)
 	}
 
-	uePDUSession, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("timeout waiting for PDU session: %v", err)
-	}
+	session := registration.Session
 
 	logger.Logger.Info("session established, holding until cancelled",
 		zap.String("IMSI", sessionHoldIMSI),
-		zap.String("UE IP", uePDUSession.UEIP),
+		zap.String("UE IP", session.UEIPv4),
 	)
 
 	<-ctx.Done()
@@ -76,11 +68,7 @@ func runSessionHold(ctx context.Context, env scenarios.Env) error {
 		zap.String("IMSI", sessionHoldIMSI),
 	)
 
-	if err := procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-	}); err != nil {
+	if err := gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout); err != nil {
 		logger.Logger.Warn("deregistration failed during teardown", zap.Error(err))
 	}
 

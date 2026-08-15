@@ -36,14 +36,17 @@ type Tunnel struct {
 // defaultTunMTU leaves room for GTP-U overhead, matching the 4G harness.
 const defaultTunMTU = 1400
 
-type NewTunnelOpts struct {
-	UEIP             string
-	UEIPV6           string
-	UpfIP            string
+// TunnelOpts describes one N3 tunnel. s1enb.TunnelOpts is its S1-U counterpart
+// and carries the same fields, less QFI: the QoS Flow Identifier rides in the
+// GTP-U PDU Session Container (TS 38.415), which exists on N3 only.
+type TunnelOpts struct {
+	UEIPv4           string // CIDR form, e.g. "10.45.0.1/16"
+	UEIPv6           string // CIDR form of the link-local from the PDU Session Establishment Accept IID
+	UpfAddress       string // UPF N3 address (uplink target)
+	ULTEID           uint32 // uplink TEID, sent to the UPF
+	DLTEID           uint32 // gNB downlink TEID, for demultiplexing inbound G-PDUs
 	TunInterfaceName string
-	ULteid           uint32
-	DLteid           uint32
-	MTU              uint16 // 0 selects defaultTunMTU
+	MTU              uint16 // 0 selects a default that leaves room for GTP-U overhead
 	QFI              uint8
 	// ExtraAddrs are extra CIDRs on the TUN, e.g. a framed-route host behind the UE.
 	ExtraAddrs []string
@@ -51,7 +54,7 @@ type NewTunnelOpts struct {
 	ExtraRoutes []string
 }
 
-func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
+func (g *GnodeB) AddTunnel(opts *TunnelOpts) error {
 	config := water.Config{
 		DeviceType: water.TUN,
 	}
@@ -60,17 +63,17 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 
 	ifce, err := water.New(config)
 	if err != nil {
-		return nil, fmt.Errorf("could not open TUN interface: %v", err)
+		return fmt.Errorf("could not open TUN interface: %v", err)
 	}
 
 	eth, err := netlink.LinkByName(ifce.Name())
 	if err != nil {
-		return nil, fmt.Errorf("cannot read TUN interface: %v", err)
+		return fmt.Errorf("cannot read TUN interface: %v", err)
 	}
 
 	err = netlink.LinkSetUp(eth)
 	if err != nil {
-		return nil, fmt.Errorf("could not set TUN interface UP: %v", err)
+		return fmt.Errorf("could not set TUN interface UP: %v", err)
 	}
 
 	// Wait for the kernel to auto-generate the link-local address before removing it.
@@ -86,7 +89,7 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 
 	err = netlink.LinkSetMTU(eth, mtu)
 	if err != nil {
-		return nil, fmt.Errorf("could not set MTU on TUN interface: %v", err)
+		return fmt.Errorf("could not set MTU on TUN interface: %v", err)
 	}
 
 	// Replace the auto-generated link-local with our own (IID from the PDU
@@ -102,41 +105,41 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("could not clean up auto-assigned link-local addresses: %v", err)
+		return fmt.Errorf("could not clean up auto-assigned link-local addresses: %v", err)
 	}
 
-	if opts.UEIP != "" {
-		ueAddr, err := netlink.ParseAddr(opts.UEIP)
+	if opts.UEIPv4 != "" {
+		ueAddr, err := netlink.ParseAddr(opts.UEIPv4)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse UE address: %v", err)
+			return fmt.Errorf("could not parse UE address: %v", err)
 		}
 
 		err = netlink.AddrAdd(eth, ueAddr)
 		if err != nil {
-			return nil, fmt.Errorf("could not assign UE address to TUN interface: %v", err)
+			return fmt.Errorf("could not assign UE address to TUN interface: %v", err)
 		}
 	}
 
-	if opts.UEIPV6 != "" {
-		ueAddrV6, err := netlink.ParseAddr(opts.UEIPV6)
+	if opts.UEIPv6 != "" {
+		ueAddrV6, err := netlink.ParseAddr(opts.UEIPv6)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse UE IPv6 address: %v", err)
+			return fmt.Errorf("could not parse UE IPv6 address: %v", err)
 		}
 
 		err = netlink.AddrAdd(eth, ueAddrV6)
 		if err != nil {
-			return nil, fmt.Errorf("could not assign UE IPv6 address to TUN interface: %v", err)
+			return fmt.Errorf("could not assign UE IPv6 address to TUN interface: %v", err)
 		}
 	}
 
 	for _, extra := range opts.ExtraAddrs {
 		addr, err := netlink.ParseAddr(extra)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse extra TUN address %q: %v", extra, err)
+			return fmt.Errorf("could not parse extra TUN address %q: %v", extra, err)
 		}
 
 		if err := netlink.AddrAdd(eth, addr); err != nil {
-			return nil, fmt.Errorf("could not assign extra address %q to TUN interface: %v", extra, err)
+			return fmt.Errorf("could not assign extra address %q to TUN interface: %v", extra, err)
 		}
 	}
 
@@ -146,17 +149,17 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 		Name:   ifce.Name(),
 		tunIF:  ifce,
 		link:   eth,
-		ulteid: opts.ULteid,
-		dlteid: opts.DLteid,
+		ulteid: opts.ULTEID,
+		dlteid: opts.DLTEID,
 		upfAddr: &net.UDPAddr{
-			IP:   net.ParseIP(opts.UpfIP),
+			IP:   net.ParseIP(opts.UpfAddress),
 			Port: 2152,
 		},
 		qfi: opts.QFI,
 	}
 
 	g.mu.Lock()
-	g.tunnels[opts.DLteid] = t
+	g.tunnels[opts.DLTEID] = t
 	g.mu.Unlock()
 
 	go tunToGtp(g.N3Conn, t)
@@ -164,31 +167,34 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 	// Route the N6 subnet (fd00:6::/64) via this TUN interface; the container
 	// has no other route to it.
 	if err := addTunRoute(eth); err != nil {
-		return nil, fmt.Errorf("could not add route for N6 network via TUN interface: %v", err)
+		return fmt.Errorf("could not add route for N6 network via TUN interface: %v", err)
 	}
 
 	for _, r := range opts.ExtraRoutes {
 		_, dst, err := net.ParseCIDR(r)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse extra TUN route %q: %v", r, err)
+			return fmt.Errorf("could not parse extra TUN route %q: %v", r, err)
 		}
 
 		route := &netlink.Route{LinkIndex: eth.Attrs().Index, Scope: netlink.SCOPE_UNIVERSE, Dst: dst}
 		if err := netlink.RouteAdd(route); err != nil && !strings.Contains(err.Error(), "exists") {
-			return nil, fmt.Errorf("could not add extra TUN route %q: %v", r, err)
+			return fmt.Errorf("could not add extra TUN route %q: %v", r, err)
 		}
 	}
 
-	return t, nil
+	return nil
 }
 
-func (g *GnodeB) CloseTunnel(dlteid uint32) error {
+// CloseTunnel tears down the tunnel for the given downlink TEID. Closing a TEID
+// with no tunnel is a no-op, as on s1enb: a scenario tearing down a session the
+// network already released must not fail for it.
+func (g *GnodeB) CloseTunnel(dlteid uint32) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	t, ok := g.tunnels[dlteid]
 	if !ok {
-		return fmt.Errorf("no tunnel with DL TEID %d", dlteid)
+		return
 	}
 
 	if t.link != nil {
@@ -210,8 +216,6 @@ func (g *GnodeB) CloseTunnel(dlteid uint32) error {
 	}
 
 	delete(g.tunnels, dlteid)
-
-	return nil
 }
 
 func (g *GnodeB) GTPReader() { // nolint:gocognit

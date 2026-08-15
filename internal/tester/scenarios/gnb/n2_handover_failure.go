@@ -12,7 +12,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
@@ -87,20 +86,10 @@ func startN2HandoverPair(env scenarios.Env, imsi string) (*n2HandoverPair, func(
 
 	sourceGNB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	if _, err := sourceGNB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
 		closeBoth()
 
 		return nil, nil, fmt.Errorf("initial registration: %w", err)
-	}
-
-	if _, err := sourceGNB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), n2FailureTimeout); err != nil {
-		closeBoth()
-
-		return nil, nil, fmt.Errorf("source gNB: wait PDU session: %w", err)
 	}
 
 	return &n2HandoverPair{
@@ -195,7 +184,7 @@ func runN2HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		PDUSessions: []gnb.HandoverAdmittedPDUSession{
 			{
 				PDUSessionID: int64(scenarios.DefaultPDUSessionID),
-				DLTeid:       uint32(9300),
+				DLTEID:       uint32(9300),
 				DLIP:         netip.MustParseAddr(env.FirstGNB().N3Address),
 			},
 		},

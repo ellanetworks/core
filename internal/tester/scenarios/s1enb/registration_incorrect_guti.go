@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
@@ -44,7 +43,7 @@ func runS1ENBRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ a
 	ue.UseUnknownGUTI()
 	ue.RequestPDNType(env.PDUSessionType())
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

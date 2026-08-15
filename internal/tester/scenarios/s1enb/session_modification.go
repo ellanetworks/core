@@ -109,7 +109,7 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	ue := e.NewUE(sessionModIMSI, k, opc)
 
-	attach, err := e.Attach(ue, 15*time.Second)
+	attach, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
@@ -158,7 +158,7 @@ func runSessionModification(ctx context.Context, env scenarios.Env, p *sessionMo
 
 	logger.GnbLogger.Info("session modification applied in place")
 
-	return e.Detach(ue, attach.MMEUES1APID, attach.ENBUES1APID, 10*time.Second)
+	return e.Detach(ue, attach.MMEUES1APID, attach.ENBUES1APID, releaseTimeout)
 }
 
 // assertQoSModification validates the E-RAB Modify path: the eNB receives the new

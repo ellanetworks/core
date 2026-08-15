@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/spf13/pflag"
 )
 
@@ -82,16 +81,8 @@ func runStaticIP(ctx context.Context, env scenarios.Env, p *staticIPParams, imsi
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	if _, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
 		return fmt.Errorf("initial registration: %v", err)
-	}
-
-	if _, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second); err != nil {
-		return fmt.Errorf("wait for PDU session: %v", err)
 	}
 
 	got, err := assignedSessionAddress(ctx, env, imsi, ipv6)
@@ -103,11 +94,7 @@ func runStaticIP(ctx context.Context, env scenarios.Env, p *staticIPParams, imsi
 		return err
 	}
 
-	return procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-	})
+	return gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
 }
 
 // assignedSessionAddress polls the core's subscriber record for the address

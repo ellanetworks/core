@@ -16,6 +16,13 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
+// Timeouts for the lifecycle procedures. s1enb scenarios spell theirs the same
+// way, so a 4G and a 5G scenario read alike.
+const (
+	registrationTimeout = 8 * time.Second
+	releaseTimeout      = 2 * time.Second
+)
+
 const (
 	interworkingIMSI = "001017271246700"
 

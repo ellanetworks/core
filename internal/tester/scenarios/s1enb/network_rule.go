@@ -129,7 +129,7 @@ func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probePa
 		ue.RequestPDNType(uint8(eps.PDNTypeIPv6))
 	}
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

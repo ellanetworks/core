@@ -119,7 +119,7 @@ func runS1ENBNATChecksum(ctx context.Context, env scenarios.Env, params *natChec
 
 	ue := e.NewUE(natChecksumIMSI, k, opc)
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}

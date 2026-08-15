@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -50,7 +49,7 @@ func runS1ENBSessionHold(ctx context.Context, env scenarios.Env, _ any) error {
 		ue.RequestPDNType(uint8(eps.PDNTypeIPv6))
 	}
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
@@ -69,7 +68,7 @@ func runS1ENBSessionHold(ctx context.Context, env scenarios.Env, _ any) error {
 
 	logger.Logger.Info("context cancelled, tearing down session", zap.String("IMSI", sessionHoldIMSI))
 
-	if err := e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, 10*time.Second); err != nil {
+	if err := e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout); err != nil {
 		logger.Logger.Warn("detach failed during teardown", zap.Error(err))
 	}
 

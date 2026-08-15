@@ -48,7 +48,7 @@ func runS1Reset(_ context.Context, env scenarios.Env, _ any) error {
 	ue := e.NewUE(s1ResetIMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	if _, err := e.Attach(ue, 15*time.Second); err != nil {
+	if _, err := e.Attach(ue, attachTimeout); err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 
@@ -75,12 +75,12 @@ func runS1Reset(_ context.Context, env scenarios.Env, _ any) error {
 	reUE := e.NewUE(s1ResetIMSI, k, opc)
 	reUE.RequestPDNType(env.PDUSessionType())
 
-	res, err := e.Attach(reUE, 15*time.Second)
+	res, err := e.Attach(reUE, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("re-attach after S1 reset: %w", err)
 	}
 
-	if err := e.Detach(reUE, res.MMEUES1APID, res.ENBUES1APID, 10*time.Second); err != nil {
+	if err := e.Detach(reUE, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout); err != nil {
 		return fmt.Errorf("detach after re-attach: %w", err)
 	}
 

@@ -6,7 +6,6 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
@@ -45,7 +44,7 @@ func runS1ENBAuthenticationMACFailure(_ context.Context, env scenarios.Env, _ an
 
 	ue := e.NewUE(macFailureIMSI, k, opc)
 
-	if err := e.AttachExpectAuthReject(ue, 15*time.Second); err != nil {
+	if err := e.AttachExpectAuthReject(ue, attachTimeout); err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 
