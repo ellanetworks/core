@@ -267,23 +267,6 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	return nil
 }
 
-// AdoptAuthenticatedSupi records an authenticated IMSI on ue and, in the same step,
-// makes ue the context this MME serves for that subscriber.
-//
-// Indexing is a consequence of authentication, not a step an attach or tracking area
-// update has to remember: wherever the MME establishes who a UE is — a completed EPS
-// AKA, or a peer-vouched context adopted over N26 — it establishes it here, so there is
-// no reachable state in which the MME has an authenticated IMSI for a context it cannot
-// resolve.
-//
-// Its counterpart is UeContext.SetSupi, which records an identity while claiming
-// nothing. Use that only where a context carries an IMSI it has not (yet) earned the
-// right to serve: a relocation still in flight must leave the incumbent context serving
-// the subscriber until it completes.
-//
-// EPS carries the subscriber identity in the clear, so unlike 5GS the MME holds the
-// IMSI before it is proven (SetIMSI); adoption is what turns a claimed identity into a
-// served one (TS 24.301 §5.5.1.2.7 f).
 func (m *MME) AdoptAuthenticatedSupi(ctx context.Context, ue *UeContext, supi etsi.SUPI, proof AuthProof) error {
 	if ue == nil {
 		return fmt.Errorf("no UE context to adopt an IMSI for")
@@ -294,12 +277,6 @@ func (m *MME) AdoptAuthenticatedSupi(ctx context.Context, ue *UeContext, supi et
 	return m.CommitUEIdentity(ctx, ue, proof)
 }
 
-// ServesUeContext reports whether ue is the context this MME currently holds for its
-// IMSI, i.e. whether CommitUEIdentity has indexed it and nothing has since superseded
-// it. It is the machine-checkable form of the invariant that a UE the MME has accepted
-// is a UE the MME can find again: every IMSI-keyed downlink entry point — paging,
-// session release, S11 bearer signalling — resolves through m.UEs, so a context outside
-// it is attached from the UE's point of view and unreachable from the network's.
 func (m *MME) ServesUeContext(ue *UeContext) bool {
 	if ue == nil {
 		return false
@@ -973,11 +950,6 @@ func (m *MME) LookupUeByMTMSI(mtmsi uint32) (*UeContext, bool) {
 	return ue, ok
 }
 
-// LookupUeBySupi finds the persistent UE context for supi. It resolves a UE in
-// ECM-IDLE as well as a connected one, and a Deregistered husk: an implicit detach
-// deliberately keeps the context and its IMSI index so a later re-attach with the
-// native GUTI can reuse its security context (TS 24.301 §4.4.2 / annex C). Callers that
-// need an attached UE check the EMM state themselves.
 func (m *MME) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -987,8 +959,6 @@ func (m *MME) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	return ue, ok
 }
 
-// LookupUeByIMSI finds the persistent UE context for imsi. It resolves a UE in
-// ECM-IDLE as well as a connected one.
 func (m *MME) LookupUeByIMSI(imsi string) (*UeContext, bool) {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {

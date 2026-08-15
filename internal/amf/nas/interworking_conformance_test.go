@@ -217,10 +217,7 @@ func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
 	}
 }
 
-// A deregistered context stays resolvable: the AMF keeps it as a husk with its
-// security context so a later registration can reuse it and skip authentication,
-// mirroring the MME's implicit-detach husk (TS 24.301 §4.4.2 / annex C). Callers that
-// need a registered UE check the 5GMM state themselves.
+// TS 24.301 §4.4.2 / annex C
 func TestDeregisteredContextIsRetainedAsAHusk(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 

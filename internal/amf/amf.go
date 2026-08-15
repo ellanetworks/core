@@ -225,18 +225,6 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	return nil
 }
 
-// AdoptAuthenticatedSupi records an authenticated SUPI on ue and, in the same step,
-// makes ue the context this AMF serves for that subscriber.
-//
-// Indexing is a consequence of authentication, not a step a registration procedure has
-// to remember: wherever the AMF learns who a UE is — primary authentication, or a
-// peer-vouched context adopted over N26 — it learns it here, so there is no reachable
-// state in which the AMF has an authenticated SUPI for a context it cannot resolve.
-//
-// Its counterpart is UeContext.SetSupi, which records an identity while claiming
-// nothing. Use that only where a context carries a SUPI it has not (yet) earned the
-// right to serve: a registration restarted onto a fresh context, or a relocation still
-// in flight, both of which must leave the incumbent context serving until they complete.
 func (amf *AMF) AdoptAuthenticatedSupi(ctx context.Context, ue *UeContext, supi etsi.SUPI, proof AuthProof) error {
 	if ue == nil {
 		return fmt.Errorf("no UE context to adopt a SUPI for")
@@ -247,12 +235,6 @@ func (amf *AMF) AdoptAuthenticatedSupi(ctx context.Context, ue *UeContext, supi 
 	return amf.CommitUEIdentity(ctx, ue, proof)
 }
 
-// ServesUeContext reports whether ue is the context this AMF currently holds for its
-// SUPI, i.e. whether CommitUEIdentity has indexed it and nothing has since superseded
-// it. It is the machine-checkable form of the invariant that a UE the AMF has accepted
-// is a UE the AMF can find again: every SUPI-keyed downlink entry point — N1N2 transfer,
-// paging, session release — resolves through amf.UEs, so a context outside it is
-// registered from the UE's point of view and unreachable from the network's.
 func (amf *AMF) ServesUeContext(ue *UeContext) bool {
 	if ue == nil {
 		return false
@@ -346,11 +328,6 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 	logger.AmfLog.Info("removed ue context", logger.SUPI(supi.String()))
 }
 
-// LookupUeBySupi finds the UE context for supi. It resolves an idle UE as well as a
-// connected one, and a Deregistered husk: a registered UE that detaches deliberately
-// keeps its context and index so a later registration can reuse its security context,
-// mirroring the MME (TS 24.501 §5.3.7). Callers that need a registered UE check the
-// 5GMM state themselves.
 func (amf *AMF) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()

@@ -31,10 +31,6 @@ func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 		t.Fatal("victim must remain EMM-REGISTERED")
 	}
 
-	// Once the new attach is authenticated, it supersedes the prior context (a
-	// re-attach), so the subscriber maps to exactly one context. An attach reaching
-	// authentication is EMM-REGISTERED-INITIATED, and LookupUeByIMSI answers only for a
-	// context that still stands for its subscriber.
 	attacker.ForceStateForTest(EMMRegistrationInitiated)
 
 	if err := m.CommitUEIdentity(context.Background(), attacker, MintAuthProofForAttachCommit()); err != nil {

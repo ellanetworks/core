@@ -311,8 +311,6 @@ func TestHandleAuthenticationResponse_SuccessMakesTheAMFServeTheUE(t *testing.T)
 		Kseaf: []byte{0xC0, 0xFF, 0xEE},
 	}, nil)
 
-	// What an unresolvable 5G-GUTI leaves behind: a fresh context with no identity the
-	// AMF has adopted, on any registration type.
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)

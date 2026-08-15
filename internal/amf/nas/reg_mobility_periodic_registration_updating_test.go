@@ -152,9 +152,6 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 
-	// abortRegistration asks the gNB to release the RAN context and lets the Release
-	// Complete delete the UE context (TS 24.501 §5.3.1.3), so the observable effect
-	// here is the release request, not an immediate state change.
 	if ue.Conn().ReleaseAction != amf.UeContextReleaseAbortRegistration {
 		t.Fatalf("ReleaseAction = %v, want the aborted-registration release", ue.Conn().ReleaseAction)
 	}
