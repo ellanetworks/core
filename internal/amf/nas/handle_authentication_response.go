@@ -87,9 +87,23 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 	ue.SetSupi(supi)
 
-	err = ue.DeriveKamf(kseaf)
-	if err != nil {
+	if err := ue.DeriveKamf(kseaf); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("couldn't derive Kamf", zap.Error(err))
+
+		failAuthentication(ctx, ue, ueConn)
+
+		return nasreply.Handled()
+	}
+
+	if isRegistrationUpdate(conn.RegistrationType5GS) {
+		amfInstance.CarrySubscriberSessions(ue)
+	}
+
+	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		logger.From(ctx, logger.AmfLog).Error("could not adopt the authenticated SUPI", zap.Error(err))
+
+		failAuthentication(ctx, ue, ueConn)
+
 		return nasreply.Handled()
 	}
 

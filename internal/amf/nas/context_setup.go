@@ -57,3 +57,7 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)
 	}
 }
+
+func isRegistrationUpdate(t fgs.RegistrationType) bool {
+	return t == fgs.RegistrationTypeMobilityUpdating || t == fgs.RegistrationTypePeriodicUpdating
+}

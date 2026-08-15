@@ -265,7 +265,12 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 	id := held.id
 
 	ue.TransitionTo(EMMRegistered)
-	m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking())
+
+	if err := m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("could not index a UE that arrived from 5GS",
+			logger.SUPI(supi.String()), zap.Error(err))
+	}
+
 	m.endRelocation(supi, ue)
 
 	logger.From(ctx, logger.MmeLog).Info("handover from 5GS complete", logger.SUPI(supi.String()))

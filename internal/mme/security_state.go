@@ -18,9 +18,6 @@ func MintAuthProofForSecurityMode() AuthProof {
 	return AuthProof{}
 }
 
-// MintAuthProofForAttachCommit returns an AuthProof. It must only be called from
-// the attach-accept path, once the attach is authenticated and accepted, to
-// index the UE by IMSI and supersede any prior context (TS 24.301 §4.4.4.3).
 func MintAuthProofForAttachCommit() AuthProof {
 	return AuthProof{}
 }
