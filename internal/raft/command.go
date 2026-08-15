@@ -9,16 +9,15 @@ import (
 	"fmt"
 )
 
-// CommandType identifies a shared-DB write operation in the Raft log.
-// Each type maps to exactly one applyX function in the FSM.
+// CommandType identifies a shared-DB write operation in the Raft log. Every
+// member applies every committed entry, so adding or retiring a type needs a
+// schema migration and db.RequireSchema(N) on the operation proposing it.
 type CommandType uint16
 
 const (
-	// Changeset replication (opaque sqlite3session bytes)
 	CmdChangeset CommandType = 0
 
-	// Gaps are intentional: retired command ids are never reused so
-	// logs and snapshots stay decodable across versions.
+	// Retired ids are never reused: old logs and snapshots stay decodable.
 
 	// Intent-based bulk deletes kept explicit for log-size control.
 	CmdDeleteOldDailyUsage    CommandType = 12
@@ -26,11 +25,9 @@ const (
 	CmdDeleteOldAuditLogs     CommandType = 31
 	CmdDeleteExpiredSessions  CommandType = 72
 
-	// Migrations — proposed by the leader to advance the shared schema
 	CmdMigrateShared CommandType = 220
 )
 
-// commandNames provides human-readable names for logging and debugging.
 var commandNames = map[CommandType]string{
 	CmdChangeset:              "Changeset",
 	CmdDeleteOldDailyUsage:    "DeleteOldDailyUsage",
@@ -48,22 +45,14 @@ func (c CommandType) String() string {
 	return fmt.Sprintf("CommandType(%d)", c)
 }
 
-// Command is the Raft log entry for shared-DB writes.
-//
-// Wire format:
-//
-//	[0:2]  CommandType (uint16, big-endian)
-//	[2:]   JSON-encoded payload
-//
-// JSON is used for payloads because shared writes are low-volume (tens/sec)
-// and payloads are small configuration data. This avoids a protoc toolchain
-// dependency while remaining self-describing and debuggable.
+// Command is the Raft log entry for shared-DB writes. Payloads are JSON:
+// shared writes are low-volume config data, so being debuggable outweighs a
+// protoc toolchain dependency.
 type Command struct {
 	Type    CommandType     `json:"type"`
 	Payload json.RawMessage `json:"payload"`
 }
 
-// MarshalBinary encodes the command into the wire format.
 func (c *Command) MarshalBinary() ([]byte, error) {
 	var hdr [2]byte
 
@@ -72,7 +61,6 @@ func (c *Command) MarshalBinary() ([]byte, error) {
 	return append(hdr[:], c.Payload...), nil
 }
 
-// UnmarshalCommand decodes a command from the wire format.
 func UnmarshalCommand(data []byte) (*Command, error) {
 	if len(data) < 2 {
 		return nil, fmt.Errorf("command too short: %d bytes", len(data))
@@ -84,7 +72,6 @@ func UnmarshalCommand(data []byte) (*Command, error) {
 	}, nil
 }
 
-// NewCommand creates a command with the given type and JSON-serialized payload.
 func NewCommand(cmdType CommandType, payload any) (*Command, error) {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -94,8 +81,6 @@ func NewCommand(cmdType CommandType, payload any) (*Command, error) {
 	return &Command{Type: cmdType, Payload: data}, nil
 }
 
-// Label returns a human-readable label for the command including the
-// operation name embedded in changeset payloads (e.g. "Changeset(UpsertClusterMember)").
 func (c *Command) Label() string {
 	name := c.Type.String()
 	if c.Type != CmdChangeset || len(c.Payload) == 0 {
