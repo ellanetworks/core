@@ -266,7 +266,7 @@ func (m *MME) CompleteRelocation(ctx context.Context, ue *UeContext) {
 
 	ue.TransitionTo(EMMRegistered)
 
-	if err := m.AdoptAuthenticatedSupi(ctx, ue, supi, MintAuthProofForInterworking()); err != nil {
+	if err := m.CommitUEIdentity(ctx, ue, MintAuthProofForInterworking()); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("could not index a UE that arrived from 5GS",
 			logger.SUPI(supi.String()), zap.Error(err))
 	}

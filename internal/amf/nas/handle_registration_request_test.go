@@ -362,8 +362,8 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -414,8 +414,8 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.SetSecuredForTest(true)
@@ -524,8 +524,8 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
@@ -571,8 +571,8 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
@@ -629,8 +629,8 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
@@ -676,8 +676,8 @@ func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testin
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
@@ -727,8 +727,8 @@ func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
@@ -777,8 +777,8 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.SetSecuredForTest(true)
@@ -848,8 +848,8 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.SetSecuredForTest(true)
@@ -912,8 +912,8 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.SetSecuredForTest(true)
@@ -983,8 +983,8 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	// Simulate MAC verification failure (amf.AMF has no valid security context)
@@ -1040,8 +1040,8 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 3)
@@ -1084,8 +1084,8 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 6)
@@ -1128,8 +1128,8 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 7)
@@ -1213,8 +1213,8 @@ func TestHandleRegistrationRequestMessage_ContainerStoresOuterBytes(t *testing.T
 	ue.Suci = "testsuci"
 	ue.SetSupiForTest(supi)
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.SetSecuredForTest(true)

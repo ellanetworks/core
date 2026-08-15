@@ -184,19 +184,23 @@ func TestIdleArrivalSpendsALeftoverHandoverMark(t *testing.T) {
 	}
 }
 
-// TS 24.501 §4.4.4.3
+// S 24.501 §5.5.1.2.8 f)
 func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
-	for _, typ := range []fgs.RegistrationType{
-		fgs.RegistrationTypeInitial,
-		fgs.RegistrationTypeMobilityUpdating,
-		fgs.RegistrationTypePeriodicUpdating,
+	for _, tc := range []struct {
+		typ           fgs.RegistrationType
+		supersedes    bool
+		supersedesWhy string
+	}{
+		{fgs.RegistrationTypeInitial, true, "TS 24.501 §5.5.1.2.8 f): the old 5GMM context is deleted once authentication proves the UE genuine"},
+		{fgs.RegistrationTypeMobilityUpdating, false, ""},
+		{fgs.RegistrationTypePeriodicUpdating, false, ""},
 	} {
-		t.Run(typ.String(), func(t *testing.T) {
+		t.Run(tc.typ.String(), func(t *testing.T) {
 			ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 			fresh := amf.NewUeContext()
 			amfInstance.AttachUeConn(fresh, ue.Conn())
-			fresh.Conn().RegistrationType5GS = typ
+			fresh.Conn().RegistrationType5GS = tc.typ
 			fresh.TransitionTo(amf.RegistrationInitiated)
 
 			if _, ok := amfInstance.LookupUeBySupi(ue.Supi()); !ok {
@@ -204,20 +208,29 @@ func TestUnresolvedRegistrationBecomesServedByAuthenticating(t *testing.T) {
 			}
 
 			supi := ue.Supi()
-			if err := amfInstance.AdoptAuthenticatedSupi(t.Context(), fresh, supi,
-				amf.MintAuthProofForRegistrationCommit()); err != nil {
-				t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+			fresh.SetSupi(supi)
+
+			if isRegistrationUpdate(tc.typ) {
+				amfInstance.CarrySubscriberSessions(fresh)
+			}
+
+			if err := amfInstance.CommitUEIdentity(t.Context(), fresh, amf.MintAuthProofForRegistrationCommit()); err != nil {
+				t.Fatalf("CommitUEIdentity: %v", err)
 			}
 
 			held, ok := amfInstance.LookupUeBySupi(supi)
-			if !ok || held != fresh {
-				t.Fatalf("LookupUeBySupi = (%p, %v), want the newly authenticated context %p", held, ok, fresh)
+			if !ok {
+				t.Fatal("the AMF serves no context for a subscriber it has just authenticated")
+			}
+
+			if tc.supersedes && held != fresh {
+				t.Fatalf("LookupUeBySupi = %p, want the newly authenticated context %p: %s", held, fresh, tc.supersedesWhy)
 			}
 		})
 	}
 }
 
-// TS 24.301 §4.4.2 / annex C
+// TS 24.501 §5.5.1.2.8 a)
 func TestDeregisteredContextIsRetainedAsAHusk(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -230,5 +243,50 @@ func TestDeregisteredContextIsRetainedAsAHusk(t *testing.T) {
 
 	if !amfInstance.ServesUeContext(ue) {
 		t.Error("ServesUeContext denies a context the AMF still holds")
+	}
+}
+
+// TS 24.501 §5.5.1.3.2
+func TestSupersedingRegistrationCarriesSessionsOnlyForAnUpdate(t *testing.T) {
+	for _, tc := range []struct {
+		typ     fgs.RegistrationType
+		carried bool
+	}{
+		{fgs.RegistrationTypeMobilityUpdating, true},
+		{fgs.RegistrationTypePeriodicUpdating, true},
+		{fgs.RegistrationTypeInitial, false},
+	} {
+		t.Run(tc.typ.String(), func(t *testing.T) {
+			incumbent, _, smfStub, amfInstance := buildMobilityRegUeAndAMF(t)
+
+			if err := incumbent.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+				t.Fatalf("CreateSmContext: %v", err)
+			}
+
+			fresh := amf.NewUeContext()
+			amfInstance.AttachUeConn(fresh, incumbent.Conn())
+			fresh.Conn().RegistrationType5GS = tc.typ
+			fresh.TransitionTo(amf.RegistrationInitiated)
+			fresh.SetSupi(incumbent.Supi())
+
+			if isRegistrationUpdate(tc.typ) {
+				amfInstance.CarrySubscriberSessions(fresh)
+			}
+
+			if err := amfInstance.CommitUEIdentity(t.Context(), fresh,
+				amf.MintAuthProofForRegistrationCommit()); err != nil {
+				t.Fatalf("CommitUEIdentity: %v", err)
+			}
+
+			_, held := fresh.SmContextFindByPDUSessionID(1)
+			if held != tc.carried {
+				t.Fatalf("fresh context holds PDU session 1 = %v, want %v", held, tc.carried)
+			}
+
+			released := len(smfStub.ReleaseSmContextCalls) != 0
+			if released == tc.carried {
+				t.Fatalf("SMF release calls = %v, want released = %v", smfStub.ReleaseSmContextCalls, !tc.carried)
+			}
+		})
 	}
 }

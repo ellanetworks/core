@@ -43,7 +43,7 @@ func handleAuthenticationResponse(ctx context.Context, m *mme.MME, ue *mme.UeCon
 
 	logger.From(ctx, logger.MmeLog).Info("authentication succeeded")
 
-	if err := m.AdoptAuthenticatedSupi(ctx, ue, ue.Supi(), mme.MintAuthProofForAttachCommit()); err != nil {
+	if err := m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForAttachCommit()); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("could not adopt the authenticated IMSI", zap.Error(err))
 		rejectAuthentication(ctx, m, ue, ueConn)
 

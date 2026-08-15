@@ -72,8 +72,8 @@ func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 
 	supi := ue.Supi()
 
-	if err := amfInstance.AdoptAuthenticatedSupi(ctx, ue, supi, amf.MintAuthProofForInterworking()); err != nil {
-		abortRegistration(ctx, amfInstance, ue, "adopt the identity of a UE arriving from EPS", err)
+	if err := amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForInterworking()); err != nil {
+		abortRegistration(ctx, amfInstance, ue, "commit the identity of a UE arriving from EPS", err)
 
 		return false
 	}

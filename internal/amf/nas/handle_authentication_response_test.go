@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -290,7 +291,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	}
 }
 
-// TS 24.501 §4.4.4.3, §5.5.1.3.4
+// TS 33.501 §6.1.3.2
 func TestHandleAuthenticationResponse_SuccessMakesTheAMFServeTheUE(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
 
@@ -336,5 +337,53 @@ func TestHandleAuthenticationResponse_SuccessMakesTheAMFServeTheUE(t *testing.T)
 
 	if !amfInstance.ServesUeContext(ue) {
 		t.Error("the AMF does not serve a UE it has just authenticated, so no registration accept can be built for it")
+	}
+}
+
+// TS 24.501 §5.5.1.3.2
+func TestHandleAuthenticationResponse_MobilityUpdateKeepsTheSubscribersSessions(t *testing.T) {
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+
+	incumbent, _, smfStub, amfInstance := buildMobilityRegUeAndAMF(t)
+	if incumbent.Supi() != supi {
+		t.Fatalf("fixture SUPI = %v, want %v", incumbent.Supi(), supi)
+	}
+
+	if err := incumbent.CreateSmContext(1, "ref-1", &models.Snssai{Sst: 1}, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	amfInstance.Ausf = &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  supi,
+		Kseaf: []byte{0xC0, 0xFF, 0xEE},
+	}
+
+	fresh := amf.NewUeContext()
+	amfInstance.AttachUeConn(fresh, incumbent.Conn())
+	fresh.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
+	fresh.TransitionTo(amf.RegistrationInitiated)
+	fresh.ForceRegStepForTest(amf.RegStepAuthenticating)
+	fresh.Conn().AuthenticationCtx = &ausf.AuthResult{
+		Rand:      "DEADBEEF",
+		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+	}
+	fresh.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))
+
+	handleAuthenticationResponse(t.Context(), amfInstance, fresh, buildAuthResponse(make([]byte, 16)))
+
+	if !amfInstance.ServesUeContext(fresh) {
+		t.Fatal("the AMF does not serve the re-authenticated context")
+	}
+
+	if _, ok := fresh.SmContextFindByPDUSessionID(1); !ok {
+		t.Error("the subscriber's PDU session did not survive the supersede: the UE was never told it went (no PDU session status IE was sent) and will keep transmitting on it")
+	}
+
+	for _, call := range smfStub.ReleaseSmContextCalls {
+		t.Errorf("released SM context %q on a mobility update: TS 24.501 §5.5.1.3.4 reconciles the subscriber's sessions, it does not discard them", call.SmContextRef)
 	}
 }

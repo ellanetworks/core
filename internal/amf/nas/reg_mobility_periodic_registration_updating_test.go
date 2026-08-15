@@ -115,11 +115,9 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.UeContext, *fakeNGAPSender, *f
 
 	ue.SetSupiForTest(supi)
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.Background(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
-
-	ue.ForceStateForTest(amf.RegistrationInitiated)
 
 	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
 	ue.Tai = ue.Conn().Tai
@@ -804,11 +802,9 @@ func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 
 	ue.SetSupiForTest(supi)
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.Background(), ue, supi, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
-
-	ue.ForceStateForTest(amf.RegistrationInitiated)
 
 	ue.Imei, _ = etsi.NewIMEIFromPEI("imei-490154203237518")
 	ue.Tai = ue.Conn().Tai

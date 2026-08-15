@@ -62,14 +62,6 @@ func MintAuthProofForRegistrationRequest() AuthProof {
 	return AuthProof{}
 }
 
-// MintAuthProofForRegistrationCommit returns an AuthProof. It must only be called
-// from a registration handler — HandleInitialRegistration or
-// HandleMobilityAndPeriodicRegistrationUpdating — at the point the registration has
-// been authenticated, its security context established and the subscriber checks
-// passed, to commit the UE's identity into the pool and supersede any earlier context
-// for the subscriber. Gating the commit on an AuthProof ensures an unauthenticated
-// registration citing a victim's identity can never index itself or tear down the
-// victim's context (TS 24.501 §4.4.4.3).
 func MintAuthProofForRegistrationCommit() AuthProof {
 	return AuthProof{}
 }

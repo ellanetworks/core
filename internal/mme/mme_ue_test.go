@@ -10,10 +10,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth asserts TS 24.301
-// §4.4.4.3: an unauthenticated attach citing a registered subscriber's
-// (cleartext) IMSI must not tear down that subscriber's context. The prior
-// context is superseded only once the new attach is authenticated and accepted.
+// TS 24.301 §5.5.1.2.7 f)
 func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 	m := newTestMME(t)
 	victim, _ := securedUE(t, m)
@@ -24,14 +21,12 @@ func TestPlainAttachDoesNotSupersedeRegisteredVictimPreAuth(t *testing.T) {
 
 	got, ok := m.LookupUeByIMSI(victim.IMSI())
 	if !ok || got != victim {
-		t.Fatal("an unauthenticated attach must not supersede the registered victim before authentication (TS 24.301 §4.4.4.3)")
+		t.Fatal("an unauthenticated attach must not supersede the registered victim before authentication (TS 24.301 §5.5.1.2.7 f)")
 	}
 
 	if victim.EMMState() != EMMRegistered {
 		t.Fatal("victim must remain EMM-REGISTERED")
 	}
-
-	attacker.ForceStateForTest(EMMRegistrationInitiated)
 
 	if err := m.CommitUEIdentity(context.Background(), attacker, MintAuthProofForAttachCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)

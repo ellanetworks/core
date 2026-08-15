@@ -364,7 +364,7 @@ func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, supi 
 	return bearer, nil
 }
 
-// TS 24.301 §4.4.4.3, §5.5.1.2.7 f)
+// TS 24.301 §5.5.1.2.7 f)
 func TestInterSystemTAUKeepsTheArrivingSessionAStaleContextStillNames(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -465,7 +465,7 @@ func TestOrdinaryTAUOnABareConnectionMintsNothing(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.4.3
+// TS 24.301 §5.5.1.2.7 f)
 func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,

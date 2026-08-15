@@ -217,8 +217,10 @@ func (ue *UeContext) lastSeenTime() time.Time {
 // SetIMSI records the UE's IMSI under ue.mu (so a concurrent lookupUeByIMSI scan
 // never reads it mid-write). It does not index the UE by IMSI or supersede a
 // prior context — that waits until the attach is authenticated, in
-// commitUEIdentity — so an unauthenticated attach citing a victim's cleartext
-// IMSI cannot tear down the victim's context (TS 24.301 §4.4.4.3).
+// CommitUEIdentity — so an unauthenticated attach citing a victim's cleartext IMSI
+// cannot tear down the victim's context. TS 24.301 §4.4.4.3 has the MME process the
+// plain ATTACH REQUEST at all; §5.5.1.2.7 f) keeps the victim's EMM context unchanged
+// until authentication proves the sender genuine.
 func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
@@ -231,10 +233,7 @@ func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 	ue.mu.Unlock()
 }
 
-// CommitUEIdentity indexes the UE by IMSI and supersedes any prior context for
-// the same subscriber, so a subscriber maps to exactly one context. It runs only
-// after the attach is authenticated and accepted, so an unauthenticated attach
-// cannot disturb a registered UE (TS 24.301 §4.4.4.3).
+// TS 24.301 §5.5.1.2.7 f
 func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) error {
 	ue.mu.Lock()
 	supi := ue.supi
@@ -265,16 +264,6 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 	}
 
 	return nil
-}
-
-func (m *MME) AdoptAuthenticatedSupi(ctx context.Context, ue *UeContext, supi etsi.SUPI, proof AuthProof) error {
-	if ue == nil {
-		return fmt.Errorf("no UE context to adopt an IMSI for")
-	}
-
-	ue.SetSupi(supi)
-
-	return m.CommitUEIdentity(ctx, ue, proof)
 }
 
 func (m *MME) ServesUeContext(ue *UeContext) bool {

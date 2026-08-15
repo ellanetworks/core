@@ -496,6 +496,29 @@ func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *mod
 	return nil
 }
 
+func (ue *UeContext) takeSmContexts() map[uint8]*SmContext {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	taken := ue.SmContextList
+	ue.SmContextList = make(map[uint8]*SmContext)
+
+	return taken
+}
+
+func (ue *UeContext) adoptSmContexts(carried map[uint8]*SmContext) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	for pduSessionID, smContext := range carried {
+		if _, held := ue.SmContextList[pduSessionID]; held {
+			continue
+		}
+
+		ue.SmContextList[pduSessionID] = smContext
+	}
+}
+
 func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

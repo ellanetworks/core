@@ -47,8 +47,6 @@ func TestCommitUEIdentity_Success(t *testing.T) {
 	ue := amf.NewUeContext()
 	ue.SetSupiForTest(supi)
 
-	ue.ForceStateForTest(amf.Registered)
-
 	if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}

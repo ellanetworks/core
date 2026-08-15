@@ -211,8 +211,8 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -267,8 +267,8 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -326,8 +326,8 @@ func TestHandleSecurityMode_PlainRegistrationNotReplayed_Aborts(t *testing.T) {
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	conn := ue.Conn()
@@ -378,8 +378,8 @@ func TestHandleSecurityMode_ProtectedRegistrationNeedsNoReplay(t *testing.T) {
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -440,8 +440,8 @@ func TestHandleSecurityMode_ProtectedRegistrationWithFailedMACNeedsNoReplay(t *t
 	ue.ForceRegStepForTest(amf.RegStepSecurityMode)
 	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.AdoptAuthenticatedSupi(context.TODO(), ue, mustSUPIFromPrefixed("imsi-001019756139935"), amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("AdoptAuthenticatedSupi: %v", err)
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}

@@ -40,7 +40,6 @@ func buildServedTestUE(t *testing.T, amfInstance *amf.AMF, imsi string) *amf.UeC
 	}
 
 	ue.SetSupiForTest(supi)
-	ue.ForceStateForTest(amf.RegistrationInitiated)
 
 	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
 		t.Fatalf("CommitUEIdentity: %v", err)

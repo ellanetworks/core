@@ -254,8 +254,6 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ue.ForceStateForTest(amf.Registered)
-
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.MarkICSPending()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
@@ -291,8 +289,6 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ue.ForceStateForTest(amf.Registered)
-
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.ResetICS()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
@@ -360,8 +356,6 @@ func TestModifyN1N2Message_OngoingN2Handover_Deferred(t *testing.T) {
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ue.ForceStateForTest(amf.Registered)
-
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
@@ -454,8 +448,6 @@ func TestArmRegistrationAcceptGuard_ArmsT3550(t *testing.T) {
 	sender := &fakeNGAPSender{}
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ue.ForceStateForTest(amf.Registered)
-
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
@@ -543,8 +535,6 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ue.ForceStateForTest(amf.Registered)
-
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.MarkICSPending()
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
@@ -651,8 +641,6 @@ func TestTransferN1Msg_Success(t *testing.T) {
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ue.ForceStateForTest(amf.Registered)
-
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
@@ -682,8 +670,6 @@ func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) 
 
 	radio := &amf.Radio{Conn: sender}
 	radio.BindAMFForTest(amfInstance)
-	ue.ForceStateForTest(amf.Registered)
-
 	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
 	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
 
