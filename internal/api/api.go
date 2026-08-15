@@ -458,6 +458,13 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 			return fmt.Errorf("invalid gateway: %v", route.Gateway)
 		}
 
+		// Both sides of the diff below must agree on how an IPv4 address is
+		// spelled. The kernel listing is normalised to true IPv4; a stored
+		// destination is whatever the operator typed, and "::ffff:0.0.0.0/0"
+		// parses just as happily as "0.0.0.0/0".
+		destPrefix = kernel.UnmapPrefix(destPrefix)
+		gwAddr = gwAddr.Unmap()
+
 		kernelNetworkInterface, ok := interfaceDBKernelMap[route.Interface]
 		if !ok {
 			return fmt.Errorf("invalid interface: %v", route.Interface)
@@ -495,9 +502,12 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 				continue
 			}
 
+			dest := kernel.UnmapPrefix(r.Destination)
+			gw := r.Gateway.Unmap()
+
 			key := routeKey{
-				destination: r.Destination.String(),
-				gateway:     r.Gateway.String(),
+				destination: dest.String(),
+				gateway:     gw.String(),
 				priority:    r.Priority,
 				ifKey:       netIf,
 			}
@@ -506,10 +516,10 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 				continue
 			}
 
-			if err := kernelInt.DeleteRoute(r.Destination, r.Gateway, r.Priority, netIf); err != nil {
+			if err := kernelInt.DeleteRoute(dest, gw, r.Priority, netIf); err != nil {
 				logger.APILog.Warn("couldn't delete stale route",
-					zap.String("destination", r.Destination.String()),
-					zap.String("gateway", r.Gateway.String()),
+					zap.String("destination", dest.String()),
+					zap.String("gateway", gw.String()),
 					zap.Int("priority", r.Priority),
 					zap.Error(err))
 			}

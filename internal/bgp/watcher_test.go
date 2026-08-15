@@ -20,7 +20,7 @@ type fakeKernel struct {
 	mu       sync.Mutex
 	replaced []fakeRoute
 	deleted  []fakeRoute
-	listed   []netip.Prefix // routes returned by ListRoutesByPriority
+	managed  []kernel.ManagedRoute // routes returned by ListManagedRoutes
 }
 
 type fakeRoute struct {
@@ -64,15 +64,11 @@ func (fk *fakeKernel) ReplaceRoute(dst netip.Prefix, gw netip.Addr, priority int
 	return nil
 }
 
-func (fk *fakeKernel) ListRoutesByPriority(priority int, _ kernel.NetworkInterface) ([]netip.Prefix, error) {
+func (fk *fakeKernel) ListManagedRoutes(_ kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
 	fk.mu.Lock()
 	defer fk.mu.Unlock()
 
-	return fk.listed, nil
-}
-
-func (fk *fakeKernel) ListManagedRoutes(_ kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
-	return nil, nil
+	return fk.managed, nil
 }
 
 func (fk *fakeKernel) InterfaceExists(_ kernel.NetworkInterface) (bool, error) { return true, nil }
@@ -105,11 +101,25 @@ func TestGetLearnedRoutes_EmptyByDefault(t *testing.T) {
 }
 
 func TestCleanStaleRoutes(t *testing.T) {
-	n1 := netip.MustParsePrefix("0.0.0.0/0")
-	n2 := netip.MustParsePrefix("10.100.0.0/16")
-
 	fk := &fakeKernel{
-		listed: []netip.Prefix{n1, n2},
+		managed: []kernel.ManagedRoute{
+			{
+				Destination: netip.MustParsePrefix("0.0.0.0/0"),
+				Gateway:     netip.MustParseAddr("10.0.20.129"),
+				Priority:    200,
+			},
+			{
+				Destination: netip.MustParsePrefix("10.100.0.0/16"),
+				Gateway:     netip.MustParseAddr("10.0.20.130"),
+				Priority:    200,
+			},
+			// A route at the reconciler's metric, not BGP's. Must survive.
+			{
+				Destination: netip.MustParsePrefix("::/0"),
+				Gateway:     netip.MustParseAddr("2001:db8::2"),
+				Priority:    100,
+			},
+		},
 	}
 
 	svc := newTestServiceWithLearning(t, fk, &fakeImportStore{})
@@ -127,13 +137,25 @@ func TestCleanStaleRoutes(t *testing.T) {
 
 	defer func() { _ = svc.Stop() }()
 
-	// cleanStaleRoutes should have been called during Start, deleting the stale routes
+	// cleanStaleRoutes should have been called during Start, deleting the
+	// metric-200 routes with their own gateways and leaving the rest alone.
 	fk.mu.Lock()
-	deletedCount := len(fk.deleted)
+	deleted := append([]fakeRoute(nil), fk.deleted...)
 	fk.mu.Unlock()
 
-	if deletedCount < 2 {
-		t.Fatalf("expected at least 2 stale routes deleted, got %d", deletedCount)
+	want := []fakeRoute{
+		{destination: "0.0.0.0/0", gateway: "10.0.20.129", priority: 200},
+		{destination: "10.100.0.0/16", gateway: "10.0.20.130", priority: 200},
+	}
+
+	if len(deleted) != len(want) {
+		t.Fatalf("expected %d stale routes deleted, got %d: %+v", len(want), len(deleted), deleted)
+	}
+
+	for i, w := range want {
+		if deleted[i] != w {
+			t.Errorf("delete %d: got %+v, want %+v", i, deleted[i], w)
+		}
 	}
 }
 

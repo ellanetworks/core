@@ -46,7 +46,6 @@ type Kernel interface {
 	CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
 	DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
 	ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
-	ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]netip.Prefix, error)
 	ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute, error)
 	InterfaceExists(ifKey NetworkInterface) (bool, error)
 	RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error)
@@ -69,8 +68,73 @@ func NewRealKernel(n3Interface, n6Interface string) *RealKernel {
 	}
 }
 
+// UnmapPrefix rewrites an IPv4-mapped IPv6 prefix (::ffff:a.b.c.d/n) as the
+// equivalent true IPv4 prefix, and leaves anything else alone.
+//
+// Prefix lengths on such a prefix can be expressed against either width: a
+// length of 96 or more is relative to the 128-bit address and is rebased,
+// while a shorter one is already relative to the 32-bit address and is kept.
+// netlink produces the latter — a 16-byte net.IPv4zero paired with a 4-byte
+// CIDRMask(0, 32) — so an IPv4 default route arrives as ::ffff:0.0.0.0/0.
+func UnmapPrefix(p netip.Prefix) netip.Prefix {
+	if !p.Addr().Is4In6() {
+		return p
+	}
+
+	bits := p.Bits()
+	if bits >= 96 {
+		bits -= 96
+	}
+
+	if bits < 0 || bits > 32 {
+		return p
+	}
+
+	return netip.PrefixFrom(p.Addr().Unmap(), bits)
+}
+
+// prefixFromIPNet converts a netlink-supplied *net.IPNet to a netip.Prefix,
+// normalising IPv4-mapped IPv6 destinations to true IPv4 so the result
+// compares equal to the prefixes the rest of the system parses from config.
+func prefixFromIPNet(n *net.IPNet) (netip.Prefix, bool) {
+	addr, ok := netip.AddrFromSlice(n.IP)
+	if !ok {
+		return netip.Prefix{}, false
+	}
+
+	ones, bits := n.Mask.Size()
+	if bits == 0 {
+		// Absent or non-canonical mask. netlink never produces one, but
+		// treating it as zero ones would invent a default route.
+		return netip.Prefix{}, false
+	}
+
+	p := UnmapPrefix(netip.PrefixFrom(addr, ones))
+	if !p.IsValid() {
+		return netip.Prefix{}, false
+	}
+
+	return p, true
+}
+
+// addrFromNetIP converts a netlink-supplied net.IP to a netip.Addr,
+// normalising IPv4-mapped IPv6 addresses to true IPv4.
+func addrFromNetIP(ip net.IP) (netip.Addr, bool) {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return netip.Addr{}, false
+	}
+
+	return addr.Unmap(), true
+}
+
 // prefixToIPNet converts a netip.Prefix to a *net.IPNet for netlink.
 func prefixToIPNet(p netip.Prefix) *net.IPNet {
+	// Unmap before masking: masking an IPv4-mapped prefix at /0 zeroes the
+	// ::ffff: marker along with the host bits, leaving netlink to infer
+	// AF_INET6 for what is really an IPv4 route.
+	p = UnmapPrefix(p)
+
 	addr := p.Masked().Addr()
 
 	var maskBits int
@@ -92,7 +156,7 @@ func addrToNetIP(a netip.Addr) net.IP {
 		return nil
 	}
 
-	return a.AsSlice()
+	return a.Unmap().AsSlice()
 }
 
 // gwOrVia builds the gateway/via fields for a route.
@@ -104,21 +168,24 @@ func gwOrVia(destination netip.Prefix, gateway netip.Addr) (net.IP, *netlink.Via
 		return nil, nil
 	}
 
-	dstIs4 := destination.Addr().Is4()
-	gwIs4 := gateway.Is4()
+	// Compare the true families: an IPv4-mapped address is IPv4 as far as
+	// the kernel is concerned, and treating it as IPv6 here would emit an
+	// RTA_VIA that the destination's own family rejects.
+	dst := destination.Addr().Unmap()
+	gw := gateway.Unmap()
 
-	if dstIs4 == gwIs4 {
-		return addrToNetIP(gateway), nil
+	if dst.Is4() == gw.Is4() {
+		return addrToNetIP(gw), nil
 	}
 
 	family := netlink.FAMILY_V4
-	if gateway.Is6() {
+	if gw.Is6() {
 		family = netlink.FAMILY_V6
 	}
 
 	return nil, &netlink.Via{
 		AddrFamily: family,
-		Addr:       net.IP(gateway.AsSlice()),
+		Addr:       net.IP(gw.AsSlice()),
 	}
 }
 
@@ -247,54 +314,6 @@ func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr,
 	return nil
 }
 
-// ListRoutesByPriority returns Ella-owned route destinations with the given
-// priority (metric) on the interface defined by ifKey. Only routes carrying
-// Ella's protocol marker are returned; operator-installed routes are skipped.
-func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]netip.Prefix, error) {
-	interfaceName, ok := rk.ifMapping[ifKey]
-	if !ok {
-		return nil, fmt.Errorf("invalid interface key: %v", ifKey)
-	}
-
-	link, err := netlink.LinkByName(interfaceName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
-	}
-
-	nlRoute := netlink.Route{
-		LinkIndex: link.Attrs().Index,
-		Table:     unix.RT_TABLE_MAIN,
-		Protocol:  rtProtoElla,
-	}
-
-	var allRoutes []netlink.Route
-
-	for _, af := range []int{unix.AF_INET, unix.AF_INET6} {
-		routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list routes: %v", err)
-		}
-
-		allRoutes = append(allRoutes, routes...)
-	}
-
-	var result []netip.Prefix
-
-	for _, r := range allRoutes {
-		if r.Priority == priority && r.Dst != nil {
-			addr, ok := netip.AddrFromSlice(r.Dst.IP)
-			if !ok {
-				continue
-			}
-
-			ones, _ := r.Dst.Mask.Size()
-			result = append(result, netip.PrefixFrom(addr, ones))
-		}
-	}
-
-	return result, nil
-}
-
 // ListManagedRoutes returns every Ella-owned route on the interface
 // identified by ifKey, with full destination/gateway/priority info so the
 // caller can diff against a desired set and call DeleteRoute for stale
@@ -334,26 +353,24 @@ func (rk *RealKernel) ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute,
 			continue
 		}
 
-		dstAddr, ok := netip.AddrFromSlice(r.Dst.IP)
+		dst, ok := prefixFromIPNet(r.Dst)
 		if !ok {
 			continue
 		}
 
-		ones, _ := r.Dst.Mask.Size()
-
 		var gw netip.Addr
 		if r.Gw != nil {
-			gw, _ = netip.AddrFromSlice(r.Gw)
+			gw, _ = addrFromNetIP(r.Gw)
 		} else if r.Via != nil {
 			if via, ok := r.Via.(*netlink.Via); ok {
-				if viaAddr, ok := netip.AddrFromSlice(via.Addr); ok {
+				if viaAddr, ok := addrFromNetIP(via.Addr); ok {
 					gw = viaAddr
 				}
 			}
 		}
 
 		result = append(result, ManagedRoute{
-			Destination: netip.PrefixFrom(dstAddr, ones),
+			Destination: dst,
 			Gateway:     gw,
 			Priority:    r.Priority,
 		})
@@ -404,7 +421,7 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 	}
 
 	af := unix.AF_INET
-	if !destination.Addr().Is4() {
+	if !destination.Addr().Unmap().Is4() {
 		af = unix.AF_INET6
 	}
 
@@ -417,7 +434,7 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 
 	for _, r := range routes {
 		if r.Gw != nil {
-			if gw, ok := netip.AddrFromSlice(r.Gw); ok && gw == gateway {
+			if gw, ok := addrFromNetIP(r.Gw); ok && gw == gateway.Unmap() {
 				return true, nil
 			}
 		}
