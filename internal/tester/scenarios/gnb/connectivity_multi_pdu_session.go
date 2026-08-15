@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
@@ -198,16 +197,14 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		return fmt.Errorf("failed to parse IP pool 2: %v", err)
 	}
 
-	pduAccept1, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: pduSessionID1,
-		UE:           newUE,
-	})
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, pduSessionID1, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
 
-	err = validate.PDUSessionEstablishmentAccept(pduAccept1, &validate.ExpectedPDUSessionEstablishmentAccept{
+	session1 := registration.Session
+
+	err = validate.PDUSessionEstablishmentAccept(session1.Accept, &validate.ExpectedPDUSessionEstablishmentAccept{
 		PDUSessionID:               fgs.PDUSessionID(pduSessionID1),
 		PDUSessionType:             fgs.PDUSessionType(pduSessionType),
 		UeIPSubnet:                 network1,
@@ -240,21 +237,14 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.Uint8("PDU Session ID", pduSessionID1),
 	)
 
-	amfUENGAPID := gNodeB.GetAMFUENGAPID(ranUENGAPID)
-
 	slice2Snssai := models.Snssai{Sst: slice2SST, Sd: slice2SD}
 
-	err = newUE.SendPDUSessionEstablishmentRequest(amfUENGAPID, ranUENGAPID, pduSessionID2, dnn2, slice2Snssai)
+	session2, err := gNodeB.EstablishPDUSession(newUE, ranUENGAPID, pduSessionID2, dnn2, slice2Snssai, registrationTimeout)
 	if err != nil {
-		return fmt.Errorf("could not send PDU Session Establishment Request for session 2: %v", err)
+		return fmt.Errorf("could not establish PDU session 2: %v", err)
 	}
 
-	pduAccept2, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("did not receive PDU Session Establishment Accept for session 2: %v", err)
-	}
-
-	err = validate.PDUSessionEstablishmentAccept(pduAccept2, &validate.ExpectedPDUSessionEstablishmentAccept{
+	err = validate.PDUSessionEstablishmentAccept(session2.Accept, &validate.ExpectedPDUSessionEstablishmentAccept{
 		PDUSessionID:               fgs.PDUSessionID(pduSessionID2),
 		PDUSessionType:             fgs.PDUSessionType(pduSessionType),
 		UeIPSubnet:                 network2,
@@ -270,13 +260,6 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		return fmt.Errorf("PDU session 2 NAS validation failed: %v", err)
 	}
 
-	_, err = newUE.WaitForPDUSession(pduSessionID2, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("timeout waiting for PDU session 2: %v", err)
-	}
-
-	time.Sleep(50 * time.Millisecond)
-
 	logger.Logger.Debug(
 		"Established PDU session 2",
 		zap.String("IMSI", newUE.UeSecurity.Supi),
@@ -284,31 +267,18 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.Uint8("PDU Session ID", pduSessionID2),
 	)
 
-	uePDU1 := newUE.GetPDUSession(pduSessionID1)
-	uePDU2 := newUE.GetPDUSession(pduSessionID2)
-
-	gnbPDU1, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(pduSessionID1), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("could not get gNB PDU session 1: %v", err)
-	}
-
-	err = validate.PDUSessionInformation(gnbPDU1, &validate.ExpectedPDUSessionInformation{
-		FiveQi: 9,
-		PriArp: 15,
+	err = validate.PDUSessionInformation(session1, &validate.ExpectedPDUSessionInformation{
+		FiveQI: 9,
+		ARP:    15,
 		QFI:    1,
 	})
 	if err != nil {
 		return fmt.Errorf("NGAP QoS validation failed for PDU session 1: %v", err)
 	}
 
-	gnbPDU2, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(pduSessionID2), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("could not get gNB PDU session 2: %v", err)
-	}
-
-	err = validate.PDUSessionInformation(gnbPDU2, &validate.ExpectedPDUSessionInformation{
-		FiveQi: 7,
-		PriArp: 15,
+	err = validate.PDUSessionInformation(*session2, &validate.ExpectedPDUSessionInformation{
+		FiveQI: 7,
+		ARP:    15,
 		QFI:    1,
 	})
 	if err != nil {
@@ -320,21 +290,21 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 
 	var ueIP1, ueIP2 string
 	if ipFamily == scenarios.IPv6Only {
-		ueIP1 = uePDU1.UEIPV6 + env.UIPrefix()
-		ueIP2 = uePDU2.UEIPV6 + env.UIPrefix()
+		ueIP1 = session1.UEIPv6 + env.UIPrefix()
+		ueIP2 = session2.UEIPv6 + env.UIPrefix()
 	} else {
-		ueIP1 = uePDU1.UEIP + env.UIPrefix()
-		ueIP2 = uePDU2.UEIP + env.UIPrefix()
+		ueIP1 = session1.UEIPv4 + env.UIPrefix()
+		ueIP2 = session2.UEIPv4 + env.UIPrefix()
 	}
 
-	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP1,
-		UpfIP:            gnbPDU1.UpfAddress,
+	err = gNodeB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIP1,
+		UpfAddress:       session1.UpfAddress,
 		TunInterfaceName: tun1,
-		ULteid:           gnbPDU1.ULTeid,
-		DLteid:           gnbPDU1.DLTeid,
-		MTU:              uePDU1.MTU,
-		QFI:              uePDU1.QFI,
+		ULTEID:           session1.ULTEID,
+		DLTEID:           session1.DLTEID,
+		MTU:              session1.MTU,
+		QFI:              session1.QFI,
 	})
 	if err != nil {
 		return fmt.Errorf("could not create GTP tunnel for session 1: %v", err)
@@ -345,14 +315,14 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.String("UE IP", ueIP1),
 	)
 
-	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP2,
-		UpfIP:            gnbPDU2.UpfAddress,
+	err = gNodeB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIP2,
+		UpfAddress:       session2.UpfAddress,
 		TunInterfaceName: tun2,
-		ULteid:           gnbPDU2.ULTeid,
-		DLteid:           gnbPDU2.DLTeid,
-		MTU:              uePDU2.MTU,
-		QFI:              uePDU2.QFI,
+		ULTEID:           session2.ULTEID,
+		DLTEID:           session2.DLTEID,
+		MTU:              session2.MTU,
+		QFI:              session2.QFI,
 	})
 	if err != nil {
 		return fmt.Errorf("could not create GTP tunnel for session 2: %v", err)
@@ -383,21 +353,11 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.String("destination", pingDest),
 	)
 
-	err = gNodeB.CloseTunnel(gnbPDU1.DLTeid)
-	if err != nil {
-		return fmt.Errorf("could not close GTP tunnel for session 1: %v", err)
-	}
+	gNodeB.CloseTunnel(session1.DLTEID)
 
-	err = gNodeB.CloseTunnel(gnbPDU2.DLTeid)
-	if err != nil {
-		return fmt.Errorf("could not close GTP tunnel for session 2: %v", err)
-	}
+	gNodeB.CloseTunnel(session2.DLTEID)
 
-	err = procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: amfUENGAPID,
-		RANUENGAPID: ranUENGAPID,
-	})
+	err = gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("deregistration failed: %v", err)
 	}

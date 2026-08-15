@@ -12,7 +12,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
@@ -63,16 +62,8 @@ func runXnPathSwitchFailure(_ context.Context, env scenarios.Env, _ any) error {
 
 	sourceGNB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	if _, err := sourceGNB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
 		return fmt.Errorf("initial registration: %w", err)
-	}
-
-	if _, err := sourceGNB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second); err != nil {
-		return fmt.Errorf("source gNB: wait PDU session: %w", err)
 	}
 
 	unknownAMFUENGAPID := sourceGNB.GetAMFUENGAPID(ranUENGAPID) + xnUnknownAMFUEGap
@@ -86,7 +77,7 @@ func runXnPathSwitchFailure(_ context.Context, env scenarios.Env, _ any) error {
 
 	sessions[scenarios.DefaultPDUSessionID] = &gnb.PDUSessionInformation{
 		PDUSessionID: int64(scenarios.DefaultPDUSessionID),
-		DLTeid:       xnFailureTEID,
+		DLTEID:       xnFailureTEID,
 	}
 
 	if err := targetGNB.SendPathSwitchRequest(&gnb.PathSwitchRequestOpts{

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/spf13/pflag"
 )
 
@@ -45,11 +44,7 @@ func runDeregistration(_ context.Context, env scenarios.Env, _ any) error {
 
 	gNodeB.AddUE(int64(scenarios.DefaultRANUENGAPID), newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  int64(scenarios.DefaultRANUENGAPID),
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	_, err = gNodeB.Register(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("InitialRegistrationProcedure failed: %v", err)
 	}

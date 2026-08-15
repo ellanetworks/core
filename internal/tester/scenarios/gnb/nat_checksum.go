@@ -8,13 +8,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -111,42 +109,29 @@ func runNATChecksum(ctx context.Context, env scenarios.Env, params *natChecksumP
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
 
-	uePDUSession, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("timeout waiting for PDU session: %v", err)
-	}
+	session := registration.Session
 
-	uePduSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-	ueIP := uePduSession.UEIP + "/16"
+	ueIP := session.UEIPv4 + "/16"
 
-	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("could not get PDU Session for RAN UE NGAP ID %d: %v", ranUENGAPID, err)
-	}
-
-	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	err = gNodeB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIP,
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: tunInterfaceName,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           gnbPDUSession.DLTeid,
-		MTU:              uePDUSession.MTU,
-		QFI:              uePduSession.QFI,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 	})
 	if err != nil {
-		return fmt.Errorf("could not create GTP tunnel (name: %s, DL TEID: %d): %v", tunInterfaceName, gnbPDUSession.DLTeid, err)
+		return fmt.Errorf("could not create GTP tunnel (name: %s, DL TEID: %d): %v", tunInterfaceName, session.DLTEID, err)
 	}
 
-	defer func() { _ = gNodeB.CloseTunnel(gnbPDUSession.DLTeid) }()
+	defer gNodeB.CloseTunnel(session.DLTEID)
 
 	dst := env.PingDestination()
 

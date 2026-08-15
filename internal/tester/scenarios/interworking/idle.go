@@ -14,7 +14,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -65,19 +64,17 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 	gNodeB.AddUE(ranUENGAPID, u)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: movedPDUSessionID,
-		UE:           u,
-	}); err != nil {
+	_, err = gNodeB.Register(u, ranUENGAPID, movedPDUSessionID, registrationTimeout)
+	if err != nil {
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	if err := provisionEPSNASAlgorithms(gNodeB, u, ranUENGAPID); err != nil {
+	moved, err := provisionEPSNASAlgorithms(gNodeB, u, ranUENGAPID)
+	if err != nil {
 		return err
 	}
 
-	before, err := probeOver5GS(ctx, env, gNodeB, u, mobilityRANUENGAPID, "over N3 before the idle move")
+	before, err := probeOver5GS(ctx, env, gNodeB, moved, "over N3 before the idle move")
 	if err != nil {
 		return err
 	}
@@ -142,17 +139,9 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 }
 
 func goIdleOnNR(gNodeB *gnb.GnodeB, u *ue.UE) error {
-	var sessions [16]bool
+	sessions := []uint8{movedPDUSessionID}
 
-	sessions[movedPDUSessionID] = true
-
-	if err := procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(mobilityRANUENGAPID),
-		RANUENGAPID:   mobilityRANUENGAPID,
-		GnodeB:        gNodeB,
-		UE:            u,
-		PDUSessionIDs: sessions,
-	}); err != nil {
+	if err := gNodeB.ReleaseContext(u, mobilityRANUENGAPID, sessions, releaseTimeout); err != nil {
 		return fmt.Errorf("release the NR connection before the inter-system change: %w", err)
 	}
 

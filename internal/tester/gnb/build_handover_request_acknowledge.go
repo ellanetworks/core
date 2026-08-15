@@ -31,7 +31,7 @@ type HandoverFailedPDUSession struct {
 
 type HandoverAdmittedPDUSession struct {
 	PDUSessionID int64
-	DLTeid       uint32
+	DLTEID       uint32
 	DLIP         netip.Addr
 }
 
@@ -43,7 +43,7 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 	admitted := make(ngap.PDUSessionResourceAdmittedList, 0, len(opts.PDUSessions))
 
 	for _, ps := range opts.PDUSessions {
-		transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTeid, ps.DLIP)
+		transfer, err := buildHandoverRequestAcknowledgeTransfer(ps.DLTEID, ps.DLIP)
 		if err != nil {
 			return nil, fmt.Errorf("build transfer for session %d: %w", ps.PDUSessionID, err)
 		}

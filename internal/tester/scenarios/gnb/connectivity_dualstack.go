@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
@@ -92,11 +91,7 @@ func runConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) err
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
@@ -111,18 +106,11 @@ func runConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) err
 		return fmt.Errorf("UE AMBR validation failed: %v", err)
 	}
 
-	amfUENGAPID := gNodeB.GetAMFUENGAPID(ranUENGAPID)
+	session := registration.Session
 
-	uePDUSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-
-	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("could not get PDU Session for RAN UE NGAP ID %d: %v", ranUENGAPID, err)
-	}
-
-	err = validate.PDUSessionInformation(gnbPDUSession, &validate.ExpectedPDUSessionInformation{
-		FiveQi: 9,
-		PriArp: 15,
+	err = validate.PDUSessionInformation(session, &validate.ExpectedPDUSessionInformation{
+		FiveQI: 9,
+		ARP:    15,
 		QFI:    1,
 	})
 	if err != nil {
@@ -137,18 +125,18 @@ func runConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) err
 
 	tunName := gtpInterfaceNamePrefix + "ds0"
 
-	ueIPv4 := uePDUSession.UEIP + "/16"
-	ueIPv6 := uePDUSession.UEIPV6 + "/64"
+	ueIPv4 := session.UEIPv4 + "/16"
+	ueIPv6 := session.UEIPv6 + "/64"
 
-	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIPv4,
-		UEIPV6:           ueIPv6,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	err = gNodeB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIPv4,
+		UEIPv6:           ueIPv6,
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: tunName,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           gnbPDUSession.DLTeid,
-		MTU:              uePDUSession.MTU,
-		QFI:              uePDUSession.QFI,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 	})
 	if err != nil {
 		return fmt.Errorf("could not create GTP tunnel (name: %s): %v", tunName, err)
@@ -183,16 +171,9 @@ func runConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) err
 		zap.String("destination", scenarios.DefaultPingDestinationV6),
 	)
 
-	err = gNodeB.CloseTunnel(gnbPDUSession.DLTeid)
-	if err != nil {
-		return fmt.Errorf("could not close GTP tunnel: %v", err)
-	}
+	gNodeB.CloseTunnel(session.DLTEID)
 
-	err = procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: amfUENGAPID,
-		RANUENGAPID: ranUENGAPID,
-	})
+	err = gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("deregistration failed: %v", err)
 	}

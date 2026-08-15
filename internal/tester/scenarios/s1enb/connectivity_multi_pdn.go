@@ -104,7 +104,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 
 	ue := e.NewUE(multiPDNIMSI, k, opc)
 
-	res, err := e.Attach(ue, 15*time.Second)
+	res, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
@@ -175,7 +175,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	logger.GnbLogger.Info("second PDN connectivity verified; disconnecting it",
 		zap.String("apn", multiPDNEnterpriseDNN), zap.String("ue-ip", pdn.UEIPv4))
 
-	if err := e.DisconnectPDN(ue, res.MMEUES1APID, res.ENBUES1APID, uint8(pdn.ERABID), 10*time.Second); err != nil {
+	if err := e.DisconnectPDN(ue, res.MMEUES1APID, res.ENBUES1APID, uint8(pdn.ERABID), releaseTimeout); err != nil {
 		return fmt.Errorf("disconnect second PDN connection: %w", err)
 	}
 
@@ -184,7 +184,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("ping on default APN after second-PDN disconnect: %w", err)
 	}
 
-	if err := e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, 10*time.Second); err != nil {
+	if err := e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout); err != nil {
 		return fmt.Errorf("detach: %w", err)
 	}
 

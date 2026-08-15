@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
@@ -55,7 +54,7 @@ func runS1ENBScaleSequential(_ context.Context, env scenarios.Env, _ any) error 
 		ue := e.NewUE(imsi, k, opc)
 		ue.RequestPDNType(env.PDUSessionType())
 
-		res, err := e.Attach(ue, 15*time.Second)
+		res, err := e.Attach(ue, attachTimeout)
 		if err != nil {
 			return fmt.Errorf("attach %d/%d (imsi %s): %w", i+1, scaleSequentialCount, imsi, err)
 		}

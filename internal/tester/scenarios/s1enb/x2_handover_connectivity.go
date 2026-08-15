@@ -85,7 +85,7 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 	ue := source.NewUE(x2ConnIMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	res, err := source.Attach(ue, 15*time.Second)
+	res, err := source.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach on source eNB: %w", err)
 	}

@@ -46,7 +46,7 @@ func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
 			continue
 		}
 
-		transfer, err := buildPathSwitchRequestTransfer(pduSession.DLTeid, addr)
+		transfer, err := buildPathSwitchRequestTransfer(pduSession.DLTEID, addr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build PathSwitchRequestTransfer: %w", err)
 		}

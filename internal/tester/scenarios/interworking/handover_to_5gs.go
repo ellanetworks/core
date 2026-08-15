@@ -177,7 +177,7 @@ func handoverRequiredToFiveGS(e *s1enb.ENB, attached *s1enb.AttachResult) error 
 }
 
 func handoverToFiveGS(gNodeB *gnb.GnodeB, e *s1enb.ENB, attached *s1enb.AttachResult) (
-	*gnb.PDUSessionInformation, fgs.S1ModeToN1ModeNASTransparentContainer, error,
+	*gnb.PDUSessionResult, fgs.S1ModeToN1ModeNASTransparentContainer, error,
 ) {
 	var none fgs.S1ModeToN1ModeNASTransparentContainer
 
@@ -200,12 +200,17 @@ func handoverToFiveGS(gNodeB *gnb.GnodeB, e *s1enb.ENB, attached *s1enb.AttachRe
 		return nil, none, fmt.Errorf("re-encode the NAS container for the target to source container: %w", err)
 	}
 
-	if err := gNodeB.AdmitHandover(&gnb.HandoverAdmissionOpts{
+	admitted, err := gNodeB.AdmitHandover(&gnb.HandoverAdmissionOpts{
 		Request:        req,
 		RANUENGAPID:    targetRANUENGAPID,
 		TargetToSource: nasc,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, none, fmt.Errorf("admit the handover at the target gNB: %w", err)
+	}
+
+	if len(admitted) != 1 {
+		return nil, none, fmt.Errorf("the target gNB admitted %d PDU sessions, want the one handed over", len(admitted))
 	}
 
 	cmd, err := e.WaitForHandoverCommand(attached.ENBUES1APID, handoverTimeout)
@@ -231,11 +236,6 @@ func handoverToFiveGS(gNodeB *gnb.GnodeB, e *s1enb.ENB, attached *s1enb.AttachRe
 		return nil, none, fmt.Errorf("parse the NAS container the Handover Command relayed: %w", err)
 	}
 
-	session, err := gNodeB.WaitForPDUSession(targetRANUENGAPID, int64(movedPDUSessionID), handoverTimeout)
-	if err != nil {
-		return nil, none, fmt.Errorf("the target gNB admitted no resources for the moved PDU session: %w", err)
-	}
-
 	if err := gNodeB.SendHandoverNotify(&gnb.HandoverNotifyOpts{
 		AMFUENGAPID: int64(req.AMFUENGAPID),
 		RANUENGAPID: targetRANUENGAPID,
@@ -243,7 +243,7 @@ func handoverToFiveGS(gNodeB *gnb.GnodeB, e *s1enb.ENB, attached *s1enb.AttachRe
 		return nil, none, fmt.Errorf("send Handover Notify: %w", err)
 	}
 
-	return session, relayed, nil
+	return &admitted[0], relayed, nil
 }
 
 func checkArrivingHandoverRequest(req *ngap.HandoverRequest) (fgs.S1ModeToN1ModeNASTransparentContainer, error) {
@@ -370,25 +370,25 @@ func refuseHandoverToFiveGS(gNodeB *gnb.GnodeB, e *s1enb.ENB, attached *s1enb.At
 }
 
 func probeAfterHandoverTo5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB,
-	session *gnb.PDUSessionInformation, addrs ueAddresses,
+	session *gnb.PDUSessionResult, addrs ueAddresses,
 ) (sessionFacts, error) {
-	tunnel := &gnb.NewTunnelOpts{
-		UpfIP:            session.UpfAddress,
+	tunnel := &gnb.TunnelOpts{
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: gnbTunIface,
-		ULteid:           session.ULTeid,
-		DLteid:           session.DLTeid,
-		QFI:              uint8(session.QFI),
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		QFI:              session.QFI,
 	}
 
 	if addrs.v4 != "" {
-		tunnel.UEIP = addrs.v4 + ipv4TunPrefix
+		tunnel.UEIPv4 = addrs.v4 + ipv4TunPrefix
 	}
 
 	if env.HasIPv6() {
-		tunnel.UEIPV6 = addrs.v6 + ipv6TunPrefix
+		tunnel.UEIPv6 = addrs.v6 + ipv6TunPrefix
 	}
 
-	if _, err := gNodeB.AddTunnel(tunnel); err != nil {
+	if err := gNodeB.AddTunnel(tunnel); err != nil {
 		return sessionFacts{}, fmt.Errorf("add the N3 tunnel the handover established: %w", err)
 	}
 
@@ -404,5 +404,5 @@ func probeAfterHandoverTo5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb
 		return sessionFacts{}, fmt.Errorf("ping over N3 after the handover: %w", err)
 	}
 
-	return sessionFactsFor(ctx, env, addrs, gnbTunIface, session.UpfAddress, session.ULTeid, "N3 after the handover")
+	return sessionFactsFor(ctx, env, addrs, gnbTunIface, session.UpfAddress, session.ULTEID, "N3 after the handover")
 }

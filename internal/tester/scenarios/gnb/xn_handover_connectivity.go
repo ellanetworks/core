@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -89,37 +88,25 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 
 	sourceGNB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	registration, err := sourceGNB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
+	if err != nil {
 		return fmt.Errorf("initial registration: %w", err)
 	}
 
 	sourceAmfUENGAPID := sourceGNB.GetAMFUENGAPID(ranUENGAPID)
 
-	uePDUSession, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("wait PDU session: %w", err)
-	}
+	session := registration.Session
 
-	gnbPDUSession, err := sourceGNB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("source gNB: wait PDU session: %w", err)
-	}
+	ueIP := handoverTunnelAddress(env, session)
 
-	ueIP := handoverTunnelAddress(env, newUE.GetPDUSession(scenarios.DefaultPDUSessionID))
-	qfi := newUE.GetPDUSession(scenarios.DefaultPDUSessionID).QFI
-
-	if _, err := sourceGNB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	if err := sourceGNB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIP,
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: xnHandoverSourceTun,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           gnbPDUSession.DLTeid,
-		MTU:              uePDUSession.MTU,
-		QFI:              qfi,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 	}); err != nil {
 		return fmt.Errorf("create source GTP tunnel: %w", err)
 	}
@@ -149,16 +136,16 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 		return err
 	}
 
-	_ = sourceGNB.CloseTunnel(gnbPDUSession.DLTeid)
+	sourceGNB.CloseTunnel(session.DLTEID)
 
-	if _, err := targetGNB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	if err := targetGNB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIP,
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: xnHandoverTargetTun,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           xnHandoverConnTargetTEID,
-		MTU:              uePDUSession.MTU,
-		QFI:              qfi,
+		ULTEID:           session.ULTEID,
+		DLTEID:           xnHandoverConnTargetTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 	}); err != nil {
 		return fmt.Errorf("create target GTP tunnel: %w", err)
 	}

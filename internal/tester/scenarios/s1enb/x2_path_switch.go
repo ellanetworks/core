@@ -71,7 +71,7 @@ func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 	ue := source.NewUE(x2IMSI, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
-	res, err := source.Attach(ue, 15*time.Second)
+	res, err := source.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach on source eNB: %w", err)
 	}

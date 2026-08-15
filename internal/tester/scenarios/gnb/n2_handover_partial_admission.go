@@ -13,8 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/ellanetworks/core/nas/fgs"
 	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 )
@@ -97,29 +95,15 @@ func runN2HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 
 	sourceGNB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: partialKeptSession,
-		UE:           newUE,
-	}); err != nil {
+	if _, err := sourceGNB.Register(newUE, ranUENGAPID, partialKeptSession, registrationTimeout); err != nil {
 		return fmt.Errorf("initial registration: %w", err)
 	}
 
 	amfUENGAPID := sourceGNB.GetAMFUENGAPID(ranUENGAPID)
 
-	if err := newUE.SendPDUSessionEstablishmentRequest(amfUENGAPID, ranUENGAPID, partialDroppedSession, partialAdmissionDNN,
-		models.Snssai{Sst: int32(partialAdmissionSST), Sd: partialAdmissionSD}); err != nil {
+	if _, err := sourceGNB.EstablishPDUSession(newUE, ranUENGAPID, partialDroppedSession, partialAdmissionDNN,
+		models.Snssai{Sst: int32(partialAdmissionSST), Sd: partialAdmissionSD}, registrationTimeout); err != nil {
 		return fmt.Errorf("establish the second PDU session: %w", err)
-	}
-
-	if _, err := newUE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), 5*time.Second); err != nil {
-		return fmt.Errorf("the second PDU session was not accepted: %w", err)
-	}
-
-	for _, id := range []uint8{partialKeptSession, partialDroppedSession} {
-		if _, err := sourceGNB.WaitForPDUSession(ranUENGAPID, int64(id), 5*time.Second); err != nil {
-			return fmt.Errorf("source gNB: wait PDU session %d: %w", id, err)
-		}
 	}
 
 	if err := sourceGNB.SendHandoverRequired(&gnb.HandoverRequiredOpts{
@@ -152,7 +136,7 @@ func runN2HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 		PDUSessions: []gnb.HandoverAdmittedPDUSession{
 			{
 				PDUSessionID: int64(partialKeptSession),
-				DLTeid:       partialTargetTEID,
+				DLTEID:       partialTargetTEID,
 				DLIP:         netip.MustParseAddr(env.FirstGNB().N3Address),
 			},
 		},

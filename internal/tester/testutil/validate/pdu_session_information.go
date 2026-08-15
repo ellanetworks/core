@@ -10,18 +10,20 @@ import (
 )
 
 type ExpectedPDUSessionInformation struct {
-	FiveQi int64
-	PriArp int64
-	QFI    int64
+	FiveQI int64
+	ARP    int64
+	QFI    uint8
 }
 
-func PDUSessionInformation(got *gnb.PDUSessionInformation, expected *ExpectedPDUSessionInformation) error {
-	if got.FiveQi != expected.FiveQi {
-		return fmt.Errorf("unexpected NGAP 5QI: got %d, expected %d", got.FiveQi, expected.FiveQi)
+// PDUSessionInformation checks the QoS the network gave a PDU session, as the
+// gNB reported it back to the scenario.
+func PDUSessionInformation(got gnb.PDUSessionResult, expected *ExpectedPDUSessionInformation) error {
+	if got.FiveQI != expected.FiveQI {
+		return fmt.Errorf("unexpected NGAP 5QI: got %d, expected %d", got.FiveQI, expected.FiveQI)
 	}
 
-	if got.PriArp != expected.PriArp {
-		return fmt.Errorf("unexpected NGAP ARP Priority Level: got %d, expected %d", got.PriArp, expected.PriArp)
+	if got.ARP != expected.ARP {
+		return fmt.Errorf("unexpected NGAP ARP Priority Level: got %d, expected %d", got.ARP, expected.ARP)
 	}
 
 	if got.QFI != expected.QFI {

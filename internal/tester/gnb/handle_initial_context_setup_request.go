@@ -43,14 +43,14 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 			}
 
 			pduSessionInfo.PDUSessionID = pduSessionID
-			pduSessionInfo.DLTeid = gnb.GenerateTEID()
+			pduSessionInfo.DLTEID = gnb.allocTEID()
 
 			logger.GnbLogger.Debug(
 				"Parsed PDU Session Resource Setup Request",
 				zap.Int64("AMFUENGAPID", amfUEID),
 				zap.Int64("RANUENGAPID", ranUEID),
 				zap.Int64("PDU Session ID", pduSessionID),
-				zap.Uint32("UL TEID", pduSessionInfo.ULTeid),
+				zap.Uint32("UL TEID", pduSessionInfo.ULTEID),
 				zap.String("UPF Address", pduSessionInfo.UpfAddress),
 				zap.Int64("QOS ID", pduSessionInfo.QosId),
 				zap.Int64("5QI", pduSessionInfo.FiveQi),
@@ -58,19 +58,19 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 				zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
 			)
 
-			gnb.StorePDUSession(ranUEID, pduSessionInfo)
+			gnb.storePDUSession(ranUEID, pduSessionInfo)
 		}
 	}
 
 	pduSessions := [16]*PDUSessionInformation{}
 
 	if gnb.N3Address.IsValid() {
-		sessions := gnb.GetPDUSessions(ranUEID)
+		sessions := gnb.pduSessionsFor(ranUEID)
 		for _, s := range sessions {
 			if s.PDUSessionID >= 1 && s.PDUSessionID <= 15 {
 				pduSessions[s.PDUSessionID] = &PDUSessionInformation{
 					PDUSessionID: s.PDUSessionID,
-					DLTeid:       s.DLTeid,
+					DLTEID:       s.DLTEID,
 					N3GnbIp:      gnb.N3Address,
 					QosId:        s.QosId,
 					QFI:          s.QFI,
