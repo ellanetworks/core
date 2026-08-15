@@ -137,6 +137,17 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 	if cuc.ShortNameForNetwork == nil {
 		t.Fatal("expected ShortNameForNetwork in ConfigurationUpdateCommand")
 	}
+
+	// TS 24.501 §5.4.4.2: acknowledgement is requested for all parameters except
+	// when only NITZ information is included, so this NITZ-only command asks for
+	// none — and with nothing to acknowledge, T3555 must not be armed.
+	if cuc.ConfigurationUpdateIndication != nil {
+		t.Errorf("expected no ConfigurationUpdateIndication on the NITZ-only path, got %s", cuc.ConfigurationUpdateIndication)
+	}
+
+	if ue.Conn().NASGuardForTest().Active() {
+		t.Error("expected T3555 not to be armed for a NITZ-only ConfigurationUpdateCommand")
+	}
 }
 
 func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_NoActiveSessions(t *testing.T) {
