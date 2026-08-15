@@ -114,7 +114,11 @@ func adoptIdlePDNsFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 		return
 	}
 
-	m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForInterworking())
+	if err := m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForInterworking()); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("could not adopt the identity of a UE arriving from 5GS", zap.Error(err))
+
+		return
+	}
 
 	adopted := m.AdoptIdlePDNs(ctx, ue, arriving.PDN)
 

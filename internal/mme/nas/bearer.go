@@ -129,11 +129,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
-	// Supersede any prior context for this subscriber only once the attach is
-	// authenticated and accepted, so an unauthenticated attach cannot tear down a
-	// registered UE (TS 24.501 §4.4.4.3 analogue).
-	m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForAttachCommit())
-
 	// Drop any stored UE Radio Capability and omit it from the Initial Context
 	// Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.RadioCapability = nil
@@ -259,6 +254,10 @@ func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.
 }
 
 func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
+	if !m.ServesUeContext(ue) {
+		return nil, fmt.Errorf("refusing to build attach accept: UE context is not indexed by IMSI")
+	}
+
 	p := m.DefaultPDN(ue)
 	if p == nil {
 		return nil, fmt.Errorf("attach accept with no active PDN")

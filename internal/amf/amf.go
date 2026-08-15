@@ -205,7 +205,7 @@ func (a *AMF) allocateAmfUeNgapID() (models.AmfUeNgapID, error) {
 // the lock, its guarded SUPI-delete leaving the new index intact. The AuthProof
 // witnesses that the registration was authenticated first, so an unauthenticated
 // registration citing a victim's identity can never index itself or tear down the
-// victim's context (TS 24.501 §4.4.4.3).
+// victim's context (TS 24.501 §5.5.1.2.8 f).
 func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) error {
 	if !ue.supi.IsValid() {
 		return fmt.Errorf("supi is empty")
@@ -223,6 +223,50 @@ func (amf *AMF) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof
 	}
 
 	return nil
+}
+
+func (amf *AMF) CarrySubscriberSessions(ue *UeContext) {
+	if ue == nil {
+		return
+	}
+
+	supi := ue.Supi()
+	if !supi.IsValid() {
+		return
+	}
+
+	amf.mu.RLock()
+	held := amf.UEs[supi]
+	amf.mu.RUnlock()
+
+	if held == nil || held == ue {
+		return
+	}
+
+	carried := held.takeSmContexts()
+	if len(carried) == 0 {
+		return
+	}
+
+	ue.adoptSmContexts(carried)
+
+	logger.AmfLog.Info("carried the subscriber's PDU sessions onto the re-authenticated context",
+		logger.SUPI(supi.String()), zap.Int("sessions", len(carried)))
+}
+
+func (amf *AMF) ServesUeContext(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	supi := ue.Supi()
+	if !supi.IsValid() {
+		return false
+	}
+
+	held, ok := amf.LookupUeBySupi(supi)
+
+	return ok && held == ue
 }
 
 // claimRelease atomically marks the RAN UE as having a UE Context Release Command in

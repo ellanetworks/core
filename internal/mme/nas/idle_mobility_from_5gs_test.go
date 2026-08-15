@@ -364,7 +364,7 @@ func (f *crossAccessSessionManager) TransferIdleToEPS(ctx context.Context, supi 
 	return bearer, nil
 }
 
-// TS 24.301 §4.4.4.3, §5.5.1.2.7 f)
+// TS 24.301 §5.5.1.2.7 f)
 func TestInterSystemTAUKeepsTheArrivingSessionAStaleContextStillNames(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -389,7 +389,9 @@ func TestInterSystemTAUKeepsTheArrivingSessionAStaleContextStillNames(t *testing
 
 	sessions.onEPS = map[string]bool{}
 
-	m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking())
+	if err := m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
 
 	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
 
@@ -463,7 +465,7 @@ func TestOrdinaryTAUOnABareConnectionMintsNothing(t *testing.T) {
 	}
 }
 
-// TS 24.301 §4.4.4.3
+// TS 24.301 §5.5.1.2.7 f)
 func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 	peer := &fakeFiveGSPeer{Response: arrivingEPSContext(t, interworking.EPSNASAlgorithms{
 		Ciphering: nas.CipheringAES, Integrity: nas.IntegrityAES,
@@ -478,7 +480,10 @@ func TestInterSystemTAUIndexesTheArrivingContextBySubscriber(t *testing.T) {
 
 	stale := mme.NewUeContext()
 	stale.SetSupi(supi)
-	m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking())
+
+	if err := m.CommitUEIdentity(context.Background(), stale, mme.MintAuthProofForInterworking()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
 
 	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
 

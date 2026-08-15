@@ -130,16 +130,6 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	logger.From(ctx, logger.AmfLog).Debug("use original GUTI", logger.GUTI(guti.String()))
 
-	// TS 24.501 §4.4.4.3: a successful, authenticated initial registration supersedes
-	// any earlier 5GMM context for this subscriber. The commit is gated by an AuthProof
-	// and indexes the new context atomically before superseding the old, so an
-	// unauthenticated registration can never index itself or tear down a registered UE.
-	err = amfInstance.CommitUEIdentity(ctx, ue, amf.MintAuthProofForRegistrationCommit())
-	if err != nil {
-		abortRegistration(ctx, amfInstance, ue, "commit UE identity", err)
-		return
-	}
-
 	err = amfInstance.ReallocateGUTI(ctx, ue)
 	if err != nil {
 		abortRegistration(ctx, amfInstance, ue, "reallocate GUTI", err)

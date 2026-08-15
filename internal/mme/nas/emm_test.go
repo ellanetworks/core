@@ -1011,3 +1011,61 @@ func TestAttachIgnoredDuringNetworkInitiatedDetach(t *testing.T) {
 		t.Fatalf("expected no downlink for an ignored attach, got %d", cc.count())
 	}
 }
+
+// TS 24.301 §5.5.1.2.4, §5.5.1.2.7 f
+func TestAuthenticationSuccessMakesTheMMEServeTheUE(t *testing.T) {
+	m := newTestMME(t)
+	cc := &captureConn{}
+	ue := newAttachUe(m, cc, 7)
+
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	attach := &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
+		ESMMessageContainer: esm,
+	}
+
+	attachBytes, err := attach.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), attachBytes)
+
+	if _, ok := m.LookupUeByIMSI(testSubscriber.IMSI); ok {
+		t.Fatal("an unauthenticated attach must not make the MME serve the subscriber")
+	}
+
+	authReq, err := eps.ParseAuthenticationRequest(decodeDownlinkNAS(t, cc.sent[0]))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res := make([]byte, 8)
+	if err := udm.F2345(testSubscriber.OPc[:], testSubscriber.K[:], authReq.RAND[:],
+		res, make([]byte, 16), make([]byte, 16), make([]byte, 6), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	authResp, err := (&eps.AuthenticationResponse{RES: res}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), authResp)
+
+	held, ok := m.LookupUeByIMSI(testSubscriber.IMSI)
+	if !ok || held != ue {
+		t.Fatalf("LookupUeByIMSI = (%p, %v), want the authenticated context %p: the MME can never reach this UE", held, ok, ue)
+	}
+
+	if !m.ServesUeContext(ue) {
+		t.Error("the MME does not serve a UE it has just authenticated, so no attach accept can be built for it")
+	}
+}
