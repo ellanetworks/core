@@ -167,8 +167,6 @@ func TestPrefixFromIPNet_V4Default(t *testing.T) {
 }
 
 func TestPrefixFromIPNet_RejectsAbsentMask(t *testing.T) {
-	// A missing mask must not be read as zero ones, which would invent a
-	// default route out of a host route.
 	if p, ok := prefixFromIPNet(&net.IPNet{IP: net.IP{10, 0, 0, 1}}); ok {
 		t.Errorf("expected !ok for absent mask, got %q", p.String())
 	}
