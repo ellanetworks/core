@@ -232,6 +232,7 @@ func benchRun(t *testing.T, prog *ebpf.Program, packet, ctx []byte) benchStats {
 	t.Helper()
 
 	runtime.LockOSThread()
+
 	defer runtime.UnlockOSThread()
 
 	fd := prog.FD()
@@ -377,7 +378,6 @@ func seedBenchConntrack(t *testing.T, m benchMaps) {
 }
 
 func benchCases(nat bool) []benchCase {
-
 	innerV4 := ipv4Packet(canonicalUEv4.As4(), benchServer, 17,
 		udpDatagramChecksummed(canonicalUEv4.As4(), benchServer,
 			benchUEPort, benchSrvPort, []byte{1, 2, 3, 4}))
@@ -466,7 +466,6 @@ func benchTargets(t *testing.T, build string, nat bool, n3, n6 *net.Interface) (
 	t.Helper()
 
 	if build == "tcx" {
-
 		ctx := benchSkbContext(loopbackIfindex)
 
 		up := loadTCProgramConfig(t, nat, loopbackIfindex, n6.Index)
