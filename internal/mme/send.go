@@ -29,7 +29,15 @@ func (c *UeConn) SendProtected(plain []byte, sht eps.SecurityHeaderType, write n
 		return nil
 	}
 
-	return c.ue.downlink().Send(plain, uint8(sht), write)
+	if err := c.ue.downlink().Send(plain, uint8(sht), write); err != nil {
+		return err
+	}
+
+	if sht.Ciphered() {
+		c.MarkCipheringStarted()
+	}
+
+	return nil
 }
 
 // SendProtectedNASTransport protects plain and sends it in a Downlink NAS

@@ -94,6 +94,8 @@ type UeConn struct {
 	// integrity protected or fails the check.
 	secureExchangeEstablished bool
 
+	cipheringStarted atomic.Bool
+
 	AuthenticationCtx *ausf.AuthResult
 	// resyncTried records whether an SQN re-synchronisation (AUTS) has been attempted
 	// this authentication exchange: the first synch failure resyncs, a second rejects
@@ -111,10 +113,31 @@ type UeConn struct {
 	IdentityTypeUsedForRegistration   uint8
 	RetransmissionOfInitialNASMsg     bool
 
-	ArrivedFromEPS  bool
-	ArrivingFromEPS *interworking.ArrivingSessions
+	EPSArrival *EPSArrival
 
 	RegistrationAcceptPlain []byte
+}
+
+type EPSArrival struct {
+	Sessions *interworking.ArrivingSessions
+
+	NeedsSecurityModeControl bool
+}
+
+func (ueConn *UeConn) ArrivedFromEPS() bool {
+	return ueConn != nil && ueConn.EPSArrival != nil
+}
+
+func (ueConn *UeConn) ArrivalNeedsSecurityModeControl() bool {
+	return ueConn.ArrivedFromEPS() && ueConn.EPSArrival.NeedsSecurityModeControl
+}
+
+func (a *EPSArrival) ArrivingSessions() *interworking.ArrivingSessions {
+	if a == nil {
+		return nil
+	}
+
+	return a.Sessions
 }
 
 // Parent returns the UeContext this connection is bound to, or nil when bare.
@@ -341,6 +364,20 @@ func (ueConn *UeConn) SecureExchangeEstablished() bool {
 func (ueConn *UeConn) MarkSecureExchangeEstablished() {
 	if ueConn != nil {
 		ueConn.secureExchangeEstablished = true
+	}
+}
+
+func (ueConn *UeConn) CipheringStarted() bool {
+	if ueConn == nil {
+		return false
+	}
+
+	return ueConn.cipheringStarted.Load()
+}
+
+func (ueConn *UeConn) MarkCipheringStarted() {
+	if ueConn != nil {
+		ueConn.cipheringStarted.Store(true)
 	}
 }
 

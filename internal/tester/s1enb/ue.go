@@ -245,7 +245,7 @@ func (ue *UE) handleSecurityModeCommand(wire []byte) ([]byte, error) {
 		return nil, fmt.Errorf("build Security Mode Complete: %w", err)
 	}
 
-	out, err := eps.Protect(complete, eps.SHTIntegrityProtectedCiphered,
+	out, err := eps.Protect(complete, eps.SHTIntegrityProtectedCipheredNewContext,
 		nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
 	if err != nil {
 		return nil, fmt.Errorf("protect Security Mode Complete: %w", err)

@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -153,6 +154,30 @@ func (ue *UeContext) CitesCurrentSecurityContext(plain []byte) error {
 	}
 
 	return nil
+}
+
+func (ue *UeContext) CitesCurrentNgKSI(cited nas.KeySetIdentifier) error {
+	held := ue.NgKsi()
+
+	if cited.Mapped != (held.Tsc == models.ScTypeMapped) {
+		return fmt.Errorf("amf: the message cites a %s ngKSI, the UE's current 5G NAS security context is %s",
+			securityContextTypeName(cited.Mapped), held.Tsc)
+	}
+
+	if uint8(held.Ksi) != cited.Value {
+		return fmt.Errorf("amf: the message cites ngKSI %d, the UE's current 5G NAS security context is ngKSI %d",
+			cited.Value, held.Ksi)
+	}
+
+	return nil
+}
+
+func securityContextTypeName(mapped bool) models.ScType {
+	if mapped {
+		return models.ScTypeMapped
+	}
+
+	return models.ScTypeNative
 }
 
 func (ue *UeContext) VerifyEnclosedEPSNAS(payload []byte) (nas.Count, error) {
@@ -358,10 +383,14 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 	plain, _, uerr := fgs.Unprotect(payload, cnt, nas.DirectionUplink, ue.sc,
 		fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered, fgs.SHTIntegrityProtectedCipheredNewContext)
 	if uerr == nil {
-		// Before the commit so a discarded message does not advance the count, and
-		// before MarkSecureExchangeEstablished so the initial NAS message of a new
-		// connection stays outside the guard (TS 24.501 §4.4.5).
-		if conn.SecureExchangeEstablished() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) {
+		if requiresNewContextSecurityHeader(plain) && headerType != fgs.SHTIntegrityProtectedCipheredNewContext {
+			logger.AmfLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type")
+
+			return nil, silentDecode(nasreply.ReasonIntegrityFail,
+				"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.501 §5.4.2.3)")
+		}
+
+		if conn.CipheringStarted() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) {
 			logger.AmfLog.Warn("discarding unciphered NAS message received after ciphering started")
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.501 §4.4.5)")
@@ -374,6 +403,10 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		ue.ulCount = counter
 
 		conn.MarkSecureExchangeEstablished()
+
+		if headerType.Ciphered() {
+			conn.MarkCipheringStarted()
+		}
 
 		msgType, isGMM, derr := DecodePlainGmm(plain)
 		if derr != nil {

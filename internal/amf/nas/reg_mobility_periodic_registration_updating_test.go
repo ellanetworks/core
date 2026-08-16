@@ -935,7 +935,7 @@ func TestMobilityReg_ReportsTheEPSBearerContextStatusAfterAnArrivalFromEPS(t *te
 	}
 
 	ue.SetEPSBearerIdentity(5, 6)
-	ue.Conn().ArrivedFromEPS = true
+	ue.Conn().EPSArrival = &amf.EPSArrival{}
 	ue.Conn().MarkICSCompleted()
 
 	HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
@@ -1047,7 +1047,7 @@ func TestMobilityReg_ReleasesPDUSessionsTheUEDeactivatedInEPS(t *testing.T) {
 	status := new(nas.EPSBearerContextStatus)
 	status.Active[5] = true
 
-	ue.Conn().ArrivedFromEPS = true
+	ue.Conn().EPSArrival = &amf.EPSArrival{}
 	ue.Conn().RegistrationRequest.EPSBearerContextStatus = status
 	ue.Conn().MarkICSCompleted()
 

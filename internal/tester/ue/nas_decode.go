@@ -36,6 +36,8 @@ func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 		return nil, fmt.Errorf("decode NAS error: %v", err)
 	}
 
+	held := ue.UeSecurity.DLCount
+
 	// Estimate the downlink NAS COUNT from the received sequence number, carrying
 	// into the overflow counter on wrap-around (TS 24.501 §4.4.3.1).
 	if ue.UeSecurity.DLCount.SQN() > spm.SequenceNumber {
@@ -45,7 +47,7 @@ func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 	}
 
 	if sht == fgs.SHTIntegrityProtectedNewContext {
-		return ue.decodeNewSecurityContext(spm)
+		return ue.decodeNewSecurityContext(spm, held)
 	}
 
 	sc, err := ue.securityContext()
@@ -65,7 +67,7 @@ func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 // NAS security context (TS 24.501 §4.4.4.3): the message is integrity-protected
 // but not ciphered, so its plaintext names the selected algorithms; the UE derives
 // the new NAS keys from them and verifies the NAS-MAC with the new context.
-func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byte, error) {
+func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage, held nas.Count) ([]byte, error) {
 	plain := spm.UnverifiedPayload
 
 	msg, err := fgs.ParseMessage(plain)
@@ -77,6 +79,8 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byt
 	if !ok {
 		return nil, fmt.Errorf("received %T with security header \"Integrity protected with new 5G NAS security context\", which is reserved for a SECURITY MODE COMMAND", msg)
 	}
+
+	entitled := ue.UeSecurity.contextFromAuthentication || smc.NgKSI.Mapped
 
 	if ue.UeSecurity.contextFromAuthentication {
 		ue.UeSecurity.DLCount = 0
@@ -98,10 +102,31 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byt
 
 	if err := sc.VerifyMAC(macInput(spm.SequenceNumber, spm.UnverifiedPayload), spm.MAC,
 		ue.UeSecurity.DLCount, nas.Bearer3GPP, nas.DirectionDownlink); err != nil {
+		if reset := rolledBackDownlinkCount(smc, held, spm.SequenceNumber, entitled); reset != "" {
+			return nil, fmt.Errorf("%s: %w", reset, err)
+		}
+
 		return nil, fmt.Errorf("MAC verification failed: %w", err)
 	}
 
 	return plain, nil
+}
+
+func rolledBackDownlinkCount(smc *fgs.SecurityModeCommand, held nas.Count, received uint8, entitled bool) string {
+	if entitled || held.SQN() <= received {
+		return ""
+	}
+
+	kind := "native"
+	if smc.NgKSI.Mapped {
+		kind = "mapped"
+	}
+
+	return fmt.Sprintf("SECURITY MODE COMMAND restarted the downlink NAS COUNT at %d on the %s 5G NAS security context "+
+		"ngKSI %d the UE already holds at COUNT %d, without taking a mapped context into use or following a primary "+
+		"authentication; TS 24.501 §5.4.2.2 does not allow that reset and §5.4.2.3 does not let the UE follow it, so the "+
+		"integrity check cannot pass and a real UE answers SECURITY MODE REJECT",
+		received, kind, smc.NgKSI.Value, held.Value())
 }
 
 // securityContext builds the NAS security context from the UE's current

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 )
@@ -19,6 +18,18 @@ func movingFromEPCRequest() *fgs.RegistrationRequest {
 		GMMCapability: &fgs.GMMCapability{},
 		UEStatus:      &fgs.UEStatus{S1ModeReg: true},
 	}
+}
+
+func handoverFollowUpRequest() *fgs.RegistrationRequest {
+	req := nativeIdleArrivalRequest()
+	req.EPSNASMessageContainer = nil
+
+	return req
+}
+
+func arrivedByHandover(ue *amf.UeContext) {
+	ue.MarkArrivedFromEPSHandover()
+	ue.Conn().EPSArrival = &amf.EPSArrival{}
 }
 
 // TS 24.501 §5.5.1.3.4
@@ -100,7 +111,7 @@ func TestInterworkingRegistrationAcceptReportsSessionsThatSurvivedTheHandover(t 
 	ue, ngapSender, smfStub, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.SmContextList[1] = &amf.SmContext{Ref: "ref-1"}
-	ue.MarkArrivedFromEPSHandover()
+	arrivedByHandover(ue)
 
 	req := movingFromEPCRequest()
 	req.PDUSessionStatus = &fgs.PSIBitmap{PSI: [16]bool{1: true}}
@@ -146,7 +157,7 @@ func TestRegistrationAfterAnEPSHandoverKeepsTheMovedSessions(t *testing.T) {
 		t.Fatalf("CreateSmContext: %v", err)
 	}
 
-	ue.MarkArrivedFromEPSHandover()
+	arrivedByHandover(ue)
 
 	req := movingFromEPCRequest()
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
@@ -162,25 +173,76 @@ func TestRegistrationAfterAnEPSHandoverKeepsTheMovedSessions(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.11.2.3
-func TestIdleArrivalSpendsALeftoverHandoverMark(t *testing.T) {
+func openRegistration(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest) {
+	t.Helper()
+
+	wire, err := req.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode the registration request: %v", err)
+	}
+
+	if err := handleRegistrationRequestMessage(context.TODO(), amfInstance, ue, req, wire, true, false); err != nil {
+		t.Fatalf("handleRegistrationRequestMessage: %v", err)
+	}
+}
+
+func TestHandoverMarkOpensTheRegistrationThatFollowsIt(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.MarkArrivedFromEPSHandover()
 
+	openRegistration(t, amfInstance, ue, handoverFollowUpRequest())
+
+	if !ue.Conn().ArrivedFromEPS() {
+		t.Error("the registration that follows a completed relocation was not taken as an arrival from EPS, so the UE's moved sessions are torn down")
+	}
+}
+
+func TestHandoverMarkEndsWithTheRegistrationItServed(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	ue.MarkArrivedFromEPSHandover()
+
+	openRegistration(t, amfInstance, ue, handoverFollowUpRequest())
+	ue.ClearRegistrationRequestData()
+
+	openRegistration(t, amfInstance, ue, handoverFollowUpRequest())
+
+	if ue.Conn().ArrivedFromEPS() {
+		t.Error("a later registration on the same connection inherited the handover mark of one that had already completed")
+	}
+}
+
+func TestIdleArrivalSupersedesALeftoverHandoverMark(t *testing.T) {
+	ue, amfInstance, _, _ := idleArrivalUE(t)
+
+	ue.MarkArrivedFromEPSHandover()
+
+	req := idleArrivalRequest()
+	openRegistration(t, amfInstance, ue, req)
+	recoverContextFromEPS(context.TODO(), amfInstance, ue, req, false)
+
 	conn := ue.Conn()
-	conn.RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
-	conn.ArrivingFromEPS = &interworking.ArrivingSessions{}
 
-	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)
+	if !conn.ArrivalNeedsSecurityModeControl() {
+		t.Error("the idle arrival did not map the EPS context: the leftover mark stood in for a context the MME had to supply")
+	}
 
-	conn.ArrivingFromEPS = nil
-	conn.ArrivedFromEPS = false
+	if conn.EPSArrival.ArrivingSessions() == nil {
+		t.Error("the arrival carries no PDN connections, so the UE's sessions are left behind in EPS")
+	}
+}
 
-	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)
+func TestHandoverMarkOutlivesARegistrationThatDidNotComplete(t *testing.T) {
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	if conn.ArrivedFromEPS {
-		t.Error("an update the AMF holds no EPS arrival for was taken as one: the handover mark outlived the idle arrival that short-circuited it")
+	ue.MarkArrivedFromEPSHandover()
+
+	openRegistration(t, amfInstance, ue, handoverFollowUpRequest())
+	openRegistration(t, amfInstance, ue, handoverFollowUpRequest())
+
+	if !ue.Conn().ArrivedFromEPS() {
+		t.Error("the retry of a registration that did not complete lost the arrival, so the UE is put through an initial registration instead")
 	}
 }
 

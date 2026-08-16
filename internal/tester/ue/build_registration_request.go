@@ -13,17 +13,17 @@ import (
 )
 
 type RegistrationRequestOpts struct {
-	RegistrationType      uint8
-	RequestedNSSAI        fgs.NSSAI
-	UplinkDataStatus      []byte
-	IncludeCapability     bool
-	UESecurity            *UESecurity
-	PDUSessionStatus      *[16]bool
-	S1UENetworkCapability []byte
-
+	RegistrationType       uint8
+	RequestedNSSAI         fgs.NSSAI
+	IncludeCapability      bool
+	UESecurity             *UESecurity
+	PDUSessionStatus       *[16]bool
+	UplinkDataStatus       *[16]bool
+	S1UENetworkCapability  []byte
 	UEStatus               *fgs.UEStatus
 	EPSNASMessageContainer []byte
 	AdditionalGUTI         *fgs.MobileIdentity
+	MobileIdentity         *fgs.MobileIdentity
 }
 
 func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
@@ -34,6 +34,10 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 	mobileIdentity := opts.UESecurity.Suci
 	if opts.UESecurity.Guti != nil {
 		mobileIdentity = *opts.UESecurity.Guti
+	}
+
+	if opts.MobileIdentity != nil {
+		mobileIdentity = *opts.MobileIdentity
 	}
 
 	m := &fgs.RegistrationRequest{
@@ -60,30 +64,30 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 		m.RequestedNSSAI = opts.RequestedNSSAI
 	}
 
-	pduFlag := uint16(0)
-
-	if opts.PDUSessionStatus != nil {
-		for i, pduSession := range opts.PDUSessionStatus {
-			pduFlag += boolToUint16(pduSession) << i
-		}
-	}
-
-	if pduFlag == 0 {
-		return m.MarshalBinary()
-	}
-
 	// TS 24.501 §5.5.1.2.2
-	statusBuf := make([]byte, 2)
-	binary.LittleEndian.PutUint16(statusBuf, pduFlag)
-
-	status, err := fgs.ParsePSIBitmap(statusBuf)
+	status, haveStatus, err := psiBitmap(opts.PDUSessionStatus)
 	if err != nil {
 		return nil, fmt.Errorf("encode PDU session status: %w", err)
 	}
 
+	uplink, haveUplink, err := psiBitmap(opts.UplinkDataStatus)
+	if err != nil {
+		return nil, fmt.Errorf("encode uplink data status: %w", err)
+	}
+
+	if !haveStatus && !haveUplink {
+		return m.MarshalBinary()
+	}
+
 	inner := *m
-	inner.UplinkDataStatus = &status
-	inner.PDUSessionStatus = &status
+
+	if haveStatus {
+		inner.PDUSessionStatus = &status
+	}
+
+	if haveUplink {
+		inner.UplinkDataStatus = &uplink
+	}
 
 	innerBytes, err := inner.MarshalBinary()
 	if err != nil {
@@ -104,6 +108,34 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 	m.NASMessageContainer = container
 
 	return m.MarshalBinary()
+}
+
+func psiBitmap(sessions *[16]bool) (fgs.PSIBitmap, bool, error) {
+	var none fgs.PSIBitmap
+
+	if sessions == nil {
+		return none, false, nil
+	}
+
+	flag := uint16(0)
+
+	for i, set := range sessions {
+		flag += boolToUint16(set) << i
+	}
+
+	if flag == 0 {
+		return none, false, nil
+	}
+
+	buf := make([]byte, 2)
+	binary.LittleEndian.PutUint16(buf, flag)
+
+	bitmap, err := fgs.ParsePSIBitmap(buf)
+	if err != nil {
+		return none, false, err
+	}
+
+	return bitmap, true, nil
 }
 
 func boolToUint16(b bool) uint16 {

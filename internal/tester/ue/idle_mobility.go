@@ -57,11 +57,19 @@ func (ue *UE) InstallMappedSecurityContextForIdleMobility(in MappedFromEPSIdle) 
 	return nil
 }
 
+func (ue *UE) TakeUplinkNASCountForInterSystemChange() nas.Count {
+	spent := ue.UeSecurity.ULCount
+	ue.UeSecurity.ULCount = spent.Next()
+
+	return spent
+}
+
 type IdleRegistrationOpts struct {
 	RANUENGAPID            int64
 	MappedGUTI             fgs.MobileIdentity
 	EPSNASMessageContainer []byte
 	PDUSessionStatus       *[16]bool
+	UplinkDataStatus       *[16]bool
 	Mapped                 MappedFromEPSIdle
 }
 
@@ -70,15 +78,24 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 		return fmt.Errorf("GNB is not set for UE")
 	}
 
-	ue.UeSecurity.Guti = &opts.MappedGUTI
-	ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(opts.Mapped.EKSI), Tsc: models.ScTypeMapped}
+	native := ue.nativeContextForIdleArrival()
 
 	cleartext := &RegistrationRequestOpts{
 		RegistrationType:       uint8(fgs.RegistrationTypeMobilityUpdating),
-		IncludeCapability:      true,
 		UESecurity:             ue.UeSecurity,
 		UEStatus:               &fgs.UEStatus{S1ModeReg: true},
 		EPSNASMessageContainer: opts.EPSNASMessageContainer,
+		MobileIdentity:         &opts.MappedGUTI,
+		AdditionalGUTI:         native,
+	}
+
+	if native != nil {
+		cleartext.PDUSessionStatus = opts.PDUSessionStatus
+		cleartext.UplinkDataStatus = opts.UplinkDataStatus
+		cleartext.IncludeCapability = true
+	} else {
+		ue.UeSecurity.Guti = &opts.MappedGUTI
+		ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(opts.Mapped.EKSI), Tsc: models.ScTypeMapped}
 	}
 
 	plain, err := BuildRegistrationRequest(cleartext)
@@ -86,7 +103,48 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 		return fmt.Errorf("could not build the Registration Request of an inter-system change: %w", err)
 	}
 
-	replayMsg := &fgs.RegistrationRequest{
+	wire := plain
+
+	if native != nil {
+		if wire, err = ue.EncodeNasPduWithSecurity(plain, uint8(fgs.SHTIntegrityProtected)); err != nil {
+			return fmt.Errorf("could not integrity-protect the Registration Request of an inter-system change: %w", err)
+		}
+	} else if err := ue.armReplay(opts); err != nil {
+		return err
+	}
+
+	gutiIE, err := opts.MappedGUTI.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("could not encode the mapped 5G-GUTI: %w", err)
+	}
+
+	if err := ue.Gnb.SendInitialUEMessage(wire, opts.RANUENGAPID, gutiIE, ngap.RRCCauseMOSignalling); err != nil {
+		return fmt.Errorf("could not send the Initial UE Message: %w", err)
+	}
+
+	if native != nil {
+		return nil
+	}
+
+	return ue.InstallMappedSecurityContextForIdleMobility(opts.Mapped)
+}
+
+func (ue *UE) nativeContextForIdleArrival() *fgs.MobileIdentity {
+	if ue.UeSecurity.NgKsi.Ksi == ngKSINoKey || ue.UeSecurity.NgKsi.Tsc != models.ScTypeNative {
+		return nil
+	}
+
+	if ue.UeSecurity.Guti == nil || ue.UeSecurity.Guti.GUTI == nil {
+		return nil
+	}
+
+	guti := *ue.UeSecurity.Guti
+
+	return &guti
+}
+
+func (ue *UE) armReplay(opts IdleRegistrationOpts) error {
+	replay := &fgs.RegistrationRequest{
 		RegistrationType:       fgs.RegistrationTypeMobilityUpdating,
 		FOR:                    true,
 		NgKSI:                  nas.KeySetIdentifier{Value: opts.Mapped.EKSI, Mapped: true},
@@ -101,24 +159,22 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 		var bitmap fgs.PSIBitmap
 
 		bitmap.PSI = *opts.PDUSessionStatus
-		replayMsg.PDUSessionStatus = &bitmap
+		replay.PDUSessionStatus = &bitmap
 	}
 
-	replayBytes, err := replayMsg.MarshalBinary()
+	if opts.UplinkDataStatus != nil {
+		var bitmap fgs.PSIBitmap
+
+		bitmap.PSI = *opts.UplinkDataStatus
+		replay.UplinkDataStatus = &bitmap
+	}
+
+	replayBytes, err := replay.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("could not build the replayed Registration Request: %w", err)
 	}
 
 	ue.replayRegistration = replayBytes
 
-	gutiIE, err := opts.MappedGUTI.MarshalBinary()
-	if err != nil {
-		return fmt.Errorf("could not encode the mapped 5G-GUTI: %w", err)
-	}
-
-	if err := ue.Gnb.SendInitialUEMessage(plain, opts.RANUENGAPID, gutiIE, ngap.RRCCauseMOSignalling); err != nil {
-		return fmt.Errorf("could not send the Initial UE Message: %w", err)
-	}
-
-	return ue.InstallMappedSecurityContextForIdleMobility(opts.Mapped)
+	return nil
 }

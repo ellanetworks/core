@@ -44,6 +44,7 @@ func (ue *UE) InstallMappedSecurityContextForIdleMobility(in IdleMobilityFrom5GS
 
 	ue.kasme = kasme
 	ue.eea, ue.eia = in.EPSCiphering, in.EPSIntegrity
+	ue.eksi = in.EKSI
 
 	if err := ue.deriveNASKeys(); err != nil {
 		return err
