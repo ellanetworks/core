@@ -61,6 +61,7 @@ const (
 	SHTServiceRequest SecurityHeaderType = 12
 )
 
+// Ciphered reports whether this header type marks a ciphered message (TS 24.301 §4.4.5).
 func (s SecurityHeaderType) Ciphered() bool {
 	return s == SHTIntegrityProtectedCiphered || s == SHTIntegrityProtectedCipheredNewContext
 }
