@@ -34,7 +34,59 @@ func encodePlainEPSSecurityModeReject(t *testing.T) []byte {
 	return payload
 }
 
+func encodePlainEPSSecurityModeComplete(t *testing.T) []byte {
+	t.Helper()
+
+	payload, err := (&eps.SecurityModeComplete{}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode plain SecurityModeComplete: %v", err)
+	}
+
+	return payload
+}
+
+func encodePlainEPSEMMStatus(t *testing.T) []byte {
+	t.Helper()
+
+	payload, err := (&eps.EMMStatus{Cause: eps.EMMCauseMessageNotCompatible}).MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode plain EMMStatus: %v", err)
+	}
+
+	return payload
+}
+
+// TS 24.301 §4.4.2.3, §4.4.5
+func TestDecodeNASMessageAcceptsUncipheredOrdinarySignallingBeforeCipheringStarts(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Conn().SetSecureExchangeEstablishedForTest(true)
+
+	if ue.Conn().CipheringStarted() {
+		t.Fatal("the MME counts itself as ciphering before it has replied to the UE")
+	}
+
+	if _, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtected)); err != nil {
+		t.Fatalf("DecodeNASMessage(unciphered EMM STATUS) = %v, want it accepted before the MME has replied ciphered", err)
+	}
+}
+
 // TS 24.301 §4.4.5
+func TestDecodeNASMessageDiscardsUncipheredOrdinarySignallingAfterCipheringStarts(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+
+	ue.Conn().SetSecureExchangeEstablishedForTest(true)
+	ue.Conn().MarkCipheringStarted()
+
+	res, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtected))
+	if err == nil {
+		t.Fatalf("DecodeNASMessage(unciphered EMM STATUS) = %+v, nil, want it discarded once ciphering started", res)
+	}
+}
+
+// TS 24.301 §4.4.2.3, §4.4.5, §5.4.3.5
 func TestDecodeNASMessageAcceptsAnUncipheredSecurityModeRejectBeforeCipheringStarts(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -50,6 +102,7 @@ func TestDecodeNASMessageAcceptsAnUncipheredSecurityModeRejectBeforeCipheringSta
 	}
 }
 
+// TS 24.301 §4.4.5, §5.4.3.5
 func TestDecodeNASMessageDiscardsAnUncipheredSecurityModeRejectAfterCipheringStarts(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -61,17 +114,6 @@ func TestDecodeNASMessageDiscardsAnUncipheredSecurityModeRejectAfterCipheringSta
 	if err == nil {
 		t.Fatalf("DecodeNASMessage(unciphered SECURITY MODE REJECT) = %+v, nil, want it discarded once ciphering started", res)
 	}
-}
-
-func encodePlainEPSSecurityModeComplete(t *testing.T) []byte {
-	t.Helper()
-
-	payload, err := (&eps.SecurityModeComplete{}).MarshalBinary()
-	if err != nil {
-		t.Fatalf("encode plain SecurityModeComplete: %v", err)
-	}
-
-	return payload
 }
 
 // TS 24.301 §5.4.3.3, table 9.3.1
@@ -105,41 +147,4 @@ func TestDecodeNASMessageDiscardsASecurityModeCompleteWithoutTheNewContextHeader
 	if err == nil {
 		t.Fatalf("DecodeNASMessage(unciphered SECURITY MODE COMPLETE) = %+v, nil, want it discarded (TS 24.301 §5.4.3.3)", res)
 	}
-}
-
-// TS 24.301 §4.4.2.3, §4.4.5
-func TestDecodeNASMessageAcceptsUncipheredOrdinarySignallingBeforeCipheringStarts(t *testing.T) {
-	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
-
-	ue.Conn().SetSecureExchangeEstablishedForTest(true)
-
-	if _, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtected)); err != nil {
-		t.Fatalf("DecodeNASMessage(unciphered EMM STATUS) = %v, want it accepted before the MME has replied ciphered", err)
-	}
-}
-
-// TS 24.301 §4.4.5
-func TestDecodeNASMessageDiscardsUncipheredOrdinarySignallingAfterCipheringStarts(t *testing.T) {
-	m := newTestMME(t)
-	ue, _ := securedUE(t, m)
-
-	ue.Conn().SetSecureExchangeEstablishedForTest(true)
-	ue.Conn().MarkCipheringStarted()
-
-	res, err := DecodeNASMessage(ue, uplinkOn(t, ue, encodePlainEPSEMMStatus(t), eps.SHTIntegrityProtected))
-	if err == nil {
-		t.Fatalf("DecodeNASMessage(unciphered EMM STATUS) = %+v, nil, want it discarded once ciphering started", res)
-	}
-}
-
-func encodePlainEPSEMMStatus(t *testing.T) []byte {
-	t.Helper()
-
-	payload, err := (&eps.EMMStatus{Cause: eps.EMMCauseMessageNotCompatible}).MarshalBinary()
-	if err != nil {
-		t.Fatalf("encode plain EMMStatus: %v", err)
-	}
-
-	return payload
 }
