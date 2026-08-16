@@ -393,32 +393,34 @@ func runIdleRoundTripThroughEPS(ctx context.Context, env scenarios.Env, _ any) e
 		return err
 	}
 
-	epsUE, tau, err := roundTripOutboundLeg(ctx, env, gNodeB, u, before)
+	e, epsUE, tau, err := roundTripOutboundLeg(ctx, env, gNodeB, u, before)
 	if err != nil {
 		return err
 	}
 
-	return roundTripReturnLeg(ctx, env, gNodeB, u, epsUE, tau, before)
+	defer func() { _ = e.Close() }()
+
+	return roundTripReturnLeg(ctx, env, e, gNodeB, u, epsUE, tau, before)
 }
 
-func roundTripOutboundLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, u *ue.UE, before sessionFacts) (*s1enb.UE, *s1enb.AttachResult, error) {
+func roundTripOutboundLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, u *ue.UE, before sessionFacts) (*s1enb.ENB, *s1enb.UE, *s1enb.AttachResult, error) {
 	if err := goIdleOnNR(gNodeB, u); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	security, guti, err := idleMobilityMaterial(u)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	e, err := startENBOnSecondaryN3(env)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	epsUE := e.NewUE(interworkingIMSI, k, opc)
@@ -434,21 +436,23 @@ func roundTripOutboundLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.Gn
 		Security:     security,
 	}, attachTimeout)
 	if err != nil {
-		return nil, nil, fmt.Errorf("tracking area update after the idle move to EPS: %w", err)
+		return nil, nil, nil, fmt.Errorf("tracking area update after the idle move to EPS: %w", err)
 	}
 
 	if err := assertAdoptedBearer(tau); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if err := assertSessionOn(ctx, env, "4G", before.addrs); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return epsUE, tau, nil
+	return e, epsUE, tau, nil
 }
 
-func roundTripReturnLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, u *ue.UE, epsUE *s1enb.UE, tau *s1enb.AttachResult, before sessionFacts) error {
+func roundTripReturnLeg(ctx context.Context, env scenarios.Env, e *s1enb.ENB, gNodeB *gnb.GnodeB,
+	u *ue.UE, epsUE *s1enb.UE, tau *s1enb.AttachResult, before sessionFacts,
+) error {
 	if tau.GUTI == nil || tau.GUTI.GUTI == nil {
 		return errors.New("the tracking area update accept assigned no GUTI to enclose in the return to 5GS")
 	}
@@ -470,7 +474,7 @@ func roundTripReturnLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.Gnod
 
 	authenticated := u.ReceivedNASGMMCount(uint8(fgs.MsgAuthenticationRequest))
 
-	if err := u.SendNativeIdleMobilityRegistration(ue.NativeIdleRegistrationOpts{
+	if err := u.SendIdleMobilityRegistration(ue.IdleRegistrationOpts{
 		RANUENGAPID:            returnRANUENGAPID,
 		MappedGUTI:             fgs.GUTIIdentity(etsi.MapGUTIEPSTo5G(*tau.GUTI.GUTI)),
 		EPSNASMessageContainer: container,
@@ -498,7 +502,52 @@ func roundTripReturnLeg(ctx context.Context, env scenarios.Env, gNodeB *gnb.Gnod
 			"the UE arrived on a native 5G NAS security context the AMF still holds", got)
 	}
 
-	return assertSessionOn(ctx, env, "5G", before.addrs)
+	if err := assertSessionOn(ctx, env, "5G", before.addrs); err != nil {
+		return err
+	}
+
+	return roundTripLeaveAgain(ctx, env, e, gNodeB, u, epsUE, before)
+}
+
+// roundTripLeaveAgain sends the UE back to EPS once more.
+//
+// The hop matters out of proportion to its length: it is the first thing that
+// reads the security context the resumed arrival left behind. The AMF derives
+// the eKSI of the enclosed TRACKING AREA UPDATE REQUEST from its stored ngKSI
+// (TS 33.501 §8.6.1) and refuses the move when it does not match the one the UE
+// cites, so a registration that moved the ngKSI without telling the UE strands
+// it here rather than on the hop that moved it.
+func roundTripLeaveAgain(ctx context.Context, env scenarios.Env, e *s1enb.ENB, gNodeB *gnb.GnodeB,
+	u *ue.UE, epsUE *s1enb.UE, before sessionFacts,
+) error {
+	if err := goIdleOnNRConnection(gNodeB, u, returnRANUENGAPID); err != nil {
+		return err
+	}
+
+	security, guti, err := idleMobilityMaterial(u)
+	if err != nil {
+		return err
+	}
+
+	var bearerStatus nas.EPSBearerContextStatus
+
+	bearerStatus.Active[movedEPSBearerIdentity] = true
+
+	tau, err := e.TrackingAreaUpdateFrom5GS(epsUE, s1enb.IdleTrackingAreaUpdateOpts{
+		GUTI:         guti,
+		ActiveFlag:   false,
+		BearerStatus: &bearerStatus,
+		Security:     security,
+	}, attachTimeout)
+	if err != nil {
+		return fmt.Errorf("tracking area update leaving 5GS again after the resumed arrival: %w", err)
+	}
+
+	if err := assertAdoptedBearer(tau); err != nil {
+		return err
+	}
+
+	return assertSessionOn(ctx, env, "4G", before.addrs)
 }
 
 func runIdleRoundTripThrough5GS(ctx context.Context, env scenarios.Env, _ any) error {

@@ -67,7 +67,7 @@ func Protect(
 
 	payload := plain
 
-	if sht.ciphered() {
+	if sht.Ciphered() {
 		c, err := sc.Cipher(plain, count, nasBearer, dir)
 		if err != nil {
 			return nil, err
@@ -142,7 +142,7 @@ func Unprotect(
 		return nil, m.SecurityHeaderType, err
 	}
 
-	if !m.SecurityHeaderType.ciphered() {
+	if !m.SecurityHeaderType.Ciphered() {
 		return m.UnverifiedPayload, m.SecurityHeaderType, nil
 	}
 

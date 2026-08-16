@@ -61,7 +61,10 @@ const (
 	SHTServiceRequest SecurityHeaderType = 12
 )
 
-func (s SecurityHeaderType) ciphered() bool {
+// Ciphered reports whether this header type marks a message whose body is
+// ciphered. Receiving or sending one means the secure exchange of NAS messages
+// is established on the connection (TS 24.301 §4.4.2.3, §4.4.5).
+func (s SecurityHeaderType) Ciphered() bool {
 	return s == SHTIntegrityProtectedCiphered || s == SHTIntegrityProtectedCipheredNewContext
 }
 

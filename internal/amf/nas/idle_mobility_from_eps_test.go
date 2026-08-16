@@ -17,7 +17,11 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-const idleEKSI uint8 = 4
+const (
+	idleEKSI uint8 = 4
+	// nativeKSI is the ngKSI buildMobilityRegUeAndAMF gives its UE.
+	nativeKSI uint8 = 1
+)
 
 func arrivingMMContext(supi etsi.SUPI) interworking.MMContextResponse {
 	var kasme [32]byte
@@ -53,6 +57,15 @@ func idleArrivalRequest() *fgs.RegistrationRequest {
 		EPSNASMessageContainer: []byte{uint8(eps.PDEMM), 0x01, 0xde, 0xad, 0xbe, 0xef, 0x00},
 		UESecurityCapability:   &fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0},
 	}
+}
+
+// nativeIdleArrivalRequest is the arrival of TS 24.501 §4.4.2.5 case a): the UE
+// cites the ngKSI of the native 5G context it kept, rather than a mapped one.
+func nativeIdleArrivalRequest() *fgs.RegistrationRequest {
+	req := idleArrivalRequest()
+	req.NgKSI = nas.KeySetIdentifier{Value: nativeKSI}
+
+	return req
 }
 
 func idleArrivalUE(t *testing.T) (*amf.UeContext, *amf.AMF, *fakeEPSPeer, *fakeSmf) {
@@ -194,7 +207,7 @@ func TestRecoverContextFromEPSFallsBackWhenTheMMEHasNoContext(t *testing.T) {
 		t.Error("a security context was installed though the MME returned none")
 	}
 
-	if ue.Conn().ArrivingFromEPS != nil {
+	if ue.Conn().EPSArrival.ArrivingSessions() != nil {
 		t.Error("the connection holds an arriving context the MME never returned")
 	}
 }
@@ -224,7 +237,7 @@ func TestRecoverContextFromEPSKeepsANativeContext(t *testing.T) {
 		t.Errorf("ngKSI = %+v, want the native %+v: the UE holds no mapped context to answer under", got, native)
 	}
 
-	if ue.Conn().ArrivingFromEPS == nil {
+	if ue.Conn().EPSArrival.ArrivingSessions() == nil {
 		t.Fatal("the PDN connections were discarded with the EPS security parameters")
 	}
 
@@ -238,7 +251,7 @@ func TestAdoptArrivingSessionsMovesThemAndAcksTheMME(t *testing.T) {
 	ue, amfInstance, peer, smf := idleArrivalUE(t)
 
 	resp := arrivingMMContext(ue.Supi())
-	ue.Conn().ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	ue.Conn().EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
 	adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn())
 
@@ -271,7 +284,7 @@ func TestAdoptArrivingSessionsMovesThemAndAcksTheMME(t *testing.T) {
 		t.Errorf("acknowledged sessions = %v, want the adopted PDU session 3", peer.Transferred)
 	}
 
-	if ue.Conn().ArrivingFromEPS != nil {
+	if ue.Conn().EPSArrival.ArrivingSessions() != nil {
 		t.Error("the arriving context outlived the adoption, so a later registration would move it again")
 	}
 }
@@ -282,7 +295,7 @@ func TestAdoptArrivingSessionsLeavesBehindWhatCannotMove(t *testing.T) {
 	smf.IdleTransferErr = context.DeadlineExceeded
 
 	resp := arrivingMMContext(ue.Supi())
-	ue.Conn().ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	ue.Conn().EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
 	adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn())
 
@@ -305,7 +318,7 @@ func TestAdoptArrivingSessionsReleasesASessionItCannotAddress(t *testing.T) {
 
 	resp := arrivingMMContext(ue.Supi())
 	resp.PDNConnections[0].PDUSessionID = 16
-	ue.Conn().ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	ue.Conn().EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
 	adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn())
 
@@ -336,8 +349,7 @@ func TestIdleArrivalIsAbortedWhenTheIdentityCannotBeCommitted(t *testing.T) {
 
 	resp := arrivingMMContext(ue.Supi())
 	conn := ue.Conn()
-	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
-	conn.ArrivedFromEPS = true
+	conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 	conn.RegistrationRequest = &fgs.RegistrationRequest{
 		RegistrationType: fgs.RegistrationTypeMobilityUpdating,
 		UEStatus:         &fgs.UEStatus{S1ModeReg: true},
@@ -376,8 +388,7 @@ func TestIdleArrivalAcceptReportsTheAdoptedSessions(t *testing.T) {
 
 	resp := arrivingMMContext(ue.Supi())
 	conn := ue.Conn()
-	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
-	conn.ArrivedFromEPS = true
+	conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 	conn.RegistrationRequest = &fgs.RegistrationRequest{
 		RegistrationType: fgs.RegistrationTypeMobilityUpdating,
 		UEStatus:         &fgs.UEStatus{S1ModeReg: true},
@@ -468,19 +479,28 @@ func TestIdleArrivalOnANativeContextRunsNoSecurityModeProcedure(t *testing.T) {
 
 	native := ue.NgKsi()
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
-
 	conn := ue.Conn()
-	if conn.MappedContextFromEPS {
+	conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeMobilityUpdating))
+	req := nativeIdleArrivalRequest()
+
+	wire, err := req.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode the arrival request: %v", err)
+	}
+
+	if err := handleRegistrationRequestMessage(context.Background(), amfInstance, ue, req, wire, true, false); err != nil {
+		t.Fatalf("handleRegistrationRequestMessage: %v", err)
+	}
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, req)
+
+	if conn.MappedContextFromEPS() {
 		t.Fatal("the AMF mapped the EPS context over a native one it could verify and resume on")
 	}
 
-	if conn.ArrivingFromEPS == nil {
+	if conn.EPSArrival.ArrivingSessions() == nil {
 		t.Fatal("the PDN connections were discarded with the EPS security parameters")
 	}
-
-	conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeMobilityUpdating))
-	conn.RegistrationRequest = idleArrivalRequest()
 
 	securityMode(context.Background(), amfInstance, ue)
 
@@ -488,17 +508,17 @@ func TestIdleArrivalOnANativeContextRunsNoSecurityModeProcedure(t *testing.T) {
 		t.Fatalf("downlink NAS messages = %d, want the registration accept alone", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	wire := ngapSender.SentDownlinkNASTransport[0].NASPDU
-	if len(wire) < 7 {
-		t.Fatalf("downlink NAS PDU is %d octets, too short to be security protected", len(wire))
+	sent := ngapSender.SentDownlinkNASTransport[0].NASPDU
+	if len(sent) < 7 {
+		t.Fatalf("downlink NAS PDU is %d octets, too short to be security protected", len(sent))
 	}
 
-	if sht := fgs.SecurityHeaderType(wire[1]); sht == fgs.SHTIntegrityProtectedNewContext {
+	if sht := fgs.SecurityHeaderType(sent[1]); sht == fgs.SHTIntegrityProtectedNewContext {
 		t.Error("the AMF sent a SECURITY MODE COMMAND to take into use a context the UE was already using")
 	}
 
-	if wire[6] != 7 {
-		t.Errorf("the reply carries NAS sequence number %d, want the 7 the context was already at", wire[6])
+	if sent[6] != 7 {
+		t.Errorf("the reply carries NAS sequence number %d, want the 7 the context was already at", sent[6])
 	}
 
 	if got := ue.DLCountForTest(); got != 8 {
@@ -520,10 +540,10 @@ func TestAnArrivalThatMovesNothingIsStillAccepted(t *testing.T) {
 	smf.IdleTransferErr = context.DeadlineExceeded
 
 	conn := ue.Conn()
-	conn.ArrivedFromEPS = true
+	conn.EPSArrival = &amf.EPSArrival{}
 
 	resp := arrivingMMContext(ue.Supi())
-	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
 	if !adoptArrivingSessions(context.Background(), amfInstance, ue, conn) {
 		t.Fatal("the registration was abandoned, so the UE gets no 5GS service until it retries")
@@ -552,5 +572,58 @@ func TestAnArrivalThatMovesNothingIsStillAccepted(t *testing.T) {
 		if active {
 			t.Errorf("EPS bearer %d reported active though no PDN connection moved onto 5GS", ebi)
 		}
+	}
+}
+
+// TS 24.501 §5.4.2.2.
+func TestASecondRegistrationDoesNotInheritTheMappedArrival(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{MMContextResponse: arrivingMMContext(ue.Supi())}
+
+	ue.SetSecuredForTest(false)
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+
+	conn := ue.Conn()
+	conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeMobilityUpdating))
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+
+	if !conn.MappedContextFromEPS() {
+		t.Fatal("the arrival did not map the EPS context, so this test proves nothing")
+	}
+
+	// The UE stays connected and registers again on the same connection.
+	plain := idleArrivalRequest()
+	plain.UEStatus = nil
+	plain.EPSNASMessageContainer = nil
+
+	wire, err := plain.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode the second registration: %v", err)
+	}
+
+	before := ue.DLCountForTest()
+
+	if err := handleRegistrationRequestMessage(context.Background(), amfInstance, ue, plain, wire, true, false); err != nil {
+		t.Fatalf("handleRegistrationRequestMessage: %v", err)
+	}
+
+	if conn.ArrivedFromEPS() {
+		t.Fatal("the second registration inherited the first one's arrival from EPS")
+	}
+
+	sentBefore := len(ngapSender.SentDownlinkNASTransport)
+
+	securityMode(context.Background(), amfInstance, ue)
+
+	for _, sent := range ngapSender.SentDownlinkNASTransport[sentBefore:] {
+		if len(sent.NASPDU) > 1 && fgs.SecurityHeaderType(sent.NASPDU[1]) == fgs.SHTIntegrityProtectedNewContext {
+			t.Error("the second registration ran a security mode procedure on a context that was already current")
+		}
+	}
+
+	if got := ue.DLCountForTest(); got < before {
+		t.Errorf("downlink NAS COUNT went from %d back to %d: the second registration restarted a context the UE is still counting on", before, got)
 	}
 }

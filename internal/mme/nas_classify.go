@@ -29,6 +29,27 @@ func cipheringRequired(mt eps.MessageType) bool {
 	return true
 }
 
+func admissibleBeforeCipheringFor(plain []byte) bool {
+	mt, err := eps.PeekMessageType(plain)
+	if err != nil {
+		return false
+	}
+
+	switch mt {
+	case eps.MsgSecurityModeReject,
+		eps.MsgSecurityModeComplete,
+		eps.MsgAuthenticationResponse,
+		eps.MsgAuthenticationFailure,
+		eps.MsgIdentityResponse,
+		eps.MsgEMMStatus,
+		eps.MsgDetachRequest,
+		eps.MsgDetachAccept:
+		return true
+	}
+
+	return false
+}
+
 // plainNasAllowed reports whether an EMM message may be processed without a verified
 // MAC before secure exchange is established (TS 24.301 §4.4.4.3) — either sent as plain
 // NAS, or received integrity-protected with a failed MAC. The spec's plain and

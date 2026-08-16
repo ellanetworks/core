@@ -361,7 +361,8 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		// Before the commit so a discarded message does not advance the count, and
 		// before MarkSecureExchangeEstablished so the initial NAS message of a new
 		// connection stays outside the guard (TS 24.501 §4.4.5).
-		if conn.SecureExchangeEstablished() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) {
+		if conn.SecureExchangeEstablished() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) &&
+			(conn.CipheringStarted() || !admissibleBeforeCipheringFor(plain)) {
 			logger.AmfLog.Warn("discarding unciphered NAS message received after ciphering started")
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.501 §4.4.5)")
@@ -374,6 +375,13 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 		ue.ulCount = counter
 
 		conn.MarkSecureExchangeEstablished()
+
+		// A message that arrived ciphered proves the secure exchange is already
+		// established on this connection, however that happened, so the UE is
+		// ciphering and everything further from it must be (TS 24.501 §4.4.5).
+		if headerType.Ciphered() {
+			conn.MarkCipheringStarted()
+		}
 
 		msgType, isGMM, derr := DecodePlainGmm(plain)
 		if derr != nil {

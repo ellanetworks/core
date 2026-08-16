@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func (a *AMF) FetchMMContext(ctx context.Context, presented etsi.GUTI5G, epsNAS []byte) (interworking.MMContextResponse, error) {
@@ -46,6 +47,15 @@ func (a *AMF) AdoptMMContext(ctx context.Context, ue *UeContext, resp interworki
 
 	ue.SetSupi(resp.SUPI)
 	ue.SetAmbr(&models.Ambr{Uplink: resp.AMBRUplink, Downlink: resp.AMBRDownlink})
+
+	// A UE that has just been served by an MME supports S1 mode, whatever it did
+	// or did not manage to say about itself: TS 24.501 §4.4.6 keeps the 5GMM
+	// capability IE out of an initial NAS message a UE with no security context
+	// can send, so the AMF would otherwise not know until the SECURITY MODE
+	// COMPLETE replays it — after the command that has to carry the selected EPS
+	// NAS algorithms was already built (§5.4.2.2), leaving the UE unable to
+	// derive the same mapped context on its way back.
+	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, nil)
 
 	if _, ok := ue.EPSNetworkCapability(); !ok {
 		if raw, err := resp.UENetworkCapability.MarshalBinary(); err == nil {

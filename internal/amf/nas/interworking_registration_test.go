@@ -101,7 +101,13 @@ func TestMobilityRegistrationAfterAnArrivalFromEPSKeepsTheMappedContext(t *testi
 	}
 }
 
-func TestMobilityRegistrationTakesAFreshNgKSIWithoutAMappedContext(t *testing.T) {
+// TS 24.501 §5.4.2.2, TS 33.501 §6.7.2: an ngKSI names a security context, so
+// taking in a REGISTRATION REQUEST must not move it. Whether this registration
+// creates a context is not known yet, and if it turns out to reuse the one the
+// UE cited, a value moved here would leave the two ends naming different
+// contexts with nothing to reconcile them — TS 33.501 §8.6.1 derives the eKSI of
+// a later move to EPS from it, so the AMF would refuse its own UE.
+func TestRegistrationRequestLeavesTheNgKSIAlone(t *testing.T) {
 	amfInstance := arrivedRegistrationAMF()
 
 	ue, _, err := buildUeAndRadio()
@@ -110,6 +116,8 @@ func TestMobilityRegistrationTakesAFreshNgKSIWithoutAMappedContext(t *testing.T)
 	}
 
 	setTestUESecurityCapability(ue)
+
+	before := ue.NgKsi()
 
 	wire, err := buildRegReqBytes(uint8(fgs.RegistrationTypeMobilityUpdating), testMobileIdentity(),
 		&fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0}, 0, nil, 0, 2)
@@ -121,7 +129,46 @@ func TestMobilityRegistrationTakesAFreshNgKSIWithoutAMappedContext(t *testing.T)
 		t.Fatalf("handleRegistrationRequestMessage: %v", err)
 	}
 
+	if got := ue.NgKsi(); got != before {
+		t.Errorf("ngKSI = %+v, want the %+v held before the request was taken in", got, before)
+	}
+}
+
+// The allocation belongs where the AMF decides to create a fresh native
+// context, because the AUTHENTICATION REQUEST is what names it to the UE
+// (TS 24.501 §5.4.1.3.2). authenticationProcedure assigns it before it builds
+// that request, so stopping the procedure at its first guard still shows the
+// value the request would have carried.
+func TestAuthenticationTakesAFreshNgKSIAfterTheOneTheUECited(t *testing.T) {
+	amfInstance := arrivedRegistrationAMF()
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	setTestUESecurityCapability(ue)
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	wire, err := buildRegReqBytes(uint8(fgs.RegistrationTypeMobilityUpdating), testMobileIdentity(),
+		&fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0}, 0, nil, 0, 2)
+	if err != nil {
+		t.Fatalf("build the registration request: %v", err)
+	}
+
+	if err := handleRegistrationRequestMessage(context.Background(), amfInstance, ue, mustParseRegistrationRequest(t, wire), wire, true, false); err != nil {
+		t.Fatalf("handleRegistrationRequestMessage: %v", err)
+	}
+
+	// Stop the procedure at the first guard inside the request build, which sits
+	// after the allocation.
+	ue.Tai.PlmnID = nil
+
+	if _, err := authenticationProcedure(context.Background(), amfInstance, ue); err == nil {
+		t.Fatal("authentication built a request for a UE with no serving PLMN")
+	}
+
 	if got := ue.NgKsi(); got.Tsc != models.ScTypeNative || got.Ksi != 3 {
-		t.Errorf("ngKSI = %+v, want the native identifier after the received 2", got)
+		t.Errorf("ngKSI = %+v, want the native identifier after the 2 the UE cited", got)
 	}
 }

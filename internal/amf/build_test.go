@@ -218,7 +218,7 @@ func TestRegistrationAcceptDropsTheEPSBearerStatusOnceTheRegistrationIsDone(t *t
 		t.Fatal("no NAS connection")
 	}
 
-	conn.ArrivedFromEPS = true
+	conn.EPSArrival = &amf.EPSArrival{}
 
 	if status := epsBearerStatusOf(t, amfInstance, ue); status == nil || !status.Active[6] {
 		t.Fatalf("EPS bearer context status = %+v, want EBI 6 active while the arrival is being registered", status)

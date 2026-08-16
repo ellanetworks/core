@@ -57,7 +57,13 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 					smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 					if !ok {
-						logger.WithTrace(ctx, ueConn.Log).Debug("no SM context for a PDU session the NG-RAN node reported; it is already released",
+						// Routine when the session has already gone — moved to EPS in an
+						// inter-system change, or released while this request was in
+						// flight — and a genuine divergence when the NG-RAN node is
+						// holding a session the AMF never did. The AMF cannot tell the
+						// two apart here, so it says only what it knows and leaves the
+						// signal visible.
+						logger.WithTrace(ctx, ueConn.Log).Warn("no SM context for a PDU session the NG-RAN node reported as established",
 							zap.Uint8("PduSessionID", pduSessionID))
 
 						continue

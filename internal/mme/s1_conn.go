@@ -43,6 +43,7 @@ type UeConn struct {
 	m                         *MME
 	ICS                       ICSState
 	secureExchangeEstablished bool
+	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
 	resyncTried               bool
 	AttachRequestPlain        []byte
@@ -105,5 +106,19 @@ func (c *UeConn) SecureExchangeEstablished() bool {
 func (c *UeConn) MarkSecureExchangeEstablished() {
 	if c != nil {
 		c.secureExchangeEstablished = true
+	}
+}
+
+func (c *UeConn) CipheringStarted() bool {
+	if c == nil {
+		return false
+	}
+
+	return c.cipheringStarted.Load()
+}
+
+func (c *UeConn) MarkCipheringStarted() {
+	if c != nil {
+		c.cipheringStarted.Store(true)
 	}
 }

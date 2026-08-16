@@ -170,16 +170,17 @@ func TestIdleArrivalSpendsALeftoverHandoverMark(t *testing.T) {
 
 	conn := ue.Conn()
 	conn.RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
-	conn.ArrivingFromEPS = &interworking.ArrivingSessions{}
+	conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{}}
 
 	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)
 
-	conn.ArrivingFromEPS = nil
-	conn.ArrivedFromEPS = false
+	// The next registration on this connection starts from a clean arrival, as
+	// handleRegistrationRequestMessage would leave it.
+	conn.EPSArrival = nil
 
 	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)
 
-	if conn.ArrivedFromEPS {
+	if conn.ArrivedFromEPS() {
 		t.Error("an update the AMF holds no EPS arrival for was taken as one: the handover mark outlived the idle arrival that short-circuited it")
 	}
 }

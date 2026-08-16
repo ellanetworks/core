@@ -10,6 +10,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -28,6 +30,14 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *a
 
 func identityVerification(ue *amf.UeContext) bool {
 	return ue.Supi().IsValid() || len(ue.Suci) != 0
+}
+
+func citedNgKsi(conn *amf.UeConn) int32 {
+	if conn == nil || conn.RegistrationRequest == nil {
+		return int32(nas.NoKeyAvailable)
+	}
+
+	return int32(conn.RegistrationRequest.NgKSI.Value)
 }
 
 func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) (bool, error) {
@@ -57,6 +67,8 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 	}
 
 	logger.From(ctx, logger.AmfLog).Debug("UE has no valid security context - continue with the authentication procedure")
+
+	ue.SetNgKsi(models.NgKsi{Tsc: models.ScTypeNative, Ksi: amf.NextNgKsi(citedNgKsi(ue.Conn()))})
 
 	response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, nil)
 	if err != nil {

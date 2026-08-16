@@ -53,7 +53,10 @@ const (
 	SHTIntegrityProtectedCipheredNewContext SecurityHeaderType = 4 // SECURITY MODE COMPLETE only
 )
 
-func (s SecurityHeaderType) ciphered() bool {
+// Ciphered reports whether this header type marks a message whose body is
+// ciphered. Receiving or sending one means the secure exchange of NAS messages
+// is established on the connection (TS 24.501 §4.4.2.5, §4.4.5).
+func (s SecurityHeaderType) Ciphered() bool {
 	return s == SHTIntegrityProtectedCiphered || s == SHTIntegrityProtectedCipheredNewContext
 }
 

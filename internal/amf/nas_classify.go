@@ -47,6 +47,40 @@ func cipheringRequired(mt fgs.MessageType) bool {
 	return true
 }
 
+// admissibleBeforeCipheringFor reports whether plain is a message the UE may
+// still send unciphered while the AMF has not yet started ciphering on this
+// connection.
+//
+// The window exists because TS 24.501 §4.4.5 starts the AMF's ciphering "as
+// described in subclause 4.4.2.5", and §4.4.2.5 has the AMF re-establish the
+// secure exchange by replying ciphered or by completing a security mode control
+// procedure — so between a verified initial NAS message and that reply, neither
+// end is ciphering yet. What the UE legitimately sends in that window is the
+// answers to the common procedures the AMF runs there, SECURITY MODE REJECT
+// among them (§5.4.2.5, which the AMF must act on by stopping T3560 and
+// aborting the triggering procedure). Anything else that should have been
+// ciphered is still discarded, so the window admits no ordinary signalling.
+func admissibleBeforeCipheringFor(plain []byte) bool {
+	mt, err := fgs.PeekMessageType(plain)
+	if err != nil {
+		return false
+	}
+
+	switch mt {
+	case fgs.MsgSecurityModeReject,
+		fgs.MsgSecurityModeComplete,
+		fgs.MsgAuthenticationResponse,
+		fgs.MsgAuthenticationFailure,
+		fgs.MsgIdentityResponse,
+		fgs.MsgGMMStatus,
+		fgs.MsgDeregistrationRequestUEOrig,
+		fgs.MsgDeregistrationAcceptUETerm:
+		return true
+	}
+
+	return false
+}
+
 // plainNasAllowed reports whether a NAS message type may be processed without a verified
 // MAC before secure exchange (TS 24.501 §4.4.4.3, TS 33.501) — either sent as plain NAS,
 // or received integrity-protected with a failed MAC. SERVICE REQUEST is on the spec's

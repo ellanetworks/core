@@ -44,12 +44,14 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, 
 		arrivedByHandover := ue.TakeArrivedFromEPSHandover()
 
 		if movingFromEPC(msg) {
-			if conn.ArrivingFromEPS == nil && !arrivedByHandover {
+			if arrivedByHandover && conn.EPSArrival == nil {
+				conn.EPSArrival = &amf.EPSArrival{}
+			}
+
+			if conn.EPSArrival == nil {
 				HandleInitialRegistration(ctx, amfInstance, ue)
 				return
 			}
-
-			conn.ArrivedFromEPS = true
 		}
 
 		HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue)

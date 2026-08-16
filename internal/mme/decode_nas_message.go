@@ -110,7 +110,8 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	if err == nil {
 		// connSecured is per connection, leaving the initial NAS message of a new
 		// one outside this guard.
-		if connSecured && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) {
+		if connSecured && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) &&
+			(conn.CipheringStarted() || !admissibleBeforeCipheringFor(p)) {
 			logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
 				zap.String("imsi", ue.IMSI()))
 
@@ -122,6 +123,10 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		// First verified message establishes secure exchange on the connection (TS 24.301 §4.4.4.3).
 		if conn != nil {
 			conn.MarkSecureExchangeEstablished()
+
+			if spm.SecurityHeaderType.Ciphered() {
+				conn.MarkCipheringStarted()
+			}
 		}
 
 		return &DecodeResult{Plain: p, IntegrityVerified: true}, nil
