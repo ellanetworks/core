@@ -41,7 +41,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) 
 		return
 	}
 
-	if ue.SecurityContextIsValid() && conn.ArrivingFromEPS == nil {
+	if ue.SecurityContextIsValid() && !conn.MappedContextFromEPS {
 		if ue.NeedsEPSNASAlgorithms() && provideEPSNASAlgorithms(ctx, amfInstance, ue, conn) {
 			return
 		}

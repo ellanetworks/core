@@ -76,6 +76,9 @@ var scenarioFollowsDeploymentIPFamily = map[string]bool{
 	"interworking/idle_5gs_to_eps":                    true,
 	"interworking/idle_5gs_to_eps_returning_to_idle":  true,
 	"interworking/idle_eps_to_5gs":                    true,
+	"interworking/idle_eps_to_5gs_returning_to_idle":  true,
+	"interworking/idle_round_trip_through_eps":        true,
+	"interworking/idle_round_trip_through_5gs":        true,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP

@@ -114,6 +114,8 @@ type UeConn struct {
 	ArrivedFromEPS  bool
 	ArrivingFromEPS *interworking.ArrivingSessions
 
+	MappedContextFromEPS bool
+
 	RegistrationAcceptPlain []byte
 }
 

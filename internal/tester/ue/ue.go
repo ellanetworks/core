@@ -607,6 +607,13 @@ func updateReceivedGSMMessages(ue *UE, plain []byte) {
 	ue.cond.Broadcast()
 }
 
+func (ue *UE) ReceivedNASGMMCount(msgType uint8) int {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return len(ue.receivedNASGMMMessages[msgType])
+}
+
 func (ue *UE) WaitForNASGMMMessage(msgType uint8, timeout time.Duration) ([]byte, error) {
 	deadline := time.Now().Add(timeout)
 

@@ -57,7 +57,9 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 					smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 					if !ok {
-						logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+						logger.WithTrace(ctx, ueConn.Log).Debug("no SM context for a PDU session the NG-RAN node reported; it is already released",
+							zap.Uint8("PduSessionID", pduSessionID))
+
 						continue
 					}
 

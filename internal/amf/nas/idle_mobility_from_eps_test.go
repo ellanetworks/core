@@ -456,6 +456,64 @@ func TestIdleArrivalFromEPSAlwaysRunsTheSecurityModeProcedure(t *testing.T) {
 	}
 }
 
+// TS 24.501 §4.4.2.5 case a), §5.4.2.2
+func TestIdleArrivalOnANativeContextRunsNoSecurityModeProcedure(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.EPS = &fakeEPSPeer{MMContextResponse: arrivingMMContext(ue.Supi())}
+
+	ue.SetSecuredForTest(true)
+	ue.SetDLCountForTest(7)
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+
+	native := ue.NgKsi()
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+
+	conn := ue.Conn()
+	if conn.MappedContextFromEPS {
+		t.Fatal("the AMF mapped the EPS context over a native one it could verify and resume on")
+	}
+
+	if conn.ArrivingFromEPS == nil {
+		t.Fatal("the PDN connections were discarded with the EPS security parameters")
+	}
+
+	conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeMobilityUpdating))
+	conn.RegistrationRequest = idleArrivalRequest()
+
+	securityMode(context.Background(), amfInstance, ue)
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("downlink NAS messages = %d, want the registration accept alone", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	wire := ngapSender.SentDownlinkNASTransport[0].NASPDU
+	if len(wire) < 7 {
+		t.Fatalf("downlink NAS PDU is %d octets, too short to be security protected", len(wire))
+	}
+
+	if sht := fgs.SecurityHeaderType(wire[1]); sht == fgs.SHTIntegrityProtectedNewContext {
+		t.Error("the AMF sent a SECURITY MODE COMMAND to take into use a context the UE was already using")
+	}
+
+	if wire[6] != 7 {
+		t.Errorf("the reply carries NAS sequence number %d, want the 7 the context was already at", wire[6])
+	}
+
+	if got := ue.DLCountForTest(); got != 8 {
+		t.Errorf("downlink NAS COUNT = %d, want 8: the count carries on across the inter-system change", got)
+	}
+
+	if got := ue.NgKsi(); got != native {
+		t.Errorf("ngKSI = %+v, want the native %+v it arrived on", got, native)
+	}
+
+	if ue.RegStep() != amf.RegStepContextSetup {
+		t.Errorf("registration step = %v, want the context setup sub-phase: the registration should carry straight on", ue.RegStep())
+	}
+}
+
 // TS 24.501 §5.5.1.3.4, TS 23.502 §4.11.1.3.3 step 14
 func TestAnArrivalThatMovesNothingIsStillAccepted(t *testing.T) {
 	ue, amfInstance, peer, smf := idleArrivalUE(t)

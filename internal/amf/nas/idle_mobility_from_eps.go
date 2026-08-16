@@ -58,6 +58,8 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 
 	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
 
+	conn.MappedContextFromEPS = true
+
 	logger.From(ctx, logger.AmfLog).Info("mapped the UE's EPS security context onto 5GS for an idle-mode change",
 		logger.SUPI(resp.SUPI.String()), zap.Int("pdn-connections", len(resp.PDNConnections)))
 }
