@@ -173,6 +173,7 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 
 	ueConn.TauRequestPlain = nil
 	ueConn.TauAcceptPlain = nil
+	ueConn.FiveGSArrival = nil
 
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete", zap.String("imsi", ue.IMSI()))
 

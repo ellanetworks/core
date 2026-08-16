@@ -450,12 +450,15 @@ func (ue *UeContext) deriveNextNHLocked() ([32]uint8, uint8, error) {
 
 func (ue *UeContext) ClearRegistrationRequestData() {
 	conn := ue.Conn()
-	if conn == nil {
-		return
-	}
 
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
+
+	ue.arrivedFromEPSHandover = false
+
+	if conn == nil {
+		return
+	}
 
 	conn.RegistrationRequest = nil
 	conn.RegistrationRequestPlain = nil

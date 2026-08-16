@@ -51,13 +51,30 @@ type UeConn struct {
 	TauRequestPlain           []byte
 	TauAcceptPlain            []byte
 	TauReleaseOnComplete      bool
-	ArrivingFrom5GS           *interworking.ArrivingSessions
-	RemappedFrom5GS           bool
-	DeferredTAUPlain          []byte
-	nasGuard                  guard.Guard
-	nasGuardName              string
-	esmInfoGuard              guard.Guard
-	releaseGuard              guard.Guard
+	FiveGSArrival    *FiveGSArrival
+	DeferredTAUPlain []byte
+	nasGuard         guard.Guard
+	nasGuardName     string
+	esmInfoGuard     guard.Guard
+	releaseGuard     guard.Guard
+}
+
+type FiveGSArrival struct {
+	Sessions *interworking.ArrivingSessions
+
+	RemappedHeldContext bool
+}
+
+func (c *UeConn) ArrivedFrom5GS() bool {
+	return c != nil && c.FiveGSArrival != nil
+}
+
+func (a *FiveGSArrival) ArrivingSessions() *interworking.ArrivingSessions {
+	if a == nil {
+		return nil
+	}
+
+	return a.Sessions
 }
 
 // StopReleaseGuard cancels the Release-Complete supervision timer. Nil-safe.

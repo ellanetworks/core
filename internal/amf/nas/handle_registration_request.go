@@ -107,7 +107,11 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	conn.RegistrationRequestPlain = slices.Clone(plain)
 	conn.RegistrationRequestReplayRequired = arrivedPlain
 	conn.SetRegistrationType5GS(uint8(req.RegistrationType))
+
 	conn.EPSArrival = nil
+	if conn.RegistrationType5GS == fgs.RegistrationTypeMobilityUpdating && movingFromEPC(req) && ue.ArrivedFromEPSHandover() {
+		conn.EPSArrival = &amf.EPSArrival{}
+	}
 
 	regName := registrationTypeName(conn.RegistrationType5GS)
 

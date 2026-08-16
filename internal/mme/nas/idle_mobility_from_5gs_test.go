@@ -680,7 +680,7 @@ func TestAnArrivalWithNoSessionsIsStillAnArrival(t *testing.T) {
 
 	dispositionForNAS(context.Background(), m, conn, interSystemTAU(t, nil))
 
-	if conn.ArrivingFrom5GS != nil {
+	if conn.ArrivedFrom5GS() {
 		t.Error("the arriving context outlived the update")
 	}
 
