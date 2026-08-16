@@ -654,3 +654,87 @@ func TestASecondRegistrationDoesNotInheritTheMappedArrival(t *testing.T) {
 		t.Errorf("downlink NAS COUNT went from %d back to %d: the second registration restarted a context the UE is still counting on", before, got)
 	}
 }
+
+func TestSessionAdoptedFromEPSTransfersBack(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		capability *fgs.GMMCapability
+	}{
+		{"the UE has sent no 5GMM capability", nil},
+		{"the UE reports S1 mode support", &fgs.GMMCapability{S1Mode: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ue, amfInstance, _, _ := idleArrivalUE(t)
+
+			ue.ForgetGMMCapabilityForTest()
+
+			if tc.capability != nil {
+				ue.SetUECapabilities(tc.capability, nil)
+			}
+
+			ue.SetAllow4G(true)
+			ue.SetSecuredForTest(true)
+
+			recoverContextFromEPS(context.Background(), amfInstance, ue, nativeIdleArrivalRequest(), true)
+
+			if !ue.Conn().ArrivedFromEPS() {
+				t.Fatal("the arrival recovered no EPS context")
+			}
+
+			if !adoptArrivingSessions(context.Background(), amfInstance, ue, ue.Conn()) {
+				t.Fatal("the arriving PDN connections were not adopted")
+			}
+
+			sessions := ue.AllTransferableEPSSessions()
+			if len(sessions) != 1 {
+				t.Fatalf("transferable sessions = %d, want the 1 just adopted: the AMF strands the session it took from the MME", len(sessions))
+			}
+
+			if sessions[0].PDUSessionID != 3 || sessions[0].EPSBearerIdentity != 6 {
+				t.Errorf("transferable session = %+v, want PDU session 3 as the EBI 6 the MME assigned", sessions[0])
+			}
+		})
+	}
+}
+
+// TS 24.501 §4.4.6
+func TestBothArrivalPathsAttestS1Mode(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		resumeNative      bool
+		integrityVerified bool
+	}{
+		{"resumed native security context", true, true},
+		{"mapped EPS security context", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ue, amfInstance, _, _ := idleArrivalUE(t)
+
+			ue.ForgetGMMCapabilityForTest()
+			ue.SetSecuredForTest(true)
+
+			req := nativeIdleArrivalRequest()
+			if !tc.resumeNative {
+				req = idleArrivalRequest()
+			}
+
+			recoverContextFromEPS(context.Background(), amfInstance, ue, req, tc.integrityVerified)
+
+			if ue.Conn().ArrivalNeedsSecurityModeControl() == tc.resumeNative {
+				t.Fatalf("the arrival did not take the %s path", tc.name)
+			}
+
+			if !ue.SupportsS1Mode() {
+				t.Error("a UE whose EPS context the MME just handed over is not credited with S1 mode support")
+			}
+
+			// Mapping the EPS context installs the algorithms it was built from;
+			// resuming a native one leaves the AMF to offer them, which it only
+			// does for a UE it believes supports S1 mode.
+			if got := ue.NeedsEPSNASAlgorithms(); got != tc.resumeNative {
+				t.Errorf("NeedsEPSNASAlgorithms = %v, want %v: the UE cannot derive a mapped EPS security context to return on",
+					got, tc.resumeNative)
+			}
+		})
+	}
+}

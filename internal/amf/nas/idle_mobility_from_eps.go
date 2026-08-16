@@ -41,6 +41,11 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
+	// The MME held a registered, secured context for this UE and verified the
+	// enclosed TAU: whichever security context the arrival then resumes, the UE
+	// has demonstrated S1 mode support.
+	ue.AttestS1Mode()
+
 	if integrityVerified && ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
 		err := ue.CitesCurrentNgKSI(req.NgKSI)
 		if err == nil {

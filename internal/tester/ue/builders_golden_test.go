@@ -70,21 +70,23 @@ func goldenBuilders(t *testing.T) map[string][]byte {
 	}
 
 	regContainer, err := BuildRegistrationRequest(&RegistrationRequestOpts{
-		RegistrationType:  uint8(fgs.RegistrationTypeInitial),
-		IncludeCapability: true,
-		UESecurity:        sec,
-		PDUSessionStatus:  pduStatus,
-		UplinkDataStatus:  pduStatus,
+		RegistrationType:           uint8(fgs.RegistrationTypeInitial),
+		IncludeCapability:          true,
+		UESecurity:                 sec,
+		PDUSessionStatus:           pduStatus,
+		UplinkDataStatus:           pduStatus,
+		ProtectAsInitialNASMessage: true,
 	})
 	if err != nil {
 		t.Fatalf("BuildRegistrationRequest (container): %v", err)
 	}
 
 	regContainerStatusOnly, err := BuildRegistrationRequest(&RegistrationRequestOpts{
-		RegistrationType:  uint8(fgs.RegistrationTypeInitial),
-		IncludeCapability: true,
-		UESecurity:        sec,
-		PDUSessionStatus:  pduStatus,
+		RegistrationType:           uint8(fgs.RegistrationTypeInitial),
+		IncludeCapability:          true,
+		UESecurity:                 sec,
+		PDUSessionStatus:           pduStatus,
+		ProtectAsInitialNASMessage: true,
 	})
 	if err != nil {
 		t.Fatalf("BuildRegistrationRequest (container, status only): %v", err)
@@ -151,8 +153,11 @@ var builderGolden = map[string]string{
 	"identity_response":                  "7e005c000d0100f110000000000000000010",
 	"deregistration_request":             "7e004519000bf200f11001020304050607",
 	"registration_request":               "7e004119000bf200f1100102030405060710012f2e02e0e0",
-	"registration_container":             "7e004119000bf200f1100102030405060710012f2e02e0e07100207e004119000bf200f1100102030405060710012f2e02e0e04002050050020500",
-	"registration_container_status_only": "7e004119000bf200f1100102030405060710012f2e02e0e071001c7e004119000bf200f1100102030405060710012f2e02e0e050020500",
+	// The outer message carries only cleartext IEs (TS 24.501 §4.4.6): the UE
+	// security capability 2e02e0e0 stays, the 5GMM capability 10012f moves into
+	// the container 7100.. with the rest of the complete message.
+	"registration_container":             "7e004119000bf200f110010203040506072e02e0e07100207e004119000bf200f1100102030405060710012f2e02e0e04002050050020500",
+	"registration_container_status_only": "7e004119000bf200f110010203040506072e02e0e071001c7e004119000bf200f1100102030405060710012f2e02e0e050020500",
 	"service_request":                    "7e004c110007f440830a0b0c0d40020500500205007100157e004c110007f440830a0b0c0d4002050050020500",
 	"security_mode_complete":             "7e005e7700091532547698103254f67100187e004119000bf200f1100102030405060710012f2e02e0e0",
 	"ul_nas_transport":                   "7e00670100062e0101c1ffff120181220401010203250908696e7465726e6574",

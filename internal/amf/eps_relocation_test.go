@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -59,13 +60,89 @@ func TestTransferableEPSSessions(t *testing.T) {
 	}
 }
 
-// TS 24.501 §6.1.4.1
-func TestTransferableEPSSessionsSkipsAUEThatCannotMoveToEPS(t *testing.T) {
-	ue := relocatableUE(t)
-	ue.SetAllow4G(false)
+// TS 23.502 §4.11.1.4.1: the EPS bearer identity is what makes a PDU session an
+// EPS interworking session, so a session that holds one stays transferable. The
+// AMF must not re-derive interworking support at mobility time from state that
+// can legitimately be absent — a UE arriving from EPS on a resumed native security
+// context has sent no 5GMM capability (TS 24.501 §4.4.6) — or it hands EPS zero
+// sessions and strands the very PDN connection it just adopted.
+func TestTransferableEPSSessionsKeepsASessionThatHoldsABearerIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		blur func(ue *amf.UeContext)
+	}{
+		{"the AMF holds no 5GMM capability", func(ue *amf.UeContext) { ue.ForgetGMMCapabilityForTest() }},
+		{"the UE reports no S1 mode support", func(ue *amf.UeContext) {
+			ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: false}, nil)
+		}},
+		{"the subscriber is barred from 4G", func(ue *amf.UeContext) { ue.SetAllow4G(false) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ue := relocatableUE(t)
+			tc.blur(ue)
 
-	if got := ue.TransferableEPSSessions([]uint8{1}); len(got) != 0 {
-		t.Fatalf("got %d transferable sessions for a UE barred from 4G, want none", len(got))
+			got := ue.TransferableEPSSessions([]uint8{1})
+			if len(got) != 1 || got[0].EPSBearerIdentity != 5 {
+				t.Fatalf("transferable sessions = %+v, want the session holding EBI 5", got)
+			}
+
+			if all := ue.AllTransferableEPSSessions(); len(all) != 1 {
+				t.Fatalf("got %d transferable sessions, want the same one", len(all))
+			}
+		})
+	}
+}
+
+// TS 23.502 §4.11.5.3 step 3: the decision belongs at EBI assignment instead.
+func TestEPSInterworkingAllowedGatesBearerIdentityAssignment(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		blur func(ue *amf.UeContext)
+	}{
+		{"the AMF holds no 5GMM capability", func(ue *amf.UeContext) { ue.ForgetGMMCapabilityForTest() }},
+		{"the UE reports no S1 mode support", func(ue *amf.UeContext) {
+			ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: false}, nil)
+		}},
+		{"the subscriber is barred from 4G", func(ue *amf.UeContext) { ue.SetAllow4G(false) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ue := relocatableUE(t)
+
+			if !ue.EPSInterworkingAllowed() {
+				t.Fatal("a UE that reports S1 mode and is allowed 4G may not open an interworking session")
+			}
+
+			tc.blur(ue)
+
+			if ue.EPSInterworkingAllowed() {
+				t.Fatal("a new PDU session would be given a mapped EPS bearer context anyway")
+			}
+		})
+	}
+}
+
+// TS 24.501 §4.4.6, TS 23.502 §4.11.5.3: an arrival from EPS is evidence of S1
+// mode support in its own right, for the window before the UE re-sends the
+// non-cleartext 5GMM capability that carries the bit.
+func TestArrivalFromEPSAttestsS1Mode(t *testing.T) {
+	ue := relocatableUE(t)
+	ue.ForgetGMMCapabilityForTest()
+
+	if ue.SupportsS1Mode() {
+		t.Fatal("S1 mode support is claimed with nothing to claim it from")
+	}
+
+	ue.AttestS1Mode()
+
+	if !ue.SupportsS1Mode() {
+		t.Fatal("a UE whose EPS context the MME just handed over does not support S1 mode")
+	}
+
+	// The UE's own word still wins where it has given one.
+	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: false}, nil)
+
+	if ue.SupportsS1Mode() {
+		t.Fatal("the attestation outranks the 5GMM capability the UE actually sent")
 	}
 }
 
@@ -113,12 +190,6 @@ func TestAllTransferableEPSSessionsAppliesTheSameFilters(t *testing.T) {
 
 	if got := ue.AllTransferableEPSSessions(); len(got) != 1 || got[0].PDUSessionID != 1 {
 		t.Fatalf("transferable sessions = %+v, want PDU session 1 alone", got)
-	}
-
-	ue.SetAllow4G(false)
-
-	if got := ue.AllTransferableEPSSessions(); len(got) != 0 {
-		t.Fatalf("got %d transferable sessions for a UE barred from 4G, want none", len(got))
 	}
 }
 

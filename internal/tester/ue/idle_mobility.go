@@ -90,9 +90,13 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 	}
 
 	if native != nil {
+		// TS 24.501 §5.5.1.3.2: the UE holds a valid native 5G NAS security
+		// context, so it protects the arrival with it and puts the non-cleartext
+		// IEs — 5GMM capability among them — in the ciphered container.
 		cleartext.PDUSessionStatus = opts.PDUSessionStatus
 		cleartext.UplinkDataStatus = opts.UplinkDataStatus
 		cleartext.IncludeCapability = true
+		cleartext.ProtectAsInitialNASMessage = true
 	} else {
 		ue.UeSecurity.Guti = &opts.MappedGUTI
 		ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(opts.Mapped.EKSI), Tsc: models.ScTypeMapped}
