@@ -29,22 +29,6 @@ func (ue *UeContext) AllTransferableEPSSessions() []interworking.PDNConnection {
 	return ue.transferableEPSSessions(func(uint8) bool { return true })
 }
 
-// transferableEPSSessions returns the sessions that carry a mapped EPS bearer
-// context, which is what makes a PDU session movable to EPS.
-//
-// The EPS bearer identity is the interworking state: TS 23.501 §5.17.2.1 and
-// TS 23.502 §4.11.1.4.1 make EBI allocation the procedure by which a PDU session
-// becomes one that supports EPS interworking with N26, and TS 23.502 §4.11.5.3
-// step 3 places the decision — 5GMM capability, subscription, configuration — at
-// the moment the EBI is assigned (see assignEPSBearerIdentity). Re-deriving it
-// here would ask the same question against state that can legitimately be absent:
-// the 5GMM capability is a non-cleartext IE (TS 24.501 §4.4.6), so a UE arriving
-// from EPS on a resumed native security context reaches the AMF before it has
-// re-sent one. Sessions adopted from EPS carry the EBI the MME assigned, and are
-// interworking sessions by construction.
-//
-// Admission remains with the receiving system: the MME re-checks the subscriber's
-// 4G entitlement per arriving session (AdoptIdlePDNs), as the AMF does for 5G.
 func (ue *UeContext) transferableEPSSessions(include func(pduSessionID uint8) bool) []interworking.PDNConnection {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

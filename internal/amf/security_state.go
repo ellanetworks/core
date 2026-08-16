@@ -169,13 +169,6 @@ func NextNgKsi(current int32) int32 {
 	return 0
 }
 
-// AttestS1Mode records that the UE demonstrated S1 mode support by arriving from
-// EPS: this core fetched an EPS context for it from the MME, which verified the
-// enclosed TRACKING AREA UPDATE REQUEST first. The 5GMM capability carrying the
-// S1 mode bit is a non-cleartext IE (TS 24.501 §4.4.6), so an inter-system change
-// can reach the AMF before the UE has (re-)sent it — on a resumed native security
-// context the UE need not send one at all. The UE's own word still wins where it
-// has given one; this only fills the gap where it has not.
 func (ue *UeContext) AttestS1Mode() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

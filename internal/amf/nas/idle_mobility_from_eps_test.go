@@ -728,9 +728,6 @@ func TestBothArrivalPathsAttestS1Mode(t *testing.T) {
 				t.Error("a UE whose EPS context the MME just handed over is not credited with S1 mode support")
 			}
 
-			// Mapping the EPS context installs the algorithms it was built from;
-			// resuming a native one leaves the AMF to offer them, which it only
-			// does for a UE it believes supports S1 mode.
 			if got := ue.NeedsEPSNASAlgorithms(); got != tc.resumeNative {
 				t.Errorf("NeedsEPSNASAlgorithms = %v, want %v: the UE cannot derive a mapped EPS security context to return on",
 					got, tc.resumeNative)

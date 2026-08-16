@@ -60,12 +60,7 @@ func TestTransferableEPSSessions(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.11.1.4.1: the EPS bearer identity is what makes a PDU session an
-// EPS interworking session, so a session that holds one stays transferable. The
-// AMF must not re-derive interworking support at mobility time from state that
-// can legitimately be absent — a UE arriving from EPS on a resumed native security
-// context has sent no 5GMM capability (TS 24.501 §4.4.6) — or it hands EPS zero
-// sessions and strands the very PDN connection it just adopted.
+// TS 23.502 §4.11.1.4.1
 func TestTransferableEPSSessionsKeepsASessionThatHoldsABearerIdentity(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -93,7 +88,7 @@ func TestTransferableEPSSessionsKeepsASessionThatHoldsABearerIdentity(t *testing
 	}
 }
 
-// TS 23.502 §4.11.5.3 step 3: the decision belongs at EBI assignment instead.
+// TS 23.502 §4.11.5.3
 func TestEPSInterworkingAllowedGatesBearerIdentityAssignment(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -121,9 +116,7 @@ func TestEPSInterworkingAllowedGatesBearerIdentityAssignment(t *testing.T) {
 	}
 }
 
-// TS 24.501 §4.4.6, TS 23.502 §4.11.5.3: an arrival from EPS is evidence of S1
-// mode support in its own right, for the window before the UE re-sends the
-// non-cleartext 5GMM capability that carries the bit.
+// TS 24.501 §4.4.6
 func TestArrivalFromEPSAttestsS1Mode(t *testing.T) {
 	ue := relocatableUE(t)
 	ue.ForgetGMMCapabilityForTest()
@@ -138,7 +131,6 @@ func TestArrivalFromEPSAttestsS1Mode(t *testing.T) {
 		t.Fatal("a UE whose EPS context the MME just handed over does not support S1 mode")
 	}
 
-	// The UE's own word still wins where it has given one.
 	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: false}, nil)
 
 	if ue.SupportsS1Mode() {

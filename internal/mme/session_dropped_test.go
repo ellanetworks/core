@@ -40,11 +40,6 @@ func TestSessionDropped(t *testing.T) {
 		}
 	})
 
-	// TS 23.502 §4.11.1.3.3 step 8, TS 23.401 §5.3.3.1: the context belongs to the
-	// inter-system change until it is acknowledged. Releasing it when the last PDN
-	// connection moves would destroy it before the Context Acknowledge could reach
-	// it, so the MME could neither release what 5GS declined to adopt nor continue
-	// as if the Context Request had never been received.
 	t.Run("the last PDN: the context waits for the acknowledgement", func(t *testing.T) {
 		m := newTestMME(t)
 		ue, _ := securedUE(t, m)
@@ -121,9 +116,7 @@ func TestReleasePDNKeepsAUEWithAnotherConnection(t *testing.T) {
 	}
 }
 
-// TS 23.502 §4.11.1.3.3 step 8: the Context Acknowledge completes the idle-mode
-// change and owns the teardown, so the context of a UE that has left E-UTRAN is
-// released — and its M-TMSI freed — when the acknowledgement arrives, not before.
+// TS 23.502 §4.11.1.3.3
 func TestMMContextAckReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
@@ -151,9 +144,7 @@ func TestMMContextAckReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 	}
 }
 
-// The acknowledgement releases what 5GS did not adopt (TS 23.502 §4.11.1.3.3
-// step 8). Before the context lifetime moved here, a single-PDN change tore the
-// context down as the session moved, so this arm of the procedure was unreachable.
+// TS 23.502 §4.11.1.3.3
 func TestMMContextAckReleasesPDNsFiveGSDidNotAdopt(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)

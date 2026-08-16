@@ -13,24 +13,17 @@ import (
 )
 
 type RegistrationRequestOpts struct {
-	RegistrationType       uint8
-	RequestedNSSAI         fgs.NSSAI
-	IncludeCapability      bool
-	UESecurity             *UESecurity
-	PDUSessionStatus       *[16]bool
-	UplinkDataStatus       *[16]bool
-	S1UENetworkCapability  []byte
-	UEStatus               *fgs.UEStatus
-	EPSNASMessageContainer []byte
-	AdditionalGUTI         *fgs.MobileIdentity
-	MobileIdentity         *fgs.MobileIdentity
-
-	// ProtectAsInitialNASMessage sends the message the way a UE with a valid 5G
-	// NAS security context sends an initial NAS message: cleartext IEs on the
-	// wire, everything else in a ciphered NAS message container (TS 24.501
-	// §4.4.6 b). Leave it clear to build the complete message, which is what
-	// goes in the container of SECURITY MODE COMPLETE, and what a UE with no
-	// security context to protect with sends as-is.
+	RegistrationType           uint8
+	RequestedNSSAI             fgs.NSSAI
+	IncludeCapability          bool
+	UESecurity                 *UESecurity
+	PDUSessionStatus           *[16]bool
+	UplinkDataStatus           *[16]bool
+	S1UENetworkCapability      []byte
+	UEStatus                   *fgs.UEStatus
+	EPSNASMessageContainer     []byte
+	AdditionalGUTI             *fgs.MobileIdentity
+	MobileIdentity             *fgs.MobileIdentity
 	ProtectAsInitialNASMessage bool
 }
 
@@ -51,8 +44,6 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 	return protectInitialRegistrationRequest(m, opts.UESecurity)
 }
 
-// registrationRequestMessage builds the complete REGISTRATION REQUEST: every IE
-// the options ask for, cleartext and non-cleartext alike.
 func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.RegistrationRequest, error) {
 	mobileIdentity := opts.UESecurity.Suci
 	if opts.UESecurity.Guti != nil {
@@ -109,15 +100,6 @@ func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.Registratio
 	return m, nil
 }
 
-// protectInitialRegistrationRequest splits the complete message the way TS 24.501
-// §4.4.6 b)1) requires of a UE that holds a valid 5G NAS security context: the
-// cleartext IEs travel in the clear, and the entire message travels beside them in
-// a NAS message container whose value part is ciphered.
-//
-// A real UE sends no non-cleartext IE outside the container, so neither does this
-// one. Leaving a copy in the clear would let the AMF read the 5GMM capability, the
-// PDU session status and the rest without ever decrypting the container, and a core
-// that only ever worked because of that would fail against real handsets.
 func protectInitialRegistrationRequest(complete *fgs.RegistrationRequest, sec *UESecurity) ([]byte, error) {
 	inner, err := complete.MarshalBinary()
 	if err != nil {
@@ -140,9 +122,6 @@ func protectInitialRegistrationRequest(complete *fgs.RegistrationRequest, sec *U
 	return outer.MarshalBinary()
 }
 
-// cleartextRegistrationIEs returns the IEs TS 24.501 §4.4.6 lists as the cleartext
-// IEs of a REGISTRATION REQUEST. The registration type, ngKSI and mobile identity
-// are part of the message rather than optional IEs, so they are always carried.
 func cleartextRegistrationIEs(m *fgs.RegistrationRequest) *fgs.RegistrationRequest {
 	return &fgs.RegistrationRequest{
 		RegistrationType:       m.RegistrationType,

@@ -121,17 +121,6 @@ func (m *MME) DeactivateAllSessions(ctx context.Context, ue *UeContext) {
 	}
 }
 
-// SessionDropped reports that a PDN connection's anchor session has moved to 5GS.
-// It drops the EPS routing context and nothing else: the UE context belongs to the
-// inter-system change procedure that moved the session, and is torn down when that
-// procedure completes — MMContextAck for an idle-mode change (TS 23.502
-// §4.11.1.3.3 step 8), RelocationComplete for a handover.
-//
-// Releasing it here instead would destroy the context before the acknowledgement
-// could reach it, so the MME could neither release PDN connections 5GS declined to
-// adopt nor "continue as if the Context Request was never received" on a failed
-// relocation (TS 23.401 §5.3.3.1). The AMF's mirror of this — AMF.SessionDropped —
-// is likewise routing-only, with EPSContextAck owning the teardown.
 func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref string) {
 	ue, ok := m.LookupUeByIMSI(imsi)
 	if !ok {
@@ -152,11 +141,6 @@ func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref st
 		zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.Bool("last-pdn", last))
 }
 
-// takePDNByRef detaches the PDN connection ebi names, but only while it still
-// holds the session ref the report is about, so a stale report cannot detach a
-// connection re-established since. A connection that moved to the other system was
-// not deactivated locally, so it does not raise localBearerDeactivation: nothing
-// has to be reported to the UE in a bearer context status (TS 24.301 §9.9.2.1).
 func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

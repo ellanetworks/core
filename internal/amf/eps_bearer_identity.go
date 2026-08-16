@@ -19,11 +19,6 @@ func (ue *UeContext) SetAllow4G(v bool) {
 	ue.allow4G = v
 }
 
-// EPSInterworkingAllowed reports whether a PDU session established now may be
-// given a mapped EPS bearer context. TS 23.502 §4.11.5.3 step 3: the AMF decides
-// EPS interworking support for a PDU session from the 5GMM capability, the
-// subscription and network configuration — once, when the session is created.
-// It is not re-asked at inter-system mobility; see transferableEPSSessions.
 func (ue *UeContext) EPSInterworkingAllowed() bool {
 	if !ue.SupportsS1Mode() {
 		return false

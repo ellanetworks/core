@@ -28,10 +28,6 @@ func (amf *AMF) AddUeContextToPoolForTest(ue *UeContext) error {
 	return nil
 }
 
-// ForgetGMMCapabilityForTest drops the stored 5GMM capability, reproducing the UE
-// context of an inter-system change that reached the AMF before the UE re-sent the
-// non-cleartext IE that carries it. SetUECapabilities cannot express this: an
-// omitted element does not withdraw a stored one (TS 24.501 §5.5.1.2.4).
 func (ue *UeContext) ForgetGMMCapabilityForTest() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

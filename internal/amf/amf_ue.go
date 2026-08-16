@@ -72,9 +72,7 @@ type UeContext struct {
 
 	gmmCapability         *fgs.GMMCapability
 	s1UENetworkCapability []byte
-	// s1ModeAttested records S1 mode support demonstrated by an arrival from EPS,
-	// for the window before the UE sends a 5GMM capability of its own (AttestS1Mode).
-	s1ModeAttested bool
+	s1ModeAttested        bool
 
 	epsNASAlgorithmsOffered *interworking.EPSNASAlgorithms
 	epsNASAlgorithms        *interworking.EPSNASAlgorithms
