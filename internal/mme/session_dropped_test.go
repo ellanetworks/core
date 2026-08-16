@@ -40,10 +40,11 @@ func TestSessionDropped(t *testing.T) {
 		}
 	})
 
-	t.Run("the last PDN: the context waits for the acknowledgement", func(t *testing.T) {
+	t.Run("the last PDN of an idle-mode move: the context waits for the acknowledgement", func(t *testing.T) {
 		m := newTestMME(t)
 		ue, _ := securedUE(t, m)
 		ue.TransitionTo(EMMRegistered)
+		ue.BeginIdleMobilityTo5GS()
 
 		p := testPDN(ue)
 		p.SessionRef = "imsi-001010000000001-3#1"
@@ -60,6 +61,21 @@ func TestSessionDropped(t *testing.T) {
 
 		if _, ok := m.LookupUeBySupi(ue.Supi()); !ok {
 			t.Fatal("the context is unreachable by SUPI, so MMContextAck cannot find it")
+		}
+	})
+
+	t.Run("the last PDN outside an inter-system move: the context goes with it", func(t *testing.T) {
+		m := newTestMME(t)
+		ue, _ := securedUE(t, m)
+		ue.TransitionTo(EMMRegistered)
+
+		p := testPDN(ue)
+		p.SessionRef = "imsi-001010000000001-3#1"
+
+		m.SessionDropped(context.Background(), ue.IMSI(), DefaultERABID, p.SessionRef)
+
+		if ue.EMMState() != EMMDeregistered {
+			t.Error("an attached UE was left with no PDN connection, which it cannot be served in, and no acknowledgement is coming")
 		}
 	})
 
@@ -121,6 +137,7 @@ func TestMMContextAckReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 	ue.TransitionTo(EMMRegistered)
+	ue.BeginIdleMobilityTo5GS()
 
 	p := testPDN(ue)
 	p.SessionRef = "imsi-001010000000001-3#1"

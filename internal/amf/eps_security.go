@@ -18,6 +18,7 @@ var (
 	ErrNoEPSSecurityCapability = errors.New("amf: UE has no EPS security capability")
 	ErrNo5GSecurityContext     = errors.New("amf: UE has no current 5G NAS security context")
 	ErrNoTransferableSessions  = errors.New("amf: UE has no PDU session that can transfer to EPS")
+	ErrEPSMobilityBarred       = errors.New("amf: the subscriber may not be moved to EPS")
 )
 
 func (ue *UeContext) EPSNetworkCapability() (eps.UENetworkCapability, bool) {

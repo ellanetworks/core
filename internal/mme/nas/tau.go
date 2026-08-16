@@ -41,18 +41,23 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	if allowed, err := mme.AllowedOn4G(ctx, m, ue.IMSI()); err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber profile for Tracking Area Update",
+	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access for Tracking Area Update",
 			zap.String("imsi", ue.IMSI()), zap.Error(err))
 
 		return nasreply.Handled()
-	} else if !allowed {
+	}
+
+	if !access.Allow4G {
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.IMSI()))
 		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
 
 		return nasreply.Handled()
 	}
+
+	ue.SetAccess(access)
 
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
 		ueNetCap := ue.UeNetCap()

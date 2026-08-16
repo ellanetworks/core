@@ -93,7 +93,7 @@ func (ue *UE) SendIdleMobilityRegistration(opts IdleRegistrationOpts) error {
 		cleartext.PDUSessionStatus = opts.PDUSessionStatus
 		cleartext.UplinkDataStatus = opts.UplinkDataStatus
 		cleartext.IncludeCapability = true
-		cleartext.ProtectAsInitialNASMessage = true
+		cleartext.InitialNASMessage = true
 	} else {
 		ue.UeSecurity.Guti = &opts.MappedGUTI
 		ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(opts.Mapped.EKSI), Tsc: models.ScTypeMapped}

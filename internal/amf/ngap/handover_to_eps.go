@@ -54,7 +54,7 @@ func handoverRequiredToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	prep, err := amfInstance.PrepareHandoverToEPS(amfUe, sourceUe, target, msg.SourceToTargetTransparentContainer, requested, msg.Cause)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [handover to EPS could not be prepared]", zap.Error(err))
-		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
+		sourceUe.SendHandoverPreparationFailure(ctx, preparationFailureCause(err), nil, nil)
 
 		return
 	}
@@ -112,6 +112,17 @@ func completeHandoverToEPS(ctx context.Context, amfInstance *amf.AMF, sourceUe *
 	)
 
 	amfInstance.SuperviseHandoverToEPS(amfUe, prep.Request.ID)
+}
+
+func preparationFailureCause(err error) ngap.Cause {
+	switch {
+	case errors.Is(err, amf.ErrEPSMobilityBarred), errors.Is(err, amf.ErrNoTransferableSessions):
+		return causeHOTargetNotAllowed
+	case errors.Is(err, amf.ErrRelocationRefused):
+		return causeHandoverPrepUnspecific
+	default:
+		return causeHOFailureInTarget
+	}
 }
 
 func handoverToEPSFailureCause(err error) ngap.Cause {

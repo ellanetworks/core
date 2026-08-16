@@ -49,17 +49,22 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
-	if allowed, err := mme.AllowedOn4G(ctx, m, ue.IMSI()); err != nil {
-		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber profile", zap.String("imsi", ue.IMSI()), zap.Error(err))
+	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access", zap.String("imsi", ue.IMSI()), zap.Error(err))
 
 		return
-	} else if !allowed {
+	}
+
+	if !access.Allow4G {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.IMSI()))
 		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
 
 		return
 	}
+
+	ue.SetAccess(access)
 
 	qos, err := mme.ResolveAttachQoS(ctx, m, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {

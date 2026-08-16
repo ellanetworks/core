@@ -22,6 +22,7 @@ var (
 	ErrRelocationToFiveGSBusy  = errors.New("mme: another procedure holds the UE's key chain")
 	ErrNoTransferablePDNs      = errors.New("mme: UE has no PDN connection that can transfer to 5GS")
 	ErrNoUEIdentityForRelocate = errors.New("mme: the UE has no IMSI to hand over under")
+	ErrFiveGSMobilityBarred    = errors.New("mme: the subscriber may not be moved to 5GS")
 )
 
 func (m *MME) PrepareHandoverToFiveGS(ue *UeContext, source *UeConn, target interworking.NGRANIdentity, sourceToTarget []byte, cause *s1ap.Cause) (*interworking.FiveGSRelocationRequest, error) {
@@ -36,6 +37,10 @@ func (m *MME) PrepareHandoverToFiveGS(ue *UeContext, source *UeConn, target inte
 	supi := ue.Supi()
 	if supi.IMSI() == "" {
 		return nil, ErrNoUEIdentityForRelocate
+	}
+
+	if !ue.FiveGSInterworkingAllowed() {
+		return nil, ErrFiveGSMobilityBarred
 	}
 
 	connections, candidates := TransferablePDNConnections(ue)

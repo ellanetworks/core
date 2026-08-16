@@ -13,35 +13,65 @@ import (
 )
 
 type RegistrationRequestOpts struct {
-	RegistrationType           uint8
-	RequestedNSSAI             fgs.NSSAI
-	IncludeCapability          bool
-	UESecurity                 *UESecurity
-	PDUSessionStatus           *[16]bool
-	UplinkDataStatus           *[16]bool
-	S1UENetworkCapability      []byte
-	UEStatus                   *fgs.UEStatus
-	EPSNASMessageContainer     []byte
-	AdditionalGUTI             *fgs.MobileIdentity
-	MobileIdentity             *fgs.MobileIdentity
-	ProtectAsInitialNASMessage bool
+	RegistrationType       uint8
+	RequestedNSSAI         fgs.NSSAI
+	IncludeCapability      bool
+	UESecurity             *UESecurity
+	PDUSessionStatus       *[16]bool
+	UplinkDataStatus       *[16]bool
+	S1UENetworkCapability  []byte
+	UEStatus               *fgs.UEStatus
+	EPSNASMessageContainer []byte
+	AdditionalGUTI         *fgs.MobileIdentity
+	MobileIdentity         *fgs.MobileIdentity
+	InitialNASMessage      bool
 }
 
 func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
+	wire, _, err := buildRegistrationRequest(opts)
+
+	return wire, err
+}
+
+// buildRegistrationRequest returns the octets to put on the wire and the
+// complete message they were built from, which is what the UE replays in the NAS
+// message container of SECURITY MODE COMPLETE (TS 24.501 §4.4.6 a).
+func buildRegistrationRequest(opts *RegistrationRequestOpts) (wire, complete []byte, err error) {
 	if opts == nil {
-		return nil, fmt.Errorf("RegistrationRequestOpts is nil")
+		return nil, nil, fmt.Errorf("RegistrationRequestOpts is nil")
 	}
 
 	m, err := registrationRequestMessage(opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if !opts.ProtectAsInitialNASMessage {
-		return m.MarshalBinary()
+	complete, err = m.MarshalBinary()
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return protectInitialRegistrationRequest(m, opts.UESecurity)
+	if !opts.InitialNASMessage || !hasNonCleartextIEs(m) {
+		return complete, complete, nil
+	}
+
+	if opts.UESecurity.NgKsi.Ksi == ngKSINoKey {
+		wire, err = cleartextRegistrationIEs(m).MarshalBinary()
+
+		return wire, complete, err
+	}
+
+	wire, err = protectInitialRegistrationRequest(m, opts.UESecurity)
+
+	return wire, complete, err
+}
+
+func hasNonCleartextIEs(m *fgs.RegistrationRequest) bool {
+	return m.GMMCapability != nil ||
+		m.S1UENetworkCapability != nil ||
+		m.RequestedNSSAI != nil ||
+		m.PDUSessionStatus != nil ||
+		m.UplinkDataStatus != nil
 }
 
 func registrationRequestMessage(opts *RegistrationRequestOpts) (*fgs.RegistrationRequest, error) {

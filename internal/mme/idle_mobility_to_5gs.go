@@ -46,6 +46,11 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 			interworking.ErrUnknownUEContext, req.MappedEPSGUTI.TMSI)
 	}
 
+	if !ue.FiveGSInterworkingAllowed() {
+		return none, fmt.Errorf("%w: 5GC is restricted for the subscriber of M-TMSI %x",
+			interworking.ErrUnknownUEContext, req.MappedEPSGUTI.TMSI)
+	}
+
 	plain, count, err := ue.TryUnprotectUplink(req.EPSNAS)
 	if err != nil {
 		return none, fmt.Errorf("%w: %w", interworking.ErrIntegrityCheckFailed, err)
@@ -66,6 +71,8 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 
 	ambrUL, ambrDL := ue.AmbrRates()
 
+	ue.BeginIdleMobilityTo5GS()
+
 	logger.From(ctx, logger.MmeLog).Info("handing the UE's EPS context to 5GS for an idle-mode change",
 		zap.String("imsi", ue.IMSI()), zap.Int("pdn-connections", len(connections)))
 
@@ -84,6 +91,8 @@ func (m *MME) MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []ui
 	if !ok {
 		return fmt.Errorf("%w: %s", interworking.ErrUnknownUEContext, supi)
 	}
+
+	ue.EndIdleMobilityTo5GS()
 
 	for _, p := range m.SnapshotPDNs(ue) {
 		if slices.Contains(transferred, p.PDUSessionID) {

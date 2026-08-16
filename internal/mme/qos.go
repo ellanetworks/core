@@ -34,20 +34,6 @@ type EpsQoS struct {
 	Snssai     *models.Snssai
 }
 
-func AllowedOn4G(ctx context.Context, m *MME, imsi string) (bool, error) {
-	sub, err := m.Bearer.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return false, fmt.Errorf("get subscriber: %w", err)
-	}
-
-	profile, err := m.Bearer.GetProfileByID(ctx, sub.ProfileID)
-	if err != nil {
-		return false, fmt.Errorf("get profile: %w", err)
-	}
-
-	return profile.Allow4G, nil
-}
-
 // ResolveQoS maps the subscriber's profile → policy → data network to the EPS
 // default-bearer QoS. With no S-NSSAI in 4G, the profile's first policy is the
 // default bearer.

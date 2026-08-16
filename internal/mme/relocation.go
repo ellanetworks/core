@@ -58,12 +58,12 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 			req.Target.SelectedEPSTAI.PlmnID, req.Target.SelectedEPSTAI.TAC)
 	}
 
-	allowed, err := AllowedOn4G(ctx, m, req.SUPI.IMSI())
+	access, err := ResolveAccess(ctx, m, req.SUPI.IMSI())
 	if err != nil {
-		return none, fmt.Errorf("mme: resolve the subscriber profile: %w", err)
+		return none, fmt.Errorf("mme: resolve the subscriber's access: %w", err)
 	}
 
-	if !allowed {
+	if !access.Allow4G {
 		return none, interworking.TargetRefusal{Cause: s1ap.Cause{
 			Group: s1ap.CauseGroupRadioNetwork,
 			Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
@@ -72,6 +72,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
+	ue.SetAccess(access)
 
 	if err := ue.InstallRelocatedSecurityContext(req.SecurityContext, MintAuthProofForInterworking()); err != nil {
 		return none, err

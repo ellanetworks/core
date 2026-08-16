@@ -70,23 +70,23 @@ func goldenBuilders(t *testing.T) map[string][]byte {
 	}
 
 	regContainer, err := BuildRegistrationRequest(&RegistrationRequestOpts{
-		RegistrationType:           uint8(fgs.RegistrationTypeInitial),
-		IncludeCapability:          true,
-		UESecurity:                 sec,
-		PDUSessionStatus:           pduStatus,
-		UplinkDataStatus:           pduStatus,
-		ProtectAsInitialNASMessage: true,
+		RegistrationType:  uint8(fgs.RegistrationTypeInitial),
+		IncludeCapability: true,
+		UESecurity:        sec,
+		PDUSessionStatus:  pduStatus,
+		UplinkDataStatus:  pduStatus,
+		InitialNASMessage: true,
 	})
 	if err != nil {
 		t.Fatalf("BuildRegistrationRequest (container): %v", err)
 	}
 
 	regContainerStatusOnly, err := BuildRegistrationRequest(&RegistrationRequestOpts{
-		RegistrationType:           uint8(fgs.RegistrationTypeInitial),
-		IncludeCapability:          true,
-		UESecurity:                 sec,
-		PDUSessionStatus:           pduStatus,
-		ProtectAsInitialNASMessage: true,
+		RegistrationType:  uint8(fgs.RegistrationTypeInitial),
+		IncludeCapability: true,
+		UESecurity:        sec,
+		PDUSessionStatus:  pduStatus,
+		InitialNASMessage: true,
 	})
 	if err != nil {
 		t.Fatalf("BuildRegistrationRequest (container, status only): %v", err)
