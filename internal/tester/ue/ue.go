@@ -102,6 +102,7 @@ type UE struct {
 	receivedRRCRelease     bool
 	lppRequests            []*LPPRequest // queue of received LPP requests
 	lppCapsSent            bool          // true after first ProvideLocationCapabilities
+	skipNextAutoPDUSession bool
 }
 
 func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
@@ -704,6 +705,52 @@ func (ue *UE) WaitForRRCRelease(timeout time.Duration) error {
 }
 
 func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
+	return ue.sendRegistrationRequest(ranUENGAPID, regType, nil)
+}
+
+func (ue *UE) SendMobilityRegistrationRequest(ranUENGAPID int64, reactivate []uint8) error {
+	var uplinkDataStatus [16]bool
+
+	for _, pduSessionID := range reactivate {
+		if int(pduSessionID) >= len(uplinkDataStatus) {
+			return fmt.Errorf("PDU session ID %d is out of range", pduSessionID)
+		}
+
+		uplinkDataStatus[pduSessionID] = true
+	}
+
+	ue.setSkipNextAutoPDUSession(true)
+
+	if err := ue.sendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating), &uplinkDataStatus); err != nil {
+		ue.setSkipNextAutoPDUSession(false)
+
+		return err
+	}
+
+	return nil
+}
+
+func (ue *UE) setSkipNextAutoPDUSession(skip bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.skipNextAutoPDUSession = skip
+}
+
+func (ue *UE) skipAutoPDUSession() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	if ue.skipNextAutoPDUSession {
+		ue.skipNextAutoPDUSession = false
+
+		return true
+	}
+
+	return ue.NoAutoPDUSession
+}
+
+func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDataStatus *[16]bool) error {
 	if ue.Gnb == nil {
 		return fmt.Errorf("GNB is not set for UE")
 	}
@@ -711,7 +758,7 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 	nasPDU, err := BuildRegistrationRequest(&RegistrationRequestOpts{
 		RegistrationType:  regType,
 		RequestedNSSAI:    nil,
-		UplinkDataStatus:  nil,
+		UplinkDataStatus:  uplinkDataStatus,
 		IncludeCapability: false,
 		UESecurity:        ue.UeSecurity,
 	})

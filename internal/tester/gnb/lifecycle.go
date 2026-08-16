@@ -145,7 +145,7 @@ func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSess
 
 	g.AddUE(ranUENGAPID, u)
 
-	if err := u.SendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating)); err != nil {
+	if err := u.SendMobilityRegistrationRequest(ranUENGAPID, []uint8{pduSessionID}); err != nil {
 		return nil, fmt.Errorf("send Registration Request (mobility updating): %w", err)
 	}
 

@@ -49,6 +49,18 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
+	if allowed, err := mme.AllowedOn4G(ctx, m, ue.IMSI()); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber profile", zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		return
+	} else if !allowed {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
+			zap.String("imsi", ue.IMSI()))
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
+
+		return
+	}
+
 	qos, err := mme.ResolveAttachQoS(ctx, m, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
@@ -62,16 +74,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		return
-	}
-
-	// A profile that does not permit 4G (Core Network type restriction, TS 23.501)
-	// is rejected with EMM cause #7 "EPS services not allowed" (TS 24.301).
-	if !qos.Allow4G {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
-			zap.String("imsi", ue.IMSI()))
-		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
-
 		return
 	}
 

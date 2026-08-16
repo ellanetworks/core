@@ -31,8 +31,21 @@ type EpsQoS struct {
 	IPv6Pool   string
 	DNS        string // data-network DNS server, advertised to the UE via PCO
 	MTU        uint16
-	Allow4G    bool
 	Snssai     *models.Snssai
+}
+
+func AllowedOn4G(ctx context.Context, m *MME, imsi string) (bool, error) {
+	sub, err := m.Bearer.GetSubscriber(ctx, imsi)
+	if err != nil {
+		return false, fmt.Errorf("get subscriber: %w", err)
+	}
+
+	profile, err := m.Bearer.GetProfileByID(ctx, sub.ProfileID)
+	if err != nil {
+		return false, fmt.Errorf("get profile: %w", err)
+	}
+
+	return profile.Allow4G, nil
 }
 
 // ResolveQoS maps the subscriber's profile → policy → data network to the EPS
@@ -166,7 +179,6 @@ func qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork, sns
 		IPv6Pool:   dn.IPv6Pool,
 		DNS:        dn.DNS,
 		MTU:        uint16(dn.MTU),
-		Allow4G:    profile.Allow4G,
 		Snssai:     snssai,
 	}, nil
 }
