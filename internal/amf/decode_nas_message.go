@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -153,6 +154,30 @@ func (ue *UeContext) CitesCurrentSecurityContext(plain []byte) error {
 	}
 
 	return nil
+}
+
+func (ue *UeContext) CitesCurrentNgKSI(cited nas.KeySetIdentifier) error {
+	held := ue.NgKsi()
+
+	if cited.Mapped != (held.Tsc == models.ScTypeMapped) {
+		return fmt.Errorf("amf: the message cites a %s ngKSI, the UE's current 5G NAS security context is %s",
+			securityContextTypeName(cited.Mapped), held.Tsc)
+	}
+
+	if uint8(held.Ksi) != cited.Value {
+		return fmt.Errorf("amf: the message cites ngKSI %d, the UE's current 5G NAS security context is ngKSI %d",
+			cited.Value, held.Ksi)
+	}
+
+	return nil
+}
+
+func securityContextTypeName(mapped bool) models.ScType {
+	if mapped {
+		return models.ScTypeMapped
+	}
+
+	return models.ScTypeNative
 }
 
 func (ue *UeContext) VerifyEnclosedEPSNAS(payload []byte) (nas.Count, error) {

@@ -10,7 +10,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -20,16 +19,6 @@ func movingFromEPCInIdleMode(conn *amf.UeConn, req *fgs.RegistrationRequest) boo
 		conn.RegistrationType5GS == fgs.RegistrationTypeMobilityUpdating &&
 		movingFromEPC(req) &&
 		len(req.EPSNASMessageContainer) > 0
-}
-
-func citedNgKsiIdentifiesCurrentContext(ue *amf.UeContext, req *fgs.RegistrationRequest) bool {
-	held := ue.NgKsi()
-
-	if req.NgKSI.Mapped != (held.Tsc == models.ScTypeMapped) {
-		return false
-	}
-
-	return int32(req.NgKSI.Value) == held.Ksi
 }
 
 func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, integrityVerified bool) {
@@ -52,13 +41,19 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
-	if integrityVerified && ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI && citedNgKsiIdentifiesCurrentContext(ue, req) {
-		logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
-			logger.SUPI(resp.SUPI.String()))
+	if integrityVerified && ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
+		err := ue.CitesCurrentNgKSI(req.NgKSI)
+		if err == nil {
+			logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
+				logger.SUPI(resp.SUPI.String()))
 
-		conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
+			conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
-		return
+			return
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("the inter-system change cites a 5G security context the AMF does not hold; mapping the EPS context instead",
+			zap.Error(err))
 	}
 
 	if err := amfInstance.AdoptMMContext(ctx, ue, resp); err != nil {
