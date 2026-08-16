@@ -741,13 +741,24 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 		return fmt.Errorf("GNB is not set for UE")
 	}
 
+	var err error
+
+	var s1Capability []byte
+
+	if ue.UeSecurity.S1UENetworkCapability != nil {
+		if s1Capability, err = ue.UeSecurity.S1UENetworkCapability.MarshalBinary(); err != nil {
+			return fmt.Errorf("could not encode the S1 UE network capability: %w", err)
+		}
+	}
+
 	nasPDU, complete, err := buildRegistrationRequest(&RegistrationRequestOpts{
-		RegistrationType:  regType,
-		RequestedNSSAI:    nil,
-		UplinkDataStatus:  uplinkDataStatus,
-		IncludeCapability: true,
-		UESecurity:        ue.UeSecurity,
-		InitialNASMessage: true,
+		RegistrationType:      regType,
+		RequestedNSSAI:        nil,
+		UplinkDataStatus:      uplinkDataStatus,
+		IncludeCapability:     true,
+		S1UENetworkCapability: s1Capability,
+		UESecurity:            ue.UeSecurity,
+		InitialNASMessage:     true,
 	})
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
