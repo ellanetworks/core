@@ -745,7 +745,7 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 		RegistrationType:  regType,
 		RequestedNSSAI:    nil,
 		UplinkDataStatus:  uplinkDataStatus,
-		IncludeCapability: false,
+		IncludeCapability: true,
 		UESecurity:        ue.UeSecurity,
 		InitialNASMessage: true,
 	})
