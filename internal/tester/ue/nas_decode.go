@@ -63,6 +63,10 @@ func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 	return plain, nil
 }
 
+// decodeNewSecurityContext handles a SECURITY MODE COMMAND carried with a new 5G
+// NAS security context (TS 24.501 §4.4.4.3): the message is integrity-protected
+// but not ciphered, so its plaintext names the selected algorithms; the UE derives
+// the new NAS keys from them and verifies the NAS-MAC with the new context.
 func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage, held nas.Count) ([]byte, error) {
 	plain := spm.UnverifiedPayload
 

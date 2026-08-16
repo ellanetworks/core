@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	idleEKSI uint8 = 4
-	// nativeKSI is the ngKSI buildMobilityRegUeAndAMF gives its UE.
+	idleEKSI  uint8 = 4
 	nativeKSI uint8 = 1
 )
 
@@ -59,8 +58,6 @@ func idleArrivalRequest() *fgs.RegistrationRequest {
 	}
 }
 
-// nativeIdleArrivalRequest is the arrival of TS 24.501 §4.4.2.5 case a): the UE
-// cites the ngKSI of the native 5G context it kept, rather than a mapped one.
 func nativeIdleArrivalRequest() *fgs.RegistrationRequest {
 	req := idleArrivalRequest()
 	req.NgKSI = nas.KeySetIdentifier{Value: nativeKSI}
@@ -467,7 +464,7 @@ func TestIdleArrivalFromEPSAlwaysRunsTheSecurityModeProcedure(t *testing.T) {
 	}
 }
 
-// TS 24.501 §4.4.2.5 case a), §5.4.2.2
+// TS 24.501 §4.4.2.5, §5.4.2.2
 func TestIdleArrivalOnANativeContextRunsNoSecurityModeProcedure(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -481,6 +478,7 @@ func TestIdleArrivalOnANativeContextRunsNoSecurityModeProcedure(t *testing.T) {
 
 	conn := ue.Conn()
 	conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeMobilityUpdating))
+
 	req := nativeIdleArrivalRequest()
 
 	wire, err := req.MarshalBinary()
@@ -575,7 +573,7 @@ func TestAnArrivalThatMovesNothingIsStillAccepted(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.4.2.2.
+// TS 24.501 §5.4.2.2
 func TestASecondRegistrationDoesNotInheritTheMappedArrival(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
@@ -593,7 +591,6 @@ func TestASecondRegistrationDoesNotInheritTheMappedArrival(t *testing.T) {
 		t.Fatal("the arrival did not map the EPS context, so this test proves nothing")
 	}
 
-	// The UE stays connected and registers again on the same connection.
 	plain := idleArrivalRequest()
 	plain.UEStatus = nil
 	plain.EPSNASMessageContainer = nil

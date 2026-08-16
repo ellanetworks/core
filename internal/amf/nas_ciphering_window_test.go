@@ -22,17 +22,11 @@ func encodePlainSecurityModeReject(t *testing.T) []byte {
 	return payload
 }
 
-// TS 24.501 §4.4.5 starts the AMF's ciphering as described in §4.4.2.5, which
-// re-establishes the secure exchange on the AMF's ciphered reply — not on its
-// receipt of the UE's initial NAS message. Until then the UE has not started
-// ciphering either, so its answer to a security mode command it could not
-// accept arrives unciphered and the AMF has to act on it (§5.4.2.5), not
-// silently drop it and leave the UE to time out.
+// TS 24.501 §4.4.5, §4.4.2.5, §5.4.2.5
 func TestDecodeNASMessageAcceptsAnUncipheredSecurityModeRejectBeforeCipheringStarts(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)
 
-	// The initial NAS message of the connection: integrity protected, unciphered.
 	if _, err := DecodeNASMessage(ue, wrapIntegrityProtected(t, ue, encodePlainRegistrationRequest(t), 0)); err != nil {
 		t.Fatalf("initial NAS message not accepted: %v", err)
 	}
@@ -46,8 +40,7 @@ func TestDecodeNASMessageAcceptsAnUncipheredSecurityModeRejectBeforeCipheringSta
 	}
 }
 
-// The window admits the common-procedure answers and nothing else: ordinary
-// signalling that should have been ciphered is still discarded.
+// TS 24.501 §4.4.5
 func TestDecodeNASMessageDiscardsUncipheredOrdinarySignallingBeforeCipheringStarts(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)
@@ -62,8 +55,7 @@ func TestDecodeNASMessageDiscardsUncipheredOrdinarySignallingBeforeCipheringStar
 	}
 }
 
-// Once the AMF has replied ciphered the window shuts, and even a SECURITY MODE
-// REJECT has to arrive ciphered (§5.4.2.5 protects it under the rules of §4.4.5).
+// TS 24.501 §4.4.5, §5.4.2.5
 func TestDecodeNASMessageDiscardsAnUncipheredSecurityModeRejectAfterCipheringStarts(t *testing.T) {
 	ue := newSecuredUE(t)
 	ue.SetULCountForTest(0)

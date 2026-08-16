@@ -591,11 +591,6 @@ func (ue *UeContext) SendDownlinkNAS(plain []byte, sht uint8, write nas.WriteFun
 		return err
 	}
 
-	// TS 24.501 §4.4.2.5: replying to the UE ciphered is what re-establishes the
-	// secure exchange on this connection, and §4.4.5 starts the AMF's ciphering
-	// and deciphering from that point. A SECURITY MODE COMMAND does not count —
-	// it goes out unciphered, and the procedure it opens establishes the exchange
-	// only once it completes.
 	if fgs.SecurityHeaderType(sht).Ciphered() {
 		ue.Conn().MarkCipheringStarted()
 	}

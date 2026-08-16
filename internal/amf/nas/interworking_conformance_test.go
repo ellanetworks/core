@@ -174,8 +174,6 @@ func TestIdleArrivalSpendsALeftoverHandoverMark(t *testing.T) {
 
 	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)
 
-	// The next registration on this connection starts from a clean arrival, as
-	// handleRegistrationRequestMessage would leave it.
 	conn.EPSArrival = nil
 
 	contextSetup(context.TODO(), amfInstance, ue, movingFromEPCRequest(), nil)

@@ -94,17 +94,6 @@ type UeConn struct {
 	// integrity protected or fails the check.
 	secureExchangeEstablished bool
 
-	// cipheringStarted records that the AMF has started ciphering and deciphering
-	// on this connection, which TS 24.501 §4.4.5 defers to §4.4.2.5: the AMF
-	// re-establishes the secure exchange by replying to the initial NAS message
-	// ciphered, or by completing a security mode control procedure — not by
-	// receiving that initial message. Until then the UE has not started ciphering
-	// either (its initial NAS message is integrity protected only, §4.4.6), so a
-	// message that arrives unciphered before this is set is not the "unciphered
-	// message which shall have been ciphered" §4.4.5 has the receiver discard.
-	//
-	// Written from the downlink send path and read from NAS decode, which are not
-	// the same goroutine, so it is atomic.
 	cipheringStarted atomic.Bool
 
 	AuthenticationCtx *ausf.AuthResult
@@ -124,51 +113,25 @@ type UeConn struct {
 	IdentityTypeUsedForRegistration   uint8
 	RetransmissionOfInitialNASMsg     bool
 
-	// EPSArrival is non-nil when the registration in progress is an inter-system
-	// change from EPS. Like the fields above it is registration-scoped: reset
-	// when a REGISTRATION REQUEST is taken in, so nothing it records can outlive
-	// the procedure that established it and be read by the next one.
 	EPSArrival *EPSArrival
 
 	RegistrationAcceptPlain []byte
 }
 
-// EPSArrival is what the AMF learns about an inter-system change from EPS while
-// the registration that carries it is running (TS 24.501 §4.4.2.5, §5.5.1.3).
-// Its presence is the fact "this registration is an arrival from EPS"; the
-// fields are the two things that differ between arrivals.
 type EPSArrival struct {
-	// Sessions are the PDN connections the MME handed over for the AMF to adopt.
-	// Nil for a handover arrival, whose sessions come across in the relocation
-	// instead, and nilled once adopted. It stays a pointer so an idle arrival
-	// that moves no session is still distinguishable from a handover: it owes
-	// the MME an identity commit and a context acknowledgement either way.
 	Sessions *interworking.ArrivingSessions
 
-	// MappedSecurityContext records that the AMF mapped the EPS security context
-	// onto 5GS for this arrival (§4.4.2.5 case b), so the security mode control
-	// procedure still has to take it into use. It is false when the AMF resumed
-	// on the UE's own native context (case a), which is current at both ends
-	// already — commanding that one into use again would restart NAS COUNTs
-	// §5.4.2.2 does not allow to be restarted.
 	MappedSecurityContext bool
 }
 
-// ArrivedFromEPS reports whether the registration in progress is an
-// inter-system change from EPS.
 func (ueConn *UeConn) ArrivedFromEPS() bool {
 	return ueConn != nil && ueConn.EPSArrival != nil
 }
 
-// MappedContextFromEPS reports whether this registration mapped the EPS
-// security context onto 5GS, which the security mode control procedure has to
-// take into use (TS 24.501 §4.4.2.5 case b).
 func (ueConn *UeConn) MappedContextFromEPS() bool {
 	return ueConn.ArrivedFromEPS() && ueConn.EPSArrival.MappedSecurityContext
 }
 
-// ArrivingSessions returns the PDN connections still waiting to be adopted, or
-// nil when there are none or this is not an arrival from EPS.
 func (a *EPSArrival) ArrivingSessions() *interworking.ArrivingSessions {
 	if a == nil {
 		return nil
@@ -404,8 +367,6 @@ func (ueConn *UeConn) MarkSecureExchangeEstablished() {
 	}
 }
 
-// CipheringStarted reports whether the AMF has started ciphering and deciphering
-// on this connection (TS 24.501 §4.4.5, §4.4.2.5).
 func (ueConn *UeConn) CipheringStarted() bool {
 	if ueConn == nil {
 		return false
@@ -414,9 +375,6 @@ func (ueConn *UeConn) CipheringStarted() bool {
 	return ueConn.cipheringStarted.Load()
 }
 
-// MarkCipheringStarted records that the AMF has re-established the secure
-// exchange of NAS messages on this connection, so from now on a message that
-// should have been ciphered and was not is discarded (TS 24.501 §4.4.5).
 func (ueConn *UeConn) MarkCipheringStarted() {
 	if ueConn != nil {
 		ueConn.cipheringStarted.Store(true)

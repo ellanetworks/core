@@ -376,9 +376,6 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 
 		conn.MarkSecureExchangeEstablished()
 
-		// A message that arrived ciphered proves the secure exchange is already
-		// established on this connection, however that happened, so the UE is
-		// ciphering and everything further from it must be (TS 24.501 §4.4.5).
 		if headerType.Ciphered() {
 			conn.MarkCipheringStarted()
 		}

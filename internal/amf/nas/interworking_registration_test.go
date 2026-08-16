@@ -101,12 +101,7 @@ func TestMobilityRegistrationAfterAnArrivalFromEPSKeepsTheMappedContext(t *testi
 	}
 }
 
-// TS 24.501 §5.4.2.2, TS 33.501 §6.7.2: an ngKSI names a security context, so
-// taking in a REGISTRATION REQUEST must not move it. Whether this registration
-// creates a context is not known yet, and if it turns out to reuse the one the
-// UE cited, a value moved here would leave the two ends naming different
-// contexts with nothing to reconcile them — TS 33.501 §8.6.1 derives the eKSI of
-// a later move to EPS from it, so the AMF would refuse its own UE.
+// TS 24.501 §5.4.2.2, TS 33.501 §6.7.2
 func TestRegistrationRequestLeavesTheNgKSIAlone(t *testing.T) {
 	amfInstance := arrivedRegistrationAMF()
 
@@ -134,11 +129,7 @@ func TestRegistrationRequestLeavesTheNgKSIAlone(t *testing.T) {
 	}
 }
 
-// The allocation belongs where the AMF decides to create a fresh native
-// context, because the AUTHENTICATION REQUEST is what names it to the UE
-// (TS 24.501 §5.4.1.3.2). authenticationProcedure assigns it before it builds
-// that request, so stopping the procedure at its first guard still shows the
-// value the request would have carried.
+// TS 24.501 §5.4.1.3.2
 func TestAuthenticationTakesAFreshNgKSIAfterTheOneTheUECited(t *testing.T) {
 	amfInstance := arrivedRegistrationAMF()
 
@@ -160,8 +151,6 @@ func TestAuthenticationTakesAFreshNgKSIAfterTheOneTheUECited(t *testing.T) {
 		t.Fatalf("handleRegistrationRequestMessage: %v", err)
 	}
 
-	// Stop the procedure at the first guard inside the request build, which sits
-	// after the allocation.
 	ue.Tai.PlmnID = nil
 
 	if _, err := authenticationProcedure(context.Background(), amfInstance, ue); err == nil {

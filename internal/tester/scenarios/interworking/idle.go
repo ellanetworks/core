@@ -509,14 +509,6 @@ func roundTripReturnLeg(ctx context.Context, env scenarios.Env, e *s1enb.ENB, gN
 	return roundTripLeaveAgain(ctx, env, e, gNodeB, u, epsUE, before)
 }
 
-// roundTripLeaveAgain sends the UE back to EPS once more.
-//
-// The hop matters out of proportion to its length: it is the first thing that
-// reads the security context the resumed arrival left behind. The AMF derives
-// the eKSI of the enclosed TRACKING AREA UPDATE REQUEST from its stored ngKSI
-// (TS 33.501 §8.6.1) and refuses the move when it does not match the one the UE
-// cites, so a registration that moved the ngKSI without telling the UE strands
-// it here rather than on the hop that moved it.
 func roundTripLeaveAgain(ctx context.Context, env scenarios.Env, e *s1enb.ENB, gNodeB *gnb.GnodeB,
 	u *ue.UE, epsUE *s1enb.UE, before sessionFacts,
 ) error {

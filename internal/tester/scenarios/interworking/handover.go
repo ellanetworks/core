@@ -256,12 +256,10 @@ func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, be
 	return sessionFactsFor(ctx, env, addrs, enbTunIface, bearer.upfAddress, bearer.ulTEID, "S1-U after the handover")
 }
 
-// provisionEPSNASAlgorithms drops the UE's first NR connection and comes back
-// with a mobility registration update, which is what makes the AMF hand the UE
-// its EPS NAS algorithms. It returns the session as re-established under
-// mobilityRANUENGAPID, which is the one the datapath now runs on; every caller
-// registers on scenarios.DefaultRANUENGAPID first, so the pair of connections
-// is fixed here rather than passed in.
+// provisionEPSNASAlgorithms drops the NR connection and comes back with a
+// mobility registration update, which is what makes the AMF hand the UE its EPS
+// NAS algorithms. It returns the session as re-established under
+// mobilityRANUENGAPID, which is the one the datapath now runs on.
 func provisionEPSNASAlgorithms(gNodeB *gnb.GnodeB, u *ue.UE) (gnb.PDUSessionResult, error) {
 	sessions := []uint8{movedPDUSessionID}
 

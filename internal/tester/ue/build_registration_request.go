@@ -64,6 +64,7 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 		m.RequestedNSSAI = opts.RequestedNSSAI
 	}
 
+	// TS 24.501 §5.5.1.2.2
 	status, haveStatus, err := psiBitmap(opts.PDUSessionStatus)
 	if err != nil {
 		return nil, fmt.Errorf("encode PDU session status: %w", err)
