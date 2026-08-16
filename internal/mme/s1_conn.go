@@ -51,12 +51,12 @@ type UeConn struct {
 	TauRequestPlain           []byte
 	TauAcceptPlain            []byte
 	TauReleaseOnComplete      bool
-	FiveGSArrival    *FiveGSArrival
-	DeferredTAUPlain []byte
-	nasGuard         guard.Guard
-	nasGuardName     string
-	esmInfoGuard     guard.Guard
-	releaseGuard     guard.Guard
+	FiveGSArrival             *FiveGSArrival
+	DeferredTAUPlain          []byte
+	nasGuard                  guard.Guard
+	nasGuardName              string
+	esmInfoGuard              guard.Guard
+	releaseGuard              guard.Guard
 }
 
 type FiveGSArrival struct {

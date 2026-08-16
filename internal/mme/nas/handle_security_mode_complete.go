@@ -24,8 +24,6 @@ func handleSecurityModeComplete(ctx context.Context, m *mme.MME, ue *mme.UeConte
 
 	ueConn.StopNASGuard()
 
-	ueConn.MarkCipheringStarted()
-
 	m.ClearKeyChainBusy(ue)
 
 	var pei etsi.IMEI

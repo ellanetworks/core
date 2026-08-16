@@ -505,7 +505,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	smCompleteWire, err := eps.Protect(smCompletePlain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, knasInt, knasEnc))
+	smCompleteWire, err := eps.Protect(smCompletePlain, eps.SHTIntegrityProtectedCipheredNewContext, nas.MakeCount(0, 0), nas.DirectionUplink, mustSecurityContext(t, nas.IntegrityAES, nas.CipheringAES, knasInt, knasEnc))
 	if err != nil {
 		t.Fatal(err)
 	}

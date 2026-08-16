@@ -358,11 +358,14 @@ func decodeProtectedNAS(ue *UeContext, headerType fgs.SecurityHeaderType, payloa
 	plain, _, uerr := fgs.Unprotect(payload, cnt, nas.DirectionUplink, ue.sc,
 		fgs.SHTIntegrityProtected, fgs.SHTIntegrityProtectedCiphered, fgs.SHTIntegrityProtectedCipheredNewContext)
 	if uerr == nil {
-		// Before the commit so a discarded message does not advance the count, and
-		// before MarkSecureExchangeEstablished so the initial NAS message of a new
-		// connection stays outside the guard (TS 24.501 §4.4.5).
-		if conn.SecureExchangeEstablished() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) &&
-			(conn.CipheringStarted() || !admissibleBeforeCipheringFor(plain)) {
+		if requiresNewContextSecurityHeader(plain) && headerType != fgs.SHTIntegrityProtectedCipheredNewContext {
+			logger.AmfLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type")
+
+			return nil, silentDecode(nasreply.ReasonIntegrityFail,
+				"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.501 §5.4.2.3)")
+		}
+
+		if conn.CipheringStarted() && headerType == fgs.SHTIntegrityProtected && cipheringRequiredFor(plain) {
 			logger.AmfLog.Warn("discarding unciphered NAS message received after ciphering started")
 
 			return nil, silentDecode(nasreply.ReasonIntegrityFail, "NAS discarded: unciphered after ciphering started (TS 24.501 §4.4.5)")

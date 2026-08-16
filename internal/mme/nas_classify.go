@@ -29,25 +29,13 @@ func cipheringRequired(mt eps.MessageType) bool {
 	return true
 }
 
-func admissibleBeforeCipheringFor(plain []byte) bool {
+func requiresNewContextSecurityHeader(plain []byte) bool {
 	mt, err := eps.PeekMessageType(plain)
 	if err != nil {
 		return false
 	}
 
-	switch mt {
-	case eps.MsgSecurityModeReject,
-		eps.MsgSecurityModeComplete,
-		eps.MsgAuthenticationResponse,
-		eps.MsgAuthenticationFailure,
-		eps.MsgIdentityResponse,
-		eps.MsgEMMStatus,
-		eps.MsgDetachRequest,
-		eps.MsgDetachAccept:
-		return true
-	}
-
-	return false
+	return mt == eps.MsgSecurityModeComplete
 }
 
 // plainNasAllowed reports whether an EMM message may be processed without a verified

@@ -14,6 +14,8 @@ func TestDecodeNASMessageDiscardsAnUncipheredESMMessage(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 
+	ue.Conn().MarkCipheringStarted()
+
 	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
 	if err != nil {
 		t.Fatalf("marshal PDN CONNECTIVITY REQUEST: %v", err)

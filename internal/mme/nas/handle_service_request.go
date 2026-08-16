@@ -69,6 +69,7 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 	// outset.
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
+	c.MarkCipheringStarted()
 
 	c.ServingTAI = msg.TAI
 

@@ -33,8 +33,6 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	conn.StopNASGuard()
 
-	conn.MarkCipheringStarted()
-
 	ue.EndKeyChainProc(procedure.SecurityMode)
 
 	if ue.SecurityContextIsValid() && integrityVerified {

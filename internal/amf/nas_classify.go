@@ -47,25 +47,13 @@ func cipheringRequired(mt fgs.MessageType) bool {
 	return true
 }
 
-func admissibleBeforeCipheringFor(plain []byte) bool {
+func requiresNewContextSecurityHeader(plain []byte) bool {
 	mt, err := fgs.PeekMessageType(plain)
 	if err != nil {
 		return false
 	}
 
-	switch mt {
-	case fgs.MsgSecurityModeReject,
-		fgs.MsgSecurityModeComplete,
-		fgs.MsgAuthenticationResponse,
-		fgs.MsgAuthenticationFailure,
-		fgs.MsgIdentityResponse,
-		fgs.MsgGMMStatus,
-		fgs.MsgDeregistrationRequestUEOrig,
-		fgs.MsgDeregistrationAcceptUETerm:
-		return true
-	}
-
-	return false
+	return mt == fgs.MsgSecurityModeComplete
 }
 
 // plainNasAllowed reports whether a NAS message type may be processed without a verified
