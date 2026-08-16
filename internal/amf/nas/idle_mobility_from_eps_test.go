@@ -110,7 +110,7 @@ func TestMovingFromEPCInIdleModeNeedsTheContainer(t *testing.T) {
 func TestRecoverContextFromEPSInstallsTheMappedContext(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest(), false)
 
 	if len(peer.MMContextRequests) != 1 {
 		t.Fatalf("MME context requests = %d, want 1", len(peer.MMContextRequests))
@@ -171,7 +171,7 @@ func TestIdleArrivalReplaysTheUEsOwn5GSecurityCapability(t *testing.T) {
 
 	ue.SetUESecurityCapabilityForTest(req.UESecurityCapability)
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, req)
+	recoverContextFromEPS(context.Background(), amfInstance, ue, req, false)
 
 	raw, err := amf.BuildSecurityModeCommand(ue)
 	if err != nil {
@@ -198,7 +198,7 @@ func TestRecoverContextFromEPSFallsBackWhenTheMMEHasNoContext(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 	peer.MMContextErr = interworking.ErrUnknownUEContext
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest(), false)
 
 	if ue.SecurityContextIsValid() {
 		t.Error("a security context was installed though the MME returned none")
@@ -213,7 +213,7 @@ func TestRecoverContextFromEPSFallsBackOnAFailedIntegrityCheck(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 	peer.MMContextErr = interworking.ErrIntegrityCheckFailed
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest(), false)
 
 	if ue.SecurityContextIsValid() {
 		t.Error("a security context was installed though the MME could not verify the TAU")
@@ -228,7 +228,7 @@ func TestRecoverContextFromEPSKeepsANativeContext(t *testing.T) {
 
 	native := ue.NgKsi()
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+	recoverContextFromEPS(context.Background(), amfInstance, ue, nativeIdleArrivalRequest(), true)
 
 	if got := ue.NgKsi(); got != native {
 		t.Errorf("ngKSI = %+v, want the native %+v: the UE holds no mapped context to answer under", got, native)
@@ -240,6 +240,36 @@ func TestRecoverContextFromEPSKeepsANativeContext(t *testing.T) {
 
 	if len(peer.MMContextRequests) != 1 {
 		t.Error("the MME was not asked for the UE's PDN connections")
+	}
+}
+
+// TS 33.501 §8.2, TS 24.501 §4.4.2.5
+func TestRecoverContextFromEPSDoesNotResumeOnAnUnverifiedRegistrationRequest(t *testing.T) {
+	ue, amfInstance, _, _ := idleArrivalUE(t)
+
+	ue.SetSecuredForTest(true)
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, nativeIdleArrivalRequest(), false)
+
+	if !ue.Conn().ArrivalNeedsSecurityModeControl() {
+		t.Fatal("the AMF resumed on a native context without verifying the registration request that claimed it")
+	}
+
+	if got := ue.NgKsi(); got.Tsc != models.ScTypeMapped {
+		t.Errorf("ngKSI = %+v, want a mapped context derived from the EPS one", got)
+	}
+}
+
+// TS 24.501 §4.4.2.5
+func TestRecoverContextFromEPSDoesNotResumeOnAnNgKSIItDoesNotHold(t *testing.T) {
+	ue, amfInstance, _, _ := idleArrivalUE(t)
+
+	ue.SetSecuredForTest(true)
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest(), true)
+
+	if !ue.Conn().ArrivalNeedsSecurityModeControl() {
+		t.Fatal("the AMF resumed on a context the ngKSI in the registration request does not identify")
 	}
 }
 
@@ -428,7 +458,7 @@ func TestIdleArrivalFromEPSAlwaysRunsTheSecurityModeProcedure(t *testing.T) {
 	ue.SetSecuredForTest(false)
 	ue.ForceStateForTest(amf.RegistrationInitiated)
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest(), false)
 
 	if !ue.SecurityContextIsValid() {
 		t.Fatal("no mapped context was installed")
@@ -490,9 +520,9 @@ func TestIdleArrivalOnANativeContextRunsNoSecurityModeProcedure(t *testing.T) {
 		t.Fatalf("handleRegistrationRequestMessage: %v", err)
 	}
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, req)
+	recoverContextFromEPS(context.Background(), amfInstance, ue, req, true)
 
-	if conn.MappedContextFromEPS() {
+	if conn.ArrivalNeedsSecurityModeControl() {
 		t.Fatal("the AMF mapped the EPS context over a native one it could verify and resume on")
 	}
 
@@ -585,9 +615,9 @@ func TestASecondRegistrationDoesNotInheritTheMappedArrival(t *testing.T) {
 	conn := ue.Conn()
 	conn.SetRegistrationType5GS(uint8(fgs.RegistrationTypeMobilityUpdating))
 
-	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest())
+	recoverContextFromEPS(context.Background(), amfInstance, ue, idleArrivalRequest(), false)
 
-	if !conn.MappedContextFromEPS() {
+	if !conn.ArrivalNeedsSecurityModeControl() {
 		t.Fatal("the arrival did not map the EPS context, so this test proves nothing")
 	}
 

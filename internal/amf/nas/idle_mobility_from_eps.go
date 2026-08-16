@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
 )
@@ -21,7 +22,17 @@ func movingFromEPCInIdleMode(conn *amf.UeConn, req *fgs.RegistrationRequest) boo
 		len(req.EPSNASMessageContainer) > 0
 }
 
-func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest) {
+func citedNgKsiIdentifiesCurrentContext(ue *amf.UeContext, req *fgs.RegistrationRequest) bool {
+	held := ue.NgKsi()
+
+	if req.NgKSI.Mapped != (held.Tsc == models.ScTypeMapped) {
+		return false
+	}
+
+	return int32(req.NgKSI.Value) == held.Ksi
+}
+
+func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, integrityVerified bool) {
 	conn := ue.Conn()
 	if conn == nil {
 		return
@@ -41,7 +52,7 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
-	if ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
+	if integrityVerified && ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI && citedNgKsiIdentifiesCurrentContext(ue, req) {
 		logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
 			logger.SUPI(resp.SUPI.String()))
 
@@ -57,8 +68,8 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 	}
 
 	conn.EPSArrival = &amf.EPSArrival{
-		Sessions:              &interworking.ArrivingSessions{PDN: resp.PDNConnections},
-		MappedSecurityContext: true,
+		Sessions:                 &interworking.ArrivingSessions{PDN: resp.PDNConnections},
+		NeedsSecurityModeControl: true,
 	}
 
 	logger.From(ctx, logger.AmfLog).Info("mapped the UE's EPS security context onto 5GS for an idle-mode change",

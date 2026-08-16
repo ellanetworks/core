@@ -121,15 +121,15 @@ type UeConn struct {
 type EPSArrival struct {
 	Sessions *interworking.ArrivingSessions
 
-	MappedSecurityContext bool
+	NeedsSecurityModeControl bool
 }
 
 func (ueConn *UeConn) ArrivedFromEPS() bool {
 	return ueConn != nil && ueConn.EPSArrival != nil
 }
 
-func (ueConn *UeConn) MappedContextFromEPS() bool {
-	return ueConn.ArrivedFromEPS() && ueConn.EPSArrival.MappedSecurityContext
+func (ueConn *UeConn) ArrivalNeedsSecurityModeControl() bool {
+	return ueConn.ArrivedFromEPS() && ueConn.EPSArrival.NeedsSecurityModeControl
 }
 
 func (a *EPSArrival) ArrivingSessions() *interworking.ArrivingSessions {

@@ -220,11 +220,11 @@ func TestIdleArrivalSupersedesALeftoverHandoverMark(t *testing.T) {
 
 	req := idleArrivalRequest()
 	openRegistration(t, amfInstance, ue, req)
-	recoverContextFromEPS(context.TODO(), amfInstance, ue, req)
+	recoverContextFromEPS(context.TODO(), amfInstance, ue, req, false)
 
 	conn := ue.Conn()
 
-	if !conn.MappedContextFromEPS() {
+	if !conn.ArrivalNeedsSecurityModeControl() {
 		t.Error("the idle arrival did not map the EPS context: the leftover mark stood in for a context the MME had to supply")
 	}
 

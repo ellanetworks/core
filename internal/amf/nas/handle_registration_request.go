@@ -275,7 +275,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		ue.TransitionTo(amf.RegistrationInitiated)
 
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
-			recoverContextFromEPS(ctx, amfInstance, ue, req)
+			recoverContextFromEPS(ctx, amfInstance, ue, req, integrityVerified)
 		}
 
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)
