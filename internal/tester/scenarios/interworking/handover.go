@@ -67,7 +67,7 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	moved, err := provisionEPSNASAlgorithms(gNodeB, newUE, ranUENGAPID)
+	moved, err := provisionEPSNASAlgorithms(gNodeB, newUE)
 	if err != nil {
 		return err
 	}
@@ -256,14 +256,16 @@ func probeAfterHandover(ctx context.Context, env scenarios.Env, e *s1enb.ENB, be
 	return sessionFactsFor(ctx, env, addrs, enbTunIface, bearer.upfAddress, bearer.ulTEID, "S1-U after the handover")
 }
 
-// provisionEPSNASAlgorithms drops the NR connection and comes back with a
-// mobility registration update, which is what makes the AMF hand the UE its EPS
-// NAS algorithms. It returns the session as re-established under
-// mobilityRANUENGAPID, which is the one the datapath now runs on.
-func provisionEPSNASAlgorithms(gNodeB *gnb.GnodeB, u *ue.UE, ranUENGAPID int64) (gnb.PDUSessionResult, error) {
+// provisionEPSNASAlgorithms drops the UE's first NR connection and comes back
+// with a mobility registration update, which is what makes the AMF hand the UE
+// its EPS NAS algorithms. It returns the session as re-established under
+// mobilityRANUENGAPID, which is the one the datapath now runs on; every caller
+// registers on scenarios.DefaultRANUENGAPID first, so the pair of connections
+// is fixed here rather than passed in.
+func provisionEPSNASAlgorithms(gNodeB *gnb.GnodeB, u *ue.UE) (gnb.PDUSessionResult, error) {
 	sessions := []uint8{movedPDUSessionID}
 
-	if err := gNodeB.ReleaseContext(u, ranUENGAPID, sessions, releaseTimeout); err != nil {
+	if err := gNodeB.ReleaseContext(u, int64(scenarios.DefaultRANUENGAPID), sessions, releaseTimeout); err != nil {
 		return gnb.PDUSessionResult{}, fmt.Errorf("release the connection before the mobility registration update: %w", err)
 	}
 
@@ -316,7 +318,7 @@ func runHandover5GSToEPSTargetRefuses(ctx context.Context, env scenarios.Env, _ 
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	moved, err := provisionEPSNASAlgorithms(gNodeB, newUE, ranUENGAPID)
+	moved, err := provisionEPSNASAlgorithms(gNodeB, newUE)
 	if err != nil {
 		return err
 	}

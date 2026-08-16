@@ -94,7 +94,7 @@ func runIdle5GSToEPS(ctx context.Context, env scenarios.Env, activeFlag bool) er
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	moved, err := provisionEPSNASAlgorithms(gNodeB, u, ranUENGAPID)
+	moved, err := provisionEPSNASAlgorithms(gNodeB, u)
 	if err != nil {
 		return err
 	}
@@ -379,7 +379,7 @@ func runIdleRoundTripThroughEPS(ctx context.Context, env scenarios.Env, _ any) e
 		return fmt.Errorf("initial registration over NR: %w", err)
 	}
 
-	moved, err := provisionEPSNASAlgorithms(gNodeB, u, ranUENGAPID)
+	moved, err := provisionEPSNASAlgorithms(gNodeB, u)
 	if err != nil {
 		return err
 	}
