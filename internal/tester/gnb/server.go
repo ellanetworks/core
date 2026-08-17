@@ -31,7 +31,28 @@ const (
 	// n2DialTimeout bounds one handshake so a core that never answers the INIT
 	// cannot stall the failover below.
 	n2DialTimeout = 2 * time.Second
+
+	// drainTimeout bounds how long the receiver waits for in-flight frames
+	// to be handled before promoting the next peer on failure. A tester must
+	// always make progress toward the next peer; ha/failover_connectivity_5g
+	// and TestIntegration5GHAFailover depend on this bound.
+	drainTimeout = 2 * time.Second
 )
+
+// waitTimeout waits for wg to become empty or d to elapse, returning whether
+// it emptied first.
+func waitTimeout(wg *sync.WaitGroup, d time.Duration) bool {
+	done := make(chan struct{})
+
+	go func() { wg.Wait(); close(done) }()
+
+	select {
+	case <-done:
+		return true
+	case <-time.After(d):
+		return false
+	}
+}
 
 // dialN2 establishes the N2 SCTP association, retrying with a fresh socket on
 // transient connect failures (e.g. EISCONN from a lingering association left by
@@ -93,13 +114,17 @@ type GnodeB struct {
 	N3Conn            *net.UDPConn
 	tunnels           map[uint32]*Tunnel // local TEID -> Tunnel
 	lastGeneratedTEID uint32
-	receivedFrames    map[Category]map[ngap.ProcedureCode][]SCTPFrame
-	mu                sync.Mutex
-	cond              *sync.Cond
-	N3Address         netip.Addr
-	pduSessions       map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
-	sessionGen        uint64                                     // bumped on every store; see awaitPDUSession
-	UEAmbr            map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
+	// receivedFrames is keyed by (Category, ProcedureCode) only, so in a multi-UE
+	// scenario WaitForMessage can return another UE's frame. Pre-existing; s1enb
+	// keys its equivalent by the UE id (see ENB.WaitForMessage).
+	receivedFrames map[Category]map[ngap.ProcedureCode][]SCTPFrame
+	mu             sync.Mutex
+	cond           *sync.Cond
+	N3Address      netip.Addr
+	pduSessions    map[int64]map[int64]*PDUSessionInformation // RANUENGAPID -> PDUSessionID -> PDUSessionInformation
+	sessionGen     uint64                                     // bumped on every store; see awaitPDUSession
+	UEAmbr         map[int64]*UEAmbrInformation               // RANUENGAPID -> UE AMBR
+	dispatcher     *dispatcher                                // per-UE frame queues; see dispatch.go
 
 	// N2 peer management. Ordered list of Ella Core N2 endpoints; the gNB
 	// maintains exactly one active SCTP association at a time, starting
@@ -398,6 +423,7 @@ func NewGnodeB(
 		n2Change: make(chan struct{}),
 	}
 	g.cond = sync.NewCond(&g.mu)
+	g.dispatcher = newDispatcher(g)
 
 	go g.runReceiver(0, n2Conn)
 
@@ -493,6 +519,7 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 		},
 	}
 	g.cond = sync.NewCond(&g.mu)
+	g.dispatcher = newDispatcher(g)
 
 	if n3Conn != nil {
 		go g.GTPReader()
@@ -579,10 +606,22 @@ func (g *GnodeB) sendNGSetupOnConn(conn *sctp.SCTPConn) error {
 	return writeToConn(conn, pkt, NGAPProcedureNGSetupRequest)
 }
 
-// runReceiver reads SCTP frames on conn and dispatches via HandleFrame.
-// On read error, triggers promotion of the next peer and exits.
+// runReceiver reads SCTP frames on conn, handles the unkeyed ones inline and
+// dispatches the UE-associated ones to that UE's worker.
+//
+// TS 38.413 §6: "The signalling connection shall provide in sequence delivery of NGAP
+// messages." TS 38.412 §7: "For a single UE-associated signalling, the NG-RAN node
+// shall use one SCTP association and one SCTP stream, and the SCTP association/stream
+// should not be changed during the communication of the UE-associated signalling...".
+// The ordering the tester owes the core is therefore per UE-associated stream, which
+// is what the dispatcher provides (see dispatch.go).
+//
+// Unkeyed frames run inline so a context-creating procedure (HANDOVER REQUEST)
+// completes before any later frame for the context it creates.
 func (g *GnodeB) runReceiver(idx int, conn *sctp.SCTPConn) {
 	buf := make([]byte, SCTPReadBufferSize)
+
+	var inflight sync.WaitGroup // frames this receiver enqueued, not yet handled
 
 	for {
 		n, info, err := conn.ReadMsg(buf)
@@ -591,6 +630,16 @@ func (g *GnodeB) runReceiver(idx int, conn *sctp.SCTPConn) {
 				logger.GnbLogger.Debug("SCTP peer closed (EOF)", zap.Int("peer", idx))
 			} else {
 				logger.GnbLogger.Warn("SCTP read error", zap.Int("peer", idx), zap.Error(err))
+			}
+
+			// Bounded drain: frames read before the failure are handled before
+			// the next peer becomes active. During the drain g.n2Active is still
+			// the failed index, so any reply goes to the dead socket and is
+			// dropped with an error log — this is by design, so no message of
+			// the dead association is answered on the new one.
+			if !waitTimeout(&inflight, drainTimeout) {
+				logger.GnbLogger.Warn("gnb: frames of the failed association still in flight at failover",
+					zap.Int("peer", idx))
 			}
 
 			g.promoteNextFromReceiver(idx, conn)
@@ -602,26 +651,33 @@ func (g *GnodeB) runReceiver(idx int, conn *sctp.SCTPConn) {
 			continue
 		}
 
-		cp := append([]byte(nil), buf[:n]...) // copy to isolate from buffer reuse
-
-		sctpFrame := SCTPFrame{
-			Data: cp,
-			Info: info,
+		frame, err := decodeFrame(append([]byte(nil), buf[:n]...), info)
+		if err != nil {
+			logger.GnbLogger.Warn("gnb: undecodable NGAP PDU", zap.Int("len", n), zap.Error(err))
+			continue
 		}
 
-		go func(f SCTPFrame) {
-			if err := HandleFrame(g, f); err != nil {
+		ranUEID, ok := frameRANUEID(frame)
+		if !ok {
+			// Node-level and context-creating procedures run inline, so nothing
+			// dispatched later can overtake them.
+			if err := HandleFrame(g, frame); err != nil {
 				logger.GnbLogger.Error("could not handle SCTP frame", zap.Error(err))
 			}
-		}(sctpFrame)
+
+			continue
+		}
+
+		inflight.Add(1)
+		g.dispatcher.dispatch(ranUEID, frame, inflight.Done)
 	}
 }
 
 // promoteNextFromReceiver is called by a receiver goroutine when its SCTP
 // read errors. It advances the active peer to the next candidate in order.
 //
-// If the current active peer has already been advanced by another caller
-// (e.g. Close), this is a no-op.
+// If the current active peer has already been advanced by another caller (e.g.
+// Close), this is a no-op.
 func (g *GnodeB) promoteNextFromReceiver(failedIdx int, failedConn *sctp.SCTPConn) {
 	g.n2Mu.Lock()
 	defer g.n2Mu.Unlock()
@@ -862,6 +918,11 @@ func (g *GnodeB) Close() {
 
 	g.n2Active = -1
 	g.n2Mu.Unlock()
+
+	// Stop the per-UE workers after the associations are closed: the receivers
+	// stop enqueueing once their conn is closed, so this only joins the
+	// handlers still running.
+	g.dispatcher.closeAll()
 
 	if g.N3Conn != nil {
 		err := g.N3Conn.Close()

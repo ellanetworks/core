@@ -24,10 +24,12 @@ import (
 // --- Fakes ---
 
 type fakeNGAPSender struct {
-	pduSessionSetupCalls      int
-	initialContextSetupCalls  int
-	downlinkNasTransportCalls int
-	pagingCalls               int
+	pduSessionSetupCalls          int
+	initialContextSetupCalls      int
+	downlinkNasTransportCalls     int
+	pagingCalls                   int
+	locationReportingControlCalls int
+	nrppaTransportCalls           int
 }
 
 // WriteMsg counts the sent NGAP PDU by procedure, standing in for a gNB
@@ -49,6 +51,10 @@ func (f *fakeNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 			f.initialContextSetupCalls++
 		case ngap.ProcDownlinkNASTransport:
 			f.downlinkNasTransportCalls++
+		case ngap.ProcLocationReportingControl:
+			f.locationReportingControlCalls++
+		case ngap.ProcDownlinkUEAssociatedNRPPaTransport:
+			f.nrppaTransportCalls++
 		}
 	}
 

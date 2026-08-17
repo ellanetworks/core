@@ -52,7 +52,7 @@ func (ue *UE) InstallMappedSecurityContextFromEPS(in MappedFromEPS) error {
 	ue.UeSecurity.KnasEnc, ue.UeSecurity.KnasInt = knasEnc, knasInt
 	ue.UeSecurity.NgKsi = models.NgKsi{Ksi: int32(in.Container.NgKSI.Value), Tsc: models.ScTypeMapped}
 	ue.UeSecurity.ULCount = 0
-	ue.UeSecurity.DLCount = 0
+	ue.UeSecurity.DLRecv.Reset()
 	ue.UeSecurity.contextFromAuthentication = false
 
 	logger.UeLogger.Debug("Installed the mapped 5G NAS security context",
