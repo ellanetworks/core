@@ -41,6 +41,8 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
+	ue.AttestS1Mode()
+
 	if integrityVerified && ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
 		err := ue.CitesCurrentNgKSI(req.NgKSI)
 		if err == nil {

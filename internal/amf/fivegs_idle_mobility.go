@@ -42,6 +42,11 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 			interworking.ErrUnknownUEContext, presented.String())
 	}
 
+	if !ue.EPSInterworkingAllowed() {
+		return none, fmt.Errorf("%w: EPC is restricted for the subscriber of 5G-GUTI %s",
+			interworking.ErrUnknownUEContext, presented.String())
+	}
+
 	ambrUplink, ambrDownlink, ok := ue.AmbrRates()
 	if !ok {
 		return none, fmt.Errorf("amf: UE has no AMBR")

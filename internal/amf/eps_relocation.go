@@ -30,10 +30,6 @@ func (ue *UeContext) AllTransferableEPSSessions() []interworking.PDNConnection {
 }
 
 func (ue *UeContext) transferableEPSSessions(include func(pduSessionID uint8) bool) []interworking.PDNConnection {
-	if !ue.TransfersToEPS() {
-		return nil
-	}
-
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 

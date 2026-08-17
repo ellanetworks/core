@@ -102,6 +102,7 @@ type UE struct {
 	receivedRRCRelease     bool
 	lppRequests            []*LPPRequest // queue of received LPP requests
 	lppCapsSent            bool          // true after first ProvideLocationCapabilities
+	requestedReactivation  bool
 }
 
 func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
@@ -704,20 +705,66 @@ func (ue *UE) WaitForRRCRelease(timeout time.Duration) error {
 }
 
 func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
+	return ue.sendRegistrationRequest(ranUENGAPID, regType, nil)
+}
+
+func (ue *UE) SendMobilityRegistrationRequest(ranUENGAPID int64, reactivate []uint8) error {
+	var uplinkDataStatus [16]bool
+
+	for _, pduSessionID := range reactivate {
+		if int(pduSessionID) >= len(uplinkDataStatus) {
+			return fmt.Errorf("PDU session ID %d is out of range", pduSessionID)
+		}
+
+		uplinkDataStatus[pduSessionID] = true
+	}
+
+	return ue.sendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating), &uplinkDataStatus)
+}
+
+func (ue *UE) setRequestedReactivation(requested bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.requestedReactivation = requested
+}
+
+func (ue *UE) skipAutoPDUSession() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.NoAutoPDUSession || ue.requestedReactivation
+}
+
+func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDataStatus *[16]bool) error {
 	if ue.Gnb == nil {
 		return fmt.Errorf("GNB is not set for UE")
 	}
 
-	nasPDU, err := BuildRegistrationRequest(&RegistrationRequestOpts{
-		RegistrationType:  regType,
-		RequestedNSSAI:    nil,
-		UplinkDataStatus:  nil,
-		IncludeCapability: false,
-		UESecurity:        ue.UeSecurity,
+	var err error
+
+	var s1Capability []byte
+
+	if ue.UeSecurity.S1UENetworkCapability != nil {
+		if s1Capability, err = ue.UeSecurity.S1UENetworkCapability.MarshalBinary(); err != nil {
+			return fmt.Errorf("could not encode the S1 UE network capability: %w", err)
+		}
+	}
+
+	nasPDU, complete, err := buildRegistrationRequest(&RegistrationRequestOpts{
+		RegistrationType:      regType,
+		RequestedNSSAI:        nil,
+		UplinkDataStatus:      uplinkDataStatus,
+		IncludeCapability:     regType != uint8(fgs.RegistrationTypePeriodicUpdating),
+		S1UENetworkCapability: s1Capability,
+		UESecurity:            ue.UeSecurity,
+		InitialNASMessage:     true,
 	})
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
 	}
+
+	ue.replayRegistration = complete
 
 	// TS 24.501 §4.4.6: a UE with a current 5G NAS security context integrity
 	// protects the initial NAS message of a new connection, so the AMF can
@@ -740,6 +787,8 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
+
+	ue.setRequestedReactivation(uplinkDataStatus != nil)
 
 	logger.UeLogger.Debug(
 		"Sent Registration Request NAS message",

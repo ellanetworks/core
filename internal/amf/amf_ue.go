@@ -72,6 +72,7 @@ type UeContext struct {
 
 	gmmCapability         *fgs.GMMCapability
 	s1UENetworkCapability []byte
+	s1ModeAttested        bool
 
 	epsNASAlgorithmsOffered *interworking.EPSNASAlgorithms
 	epsNASAlgorithms        *interworking.EPSNASAlgorithms

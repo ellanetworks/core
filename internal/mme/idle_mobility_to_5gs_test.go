@@ -248,3 +248,36 @@ func TestMMContextAckKeepsNothingForAnUnknownSubscriber(t *testing.T) {
 		t.Fatalf("error = %v, want an unknown context", err)
 	}
 }
+
+// TS 23.501 §5.17.2
+func TestMMContextRefusesASubscriberBarredFrom5G(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleMobilityUE(t, m)
+	ue.SetAccess(Access{Allow4G: true, Allow5G: false})
+
+	_, err := m.MMContext(t.Context(), interworking.MMContextRequest{
+		MappedEPSGUTI: guti,
+		EPSNAS:        enclosedTAU(t, ue, nas.MakeCount(0, 0)),
+	})
+	if !errors.Is(err, interworking.ErrUnknownUEContext) {
+		t.Fatalf("error = %v, want the MME to hand out no context for a subscriber restricted from 5GC", err)
+	}
+
+	if ue.PDNCount() != 1 || ue.EMMState() != EMMRegistered {
+		t.Error("the refusal disturbed the UE's EPS context")
+	}
+}
+
+// TS 23.501 §5.17.2
+func TestHandoverToFiveGSRefusesASubscriberBarredFrom5G(t *testing.T) {
+	m := newTestMME(t)
+	m.FiveGS = &fakeFiveGSPeer{}
+
+	ue, _ := idleMobilityUE(t, m)
+	ue.SetAccess(Access{Allow4G: true, Allow5G: false})
+
+	_, err := m.PrepareHandoverToFiveGS(ue, ue.Conn(), interworking.NGRANIdentity{}, nil, nil)
+	if !errors.Is(err, ErrFiveGSMobilityBarred) {
+		t.Fatalf("error = %v, want the handover to 5GS to be refused before it is prepared", err)
+	}
+}

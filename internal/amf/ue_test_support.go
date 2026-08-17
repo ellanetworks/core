@@ -28,6 +28,14 @@ func (amf *AMF) AddUeContextToPoolForTest(ue *UeContext) error {
 	return nil
 }
 
+func (ue *UeContext) ForgetGMMCapabilityForTest() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.gmmCapability = nil
+	ue.s1ModeAttested = false
+}
+
 // ForceStateForTest sets the UE state unconditionally, bypassing transition
 // validation, for test precondition setup. Production code must use TransitionTo.
 func (ue *UeContext) ForceStateForTest(s StateType) {

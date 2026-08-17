@@ -44,6 +44,10 @@ func (a *AMF) PrepareHandoverToEPS(ue *UeContext, sourceUe *UeConn, target inter
 		return nil, ErrNoUEIdentity
 	}
 
+	if !ue.EPSInterworkingAllowed() {
+		return nil, ErrEPSMobilityBarred
+	}
+
 	candidates := make([]HandoverCandidate, 0, len(requested))
 	for _, pduSessionID := range requested {
 		candidates = append(candidates, HandoverCandidate{PDUSessionID: ngap.PDUSessionID(pduSessionID)})

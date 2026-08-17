@@ -94,6 +94,35 @@ func (ue *UeContext) IdleMobilityFrom5GSPending() bool {
 	return ue.idleMobilityFrom5GS
 }
 
+func (ue *UeContext) BeginIdleMobilityTo5GS() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.idleMobilityTo5GS = true
+}
+
+func (ue *UeContext) EndIdleMobilityTo5GS() {
+	if ue == nil {
+		return
+	}
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.idleMobilityTo5GS = false
+}
+
+func (ue *UeContext) IdleMobilityTo5GSPending() bool {
+	if ue == nil {
+		return false
+	}
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.idleMobilityTo5GS
+}
+
 var ErrNoEPSSecurityContext = errors.New("mme: UE has no current EPS NAS security context")
 
 func (ue *UeContext) EPSSecurityContextForRelocation() (interworking.EPSSecurityContext, error) {

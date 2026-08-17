@@ -169,9 +169,20 @@ func NextNgKsi(current int32) int32 {
 	return 0
 }
 
+func (ue *UeContext) AttestS1Mode() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.s1ModeAttested = true
+}
+
 func (ue *UeContext) SupportsS1Mode() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.gmmCapability != nil && ue.gmmCapability.S1Mode
+	if ue.gmmCapability != nil {
+		return ue.gmmCapability.S1Mode
+	}
+
+	return ue.s1ModeAttested
 }

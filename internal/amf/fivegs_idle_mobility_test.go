@@ -178,6 +178,28 @@ func TestEPSContextReturnsTheMappedContext(t *testing.T) {
 	}
 }
 
+// TS 23.501 §5.17.2
+func TestEPSContextRefusesASubscriberBarredFromEPS(t *testing.T) {
+	a := idleMobilityAMF()
+	guti := idleMobilityGUTI(t)
+	ue := leavingUE(t, a, guti)
+	ue.SetAllow4G(false)
+
+	count, err := ue.ulCount.Estimate(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count))
+	if !errors.Is(err, interworking.ErrUnknownUEContext) {
+		t.Fatalf("error = %v, want the AMF to hand out no context for a subscriber restricted from EPC", err)
+	}
+
+	if ue.State() != Registered {
+		t.Error("the refusal disturbed the UE's 5GS registration")
+	}
+}
+
 // TS 33.501 §8.5.2 step 1
 func TestEPSContextCommitsTheCountItVerifiedAt(t *testing.T) {
 	a := idleMobilityAMF()

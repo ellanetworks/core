@@ -50,7 +50,7 @@ func handleRegistrationAccept(ue *UE, plain []byte, amfUENGAPID int64, ranUENGAP
 		zap.String("IMSI", ue.UeSecurity.Supi),
 	)
 
-	if ue.NoAutoPDUSession {
+	if ue.skipAutoPDUSession() {
 		return nil
 	}
 

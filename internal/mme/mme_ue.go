@@ -178,6 +178,9 @@ type UeContext struct {
 	emmState EMMState
 
 	idleMobilityFrom5GS bool
+	idleMobilityTo5GS   bool
+
+	allow5G bool
 
 	localBearerDeactivation bool
 

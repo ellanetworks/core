@@ -58,8 +58,21 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 			req.Target.SelectedEPSTAI.PlmnID, req.Target.SelectedEPSTAI.TAC)
 	}
 
+	access, err := ResolveAccess(ctx, m, req.SUPI.IMSI())
+	if err != nil {
+		return none, fmt.Errorf("mme: resolve the subscriber's access: %w", err)
+	}
+
+	if !access.Allow4G {
+		return none, interworking.TargetRefusal{Cause: s1ap.Cause{
+			Group: s1ap.CauseGroupRadioNetwork,
+			Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
+		}}
+	}
+
 	ue := NewUeContext()
 	ue.SetSupi(req.SUPI)
+	ue.SetAccess(access)
 
 	if err := ue.InstallRelocatedSecurityContext(req.SecurityContext, MintAuthProofForInterworking()); err != nil {
 		return none, err
@@ -176,13 +189,6 @@ func (m *MME) openRelocatedPDNs(ctx context.Context, ue *UeContext, conns []inte
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("relocated PDN connection has no QoS in the subscriber profile; leaving it behind",
 				zap.String("imsi", ue.IMSI()), zap.String("apn", c.APN), zap.Error(err))
-
-			continue
-		}
-
-		if !qos.Allow4G {
-			logger.From(ctx, logger.MmeLog).Warn("relocated PDN connection is not allowed on 4G; leaving it behind",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", c.APN))
 
 			continue
 		}
