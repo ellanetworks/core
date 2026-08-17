@@ -55,6 +55,7 @@ type LMF struct {
 	// UE reply that arrives with no active session (TS 37.355 §4.3.2).
 	ackSeq         atomic.Uint32
 	maxLocationAge int32
+	refreshTimeout time.Duration
 }
 
 // defaultMaxLocationAge is the default maximum age (in seconds) for the AMF's
@@ -78,6 +79,7 @@ func New(amfInstance *amf.AMF, mmeInstance *mme.MME, d *db.Database) *LMF {
 		lppaClient:     lppa.New(mmeInstance),
 		lppSessions:    make(map[string]*lpp.Session),
 		maxLocationAge: defaultMaxLocationAge,
+		refreshTimeout: defaultRefreshTimeout,
 	}
 }
 

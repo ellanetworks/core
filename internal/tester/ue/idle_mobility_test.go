@@ -63,8 +63,12 @@ func TestIdleMappedSecurityContextFromEPSAgreesWithTheCore(t *testing.T) {
 		t.Fatalf("ngKSI = %+v, want the eKSI %d of a mapped context", u.UeSecurity.NgKsi, in.EKSI.Value)
 	}
 
-	if u.UeSecurity.ULCount != 0 || u.UeSecurity.DLCount != 0 {
-		t.Fatalf("NAS COUNTs = %d/%d, want both 0 (TS 33.501 §8.6.2)", u.UeSecurity.ULCount, u.UeSecurity.DLCount)
+	if u.UeSecurity.ULCount != 0 {
+		t.Fatalf("uplink NAS COUNT = %d, want 0 (TS 33.501 §8.6.2)", u.UeSecurity.ULCount)
+	}
+
+	if u.UeSecurity.DLRecv.Accepted() {
+		t.Fatal("the UE's downlink NAS COUNT starts as if a message had already been accepted, want a count starting at 0 (TS 33.501 §8.6.2)")
 	}
 
 	handover, err := interworking.MapTo5GSOnHandover(in,
