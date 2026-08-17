@@ -29,6 +29,25 @@ func buildTestUE(t *testing.T) *amf.UeContext {
 	return ue
 }
 
+func buildServedTestUE(t *testing.T, amfInstance *amf.AMF, imsi string) *amf.UeContext {
+	t.Helper()
+
+	ue := buildTestUE(t)
+
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		t.Fatalf("invalid IMSI %q: %v", imsi, err)
+	}
+
+	ue.SetSupiForTest(supi)
+
+	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	return ue
+}
+
 func TestBuildConfigurationUpdateCommand_WithoutGUTI(t *testing.T) {
 	raw, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", false)
 	if err != nil {
@@ -50,6 +69,10 @@ func TestBuildConfigurationUpdateCommand_WithoutGUTI(t *testing.T) {
 
 	if cuc.ShortNameForNetwork == nil {
 		t.Fatal("expected ShortNameForNetwork to be present")
+	}
+
+	if cuc.ConfigurationUpdateIndication != nil {
+		t.Fatalf("expected no ConfigurationUpdateIndication for a NITZ-only command, got %s", cuc.ConfigurationUpdateIndication)
 	}
 }
 
@@ -89,6 +112,14 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 	if cuc.ShortNameForNetwork == nil {
 		t.Fatal("expected ShortNameForNetwork to be present")
 	}
+
+	if cuc.ConfigurationUpdateIndication == nil {
+		t.Fatal("expected ConfigurationUpdateIndication when a 5G-GUTI is included")
+	}
+
+	if !cuc.ConfigurationUpdateIndication.ACK {
+		t.Error("expected acknowledgement requested when a 5G-GUTI is included")
+	}
 }
 
 func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T) {
@@ -99,13 +130,13 @@ func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T
 }
 
 func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
-	ue := buildTestUE(t)
+	amfInstance := amf.New(nil, nil, nil)
+
+	ue := buildServedTestUE(t, amfInstance, "001019756139901")
 	ue.AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 	}
-
-	amfInstance := amf.New(nil, nil, nil)
 
 	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
@@ -124,12 +155,12 @@ func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 }
 
 func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
-	ue := buildTestUE(t)
+	amfInstance := amf.New(nil, nil, nil)
+
+	ue := buildServedTestUE(t, amfInstance, "001019756139902")
 	ue.AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 	}
-
-	amfInstance := amf.New(nil, nil, nil)
 
 	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
@@ -148,10 +179,10 @@ func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 }
 
 func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
-	ue := buildTestUE(t)
-	ue.AllowedNssai = []models.Snssai{}
-
 	amfInstance := amf.New(nil, nil, nil)
+
+	ue := buildServedTestUE(t, amfInstance, "001019756139903")
+	ue.AllowedNssai = []models.Snssai{}
 
 	raw, err := amf.BuildRegistrationAccept(amfInstance, ue, etsi.InvalidGUTI5G, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
@@ -170,7 +201,10 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 
 // TS 24.501 §8.2.7.31, TS 23.502 §4.11.1.3.3 steps 17-18
 func TestRegistrationAcceptDropsTheEPSBearerStatusOnceTheRegistrationIsDone(t *testing.T) {
-	ue := buildTestUE(t)
+	amfInstance := amf.New(nil, nil, nil)
+	amfInstance.EPS = &fakeEPSPeer{}
+
+	ue := buildServedTestUE(t, amfInstance, "001019756139904")
 	attachTestConn(t, ue)
 
 	if err := ue.CreateSmContext(3, "ref-3", &models.Snssai{Sst: 1, Sd: "010203"}, "internet"); err != nil {
@@ -179,15 +213,12 @@ func TestRegistrationAcceptDropsTheEPSBearerStatusOnceTheRegistrationIsDone(t *t
 
 	ue.SetEPSBearerIdentity(3, 6)
 
-	amfInstance := amf.New(nil, nil, nil)
-	amfInstance.EPS = &fakeEPSPeer{}
-
 	conn := ue.Conn()
 	if conn == nil {
 		t.Fatal("no NAS connection")
 	}
 
-	conn.ArrivedFromEPS = true
+	conn.EPSArrival = &amf.EPSArrival{}
 
 	if status := epsBearerStatusOf(t, amfInstance, ue); status == nil || !status.Active[6] {
 		t.Fatalf("EPS bearer context status = %+v, want EBI 6 active while the arrival is being registered", status)
@@ -215,4 +246,32 @@ func epsBearerStatusOf(t *testing.T, amfInstance *amf.AMF, ue *amf.UeContext) *n
 	}
 
 	return ra.EPSBearerContextStatus
+}
+
+// TS 24.501 §5.5.1.3.4
+func TestBuildRegistrationAcceptRefusesAContextTheAMFDoesNotServe(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	served := buildServedTestUE(t, amfInstance, "001019756139905")
+
+	for _, tc := range []struct {
+		name string
+		ue   *amf.UeContext
+	}{
+		{"never committed", buildTestUE(t)},
+		{"superseded by a newer context for the same subscriber", served},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.ue == served {
+				// A second context for the same SUPI displaces the first in the index.
+				buildServedTestUE(t, amfInstance, "001019756139905")
+			}
+
+			_, err := amf.BuildRegistrationAccept(amfInstance, tc.ue, etsi.InvalidGUTI5G, nil, nil, nil, nil,
+				models.PlmnID{Mcc: "001", Mnc: "01"})
+			if err == nil {
+				t.Fatal("built a registration accept for a UE the AMF cannot resolve by SUPI")
+			}
+		})
+	}
 }

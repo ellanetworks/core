@@ -47,6 +47,15 @@ func cipheringRequired(mt fgs.MessageType) bool {
 	return true
 }
 
+func requiresNewContextSecurityHeader(plain []byte) bool {
+	mt, err := fgs.PeekMessageType(plain)
+	if err != nil {
+		return false
+	}
+
+	return mt == fgs.MsgSecurityModeComplete
+}
+
 // plainNasAllowed reports whether a NAS message type may be processed without a verified
 // MAC before secure exchange (TS 24.501 §4.4.4.3, TS 33.501) — either sent as plain NAS,
 // or received integrity-protected with a failed MAC. SERVICE REQUEST is on the spec's

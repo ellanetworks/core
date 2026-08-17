@@ -106,7 +106,9 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 		writeProposeForwardError(ctx, w, http.StatusMisdirectedRequest,
 			"leadership changed during apply; retry", err)
 
-	case errors.Is(err, hraft.ErrEnqueueTimeout), errors.Is(err, hraft.ErrRaftShutdown):
+	case errors.Is(err, db.ErrProposeTimeout),
+		errors.Is(err, hraft.ErrEnqueueTimeout),
+		errors.Is(err, hraft.ErrRaftShutdown):
 		writeProposeForwardError(ctx, w, http.StatusServiceUnavailable,
 			"raft busy or shutting down", err)
 

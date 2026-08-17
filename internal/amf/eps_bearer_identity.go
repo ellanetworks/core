@@ -19,11 +19,15 @@ func (ue *UeContext) SetAllow4G(v bool) {
 	ue.allow4G = v
 }
 
-func (ue *UeContext) TransfersToEPS() bool {
+func (ue *UeContext) EPSInterworkingAllowed() bool {
+	if !ue.SupportsS1Mode() {
+		return false
+	}
+
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.allow4G && ue.gmmCapability != nil && ue.gmmCapability.S1Mode
+	return ue.allow4G
 }
 
 func (ue *UeContext) NextEPSBearerIdentity(pduSessionID uint8) (uint8, error) {

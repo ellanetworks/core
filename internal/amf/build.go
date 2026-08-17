@@ -249,6 +249,10 @@ func BuildRegistrationAccept(
 	errPduSessionID, errCause []uint8,
 	equivalentPlmnID models.PlmnID,
 ) ([]byte, error) {
+	if !amfInstance.ServesUeContext(ue) {
+		return nil, fmt.Errorf("refusing to build registration accept: UE context is not indexed by SUPI")
+	}
+
 	equivalentPLMNs := nas.PLMNList{{MCC: equivalentPlmnID.Mcc, MNC: equivalentPlmnID.Mnc}}
 
 	t3512, err := nas.GPRSTimer3FromDuration(amfInstance.T3512Value)
@@ -317,7 +321,7 @@ func BuildRegistrationAccept(
 		m.NegotiatedDRX = &fgs.DRXParameter{Value: ue.DRXParameter}
 	}
 
-	if conn := ue.Conn(); conn != nil && conn.ArrivedFromEPS && amfInstance.EPS != nil {
+	if conn := ue.Conn(); conn.ArrivedFromEPS() && amfInstance.EPS != nil {
 		var status nas.EPSBearerContextStatus
 
 		for _, ebi := range ue.EPSBearerIdentities() {
@@ -335,14 +339,15 @@ func BuildRegistrationAccept(
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
 func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
-	ack := fgs.ConfigurationUpdateIndication{ACK: true}
-
-	m := &fgs.ConfigurationUpdateCommand{ConfigurationUpdateIndication: &ack}
+	m := &fgs.ConfigurationUpdateCommand{}
 
 	if includeGUTI {
 		if guti == etsi.InvalidGUTI5G {
 			return nil, fmt.Errorf("5G-GUTI is required")
 		}
+
+		ack := fgs.ConfigurationUpdateIndication{ACK: true}
+		m.ConfigurationUpdateIndication = &ack
 
 		gutiNas, err := guti.MobileIdentity()
 		if err != nil {

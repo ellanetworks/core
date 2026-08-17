@@ -158,15 +158,14 @@ func TestSetupTestCluster_RemoveAndReaddServer(t *testing.T) {
 		t.Fatalf("RemoveServer(%d): %v", removeNodeID, err)
 	}
 
-	// VoterIDs should now contain only 2 nodes.
-	ids := leader.VoterIDs()
+	ids := leader.MemberIDs()
 	if len(ids) != 2 {
-		t.Fatalf("expected 2 voters after removal, got %d: %v", len(ids), ids)
+		t.Fatalf("expected 2 members after removal, got %d: %v", len(ids), ids)
 	}
 
 	for _, id := range ids {
 		if id == removeNodeID {
-			t.Fatalf("removed node %d still in VoterIDs", removeNodeID)
+			t.Fatalf("removed node %d still in MemberIDs", removeNodeID)
 		}
 	}
 
@@ -185,9 +184,9 @@ func TestSetupTestCluster_RemoveAndReaddServer(t *testing.T) {
 		t.Fatalf("AddVoter(%d): %v", removeNodeID, err)
 	}
 
-	ids = leader.VoterIDs()
+	ids = leader.MemberIDs()
 	if len(ids) != 3 {
-		t.Fatalf("expected 3 voters after re-add, got %d: %v", len(ids), ids)
+		t.Fatalf("expected 3 members after re-add, got %d: %v", len(ids), ids)
 	}
 
 	// Propose on the restored 3-node cluster.

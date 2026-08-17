@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -917,5 +919,28 @@ func TestForwardRelocationTakesTheSliceFromTheSource(t *testing.T) {
 	got := sessions.lastRequest.Snssai
 	if got == nil || *got != onAnotherSlice {
 		t.Fatalf("session created on slice %+v, want the %+v the source named", got, onAnotherSlice)
+	}
+}
+
+type barredBearerStore struct{ fakeBearerStore }
+
+func (barredBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
+	return &db.Profile{ID: id, UeAmbrDownlink: "1 Gbps", UeAmbrUplink: "1 Gbps", Allow4G: false, Allow5G: true}, nil
+}
+
+// TS 23.501 §5.3.4.1.1
+func TestForwardRelocationRefusesASubscriberBarredFrom4G(t *testing.T) {
+	m := New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
+	newRelocationTarget(t, m)
+
+	_, err := m.ForwardRelocation(context.Background(), relocationRequest())
+
+	var refusal interworking.TargetRefusal
+	if !errors.As(err, &refusal) {
+		t.Fatalf("error = %v, want a TargetRefusal", err)
+	}
+
+	if refusal.Cause.Value != s1ap.CauseRadioNetworkHOTargetNotAllowed {
+		t.Fatalf("refusal cause = %+v, want handover target not allowed", refusal.Cause)
 	}
 }

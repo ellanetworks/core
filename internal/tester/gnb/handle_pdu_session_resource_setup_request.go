@@ -48,14 +48,14 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 				zap.Error(err), zap.Int64("PDU Session ID", pduSessionID))
 		} else {
 			pduSessionInfo.PDUSessionID = pduSessionID
-			pduSessionInfo.DLTeid = gnb.GenerateTEID()
+			pduSessionInfo.DLTEID = gnb.allocTEID()
 
 			logger.GnbLogger.Debug(
 				"Parsed PDU Session Resource Setup Request Transfer",
 				zap.Int64("AMF UE NGAP ID", amfUeNgapID),
 				zap.Int64("RAN UE NGAP ID", ranUeNgapID),
 				zap.Int64("PDU Session ID", pduSessionID),
-				zap.Uint32("UL TEID", pduSessionInfo.ULTeid),
+				zap.Uint32("UL TEID", pduSessionInfo.ULTEID),
 				zap.String("UPF Address", pduSessionInfo.UpfAddress),
 				zap.Int64("QOS ID", pduSessionInfo.QosId),
 				zap.Int64("5QI", pduSessionInfo.FiveQi),
@@ -63,7 +63,7 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 				zap.Uint64("PDU Session Type", pduSessionInfo.PduSType),
 			)
 
-			gnb.StorePDUSession(ranUeNgapID, pduSessionInfo)
+			gnb.storePDUSession(ranUeNgapID, pduSessionInfo)
 		}
 
 		// Some AMF implementations omit the NAS-PDU when there is no NAS
@@ -84,11 +84,11 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 
 	pduSessions := [16]*PDUSessionInformation{}
 
-	for _, s := range gnb.GetPDUSessions(ranUeNgapID) {
+	for _, s := range gnb.pduSessionsFor(ranUeNgapID) {
 		if s.PDUSessionID >= 1 && s.PDUSessionID <= 15 {
 			pduSessions[s.PDUSessionID] = &PDUSessionInformation{
 				PDUSessionID: s.PDUSessionID,
-				DLTeid:       s.DLTeid,
+				DLTEID:       s.DLTEID,
 				N3GnbIp:      gnb.N3Address,
 				QFI:          1,
 			}
@@ -114,8 +114,8 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 }
 
 type PDUSessionInformation struct {
-	ULTeid       uint32
-	DLTeid       uint32
+	ULTEID       uint32
+	DLTEID       uint32
 	UpfAddress   string
 	N3GnbIp      netip.Addr
 	QosId        int64
@@ -126,6 +126,10 @@ type PDUSessionInformation struct {
 	PDUSessionID int64
 	AmbrUplink   int64
 	AmbrDownlink int64
+
+	// generation orders stores of the same session so a procedure can tell the
+	// resources its own signalling established from ones already there.
+	generation uint64
 }
 
 // getPDUSessionInfoFromSetupRequestTransfer reads the uplink tunnel and QoS the
@@ -162,7 +166,7 @@ func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer ngap.Transf
 	}
 
 	return &PDUSessionInformation{
-		ULTeid:     uint32(t.ULNGUUPTNLInformation.GTPTunnel.GTPTEID),
+		ULTEID:     uint32(t.ULNGUUPTNLInformation.GTPTunnel.GTPTEID),
 		UpfAddress: upfIP,
 		N3GnbIp:    gnb.N3Address,
 		QosId:      qosID,

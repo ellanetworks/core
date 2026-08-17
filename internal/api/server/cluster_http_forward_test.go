@@ -7,12 +7,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/db"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	hraft "github.com/hashicorp/raft"
 )
 
 // TestClusterPropose_HappyPath runs a real single-node Raft cluster
@@ -192,5 +196,31 @@ func TestClusterPropose_UnknownCommandTypeRejected(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for unknown operation, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestMapApplyErrorToHTTP(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"unknown operation", db.ErrUnknownOperation, http.StatusBadRequest},
+		{"not leader", hraft.ErrNotLeader, http.StatusMisdirectedRequest},
+		{"leadership lost", hraft.ErrLeadershipLost, http.StatusMisdirectedRequest},
+		{"enqueue timeout", hraft.ErrEnqueueTimeout, http.StatusServiceUnavailable},
+		{"raft shutdown", hraft.ErrRaftShutdown, http.StatusServiceUnavailable},
+		{"propose timeout", fmt.Errorf("%w: barrier", db.ErrProposeTimeout), http.StatusServiceUnavailable},
+		{"unclassified", errors.New("boom"), http.StatusInternalServerError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			mapApplyErrorToHTTP(context.Background(), w, tc.err)
+
+			if w.Code != tc.want {
+				t.Fatalf("status for %v: want %d, got %d", tc.err, tc.want, w.Code)
+			}
+		})
 	}
 }

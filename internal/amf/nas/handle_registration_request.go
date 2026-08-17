@@ -17,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"go.uber.org/zap"
@@ -109,6 +108,11 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	conn.RegistrationRequestReplayRequired = arrivedPlain
 	conn.SetRegistrationType5GS(uint8(req.RegistrationType))
 
+	conn.EPSArrival = nil
+	if conn.RegistrationType5GS == fgs.RegistrationTypeMobilityUpdating && movingFromEPC(req) && ue.ArrivedFromEPSHandover() {
+		conn.EPSArrival = &amf.EPSArrival{}
+	}
+
 	regName := registrationTypeName(conn.RegistrationType5GS)
 
 	logger.From(ctx, logger.AmfLog).Debug("Received Registration Request", zap.String("registrationType", regName))
@@ -150,24 +154,6 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
-	}
-
-	if !req.NgKSI.Mapped || !integrityVerified {
-		ngKsi := models.NgKsi{}
-
-		if req.NgKSI.Mapped {
-			ngKsi.Tsc = models.ScTypeMapped
-		} else {
-			ngKsi.Tsc = models.ScTypeNative
-		}
-
-		ngKsi.Ksi = amf.NextNgKsi(int32(req.NgKSI.Value))
-		if ngKsi.Tsc != models.ScTypeNative || ngKsi.Ksi == 7 {
-			ngKsi.Tsc = models.ScTypeNative
-			ngKsi.Ksi = 0
-		}
-
-		ue.SetNgKsi(ngKsi)
 	}
 
 	ue.Location = ueConn.Location
@@ -289,7 +275,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		ue.TransitionTo(amf.RegistrationInitiated)
 
 		if movingFromEPCInIdleMode(ue.Conn(), req) {
-			recoverContextFromEPS(ctx, amfInstance, ue, req)
+			recoverContextFromEPS(ctx, amfInstance, ue, req, integrityVerified)
 		}
 
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)

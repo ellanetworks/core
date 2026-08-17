@@ -140,15 +140,19 @@ func (m *MME) SessionDropped(ctx context.Context, imsi string, ebi uint8, ref st
 	logger.From(ctx, logger.MmeLog).Info("PDN connection moved to 5GS; dropping the EPS routing context",
 		zap.String("imsi", imsi), zap.Uint8("ebi", ebi), zap.Bool("last-pdn", last))
 
-	// TS 23.502 §4.11.2.3
-	if last {
-		if _, relocating := m.RelocationToFiveGS(ue); relocating {
-			return
-		}
-
-		ue.TransitionTo(EMMDeregistered)
-		m.ReleaseUEContext(ctx, ue, CauseNASNormalRelease)
+	if !last {
+		return
 	}
+
+	if _, relocating := m.RelocationToFiveGS(ue); relocating {
+		return
+	}
+
+	if ue.IdleMobilityTo5GSPending() {
+		return
+	}
+
+	m.DeregisterEmptyUE(ctx, ue)
 }
 
 func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last bool) {
@@ -161,6 +165,7 @@ func takePDNByRef(ue *UeContext, ebi uint8, ref string) (p *PdnConnection, last 
 	}
 
 	delete(ue.Pdns, ebi)
+
 	ue.localBearerDeactivation = true
 
 	return p, len(ue.Pdns) == 0

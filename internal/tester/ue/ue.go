@@ -75,8 +75,8 @@ type Amf struct {
 
 type PDUSessionInfo struct {
 	PDUSessionID uint8
-	UEIP         string
-	UEIPV6       string
+	UEIPv4       string
+	UEIPv6       string
 	MTU          uint16
 	QFI          uint8
 }
@@ -99,19 +99,20 @@ type UE struct {
 	Gnb                    air.UplinkSender
 	mu                     sync.Mutex
 	cond                   *sync.Cond
-	PDUSessions            map[uint8]PDUSessionInfo
+	pduSessions            map[uint8]PDUSessionInfo
 	receivedNASGMMMessages map[uint8][][]byte // msgType -> plaintext GMM messages
 	receivedNASGSMMessages map[uint8][][]byte // msgType -> plaintext GSM messages
 	receivedRRCRelease     bool
 	lppRequests            []*LPPRequest // queue of received LPP requests
 	lppCapsSent            bool          // true after first ProvideLocationCapabilities
+	requestedReactivation  bool
 }
 
 func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.PDUSessions[pduSession.PDUSessionID] = pduSession
+	ue.pduSessions[pduSession.PDUSessionID] = pduSession
 	ue.cond.Broadcast()
 }
 
@@ -119,7 +120,7 @@ func (ue *UE) GetPDUSession(pduSessionID uint8) PDUSessionInfo {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.PDUSessions[pduSessionID]
+	return ue.pduSessions[pduSessionID]
 }
 
 func (ue *UE) WaitForPDUSession(pduSessionID uint8, timeout time.Duration) (PDUSessionInfo, error) {
@@ -134,7 +135,7 @@ func (ue *UE) WaitForPDUSession(pduSessionID uint8, timeout time.Duration) (PDUS
 	defer ue.mu.Unlock()
 
 	for {
-		if session, ok := ue.PDUSessions[pduSessionID]; ok {
+		if session, ok := ue.pduSessions[pduSessionID]; ok {
 			return session, nil
 		}
 
@@ -213,7 +214,7 @@ func NewUE(opts *UEOpts) (*UE, error) {
 
 	ue.IMEISV = opts.IMEISV
 
-	ue.PDUSessions = make(map[uint8]PDUSessionInfo)
+	ue.pduSessions = make(map[uint8]PDUSessionInfo)
 	ue.receivedNASGMMMessages = make(map[uint8][][]byte)
 	ue.receivedNASGSMMessages = make(map[uint8][][]byte)
 	ue.lppRequests = make([]*LPPRequest, 0)
@@ -610,6 +611,13 @@ func updateReceivedGSMMessages(ue *UE, plain []byte) {
 	ue.cond.Broadcast()
 }
 
+func (ue *UE) ReceivedNASGMMCount(msgType uint8) int {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return len(ue.receivedNASGMMMessages[msgType])
+}
+
 func (ue *UE) WaitForNASGMMMessage(msgType uint8, timeout time.Duration) ([]byte, error) {
 	deadline := time.Now().Add(timeout)
 
@@ -700,20 +708,66 @@ func (ue *UE) WaitForRRCRelease(timeout time.Duration) error {
 }
 
 func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
+	return ue.sendRegistrationRequest(ranUENGAPID, regType, nil)
+}
+
+func (ue *UE) SendMobilityRegistrationRequest(ranUENGAPID int64, reactivate []uint8) error {
+	var uplinkDataStatus [16]bool
+
+	for _, pduSessionID := range reactivate {
+		if int(pduSessionID) >= len(uplinkDataStatus) {
+			return fmt.Errorf("PDU session ID %d is out of range", pduSessionID)
+		}
+
+		uplinkDataStatus[pduSessionID] = true
+	}
+
+	return ue.sendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating), &uplinkDataStatus)
+}
+
+func (ue *UE) setRequestedReactivation(requested bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.requestedReactivation = requested
+}
+
+func (ue *UE) skipAutoPDUSession() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.NoAutoPDUSession || ue.requestedReactivation
+}
+
+func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDataStatus *[16]bool) error {
 	if ue.Gnb == nil {
 		return fmt.Errorf("GNB is not set for UE")
 	}
 
-	nasPDU, err := BuildRegistrationRequest(&RegistrationRequestOpts{
-		RegistrationType:  regType,
-		RequestedNSSAI:    nil,
-		UplinkDataStatus:  nil,
-		IncludeCapability: false,
-		UESecurity:        ue.UeSecurity,
+	var err error
+
+	var s1Capability []byte
+
+	if ue.UeSecurity.S1UENetworkCapability != nil {
+		if s1Capability, err = ue.UeSecurity.S1UENetworkCapability.MarshalBinary(); err != nil {
+			return fmt.Errorf("could not encode the S1 UE network capability: %w", err)
+		}
+	}
+
+	nasPDU, complete, err := buildRegistrationRequest(&RegistrationRequestOpts{
+		RegistrationType:      regType,
+		RequestedNSSAI:        nil,
+		UplinkDataStatus:      uplinkDataStatus,
+		IncludeCapability:     regType != uint8(fgs.RegistrationTypePeriodicUpdating),
+		S1UENetworkCapability: s1Capability,
+		UESecurity:            ue.UeSecurity,
+		InitialNASMessage:     true,
 	})
 	if err != nil {
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
 	}
+
+	ue.replayRegistration = complete
 
 	// TS 24.501 §4.4.6: a UE with a current 5G NAS security context integrity
 	// protects the initial NAS message of a new connection, so the AMF can
@@ -736,6 +790,8 @@ func (ue *UE) SendRegistrationRequest(ranUENGAPID int64, regType uint8) error {
 	if err != nil {
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
+
+	ue.setRequestedReactivation(uplinkDataStatus != nil)
 
 	logger.UeLogger.Debug(
 		"Sent Registration Request NAS message",

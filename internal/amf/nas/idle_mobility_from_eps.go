@@ -21,7 +21,7 @@ func movingFromEPCInIdleMode(conn *amf.UeConn, req *fgs.RegistrationRequest) boo
 		len(req.EPSNASMessageContainer) > 0
 }
 
-func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest) {
+func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, req *fgs.RegistrationRequest, integrityVerified bool) {
 	conn := ue.Conn()
 	if conn == nil {
 		return
@@ -41,13 +41,21 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
-	if ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
-		logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
-			logger.SUPI(resp.SUPI.String()))
+	ue.AttestS1Mode()
 
-		conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	if integrityVerified && ue.SecurityContextIsValid() && ue.Supi() == resp.SUPI {
+		err := ue.CitesCurrentNgKSI(req.NgKSI)
+		if err == nil {
+			logger.From(ctx, logger.AmfLog).Info("inter-system change resumed on the UE's native 5G security context",
+				logger.SUPI(resp.SUPI.String()))
 
-		return
+			conn.EPSArrival = &amf.EPSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
+
+			return
+		}
+
+		logger.From(ctx, logger.AmfLog).Info("the inter-system change cites a 5G security context the AMF does not hold; mapping the EPS context instead",
+			zap.Error(err))
 	}
 
 	if err := amfInstance.AdoptMMContext(ctx, ue, resp); err != nil {
@@ -56,19 +64,22 @@ func recoverContextFromEPS(ctx context.Context, amfInstance *amf.AMF, ue *amf.Ue
 		return
 	}
 
-	conn.ArrivingFromEPS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	conn.EPSArrival = &amf.EPSArrival{
+		Sessions:                 &interworking.ArrivingSessions{PDN: resp.PDNConnections},
+		NeedsSecurityModeControl: true,
+	}
 
 	logger.From(ctx, logger.AmfLog).Info("mapped the UE's EPS security context onto 5GS for an idle-mode change",
 		logger.SUPI(resp.SUPI.String()), zap.Int("pdn-connections", len(resp.PDNConnections)))
 }
 
 func adoptArrivingSessions(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) bool {
-	arriving := conn.ArrivingFromEPS
+	arriving := conn.EPSArrival.ArrivingSessions()
 	if arriving == nil {
 		return true
 	}
 
-	conn.ArrivingFromEPS = nil
+	conn.EPSArrival.Sessions = nil
 
 	supi := ue.Supi()
 

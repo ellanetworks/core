@@ -315,7 +315,7 @@ func movingFromEPC(req *fgs.RegistrationRequest) bool {
 
 func releaseLocallyDeactivatedEPSBearers(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, conn *amf.UeConn) {
 	status := conn.RegistrationRequest.EPSBearerContextStatus
-	if status == nil || !conn.ArrivedFromEPS || amfInstance.EPS == nil {
+	if status == nil || !conn.ArrivedFromEPS() || amfInstance.EPS == nil {
 		return
 	}
 

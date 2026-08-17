@@ -78,6 +78,7 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	ue.secured = true
 	ue.Conn().secureExchangeEstablished = true
 	ue.ForceStateForTest(EMMRegistered)
+	ue.SetAccess(Access{Allow4G: true, Allow5G: true})
 	registerTestUE(m, ue, testSubscriber.IMSI)
 
 	return ue, cc

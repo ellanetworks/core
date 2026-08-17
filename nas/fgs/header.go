@@ -53,7 +53,8 @@ const (
 	SHTIntegrityProtectedCipheredNewContext SecurityHeaderType = 4 // SECURITY MODE COMPLETE only
 )
 
-func (s SecurityHeaderType) ciphered() bool {
+// Ciphered reports whether this header type marks a ciphered message (TS 24.501 §4.4.5).
+func (s SecurityHeaderType) Ciphered() bool {
 	return s == SHTIntegrityProtectedCiphered || s == SHTIntegrityProtectedCipheredNewContext
 }
 

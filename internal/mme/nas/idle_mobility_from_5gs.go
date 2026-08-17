@@ -60,7 +60,7 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 
 	m.AttachUeConn(ue, conn)
 
-	conn.ArrivingFrom5GS = &interworking.ArrivingSessions{PDN: resp.PDNConnections}
+	conn.FiveGSArrival = &mme.FiveGSArrival{Sessions: &interworking.ArrivingSessions{PDN: resp.PDNConnections}}
 
 	logger.From(ctx, logger.MmeLog).Info("recovered the UE's context from 5GS for an idle-mode change",
 		zap.String("imsi", ue.IMSI()), zap.Int("pdu-sessions", len(resp.PDNConnections)))
@@ -80,7 +80,7 @@ func remapHeldContext(ctx context.Context, m *mme.MME, held *mme.UeContext, conn
 
 	m.AttachUeConn(held, conn)
 
-	conn.RemappedFrom5GS = true
+	conn.FiveGSArrival = &mme.FiveGSArrival{RemappedHeldContext: true}
 
 	logger.From(ctx, logger.MmeLog).Info("re-keyed a held context for an inter-system change the UE repeated",
 		zap.String("imsi", held.IMSI()))
@@ -109,12 +109,16 @@ func unprotectedBody(pdu []byte) ([]byte, bool) {
 }
 
 func adoptIdlePDNsFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
-	arriving := ueConn.ArrivingFrom5GS
+	arriving := ueConn.FiveGSArrival.ArrivingSessions()
 	if arriving == nil {
 		return
 	}
 
-	m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForInterworking())
+	if err := m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForInterworking()); err != nil {
+		logger.From(ctx, logger.MmeLog).Error("could not adopt the identity of a UE arriving from 5GS", zap.Error(err))
+
+		return
+	}
 
 	adopted := m.AdoptIdlePDNs(ctx, ue, arriving.PDN)
 
@@ -126,25 +130,28 @@ func adoptIdlePDNsFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 func completeIdleMobilityFrom5GS(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 	plain []byte,
 ) (answered bool) {
-	if ueConn.RemappedFrom5GS {
-		ueConn.RemappedFrom5GS = false
+	arrival := ueConn.FiveGSArrival
+	if arrival == nil {
+		return false
+	}
 
+	ueConn.FiveGSArrival = nil
+
+	if arrival.RemappedHeldContext {
 		return changeNASAlgorithmsForMappedContext(ctx, m, ue, ueConn, plain,
 			interworking.EPSNASAlgorithms{Ciphering: ue.EEA(), Integrity: ue.EIA()})
 	}
 
-	arriving := ueConn.ArrivingFrom5GS
-	if arriving == nil {
-		return false
+	var offered int
+	if arrival.Sessions != nil {
+		offered = len(arrival.Sessions.PDN)
 	}
-
-	ueConn.ArrivingFrom5GS = nil
 
 	transferred := heldPDUSessions(m, ue)
 
 	if len(transferred) == 0 {
 		logger.From(ctx, logger.MmeLog).Info("no PDU session of a UE arriving from 5GS could become a PDN connection; rejecting the update",
-			zap.String("imsi", ue.IMSI()), zap.Int("offered", len(arriving.PDN)))
+			zap.String("imsi", ue.IMSI()), zap.Int("offered", offered))
 
 		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseNoEPSBearerContextActivated)
 

@@ -320,7 +320,7 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeCo
 }
 
 func assignEPSBearerIdentity(ctx context.Context, ue *amf.UeContext, pduSessionID uint8) uint8 {
-	if !ue.TransfersToEPS() {
+	if !ue.EPSInterworkingAllowed() {
 		return 0
 	}
 

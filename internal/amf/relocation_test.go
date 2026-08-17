@@ -132,6 +132,22 @@ func TestPrepareHandoverToEPS(t *testing.T) {
 	}
 }
 
+// TS 23.501 §5.17.2
+func TestPrepareHandoverToEPSRefusesASubscriberBarredFromEPS(t *testing.T) {
+	peer := &fakeEPSPeer{}
+	a, ue, source := newRelocatingAMF(t, peer)
+	ue.SetAllow4G(false)
+
+	_, err := a.PrepareHandoverToEPS(ue, source, testTarget, nil, []uint8{1}, nil)
+	if !errors.Is(err, amf.ErrEPSMobilityBarred) {
+		t.Fatalf("error = %v, want the handover to EPS to be refused before it is prepared", err)
+	}
+
+	if a.HandoverToEPSInProgress(ue) {
+		t.Error("the refused handover was staged anyway")
+	}
+}
+
 func TestPrepareHandoverToEPSOffersOnlyTheRequestedSessions(t *testing.T) {
 	peer := &fakeEPSPeer{}
 	a, ue, source := newRelocatingAMF(t, peer)

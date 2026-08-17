@@ -40,7 +40,7 @@ func BuildPDUSessionResourceSetupResponse(opts *PDUSessionResourceSetupResponseO
 			continue
 		}
 
-		transfer, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTeid, pduSession.QFI)
+		transfer, err := GetPDUSessionResourceSetupResponseTransfer(pduSession.N3GnbIp, pduSession.DLTEID, pduSession.QFI)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get PDUSessionResourceSetupResponseTransfer: %w", err)
 		}

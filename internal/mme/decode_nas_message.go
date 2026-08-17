@@ -108,9 +108,15 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 	// is dropped (TS 24.301).
 	p, count, err := ue.TryUnprotectUplink(nas)
 	if err == nil {
-		// connSecured is per connection, leaving the initial NAS message of a new
-		// one outside this guard.
-		if connSecured && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) {
+		if requiresNewContextSecurityHeader(p) && spm.SecurityHeaderType != eps.SHTIntegrityProtectedCipheredNewContext {
+			logger.MmeLog.Warn("discarding SECURITY MODE COMPLETE sent without the new-context security header type",
+				zap.String("imsi", ue.IMSI()))
+
+			return nil, silentDecode(nasreply.ReasonIntegrityFail,
+				"NAS discarded: SECURITY MODE COMPLETE without the new-context security header type (TS 24.301 §5.4.3.3)")
+		}
+
+		if conn.CipheringStarted() && spm.SecurityHeaderType == eps.SHTIntegrityProtected && cipheringRequiredFor(p) {
 			logger.MmeLog.Warn("discarding unciphered NAS message received after ciphering started",
 				zap.String("imsi", ue.IMSI()))
 
@@ -122,6 +128,10 @@ func DecodeNASMessage(ue *UeContext, nas []byte) (*DecodeResult, error) {
 		// First verified message establishes secure exchange on the connection (TS 24.301 §4.4.4.3).
 		if conn != nil {
 			conn.MarkSecureExchangeEstablished()
+
+			if spm.SecurityHeaderType.Ciphered() {
+				conn.MarkCipheringStarted()
+			}
 		}
 
 		return &DecodeResult{Plain: p, IntegrityVerified: true}, nil

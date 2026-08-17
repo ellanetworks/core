@@ -49,13 +49,6 @@ func (m *MME) AdoptIdlePDNs(ctx context.Context, ue *UeContext, conns []interwor
 			continue
 		}
 
-		if !qos.Allow4G {
-			logger.From(ctx, logger.MmeLog).Warn("arriving PDU session is not allowed on 4G; leaving it behind",
-				zap.String("imsi", ue.IMSI()), zap.String("apn", c.APN))
-
-			continue
-		}
-
 		snssai := c.Snssai
 
 		bearer, err := m.Session.TransferIdleToEPS(ctx, ue.Supi(), c.PDUSessionID, c.EPSBearerIdentity, c.APN, &snssai)

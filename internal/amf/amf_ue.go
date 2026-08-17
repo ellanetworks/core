@@ -72,6 +72,7 @@ type UeContext struct {
 
 	gmmCapability         *fgs.GMMCapability
 	s1UENetworkCapability []byte
+	s1ModeAttested        bool
 
 	epsNASAlgorithmsOffered *interworking.EPSNASAlgorithms
 	epsNASAlgorithms        *interworking.EPSNASAlgorithms
@@ -450,12 +451,15 @@ func (ue *UeContext) deriveNextNHLocked() ([32]uint8, uint8, error) {
 
 func (ue *UeContext) ClearRegistrationRequestData() {
 	conn := ue.Conn()
-	if conn == nil {
-		return
-	}
 
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
+
+	ue.arrivedFromEPSHandover = false
+
+	if conn == nil {
+		return
+	}
 
 	conn.RegistrationRequest = nil
 	conn.RegistrationRequestPlain = nil
@@ -464,7 +468,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 	conn.resyncTried = false
 	conn.RetransmissionOfInitialNASMsg = false
 	conn.RegistrationAcceptPlain = nil
-	conn.ArrivedFromEPS = false
+	conn.EPSArrival = nil
 
 	if r := ue.active.Load(); r != nil {
 		r.UeContextRequest = false
@@ -494,6 +498,29 @@ func (ue *UeContext) CreateSmContext(pduSessionID uint8, ref string, snssai *mod
 	}
 
 	return nil
+}
+
+func (ue *UeContext) takeSmContexts() map[uint8]*SmContext {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	taken := ue.SmContextList
+	ue.SmContextList = make(map[uint8]*SmContext)
+
+	return taken
+}
+
+func (ue *UeContext) adoptSmContexts(carried map[uint8]*SmContext) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	for pduSessionID, smContext := range carried {
+		if _, held := ue.SmContextList[pduSessionID]; held {
+			continue
+		}
+
+		ue.SmContextList[pduSessionID] = smContext
+	}
 }
 
 func (ue *UeContext) DeleteSmContext(pduSessionID uint8) {
@@ -564,7 +591,15 @@ func (ue *UeContext) SendDownlinkNAS(plain []byte, sht uint8, write nas.WriteFun
 		return write(plain)
 	}
 
-	return ue.dl.Send(plain, sht, write)
+	if err := ue.dl.Send(plain, sht, write); err != nil {
+		return err
+	}
+
+	if fgs.SecurityHeaderType(sht).Ciphered() {
+		ue.Conn().MarkCipheringStarted()
+	}
+
+	return nil
 }
 
 func (ue *UeContext) StopProcedureTimers() {

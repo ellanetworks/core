@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -139,19 +138,11 @@ func runRegistrationSuccessProfileA(_ context.Context, env scenarios.Env, params
 
 	gNodeB.AddUE(int64(scenarios.DefaultRANUENGAPID), newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  int64(scenarios.DefaultRANUENGAPID),
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	if _, err := gNodeB.Register(newUE, int64(scenarios.DefaultRANUENGAPID), scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
 		return fmt.Errorf("initial registration: %w", err)
 	}
 
-	if err := procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(int64(scenarios.DefaultRANUENGAPID)),
-		RANUENGAPID: int64(scenarios.DefaultRANUENGAPID),
-	}); err != nil {
+	if err := gNodeB.Deregister(newUE, int64(scenarios.DefaultRANUENGAPID), releaseTimeout); err != nil {
 		return fmt.Errorf("deregistration: %w", err)
 	}
 

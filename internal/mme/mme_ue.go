@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"sync"
 	"sync/atomic"
@@ -177,6 +178,9 @@ type UeContext struct {
 	emmState EMMState
 
 	idleMobilityFrom5GS bool
+	idleMobilityTo5GS   bool
+
+	allow5G bool
 
 	localBearerDeactivation bool
 
@@ -220,8 +224,10 @@ func (ue *UeContext) lastSeenTime() time.Time {
 // SetIMSI records the UE's IMSI under ue.mu (so a concurrent lookupUeByIMSI scan
 // never reads it mid-write). It does not index the UE by IMSI or supersede a
 // prior context — that waits until the attach is authenticated, in
-// commitUEIdentity — so an unauthenticated attach citing a victim's cleartext
-// IMSI cannot tear down the victim's context (TS 24.301 §4.4.4.3).
+// CommitUEIdentity — so an unauthenticated attach citing a victim's cleartext IMSI
+// cannot tear down the victim's context. TS 24.301 §4.4.4.3 has the MME process the
+// plain ATTACH REQUEST at all; §5.5.1.2.7 f) keeps the victim's EMM context unchanged
+// until authentication proves the sender genuine.
 func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
@@ -234,17 +240,14 @@ func (m *MME) SetIMSI(ue *UeContext, imsi string) {
 	ue.mu.Unlock()
 }
 
-// CommitUEIdentity indexes the UE by IMSI and supersedes any prior context for
-// the same subscriber, so a subscriber maps to exactly one context. It runs only
-// after the attach is authenticated and accepted, so an unauthenticated attach
-// cannot disturb a registered UE (TS 24.301 §4.4.4.3).
-func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) {
+// TS 24.301 §5.5.1.2.7 f
+func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) error {
 	ue.mu.Lock()
 	supi := ue.supi
 	ue.mu.Unlock()
 
 	if !supi.IsIMSI() {
-		return
+		return fmt.Errorf("imsi is empty")
 	}
 
 	m.mu.Lock()
@@ -266,6 +269,23 @@ func (m *MME) CommitUEIdentity(ctx context.Context, ue *UeContext, _ AuthProof) 
 			zap.String("imsi", supi.IMSI()))
 		m.ReleaseAllSessions(ctx, old)
 	}
+
+	return nil
+}
+
+func (m *MME) ServesUeContext(ue *UeContext) bool {
+	if ue == nil {
+		return false
+	}
+
+	supi := ue.Supi()
+	if !supi.IsIMSI() {
+		return false
+	}
+
+	held, ok := m.LookupUeBySupi(supi)
+
+	return ok && held == ue
 }
 
 // Connected reports whether the UE has an active UE-associated S1-connection
@@ -926,8 +946,6 @@ func (m *MME) LookupUeByMTMSI(mtmsi uint32) (*UeContext, bool) {
 	return ue, ok
 }
 
-// LookupUeBySupi finds the persistent UE context for supi. It resolves a UE in
-// ECM-IDLE as well as a connected one.
 func (m *MME) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -937,18 +955,11 @@ func (m *MME) LookupUeBySupi(supi etsi.SUPI) (*UeContext, bool) {
 	return ue, ok
 }
 
-// LookupUeByIMSI finds the persistent UE context for imsi. It resolves a UE in
-// ECM-IDLE as well as a connected one.
 func (m *MME) LookupUeByIMSI(imsi string) (*UeContext, bool) {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return nil, false
 	}
 
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	ue, ok := m.UEs[supi]
-
-	return ue, ok
+	return m.LookupUeBySupi(supi)
 }

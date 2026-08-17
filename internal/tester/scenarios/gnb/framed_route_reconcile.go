@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/spf13/pflag"
 )
@@ -102,11 +101,7 @@ func runFramedRouteReconcile(ctx context.Context, env scenarios.Env, p *framedRe
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	if _, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
 		return fmt.Errorf("initial registration: %w", err)
 	}
 
@@ -137,14 +132,7 @@ func runFramedRouteReconcile(ctx context.Context, env scenarios.Env, p *framedRe
 		return fmt.Errorf("expected cause #39 (reactivation requested) after framed-route change, got %d", cause)
 	}
 
-	pduSessionIDs := [16]bool{}
-	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
+	pduSessionIDs := []uint8{scenarios.DefaultPDUSessionID}
 
-	return procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID:   ranUENGAPID,
-		GnodeB:        gNodeB,
-		UE:            newUE,
-		PDUSessionIDs: pduSessionIDs,
-	})
+	return gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionIDs, releaseTimeout)
 }

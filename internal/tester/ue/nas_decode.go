@@ -106,6 +106,12 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byt
 		return nil, fmt.Errorf("algorithm key derivation failed: %w", err)
 	}
 
+	// Only the initial SECURITY MODE COMMAND of a context created by primary
+	// authentication or taken into use from a mapped one may restart the downlink
+	// NAS COUNT (TS 24.501 §5.4.2.2); rolledBackDownlinkCount reports an AMF that
+	// restarts it anywhere else.
+	entitled := ue.UeSecurity.contextFromAuthentication || smc.NgKSI.Mapped
+
 	// A context created by authentication starts both counts at zero
 	// (TS 24.501 §4.4.3.1), so the estimate runs against a fresh counter; on a
 	// context already in use it continues from the last accepted count.
@@ -126,6 +132,10 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byt
 
 	if err := sc.VerifyMAC(macInput(spm.SequenceNumber, plain), spm.MAC, est,
 		nas.Bearer3GPP, nas.DirectionDownlink); err != nil {
+		if reset := rolledBackDownlinkCount(smc, ue.UeSecurity.DLRecv, spm.SequenceNumber, entitled); reset != "" {
+			return nil, fmt.Errorf("%s: %w", reset, err)
+		}
+
 		return nil, fmt.Errorf("MAC verification failed: %w", err)
 	}
 
@@ -145,6 +155,29 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byt
 	}
 
 	return plain, nil
+}
+
+// rolledBackDownlinkCount reports an AMF that restarted the downlink NAS COUNT of
+// a security context the UE already holds a count on, which makes the integrity
+// check of the SECURITY MODE COMMAND fail for a reason worth naming.
+//
+// held is the UE's counter before this message, which decodeNewSecurityContext
+// leaves untouched until the MAC verifies.
+func rolledBackDownlinkCount(smc *fgs.SecurityModeCommand, held nas.UplinkCounter, received uint8, entitled bool) string {
+	if entitled || !held.Accepted() || held.LastAccepted().SQN() <= received {
+		return ""
+	}
+
+	kind := "native"
+	if smc.NgKSI.Mapped {
+		kind = "mapped"
+	}
+
+	return fmt.Sprintf("SECURITY MODE COMMAND restarted the downlink NAS COUNT at %d on the %s 5G NAS security context "+
+		"ngKSI %d the UE already holds at COUNT %d, without taking a mapped context into use or following a primary "+
+		"authentication; TS 24.501 §5.4.2.2 does not allow that reset and §5.4.2.3 does not let the UE follow it, so the "+
+		"integrity check cannot pass and a real UE answers SECURITY MODE REJECT",
+		received, kind, smc.NgKSI.Value, held.LastAccepted().Value())
 }
 
 // securityContext builds the NAS security context from the UE's current

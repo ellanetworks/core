@@ -149,7 +149,7 @@ func TestBuildHandoverNotifyRoundTrips(t *testing.T) {
 func TestBuildPathSwitchRequestRoundTrips(t *testing.T) {
 	var sessions [16]*gnb.PDUSessionInformation
 
-	sessions[1] = &gnb.PDUSessionInformation{PDUSessionID: 1, DLTeid: 0x11223344}
+	sessions[1] = &gnb.PDUSessionInformation{PDUSessionID: 1, DLTEID: 0x11223344}
 
 	pdu, err := gnb.BuildPathSwitchRequest(&gnb.PathSwitchRequestOpts{
 		RANUENGAPID: 5, SourceAMFUENGAPID: 9,
@@ -203,7 +203,7 @@ func TestBuildPDUSessionResourceSetupResponseRoundTrips(t *testing.T) {
 	var sessions [16]*gnb.PDUSessionInformation
 
 	sessions[1] = &gnb.PDUSessionInformation{
-		PDUSessionID: 1, DLTeid: 0xdeadbeef, QFI: 1,
+		PDUSessionID: 1, DLTEID: 0xdeadbeef, QFI: 1,
 		N3GnbIp: netip.MustParseAddr("10.0.0.2"),
 	}
 

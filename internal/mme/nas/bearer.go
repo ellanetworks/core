@@ -49,6 +49,23 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 		return
 	}
 
+	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access", zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		return
+	}
+
+	if !access.Allow4G {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
+			zap.String("imsi", ue.IMSI()))
+		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
+
+		return
+	}
+
+	ue.SetAccess(access)
+
 	qos, err := mme.ResolveAttachQoS(ctx, m, ue)
 	if errors.Is(err, mme.ErrUnknownAPN) {
 		// The requested APN is not bound to any policy in the subscriber's profile
@@ -62,16 +79,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to resolve subscriber QoS", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		return
-	}
-
-	// A profile that does not permit 4G (Core Network type restriction, TS 23.501)
-	// is rejected with EMM cause #7 "EPS services not allowed" (TS 24.301).
-	if !qos.Allow4G {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: 4G not allowed for subscriber",
-			zap.String("imsi", ue.IMSI()))
-		rejectAttach(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
-
 		return
 	}
 
@@ -128,11 +135,6 @@ func activateDefaultBearer(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 
 		return
 	}
-
-	// Supersede any prior context for this subscriber only once the attach is
-	// authenticated and accepted, so an unauthenticated attach cannot tear down a
-	// registered UE (TS 24.501 §4.4.4.3 analogue).
-	m.CommitUEIdentity(ctx, ue, mme.MintAuthProofForAttachCommit())
 
 	// Drop any stored UE Radio Capability and omit it from the Initial Context
 	// Setup, so the eNB re-fetches it from the UE (TS 23.401).
@@ -259,6 +261,10 @@ func sendInitialContextSetup(ctx context.Context, ueConn *mme.UeConn, ics *s1ap.
 }
 
 func buildAttachAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, qos *mme.EpsQoS) ([]byte, error) {
+	if !m.ServesUeContext(ue) {
+		return nil, fmt.Errorf("refusing to build attach accept: UE context is not indexed by IMSI")
+	}
+
 	p := m.DefaultPDN(ue)
 	if p == nil {
 		return nil, fmt.Errorf("attach accept with no active PDN")

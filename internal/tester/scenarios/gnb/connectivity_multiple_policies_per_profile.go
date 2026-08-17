@@ -6,13 +6,11 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -82,8 +80,8 @@ func runConnectivityMultiplePoliciesPerProfile(ctx context.Context, env scenario
 
 	dnns := []string{scenarios.DefaultDNN, dnn2}
 	expectedQoS := []*validate.ExpectedPDUSessionInformation{
-		{FiveQi: 9, PriArp: 15, QFI: 1},
-		{FiveQi: 7, PriArp: 15, QFI: 1},
+		{FiveQI: 9, ARP: 15, QFI: 1},
+		{FiveQI: 7, ARP: 15, QFI: 1},
 	}
 
 	eg := errgroup.Group{}
@@ -137,11 +135,7 @@ func runConnectivityTestWithDNN(
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	})
+	registration, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
@@ -154,39 +148,29 @@ func runConnectivityTestWithDNN(
 		zap.Int64("AMF UE NGAP ID", gNodeB.GetAMFUENGAPID(ranUENGAPID)),
 	)
 
-	uePDUSession, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("timeout waiting for PDU session: %v", err)
-	}
+	session := registration.Session
 
-	uePduSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-
-	ueIP := uePduSession.UEIP + ipPrefix
+	ueIP := session.UEIPv4 + ipPrefix
 	if pduSessionType == scenarios.DefaultPDUSessionTypeIPv6 {
-		ueIP = uePduSession.UEIPV6 + ipPrefix
+		ueIP = session.UEIPv6 + ipPrefix
 	}
 
-	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("could not get PDU Session for RAN UE NGAP ID %d: %v", ranUENGAPID, err)
-	}
-
-	err = validate.PDUSessionInformation(gnbPDUSession, expectedQoS)
+	err = validate.PDUSessionInformation(session, expectedQoS)
 	if err != nil {
 		return fmt.Errorf("NGAP QoS validation failed (DNN %s): %v", dnn, err)
 	}
 
-	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	err = gNodeB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIP,
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: tunInterfaceName,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           gnbPDUSession.DLTeid,
-		MTU:              uePDUSession.MTU,
-		QFI:              uePduSession.QFI,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 	})
 	if err != nil {
-		return fmt.Errorf("could not create GTP tunnel (name: %s, DL TEID: %d): %v", tunInterfaceName, gnbPDUSession.DLTeid, err)
+		return fmt.Errorf("could not create GTP tunnel (name: %s, DL TEID: %d): %v", tunInterfaceName, session.DLTEID, err)
 	}
 
 	logger.GnbLogger.Debug(
@@ -195,9 +179,9 @@ func runConnectivityTestWithDNN(
 		zap.String("DNN", dnn),
 		zap.String("Interface", tunInterfaceName),
 		zap.String("UE IP", ueIP),
-		zap.String("UPF IP", gnbPDUSession.UpfAddress),
-		zap.Uint32("UL TEID", gnbPDUSession.ULTeid),
-		zap.Uint32("DL TEID", gnbPDUSession.DLTeid),
+		zap.String("UPF IP", session.UpfAddress),
+		zap.Uint32("UL TEID", session.ULTEID),
+		zap.Uint32("DL TEID", session.DLTEID),
 	)
 
 	if err := probe.Run(ctx, probe.ICMP, tunInterfaceName, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, pingCmd == "ping6"); err != nil {
@@ -211,16 +195,9 @@ func runConnectivityTestWithDNN(
 		zap.String("destination", scenarios.DefaultPingDestination),
 	)
 
-	pduSessionStatus := [16]bool{}
-	pduSessionStatus[scenarios.DefaultPDUSessionID] = true
+	pduSessionStatus := []uint8{scenarios.DefaultPDUSessionID}
 
-	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID:   ranUENGAPID,
-		GnodeB:        gNodeB,
-		UE:            newUE,
-		PDUSessionIDs: pduSessionStatus,
-	})
+	err = gNodeB.ReleaseContext(newUE, ranUENGAPID, pduSessionStatus, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("UEContextReleaseProcedure failed: %v", err)
 	}
@@ -242,11 +219,7 @@ func runConnectivityTestWithDNN(
 		zap.String("destination", scenarios.DefaultPingDestination),
 	)
 
-	err = procedure.ServiceRequest(&procedure.ServiceRequestOpts{
-		PDUSessionStatus: pduSessionStatus,
-		RANUENGAPID:      ranUENGAPID,
-		UE:               newUE,
-	})
+	serviceRequest, err := gNodeB.ServiceRequest(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("service request procedure failed: %v", err)
 	}
@@ -259,24 +232,21 @@ func runConnectivityTestWithDNN(
 		zap.Int64("AMF UE NGAP ID", gNodeB.GetAMFUENGAPID(ranUENGAPID)),
 	)
 
-	err = gNodeB.CloseTunnel(gnbPDUSession.DLTeid)
-	if err != nil {
-		return fmt.Errorf("could not close GTP tunnel: %v", err)
-	}
+	gNodeB.CloseTunnel(session.DLTEID)
 
-	pduSession := gNodeB.GetPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID))
+	session = serviceRequest.Session
 
-	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP,
-		UpfIP:            pduSession.UpfAddress,
+	err = gNodeB.AddTunnel(&gnb.TunnelOpts{
+		UEIPv4:           ueIP,
+		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: tunInterfaceName,
-		ULteid:           pduSession.ULTeid,
-		DLteid:           pduSession.DLTeid,
-		MTU:              uePDUSession.MTU,
-		QFI:              uePduSession.QFI,
+		ULTEID:           session.ULTEID,
+		DLTEID:           session.DLTEID,
+		MTU:              session.MTU,
+		QFI:              session.QFI,
 	})
 	if err != nil {
-		return fmt.Errorf("could not create GTP tunnel after service request (name: %s, DL TEID: %d): %v", tunInterfaceName, pduSession.DLTeid, err)
+		return fmt.Errorf("could not create GTP tunnel after service request (name: %s, DL TEID: %d): %v", tunInterfaceName, session.DLTEID, err)
 	}
 
 	logger.GnbLogger.Debug(
@@ -285,9 +255,9 @@ func runConnectivityTestWithDNN(
 		zap.String("DNN", dnn),
 		zap.String("Interface", tunInterfaceName),
 		zap.String("UE IP", ueIP),
-		zap.String("UPF IP", pduSession.UpfAddress),
-		zap.Uint32("UL TEID", pduSession.ULTeid),
-		zap.Uint32("DL TEID", pduSession.DLTeid),
+		zap.String("UPF IP", session.UpfAddress),
+		zap.Uint32("UL TEID", session.ULTEID),
+		zap.Uint32("DL TEID", session.DLTEID),
 	)
 
 	if err := probe.Run(ctx, probe.ICMP, tunInterfaceName, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, pingCmd == "ping6"); err != nil {
@@ -306,21 +276,14 @@ func runConnectivityTestWithDNN(
 		zap.String("DNN", dnn),
 	)
 
-	err = gNodeB.CloseTunnel(pduSession.DLTeid)
-	if err != nil {
-		return fmt.Errorf("could not close GTP tunnel: %v", err)
-	}
+	gNodeB.CloseTunnel(session.DLTEID)
 
 	logger.Logger.Debug(
 		"Closed GTP tunnel",
 		zap.String("interface", tunInterfaceName),
 	)
 
-	err = procedure.Deregistration(&procedure.DeregistrationOpts{
-		UE:          newUE,
-		AMFUENGAPID: gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID: ranUENGAPID,
-	})
+	err = gNodeB.Deregister(newUE, ranUENGAPID, releaseTimeout)
 	if err != nil {
 		return fmt.Errorf("DeregistrationProcedure failed: %v", err)
 	}

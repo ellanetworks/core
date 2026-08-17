@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	mmes1ap "github.com/ellanetworks/core/internal/mme/s1ap"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -679,4 +680,27 @@ func TestTrackingAreaUpdateKeepsTheLastPDNReportedInactive(t *testing.T) {
 	}
 
 	decodeDownlinkNAS(t, cc.sent[0])
+}
+
+// TS 23.501 §5.3.4.1.1
+func TestTrackingAreaUpdateRejectedWhen4GNotAllowed(t *testing.T) {
+	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
+	m.NAS = &nasHandler{m: m}
+
+	ue, cc := securedUE(t, m)
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+
+	if len(cc.sent) == 0 {
+		t.Fatal("expected a TAU Reject, got no downlink")
+	}
+
+	rej, err := eps.ParseTrackingAreaUpdateReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("not a TAU Reject: %v", err)
+	}
+
+	if rej.Cause != eps.EMMCauseEPSServicesNotAllowed {
+		t.Fatalf("TAU Reject cause = %d, want %d (EPS services not allowed)", rej.Cause, eps.EMMCauseEPSServicesNotAllowed)
+	}
 }

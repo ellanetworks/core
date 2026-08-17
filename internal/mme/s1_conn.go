@@ -43,6 +43,7 @@ type UeConn struct {
 	m                         *MME
 	ICS                       ICSState
 	secureExchangeEstablished bool
+	cipheringStarted          atomic.Bool
 	AuthVector                *udm.EPSAV
 	resyncTried               bool
 	AttachRequestPlain        []byte
@@ -50,13 +51,30 @@ type UeConn struct {
 	TauRequestPlain           []byte
 	TauAcceptPlain            []byte
 	TauReleaseOnComplete      bool
-	ArrivingFrom5GS           *interworking.ArrivingSessions
-	RemappedFrom5GS           bool
+	FiveGSArrival             *FiveGSArrival
 	DeferredTAUPlain          []byte
 	nasGuard                  guard.Guard
 	nasGuardName              string
 	esmInfoGuard              guard.Guard
 	releaseGuard              guard.Guard
+}
+
+type FiveGSArrival struct {
+	Sessions *interworking.ArrivingSessions
+
+	RemappedHeldContext bool
+}
+
+func (c *UeConn) ArrivedFrom5GS() bool {
+	return c != nil && c.FiveGSArrival != nil
+}
+
+func (a *FiveGSArrival) ArrivingSessions() *interworking.ArrivingSessions {
+	if a == nil {
+		return nil
+	}
+
+	return a.Sessions
 }
 
 // StopReleaseGuard cancels the Release-Complete supervision timer. Nil-safe.
@@ -105,5 +123,19 @@ func (c *UeConn) SecureExchangeEstablished() bool {
 func (c *UeConn) MarkSecureExchangeEstablished() {
 	if c != nil {
 		c.secureExchangeEstablished = true
+	}
+}
+
+func (c *UeConn) CipheringStarted() bool {
+	if c == nil {
+		return false
+	}
+
+	return c.cipheringStarted.Load()
+}
+
+func (c *UeConn) MarkCipheringStarted() {
+	if c != nil {
+		c.cipheringStarted.Store(true)
 	}
 }

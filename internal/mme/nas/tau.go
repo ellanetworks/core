@@ -6,6 +6,7 @@ package nas
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -40,6 +41,24 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
+	access, err := mme.ResolveAccess(ctx, m, ue.IMSI())
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to resolve the subscriber's access for Tracking Area Update",
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		return nasreply.Handled()
+	}
+
+	if !access.Allow4G {
+		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected: 4G not allowed for subscriber",
+			zap.String("imsi", ue.IMSI()))
+		rejectTrackingAreaUpdate(ctx, m, ue, ueConn, eps.EMMCauseEPSServicesNotAllowed)
+
+		return nasreply.Handled()
+	}
+
+	ue.SetAccess(access)
+
 	if req.UENetworkCapability != nil || req.MSNetworkCapability != nil {
 		ueNetCap := ue.UeNetCap()
 		if req.UENetworkCapability != nil {
@@ -64,7 +83,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	accept, err := trackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
+	accept, err := buildTrackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
 		combined: isCombinedUpdate(uint8(req.EPSUpdateType)),
 		bearerStatus: (req.EPSBearerContextStatus != nil || ue.LocalBearerDeactivationPending()) &&
 			len(m.SnapshotPDNs(ue)) > 0,
@@ -172,6 +191,7 @@ func handleTrackingAreaUpdateComplete(ctx context.Context, m *mme.MME, ue *mme.U
 
 	ueConn.TauRequestPlain = nil
 	ueConn.TauAcceptPlain = nil
+	ueConn.FiveGSArrival = nil
 
 	logger.From(ctx, logger.MmeLog).Info("Tracking Area Update Complete", zap.String("imsi", ue.IMSI()))
 
@@ -216,7 +236,11 @@ type tauAcceptOptions struct {
 // current TAI list and a reallocated GUTI (TS 24.301). A combined update includes
 // EMM cause #18, since the MME has no SGs interface, to stop the UE attempting CS
 // registration.
-func trackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
+func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
+	if !m.ServesUeContext(ue) {
+		return nil, fmt.Errorf("refusing to build tracking area update accept: UE context is not indexed by IMSI")
+	}
+
 	operator, err := m.Operator(ctx)
 	if err != nil {
 		return nil, err

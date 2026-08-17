@@ -119,7 +119,7 @@ func preparationFailureCause(err error) s1ap.Cause {
 		return causeN26NotAvailable
 	case errors.Is(err, mme.ErrRelocationToFiveGSBusy):
 		return causeProcedureConflict
-	case errors.Is(err, mme.ErrNoTransferablePDNs):
+	case errors.Is(err, mme.ErrNoTransferablePDNs), errors.Is(err, mme.ErrFiveGSMobilityBarred):
 		return causeHOTargetNotAllowed
 	default:
 		return causeHandoverPrepUnspecific

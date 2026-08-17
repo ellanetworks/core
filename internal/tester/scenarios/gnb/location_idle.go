@@ -13,7 +13,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
@@ -100,11 +99,7 @@ func runLocationIdle(ctx context.Context, env scenarios.Env, p *locationIdlePara
 
 	gNodeB.AddUE(ranUENGAPID, newUE)
 
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
+	if _, err := gNodeB.Register(newUE, ranUENGAPID, scenarios.DefaultPDUSessionID, registrationTimeout); err != nil {
 		return fmt.Errorf("initial registration: %w", err)
 	}
 
@@ -112,17 +107,14 @@ func runLocationIdle(ctx context.Context, env scenarios.Env, p *locationIdlePara
 
 	logger.Logger.Info("UE registered", zap.String("IMSI", sub.IMSI), zap.Int64("RAN UE NGAP ID", ranUENGAPID))
 
-	pduSessionStatus := [16]bool{}
-	pduSessionStatus[scenarios.DefaultPDUSessionID] = true
-
 	for _, method := range methods {
-		if err := locateIdleUE(ctx, cl, gNodeB, newUE, ranUENGAPID, supi, method, pduSessionStatus); err != nil {
+		if err := locateIdleUE(ctx, cl, gNodeB, newUE, ranUENGAPID, supi, method, scenarios.DefaultPDUSessionID); err != nil {
 			return fmt.Errorf("%s from CM-IDLE: %w", method, err)
 		}
 	}
 
 	// Leave no context behind: the suite shares this IMSI with other scenarios.
-	if err := releaseToIdle(gNodeB, newUE, ranUENGAPID, pduSessionStatus); err != nil {
+	if err := releaseToIdle(gNodeB, newUE, ranUENGAPID, scenarios.DefaultPDUSessionID); err != nil {
 		return fmt.Errorf("final UE context release: %w", err)
 	}
 
@@ -141,11 +133,11 @@ func locateIdleUE(
 	ranUENGAPID int64,
 	supi string,
 	method string,
-	pduSessionStatus [16]bool,
+	pduSessionID uint8,
 ) error {
 	logger.Logger.Info("=== Putting UE in CM-IDLE ===", zap.String("method", method))
 
-	if err := releaseToIdle(gNodeB, newUE, ranUENGAPID, pduSessionStatus); err != nil {
+	if err := releaseToIdle(gNodeB, newUE, ranUENGAPID, pduSessionID); err != nil {
 		return fmt.Errorf("UE context release: %w", err)
 	}
 
@@ -170,6 +162,10 @@ func locateIdleUE(
 	// A UE answering a page sets the service type to "mobile terminated services"
 	// (TS 24.501 §5.6.1.2.1 for case a of §5.6.1.1), which is also the branch that
 	// delivers the downlink message the paging was triggered for.
+	var pduSessionStatus [16]bool
+
+	pduSessionStatus[pduSessionID] = true
+
 	if err := newUE.SendServiceRequest(ranUENGAPID, pduSessionStatus, uint8(fgs.ServiceTypeMobileTerminatedServices)); err != nil {
 		return fmt.Errorf("send service request: %w", err)
 	}
@@ -198,14 +194,10 @@ func locateIdleUE(
 	}
 }
 
-func releaseToIdle(gNodeB *gnb.GnodeB, newUE *ue.UE, ranUENGAPID int64, pduSessionStatus [16]bool) error {
-	return procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
-		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
-		RANUENGAPID:   ranUENGAPID,
-		GnodeB:        gNodeB,
-		UE:            newUE,
-		PDUSessionIDs: pduSessionStatus,
-	})
+// releaseToIdle takes the UE to CM-IDLE, keeping its PDU session so the location
+// request that follows has something to page for.
+func releaseToIdle(gNodeB *gnb.GnodeB, newUE *ue.UE, ranUENGAPID int64, pduSessionID uint8) error {
+	return gNodeB.ReleaseContext(newUE, ranUENGAPID, []uint8{pduSessionID}, releaseTimeout)
 }
 
 func validateIdleResult(result *common.LocationData, method string) error {

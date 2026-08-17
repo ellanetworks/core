@@ -129,6 +129,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 	ue.SetAmbr(&models.Ambr{Uplink: req.UEAMBRUplink, Downlink: req.UEAMBRDownlink})
 	ue.AllowedNssai = snssaiList
 	ue.SetAllow4G(subscriberProfile.Allow4G)
+	ue.AttestS1Mode()
 	ue.smf = a.Session
 
 	if err := ue.InstallMappedSecurityContextFromEPS(mapped.Context, MintAuthProofForInterworking()); err != nil {
@@ -426,14 +427,11 @@ func (ue *UeContext) MarkArrivedFromEPSHandover() {
 	ue.arrivedFromEPSHandover = true
 }
 
-func (ue *UeContext) TakeArrivedFromEPSHandover() bool {
+func (ue *UeContext) ArrivedFromEPSHandover() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	arrived := ue.arrivedFromEPSHandover
-	ue.arrivedFromEPSHandover = false
-
-	return arrived
+	return ue.arrivedFromEPSHandover
 }
 
 type fromEPSRelocation struct {

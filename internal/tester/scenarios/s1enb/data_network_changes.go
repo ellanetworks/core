@@ -106,7 +106,7 @@ func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetwork
 
 	ue := e.NewUE(dnChangeIMSI, k, opc)
 
-	attach, err := e.Attach(ue, 15*time.Second)
+	attach, err := e.Attach(ue, attachTimeout)
 	if err != nil {
 		_ = e.Close()
 
@@ -219,7 +219,7 @@ func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNet
 
 	reUE := e.NewUE(dnChangeIMSI, k, opc)
 
-	res, err := e.Attach(reUE, 15*time.Second)
+	res, err := e.Attach(reUE, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("re-attach after reactivation (%s): %w", label, err)
 	}
@@ -230,7 +230,7 @@ func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNet
 
 	// Detach the re-attached UE before the deferred restore reconfigures the data
 	// network, so the restore does not reactivate a live bearer mid-cleanup.
-	if err := e.Detach(reUE, res.MMEUES1APID, res.ENBUES1APID, 10*time.Second); err != nil {
+	if err := e.Detach(reUE, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout); err != nil {
 		return fmt.Errorf("detach after re-attach (%s): %w", label, err)
 	}
 

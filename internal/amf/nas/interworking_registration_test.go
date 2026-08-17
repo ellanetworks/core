@@ -101,7 +101,8 @@ func TestMobilityRegistrationAfterAnArrivalFromEPSKeepsTheMappedContext(t *testi
 	}
 }
 
-func TestMobilityRegistrationTakesAFreshNgKSIWithoutAMappedContext(t *testing.T) {
+// TS 24.501 §5.4.2.2, TS 33.501 §6.7.2
+func TestRegistrationRequestLeavesTheNgKSIAlone(t *testing.T) {
 	amfInstance := arrivedRegistrationAMF()
 
 	ue, _, err := buildUeAndRadio()
@@ -110,6 +111,8 @@ func TestMobilityRegistrationTakesAFreshNgKSIWithoutAMappedContext(t *testing.T)
 	}
 
 	setTestUESecurityCapability(ue)
+
+	before := ue.NgKsi()
 
 	wire, err := buildRegReqBytes(uint8(fgs.RegistrationTypeMobilityUpdating), testMobileIdentity(),
 		&fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0}, 0, nil, 0, 2)
@@ -121,7 +124,40 @@ func TestMobilityRegistrationTakesAFreshNgKSIWithoutAMappedContext(t *testing.T)
 		t.Fatalf("handleRegistrationRequestMessage: %v", err)
 	}
 
+	if got := ue.NgKsi(); got != before {
+		t.Errorf("ngKSI = %+v, want the %+v held before the request was taken in", got, before)
+	}
+}
+
+// TS 24.501 §5.4.1.3.2
+func TestAuthenticationTakesAFreshNgKSIAfterTheOneTheUECited(t *testing.T) {
+	amfInstance := arrivedRegistrationAMF()
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	setTestUESecurityCapability(ue)
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	wire, err := buildRegReqBytes(uint8(fgs.RegistrationTypeMobilityUpdating), testMobileIdentity(),
+		&fgs.UESecurityCapability{EA: 0xe0, IA: 0xe0}, 0, nil, 0, 2)
+	if err != nil {
+		t.Fatalf("build the registration request: %v", err)
+	}
+
+	if err := handleRegistrationRequestMessage(context.Background(), amfInstance, ue, mustParseRegistrationRequest(t, wire), wire, true, false); err != nil {
+		t.Fatalf("handleRegistrationRequestMessage: %v", err)
+	}
+
+	ue.Tai.PlmnID = nil
+
+	if _, err := authenticationProcedure(context.Background(), amfInstance, ue); err == nil {
+		t.Fatal("authentication built a request for a UE with no serving PLMN")
+	}
+
 	if got := ue.NgKsi(); got.Tsc != models.ScTypeNative || got.Ksi != 3 {
-		t.Errorf("ngKSI = %+v, want the native identifier after the received 2", got)
+		t.Errorf("ngKSI = %+v, want the native identifier after the 2 the UE cited", got)
 	}
 }

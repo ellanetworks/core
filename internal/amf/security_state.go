@@ -62,12 +62,6 @@ func MintAuthProofForRegistrationRequest() AuthProof {
 	return AuthProof{}
 }
 
-// MintAuthProofForRegistrationCommit returns an AuthProof. It must only be called
-// from HandleInitialRegistration, after the registration has been authenticated and
-// its security context established, to commit the UE's identity into the pool and
-// supersede any earlier context for the subscriber. Gating the commit on an AuthProof
-// ensures an unauthenticated registration citing a victim's identity can never index
-// itself or tear down the victim's context (TS 24.501 §4.4.4.3).
 func MintAuthProofForRegistrationCommit() AuthProof {
 	return AuthProof{}
 }
@@ -175,9 +169,20 @@ func NextNgKsi(current int32) int32 {
 	return 0
 }
 
+func (ue *UeContext) AttestS1Mode() {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.s1ModeAttested = true
+}
+
 func (ue *UeContext) SupportsS1Mode() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.gmmCapability != nil && ue.gmmCapability.S1Mode
+	if ue.gmmCapability != nil {
+		return ue.gmmCapability.S1Mode
+	}
+
+	return ue.s1ModeAttested
 }
