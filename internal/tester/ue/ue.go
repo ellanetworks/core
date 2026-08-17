@@ -102,7 +102,7 @@ type UE struct {
 	receivedRRCRelease     bool
 	lppRequests            []*LPPRequest // queue of received LPP requests
 	lppCapsSent            bool          // true after first ProvideLocationCapabilities
-	lastRegistrationType   uint8
+	requestedReactivation  bool
 }
 
 func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
@@ -722,18 +722,18 @@ func (ue *UE) SendMobilityRegistrationRequest(ranUENGAPID int64, reactivate []ui
 	return ue.sendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeMobilityUpdating), &uplinkDataStatus)
 }
 
-func (ue *UE) setLastRegistrationType(regType uint8) {
+func (ue *UE) setRequestedReactivation(requested bool) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.lastRegistrationType = regType
+	ue.requestedReactivation = requested
 }
 
 func (ue *UE) skipAutoPDUSession() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.NoAutoPDUSession || ue.lastRegistrationType != uint8(fgs.RegistrationTypeInitial)
+	return ue.NoAutoPDUSession || ue.requestedReactivation
 }
 
 func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDataStatus *[16]bool) error {
@@ -755,7 +755,7 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 		RegistrationType:      regType,
 		RequestedNSSAI:        nil,
 		UplinkDataStatus:      uplinkDataStatus,
-		IncludeCapability:     true,
+		IncludeCapability:     regType != uint8(fgs.RegistrationTypePeriodicUpdating),
 		S1UENetworkCapability: s1Capability,
 		UESecurity:            ue.UeSecurity,
 		InitialNASMessage:     true,
@@ -790,7 +790,7 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 		return fmt.Errorf("could not send UplinkNASTransport: %v", err)
 	}
 
-	ue.setLastRegistrationType(regType)
+	ue.setRequestedReactivation(uplinkDataStatus != nil)
 
 	logger.UeLogger.Debug(
 		"Sent Registration Request NAS message",
