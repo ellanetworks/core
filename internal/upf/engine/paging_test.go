@@ -11,7 +11,7 @@ import (
 
 func TestSuppressDownlinkDataNotification_KeepsDownlinkDeduped(t *testing.T) {
 	eng := newTestEngine()
-	eng.BpfObjects = ebpf.NewBpfObjects(false, false, 1, 0, 0, 0)
+	eng.BpfObjects = ebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
 
 	const seid = uint64(1)
 
@@ -39,7 +39,7 @@ func TestSuppressDownlinkDataNotification_KeepsDownlinkDeduped(t *testing.T) {
 
 func TestClearDownlinkDataNotification_ReleasesSuppression(t *testing.T) {
 	eng := newTestEngine()
-	eng.BpfObjects = ebpf.NewBpfObjects(false, false, 1, 0, 0, 0)
+	eng.BpfObjects = ebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
 
 	const seid = uint64(1)
 

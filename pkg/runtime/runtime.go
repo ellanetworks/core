@@ -332,6 +332,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
 	}
 
+	isLocalSwitchEnabled, err := dbInstance.IsLocalSwitchEnabled(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't determine if local switch is enabled: %w", err)
+	}
+
 	// Initialize BGP service
 	n6IP, err := config.GetInterfaceIPFunc(cfg.Interfaces.N6.Name, config.IPv4)
 	if err != nil {
@@ -430,7 +435,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF)
 
-	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled)
+	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.Datapath.AttachMode, isNATEnabled, isFlowAccountingEnabled, isLocalSwitchEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}

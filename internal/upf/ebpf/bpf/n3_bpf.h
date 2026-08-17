@@ -61,6 +61,21 @@ struct {
 	__uint(max_entries, 1);
 } uplink_statistics SEC(".maps");
 
+/* Stashes the uplink PDR across the local-switch tail call, which
+ * otherwise loses the stack (and the pdr pointer) it was on. */
+struct {
+	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+	__type(key, __u32);
+	__type(value, struct pdr_info);
+	__uint(max_entries, 1);
+} local_switch_ul_pdr SEC(".maps");
+
+/* Forward declarations: n6_bpf.h defines these, but local_switch_to_ue
+ * references them and n3_bpf.h may be processed first by clang-tidy. */
+enum ctx_action send_to_gtp_tunnel(struct packet_context *ctx,
+				   const struct far_info *far,
+				   __u8 tos, __u8 qfi);
+
 /*
  * fe80::/10 is rejected, so a future link-local-sourced feature (NS/NA proxy,
  * stateless DHCPv6) must be intercepted before this, as RS already is. IPv4 and
@@ -106,6 +121,134 @@ static __always_inline bool source_allowed(struct packet_context *ctx,
 	}
 
 	return false;
+}
+
+/* try_local_switch looks up the inner destination address in the downlink
+ * PDR maps. Returns the matching downlink PDR, or NULL if the destination is
+ * not a local UE. Mirrors the lookup in handle_n6_packet_ipv4/ipv6, including
+ * framed-route fallback (TS 29.244 §5.16). */
+static __always_inline struct pdr_info *
+try_local_switch(struct packet_context *ctx)
+{
+	if (ctx->ip4) {
+		__u32 daddr = ctx->ip4->daddr;
+
+		struct pdr_info *dl_pdr =
+			bpf_map_lookup_elem(&pdrs_downlink_ip4, &daddr);
+		if (dl_pdr)
+			return dl_pdr;
+
+		struct framed_ip4_key fk = { .prefixlen = 32, .addr = daddr };
+		__u32 *ue_ip = bpf_map_lookup_elem(&framed_downlink_ip4, &fk);
+		if (ue_ip)
+			return bpf_map_lookup_elem(&pdrs_downlink_ip4, ue_ip);
+
+		return NULL;
+	}
+
+	if (ctx->ip6) {
+		struct in6_addr prefix = ctx->ip6->daddr;
+		__builtin_memset(((void *)&prefix) + 8, 0, 8);
+
+		struct pdr_info *dl_pdr =
+			bpf_map_lookup_elem(&pdrs_downlink_ip6, &prefix);
+		if (dl_pdr)
+			return dl_pdr;
+
+		struct framed_ip6_key fk = { .prefixlen = 128,
+					     .addr = ctx->ip6->daddr };
+		struct in6_addr *ue_prefix =
+			bpf_map_lookup_elem(&framed_downlink_ip6, &fk);
+		if (ue_prefix)
+			return bpf_map_lookup_elem(&pdrs_downlink_ip6,
+						   ue_prefix);
+
+		return NULL;
+	}
+
+	return NULL;
+}
+
+static __always_inline enum ctx_action
+local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
+		   const struct pdr_info *ul_pdr)
+{
+	const struct far_info *dl_far = &dl_pdr->far;
+	const struct qer_info *dl_qer = &dl_pdr->qer;
+
+	ctx->interface = INTERFACE_N6;
+
+	if (dl_far->action & (FAR_BUFF | FAR_NOCP)) {
+		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
+	}
+	if (!(dl_far->action & FAR_FORW)) {
+		return drop_with(ctx, UPF_DROP_FAR_NO_FORWARD);
+	}
+	if (!(dl_far->outer_header_creation &
+	      (OHC_GTP_U_UDP_IPv4 | OHC_GTP_U_UDP_IPv6))) {
+		return drop_with(ctx, UPF_DROP_FAR_NO_ENCAP);
+	}
+	if (frame_is_merged(ctx)) {
+		return drop_with(ctx, UPF_DROP_ENCAP_GSO);
+	}
+
+	if (dl_qer->dl_gate_status != GATE_STATUS_OPEN) {
+		return drop_with(ctx, UPF_DROP_QER_GATE_CLOSED);
+	}
+	if (dl_qer->dl_maximum_bitrate != 0) {
+		const __u64 packet_size =
+			ctx_len_from(ctx->ctx_buff, ctx->data_end, ctx->data);
+		struct qer_window *window =
+			qer_window_for(dl_pdr->local_seid, dl_pdr->qer_id);
+		if (window &&
+		    CTX_ACT_DROP == limit_rate_sliding_window(
+					    packet_size, &window->dl_start,
+					    dl_qer->dl_maximum_bitrate)) {
+			return drop_with(ctx, UPF_DROP_QER_RATE_LIMIT);
+		}
+	}
+
+	{
+		enum ctx_action sdf_verdict =
+			match_sdf_filters(ctx, dl_pdr->filter_map_index);
+		if (sdf_verdict == CTX_ACT_DROP) {
+			account_flow(ctx, n3_ifindex, dl_pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_DOWNLINK, DROP);
+			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
+		}
+	}
+
+	{
+		__u32 mtu_len = 0;
+		int encap_size = (dl_far->outer_header_creation &
+				  OHC_GTP_U_UDP_IPv6) ?
+					 GTP_ENCAP_SIZE_IPV6 :
+					 GTP_ENCAP_SIZE_IPV4;
+		if (dl_far->outer_header_creation & OHC_NO_PSC)
+			encap_size -= GTP_PSC_EXT_SIZE;
+		long mtu_ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex,
+					     &mtu_len, encap_size, 0);
+		if (mtu_ret < 0)
+			return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
+		if (mtu_ret > 0) {
+			return drop_with(ctx, UPF_DROP_MTU_EXCEEDED);
+		}
+	}
+
+	__u8 tos = dl_far->transport_level_marking >> 8;
+	const __u64 billed_bytes = ctx_full_len(ctx->ctx_buff);
+
+	account_flow(ctx, n3_ifindex, dl_pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_DOWNLINK, ALLOW);
+
+	enum ctx_action tunnel_ret =
+		send_to_gtp_tunnel(ctx, dl_far, tos, dl_qer->qfi);
+
+	if (ctx_action_forwards(tunnel_ret)) {
+		ctx->statistics->byte_counter.bytes += billed_bytes;
+		update_urr_bytes(ctx, dl_pdr->local_seid, dl_pdr->urr_id,
+				 billed_bytes);
+	}
+
+	return tunnel_ret;
 }
 
 static __always_inline enum ctx_action
@@ -327,9 +470,24 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_END(PROF_N3_SDF_FILTER);
 		if (sdf_verdict == CTX_ACT_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
-			account_flow(ctx, n6_ifindex, pdr->imsi,
-				     ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, DROP);
+			account_flow(ctx, n6_ifindex, pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, DROP);
 			return drop_reported(ctx, UPF_DROP_SDF_FILTER);
+		}
+	}
+
+	if (local_switch && (ctx->ip4 || ctx->ip6) && !ctx->gtp) {
+		struct pdr_info *dl_pdr = try_local_switch(ctx);
+		if (dl_pdr) {
+			upf_printk("upf: local switch teid:%d", teid);
+			account_flow(ctx, n3_ifindex, pdr->imsi, ctx->ip4 ? IPV4 : IPV6, FLOW_UPLINK, ALLOW);
+			const __u64 ul_billed = ctx_full_len(ctx->ctx_buff);
+			update_urr_bytes(ctx, pdr->local_seid, pdr->urr_id, ul_billed);
+			const __u32 lskey = 0;
+			struct pdr_info *ul_stash =
+				bpf_map_lookup_elem(&local_switch_ul_pdr, &lskey);
+			if (ul_stash)
+				*ul_stash = *pdr;
+			return local_switch_tail_call(ctx);
 		}
 	}
 

@@ -90,7 +90,7 @@ func (u *UPF) DatapathAttachMode() string {
 	return u.attachedMode
 }
 
-func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, n6Interface config.N6Interface, attachMode string, masquerade bool, flowact bool) (*UPF, error) {
+func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, n6Interface config.N6Interface, attachMode string, masquerade bool, flowact bool, localSwitch bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -124,7 +124,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, err
 	}
 
-	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
+	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, localSwitch, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -370,6 +370,21 @@ func (u *UPF) ReloadFlowAccounting(flowact bool) error {
 		u.startFlowCollection(u.ctx)
 	} else {
 		u.stopFlowCollection()
+	}
+
+	return nil
+}
+
+func (u *UPF) ReloadLocalSwitch(localSwitch bool) error {
+	u.se.BpfObjects.LocalSwitch = localSwitch
+
+	err := u.se.BpfObjects.LoadWithMapReplacements()
+	if err != nil {
+		return fmt.Errorf("couldn't load BPF objects: %w", err)
+	}
+
+	if err := u.updateAttachedPrograms(); err != nil {
+		return err
 	}
 
 	return nil

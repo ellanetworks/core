@@ -2337,6 +2337,41 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  # -- Local Switch --------------------------------------------------------
+  /api/v1/networking/local-switch:
+    get:
+      operationId: getLocalSwitchInfo
+      tags: [Local Switch]
+      summary: Get local switch status
+      description: Returns whether UE-to-UE local switching is currently enabled on the user plane.
+      responses:
+        "200":
+          description: Local switch status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocalSwitchInfoResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateLocalSwitchInfo
+      tags: [Local Switch]
+      summary: Enable or disable local switch
+      description: Enables or disables UE-to-UE local switching. When enabled, uplink traffic destined for another UE on the same UPF is forwarded locally instead of routed to N6.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLocalSwitchInfoParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # -- Interfaces ----------------------------------------------------------
   /api/v1/networking/interfaces:
     get:
@@ -5204,6 +5239,27 @@ components:
           $ref: "#/components/schemas/FlowAccountingInfo"
 
     UpdateFlowAccountingInfoParams:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+
+    # -- Local Switch ----------------------------------------------------
+    LocalSwitchInfo:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required: [enabled]
+
+    LocalSwitchInfoResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/LocalSwitchInfo"
+
+    UpdateLocalSwitchInfoParams:
       type: object
       required: [enabled]
       properties:

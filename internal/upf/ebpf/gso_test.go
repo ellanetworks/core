@@ -114,7 +114,7 @@ func setupGSO(t *testing.T, senderGSO bool) *gsoFixture {
 		ethtoolOff(t, n6Peer, "tso", "off", "gso", "off")
 	}
 
-	obj := NewBpfObjects(false, false, ifByName(t, n3Dev).Index, n6DevIface.Index, 0, 0)
+	obj := NewBpfObjects(false, false, false, ifByName(t, n3Dev).Index, n6DevIface.Index, 0, 0)
 	obj.UseTCX = true
 
 	if err := obj.Load(); err != nil {

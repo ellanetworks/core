@@ -75,7 +75,7 @@ func TestDatapathObjectMatchesAttachMode(t *testing.T) {
 		}
 
 		t.Run(name, func(t *testing.T) {
-			objs := ebpf.NewBpfObjects(false, false, 1, 1, 0, 0)
+			objs := ebpf.NewBpfObjects(false, false, false, 1, 1, 0, 0)
 			if err := loadDatapathObjects(objs, tc.mode); err != nil {
 				t.Fatalf("load datapath objects: %v", err)
 			}
@@ -106,7 +106,7 @@ func TestTCXAttachRefusesToStack(t *testing.T) {
 		t.Fatalf("lookup %s: %v", tcxTestDev, err)
 	}
 
-	obj := ebpf.NewBpfObjects(false, false, iface.Index, iface.Index, 0, 0)
+	obj := ebpf.NewBpfObjects(false, false, false, iface.Index, iface.Index, 0, 0)
 	obj.UseTCX = true
 
 	if err := obj.Load(); err != nil {

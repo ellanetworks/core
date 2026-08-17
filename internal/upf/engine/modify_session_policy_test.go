@@ -30,7 +30,7 @@ func TestModifySessionPolicyChangeRepointsFilterIndex(t *testing.T) {
 		t.Fatalf("cannot remove memlock rlimit: %v", err)
 	}
 
-	obj := upfebpf.NewBpfObjects(false, false, 1, 0, 0, 0)
+	obj := upfebpf.NewBpfObjects(false, false, false, 1, 0, 0, 0)
 	if err := obj.Load(); err != nil {
 		t.Fatalf("load eBPF objects: %v", err)
 	}

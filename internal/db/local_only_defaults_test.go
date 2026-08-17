@@ -67,6 +67,17 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 		}
 	})
 
+	t.Run("local_switch", func(t *testing.T) {
+		got, err := database.IsLocalSwitchEnabled(ctx)
+		if err != nil {
+			t.Fatalf("IsLocalSwitchEnabled on fresh DB returned error: %v", err)
+		}
+
+		if got != db.LocalSwitchDefaultEnabled {
+			t.Fatalf("IsLocalSwitchEnabled = %v, want default %v", got, db.LocalSwitchDefaultEnabled)
+		}
+	})
+
 	t.Run("n3", func(t *testing.T) {
 		got, err := database.GetN3Settings(ctx)
 		if err != nil {
@@ -121,6 +132,10 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 			t.Fatalf("UpdateFlowAccountingSettings: %v", err)
 		}
 
+		if err := database.UpdateLocalSwitchSettings(ctx, !db.LocalSwitchDefaultEnabled); err != nil {
+			t.Fatalf("UpdateLocalSwitchSettings: %v", err)
+		}
+
 		if err := database.UpdateN3Settings(ctx, "10.0.0.1"); err != nil {
 			t.Fatalf("UpdateN3Settings: %v", err)
 		}
@@ -167,6 +182,15 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 
 		if fa != !db.FlowAccountingDefaultEnabled {
 			t.Fatalf("flow accounting was reset to default after restart: got %v", fa)
+		}
+
+		ls, err := reopened.IsLocalSwitchEnabled(ctx)
+		if err != nil {
+			t.Fatalf("IsLocalSwitchEnabled after restart: %v", err)
+		}
+
+		if ls != !db.LocalSwitchDefaultEnabled {
+			t.Fatalf("local switch was reset to default after restart: got %v", ls)
 		}
 
 		n3, err := reopened.GetN3Settings(ctx)

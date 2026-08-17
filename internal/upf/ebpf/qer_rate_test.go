@@ -36,7 +36,7 @@ func TestQERUplinkRateLimitDeliversConfiguredRate(t *testing.T) {
 	)
 
 	dst := [4]byte{8, 8, 8, 8}
-	frame := uplinkGPDU(teid, innerIPv4UDPSized(dst, 53, innerLen))
+	frame := uplinkGPDU(teid, innerIPv4UDPSized(dst, innerLen))
 
 	requireUplinkForwards(t, frame, teid)
 
@@ -96,7 +96,7 @@ func TestQERUplinkRateLimitAdmitsFirstPacket(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putRateLimitedUplinkPDR(t, obj, teid, rateBps)
 
-	frame := uplinkGPDU(teid, innerIPv4UDPSized([4]byte{8, 8, 8, 8}, 53, innerLen))
+	frame := uplinkGPDU(teid, innerIPv4UDPSized([4]byte{8, 8, 8, 8}, innerLen))
 
 	if action := runXDP(t, obj.UpfEntryFunc, frame); action == ActionDrop {
 		t.Fatalf("first packet of an idle session was dropped, %d as qer_rate_limit: a session that is never charged never opens",

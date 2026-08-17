@@ -35,6 +35,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetNATInfo,
 		PermReadBGP,
 		PermGetFlowAccountingInfo,
+		PermGetLocalSwitchInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
@@ -60,6 +61,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetNATInfo, PermUpdateNATInfo,
 		PermReadBGP, PermUpdateBGP,
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
+		PermGetLocalSwitchInfo, PermUpdateLocalSwitchInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
 		PermSupportBundle,
@@ -171,6 +173,10 @@ const (
 	// Flow Accounting permissions
 	PermGetFlowAccountingInfo    = "flow_accounting:get"
 	PermUpdateFlowAccountingInfo = "flow_accounting:update"
+
+	// Local Switch permissions
+	PermGetLocalSwitchInfo    = "local_switch:get"
+	PermUpdateLocalSwitchInfo = "local_switch:update"
 
 	// Interface permissions
 	PermListNetworkInterfaces = "network_interface:list"

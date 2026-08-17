@@ -167,6 +167,10 @@ type Database struct {
 	getFlowAccountingSettingsStmt    *sqlair.Statement
 	upsertFlowAccountingSettingsStmt *sqlair.Statement
 
+	// Local Switch Settings statements
+	getLocalSwitchSettingsStmt    *sqlair.Statement
+	upsertLocalSwitchSettingsStmt *sqlair.Statement
+
 	// Operator statements
 	getOperatorStmt                      *sqlair.Statement
 	initializeOperatorStmt               *sqlair.Statement
@@ -1391,6 +1395,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.getFlowAccountingSettingsStmt, fmt.Sprintf(getFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
 		{&db.upsertFlowAccountingSettingsStmt, fmt.Sprintf(upsertFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
 
+		// Local Switch Settings
+		{&db.getLocalSwitchSettingsStmt, fmt.Sprintf(getLocalSwitchSettingsStmt, LocalSwitchSettingsTableName), []any{LocalSwitchSettings{}}},
+		{&db.upsertLocalSwitchSettingsStmt, fmt.Sprintf(upsertLocalSwitchSettingsStmt, LocalSwitchSettingsTableName), []any{LocalSwitchSettings{}}},
+
 		// Operator
 		{&db.getOperatorStmt, fmt.Sprintf(getOperatorStmt, OperatorTableName), []any{Operator{}}},
 		{&db.initializeOperatorStmt, fmt.Sprintf(initializeOperatorStmt, OperatorTableName), []any{Operator{}}},
@@ -1594,6 +1602,7 @@ func (db *Database) InitializeLocalSettings(ctx context.Context) error {
 	}{
 		{"NAT settings", func() error { return db.InitializeNATSettings(ctx) }},
 		{"flow accounting settings", func() error { return db.InitializeFlowAccountingSettings(ctx) }},
+		{"local switch settings", func() error { return db.InitializeLocalSwitchSettings(ctx) }},
 		{"BGP settings", func() error { return db.InitializeBGPSettings(ctx) }},
 		{"N3 settings", func() error { return db.InitializeN3Settings(ctx) }},
 	}

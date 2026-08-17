@@ -65,8 +65,8 @@ struct {
 } flow_stats SEC(".maps");
 
 static __always_inline void account_flow(struct packet_context *ctx,
-					 __u32 egress_ifindex, __u64 imsi,
-					 __u8 ip_ver, __u8 direction, __u8 action)
+				 __u32 egress_ifindex, __u64 imsi,
+				 __u8 ip_ver, __u8 direction, __u8 action)
 {
 	if (!flowact)
 		return;

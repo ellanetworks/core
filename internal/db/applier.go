@@ -1349,6 +1349,15 @@ func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *bo
 	return struct{}{}, nil
 }
 
+func (db *Database) applyUpdateLocalSwitchSettings(ctx context.Context, p *boolPayload) (any, error) {
+	err := db.runner(ctx).Query(ctx, db.upsertLocalSwitchSettingsStmt, LocalSwitchSettings{Enabled: p.Value}).Run()
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return struct{}{}, nil
+}
+
 func (db *Database) applySetRetentionPolicy(ctx context.Context, rp *RetentionPolicy) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.upsertRetentionPolicyStmt, rp).Run()
 	if err != nil {

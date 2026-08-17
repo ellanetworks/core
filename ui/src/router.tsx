@@ -25,6 +25,7 @@ import RoutesTab from "./pages/networking/RoutesTab";
 import NATTab from "./pages/networking/NATTab";
 import BGPTab from "./pages/networking/BGPTab";
 import FlowAccountingTab from "./pages/networking/FlowAccountingTab";
+import LocalSwitchTab from "./pages/networking/LocalSwitchTab";
 import DataNetworkDetail from "./pages/DataNetworkDetail";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
@@ -78,6 +79,7 @@ export default function AppRouter() {
           <Route path="nat" element={<NATTab />} />
           <Route path="bgp" element={<BGPTab />} />
           <Route path="flow-accounting" element={<FlowAccountingTab />} />
+          <Route path="local-switch" element={<LocalSwitchTab />} />
         </Route>
         <Route
           path="networking/data-networks/:name"

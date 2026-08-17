@@ -1,4 +1,4 @@
-name: Integration tests (4G srsRAN)
+name: Integration tests (UE-to-UE 4G)
 
 permissions:
   contents: read
@@ -7,12 +7,11 @@ on:
   workflow_call:
 
 jobs:
-  # The srsRAN soft-radio (gradiant/srsran-4g) is amd64-only over IPv4 ZMQ, so this
-  # job is amd64 + IPv4 only. Multi-arch/family 4G runs in integration-tests-4g.
-  integration-test-4g-srsran:
+  integration-test-ue2ue-4g:
     strategy:
       fail-fast: false
       matrix:
+        ip_version: [ipv4]
         attach_mode: [xdp-generic, tcx]
     runs-on: ubuntu-26.04
 
@@ -45,12 +44,20 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      # Exclude TestIntegration4GHAFailover: it also matches -run 'TestIntegration4G'
-      # but runs in integration-tests-ha-4g with its own 3-node cluster.
-      - name: Run 4G srsRAN integration tests
+      - name: Run UE-to-UE 4G integration test
         env:
           INTEGRATION: "1"
           ELLA_CORE_ATTACH_MODE: ${{ matrix.attach_mode }}
-          IP_VERSION: ipv4
+          IP_VERSION: ${{ matrix.ip_version }}
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ue2ue-logs
         run: |
-          go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHAFailover|TestIntegration4GNetworkRules|TestIntegration4GUE2UE' -timeout 30m -v
+          go test ./integration/... -run TestIntegration4GUE2UE -timeout 20m -v
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-ue2ue-4g-logs-${{ matrix.ip_version }}
+          path: ${{ runner.temp }}/ue2ue-logs
+          if-no-files-found: ignore
+          retention-days: 7

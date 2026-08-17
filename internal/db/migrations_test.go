@@ -173,6 +173,7 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 		SessionsTableName,
 		SubscribersTableName,
 		UsersTableName,
+		LocalSwitchSettingsTableName,
 	}
 
 	tables := allTableNames(t, db)

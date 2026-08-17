@@ -38,6 +38,7 @@ var migrations = []migration{
 	{14, "add 4G config: profile allowed access (4G/5G), policy default binding; RAT-neutral NAS algorithm names", migrateV14},
 	{15, "add positioning_sessions and cell_positions tables for LMF", migrateV15},
 	{16, "add subscriber_framed_routes table", migrateV16},
+	{17, "add local_switch_settings table", migrateV17},
 }
 
 // baselineVersion is the highest migration that runs locally during
@@ -55,7 +56,7 @@ var migrations = []migration{
 //
 // The leader's Initialize() seed runs before post-baseline migrations apply, so
 // every column or table it writes must exist at the baseline.
-const baselineVersion = 15
+const baselineVersion = 17
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.
