@@ -270,7 +270,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	}
 
 	if requestData := ue.N1N2Message(); requestData != nil {
-		if requestData.BinaryDataN2Information != nil {
+		if requestData.N2Class == models.N2ClassSM && requestData.BinaryDataN2Information != nil {
 			targetPduSessionID = requestData.PduSessionID
 		}
 	}
@@ -352,19 +352,14 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			n1Msg := requestData.BinaryDataN1Message
 			n2Info := requestData.BinaryDataN2Information
 
-			// Paging was triggered for downlink signaling only
-			if n2Info == nil && n1Msg != nil {
+			switch {
+			case requestData.Standalone():
 				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 					return
 				}
 
-				amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, fgs.PDUSessionID(requestData.PduSessionID), 0)
-
-				logger.From(ctx, logger.AmfLog).Info("sent downlink nas transport message")
-
-				ue.ClearN1N2Message()
-			} else {
+			default:
 				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
 					ue.ClearN1N2Message()
@@ -388,6 +383,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 					return
 				}
+
+				ue.ClearN1N2Message()
 			}
 		} else {
 			if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
@@ -421,8 +418,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	if len(errPduSessionID) != 0 {
 		logger.From(ctx, logger.AmfLog).Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	}
-
-	ue.ClearN1N2Message()
 }
 
 // rejectService answers a service request the AMF cannot accept with a SERVICE REJECT

@@ -451,6 +451,8 @@ func (a *smfAMFAdapter) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []
 
 func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
 	return a.amf.TransferN1N2Message(ctx, supi, models.N1N2MessageTransferRequest{
+		N1Class:                 models.N1ClassSM,
+		N2Class:                 models.N2ClassSM,
 		PduSessionID:            pduSessionID,
 		SNssai:                  snssai,
 		BinaryDataN1Message:     n1Msg,
@@ -478,6 +480,7 @@ func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduS
 
 func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
 	return a.amf.N2MessageTransferOrPage(ctx, supi, models.N1N2MessageTransferRequest{
+		N2Class:                 models.N2ClassSM,
 		PduSessionID:            pduSessionID,
 		SNssai:                  snssai,
 		BinaryDataN2Information: n2Msg,
