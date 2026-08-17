@@ -46,7 +46,7 @@ func (ue *UeContext) EndKeyChainProc(t procedure.Type) {
 // SuperviseKeyChainProc arms the registry's supervision timeout on an already-begun
 // key-chain procedure: cancel runs once at the deadline, and only while the procedure
 // is still active. A no-op on a bare test context with no registry.
-func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
+func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel procedure.CancelFunc) {
 	if ue.procedures != nil {
 		_ = ue.procedures.Supervise(t, deadline, cancel)
 	}

@@ -122,6 +122,19 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 
 	ue.releaseSmContexts(ctx)
 
+	// A UE in single-registration mode holds one MM state at a time — either the RM
+	// state in 5GC or the EMM state in EPC (TS 23.501 §5.17.2.2) — and this one has
+	// just arrived in EPS. Leaving it 5GMM-REGISTERED would keep a UE the AMF no
+	// longer serves in the status surface, on top of a live EPS registration, until
+	// implicit deregistration reaped it an hour later.
+	//
+	// The context outlives the command: the gNB answers it with a UE CONTEXT RELEASE
+	// COMPLETE, which is the last message of the procedure and must find its
+	// connection (TS 38.413 §8.3.2, §9.2.2.4). Deregistering first is what makes that
+	// Complete delete the context rather than drop the UE to CM-IDLE — the mirror of
+	// MME.RelocationComplete for a handover in the other direction.
+	ue.TransitionTo(Deregistered)
+
 	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources",
 		logger.SUPI(supi.String()))
 
@@ -142,9 +155,12 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext, id interworking.RelocationID
 
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
-		func(cctx context.Context) error {
-			if !a.abandonHandover(ue) {
-				return nil
+		func(cctx context.Context) (procedure.Disposition, error) {
+			switch a.unwindHandover(ue) {
+			case handoverCommitting:
+				return procedure.Retain, nil
+			case handoverNotInProgress:
+				return procedure.Release, nil
 			}
 
 			logger.From(cctx, logger.AmfLog).Warn("handover to EPS abandoned: the UE did not arrive in time",
@@ -154,6 +170,6 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext, id interworking.RelocationID
 				logger.From(cctx, logger.AmfLog).Info("the peer had no handover to cancel", zap.Error(err))
 			}
 
-			return nil
+			return procedure.Release, nil
 		})
 }

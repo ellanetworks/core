@@ -67,6 +67,22 @@ type SubscriberDetailStatus struct {
 	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
+// applyIdentity fills in the UE identity and NAS security algorithms one access
+// reports, leaving whatever is already set where that access knows no value.
+func (s *SubscriberDetailStatus) applyIdentity(imei, ciphering, integrity string) {
+	if imei != "" {
+		s.Imei = imei
+	}
+
+	if ciphering != "" {
+		s.CipheringAlgorithm = ciphering
+	}
+
+	if integrity != "" {
+		s.IntegrityAlgorithm = integrity
+	}
+}
+
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
@@ -158,6 +174,71 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 // radioIsKnown reports whether a radio name matches a connected 5G gNB or 4G eNB.
 func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool {
 	return amfInstance.HasRadio(name) || (mmeInstance != nil && mmeInstance.HasRadio(name))
+}
+
+// accessView is one radio access technology's live view of a subscriber: 4G as the MME
+// reports it, 5G as the AMF does.
+type accessView struct {
+	// rat is the access technology name the API reports, "4G" or "5G".
+	rat string
+	// present is true when that access holds a registration for the subscriber.
+	present bool
+	// radioName is the radio serving the UE on this access. It is empty while the UE
+	// is idle: both cores derive it from the live RAN connection, which an idle UE
+	// does not have.
+	radioName string
+	// lastSeenAt is the UE's most recent NAS activity on this access.
+	lastSeenAt time.Time
+}
+
+// newerThan reports whether this access heard from the UE more recently than other.
+// An access holding no registration never wins.
+func (v accessView) newerThan(other accessView) bool {
+	return !other.present || v.lastSeenAt.After(other.lastSeenAt)
+}
+
+// mergedAccess is the single view the API reports for a subscriber both cores may hold
+// a context for.
+type mergedAccess struct {
+	RATs       []string
+	RadioName  string
+	LastSeenAt time.Time
+}
+
+// mergeAccesses folds the accesses a subscriber is registered on into one view, keeping
+// the order given. 4G and 5G are peers here: neither is privileged over the other.
+//
+// A subscriber can be registered on both at once — a UE that re-attaches on the other
+// access without an inter-system change leaves the first registration standing until its
+// supervision timers expire (TS 24.501 §5.3.7, TS 24.301 §5.3.5) — so the merge has to
+// choose. The radio comes from the access that last heard from the UE and knows which
+// radio serves it: an idle access reports no radio at all, and letting that empty name
+// win would hide the radio the other access is serving the UE on right now.
+func mergeAccesses(views ...accessView) mergedAccess {
+	var (
+		merged   mergedAccess
+		radioSrc accessView
+	)
+
+	for _, v := range views {
+		if !v.present {
+			continue
+		}
+
+		merged.RATs = append(merged.RATs, v.rat)
+
+		if v.lastSeenAt.After(merged.LastSeenAt) {
+			merged.LastSeenAt = v.lastSeenAt
+		}
+
+		if v.radioName != "" && v.newerThan(radioSrc) {
+			radioSrc = v
+		}
+	}
+
+	merged.RadioName = radioSrc.radioName
+
+	return merged
 }
 
 func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
@@ -296,34 +377,25 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			amf5G, on5G := amf5GStatus[dbSubscriber.Imsi]
 			mme4G, on4G := mmeStatus[dbSubscriber.Imsi]
 
-			radioName := ""
+			merged := mergeAccesses(
+				accessView{rat: "4G", present: on4G, radioName: mme4G.RadioName, lastSeenAt: mme4G.LastSeenAt},
+				accessView{rat: "5G", present: on5G, radioName: amf5G.RadioName, lastSeenAt: amf5G.LastSeenAt},
+			)
 
-			subscriberStatus := SubscriberStatus{Registered: on5G || on4G}
-
-			if on4G {
-				subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "4G")
-				subscriberStatus.NumSessions += mme4G.NumSessions
-				radioName = mme4G.RadioName
-
-				if !mme4G.LastSeenAt.IsZero() {
-					subscriberStatus.LastSeenAt = mme4G.LastSeenAt.UTC().Format(time.RFC3339)
-				}
+			subscriberStatus := SubscriberStatus{
+				Registered:       on5G || on4G,
+				RadioAccessTypes: merged.RATs,
+				NumSessions:      mme4G.NumSessions + amf5G.NumSessions,
 			}
 
-			if on5G {
-				subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "5G")
-				subscriberStatus.NumSessions += amf5G.NumSessions
-				radioName = amf5G.RadioName
-
-				if !amf5G.LastSeenAt.IsZero() {
-					subscriberStatus.LastSeenAt = amf5G.LastSeenAt.UTC().Format(time.RFC3339)
-				}
+			if !merged.LastSeenAt.IsZero() {
+				subscriberStatus.LastSeenAt = merged.LastSeenAt.UTC().Format(time.RFC3339)
 			}
 
 			items = append(items, Subscriber{
 				Imsi:        dbSubscriber.Imsi,
 				ProfileName: profile.Name,
-				Radio:       radioName,
+				Radio:       merged.RadioName,
 				Status:      subscriberStatus,
 			})
 		}
@@ -391,59 +463,53 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 
 		snap, radioName, pduSessions, found := amfInstance.LookupSubscriber(supi)
 
-		subscriberStatus := SubscriberDetailStatus{
-			Registered: false,
-		}
-
-		sessions := make([]Session, 0, len(pduSessions))
+		var (
+			cs   mme.ConnectedSubscriber
+			on4G bool
+		)
 
 		if mmeInstance != nil {
-			if cs, ok := mmeInstance.LookupSubscriber(imsi); ok {
-				subscriberStatus.Registered = true
-				subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "4G")
-				subscriberStatus.Imei = cs.Imei
-				subscriberStatus.CipheringAlgorithm = cs.CipheringAlgorithm
-				subscriberStatus.IntegrityAlgorithm = cs.IntegrityAlgorithm
-				subscriberStatus.LastSeenRadio = cs.RadioName
+			cs, on4G = mmeInstance.LookupSubscriber(imsi)
+		}
 
-				if !cs.LastSeenAt.IsZero() {
-					subscriberStatus.LastSeenAt = cs.LastSeenAt.UTC().Format(time.RFC3339)
-				}
+		view4G := accessView{rat: "4G", present: on4G, radioName: cs.RadioName, lastSeenAt: cs.LastSeenAt}
+		view5G := accessView{rat: "5G", present: found, radioName: radioName, lastSeenAt: snap.LastSeenAt}
 
-				for i := range cs.Sessions {
-					if len(sessions) >= MaxSessions {
-						break
-					}
+		merged := mergeAccesses(view4G, view5G)
 
-					sessions = append(sessions, sessionFrom4G(&cs.Sessions[i]))
-				}
+		subscriberStatus := SubscriberDetailStatus{
+			Registered:       on4G || found,
+			RadioAccessTypes: merged.RATs,
+			LastSeenRadio:    merged.RadioName,
+		}
+
+		if !merged.LastSeenAt.IsZero() {
+			subscriberStatus.LastSeenAt = merged.LastSeenAt.UTC().Format(time.RFC3339)
+		}
+
+		// The UE's identity and its NAS security are per access, so apply the access
+		// that heard from the UE longer ago first and let the more recent one overwrite
+		// it. An access that knows none of these leaves them as they are, rather than
+		// blanking what the other one reported.
+		if view4G.newerThan(view5G) {
+			subscriberStatus.applyIdentity(snap.Imei, snap.CipheringAlgorithm, snap.IntegrityAlgorithm)
+			subscriberStatus.applyIdentity(cs.Imei, cs.CipheringAlgorithm, cs.IntegrityAlgorithm)
+		} else {
+			subscriberStatus.applyIdentity(cs.Imei, cs.CipheringAlgorithm, cs.IntegrityAlgorithm)
+			subscriberStatus.applyIdentity(snap.Imei, snap.CipheringAlgorithm, snap.IntegrityAlgorithm)
+		}
+
+		sessions := make([]Session, 0, len(pduSessions)+len(cs.Sessions))
+
+		for i := range cs.Sessions {
+			if len(sessions) >= MaxSessions {
+				break
 			}
+
+			sessions = append(sessions, sessionFrom4G(&cs.Sessions[i]))
 		}
 
 		if found {
-			subscriberStatus.Registered = true
-			subscriberStatus.RadioAccessTypes = append(subscriberStatus.RadioAccessTypes, "5G")
-
-			if snap.CipheringAlgorithm != "" {
-				subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
-			}
-
-			if snap.IntegrityAlgorithm != "" {
-				subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
-			}
-
-			if radioName != "" {
-				subscriberStatus.LastSeenRadio = radioName
-			}
-
-			if snap.Imei != "" {
-				subscriberStatus.Imei = snap.Imei
-			}
-
-			if !snap.LastSeenAt.IsZero() {
-				subscriberStatus.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
-			}
-
 			for _, pdu := range pduSessions {
 				if len(sessions) >= MaxSessions {
 					break

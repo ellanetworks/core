@@ -171,7 +171,7 @@ func (ue *UeContext) endKeyChainProcs() {
 	ue.EndKeyChainProc(procedure.PathSwitch)
 }
 
-func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
+func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel procedure.CancelFunc) {
 	if ue.procedures != nil {
 		_ = ue.procedures.Supervise(t, deadline, cancel)
 	}

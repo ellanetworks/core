@@ -178,20 +178,15 @@ func (m *MME) SuperviseHandoverToFiveGS(ue *UeContext, id interworking.Relocatio
 
 	ue.SuperviseKeyChainProc(procedure.S1Handover,
 		time.Now().Add(m.handoverGuardTimeout),
-		func(cctx context.Context) error {
+		func(cctx context.Context) (procedure.Disposition, error) {
 			if !m.AbandonHandoverToFiveGS(cctx, ue, id) {
-				if !ue.BeginKeyChainProc(procedure.S1Handover) {
-					logger.From(cctx, logger.MmeLog).Error("could not re-claim the key chain for a committing handover to 5GS",
-						logger.SUPI(ue.Supi().String()))
-				}
-
-				return nil
+				return procedure.Release, nil
 			}
 
 			logger.From(cctx, logger.MmeLog).Warn("handover to 5GS abandoned: the UE did not arrive in time",
 				logger.SUPI(ue.Supi().String()))
 
-			return nil
+			return procedure.Release, nil
 		})
 }
 
