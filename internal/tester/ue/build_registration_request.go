@@ -33,9 +33,6 @@ func BuildRegistrationRequest(opts *RegistrationRequestOpts) ([]byte, error) {
 	return wire, err
 }
 
-// buildRegistrationRequest returns the octets to put on the wire and the
-// complete message they were built from, which is what the UE replays in the NAS
-// message container of SECURITY MODE COMPLETE (TS 24.501 §4.4.6 a).
 func buildRegistrationRequest(opts *RegistrationRequestOpts) (wire, complete []byte, err error) {
 	if opts == nil {
 		return nil, nil, fmt.Errorf("RegistrationRequestOpts is nil")

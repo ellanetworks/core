@@ -764,8 +764,6 @@ func (ue *UE) sendRegistrationRequest(ranUENGAPID int64, regType uint8, uplinkDa
 		return fmt.Errorf("could not build Registration Request NAS PDU: %v", err)
 	}
 
-	// TS 24.501 §4.4.6 a: a security mode control procedure the AMF starts on this
-	// registration is answered with the entire message, not a fresh one.
 	ue.replayRegistration = complete
 
 	// TS 24.501 §4.4.6: a UE with a current 5G NAS security context integrity
