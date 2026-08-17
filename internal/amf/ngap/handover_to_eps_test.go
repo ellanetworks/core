@@ -473,6 +473,51 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 }
 
+// A UE in single-registration mode holds one MM state at a time (TS 23.501 §5.17.2.2),
+// so a UE that reached EPS is no longer registered in 5GS and the status surface must
+// report the EPS registration alone. The source gNB's UE Context Release Complete then
+// ends the 5GS context — the mirror of MME.RelocationComplete for the other direction.
+func TestHandoverToEPSDeregistersTheUEInFiveGS(t *testing.T) {
+	peer := &epsPeerStub{accepted: []uint8{1}}
+	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
+
+	amfUe.ForceStateForTest(amf.Registered)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+
+	if err := amfInstance.CommitUEIdentity(context.Background(), amfUe, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	imsi := amfUe.Supi().IMSI()
+
+	if _, ok := amfInstance.ConnectedSubscribers()[imsi]; !ok {
+		t.Fatal("the UE is not reported as a connected 5G subscriber before the move")
+	}
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+	awaitCommand(t, sender)
+
+	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi(), peer.relocationID()); err != nil {
+		t.Fatalf("RelocationComplete: %v", err)
+	}
+
+	if got := amfUe.State(); got != amf.Deregistered {
+		t.Errorf("5GMM state after the move to EPS = %v, want Deregistered", got)
+	}
+
+	if _, ok := amfInstance.ConnectedSubscribers()[imsi]; ok {
+		t.Error("the UE is still reported as a connected 5G subscriber after handing over to EPS")
+	}
+
+	amfID, ranID := ngap.AMFUENGAPID(1), ngap.RANUENGAPID(1)
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, sourceRan,
+		&ngap.UEContextReleaseComplete{AMFUENGAPID: &amfID, RANUENGAPID: &ranID})
+
+	if _, ok := amfInstance.LookupUeBySupi(amfUe.Supi()); ok {
+		t.Error("the 5GS context outlived the source gNB's UE Context Release Complete")
+	}
+}
+
 // TS 38.413 §8.4.1.3
 func TestHandoverToEPSFailureCause(t *testing.T) {
 	for _, tc := range []struct {
