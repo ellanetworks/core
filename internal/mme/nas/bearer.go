@@ -341,6 +341,8 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	ue.TransitionTo(mme.EMMRegistered)
 
+	m.SupersedeFiveGSRegistration(ctx, ue)
+
 	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultAccept)
 
 	logger.From(ctx, logger.MmeLog).Info("UE attached (EMM-REGISTERED)",
