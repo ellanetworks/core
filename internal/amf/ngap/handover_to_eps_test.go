@@ -29,16 +29,19 @@ import (
 
 const relocationTargetENBID = 0x00abc
 
+func (*epsPeerStub) CancelRegistration(context.Context, etsi.SUPI) {}
+
 type epsPeerStub struct {
 	mu sync.Mutex
 
-	accepted  []uint8
-	err       error
-	cancelErr error
-	request   *interworking.ForwardRelocationRequest
-	cancelled int
-	completed []interworking.RelocationID
-	gate      chan struct{}
+	accepted   []uint8
+	err        error
+	cancelErr  error
+	request    *interworking.ForwardRelocationRequest
+	cancelled  int
+	completed  []interworking.RelocationID
+	gate       chan struct{}
+	cancelGate chan struct{}
 }
 
 func (p *epsPeerStub) MMContext(context.Context, interworking.MMContextRequest) (interworking.MMContextResponse, error) {
@@ -95,15 +98,22 @@ func (p *epsPeerStub) relocationsCompleted() []interworking.RelocationID {
 
 func (p *epsPeerStub) RelocationCancel(_ context.Context, _ etsi.SUPI, _ interworking.RelocationID) error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	p.cancelled++
+	gate, err := p.cancelGate, p.cancelErr
+	p.mu.Unlock()
 
-	if p.cancelErr != nil {
-		return p.cancelErr
+	if gate != nil {
+		<-gate
 	}
 
-	return nil
+	return err
+}
+
+func (p *epsPeerStub) cancels() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.cancelled
 }
 
 func (p *epsPeerStub) forwarded() *interworking.ForwardRelocationRequest {
@@ -465,6 +475,65 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 }
 
+// TS 23.501 §5.17.2.1, TS 33.501 §8.4.2
+func TestHandoverToEPSDeregistersTheUEButKeepsItsFiveGSContext(t *testing.T) {
+	peer := &epsPeerStub{accepted: []uint8{1}}
+	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
+
+	amfUe.ForceStateForTest(amf.Registered)
+	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
+
+	if err := amfInstance.CommitUEIdentity(context.Background(), amfUe, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	imsi := amfUe.Supi().IMSI()
+
+	if _, ok := amfInstance.ConnectedSubscribers()[imsi]; !ok {
+		t.Fatal("the UE is not reported as a connected 5G subscriber before the move")
+	}
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+	awaitCommand(t, sender)
+
+	if err := amfInstance.RelocationComplete(context.Background(), amfUe.Supi(), peer.relocationID()); err != nil {
+		t.Fatalf("RelocationComplete: %v", err)
+	}
+
+	if got := amfUe.State(); got != amf.Deregistered {
+		t.Errorf("5GMM state after the move to EPS = %v, want Deregistered", got)
+	}
+
+	if _, ok := amfInstance.ConnectedSubscribers()[imsi]; ok {
+		t.Error("the UE is still reported as a connected 5G subscriber after handing over to EPS")
+	}
+
+	amfID, ranID := ngap.AMFUENGAPID(1), ngap.RANUENGAPID(1)
+	HandleUEContextReleaseComplete(context.Background(), amfInstance, sourceRan,
+		&ngap.UEContextReleaseComplete{AMFUENGAPID: &amfID, RANUENGAPID: &ranID})
+
+	held, ok := amfInstance.LookupUeBySupi(amfUe.Supi())
+	if !ok {
+		t.Fatal("the 5G security context was thrown away with the source gNB's connection; a return from EPS now costs a primary authentication")
+	}
+
+	if held != amfUe {
+		t.Error("the retained context is not the one that moved to EPS")
+	}
+
+	if got := held.State(); got != amf.Deregistered {
+		t.Errorf("5GMM state of the retained context = %v, want Deregistered", got)
+	}
+
+	if _, ok := amfInstance.ConnectedSubscribers()[imsi]; ok {
+		t.Error("the retained context is reported as a connected 5G subscriber")
+	}
+
+	if held.Conn() != nil {
+		t.Error("the retained context still holds a RAN connection")
+	}
+}
+
 // TS 38.413 §8.4.1.3
 func TestHandoverToEPSFailureCause(t *testing.T) {
 	for _, tc := range []struct {
@@ -500,23 +569,53 @@ func TestHandoverToEPSGuardReleasesAUEThatNeverArrives(t *testing.T) {
 	awaitCommand(t, sender)
 
 	deadline := time.Now().Add(2 * time.Second)
-	for amfInstance.HandoverInProgress(amfUe) {
+	for !amfUe.BeginKeyChainProc(procedure.N2Handover) {
 		if time.Now().After(deadline) {
-			t.Fatal("the handover outlived its guard")
+			t.Fatal("the abandoned handover never released the UE's key chain")
 		}
 
 		time.Sleep(time.Millisecond)
 	}
 
-	peer.mu.Lock()
-	cancelled := peer.cancelled
-	peer.mu.Unlock()
-
-	if cancelled != 1 {
-		t.Errorf("the peer was told to cancel %d times, want 1", cancelled)
+	if amfInstance.HandoverInProgress(amfUe) {
+		t.Error("the key chain came free with the handover still in progress")
 	}
 
-	if !amfUe.BeginKeyChainProc(procedure.N2Handover) {
-		t.Error("the abandoned handover still holds the UE's key chain")
+	if cancelled := peer.cancels(); cancelled != 1 {
+		t.Errorf("the peer was told to cancel %d times, want 1", cancelled)
+	}
+}
+
+func TestHandoverToEPSGuardHoldsTheKeyChainUntilThePeerIsTold(t *testing.T) {
+	cancelling := make(chan struct{})
+	peer := &epsPeerStub{accepted: []uint8{1}, cancelGate: cancelling}
+	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
+	amfInstance.SetHandoverGuardTimeoutForTest(20 * time.Millisecond)
+
+	HandleHandoverRequired(context.Background(), amfInstance, sourceRan, handoverRequiredToENB(t, 1))
+	awaitCommand(t, sender)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for peer.cancels() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("the guard never told the peer to cancel")
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	if amfUe.BeginKeyChainProc(procedure.SecurityMode) {
+		t.Error("a security mode command took the key chain while the abandoned handover was still unwinding")
+	}
+
+	close(cancelling)
+
+	deadline = time.Now().Add(2 * time.Second)
+	for !amfUe.BeginKeyChainProc(procedure.SecurityMode) {
+		if time.Now().After(deadline) {
+			t.Fatal("the finished abandonment never released the UE's key chain")
+		}
+
+		time.Sleep(time.Millisecond)
 	}
 }

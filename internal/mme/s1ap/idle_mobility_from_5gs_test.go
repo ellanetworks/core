@@ -15,6 +15,8 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
+func (*refusingFiveGSPeer) CancelRegistration(context.Context, etsi.SUPI) {}
+
 type refusingFiveGSPeer struct {
 	err error
 }

@@ -264,16 +264,15 @@ func (a *AMF) stageHandover(ue *UeContext, source, target *UeConn, candidates []
 	return nh, ncc, true
 }
 
-func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Context) error {
-	return func(cctx context.Context) error {
+func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) procedure.CancelFunc {
+	return func(cctx context.Context) (procedure.Disposition, error) {
 		amfUe := sourceUe.UeContext()
 
-		if !a.abandonHandover(amfUe) {
-			if amfUe != nil && !amfUe.BeginKeyChainProc(procedure.N2Handover) {
-				logger.WithTrace(cctx, sourceUe.Log).Error("could not re-claim the key chain for a committing handover")
-			}
-
-			return nil
+		switch a.unwindHandover(amfUe) {
+		case handoverCommitting:
+			return procedure.Retain, nil
+		case handoverNotInProgress:
+			return procedure.Release, nil
 		}
 
 		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
@@ -285,21 +284,38 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) func(context.Contex
 		targetUe.SendUEContextReleaseCommand(cctx,
 			ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTNGRelocOverallExpiry})
 
-		return nil
+		return procedure.Release, nil
 	}
 }
 
+type handoverUnwind uint8
+
+const (
+	handoverAbandoned handoverUnwind = iota
+	handoverCommitting
+	handoverNotInProgress
+)
+
 func (a *AMF) abandonHandover(ue *UeContext) bool {
+	return a.unwindHandover(ue) == handoverAbandoned
+}
+
+func (a *AMF) unwindHandover(ue *UeContext) handoverUnwind {
 	if ue == nil {
-		return false
+		return handoverNotInProgress
 	}
 
 	a.mu.Lock()
 
 	ho := ue.handover
-	if ho == nil || ho.state == hoCommitting {
+
+	switch {
+	case ho == nil:
 		a.mu.Unlock()
-		return false
+		return handoverNotInProgress
+	case ho.state == hoCommitting:
+		a.mu.Unlock()
+		return handoverCommitting
 	}
 
 	deliverRelocationLocked(ho, relocationOutcome{err: ErrRelocationAbandoned})
@@ -310,7 +326,7 @@ func (a *AMF) abandonHandover(ue *UeContext) bool {
 
 	ue.EndKeyChainProc(procedure.N2Handover)
 
-	return true
+	return handoverAbandoned
 }
 
 // SetHandoverForTest installs a preparing handover FSM for a source→target pair without

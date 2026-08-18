@@ -993,6 +993,10 @@ func TestMobilityReg_OmitsTheEPSBearerContextStatusWithoutAnArrivalFromEPS(t *te
 	}
 }
 
+func (f *fakeEPSPeer) CancelRegistration(_ context.Context, supi etsi.SUPI) {
+	f.Cancelled = append(f.Cancelled, supi.IMSI())
+}
+
 type fakeEPSPeer struct {
 	MMContextRequests []interworking.MMContextRequest
 	MMContextResponse interworking.MMContextResponse
@@ -1000,6 +1004,7 @@ type fakeEPSPeer struct {
 	Acked             bool
 	AckedSupi         etsi.SUPI
 	Transferred       []uint8
+	Cancelled         []string
 }
 
 func (*fakeEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {

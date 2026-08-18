@@ -13,8 +13,15 @@ import (
 // Type and the registry are re-exported from the engine so MME code refers to a
 // single procedure package.
 type (
-	Type     = engine.Type
-	Registry = engine.Registry
+	Type        = engine.Type
+	Registry    = engine.Registry
+	Disposition = engine.Disposition
+	CancelFunc  = engine.CancelFunc
+)
+
+const (
+	Release = engine.Release
+	Retain  = engine.Retain
 )
 
 // Sentinel errors, re-exported from the engine.
@@ -22,6 +29,7 @@ var (
 	ErrConflict      = engine.ErrConflict
 	ErrAlreadyActive = engine.ErrAlreadyActive
 	ErrNotActive     = engine.ErrNotActive
+	ErrSettling      = engine.ErrSettling
 )
 
 // EPS key-changing procedures tracked for one UE. Each advances the {NH, NCC} AS

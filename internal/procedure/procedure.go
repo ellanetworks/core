@@ -27,15 +27,40 @@ var (
 	ErrConflict      = errors.New("conflicting procedure active")
 	ErrAlreadyActive = errors.New("procedure already active")
 	ErrNotActive     = errors.New("procedure not active")
+	ErrSettling      = errors.New("procedure is being torn down")
 )
+
+// Disposition is a cancel callback's answer to "may the slot be freed now?".
+type Disposition uint8
+
+const (
+	// Release frees the slot: the procedure is over, one way or another.
+	Release Disposition = iota
+	// Retain keeps the slot: the procedure is committing, and freeing the slot now would
+	// let the next procedure rekey the UE underneath the commit (TS 33.501 §6.9.5,
+	// TS 33.401 §7.2.10). It governs whether the teardown came from the deadline or from
+	// an explicit Cancel, because in both cases the callback is the only thing that knows
+	// whether the procedure can be interrupted.
+	//
+	// Supervision ends there rather than re-arming: every exit from a committing state
+	// calls End, so re-checking could only confirm what End already reports, and a commit
+	// that never finishes would re-arm the deadline forever. The slot frees on that End —
+	// including the End that UE-context teardown performs, which is what recovers a
+	// commit that is never going to finish.
+	Retain
+)
+
+type CancelFunc func(context.Context) (Disposition, error)
 
 // held is the single active procedure. A fresh value is allocated per Begin, so a
 // deadline timer captures its own instance by pointer identity and cannot expire a
 // later procedure that reused the same Type.
 type held struct {
-	typ    Type
-	timer  *time.Timer
-	cancel func(context.Context) error
+	typ      Type
+	timer    *time.Timer
+	cancel   CancelFunc
+	settling bool
+	ended    bool
 }
 
 // Registry tracks the one active procedure of a single UE or session.
@@ -83,12 +108,16 @@ func (r *Registry) Begin(t Type) error {
 // the cancel. Arming after the relevant state is written gives the timer goroutine a
 // happens-before edge to it. A subsequent End or Cancel stops the timer. Returns
 // ErrNotActive if t is not active.
-func (r *Registry) Supervise(t Type, deadline time.Time, cancel func(context.Context) error) error {
+func (r *Registry) Supervise(t Type, deadline time.Time, cancel CancelFunc) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.active == nil || r.active.typ != t {
 		return ErrNotActive
+	}
+
+	if r.active.settling {
+		return ErrSettling
 	}
 
 	if r.active.timer != nil {
@@ -103,7 +132,7 @@ func (r *Registry) Supervise(t Type, deadline time.Time, cancel func(context.Con
 		d = time.Millisecond
 	}
 
-	r.active.timer = time.AfterFunc(d, func() { r.expire(h) })
+	h.timer = time.AfterFunc(d, func() { r.expire(h) })
 
 	return nil
 }
@@ -119,6 +148,15 @@ func (r *Registry) End(t Type) {
 		return
 	}
 
+	if h.settling {
+		h.ended = true
+		r.mu.Unlock()
+		r.log.Debug("procedure ended mid-teardown; the slot frees when the teardown returns",
+			zap.String("type", string(t)))
+
+		return
+	}
+
 	r.active = nil
 	r.mu.Unlock()
 
@@ -129,8 +167,10 @@ func (r *Registry) End(t Type) {
 	r.log.Debug("procedure ended", zap.String("type", string(t)))
 }
 
-// Cancel removes the active procedure t and invokes its cancel callback. Returns
-// ErrNotActive if t is not active.
+// Cancel tears the active procedure t down through its cancel callback. The callback's
+// disposition governs as it does on a deadline expiry: a Retain leaves the slot held,
+// because a committing procedure is no safer to interrupt on request than on a timeout.
+// Returns ErrNotActive if t is not active.
 func (r *Registry) Cancel(ctx context.Context, t Type) error {
 	r.mu.Lock()
 
@@ -140,7 +180,12 @@ func (r *Registry) Cancel(ctx context.Context, t Type) error {
 		return ErrNotActive
 	}
 
-	r.active = nil
+	if h.settling {
+		r.mu.Unlock()
+		return ErrSettling
+	}
+
+	h.settling = true
 	r.mu.Unlock()
 
 	if h.timer != nil {
@@ -148,7 +193,7 @@ func (r *Registry) Cancel(ctx context.Context, t Type) error {
 	}
 
 	r.log.Info("procedure cancelled", zap.String("type", string(t)), zap.String("reason", "explicit"))
-	r.invokeCancel(ctx, h)
+	r.settle(ctx, h)
 
 	return nil
 }
@@ -180,31 +225,65 @@ func (r *Registry) ActiveTypes() []string {
 func (r *Registry) expire(h *held) {
 	r.mu.Lock()
 
-	if r.active != h {
+	if r.active != h || h.settling {
 		r.mu.Unlock()
 		return
 	}
 
-	r.active = nil
+	h.settling = true
 	r.mu.Unlock()
 
 	r.log.Warn("procedure expired", zap.String("type", string(h.typ)), zap.String("reason", "timeout"))
-	r.invokeCancel(context.Background(), h)
+	r.settle(context.Background(), h)
+}
+
+// settle runs h's cancel callback outside the lock and then frees the slot, unless the
+// callback retained it or an End arrived mid-teardown.
+func (r *Registry) settle(ctx context.Context, h *held) {
+	disposition := r.invokeCancel(ctx, h)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	h.settling = false
+
+	if r.active != h {
+		r.log.Error("the procedure being torn down is no longer the active one",
+			zap.String("type", string(h.typ)))
+
+		return
+	}
+
+	if disposition == Retain && !h.ended {
+		r.log.Warn("procedure retained by its cancel callback; supervision is over and the slot frees when the procedure ends",
+			zap.String("type", string(h.typ)))
+
+		return
+	}
+
+	r.active = nil
 }
 
 // invokeCancel calls the cancel callback outside the lock, recovering panics.
-func (r *Registry) invokeCancel(ctx context.Context, h *held) {
+func (r *Registry) invokeCancel(ctx context.Context, h *held) (disposition Disposition) {
 	if h.cancel == nil {
-		return
+		return Release
 	}
 
 	defer func() {
 		if rv := recover(); rv != nil {
 			r.log.Error("cancel callback panicked", zap.String("type", string(h.typ)), zap.Any("panic", rv))
+
+			disposition = Release
 		}
 	}()
 
-	if err := h.cancel(ctx); err != nil {
+	var err error
+
+	disposition, err = h.cancel(ctx)
+	if err != nil {
 		r.log.Warn("cancel callback error", zap.String("type", string(h.typ)), zap.Error(err))
 	}
+
+	return disposition
 }

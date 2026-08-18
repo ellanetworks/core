@@ -735,3 +735,32 @@ func TestBothArrivalPathsAttestS1Mode(t *testing.T) {
 		})
 	}
 }
+
+// TS 23.501 §5.17.2.2.1, TS 24.501 §5.5.1.3.2 a) NOTE 7
+func TestRegistrationCompleteDropsAnEPSRegistrationTheContextTransferLeftBehind(t *testing.T) {
+	ue, amfInstance, peer, _ := idleArrivalUE(t)
+	peer.MMContextErr = interworking.ErrUnknownUEContext
+
+	req := idleArrivalRequest()
+	ue.Conn().RegistrationRequest = req
+
+	recoverContextFromEPS(context.Background(), amfInstance, ue, req, false)
+
+	if peer.Acked {
+		t.Fatal("the MME context was acknowledged though the MME returned none")
+	}
+
+	ue.ForceStateForTest(amf.RegistrationInitiated)
+	ue.ForceRegStepForTest(amf.RegStepContextSetup)
+
+	handleRegistrationComplete(context.Background(), amfInstance, ue)
+
+	if ue.State() != amf.Registered {
+		t.Fatalf("5GMM state = %s, want Registered", ue.State())
+	}
+
+	if len(peer.Cancelled) != 1 {
+		t.Errorf("cancelled %v, want the EPS registration dropped: the subscriber holds an MM state in both the MME and the AMF, and the MME goes on paging it on E-UTRAN",
+			peer.Cancelled)
+	}
+}

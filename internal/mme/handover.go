@@ -256,18 +256,14 @@ func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
 }
 
 func (m *MME) SuperviseHandover(ue *UeContext) {
-	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout), func(cctx context.Context) error {
-		// Expiry clears the registry's active procedure before calling back, so a
-		// handover that was already committing — and therefore not abandoned here — has
-		// to re-claim the chain, or a concurrent path switch could advance {NH, NCC}
-		// while the commit is still running.
-		if !m.abandonHandover(cctx, ue, causeHandoverTS1relocExpiry) && !ue.BeginKeyChainProc(procedure.S1Handover) {
-			logger.From(cctx, logger.MmeLog).Error("could not re-claim the key chain for a committing handover",
-				logger.SUPI(ue.Supi().String()))
-		}
+	ue.SuperviseKeyChainProc(procedure.S1Handover, time.Now().Add(m.handoverGuardTimeout),
+		func(cctx context.Context) (procedure.Disposition, error) {
+			if m.unwindHandover(cctx, ue, causeHandoverTS1relocExpiry) == handoverCommitting {
+				return procedure.Retain, nil
+			}
 
-		return nil
-	})
+			return procedure.Release, nil
+		})
 }
 
 func (ho *handoverContext) targetIs(mmeID s1ap.MMEUES1APID, conn S1APWriter) bool {
@@ -536,13 +532,30 @@ func (m *MME) FailHandoverToSource(ctx context.Context, ue *UeContext, cause s1a
 }
 
 // TS 36.413 §8.4.5.1
+type handoverUnwind uint8
+
+const (
+	handoverAbandoned handoverUnwind = iota
+	handoverCommitting
+	handoverNotInProgress
+)
+
 func (m *MME) abandonHandover(ctx context.Context, ue *UeContext, cause s1ap.Cause) bool {
+	return m.unwindHandover(ctx, ue, cause) == handoverAbandoned
+}
+
+func (m *MME) unwindHandover(ctx context.Context, ue *UeContext, cause s1ap.Cause) handoverUnwind {
 	m.mu.Lock()
 
 	ho := ue.handover
-	if ho == nil || ho.state == hoCommitting {
+
+	switch {
+	case ho == nil:
 		m.mu.Unlock()
-		return false
+		return handoverNotInProgress
+	case ho.state == hoCommitting:
+		m.mu.Unlock()
+		return handoverCommitting
 	}
 
 	releaseTarget := ho.target
@@ -557,7 +570,7 @@ func (m *MME) abandonHandover(ctx context.Context, ue *UeContext, cause s1ap.Cau
 	}
 
 	if releaseTarget == nil {
-		return true
+		return handoverAbandoned
 	}
 
 	logger.From(ctx, logger.MmeLog).Warn("S1 handover abandoned",
@@ -565,7 +578,7 @@ func (m *MME) abandonHandover(ctx context.Context, ue *UeContext, cause s1ap.Cau
 
 	SendUEContextRelease(ctx, m, releaseTarget.Conn(), releaseTarget.MMEUES1APID, releaseTarget.ENBUES1APID, releasePair, cause)
 
-	return true
+	return handoverAbandoned
 }
 
 func (m *MME) ReleaseDetachedConn(conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID) bool {

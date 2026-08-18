@@ -14,14 +14,22 @@ import (
 // Type and the registry are the generic engine's, re-exported so AMF code refers to
 // a single procedure package.
 type (
-	Type     = engine.Type
-	Registry = engine.Registry
+	Type        = engine.Type
+	Registry    = engine.Registry
+	Disposition = engine.Disposition
+	CancelFunc  = engine.CancelFunc
+)
+
+const (
+	Release = engine.Release
+	Retain  = engine.Retain
 )
 
 var (
 	ErrConflict      = engine.ErrConflict
 	ErrAlreadyActive = engine.ErrAlreadyActive
 	ErrNotActive     = engine.ErrNotActive
+	ErrSettling      = engine.ErrSettling
 )
 
 // The key-changing procedures tracked for one UE. All of them mutate the UE's single
