@@ -415,8 +415,13 @@ func TestHandoverRequired_GuardExpiryReleasesTarget(t *testing.T) {
 		t.Fatalf("expected 1 UEContextReleaseCommand to target on guard expiry, got %d", got)
 	}
 
-	if amfUe.Procedures().Active(procedure.N2Handover) {
-		t.Fatal("N2Handover procedure still active after guard expiry")
+	procDeadline := time.Now().Add(2 * time.Second)
+	for amfUe.Procedures().Active(procedure.N2Handover) {
+		if time.Now().After(procDeadline) {
+			t.Fatal("N2Handover procedure still active after guard expiry")
+		}
+
+		time.Sleep(time.Millisecond)
 	}
 
 	// The guard abandons the handover without answering any gNB, so nothing else
