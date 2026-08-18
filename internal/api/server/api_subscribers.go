@@ -33,7 +33,6 @@ type UpdateSubscriberParams struct {
 	ProfileName string `json:"profile_name"`
 }
 
-// SubscriberStatus is the lightweight status returned by the list endpoint.
 type SubscriberStatus struct {
 	Registered       bool     `json:"registered"`
 	RadioAccessTypes []string `json:"radio_access_types,omitempty"`
@@ -41,7 +40,6 @@ type SubscriberStatus struct {
 	LastSeenAt       string   `json:"last_seen_at,omitempty"`
 }
 
-// Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
@@ -56,7 +54,6 @@ type ListSubscribersResponse struct {
 	TotalCount int          `json:"total_count"`
 }
 
-// SubscriberDetailStatus is the rich status returned by the get-single endpoint.
 type SubscriberDetailStatus struct {
 	Registered         bool     `json:"registered"`
 	RadioAccessTypes   []string `json:"radio_access_types,omitempty"`
@@ -67,7 +64,6 @@ type SubscriberDetailStatus struct {
 	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
-// SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
@@ -75,21 +71,17 @@ type SubscriberDetail struct {
 	Sessions    []Session              `json:"sessions"`
 }
 
-// SubscriberCredentials is the response for the dedicated credentials endpoint.
 type SubscriberCredentials struct {
 	Key            string `json:"key"`
 	Opc            string `json:"opc"`
 	SequenceNumber string `json:"sequenceNumber"`
 }
 
-// Slice is a 5G network slice identifier (S-NSSAI); absent for 4G.
 type SNSSAI struct {
 	SST int32  `json:"sst"`
 	SD  string `json:"sd,omitempty"`
 }
 
-// Session is a UE data session — a 5G PDU session or a 4G PDN connection —
-// self-describing via radio_access_type.
 type Session struct {
 	RadioAccessType string  `json:"radio_access_type"` // "4G" | "5G"
 	ID              uint8   `json:"id"`                // PDU Session ID (5G) / linked EPS Bearer ID (4G)
@@ -155,7 +147,6 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 	return len(bytes) == 6
 }
 
-// radioIsKnown reports whether a radio name matches a connected 5G gNB or 4G eNB.
 func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool {
 	return amfInstance.HasRadio(name) || (mmeInstance != nil && mmeInstance.HasRadio(name))
 }
@@ -180,31 +171,23 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 		ctx := r.Context()
 
-		// 4G UEs attached through an eNB are tracked by the MME, keyed by IMSI.
 		var mmeStatus map[string]mme.ConnectedSubscriber
 
 		if mmeInstance != nil {
 			mmeStatus = mmeInstance.ConnectedSubscribers()
 		}
 
-		// 5G UEs attached through a gNB are tracked by the AMF, keyed by IMSI. One
-		// snapshot per request so a subscriber's fields cannot tear across reads.
 		amf5GStatus := amfInstance.ConnectedSubscribers()
 
-		// When a radio filter is set, we need to fetch all subscribers and
-		// filter by the runtime AMF/MME state, then paginate in memory.
 		var radioIMSIs map[string]struct{}
 
 		if radioFilter != "" {
-			// Verify the radio exists as a 5G gNB or a 4G eNB.
 			found := radioIsKnown(amfInstance, mmeInstance, radioFilter)
 			if !found {
 				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
 				return
 			}
 
-			// Use the authoritative registration state to find subscribers
-			// connected through this radio.
 			radioIMSIs = make(map[string]struct{})
 
 			for imsi, cs := range amf5GStatus {
@@ -220,10 +203,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			}
 		}
 
-		// When filtering by radio we must load all subscribers and paginate
-		// in memory because the filter is against runtime AMF state, not the DB.
-		// Future improvement: if the subscriber count grows large, push this
-		// filter into a DB-side join or maintain a radio→subscriber mapping.
 		dbPage := page
 		dbPerPage := perPage
 
@@ -263,7 +242,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
 
-		// Pre-fetch all profiles into a lookup map keyed by ID.
 		allProfiles, _, err := dbInstance.ListProfilesPage(ctx, 1, 1000)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list profiles", err, logger.APILog)
@@ -328,7 +306,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			})
 		}
 
-		// When filtering by radio, apply pagination in memory.
 		if radioIMSIs != nil {
 			total = len(items)
 			start := (page - 1) * perPage
@@ -382,7 +359,6 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			return
 		}
 
-		// Find the profile for this subscriber.
 		profile, err := dbInstance.GetProfileByID(r.Context(), dbSubscriber.ProfileID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve profile", err, logger.APILog)
@@ -725,9 +701,6 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance
 	})
 }
 
-// sessionFrom4G renders the MME's default EPS bearer (the UE's PDN connection)
-// as a session entry. 4G has no network slice, so Slice is left nil; the AMBR is
-// the subscriber's profile UE-AMBR.
 func sessionFrom4G(s *mme.SubscriberSession) Session {
 	return Session{
 		RadioAccessType: "4G",
@@ -769,7 +742,6 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 	return s
 }
 
-// ipTypeName maps a NAS PDU session type / EPS PDN type (1/2/3) to its label.
 func ipTypeName(t uint8) string {
 	switch t {
 	case 1:

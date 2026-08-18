@@ -78,7 +78,6 @@ const (
 	UpdateOperatorSPNAction         = "update_operator_spn"
 )
 
-// Mcc is a 3-decimal digit
 func isValidMcc(mcc string) bool {
 	if len(mcc) != 3 {
 		return false
@@ -93,7 +92,6 @@ func isValidMcc(mcc string) bool {
 	return true
 }
 
-// Mnc is a 2 or 3-decimal digit
 func isValidMnc(mnc string) bool {
 	if len(mnc) != 2 && len(mnc) != 3 {
 		return false
@@ -108,7 +106,6 @@ func isValidMnc(mnc string) bool {
 	return true
 }
 
-// Operator code is a 32-character hexadecimal string
 func isValidOperatorCode(operatorCode string) bool {
 	if len(operatorCode) != 32 {
 		logger.APILog.Warn("Invalid operator code length", zap.Int("length", len(operatorCode)))
@@ -136,7 +133,6 @@ func isValidTac(s string) bool {
 	return true
 }
 
-// SST is an 8-bit integer
 func isValidSst(sst int) bool {
 	return sst >= 0 && sst <= 0xFF
 }
@@ -418,9 +414,6 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 	})
 }
 
-// NAS security algorithms are RAT-neutral identities shared by EPS and 5G
-// (TS 24.301 §9.9.3.23 ≡ TS 24.501 §9.11.3.34): NULL, SNOW3G, and AES, all
-// implemented on both the EPS and 5G NAS.
 var validCipheringAlgorithms = map[string]bool{"NULL": true, "SNOW3G": true, "AES": true}
 
 var validIntegrityAlgorithms = map[string]bool{"NULL": true, "SNOW3G": true, "AES": true}

@@ -40,9 +40,6 @@ export async function isInitialized(
   return !!status?.initialized;
 }
 
-// Parallel workers can reach this at the same moment on a fresh core, so the
-// check is advisory: whoever loses the race gets "already initialized" back and
-// that is just as good an outcome as having done it.
 export async function ensureInitialized(
   request: APIRequestContext,
 ): Promise<void> {

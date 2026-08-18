@@ -3,8 +3,6 @@
 
 import { defineConfig, devices } from "@playwright/test";
 
-// Deliberately not 5002: these specs create and delete real records, so the
-// default must never land on a development core someone is already running.
 const E2E_PORT = process.env.ELLA_E2E_PORT ?? "5102";
 const DEFAULT_URL = `http://localhost:${E2E_PORT}`;
 const baseURL = process.env.ELLA_E2E_BASE_URL ?? DEFAULT_URL;
@@ -33,13 +31,10 @@ export default defineConfig({
       name: "setup",
       testMatch: /auth\.setup\.ts/,
     },
-    // The login flow itself has to run without a stored session.
     {
       name: "unauthenticated",
       testDir: "./e2e/unauthenticated",
     },
-    // Everything else reuses the session the setup project stored, so no other
-    // spec pays for a UI login or re-tests it incidentally.
     {
       name: "authenticated",
       testDir: "./e2e/authenticated",
@@ -49,8 +44,6 @@ export default defineConfig({
   ],
   ...(!process.env.ELLA_E2E_BASE_URL && {
     webServer: {
-      // Torn down first so each run starts from an empty database and a
-      // container left behind by an interrupted run cannot block the port.
       command:
         "docker compose -f e2e/compose.yaml down -v && " +
         "docker compose -f e2e/compose.yaml up",
