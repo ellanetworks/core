@@ -35,14 +35,7 @@ import EmptyState from "@/components/EmptyState";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-
-const getDefaultDateRange = () => {
-  const today = new Date();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  const format = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: format(sevenDaysAgo), endDate: format(today) };
-};
+import { defaultDateRange } from "@/utils/dates";
 
 const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -58,7 +51,9 @@ const AuditLog: React.FC = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
+  const [{ startDate, endDate }, setDateRange] = useState(() =>
+    defaultDateRange(),
+  );
   const [searchParams] = useSearchParams();
   const [selectedUser, setSelectedUser] = useState(
     () => searchParams.get("user") ?? "",
