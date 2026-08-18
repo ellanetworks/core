@@ -127,8 +127,6 @@ func TestApplyIdentityKeepsWhatTheOtherAccessKnows(t *testing.T) {
 			status.CipheringAlgorithm, status.IntegrityAlgorithm)
 	}
 
-	// An access that reports only half a security context still replaces the other's pair:
-	// NEA1 beside the 4G EIA2 would name a context the UE never had.
 	status.applyIdentity("", "NEA1", "")
 
 	if status.CipheringAlgorithm != "NEA1" || status.IntegrityAlgorithm != "" {

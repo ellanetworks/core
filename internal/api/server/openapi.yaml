@@ -3827,10 +3827,7 @@ components:
           description: Name of the assigned profile.
         radio:
           type: string
-          description: >-
-            Radio name the subscriber is connected through. Empty while it is
-            idle, since no radio serves it then. A subscriber registered on both
-            accesses reports the radio of whichever last heard from it.
+          description: Radio name the subscriber is connected through (empty if not connected).
         status:
           $ref: "#/components/schemas/SubscriberStatus"
       required: [imsi, profile_name, status]
@@ -3868,8 +3865,7 @@ components:
             enum: ["4G", "5G"]
           description: >-
             Every access the subscriber is currently registered on. The security
-            algorithms below are one access's, whichever last heard from the UE;
-            the IMEI is the device's, from whichever access reports one.
+            algorithms below belong to whichever access last heard from the UE.
         imei:
           type: string
           description: IMEI of the connected device.
@@ -3884,10 +3880,7 @@ components:
           description: Timestamp of last activity (RFC 3339).
         last_seen_radio:
           type: string
-          description: >-
-            Name of the radio serving the device. Empty while it is idle, since
-            no radio serves it then. A subscriber registered on both accesses
-            reports the radio of whichever last heard from it.
+          description: Name of the radio the device was last seen on.
       required: [registered, imei, ciphering_algorithm, integrity_algorithm]
 
     SubscriberDetail:

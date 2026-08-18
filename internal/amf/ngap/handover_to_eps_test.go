@@ -473,7 +473,7 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 }
 
-// TS 23.501 §5.17.2.1, TS 33.501 §8.4.2 step 10
+// TS 23.501 §5.17.2.1, TS 33.501 §8.4.2
 func TestHandoverToEPSDeregistersTheUEButKeepsItsFiveGSContext(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)

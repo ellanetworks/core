@@ -284,7 +284,6 @@ func TestReleaseUeConn_HandoverKeepsTheContextOfANonRegisteredUE(t *testing.T) {
 	}
 }
 
-// A retained procedure re-arms its deadline, so it must not outlive the UE that owns it.
 func TestDeregister_EndsKeyChainProcedures(t *testing.T) {
 	for _, proc := range []procedure.Type{procedure.SecurityMode, procedure.N2Handover, procedure.PathSwitch} {
 		t.Run(string(proc), func(t *testing.T) {

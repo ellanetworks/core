@@ -72,8 +72,6 @@ func (s *SubscriberDetailStatus) applyIdentity(imei, ciphering, integrity string
 		s.Imei = imei
 	}
 
-	// The algorithms are one access's NAS security context, so they move together: a 5G
-	// cipher beside a 4G integrity algorithm describes no context the UE ever had.
 	if ciphering != "" || integrity != "" {
 		s.CipheringAlgorithm, s.IntegrityAlgorithm = ciphering, integrity
 	}
@@ -189,15 +187,6 @@ type mergedAccess struct {
 	LastSeenAt time.Time
 }
 
-// mergeAccesses folds the accesses a subscriber is registered on into one view, keeping
-// the order given. 4G and 5G are peers here: neither is privileged over the other.
-//
-// A subscriber can be registered on both at once — a UE that re-attaches on the other
-// access without an inter-system change leaves the first registration standing until its
-// supervision timers expire (TS 24.501 §5.3.7, TS 24.301 §5.3.5) — so the merge has to
-// choose. The radio comes from the access that last heard from the UE and knows which
-// radio serves it: an idle access reports no radio at all, and letting that empty name
-// win would hide the radio the other access is serving the UE on right now.
 func mergeAccesses(views ...accessView) mergedAccess {
 	var (
 		merged   mergedAccess

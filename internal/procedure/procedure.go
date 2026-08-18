@@ -37,7 +37,6 @@ const (
 	Retain
 )
 
-// Retain re-invokes it an interval later, so its Retain path must have no side effects.
 type CancelFunc func(context.Context) (Disposition, error)
 
 // held is the single active procedure. A fresh value is allocated per Begin, so a
