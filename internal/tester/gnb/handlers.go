@@ -4,8 +4,6 @@
 package gnb
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -27,26 +25,10 @@ func updateReceivedFramesMap(gnb *GnodeB, frame SCTPFrame) {
 	gnb.cond.Broadcast()
 }
 
-// HandleFrame decodes one inbound NGAP PDU, runs the handler for the procedures
-// this simulator answers on its own, and files it for WaitForMessage.
-// internal/tester/s1enb dispatches S1AP the same way.
+// HandleFrame runs the handler for the procedures this simulator answers on
+// its own, and files the frame for WaitForMessage. The frame must already be
+// decoded (see decodeFrame).
 func HandleFrame(gnb *GnodeB, sctpFrame SCTPFrame) error {
-	pdu, err := ngap.Unmarshal(sctpFrame.Data)
-	if err != nil {
-		return fmt.Errorf("could not decode NGAP: %w", err)
-	}
-
-	switch m := pdu.(type) {
-	case *ngap.InitiatingMessage:
-		sctpFrame.Category, sctpFrame.ProcedureCode, sctpFrame.Value = Initiating, m.ProcedureCode, m.Value
-	case *ngap.SuccessfulOutcome:
-		sctpFrame.Category, sctpFrame.ProcedureCode, sctpFrame.Value = Successful, m.ProcedureCode, m.Value
-	case *ngap.UnsuccessfulOutcome:
-		sctpFrame.Category, sctpFrame.ProcedureCode, sctpFrame.Value = Unsuccessful, m.ProcedureCode, m.Value
-	default:
-		return fmt.Errorf("NGAP PDU alternative is invalid: %T", pdu)
-	}
-
 	defer updateReceivedFramesMap(gnb, sctpFrame)
 
 	return handleFrame(gnb, sctpFrame)

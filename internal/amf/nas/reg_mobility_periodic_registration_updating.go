@@ -172,7 +172,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			n1Msg := requestData.BinaryDataN1Message
 			n2Info := requestData.BinaryDataN2Information
 
-			if n2Info == nil {
+			if n2Info == nil || requestData.Standalone() {
 				if len(suList) != 0 {
 					plain, err := amf.BuildRegistrationAccept(amfInstance, ue, guti, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
 					if err != nil {
@@ -208,7 +208,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					logger.From(ctx, logger.AmfLog).Info("Sent GMM registration accept")
 				}
 
-				amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, fgs.PDUSessionID(requestData.PduSessionID), 0)
+				if requestData.Standalone() {
+					if err := amf.DeliverStandaloneN1N2(ctx, ue, ueConn, requestData); err != nil {
+						logger.From(ctx, logger.AmfLog).Warn("failed to deliver buffered downlink message", zap.Error(err))
+					}
+				} else {
+					amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, n1Msg, fgs.PDUSessionID(requestData.PduSessionID), 0)
+				}
 
 				ue.ClearN1N2Message()
 

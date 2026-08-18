@@ -10,6 +10,7 @@ package amf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -772,8 +773,7 @@ func (amf *AMF) IsUERegistered(supi etsi.SUPI) bool {
 	return ue.State() == Registered
 }
 
-// RefreshLocation triggers an active location refresh by sending a
-// LocationReportingControl(Direct) NGAP message to the RAN for the given UE.
+// RefreshLocation starts an active location refresh in the background, returning immediately.
 func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 	ue, ok := amf.LookupUeBySupi(supi)
 	if !ok {
@@ -782,7 +782,15 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 
 	ueConn := ue.Conn()
 	if ueConn == nil {
-		return fmt.Errorf("UE has no active RAN connection")
+		if err := amf.storeN1N2AndPage(ctx, ue, models.N1N2MessageTransferRequest{}); err != nil {
+			if errors.Is(err, errPagingActive) {
+				return nil
+			}
+
+			return err
+		}
+
+		return nil
 	}
 
 	if err := ueConn.SendLocationReportingControl(ctx, ngap.EventTypeDirect); err != nil {
@@ -796,4 +804,18 @@ func (amf *AMF) RefreshLocation(ctx context.Context, supi etsi.SUPI) error {
 	)
 
 	return nil
+}
+
+// CancelBufferedN1N2 discards a buffered request of one of the given classes, once its
+// consumer stops waiting for it. Matching on class
+// keeps one consumer from discarding another's request.
+func (amf *AMF) CancelBufferedN1N2(supi etsi.SUPI, n1 models.N1MessageClass, n2 models.N2InformationClass) {
+	ue, ok := amf.LookupUeBySupi(supi)
+	if !ok {
+		return
+	}
+
+	if req := ue.N1N2Message(); req != nil && req.HasClass(n1, n2) {
+		ue.ClearN1N2Message()
+	}
 }

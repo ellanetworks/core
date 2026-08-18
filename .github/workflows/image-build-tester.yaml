@@ -23,7 +23,7 @@ jobs:
           rm -f rockcraft.yaml
           mv rockcraft-tester.yaml rockcraft.yaml
 
-      - uses: canonical/craft-actions/rockcraft/pack@04a36dcedf073d9a52cc2e7171ecd1915ca2b455 # main
+      - uses: canonical/craft-actions/rockcraft/pack@cff22ebcc23e0aacd49a6a6bc7e1c6ba5b33d99c # main
         id: rockcraft
         with:
           channel: stable

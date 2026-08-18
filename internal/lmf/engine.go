@@ -178,6 +178,12 @@ func (l *LMF) determineAGNSSLocation(ctx context.Context, supi etsi.SUPI, method
 		select {
 		case <-ctx.Done():
 			session.Fail()
+
+			// Discard any buffered LPP: this session has failed.
+			if l.amf != nil {
+				l.amf.CancelBufferedN1N2(supi, coremodels.N1ClassLPP, "")
+			}
+
 			return nil, session.SessionID(), fmt.Errorf("AGNSS positioning timed out: %w", ctx.Err())
 		case <-ticker.C:
 			state := session.State()
@@ -301,7 +307,11 @@ func (l *LMF) refreshLocation(ctx context.Context, supi etsi.SUPI, loc coremodel
 	}
 
 	// Wait for the RAN to respond with a LocationReport that updates the timestamp.
-	timeout := defaultRefreshTimeout
+	timeout := l.refreshTimeout
+	if timeout <= 0 {
+		timeout = defaultRefreshTimeout
+	}
+
 	if deadline, ok := ctx.Deadline(); ok {
 		if d := time.Until(deadline); d < timeout {
 			timeout = d

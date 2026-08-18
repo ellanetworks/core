@@ -10,9 +10,15 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// DecodeNAS unwraps a received downlink NAS PDU to its plaintext, advancing the
-// downlink NAS COUNT (TS 24.501 §4.4.3.1) and, for a SECURITY MODE COMMAND carried
-// with a new 5G NAS security context, deriving the new NAS keys.
+// DecodeNAS unwraps a received downlink NAS PDU to its plaintext. For a
+// SECURITY MODE COMMAND carried with a new 5G NAS security context it also
+// installs the new NAS keys and algorithms.
+//
+// TS 24.501 §4.4.3.3: "After successful integrity protection validation, the
+// receiver shall update its corresponding locally stored NAS COUNT with the
+// value of the estimated NAS COUNT for this NAS message." A message that fails
+// verification therefore leaves the security context untouched, and the next
+// message the AMF sends still verifies.
 func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 	if message == nil {
 		return nil, fmt.Errorf("nas message is nil")
@@ -36,18 +42,13 @@ func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 		return nil, fmt.Errorf("decode NAS error: %v", err)
 	}
 
-	held := ue.UeSecurity.DLCount
-
-	// Estimate the downlink NAS COUNT from the received sequence number, carrying
-	// into the overflow counter on wrap-around (TS 24.501 §4.4.3.1).
-	if ue.UeSecurity.DLCount.SQN() > spm.SequenceNumber {
-		ue.UeSecurity.DLCount = nas.MakeCount(ue.UeSecurity.DLCount.Overflow()+1, spm.SequenceNumber)
-	} else {
-		ue.UeSecurity.DLCount = nas.MakeCount(ue.UeSecurity.DLCount.Overflow(), spm.SequenceNumber)
+	if sht == fgs.SHTIntegrityProtectedNewContext {
+		return ue.decodeNewSecurityContext(spm)
 	}
 
-	if sht == fgs.SHTIntegrityProtectedNewContext {
-		return ue.decodeNewSecurityContext(spm, held)
+	est, err := ue.UeSecurity.DLRecv.Estimate(spm.SequenceNumber)
+	if err != nil {
+		return nil, fmt.Errorf("downlink NAS COUNT: %w", err)
 	}
 
 	sc, err := ue.securityContext()
@@ -55,9 +56,13 @@ func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	plain, _, err := fgs.Unprotect(message, ue.UeSecurity.DLCount, nas.DirectionDownlink, sc)
+	plain, _, err := fgs.Unprotect(message, est, nas.DirectionDownlink, sc)
 	if err != nil {
 		return nil, fmt.Errorf("decode NAS error: %v", err)
+	}
+
+	if err := ue.UeSecurity.DLRecv.Commit(est); err != nil {
+		return nil, fmt.Errorf("commit downlink NAS COUNT: %w", err)
 	}
 
 	return plain, nil
@@ -67,7 +72,18 @@ func (ue *UE) DecodeNAS(message []byte) ([]byte, error) {
 // NAS security context (TS 24.501 §4.4.4.3): the message is integrity-protected
 // but not ciphered, so its plaintext names the selected algorithms; the UE derives
 // the new NAS keys from them and verifies the NAS-MAC with the new context.
-func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage, held nas.Count) ([]byte, error) {
+//
+// The downlink NAS COUNT is estimated from the received sequence number rather
+// than assumed to be zero. TS 24.501 §5.4.2.2 has the AMF reset it only for the
+// initial SECURITY MODE COMMAND of a context created by authentication or mapped
+// from EPS; an algorithm-change SECURITY MODE COMMAND on a context already in use
+// and any T3560 retransmission carry the next count of the running context.
+// TS 24.501 §5.4.2.3: the UE stores "the downlink NAS COUNT that has been used for
+// the successful integrity checking of the SECURITY MODE COMMAND message".
+//
+// Nothing in ue.UeSecurity changes until the MAC verifies, so a message that fails
+// leaves the previous keys, algorithms and counters usable.
+func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage) ([]byte, error) {
 	plain := spm.UnverifiedPayload
 
 	msg, err := fgs.ParseMessage(plain)
@@ -80,40 +96,75 @@ func (ue *UE) decodeNewSecurityContext(spm *fgs.SecurityProtectedMessage, held n
 		return nil, fmt.Errorf("received %T with security header \"Integrity protected with new 5G NAS security context\", which is reserved for a SECURITY MODE COMMAND", msg)
 	}
 
+	cipheringAlg := uint8(smc.CipheringAlgorithm)
+	integrityAlg := uint8(smc.IntegrityAlgorithm)
+
+	var knasEnc, knasInt [16]uint8
+
+	if err := AlgorithmKeyDerivation(cipheringAlg, ue.UeSecurity.Kamf,
+		&knasEnc, integrityAlg, &knasInt); err != nil {
+		return nil, fmt.Errorf("algorithm key derivation failed: %w", err)
+	}
+
+	// Only the initial SECURITY MODE COMMAND of a context created by primary
+	// authentication or taken into use from a mapped one may restart the downlink
+	// NAS COUNT (TS 24.501 §5.4.2.2); rolledBackDownlinkCount reports an AMF that
+	// restarts it anywhere else.
 	entitled := ue.UeSecurity.contextFromAuthentication || smc.NgKSI.Mapped
 
+	// A context created by authentication starts both counts at zero
+	// (TS 24.501 §4.4.3.1), so the estimate runs against a fresh counter; on a
+	// context already in use it continues from the last accepted count.
+	recv := ue.UeSecurity.DLRecv
 	if ue.UeSecurity.contextFromAuthentication {
-		ue.UeSecurity.DLCount = 0
-		ue.UeSecurity.ULCount = 0
-		ue.UeSecurity.contextFromAuthentication = false
+		recv.Reset()
 	}
 
-	ue.UeSecurity.CipheringAlg = uint8(smc.CipheringAlgorithm)
-	ue.UeSecurity.IntegrityAlg = uint8(smc.IntegrityAlgorithm)
-
-	if err := ue.DerivateAlgKey(); err != nil {
-		return nil, fmt.Errorf("error in DerivateAlgKey %v", err)
+	est, err := recv.Estimate(spm.SequenceNumber)
+	if err != nil {
+		return nil, fmt.Errorf("downlink NAS COUNT: %w", err)
 	}
 
-	sc, err := ue.securityContext()
+	sc, err := securityContext(integrityAlg, cipheringAlg, knasInt, knasEnc)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := sc.VerifyMAC(macInput(spm.SequenceNumber, spm.UnverifiedPayload), spm.MAC,
-		ue.UeSecurity.DLCount, nas.Bearer3GPP, nas.DirectionDownlink); err != nil {
-		if reset := rolledBackDownlinkCount(smc, held, spm.SequenceNumber, entitled); reset != "" {
+	if err := sc.VerifyMAC(macInput(spm.SequenceNumber, plain), spm.MAC, est,
+		nas.Bearer3GPP, nas.DirectionDownlink); err != nil {
+		if reset := rolledBackDownlinkCount(smc, ue.UeSecurity.DLRecv, spm.SequenceNumber, entitled); reset != "" {
 			return nil, fmt.Errorf("%s: %w", reset, err)
 		}
 
 		return nil, fmt.Errorf("MAC verification failed: %w", err)
 	}
 
+	if err := recv.Commit(est); err != nil {
+		return nil, fmt.Errorf("commit downlink NAS COUNT: %w", err)
+	}
+
+	ue.UeSecurity.CipheringAlg = cipheringAlg
+	ue.UeSecurity.IntegrityAlg = integrityAlg
+	ue.UeSecurity.KnasEnc = knasEnc
+	ue.UeSecurity.KnasInt = knasInt
+	ue.UeSecurity.DLRecv = recv
+
+	if ue.UeSecurity.contextFromAuthentication {
+		ue.UeSecurity.ULCount = 0
+		ue.UeSecurity.contextFromAuthentication = false
+	}
+
 	return plain, nil
 }
 
-func rolledBackDownlinkCount(smc *fgs.SecurityModeCommand, held nas.Count, received uint8, entitled bool) string {
-	if entitled || held.SQN() <= received {
+// rolledBackDownlinkCount reports an AMF that restarted the downlink NAS COUNT of
+// a security context the UE already holds a count on, which makes the integrity
+// check of the SECURITY MODE COMMAND fail for a reason worth naming.
+//
+// held is the UE's counter before this message, which decodeNewSecurityContext
+// leaves untouched until the MAC verifies.
+func rolledBackDownlinkCount(smc *fgs.SecurityModeCommand, held nas.UplinkCounter, received uint8, entitled bool) string {
+	if entitled || !held.Accepted() || held.LastAccepted().SQN() <= received {
 		return ""
 	}
 
@@ -126,7 +177,7 @@ func rolledBackDownlinkCount(smc *fgs.SecurityModeCommand, held nas.Count, recei
 		"ngKSI %d the UE already holds at COUNT %d, without taking a mapped context into use or following a primary "+
 		"authentication; TS 24.501 §5.4.2.2 does not allow that reset and §5.4.2.3 does not let the UE follow it, so the "+
 		"integrity check cannot pass and a real UE answers SECURITY MODE REJECT",
-		received, kind, smc.NgKSI.Value, held.Value())
+		received, kind, smc.NgKSI.Value, held.LastAccepted().Value())
 }
 
 // securityContext builds the NAS security context from the UE's current
@@ -134,17 +185,4 @@ func rolledBackDownlinkCount(smc *fgs.SecurityModeCommand, held nas.Count, recei
 func (ue *UE) securityContext() (*nas.SecurityContext, error) {
 	return securityContext(ue.UeSecurity.IntegrityAlg, ue.UeSecurity.CipheringAlg,
 		ue.UeSecurity.KnasInt, ue.UeSecurity.KnasEnc)
-}
-
-func (ue *UE) DerivateAlgKey() error {
-	err := AlgorithmKeyDerivation(ue.UeSecurity.CipheringAlg,
-		ue.UeSecurity.Kamf,
-		&ue.UeSecurity.KnasEnc,
-		ue.UeSecurity.IntegrityAlg,
-		&ue.UeSecurity.KnasInt)
-	if err != nil {
-		return fmt.Errorf("algorithm key derivation failed: %v", err)
-	}
-
-	return nil
 }

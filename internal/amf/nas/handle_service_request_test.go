@@ -6,7 +6,6 @@ package nas
 import (
 	"encoding/hex"
 	"fmt"
-	"slices"
 	"testing"
 	"time"
 
@@ -1030,124 +1029,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	}
 }
 
-func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_ServiceAccept(t *testing.T) {
-	amfInstance := amf.New(
-		&fakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				SupportedTACs: "[\"000001\"]",
-			},
-		},
-		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: []byte("testkey"),
-		},
-		&fakeSmf{Error: nil},
-	)
-	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
-
-	ue, ngapSender, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not build UE and radio: %v", err)
-	}
-
-	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
-	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-
-	ue.ArmPagingForTest(6*time.Minute, 5)
-
-	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.ForceStateForTest(amf.Registered)
-	ue.SetGutiForTest(oldguti)
-	ue.Tai = ue.Conn().Tai
-	ue.SetSecuredForTest(true)
-	{
-		ng := ue.NgKsiForTest()
-		ng.Ksi = 1
-		ue.SetNgKsiForTest(ng)
-	}
-
-	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := nas.CipheringAES
-
-	ue.SetKnasEncForTest(key)
-	ue.SetKnasIntForTest(key)
-	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-	ue.Ambr = &models.Ambr{Uplink: models.MustParseBitRate("100 Mbps"), Downlink: models.MustParseBitRate("100 Mbps")}
-	_ = ue.CreateSmContext(1, "testref", &snssai, "internet")
-	_ = ue.CreateSmContext(12, "testrefuplink", &snssai, "internet")
-
-	n1msg, err := buildN1PDUSessionModificationCommand()
-	if err != nil {
-		t.Fatalf("could not build N1 message: %v", err)
-	}
-
-	ue.SetN1N2Message(&models.N1N2MessageTransferRequest{
-		PduSessionID:        1,
-		SNssai:              &snssai,
-		BinaryDataN1Message: n1msg,
-	})
-
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount(), fgs.ServiceTypeMobileTerminatedServices)
-	if err != nil {
-		t.Fatalf("could not build service request: %v", err)
-	}
-
-	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
-
-	if len(ngapSender.SentPDUSessionResourceSetupRequest) < 1 {
-		t.Fatalf("should have sent a PDU Session Resource Setup Request message")
-	}
-
-	pduResp := ngapSender.SentPDUSessionResourceSetupRequest[0]
-	decipherGmm(t, ue, *pduResp.NASPDU, uint8(fgs.MsgServiceAccept))
-
-	if len(ngapSender.SentDownlinkNASTransport) < 2 {
-		t.Fatalf("should have sent a Downlink NAS Transport message")
-	}
-
-	resp := ngapSender.SentDownlinkNASTransport[0]
-	plain := decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+1, uint8(fgs.MsgDLNASTransport))
-
-	dl, err := fgs.ParseDLNASTransport(plain)
-	if err != nil {
-		t.Fatalf("could not parse DL NAS transport: %v", err)
-	}
-
-	if dl.PayloadContainerType != fgs.PayloadContainerTypeN1SMInfo {
-		t.Fatalf("expected payload container to be for N1SMInfo, got: %v", dl.PayloadContainerType)
-	}
-
-	if !slices.Equal(dl.PayloadContainer, n1msg) {
-		t.Fatalf("expected payload to match N1 message stored for UE, %v, %v", dl.PayloadContainer, n1msg)
-	}
-
-	resp = ngapSender.SentDownlinkNASTransport[1]
-	decipherGmmCount(t, ue, resp.NASPDU, ue.ULCount()+2, uint8(fgs.MsgConfigurationUpdateCommand))
-
-	if ue.PagingActiveForTest() {
-		t.Fatalf("expected timer T3513 to be stopped and cleared")
-	}
-
-	if !ue.Conn().NASGuardForTest().Active() {
-		t.Fatalf("expected timer T3555 to be started")
-	}
-
-	if ue.TmsiForTest() == oldguti.Tmsi {
-		t.Fatal("expected new GUTI to be allocated")
-	}
-
-	if ue.OldTmsi() != oldguti.Tmsi {
-		t.Fatal("expected old GUTI to still be valid")
-	}
-}
-
 // TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus verifies that a
 // ServiceRequest with UplinkDataStatus does NOT panic when SmContextList contains
 // a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
@@ -1331,15 +1212,4 @@ func buildTestServiceRequestCiphered(cipherAlg nas.CipheringAlgorithm, key [16]u
 // REQUEST (AMF Set ID 0, AMF Pointer 0, 5G-TMSI 0xDEADBEEF).
 func serviceRequest5GSTMSI() fgs.MobileIdentity {
 	return fgs.STMSIIdentity(fgs.STMSI{TMSI: [4]byte{0xDE, 0xAD, 0xBE, 0xEF}})
-}
-
-func buildN1PDUSessionModificationCommand() ([]byte, error) {
-	m := &fgs.PDUSessionModificationCommand{PDUSessionID: 1}
-
-	b, err := m.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("could not encode PDU session modification command: %v", err)
-	}
-
-	return b, nil
 }

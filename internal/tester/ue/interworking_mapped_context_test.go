@@ -96,9 +96,18 @@ func TestMappedSecurityContextFromEPSStartsTheCountsWhereTheAMFDoes(t *testing.T
 		t.Errorf("uplink NAS COUNT = %d, want 0", u.UeSecurity.ULCount)
 	}
 
-	if next := u.UeSecurity.DLCount.Next(); next != handover.Context.DLNASCount {
-		t.Errorf("the UE expects downlink NAS COUNT %d next, want the %d the AMF will send",
-			next, handover.Context.DLNASCount)
+	if u.UeSecurity.DLRecv.Accepted() {
+		t.Error("the UE's downlink NAS COUNT starts as if a message had already been accepted")
+	}
+
+	est, err := u.UeSecurity.DLRecv.Estimate(handover.Context.DLNASCount.SQN())
+	if err != nil {
+		t.Fatalf("Estimate(%#02x): %v", handover.Context.DLNASCount.SQN(), err)
+	}
+
+	if est != handover.Context.DLNASCount {
+		t.Errorf("the UE estimates downlink NAS COUNT %#06x for sequence number %#02x, want the %#06x the AMF will send",
+			uint32(est), handover.Context.DLNASCount.SQN(), uint32(handover.Context.DLNASCount))
 	}
 }
 
