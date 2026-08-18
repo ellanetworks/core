@@ -9,7 +9,4 @@ import "@testing-library/jest-dom/vitest";
 // assertions mean the same thing on a developer machine and in CI.
 process.env.TZ = "UTC";
 
-// Testing Library only auto-cleans when Vitest runs with `globals: true`, which
-// this project does not enable. Without this, a mounted component from one test
-// stays in the document and the next test's queries match it too.
 afterEach(cleanup);

@@ -7,13 +7,6 @@ import userEvent from "@testing-library/user-event";
 import type { UseQueryResult } from "@tanstack/react-query";
 import QueryState from "./QueryState";
 
-/**
- * QueryState's own doc comment calls its branch order "load-bearing", so these
- * tests pin the four orderings it warns about rather than the happy path alone.
- *
- * The component reads a `UseQueryResult` purely as props, so a partial stub is
- * enough — no QueryClientProvider, and no network.
- */
 const query = <T,>(over: Partial<UseQueryResult<T>>): UseQueryResult<T> =>
   ({
     data: undefined,
@@ -49,8 +42,6 @@ describe("QueryState branch order", () => {
   });
 
   it("shows the error, not the empty state, when the first fetch fails", () => {
-    // The regression this guards: a failed first fetch leaves isLoading false,
-    // so an isLoading-first check would fall through and report "no data".
     renderState(
       query<string[]>({
         isLoadingError: true,
@@ -79,7 +70,6 @@ describe("QueryState branch order", () => {
   });
 
   it("treats a disabled query with no data as loading, not empty", () => {
-    // enabled:false sits at isPending but never isLoading.
     renderState(query<string[]>({ isLoading: false, data: undefined }));
 
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
