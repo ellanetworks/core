@@ -31,7 +31,7 @@ services:
     entrypoint: /bin/core --config /core.yaml
     privileged: true
     ports:
-      - "${ELLA_E2E_PORT:-5002}:5002"
+      - "${ELLA_E2E_PORT:-5102}:5002"
     networks:
       default:
       n3:

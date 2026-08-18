@@ -38,9 +38,9 @@ jobs:
 
       - name: Start Ella Core
         run: |
-          docker compose -f ui/e2e/compose.yaml up -d
+          ELLA_E2E_PORT=5102 docker compose -f ui/e2e/compose.yaml up -d
           for i in $(seq 1 60); do
-            if curl -sf -o /dev/null http://localhost:5002/api/v1/status; then
+            if curl -sf -o /dev/null http://localhost:5102/api/v1/status; then
               echo "Ella Core is ready"
               exit 0
             fi
@@ -51,6 +51,8 @@ jobs:
           exit 1
 
       - name: Run E2E tests
+        env:
+          ELLA_E2E_BASE_URL: http://localhost:5102
         run: |
           npm run test:e2e --prefix ui
 
@@ -70,4 +72,4 @@ jobs:
       - name: Stop Ella Core
         if: always()
         run: |
-          docker compose -f ui/e2e/compose.yaml down -v
+          ELLA_E2E_PORT=5102 docker compose -f ui/e2e/compose.yaml down -v

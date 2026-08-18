@@ -80,10 +80,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const refreshTimerRef = useRef<number | null>(null);
   const refreshingRef = useRef(false);
   const pathnameRef = useRef(location.pathname);
-  // scheduleRefresh and silentRefresh call each other, so one of them has to
-  // reach the other through a ref. Holding the latest silentRefresh here keeps
-  // both dependency arrays honest and guarantees a pending timer runs the
-  // current implementation rather than the one from the render that armed it.
   const silentRefreshRef = useRef<() => void>(() => {});
 
   const clearRefreshTimer = useCallback(() => {

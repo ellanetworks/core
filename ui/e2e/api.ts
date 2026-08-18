@@ -40,18 +40,27 @@ export async function isInitialized(
   return !!status?.initialized;
 }
 
-export async function adminToken(request: APIRequestContext): Promise<string> {
-  if (!(await isInitialized(request))) {
-    const init = await json<{ token: string }>(
-      request,
-      "post",
-      "/api/v1/init",
-      {
-        data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
-      },
+// Parallel workers can reach this at the same moment on a fresh core, so the
+// check is advisory: whoever loses the race gets "already initialized" back and
+// that is just as good an outcome as having done it.
+export async function ensureInitialized(
+  request: APIRequestContext,
+): Promise<void> {
+  if (await isInitialized(request)) return;
+
+  const response = await request.post("/api/v1/init", {
+    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  });
+
+  if (!response.ok() && !(await isInitialized(request))) {
+    throw new Error(
+      `could not initialize the core: ${response.status()} ${await response.text()}`,
     );
-    if (init?.token) return init.token;
   }
+}
+
+export async function adminToken(request: APIRequestContext): Promise<string> {
+  await ensureInitialized(request);
 
   const login = await json<{ token: string }>(
     request,

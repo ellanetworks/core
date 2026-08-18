@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { test, expect } from "@playwright/test";
-import {
-  ADMIN_EMAIL,
-  ADMIN_PASSWORD,
-  adminToken,
-  deleteSubscriberIfPresent,
-} from "./api";
+import { adminToken, deleteSubscriberIfPresent } from "../api";
 
 const PROFILE = "default";
 const KEY = "00112233445566778899aabbccddeeff";
@@ -21,30 +16,20 @@ test.beforeAll(async ({ request }) => {
   token = await adminToken(request);
 });
 
-test.beforeEach(async ({ request }) => {
+test.beforeEach(async () => {
   msin = String(Math.floor(Math.random() * 10_000_000_000)).padStart(10, "0");
-  await deleteSubscriberIfPresent(request, token, msin);
+  imsi = "";
 });
 
 test.afterEach(async ({ request }) => {
   if (imsi) await deleteSubscriberIfPresent(request, token, imsi);
 });
 
-test("an operator can sign in and manage a subscriber", async ({ page }) => {
-  await test.step("the root path routes an initialized core to login", async () => {
-    await page.goto("/");
-    await expect(page).toHaveURL(/\/login$/);
-  });
-
-  await test.step("signing in lands on the dashboard", async () => {
-    await page.getByLabel(/^Email/).fill(ADMIN_EMAIL);
-    await page.getByLabel(/^Password/).fill(ADMIN_PASSWORD);
-    await page.getByRole("button", { name: "Login" }).click();
-
-    await expect(page).toHaveURL(/\/dashboard$/);
-  });
-
+test("an operator can create, open and delete a subscriber", async ({
+  page,
+}) => {
   await test.step("the subscribers page is reachable from the nav", async () => {
+    await page.goto("/dashboard");
     await page.getByRole("link", { name: "Subscribers" }).click();
 
     await expect(page).toHaveURL(/\/subscribers$/);
@@ -67,7 +52,7 @@ test("an operator can sign in and manage a subscriber", async ({ page }) => {
     await expect(dialog).toBeHidden();
   });
 
-  await test.step("the new subscriber appears in the list", async () => {
+  await test.step("it appears in the list", async () => {
     const row = page.getByRole("row").filter({ hasText: msin });
     await expect(row).toBeVisible();
 

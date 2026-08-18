@@ -15,9 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// A field the spec declares required must always appear on the wire. `omitempty`
-// silently drops it at its zero value, so the response no longer matches the
-// published contract and clients that type the field as mandatory read null.
 func TestSpecRequiredFieldsAreNeverOmitEmpty(t *testing.T) {
 	var spec struct {
 		Components struct {

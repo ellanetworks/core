@@ -7,6 +7,7 @@ ui/.env*.local
 ui/test-results/
 ui/playwright-report/
 ui/blob-report/
+ui/e2e/.auth/
 
 # copilot instructions
 .github/copilot-instructions.md
