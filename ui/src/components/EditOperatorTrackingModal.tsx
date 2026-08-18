@@ -13,11 +13,14 @@ import {
   Alert,
   Collapse,
   Autocomplete,
+  Chip,
 } from "@mui/material";
 import * as yup from "yup";
 import { updateOperatorTracking } from "@/queries/operator";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { TAC_HEX_PATTERN, formatTacDecimal } from "@/utils/tac";
+import TacValue from "@/components/TacValue";
 
 interface EditOperatorTrackingModalProps {
   open: boolean;
@@ -31,9 +34,22 @@ interface EditOperatorTrackingModalProps {
 const schema = yup
   .string()
   .matches(
-    /^[0-9A-Fa-f]{6}$/,
+    TAC_HEX_PATTERN,
     "Each TAC must be a 3 bytes hex string, range: 000000~FFFFFF)",
   );
+
+const DEFAULT_TAC_HELPER_TEXT =
+  "Enter each TAC as a 3 bytes hex string (e.g., 000001)";
+
+const decimalHint = (input: string): string | null => {
+  const trimmed = input.trim();
+
+  if (!TAC_HEX_PATTERN.test(trimmed)) return null;
+
+  const decimal = formatTacDecimal(trimmed);
+
+  return decimal === null ? null : `${trimmed} is ${decimal} in decimal`;
+};
 
 const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   open,
@@ -150,6 +166,15 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
           onChange={handleTacsChange}
           inputValue={inputValue}
           onInputChange={(_event, value) => setInputValue(value)}
+          renderValue={(tacs, getItemProps) =>
+            tacs.map((tac, index) => {
+              const { key, ...itemProps } = getItemProps({ index });
+
+              return (
+                <Chip key={key} label={<TacValue tac={tac} />} {...itemProps} />
+              );
+            })
+          }
           renderInput={(params) => (
             <TextField
               {...params}
@@ -159,7 +184,8 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
               error={!!errors.supportedTacs}
               helperText={
                 errors.supportedTacs ||
-                "Enter each TAC as a 3 bytes hex string (e.g., 000001)"
+                decimalHint(inputValue) ||
+                DEFAULT_TAC_HELPER_TEXT
               }
               autoFocus
             />

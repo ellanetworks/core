@@ -32,6 +32,7 @@ import {
 import { listRadioEvents, type APIRadioEvent } from "@/queries/radio_events";
 import QueryState from "@/components/QueryState";
 import RanNodeTypeChip from "@/components/RanNodeTypeChip";
+import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateTime } from "@/utils/formatters";
 import EastIcon from "@mui/icons-material/East";
@@ -396,7 +397,12 @@ const RadioDetail: React.FC = () => {
                                       PLMN ID
                                     </TableCell>
                                     <TableCell sx={{ width: "20%" }}>
-                                      TAC
+                                      <Tooltip
+                                        title="Tracking Area Code, in hex with the decimal in brackets"
+                                        arrow
+                                      >
+                                        <span>TAC</span>
+                                      </Tooltip>
                                     </TableCell>
                                     <TableCell sx={{ pr: 0 }}>
                                       S-NSSAIs
@@ -422,7 +428,7 @@ const RadioDetail: React.FC = () => {
                                         {tai.tai.plmnID.mnc}
                                       </TableCell>
                                       <TableCell sx={{ width: "20%" }}>
-                                        {tai.tai.tac}
+                                        <TacValue tac={tai.tai.tac} />
                                       </TableCell>
                                       <TableCell sx={{ pr: 0 }}>
                                         <Box
