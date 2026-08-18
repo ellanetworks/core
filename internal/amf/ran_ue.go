@@ -493,10 +493,6 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 			logger.From(ctx, ueConn.Log).Error(err.Error())
 		}
 
-		// Releasing the source of a completed N2 handover leaves the UE registered on
-		// the target, so the context is kept. A UE that is no longer 5GMM-REGISTERED
-		// left 5GS altogether — it handed over to EPS, or its inbound handover was
-		// abandoned — and its context ends with the release.
 		if amfUe.State() != Registered {
 			a.DeregisterAndRemoveUeContext(ctx, amfUe)
 		}

@@ -122,17 +122,6 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 
 	ue.releaseSmContexts(ctx)
 
-	// A UE in single-registration mode holds one MM state at a time — either the RM
-	// state in 5GC or the EMM state in EPC (TS 23.501 §5.17.2.2) — and this one has
-	// just arrived in EPS. Leaving it 5GMM-REGISTERED would keep a UE the AMF no
-	// longer serves in the status surface, on top of a live EPS registration, until
-	// implicit deregistration reaped it an hour later.
-	//
-	// The context outlives the command: the gNB answers it with a UE CONTEXT RELEASE
-	// COMPLETE, which is the last message of the procedure and must find its
-	// connection (TS 38.413 §8.3.2, §9.2.2.4). Deregistering first is what makes that
-	// Complete delete the context rather than drop the UE to CM-IDLE — the mirror of
-	// MME.RelocationComplete for a handover in the other direction.
 	ue.TransitionTo(Deregistered)
 
 	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources",

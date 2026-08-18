@@ -9,10 +9,6 @@ import (
 	"time"
 )
 
-// A subscriber can hold a registration on both accesses at once, so the status API has
-// to choose which radio it reports. 4G and 5G are peers: the choice follows which access
-// last heard from the UE, and an idle access — which knows no radio at all — never
-// blanks the radio the other one is serving the UE on.
 func TestMergeAccesses(t *testing.T) {
 	var (
 		older = time.Date(2026, 8, 17, 10, 0, 0, 0, time.UTC)
@@ -80,8 +76,6 @@ func TestMergeAccesses(t *testing.T) {
 			wantSeenAt: newer,
 		},
 		{
-			// A registration whose access has not heard from the UE since the core
-			// started still names its radio if it is the only one that knows it.
 			name:       "idle access is the more recent one",
 			view4G:     accessView{rat: "4G", present: true, radioName: "enb-1", lastSeenAt: older},
 			view5G:     accessView{rat: "5G", present: true, lastSeenAt: newer},

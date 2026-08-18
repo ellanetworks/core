@@ -473,10 +473,7 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 }
 
-// A UE in single-registration mode holds one MM state at a time (TS 23.501 §5.17.2.2),
-// so a UE that reached EPS is no longer registered in 5GS and the status surface must
-// report the EPS registration alone. The source gNB's UE Context Release Complete then
-// ends the 5GS context — the mirror of MME.RelocationComplete for the other direction.
+// TS 23.501 §5.17.2.2
 func TestHandoverToEPSDeregistersTheUEInFiveGS(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)

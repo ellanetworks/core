@@ -67,8 +67,6 @@ type SubscriberDetailStatus struct {
 	LastSeenRadio      string   `json:"last_seen_radio,omitempty"`
 }
 
-// applyIdentity fills in the UE identity and NAS security algorithms one access
-// reports, leaving whatever is already set where that access knows no value.
 func (s *SubscriberDetailStatus) applyIdentity(imei, ciphering, integrity string) {
 	if imei != "" {
 		s.Imei = imei
@@ -176,29 +174,17 @@ func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool 
 	return amfInstance.HasRadio(name) || (mmeInstance != nil && mmeInstance.HasRadio(name))
 }
 
-// accessView is one radio access technology's live view of a subscriber: 4G as the MME
-// reports it, 5G as the AMF does.
 type accessView struct {
-	// rat is the access technology name the API reports, "4G" or "5G".
-	rat string
-	// present is true when that access holds a registration for the subscriber.
-	present bool
-	// radioName is the radio serving the UE on this access. It is empty while the UE
-	// is idle: both cores derive it from the live RAN connection, which an idle UE
-	// does not have.
-	radioName string
-	// lastSeenAt is the UE's most recent NAS activity on this access.
+	rat        string
+	present    bool
+	radioName  string
 	lastSeenAt time.Time
 }
 
-// newerThan reports whether this access heard from the UE more recently than other.
-// An access holding no registration never wins.
 func (v accessView) newerThan(other accessView) bool {
 	return !other.present || v.lastSeenAt.After(other.lastSeenAt)
 }
 
-// mergedAccess is the single view the API reports for a subscriber both cores may hold
-// a context for.
 type mergedAccess struct {
 	RATs       []string
 	RadioName  string
@@ -487,10 +473,6 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 			subscriberStatus.LastSeenAt = merged.LastSeenAt.UTC().Format(time.RFC3339)
 		}
 
-		// The UE's identity and its NAS security are per access, so apply the access
-		// that heard from the UE longer ago first and let the more recent one overwrite
-		// it. An access that knows none of these leaves them as they are, rather than
-		// blanking what the other one reported.
 		if view4G.newerThan(view5G) {
 			subscriberStatus.applyIdentity(snap.Imei, snap.CipheringAlgorithm, snap.IntegrityAlgorithm)
 			subscriberStatus.applyIdentity(cs.Imei, cs.CipheringAlgorithm, cs.IntegrityAlgorithm)
