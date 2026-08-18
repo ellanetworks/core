@@ -6,6 +6,7 @@ package mme
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func supersedeUE(t *testing.T) (*MME, *UeContext, *fakeFiveGSPeer) {
@@ -49,7 +50,7 @@ func TestSupersedeFiveGSRegistrationDefersToAHandoverToFiveGS(t *testing.T) {
 func TestSupersedeFiveGSRegistrationDefersToAnIdleMoveToFiveGS(t *testing.T) {
 	m, ue, peer := supersedeUE(t)
 
-	ue.BeginIdleMobilityTo5GS()
+	ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 	m.SupersedeFiveGSRegistration(context.Background(), ue)
 
@@ -75,15 +76,29 @@ func TestSupersedeFiveGSRegistrationWithoutAnIdentityIsANoOp(t *testing.T) {
 	}
 }
 
-// TS 23.501 §5.17.2.3.1 item 1
-func TestSupersedeFiveGSRegistrationDefersToAUEThatDeclaredItKeepsFiveGS(t *testing.T) {
+// TS 23.501 §5.17.2.2.1
+func TestSupersedeFiveGSRegistrationIgnoresTheUEStatusIE(t *testing.T) {
 	m, ue, peer := supersedeUE(t)
-
-	ue.RetainsFiveGSRegistration = true
 
 	m.SupersedeFiveGSRegistration(context.Background(), ue)
 
-	if len(peer.cancelled) != 0 {
-		t.Errorf("cancelled %v for a UE that declared it is still 5GMM-REGISTERED", peer.cancelled)
+	if len(peer.cancelled) != 1 {
+		t.Errorf("cancelled %v, want the subscriber's 5GS registration dropped: it holds an MM state in both the AMF and the MME", peer.cancelled)
+	}
+}
+
+func TestSupersedeFiveGSRegistrationStopsDeferringToALapsedIdleMove(t *testing.T) {
+	m, ue, peer := supersedeUE(t)
+
+	ue.BeginIdleMobilityTo5GS(-time.Second)
+
+	if ue.IdleMobilityTo5GSPending() {
+		t.Fatal("a window opened in the past is still pending")
+	}
+
+	m.SupersedeFiveGSRegistration(context.Background(), ue)
+
+	if len(peer.cancelled) != 1 {
+		t.Errorf("cancelled %v, want the 5GS registration dropped: an abandoned context transfer pinned the EPS half forever", peer.cancelled)
 	}
 }

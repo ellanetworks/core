@@ -71,7 +71,7 @@ func (m *MME) MMContext(ctx context.Context, req interworking.MMContextRequest) 
 
 	ambrUL, ambrDL := ue.AmbrRates()
 
-	ue.BeginIdleMobilityTo5GS()
+	ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 	logger.From(ctx, logger.MmeLog).Info("handing the UE's EPS context to 5GS for an idle-mode change",
 		zap.String("imsi", ue.IMSI()), zap.Int("pdn-connections", len(connections)))

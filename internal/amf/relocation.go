@@ -120,17 +120,11 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 			logger.SUPI(supi.String()), zap.Uint64("relocation", uint64(id)))
 	}
 
-	a.releaseToEPS(ctx, ue)
+	a.releaseToEPS(ctx, ue, source,
+		ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 
 	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources and keeping its 5G security context for a return",
 		logger.SUPI(supi.String()))
-
-	if source == nil {
-		return nil
-	}
-
-	source.ReleaseAction = UeContextReleaseHandover
-	source.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 
 	return nil
 }

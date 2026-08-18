@@ -103,7 +103,6 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	conn.RegistrationRequest = req
 
 	ue.SetUECapabilities(req.GMMCapability, req.S1UENetworkCapability)
-	ue.SetRetainsEPSRegistration(req.UEStatus != nil && req.UEStatus.S1ModeReg)
 
 	conn.RegistrationRequestPlain = slices.Clone(plain)
 	conn.RegistrationRequestReplayRequired = arrivedPlain

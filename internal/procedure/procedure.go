@@ -30,10 +30,23 @@ var (
 	ErrSettling      = errors.New("procedure is being torn down")
 )
 
+// Disposition is a cancel callback's answer to "may the slot be freed now?".
 type Disposition uint8
 
 const (
+	// Release frees the slot: the procedure is over, one way or another.
 	Release Disposition = iota
+	// Retain keeps the slot: the procedure is committing, and freeing the slot now would
+	// let the next procedure rekey the UE underneath the commit (TS 33.501 §6.9.5,
+	// TS 33.401 §7.2.10). It governs whether the teardown came from the deadline or from
+	// an explicit Cancel, because in both cases the callback is the only thing that knows
+	// whether the procedure can be interrupted.
+	//
+	// Supervision ends there rather than re-arming: every exit from a committing state
+	// calls End, so re-checking could only confirm what End already reports, and a commit
+	// that never finishes would re-arm the deadline forever. The slot frees on that End —
+	// including the End that UE-context teardown performs, which is what recovers a
+	// commit that is never going to finish.
 	Retain
 )
 
@@ -46,8 +59,6 @@ type held struct {
 	typ      Type
 	timer    *time.Timer
 	cancel   CancelFunc
-	interval time.Duration
-	retains  int
 	settling bool
 	ended    bool
 }
@@ -121,7 +132,6 @@ func (r *Registry) Supervise(t Type, deadline time.Time, cancel CancelFunc) erro
 		d = time.Millisecond
 	}
 
-	h.interval, h.retains = d, 0
 	h.timer = time.AfterFunc(d, func() { r.expire(h) })
 
 	return nil
@@ -157,8 +167,10 @@ func (r *Registry) End(t Type) {
 	r.log.Debug("procedure ended", zap.String("type", string(t)))
 }
 
-// Cancel removes the active procedure t and invokes its cancel callback. Returns
-// ErrNotActive if t is not active.
+// Cancel tears the active procedure t down through its cancel callback. The callback's
+// disposition governs as it does on a deadline expiry: a Retain leaves the slot held,
+// because a committing procedure is no safer to interrupt on request than on a timeout.
+// Returns ErrNotActive if t is not active.
 func (r *Registry) Cancel(ctx context.Context, t Type) error {
 	r.mu.Lock()
 
@@ -225,6 +237,8 @@ func (r *Registry) expire(h *held) {
 	r.settle(context.Background(), h)
 }
 
+// settle runs h's cancel callback outside the lock and then frees the slot, unless the
+// callback retained it or an End arrived mid-teardown.
 func (r *Registry) settle(ctx context.Context, h *held) {
 	disposition := r.invokeCancel(ctx, h)
 
@@ -241,13 +255,8 @@ func (r *Registry) settle(ctx context.Context, h *held) {
 	}
 
 	if disposition == Retain && !h.ended {
-		h.retains++
-		h.timer = time.AfterFunc(h.interval, func() { r.expire(h) })
-
-		r.log.Warn("procedure retained past its deadline by its cancel callback; supervision re-armed",
-			zap.String("type", string(h.typ)),
-			zap.Int("retains", h.retains),
-			zap.Duration("interval", h.interval))
+		r.log.Warn("procedure retained by its cancel callback; supervision is over and the slot frees when the procedure ends",
+			zap.String("type", string(h.typ)))
 
 		return
 	}

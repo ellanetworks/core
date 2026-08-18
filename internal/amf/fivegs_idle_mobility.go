@@ -99,7 +99,7 @@ func (a *AMF) EPSContextAck(ctx context.Context, supi etsi.SUPI, transferred []u
 		ue.DeleteSmContext(pduSessionID)
 	}
 
-	a.releaseToEPS(ctx, ue)
+	a.releaseToEPS(ctx, ue, nil, deregisterToEPS)
 
 	logger.From(ctx, logger.AmfLog).Info("UE moved to EPS in idle mode; keeping its 5G security context for a return",
 		logger.SUPI(supi.String()), zap.Int("adopted", len(transferred)))

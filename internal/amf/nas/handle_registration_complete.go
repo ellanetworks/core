@@ -19,9 +19,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ue.TransitionTo(amf.Registered)
-
-	amfInstance.SupersedeEPSRegistration(ctx, ue)
+	amfInstance.MarkRegistered(ctx, ue)
 
 	conn := ue.Conn()
 	if conn == nil {

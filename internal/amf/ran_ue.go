@@ -32,6 +32,10 @@ const (
 	UeContextReleaseUeContext
 	UeContextReleaseDueToNwInitiatedDeregistraion
 	UeContextReleaseAbortRegistration
+	// UeContextReleaseToEPS releases the RAN context of a UE that has moved to EPS. It
+	// only ever removes the connection: the AMF UE context outlives it on purpose, so a
+	// return to 5GS reuses the retained 5G security context (TS 23.501 §5.17.2.1).
+	UeContextReleaseToEPS
 )
 
 // releaseGuardTimeout bounds the wait for a UE Context Release Complete after a UE
@@ -482,6 +486,10 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	case UeContextReleaseHandover:
 		a.ClearHandover(amfUe)
 
+		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
+			logger.From(ctx, ueConn.Log).Error(err.Error())
+		}
+	case UeContextReleaseToEPS:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.From(ctx, ueConn.Log).Error(err.Error())
 		}

@@ -156,7 +156,7 @@ func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
 		return errors.New("the gNB holds no PDU session after the inter-system change, so the user plane was not re-established")
 	}
 
-	after, err := probeOver5GS(ctx, env, gNodeB, session, "over N3 after the move to 5GS")
+	after, err := probeOver5GSAt(ctx, env, gNodeB, session, before.addrs, "over N3 after the move to 5GS")
 	if err != nil {
 		return err
 	}
@@ -287,6 +287,12 @@ func probeOver5GS(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, se
 		return sessionFacts{}, err
 	}
 
+	return probeOver5GSAt(ctx, env, gNodeB, session, addrs, stage)
+}
+
+func probeOver5GSAt(ctx context.Context, env scenarios.Env, gNodeB *gnb.GnodeB, session gnb.PDUSessionResult,
+	addrs ueAddresses, stage string,
+) (sessionFacts, error) {
 	tunnel := &gnb.TunnelOpts{
 		UpfAddress:       session.UpfAddress,
 		TunInterfaceName: gnbTunIface,

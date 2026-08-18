@@ -132,7 +132,7 @@ func TestRetainKeepsTheProcedureActivePastItsDeadline(t *testing.T) {
 	}, "End to release the retained procedure")
 }
 
-func TestRetainReArmsSupervisionSoTheProcedureCanStillBeTornDown(t *testing.T) {
+func TestRetainEndsSupervisionRatherThanRespinningIt(t *testing.T) {
 	r := newTestRegistry()
 
 	if err := r.Begin(procedure.N2Handover); err != nil {
@@ -141,23 +141,64 @@ func TestRetainReArmsSupervisionSoTheProcedureCanStillBeTornDown(t *testing.T) {
 
 	var calls atomic.Int32
 
-	err := r.Supervise(procedure.N2Handover, time.Now().Add(5*time.Millisecond),
+	err := r.Supervise(procedure.N2Handover, time.Now().Add(time.Millisecond),
 		func(context.Context) (procedure.Disposition, error) {
-			if calls.Add(1) < 3 {
-				return procedure.Retain, nil
-			}
+			calls.Add(1)
 
-			return procedure.Release, nil
+			return procedure.Retain, nil
 		})
 	if err != nil {
 		t.Fatalf("Supervise failed: %v", err)
 	}
 
-	waitUntil(t, func() bool { return !r.Active(procedure.N2Handover) },
-		"a retained procedure to be rechecked and released without an End")
+	waitUntil(t, func() bool { return calls.Load() > 0 }, "the deadline to expire")
 
-	if got := calls.Load(); got < 3 {
-		t.Errorf("the cancel callback ran %d times, want it re-invoked until it released", got)
+	time.Sleep(50 * time.Millisecond)
+
+	if got := calls.Load(); got != 1 {
+		t.Errorf("the cancel callback ran %d times, want 1: the deadline re-arms itself for as long as the commit is stuck", got)
+	}
+
+	if !r.Active(procedure.N2Handover) {
+		t.Error("the retained procedure lost its slot, so the next procedure can rekey the UE underneath the commit")
+	}
+}
+
+func TestCancelDoesNotOverrideRetain(t *testing.T) {
+	r := newTestRegistry()
+
+	if err := r.Begin(procedure.N2Handover); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	var calls atomic.Int32
+
+	err := r.Supervise(procedure.N2Handover, time.Now().Add(time.Hour),
+		func(context.Context) (procedure.Disposition, error) {
+			calls.Add(1)
+
+			return procedure.Retain, nil
+		})
+	if err != nil {
+		t.Fatalf("Supervise failed: %v", err)
+	}
+
+	if err := r.Cancel(context.Background(), procedure.N2Handover); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("the cancel callback ran %d times, want 1", got)
+	}
+
+	if !r.Active(procedure.N2Handover) {
+		t.Error("Cancel freed the slot against the callback's Retain, so the next procedure can rekey the UE underneath the commit")
+	}
+
+	r.End(procedure.N2Handover)
+
+	if r.Active(procedure.N2Handover) {
+		t.Error("End did not free a retained procedure, so nothing ever recovers the key chain")
 	}
 }
 

@@ -5,9 +5,14 @@ package amf
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/interworking"
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
+	"go.uber.org/zap"
 )
 
 func registeredUE(t *testing.T) (*AMF, *UeContext, etsi.SUPI, *deregisterTestSmf) {
@@ -130,15 +135,129 @@ func TestCancelRegistrationIsIdempotent(t *testing.T) {
 	}
 }
 
-// TS 23.501 §5.17.2.3.1 item 1
-func TestCancelRegistrationDefersToAUEThatDeclaredItKeepsFiveGS(t *testing.T) {
-	a, ue, _, _ := registeredUE(t)
+// The UE status IE is not an opt-out. TS 24.501 §5.5.1.3.2 a) makes a
+// single-registration-mode UE moving from EPC set the same EMM registration status bit a
+// dual-registration-mode UE sets (§5.5.1.2.2), and with N26 wired TS 23.501 §5.17.2.2.1
+// leaves the network exactly one MM state either way.
+func TestSupersedeEPSRegistrationIgnoresTheUEStatusIE(t *testing.T) {
+	a, ue, supi, _ := registeredUE(t)
 
-	ue.SetRetainsEPSRegistration(true)
+	peer := &cancelRecordingEPSPeer{}
+	a.EPS = peer
 
 	a.SupersedeEPSRegistration(context.Background(), ue)
 
-	if state := ue.State(); state != Registered {
-		t.Errorf("5GMM state = %s, want Registered", state)
+	if !slices.Equal(peer.cancelled, []etsi.SUPI{supi}) {
+		t.Errorf("cancelled %v, want the subscriber's EPS registration dropped: it holds an MM state in both the AMF and the MME", peer.cancelled)
 	}
+}
+
+func TestSupersedeEPSRegistrationDefersToARelocationArrivingFromEPS(t *testing.T) {
+	a, ue, supi, _ := registeredUE(t)
+
+	peer := &cancelRecordingEPSPeer{}
+	a.EPS = peer
+
+	if !a.beginRelocationFromEPS(supi, 7, ue) {
+		t.Fatal("beginRelocationFromEPS refused a fresh relocation")
+	}
+
+	a.SupersedeEPSRegistration(context.Background(), ue)
+
+	if len(peer.cancelled) != 0 {
+		t.Errorf("cancelled %v mid-relocation: the supersede pre-empted the procedure that owns both halves", peer.cancelled)
+	}
+}
+
+// The N2 connection of a UE that has moved to EPS has to go with the registration: nothing
+// else reaps it, because the AMF UE context deliberately outlives it (TS 38.413 §8.3.1).
+func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
+	a, ue, supi, _ := registeredUE(t)
+
+	radio := &Radio{Conn: new(sctp.SCTPConn), name: "gNB-1", amf: a, Log: zap.NewNop()}
+
+	a.mu.Lock()
+	a.radios[radio.Conn] = radio
+	a.mu.Unlock()
+
+	ueConn := NewUeConnForTest(radio, models.RanUeNgapID(7), models.AmfUeNgapID(7), zap.NewNop())
+
+	a.mu.Lock()
+	a.attachUeConnLocked(ue, ueConn)
+	a.mu.Unlock()
+
+	a.CancelRegistration(context.Background(), supi)
+
+	if ueConn.ReleaseAction != UeContextReleaseToEPS {
+		t.Errorf("release action = %v, want UeContextReleaseToEPS", ueConn.ReleaseAction)
+	}
+
+	// The gNB answers the command; that Complete is what removes the connection.
+	a.ReleaseUeConn(context.Background(), ueConn)
+
+	a.mu.Lock()
+	_, indexed := a.conns[int64(ueConn.AmfUeNgapID)]
+	a.mu.Unlock()
+
+	if indexed {
+		t.Error("the NGAP UE context outlived the 5GS registration, so the gNB holds a UE the AMF has given up")
+	}
+
+	held, ok := a.LookupUeBySupi(supi)
+	if !ok || held != ue {
+		t.Fatal("releasing the connection threw away the retained 5G security context")
+	}
+
+	if !held.ExportableToEPS() {
+		t.Error("the retained context is no longer exportable, so a return from EPS costs a primary authentication")
+	}
+}
+
+// A registration that cannot legally reach 5GMM-REGISTERED must not take the subscriber's
+// EPS registration with it: the UE would be left with neither.
+func TestMarkRegisteredLeavesEPSAloneWhenTheTransitionIsRejected(t *testing.T) {
+	a, ue, _, _ := registeredUE(t)
+
+	peer := &cancelRecordingEPSPeer{}
+	a.EPS = peer
+
+	ue.ForceStateForTest(Deregistered)
+
+	a.MarkRegistered(context.Background(), ue)
+
+	if state := ue.State(); state == Registered {
+		t.Fatalf("precondition broken: Deregistered → Registered was accepted (state %s)", state)
+	}
+
+	if len(peer.cancelled) != 0 {
+		t.Errorf("cancelled %v though the UE never reached 5GMM-REGISTERED", peer.cancelled)
+	}
+}
+
+type cancelRecordingEPSPeer struct {
+	cancelled []etsi.SUPI
+}
+
+func (p *cancelRecordingEPSPeer) CancelRegistration(_ context.Context, supi etsi.SUPI) {
+	p.cancelled = append(p.cancelled, supi)
+}
+
+func (*cancelRecordingEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
+	return interworking.ForwardRelocationResponse{}, nil
+}
+
+func (*cancelRecordingEPSPeer) RelocationCancel(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+func (*cancelRecordingEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+func (*cancelRecordingEPSPeer) MMContext(context.Context, interworking.MMContextRequest) (interworking.MMContextResponse, error) {
+	return interworking.MMContextResponse{}, nil
+}
+
+func (*cancelRecordingEPSPeer) MMContextAck(context.Context, etsi.SUPI, []uint8) error {
+	return nil
 }

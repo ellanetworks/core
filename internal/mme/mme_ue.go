@@ -136,9 +136,8 @@ type UeContext struct {
 	kenbCount                uint32
 	esmInfoWait              atomic.Pointer[ESMInfoWait]
 
-	CombinedAttach            bool // UE requested combined EPS/IMSI attach (TS 24.301)
-	RetainsFiveGSRegistration bool
-	HashmmeInput              []byte
+	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
+	HashmmeInput   []byte
 
 	lastSeen atomic.Int64
 
@@ -178,8 +177,8 @@ type UeContext struct {
 
 	emmState EMMState
 
-	idleMobilityFrom5GS bool
-	idleMobilityTo5GS   bool
+	idleMobilityFrom5GS    bool
+	idleMobilityTo5GSUntil time.Time
 
 	allow5G bool
 
