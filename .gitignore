@@ -4,6 +4,9 @@ ui/dist/*
 ui/npm-debug.log*
 ui/*.tsbuildinfo
 ui/.env*.local
+ui/test-results/
+ui/playwright-report/
+ui/blob-report/
 
 # copilot instructions
 .github/copilot-instructions.md

@@ -57,6 +57,9 @@ jobs:
   integration-tests-api-matrix:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-api-matrix.yaml
+  ui-e2e:
+    needs: [image-build]
+    uses: ./.github/workflows/ui-e2e.yaml
   integration-tests-ha:
     needs: [image-build]
     uses: ./.github/workflows/integration-tests-ha.yaml

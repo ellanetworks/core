@@ -1,0 +1,73 @@
+name: UI E2E
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  ui-e2e:
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Container image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Load container image
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+
+      - name: use npm
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          npm install --prefix ui
+
+      - name: Install Playwright browsers
+        run: |
+          npx --prefix ui playwright install --with-deps chromium
+
+      - name: Start Ella Core
+        run: |
+          docker compose -f ui/e2e/compose.yaml up -d
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://localhost:5002/api/v1/status; then
+              echo "Ella Core is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Ella Core did not become ready in time"
+          docker compose -f ui/e2e/compose.yaml logs
+          exit 1
+
+      - name: Run E2E tests
+        run: |
+          npm run test:e2e --prefix ui
+
+      - name: Collect Ella Core logs
+        if: failure()
+        run: |
+          docker compose -f ui/e2e/compose.yaml logs
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: ui/playwright-report/
+          retention-days: 7
+
+      - name: Stop Ella Core
+        if: always()
+        run: |
+          docker compose -f ui/e2e/compose.yaml down -v
