@@ -72,8 +72,8 @@ type CreatePolicyParams struct {
 	DataNetworkName     string       `json:"data_network_name"`
 	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
 	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
 	// Default marks this the profile's default data-network binding (default
 	// APN/DNN). The first policy created in a profile becomes the default
@@ -87,8 +87,8 @@ type UpdatePolicyParams struct {
 	DataNetworkName     string       `json:"data_network_name"`
 	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
 	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
 	// Default, when true, makes this the profile's default binding (clearing the
 	// previous default). Omitted/false leaves the current default unchanged.
@@ -102,8 +102,8 @@ type Policy struct {
 	DataNetworkName     string       `json:"data_network_name"`
 	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
 	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
 	Default             bool         `json:"default"`
 }

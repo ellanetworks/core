@@ -95,8 +95,8 @@ const InitializePage = () => {
     setLoading(true);
 
     try {
-      const resp = await initialize(email, password);
-      navigate("/dashboard", { state: { token: resp.token } });
+      await initialize(email, password);
+      navigate("/dashboard");
     } catch (err) {
       const error = err as Error;
       showSnackbar(error.message, "error");

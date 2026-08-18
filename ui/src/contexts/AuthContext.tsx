@@ -140,44 +140,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [navigate, scheduleRefresh, clearRefreshTimer]);
 
-  const applyToken = useCallback(
-    (token: string): boolean => {
-      try {
-        const decoded = jwtDecode<DecodedToken>(token);
-        const role = roleToString(decoded.role_id);
-
-        tokenRef.current = token;
-        setAccessToken(token);
-        setAuthData({ email: decoded.email, role });
-
-        if (tokenExpiringSoon(token)) {
-          clearRefreshTimer();
-          refreshTimerRef.current = window.setTimeout(() => {
-            void silentRefresh();
-          }, MIN_REFRESH_DELAY_MS);
-        } else {
-          scheduleRefresh(token);
-        }
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [scheduleRefresh, clearRefreshTimer], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const navToken = (location.state as { token?: string } | null)?.token;
-      if (navToken && applyToken(navToken)) {
-        // Clear the token from navigation state so it isn't reused on back-navigation.
-        window.history.replaceState({}, "");
-        if (!cancelled) setAuthReady(true);
-        return;
-      }
-
       try {
         await silentRefresh();
       } finally {
@@ -188,7 +154,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       cancelled = true;
       clearRefreshTimer();
     };
-  }, [silentRefresh, clearRefreshTimer, location.state, applyToken]);
+  }, [silentRefresh, clearRefreshTimer]);
 
   useEffect(() => {
     const onVisibility = () => {

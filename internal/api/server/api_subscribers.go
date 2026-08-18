@@ -83,7 +83,7 @@ type SubscriberCredentials struct {
 }
 
 // Slice is a 5G network slice identifier (S-NSSAI); absent for 4G.
-type Slice struct {
+type SNSSAI struct {
 	SST int32  `json:"sst"`
 	SD  string `json:"sd,omitempty"`
 }
@@ -91,16 +91,16 @@ type Slice struct {
 // Session is a UE data session — a 5G PDU session or a 4G PDN connection —
 // self-describing via radio_access_type.
 type Session struct {
-	RadioAccessType string `json:"radio_access_type"` // "4G" | "5G"
-	ID              uint8  `json:"id"`                // PDU Session ID (5G) / linked EPS Bearer ID (4G)
-	Status          string `json:"status"`
-	IPType          string `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
-	IPv4Address     string `json:"ipv4_address,omitempty"`
-	IPv6Prefix      string `json:"ipv6_prefix,omitempty"`
-	DataNetwork     string `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
-	Slice           *Slice `json:"slice,omitempty"`        // 5G only
-	AMBRUplink      string `json:"ambr_uplink,omitempty"`
-	AMBRDownlink    string `json:"ambr_downlink,omitempty"`
+	RadioAccessType string  `json:"radio_access_type"` // "4G" | "5G"
+	ID              uint8   `json:"id"`                // PDU Session ID (5G) / linked EPS Bearer ID (4G)
+	Status          string  `json:"status"`
+	IPType          string  `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
+	IPv4Address     string  `json:"ipv4_address,omitempty"`
+	IPv6Prefix      string  `json:"ipv6_prefix,omitempty"`
+	DataNetwork     string  `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
+	Slice           *SNSSAI `json:"slice,omitempty"`        // 5G only
+	AMBRUplink      string  `json:"ambr_uplink,omitempty"`
+	AMBRDownlink    string  `json:"ambr_downlink,omitempty"`
 }
 
 const (
@@ -758,7 +758,7 @@ func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 		DataNetwork:     pdu.DNN,
 	}
 	if pdu.Snssai != nil {
-		s.Slice = &Slice{SST: pdu.Snssai.Sst, SD: pdu.Snssai.Sd}
+		s.Slice = &SNSSAI{SST: pdu.Snssai.Sst, SD: pdu.Snssai.Sd}
 	}
 
 	if pdu.PolicyData != nil && pdu.PolicyData.Ambr != nil {

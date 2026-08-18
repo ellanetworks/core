@@ -23,17 +23,17 @@ import (
 
 type CreateDataNetworkParams struct {
 	Name     string `json:"name"`
-	IPv4Pool string `json:"ipv4_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
-	DNS      string `json:"dns,omitempty"`
-	MTU      int32  `json:"mtu,omitempty"`
+	DNS      string `json:"dns"`
+	MTU      int32  `json:"mtu"`
 }
 
 type UpdateDataNetworkParams struct {
-	IPv4Pool string `json:"ipv4_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
-	DNS      string `json:"dns,omitempty"`
-	MTU      int32  `json:"mtu,omitempty"`
+	DNS      string `json:"dns"`
+	MTU      int32  `json:"mtu"`
 }
 
 type DataNetworkStatus struct {
@@ -50,8 +50,8 @@ type DataNetwork struct {
 	Name           string                   `json:"name"`
 	IPv4Pool       string                   `json:"ipv4_pool"`
 	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
-	DNS            string                   `json:"dns,omitempty"`
-	MTU            int32                    `json:"mtu,omitempty"`
+	DNS            string                   `json:"dns"`
+	MTU            int32                    `json:"mtu"`
 	Status         DataNetworkStatus        `json:"status"`
 	IPAllocation   *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
 	IPv6Allocation *DataNetworkIPAllocation `json:"ipv6_allocation,omitempty"`

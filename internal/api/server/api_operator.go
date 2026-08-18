@@ -21,16 +21,16 @@ const (
 )
 
 type UpdateOperatorTrackingParams struct {
-	SupportedTacs []string `json:"supportedTacs,omitempty"`
+	SupportedTacs []string `json:"supportedTacs"`
 }
 
 type UpdateOperatorIDParams struct {
-	Mcc string `json:"mcc,omitempty"`
-	Mnc string `json:"mnc,omitempty"`
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
 }
 
 type UpdateOperatorCodeParams struct {
-	OperatorCode string `json:"operatorCode,omitempty"`
+	OperatorCode string `json:"operatorCode"`
 }
 
 type UpdateOperatorNASSecurityParams struct {
@@ -44,7 +44,7 @@ type UpdateOperatorSPNParams struct {
 }
 
 type GetOperatorTrackingResponse struct {
-	SupportedTacs []string `json:"supportedTacs,omitempty"`
+	SupportedTacs []string `json:"supportedTacs"`
 }
 
 type GetOperatorSPNResponse struct {
@@ -61,8 +61,8 @@ type GetOperatorResponse struct {
 }
 
 type GetOperatorIDResponse struct {
-	Mcc string `json:"mcc,omitempty"`
-	Mnc string `json:"mnc,omitempty"`
+	Mcc string `json:"mcc"`
+	Mnc string `json:"mnc"`
 }
 
 type GetOperatorNASSecurityResponse struct {
