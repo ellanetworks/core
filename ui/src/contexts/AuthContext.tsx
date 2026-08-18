@@ -79,6 +79,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const tokenRef = useRef<string | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
   const refreshingRef = useRef(false);
+  const pathnameRef = useRef(location.pathname);
+  // scheduleRefresh and silentRefresh call each other, so one of them has to
+  // reach the other through a ref. Holding the latest silentRefresh here keeps
+  // both dependency arrays honest and guarantees a pending timer runs the
+  // current implementation rather than the one from the render that armed it.
+  const silentRefreshRef = useRef<() => void>(() => {});
 
   const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current != null) {
@@ -87,23 +93,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const scheduleRefresh = useCallback((token: string) => {
-    clearRefreshTimer();
-    let delayMs = 30_000;
-    try {
-      const { exp } = jwtDecode<DecodedToken>(token);
-      if (exp) {
-        const now = Math.floor(Date.now() / 1000);
-        delayMs = Math.max(
-          MIN_REFRESH_DELAY_MS,
-          (exp - LEEWAY_SEC - now) * 1000,
-        );
-      }
-    } catch {}
-    refreshTimerRef.current = window.setTimeout(() => {
-      void silentRefresh();
-    }, delayMs);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const scheduleRefresh = useCallback(
+    (token: string) => {
+      clearRefreshTimer();
+      let delayMs = 30_000;
+      try {
+        const { exp } = jwtDecode<DecodedToken>(token);
+        if (exp) {
+          const now = Math.floor(Date.now() / 1000);
+          delayMs = Math.max(
+            MIN_REFRESH_DELAY_MS,
+            (exp - LEEWAY_SEC - now) * 1000,
+          );
+        }
+      } catch {}
+      refreshTimerRef.current = window.setTimeout(() => {
+        silentRefreshRef.current();
+      }, delayMs);
+    },
+    [clearRefreshTimer],
+  );
 
   const silentRefresh = useCallback(async () => {
     if (refreshingRef.current) return;
@@ -123,7 +132,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (tokenExpiringSoon(token)) {
         clearRefreshTimer();
         refreshTimerRef.current = window.setTimeout(() => {
-          void silentRefresh();
+          silentRefreshRef.current();
         }, MIN_REFRESH_DELAY_MS);
       } else {
         scheduleRefresh(token);
@@ -139,6 +148,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setAuthReady(true);
     }
   }, [navigate, scheduleRefresh, clearRefreshTimer]);
+
+  useEffect(() => {
+    silentRefreshRef.current = () => void silentRefresh();
+  }, [silentRefresh]);
+
+  useEffect(() => {
+    pathnameRef.current = location.pathname;
+  }, [location.pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,9 +184,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [silentRefresh]);
-
-  const pathnameRef = useRef(location.pathname);
-  pathnameRef.current = location.pathname;
 
   useEffect(() => {
     setOnUnauthorized(() => {
