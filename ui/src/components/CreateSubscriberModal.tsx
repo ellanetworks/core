@@ -415,7 +415,10 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           onChange={(e) => handleChange("sequenceNumber", e.target.value)}
           onBlur={() => handleBlur("sequenceNumber")}
           error={!!errors.sequenceNumber && touched.sequenceNumber}
-          helperText={touched.sequenceNumber ? errors.sequenceNumber : ""}
+          helperText={
+            (touched.sequenceNumber && errors.sequenceNumber) ||
+            "6-byte (12-char) hex string (e.g., 000000000001)"
+          }
           margin="normal"
         />
 
