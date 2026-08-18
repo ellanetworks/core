@@ -46,6 +46,7 @@ type UeContext struct {
 	regStep RegStep
 
 	arrivedFromEPSHandover bool
+	retainsEPSRegistration bool
 	exportableToEPSUntil   time.Time
 
 	PlmnID  models.PlmnID
@@ -456,6 +457,7 @@ func (ue *UeContext) ClearRegistrationRequestData() {
 	defer ue.mu.Unlock()
 
 	ue.arrivedFromEPSHandover = false
+	ue.retainsEPSRegistration = false
 
 	if conn == nil {
 		return

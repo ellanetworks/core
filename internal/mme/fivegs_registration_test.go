@@ -74,3 +74,16 @@ func TestSupersedeFiveGSRegistrationWithoutAnIdentityIsANoOp(t *testing.T) {
 		t.Errorf("cancelled %v for a UE with no IMSI", peer.cancelled)
 	}
 }
+
+// TS 23.501 §5.17.2.3.1 item 1
+func TestSupersedeFiveGSRegistrationDefersToAUEThatDeclaredItKeepsFiveGS(t *testing.T) {
+	m, ue, peer := supersedeUE(t)
+
+	ue.RetainsFiveGSRegistration = true
+
+	m.SupersedeFiveGSRegistration(context.Background(), ue)
+
+	if len(peer.cancelled) != 0 {
+		t.Errorf("cancelled %v for a UE that declared it is still 5GMM-REGISTERED", peer.cancelled)
+	}
+}

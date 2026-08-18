@@ -5,10 +5,10 @@ package interworking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
@@ -103,17 +103,65 @@ func runTransfer5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 }
 
 func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
-	eps, err := establishOnEPS(ctx, env)
+	e, err := startENB(env)
 	if err != nil {
 		return err
 	}
 
-	fiveGS, err := moveTo5GS(ctx, env)
+	defer func() { _ = e.Close() }()
+
+	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
 		return err
 	}
 
-	if err := assertContinuity(eps, fiveGS); err != nil {
+	epsUE := e.NewUE(interworkingIMSI, k, opc)
+	epsUE.RequestPDNType(uint8(eps.PDNTypeIPv4v6))
+	epsUE.AnnounceN1Mode(movedPDUSessionID)
+
+	res, err := e.Attach(epsUE, attachTimeout)
+	if err != nil {
+		return fmt.Errorf("attach over E-UTRAN: %w", err)
+	}
+
+	before, err := probeOverEPS(ctx, env, e, res, "after attach")
+	if err != nil {
+		return err
+	}
+
+	if res.GUTI == nil || res.GUTI.GUTI == nil {
+		return errors.New("the attach accept assigned no GUTI to map into a registration")
+	}
+
+	gNodeB, err := startGNB(env)
+	if err != nil {
+		return err
+	}
+
+	defer gNodeB.Close()
+
+	newUE, err := newInterworkingUE(gNodeB, false)
+	if err != nil {
+		return err
+	}
+
+	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
+
+	if err := arriveOn5GSFromEPS(gNodeB, epsUE, newUE, *res.GUTI.GUTI, ranUENGAPID, arriveAndResumeUserPlane); err != nil {
+		return err
+	}
+
+	session, ok := gNodeB.PDUSession(ranUENGAPID, movedPDUSessionID)
+	if !ok {
+		return errors.New("the gNB holds no PDU session after the inter-system change, so the user plane was not re-established")
+	}
+
+	after, err := probeOver5GS(ctx, env, gNodeB, session, "over N3 after the move to 5GS")
+	if err != nil {
+		return err
+	}
+
+	if err := assertContinuity(before, after); err != nil {
 		return err
 	}
 
@@ -166,67 +214,6 @@ func moveToEPS(ctx context.Context, env scenarios.Env) (sessionFacts, error) {
 	}
 
 	return probeOverEPS(ctx, env, e, res, "after the move to EPS")
-}
-
-func establishOnEPS(ctx context.Context, env scenarios.Env) (sessionFacts, error) {
-	e, err := startENB(env)
-	if err != nil {
-		return sessionFacts{}, err
-	}
-
-	defer func() { _ = e.Close() }()
-
-	k, opc, err := defaultKeyAndOPc()
-	if err != nil {
-		return sessionFacts{}, err
-	}
-
-	epsUE := e.NewUE(interworkingIMSI, k, opc)
-	epsUE.RequestPDNType(uint8(eps.PDNTypeIPv4v6))
-	epsUE.AnnounceN1Mode(movedPDUSessionID)
-
-	res, err := e.Attach(epsUE, attachTimeout)
-	if err != nil {
-		return sessionFacts{}, fmt.Errorf("attach over E-UTRAN: %w", err)
-	}
-
-	return probeOverEPS(ctx, env, e, res, "after attach")
-}
-
-func moveTo5GS(ctx context.Context, env scenarios.Env) (sessionFacts, error) {
-	gNodeB, err := startGNB(env)
-	if err != nil {
-		return sessionFacts{}, err
-	}
-	defer gNodeB.Close()
-
-	newUE, err := newInterworkingUE(gNodeB, false)
-	if err != nil {
-		return sessionFacts{}, err
-	}
-
-	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
-	gNodeB.AddUE(ranUENGAPID, newUE)
-
-	if err := newUE.SendRegistrationRequest(ranUENGAPID, uint8(fgs.RegistrationTypeInitial)); err != nil {
-		return sessionFacts{}, fmt.Errorf("registration request over NR: %w", err)
-	}
-
-	if _, err := newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), attachTimeout); err != nil {
-		return sessionFacts{}, fmt.Errorf("registration accept over NR: %w", err)
-	}
-
-	moved, err := gNodeB.MovePDUSessionFromEPS(
-		newUE, ranUENGAPID, movedPDUSessionID,
-		scenarios.DefaultDNN,
-		models.Snssai{Sst: scenarios.DefaultSST, Sd: scenarios.DefaultSD},
-		attachTimeout,
-	)
-	if err != nil {
-		return sessionFacts{}, fmt.Errorf("move the existing PDU session onto 5GS: %w", err)
-	}
-
-	return probeOver5GS(ctx, env, gNodeB, *moved, "over N3 after the move to 5GS")
 }
 
 func probeOverEPS(ctx context.Context, env scenarios.Env, e *s1enb.ENB, res *s1enb.AttachResult, stage string) (sessionFacts, error) {

@@ -136,8 +136,9 @@ type UeContext struct {
 	kenbCount                uint32
 	esmInfoWait              atomic.Pointer[ESMInfoWait]
 
-	CombinedAttach bool // UE requested combined EPS/IMSI attach (TS 24.301)
-	HashmmeInput   []byte
+	CombinedAttach            bool // UE requested combined EPS/IMSI attach (TS 24.301)
+	RetainsFiveGSRegistration bool
+	HashmmeInput              []byte
 
 	lastSeen atomic.Int64
 

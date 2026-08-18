@@ -17,6 +17,10 @@ func (m *MME) SupersedeFiveGSRegistration(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	if ue.RetainsFiveGSRegistration {
+		return
+	}
+
 	if _, relocating := m.RelocationToFiveGS(ue); relocating {
 		return
 	}

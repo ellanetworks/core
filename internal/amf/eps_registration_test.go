@@ -129,3 +129,16 @@ func TestCancelRegistrationIsIdempotent(t *testing.T) {
 		t.Errorf("released %v on a UE with no sessions", fakeSmf.releaseCalls)
 	}
 }
+
+// TS 23.501 §5.17.2.3.1 item 1
+func TestCancelRegistrationDefersToAUEThatDeclaredItKeepsFiveGS(t *testing.T) {
+	a, ue, _, _ := registeredUE(t)
+
+	ue.SetRetainsEPSRegistration(true)
+
+	a.SupersedeEPSRegistration(context.Background(), ue)
+
+	if state := ue.State(); state != Registered {
+		t.Errorf("5GMM state = %s, want Registered", state)
+	}
+}

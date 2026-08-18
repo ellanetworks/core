@@ -114,6 +114,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 func ingestAttachRequest(ctx context.Context, ue *mme.UeContext, ueConn *mme.UeConn, req *eps.AttachRequest) {
 	ue.SetUESecurityCapability(req.UENetworkCapability, req.MSNetworkCapability, mme.MintAuthProofForAttachRequest())
 	ue.CombinedAttach = req.EPSAttachType == eps.AttachTypeCombined
+	ue.RetainsFiveGSRegistration = req.UEStatus != nil && req.UEStatus.N1ModeReg
 	// The DRX parameter is not modelled by the codec, so it arrives among the
 	// message's preserved elements (TS 24.301 §8.2.4.5).
 	ue.DRXParameter = preservedValue(req.Unrecognized, ieiDRXParameter)

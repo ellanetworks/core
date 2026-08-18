@@ -54,9 +54,27 @@ func (a *AMF) SupersedeEPSRegistration(ctx context.Context, ue *UeContext) {
 		return
 	}
 
+	if ue.RetainsEPSRegistration() {
+		return
+	}
+
 	if a.RelocationFromEPSInProgress(supi) {
 		return
 	}
 
 	a.EPS.CancelRegistration(ctx, supi)
+}
+
+func (ue *UeContext) SetRetainsEPSRegistration(v bool) {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	ue.retainsEPSRegistration = v
+}
+
+func (ue *UeContext) RetainsEPSRegistration() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.retainsEPSRegistration
 }
