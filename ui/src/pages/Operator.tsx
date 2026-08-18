@@ -41,6 +41,7 @@ import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
+import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -391,7 +392,7 @@ const Operator = () => {
               <TableRow>
                 <TableCell sx={settingCellSx}>
                   <Tooltip
-                    title="Tracking Area Codes — used by UEs to register in specific geographic areas"
+                    title="Tracking Area Codes — used by UEs to register in specific geographic areas. Shown as hex with the decimal in brackets, since many radios ask for the decimal."
                     arrow
                   >
                     <span>Supported TACs</span>
@@ -406,7 +407,7 @@ const Operator = () => {
                         ? operator.tracking.supportedTacs.map((tac, idx) => (
                             <Chip
                               key={idx}
-                              label={tac}
+                              label={<TacValue tac={tac} />}
                               variant="outlined"
                               color="primary"
                               size="small"
