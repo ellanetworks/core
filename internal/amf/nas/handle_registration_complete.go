@@ -21,6 +21,8 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	ue.TransitionTo(amf.Registered)
 
+	amfInstance.SupersedeEPSRegistration(ctx, ue)
+
 	conn := ue.Conn()
 	if conn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")

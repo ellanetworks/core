@@ -204,14 +204,7 @@ func (m *MME) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 	logger.From(ctx, logger.MmeLog).Info("UE handed over to 5GS; releasing its EPS resources",
 		logger.SUPI(supi.String()))
 
-	m.ReleaseAllSessions(ctx, ue)
-
-	// The context outlives the command: the eNB answers it with a UE CONTEXT
-	// RELEASE COMPLETE, which is the last message of the procedure and must find
-	// its connection (TS 36.413 §8.3.3.2, §10.6). Deregistering first is what
-	// makes the Complete delete the context rather than drop it to ECM-IDLE.
-	ue.TransitionTo(EMMDeregistered)
-	m.ReleaseUEContext(ctx, ue, CauseHandoverSuccess)
+	m.releaseTo5GS(ctx, ue, CauseHandoverSuccess)
 
 	return nil
 }

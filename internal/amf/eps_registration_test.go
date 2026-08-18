@@ -75,9 +75,6 @@ func TestCancelRegistrationReleasesSessionsEPSDidNotAdopt(t *testing.T) {
 	}
 }
 
-// A relocation arriving from EPS is building the very context a cancel would tear
-// down; the relocation's own completion owns the outcome (TS 23.502 §4.11.1.3.2
-// step 15, the step-6 timer condition).
 func TestCancelRegistrationDefersToARelocationArrivingFromEPS(t *testing.T) {
 	a, ue, supi, _ := registeredUE(t)
 
@@ -92,8 +89,6 @@ func TestCancelRegistrationDefersToARelocationArrivingFromEPS(t *testing.T) {
 	}
 }
 
-// A handover to EPS ends in releaseToEPS by itself, with the release cause and N2
-// ordering that procedure needs; cancelling underneath it would pre-empt that.
 func TestCancelRegistrationDefersToAHandoverToEPS(t *testing.T) {
 	a, ue, supi, _ := registeredUE(t)
 
@@ -119,8 +114,6 @@ func TestCancelRegistrationIsANoOpForASubscriberFiveGSNeverHeld(t *testing.T) {
 	a.CancelRegistration(context.Background(), other)
 }
 
-// The retained security context must survive a repeat: every 4G attach by a UE that
-// once used 5GS calls this.
 func TestCancelRegistrationIsIdempotent(t *testing.T) {
 	a, ue, supi, fakeSmf := registeredUE(t)
 

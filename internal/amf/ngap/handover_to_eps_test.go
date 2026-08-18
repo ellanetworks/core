@@ -29,6 +29,8 @@ import (
 
 const relocationTargetENBID = 0x00abc
 
+func (*epsPeerStub) CancelRegistration(context.Context, etsi.SUPI) {}
+
 type epsPeerStub struct {
 	mu sync.Mutex
 

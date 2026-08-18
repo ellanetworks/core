@@ -43,3 +43,20 @@ func (a *AMF) RelocationFromEPSInProgress(supi etsi.SUPI) bool {
 
 	return busy
 }
+
+func (a *AMF) SupersedeEPSRegistration(ctx context.Context, ue *UeContext) {
+	if a.EPS == nil || ue == nil {
+		return
+	}
+
+	supi := ue.Supi()
+	if !supi.IsValid() {
+		return
+	}
+
+	if a.RelocationFromEPSInProgress(supi) {
+		return
+	}
+
+	a.EPS.CancelRegistration(ctx, supi)
+}
