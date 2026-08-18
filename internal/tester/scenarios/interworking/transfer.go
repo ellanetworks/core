@@ -103,7 +103,7 @@ func runTransfer5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 }
 
 func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
-	e, err := startENB(env)
+	e, err := startENBOnSecondaryN3(env)
 	if err != nil {
 		return err
 	}
