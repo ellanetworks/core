@@ -43,57 +43,61 @@ func TestSpecRequiredFieldsAreNeverOmitEmpty(t *testing.T) {
 
 	fset := token.NewFileSet()
 
-	notTestFile := func(info os.FileInfo) bool {
-		return !strings.HasSuffix(info.Name(), "_test.go")
-	}
-
-	pkgs, err := parser.ParseDir(fset, ".", notTestFile, 0)
+	entries, err := os.ReadDir(".")
 	if err != nil {
-		t.Fatalf("could not parse the package source: %v", err)
+		t.Fatalf("could not list the package directory: %v", err)
 	}
 
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
-			ast.Inspect(file, func(n ast.Node) bool {
-				spec, ok := n.(*ast.TypeSpec)
-				if !ok {
-					return true
-				}
-
-				structType, ok := spec.Type.(*ast.StructType)
-				if !ok {
-					return true
-				}
-
-				fields, ok := required[spec.Name.Name]
-				if !ok {
-					return true
-				}
-
-				for _, field := range structType.Fields.List {
-					if field.Tag == nil {
-						continue
-					}
-
-					tag := reflect.StructTag(strings.Trim(field.Tag.Value, "`")).Get("json")
-
-					parts := strings.Split(tag, ",")
-					if len(parts) < 2 || !fields[parts[0]] {
-						continue
-					}
-
-					for _, opt := range parts[1:] {
-						if opt == "omitempty" {
-							t.Errorf(
-								"%s.%s is required by the OpenAPI spec but tagged omitempty",
-								spec.Name.Name, parts[0],
-							)
-						}
-					}
-				}
-
-				return true
-			})
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
 		}
+
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("could not parse %s: %v", name, err)
+		}
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+
+			structType, ok := spec.Type.(*ast.StructType)
+			if !ok {
+				return true
+			}
+
+			fields, ok := required[spec.Name.Name]
+			if !ok {
+				return true
+			}
+
+			for _, field := range structType.Fields.List {
+				if field.Tag == nil {
+					continue
+				}
+
+				tag := reflect.StructTag(strings.Trim(field.Tag.Value, "`")).Get("json")
+
+				parts := strings.Split(tag, ",")
+				if len(parts) < 2 || !fields[parts[0]] {
+					continue
+				}
+
+				for _, opt := range parts[1:] {
+					if opt == "omitempty" {
+						t.Errorf(
+							"%s.%s is required by the OpenAPI spec but tagged omitempty",
+							spec.Name.Name, parts[0],
+						)
+					}
+				}
+			}
+
+			return true
+		})
 	}
 }
