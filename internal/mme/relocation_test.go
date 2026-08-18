@@ -462,6 +462,11 @@ type fakeFiveGSPeer struct {
 	completed   string
 	completedID interworking.RelocationID
 	err         error
+	cancelled   []string
+}
+
+func (f *fakeFiveGSPeer) CancelRegistration(_ context.Context, supi etsi.SUPI) {
+	f.cancelled = append(f.cancelled, supi.IMSI())
 }
 
 func (f *fakeFiveGSPeer) RelocationComplete(_ context.Context, supi etsi.SUPI, id interworking.RelocationID) error {

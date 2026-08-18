@@ -655,12 +655,10 @@ func assertAdoptedSession(plain []byte) error {
 }
 
 func assertSessionOn(ctx context.Context, env scenarios.Env, want string, addrs ueAddresses) error {
-	cl, err := client.New(&client.Config{BaseURL: env.APIAddress})
+	cl, err := coreClient(env)
 	if err != nil {
-		return fmt.Errorf("create core client: %w", err)
+		return err
 	}
-
-	cl.SetToken(env.APIToken)
 
 	deadline := time.Now().Add(sessionSettle)
 
@@ -681,7 +679,7 @@ func assertSessionOn(ctx context.Context, env scenarios.Env, want string, addrs 
 						want, s.IPv4Address, addrs.v4)
 				}
 
-				return nil
+				return assertRegisteredOn(ctx, env, want)
 			}
 		}
 
@@ -689,6 +687,6 @@ func assertSessionOn(ctx context.Context, env scenarios.Env, want string, addrs 
 			return fmt.Errorf("no session on %s after the move (last seen on %q)", want, last)
 		}
 
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(statusPoll)
 	}
 }

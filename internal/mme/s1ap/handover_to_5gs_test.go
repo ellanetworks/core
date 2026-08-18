@@ -23,6 +23,8 @@ const (
 	relocationTargetToSourceB = 0xa5
 )
 
+func (*fiveGSPeerStub) CancelRegistration(context.Context, etsi.SUPI) {}
+
 type fiveGSPeerStub struct {
 	mu sync.Mutex
 

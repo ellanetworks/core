@@ -6,6 +6,7 @@ package mme
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/internal/epskeys"
 	"github.com/ellanetworks/core/internal/interworking"
@@ -94,11 +95,13 @@ func (ue *UeContext) IdleMobilityFrom5GSPending() bool {
 	return ue.idleMobilityFrom5GS
 }
 
-func (ue *UeContext) BeginIdleMobilityTo5GS() {
+const idleMobilityTo5GSWindow = 60 * time.Second
+
+func (ue *UeContext) BeginIdleMobilityTo5GS(d time.Duration) {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.idleMobilityTo5GS = true
+	ue.idleMobilityTo5GSUntil = time.Now().Add(d)
 }
 
 func (ue *UeContext) EndIdleMobilityTo5GS() {
@@ -109,7 +112,7 @@ func (ue *UeContext) EndIdleMobilityTo5GS() {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	ue.idleMobilityTo5GS = false
+	ue.idleMobilityTo5GSUntil = time.Time{}
 }
 
 func (ue *UeContext) IdleMobilityTo5GSPending() bool {
@@ -120,7 +123,7 @@ func (ue *UeContext) IdleMobilityTo5GSPending() bool {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()
 
-	return ue.idleMobilityTo5GS
+	return time.Now().Before(ue.idleMobilityTo5GSUntil)
 }
 
 var ErrNoEPSSecurityContext = errors.New("mme: UE has no current EPS NAS security context")

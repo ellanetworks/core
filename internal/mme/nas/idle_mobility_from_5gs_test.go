@@ -22,6 +22,11 @@ type fakeFiveGSPeer struct {
 	Err         error
 	Acked       bool
 	Transferred []uint8
+	Cancelled   []string
+}
+
+func (f *fakeFiveGSPeer) CancelRegistration(_ context.Context, supi etsi.SUPI) {
+	f.Cancelled = append(f.Cancelled, supi.IMSI())
 }
 
 func (*fakeFiveGSPeer) ForwardRelocation(context.Context, interworking.FiveGSRelocationRequest) (interworking.FiveGSRelocationResponse, error) {
@@ -238,6 +243,10 @@ func TestInterSystemTAULeavesTheUERegistered(t *testing.T) {
 
 	if _, ok := m.LookupUeBySupi(supi); !ok {
 		t.Error("the S1 release removed the context, so the UE cannot be paged and cannot move back to 5GS")
+	}
+
+	if len(peer.Cancelled) != 0 {
+		t.Errorf("the inter-system TAU also cancelled the 5GS registration out of band (%v)", peer.Cancelled)
 	}
 }
 

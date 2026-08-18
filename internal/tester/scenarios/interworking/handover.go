@@ -96,7 +96,11 @@ func runHandover5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertContinuity(before, after)
+	if err := assertContinuity(before, after); err != nil {
+		return err
+	}
+
+	return assertRegisteredOn(ctx, env, "4G")
 }
 
 // TS 23.003 §2.10.2.1.2
@@ -336,7 +340,11 @@ func runHandover5GSToEPSTargetRefuses(ctx context.Context, env scenarios.Env, _ 
 		return err
 	}
 
-	return assertContinuity(before, after)
+	if err := assertContinuity(before, after); err != nil {
+		return err
+	}
+
+	return assertRegisteredOn(ctx, env, "5G")
 }
 
 func refuseHandoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, ranUENGAPID int64) error {

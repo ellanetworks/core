@@ -44,7 +44,7 @@ func TestSessionDropped(t *testing.T) {
 		m := newTestMME(t)
 		ue, _ := securedUE(t, m)
 		ue.TransitionTo(EMMRegistered)
-		ue.BeginIdleMobilityTo5GS()
+		ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 		p := testPDN(ue)
 		p.SessionRef = "imsi-001010000000001-3#1"
@@ -137,7 +137,7 @@ func TestMMContextAckReleasesTheContextOfAUEThatLeftEUTRAN(t *testing.T) {
 	m := newTestMME(t)
 	ue, _ := securedUE(t, m)
 	ue.TransitionTo(EMMRegistered)
-	ue.BeginIdleMobilityTo5GS()
+	ue.BeginIdleMobilityTo5GS(idleMobilityTo5GSWindow)
 
 	p := testPDN(ue)
 	p.SessionRef = "imsi-001010000000001-3#1"

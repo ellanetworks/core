@@ -46,7 +46,7 @@ func (ue *UeContext) EndKeyChainProc(t procedure.Type) {
 // SuperviseKeyChainProc arms the registry's supervision timeout on an already-begun
 // key-chain procedure: cancel runs once at the deadline, and only while the procedure
 // is still active. A no-op on a bare test context with no registry.
-func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel func(context.Context) error) {
+func (ue *UeContext) SuperviseKeyChainProc(t procedure.Type, deadline time.Time, cancel procedure.CancelFunc) {
 	if ue.procedures != nil {
 		_ = ue.procedures.Supervise(t, deadline, cancel)
 	}
@@ -177,8 +177,8 @@ type UeContext struct {
 
 	emmState EMMState
 
-	idleMobilityFrom5GS bool
-	idleMobilityTo5GS   bool
+	idleMobilityFrom5GS    bool
+	idleMobilityTo5GSUntil time.Time
 
 	allow5G bool
 
@@ -740,6 +740,8 @@ func (m *MME) RemoveUe(ue *UeContext) {
 // removeContextLocked deletes the UE from every registry index and stops all its
 // supervision. The caller holds m.mu.
 func (m *MME) removeContextLocked(ue *UeContext) {
+	ue.clearKeyChainProc()
+
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
 	m.releaseMTMSIsLocked(ue)

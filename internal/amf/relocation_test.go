@@ -20,6 +20,13 @@ import (
 
 const testRelocationIMSI = "001010000000001"
 
+func (f *fakeEPSPeer) CancelRegistration(_ context.Context, supi etsi.SUPI) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.regCancelled = append(f.regCancelled, supi.IMSI())
+}
+
 type fakeEPSPeer struct {
 	mu           sync.Mutex
 	request      interworking.ForwardRelocationRequest
@@ -31,6 +38,7 @@ type fakeEPSPeer struct {
 	completedIDs []interworking.RelocationID
 	completeErr  error
 	block        chan struct{}
+	regCancelled []string
 }
 
 func (f *fakeEPSPeer) MMContext(context.Context, interworking.MMContextRequest) (interworking.MMContextResponse, error) {

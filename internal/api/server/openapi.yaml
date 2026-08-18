@@ -3864,24 +3864,33 @@ components:
             type: string
             enum: ["4G", "5G"]
           description: >-
-            Every access the subscriber is currently registered on. The security
-            algorithms and IMEI below belong to one access; a dual-registered
-            subscriber reports 5G's.
+            Every access the subscriber is currently registered on. When there is
+            more than one, last_seen_radio and the security algorithms below all
+            describe the serving access — the one that last heard from the UE —
+            so they can be read together.
         imei:
           type: string
-          description: IMEI of the connected device.
+          description: >-
+            IMEI of the connected device. It identifies the device rather than an
+            access, so it is reported by whichever access knows it.
         ciphering_algorithm:
           type: string
-          description: Negotiated ciphering algorithm.
+          description: >-
+            Ciphering algorithm negotiated on the serving access. Empty when that
+            access reports none.
         integrity_algorithm:
           type: string
-          description: Negotiated integrity algorithm.
+          description: >-
+            Integrity algorithm negotiated on the serving access. Empty when that
+            access reports none.
         last_seen_at:
           type: string
           description: Timestamp of last activity (RFC 3339).
         last_seen_radio:
           type: string
-          description: Name of the radio the device was last seen on.
+          description: >-
+            Name of the radio serving the device on that access. Empty when the
+            device is registered but idle, with no radio connection to name.
       required: [registered, imei, ciphering_algorithm, integrity_algorithm]
 
     SubscriberDetail:
