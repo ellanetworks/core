@@ -89,6 +89,7 @@ import {
 } from "@/utils/formatters";
 import IPProtocolChip from "@/components/IPProtocolChip";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { defaultDateRange } from "@/utils/dates";
 
 const renderSubscriberLink = (params: any) => {
   const imsi = params.value as string;
@@ -138,14 +139,6 @@ const renderSubscriberLink = (params: any) => {
   );
 };
 
-const getDefaultDateRange = () => {
-  const today = new Date();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  const format = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: format(sevenDaysAgo), endDate: format(today) };
-};
-
 type UsageRow = {
   id: string;
   subscriber: string;
@@ -187,7 +180,9 @@ const Traffic: React.FC = () => {
     [navigate],
   );
 
-  const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
+  const [{ startDate, endDate }, setDateRange] = useState(() =>
+    defaultDateRange(),
+  );
   const [selectedSubscriber, setSelectedSubscriber] = useState(
     () => searchParams.get("subscriber_id") || "",
   );

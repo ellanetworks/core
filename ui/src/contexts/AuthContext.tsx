@@ -121,6 +121,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setAuthData({ email: decoded.email, role });
 
       if (tokenExpiringSoon(token)) {
+        clearRefreshTimer();
         refreshTimerRef.current = window.setTimeout(() => {
           void silentRefresh();
         }, MIN_REFRESH_DELAY_MS);
@@ -150,6 +151,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setAuthData({ email: decoded.email, role });
 
         if (tokenExpiringSoon(token)) {
+          clearRefreshTimer();
           refreshTimerRef.current = window.setTimeout(() => {
             void silentRefresh();
           }, MIN_REFRESH_DELAY_MS);
@@ -161,7 +163,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return false;
       }
     },
-    [scheduleRefresh], // eslint-disable-line react-hooks/exhaustive-deps
+    [scheduleRefresh, clearRefreshTimer], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   useEffect(() => {
