@@ -23,7 +23,6 @@ import { useTheme } from "@mui/material/styles";
 import {
   DataGrid,
   type GridColDef,
-  type GridPaginationModel,
   type GridRowParams,
   type GridRowId,
   type GridRowSelectionModel,
@@ -62,6 +61,7 @@ import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
 import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
+import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 
 const NGAP_MESSAGE_TYPES = [
   "AMFConfigurationUpdate",
@@ -222,10 +222,6 @@ export default function EventsTab() {
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
-    page: 0,
-    pageSize: 25,
-  });
 
   const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
     type: "include",
@@ -282,9 +278,6 @@ export default function EventsTab() {
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
-  const pageOneBased = paginationModel.page + 1;
-  const perPage = paginationModel.pageSize;
-
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
     if (radioFilter) params.radio = radioFilter;
@@ -303,6 +296,11 @@ export default function EventsTab() {
     timestampFrom,
     timestampTo,
   ]);
+
+  const [paginationModel, setPaginationModel] =
+    useFilteredPagination(filterParams);
+  const pageOneBased = paginationModel.page + 1;
+  const perPage = paginationModel.pageSize;
 
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
     queryKey: ["networkLogs", pageOneBased, perPage, filterParams],
