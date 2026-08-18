@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	lmfmodels "github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
+	coremodels "github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nrppa"
 	"go.uber.org/zap"
 )
@@ -68,16 +69,6 @@ var ecidMeasurementQuantities = []nrppa.MeasurementQuantityValue{
 // WaitForMeasurements. The method parameter is accepted for API compatibility;
 // only E-CID is supported in this MVP.
 func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method string) (int64, error) {
-	amfUe, ok := c.amf.LookupUeBySupi(supi)
-	if !ok {
-		return 0, fmt.Errorf("UE not found: %s", supi)
-	}
-
-	ranUe := amfUe.Conn()
-	if ranUe == nil {
-		return 0, fmt.Errorf("UE has no active RAN connection: %s", supi)
-	}
-
 	measID := c.nextMeasurementID()
 
 	payload, err := nrppa.BuildECIDMeasurementInitiationRequest(measID, ecidMeasurementQuantities)
@@ -85,9 +76,9 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 		return 0, fmt.Errorf("failed to build NRPPa E-CID request: %w", err)
 	}
 
-	// RoutingID 0 for MVP (not used by gNB tester).
-	if err := ranUe.SendDownlinkNRPPaTransport(ctx, 0, payload); err != nil {
-		return 0, fmt.Errorf("failed to send NRPPa transport: %w", err)
+	// RoutingID 0 for MVP (single LMF). A CM-IDLE UE is paged and the request buffered.
+	if err := c.amf.TransferN2NRPPaMsg(ctx, supi, 0, payload); err != nil {
+		return 0, fmt.Errorf("failed to transfer NRPPa E-CID request: %w", err)
 	}
 
 	logger.LmfLog.Debug("NRPPa E-CID measurement request sent",
@@ -97,6 +88,12 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, method
 	)
 
 	return measID, nil
+}
+
+// CancelMeasurements discards a request buffered for a paged UE, once the LMF stops
+// waiting. Safe to call unconditionally.
+func (c *Client) CancelMeasurements(supi etsi.SUPI, _ int64) {
+	c.amf.CancelBufferedN1N2(supi, "", coremodels.N2ClassNRPPa)
 }
 
 // WaitForMeasurements blocks until an NRPPa E-CIDMeasurementInitiationResponse
