@@ -682,6 +682,8 @@ func (ue *UeContext) Deregister(ctx context.Context) {
 		conn.Release()
 	}
 
+	ue.endKeyChainProcs()
+
 	ue.mu.Lock()
 
 	ue.stopUeMuTimersLocked()

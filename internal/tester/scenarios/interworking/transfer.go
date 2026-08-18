@@ -95,7 +95,11 @@ func runTransfer5GSToEPS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertContinuity(fiveGS, eps)
+	if err := assertContinuity(fiveGS, eps); err != nil {
+		return err
+	}
+
+	return assertRegisteredOn(ctx, env, "4G")
 }
 
 func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
@@ -109,7 +113,11 @@ func runTransferEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertContinuity(eps, fiveGS)
+	if err := assertContinuity(eps, fiveGS); err != nil {
+		return err
+	}
+
+	return assertRegisteredOn(ctx, env, "5G")
 }
 
 func establishOn5GS(ctx context.Context, env scenarios.Env) (sessionFacts, error) {

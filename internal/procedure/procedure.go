@@ -37,16 +37,18 @@ const (
 	Retain
 )
 
+// Retain re-invokes it an interval later, so its Retain path must have no side effects.
 type CancelFunc func(context.Context) (Disposition, error)
 
 // held is the single active procedure. A fresh value is allocated per Begin, so a
 // deadline timer captures its own instance by pointer identity and cannot expire a
 // later procedure that reused the same Type.
 type held struct {
-	typ    Type
-	timer  *time.Timer
-	cancel CancelFunc
-
+	typ      Type
+	timer    *time.Timer
+	cancel   CancelFunc
+	interval time.Duration
+	retains  int
 	settling bool
 	ended    bool
 }
@@ -120,7 +122,8 @@ func (r *Registry) Supervise(t Type, deadline time.Time, cancel CancelFunc) erro
 		d = time.Millisecond
 	}
 
-	r.active.timer = time.AfterFunc(d, func() { r.expire(h) })
+	h.interval, h.retains = d, 0
+	h.timer = time.AfterFunc(d, func() { r.expire(h) })
 
 	return nil
 }
@@ -239,10 +242,13 @@ func (r *Registry) settle(ctx context.Context, h *held) {
 	}
 
 	if disposition == Retain && !h.ended {
-		h.timer, h.cancel = nil, nil
+		h.retains++
+		h.timer = time.AfterFunc(h.interval, func() { r.expire(h) })
 
-		r.log.Info("procedure outlived its deadline and was retained by its cancel callback",
-			zap.String("type", string(h.typ)))
+		r.log.Warn("procedure retained past its deadline by its cancel callback; supervision re-armed",
+			zap.String("type", string(h.typ)),
+			zap.Int("retains", h.retains),
+			zap.Duration("interval", h.interval))
 
 		return
 	}

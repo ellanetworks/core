@@ -473,8 +473,8 @@ func TestRelocationCompleteReleasesTheSourceGNB(t *testing.T) {
 	}
 }
 
-// TS 23.501 §5.17.2.2
-func TestHandoverToEPSDeregistersTheUEInFiveGS(t *testing.T) {
+// TS 23.501 §5.17.2.1, TS 33.501 §8.4.2 step 10
+func TestHandoverToEPSDeregistersTheUEButKeepsItsFiveGSContext(t *testing.T) {
 	peer := &epsPeerStub{accepted: []uint8{1}}
 	amfInstance, amfUe, sender, sourceRan := relocatingUe(t, peer, 1)
 
@@ -510,8 +510,25 @@ func TestHandoverToEPSDeregistersTheUEInFiveGS(t *testing.T) {
 	HandleUEContextReleaseComplete(context.Background(), amfInstance, sourceRan,
 		&ngap.UEContextReleaseComplete{AMFUENGAPID: &amfID, RANUENGAPID: &ranID})
 
-	if _, ok := amfInstance.LookupUeBySupi(amfUe.Supi()); ok {
-		t.Error("the 5GS context outlived the source gNB's UE Context Release Complete")
+	held, ok := amfInstance.LookupUeBySupi(amfUe.Supi())
+	if !ok {
+		t.Fatal("the 5G security context was thrown away with the source gNB's connection; a return from EPS now costs a primary authentication")
+	}
+
+	if held != amfUe {
+		t.Error("the retained context is not the one that moved to EPS")
+	}
+
+	if got := held.State(); got != amf.Deregistered {
+		t.Errorf("5GMM state of the retained context = %v, want Deregistered", got)
+	}
+
+	if _, ok := amfInstance.ConnectedSubscribers()[imsi]; ok {
+		t.Error("the retained context is reported as a connected 5G subscriber")
+	}
+
+	if held.Conn() != nil {
+		t.Error("the retained context still holds a RAN connection")
 	}
 }
 

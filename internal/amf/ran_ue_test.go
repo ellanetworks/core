@@ -252,3 +252,54 @@ func TestRemoveAllUeInRan_NoUeContext(t *testing.T) {
 		t.Errorf("RanUEs count = %d, want 0", radio.NumUEsForTest())
 	}
 }
+
+// TS 24.501 §5.5.1.3
+func TestReleaseUeConn_HandoverKeepsTheContextOfANonRegisteredUE(t *testing.T) {
+	for _, state := range []amf.StateType{
+		amf.Deregistered,
+		amf.RegistrationInitiated,
+		amf.Registered,
+		amf.DeregistrationInitiated,
+	} {
+		t.Run(state.String(), func(t *testing.T) {
+			radio := newTestRadioForUeConn()
+			ue, ueConn := newBoundUeContext(t, radio)
+			ue.ForceStateForTest(state)
+
+			supi := mustSUPI(t)
+			ue.SetSupiForTest(supi)
+
+			amfInstance := radio.AMFForTest()
+			if err := amfInstance.CommitUEIdentity(context.Background(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+				t.Fatalf("CommitUEIdentity: %v", err)
+			}
+
+			ueConn.ReleaseAction = amf.UeContextReleaseHandover
+			amfInstance.ReleaseUeConn(context.Background(), ueConn)
+
+			if _, ok := amfInstance.LookupUeBySupi(supi); !ok {
+				t.Error("a handover release deleted the UE context")
+			}
+		})
+	}
+}
+
+// A retained procedure re-arms its deadline, so it must not outlive the UE that owns it.
+func TestDeregister_EndsKeyChainProcedures(t *testing.T) {
+	for _, proc := range []procedure.Type{procedure.SecurityMode, procedure.N2Handover, procedure.PathSwitch} {
+		t.Run(string(proc), func(t *testing.T) {
+			radio := newTestRadioForUeConn()
+			ue, _ := newBoundUeContext(t, radio)
+
+			if err := ue.Procedures().Begin(proc); err != nil {
+				t.Fatalf("Begin: %v", err)
+			}
+
+			ue.Deregister(context.Background())
+
+			if ue.Procedures().Active(proc) {
+				t.Error("a deregistered UE still holds its key chain")
+			}
+		})
+	}
+}

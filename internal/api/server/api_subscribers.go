@@ -72,12 +72,10 @@ func (s *SubscriberDetailStatus) applyIdentity(imei, ciphering, integrity string
 		s.Imei = imei
 	}
 
-	if ciphering != "" {
-		s.CipheringAlgorithm = ciphering
-	}
-
-	if integrity != "" {
-		s.IntegrityAlgorithm = integrity
+	// The algorithms are one access's NAS security context, so they move together: a 5G
+	// cipher beside a 4G integrity algorithm describes no context the UE ever had.
+	if ciphering != "" || integrity != "" {
+		s.CipheringAlgorithm, s.IntegrityAlgorithm = ciphering, integrity
 	}
 }
 

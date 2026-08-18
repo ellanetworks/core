@@ -41,10 +41,11 @@ func pausedTeardown(t *testing.T, r *procedure.Registry, d procedure.Disposition
 	}
 
 	started, release := make(chan struct{}), make(chan struct{})
+	announce := sync.OnceFunc(func() { close(started) })
 
 	err := r.Supervise(procedure.N2Handover, time.Now().Add(time.Millisecond),
 		func(context.Context) (procedure.Disposition, error) {
-			close(started)
+			announce()
 			<-release
 
 			return d, nil
@@ -131,6 +132,35 @@ func TestRetainKeepsTheProcedureActivePastItsDeadline(t *testing.T) {
 	}, "End to release the retained procedure")
 }
 
+func TestRetainReArmsSupervisionSoTheProcedureCanStillBeTornDown(t *testing.T) {
+	r := newTestRegistry()
+
+	if err := r.Begin(procedure.N2Handover); err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	var calls atomic.Int32
+
+	err := r.Supervise(procedure.N2Handover, time.Now().Add(5*time.Millisecond),
+		func(context.Context) (procedure.Disposition, error) {
+			if calls.Add(1) < 3 {
+				return procedure.Retain, nil
+			}
+
+			return procedure.Release, nil
+		})
+	if err != nil {
+		t.Fatalf("Supervise failed: %v", err)
+	}
+
+	waitUntil(t, func() bool { return !r.Active(procedure.N2Handover) },
+		"a retained procedure to be rechecked and released without an End")
+
+	if got := calls.Load(); got < 3 {
+		t.Errorf("the cancel callback ran %d times, want it re-invoked until it released", got)
+	}
+}
+
 func TestEndDuringTeardownDoesNotFreeTheSlotEarly(t *testing.T) {
 	r := newTestRegistry()
 
@@ -199,6 +229,7 @@ func TestExplicitCancelAlsoHoldsTheSlot(t *testing.T) {
 	}
 
 	cancelled := make(chan error, 1)
+
 	go func() { cancelled <- r.Cancel(context.Background(), procedure.N2Handover) }()
 
 	<-started

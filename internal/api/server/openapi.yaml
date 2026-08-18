@@ -3868,8 +3868,8 @@ components:
             enum: ["4G", "5G"]
           description: >-
             Every access the subscriber is currently registered on. The security
-            algorithms and IMEI below belong to one access; a dual-registered
-            subscriber reports those of whichever last heard from it.
+            algorithms below are one access's, whichever last heard from the UE;
+            the IMEI is the device's, from whichever access reports one.
         imei:
           type: string
           description: IMEI of the connected device.

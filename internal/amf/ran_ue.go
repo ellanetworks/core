@@ -31,9 +31,6 @@ const (
 	UeContextReleaseHandover
 	UeContextReleaseUeContext
 	UeContextReleaseDueToNwInitiatedDeregistraion
-	// UeContextReleaseAbortRegistration releases the RAN context of a UE whose in-flight
-	// registration failed. Cleanup deletes the UE context unconditionally, unlike
-	// UeContextReleaseUeContext, which retains a Secured (registered) UE.
 	UeContextReleaseAbortRegistration
 )
 
@@ -433,10 +430,6 @@ func (ueConn *UeConn) StopReleaseGuard() {
 	ueConn.releaseGuard.Stop()
 }
 
-// ReleaseUeConn performs the ReleaseAction-keyed teardown of a UE's RAN connection after
-// a UE Context Release. It runs both on a UE Context Release Complete and, if that
-// Complete is lost, from the release guard's timeout, so a lost Complete cannot leak the
-// UeConn.
 func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
@@ -491,10 +484,6 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
 			logger.From(ctx, ueConn.Log).Error(err.Error())
-		}
-
-		if amfUe.State() != Registered {
-			a.DeregisterAndRemoveUeContext(ctx, amfUe)
 		}
 	default:
 		logger.From(ctx, ueConn.Log).Error("Invalid Release Action", zap.Any("ReleaseAction", ueConn.ReleaseAction))

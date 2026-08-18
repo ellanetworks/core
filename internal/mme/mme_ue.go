@@ -740,6 +740,8 @@ func (m *MME) RemoveUe(ue *UeContext) {
 // removeContextLocked deletes the UE from every registry index and stops all its
 // supervision. The caller holds m.mu.
 func (m *MME) removeContextLocked(ue *UeContext) {
+	ue.clearKeyChainProc()
+
 	m.stopIdleTimersLocked(ue)
 	m.stopPagingLocked(ue)
 	m.releaseMTMSIsLocked(ue)
