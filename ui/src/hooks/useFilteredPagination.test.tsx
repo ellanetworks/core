@@ -16,10 +16,6 @@ const Grid = () => {
 
   setUser = setUserState;
   setPage = (p) => setPagination((prev) => ({ ...prev, page: p }));
-
-  // Recorded in an effect so this captures what actually commits. A render-phase
-  // reset re-renders before committing, so a discarded render never reaches here
-  // -- and never reaches React Query's observer either.
   useEffect(() => {
     requested.push(pagination.page);
   }, [pagination.page, user]);
@@ -49,9 +45,6 @@ describe("useFilteredPagination", () => {
 
     requested.length = 0;
     act(() => setUser("admin@ellanetworks.com"));
-
-    // An effect-based reset would commit page 5 once under the new filter and
-    // fire a query for an offset the filtered set does not reach.
     expect(requested).not.toContain(5);
     expect(requested).toContain(0);
   });

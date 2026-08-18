@@ -99,10 +99,6 @@ describe("AuthProvider token handling", () => {
     expect(refreshMock).toHaveBeenCalledTimes(1);
 
     await flush(30_000);
-
-    // One chain refreshing every MIN_REFRESH_DELAY_MS (5s) over 30s is 6 more
-    // calls, for 7 total. More than that means a timer was replaced without
-    // being cancelled and two chains are now running in parallel.
     expect(refreshMock).toHaveBeenCalledTimes(7);
   });
 });

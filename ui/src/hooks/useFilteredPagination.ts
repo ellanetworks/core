@@ -4,18 +4,6 @@
 import { useState } from "react";
 import type { GridPaginationModel } from "@mui/x-data-grid";
 
-/**
- * Pagination state that returns to the first page whenever the filters change.
- *
- * Without this, narrowing a filter while past page 1 leaves the grid requesting
- * an offset the filtered result set no longer reaches, so it renders its empty
- * state even though matches exist on page 1.
- *
- * The reset happens during render rather than in an effect: an effect would let
- * one query fire against the stale page first, which briefly shows that same
- * wrong empty state. Assigning state during render is React's documented way to
- * adjust state when an input changes, and re-renders before anything commits.
- */
 export function useFilteredPagination(
   filters: unknown,
   pageSize = 25,

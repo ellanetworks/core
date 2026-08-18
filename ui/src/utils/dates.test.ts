@@ -84,7 +84,6 @@ describe("defaultDateRange", () => {
   });
 
   it("stays on the local day across a DST spring-forward transition", () => {
-    // US DST begins 2026-03-08; a naive UTC-based range slips a day here.
     expect(
       inZone("America/New_York", () =>
         defaultDateRange(7, new Date("2026-03-09T12:00:00Z")),
