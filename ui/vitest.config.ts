@@ -9,7 +9,10 @@ export default defineConfig({
     alias: { "@": path.resolve(import.meta.dirname, "./src") },
   },
   test: {
-    environment: "node",
+    // jsdom, not node: components cannot be rendered without a DOM, and a
+    // node environment silently limits the suite to pure-function assertions.
+    // The pure-logic tests are unaffected by running under jsdom.
+    environment: "jsdom",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     setupFiles: ["./vitest.setup.ts"],
   },
