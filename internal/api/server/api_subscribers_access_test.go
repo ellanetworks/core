@@ -57,9 +57,6 @@ func TestMergeAccesses(t *testing.T) {
 			wantSeenAt: newer,
 		},
 		{
-			// The UE hands over or re-attaches onto the eNB while the 5GS registration
-			// is still standing but idle. The eNB is the answer; reporting no radio
-			// because the idle access has none is the bug this guards.
 			name:       "4G serving, 5G registered but idle",
 			view4G:     accessView{rat: "4G", present: true, radioName: "enb-1", lastSeenAt: newer},
 			view5G:     accessView{rat: "5G", present: true, lastSeenAt: older},
@@ -109,9 +106,6 @@ func TestMergeAccesses(t *testing.T) {
 	}
 }
 
-// The identity and NAS security algorithms are per access, so the caller applies the
-// access that heard from the UE longer ago first. An access that knows no value must
-// not blank what the other one reported.
 func TestApplyIdentityKeepsWhatTheOtherAccessKnows(t *testing.T) {
 	status := SubscriberDetailStatus{}
 
