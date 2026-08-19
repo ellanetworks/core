@@ -21,6 +21,8 @@ func handleConfigurationUpdateCommand(ue *UE, plain []byte, amfUENGAPID int64, r
 		ue.Set5gGuti(cmd.GUTI)
 	}
 
+	logNITZ(ue, cmd)
+
 	if cmd.ConfigurationUpdateIndication == nil || !cmd.ConfigurationUpdateIndication.ACK {
 		logger.UeLogger.Debug(
 			"Configuration Update Command without acknowledgement requested, not replying",
@@ -51,4 +53,26 @@ func handleConfigurationUpdateCommand(ue *UE, plain []byte, amfUENGAPID int64, r
 	)
 
 	return nil
+}
+
+func logNITZ(ue *UE, cmd *fgs.ConfigurationUpdateCommand) {
+	if cmd.UniversalTime == nil && cmd.LocalTimeZone == nil && cmd.DaylightSavingTime == nil {
+		return
+	}
+
+	fields := []zap.Field{zap.String("IMSI", ue.UeSecurity.Supi)}
+
+	if cmd.UniversalTime != nil {
+		fields = append(fields, zap.Stringer("universalTime", cmd.UniversalTime))
+	}
+
+	if cmd.LocalTimeZone != nil {
+		fields = append(fields, zap.Stringer("localTimeZone", cmd.LocalTimeZone))
+	}
+
+	if cmd.DaylightSavingTime != nil {
+		fields = append(fields, zap.Stringer("daylightSavingTime", cmd.DaylightSavingTime))
+	}
+
+	logger.UeLogger.Info("Received network time in Configuration Update Command", fields...)
 }

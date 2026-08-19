@@ -122,7 +122,7 @@ func (t TimeZoneAndTime) Time() (time.Time, bool) {
 	}
 
 	when := time.Date(2000+fields[0], time.Month(fields[1]), fields[2],
-		fields[3], fields[4], fields[5], 0, time.FixedZone("", int(offset/time.Second)))
+		fields[3], fields[4], fields[5], 0, time.UTC)
 
 	// A field out of range rolls over rather than failing, so the round trip is
 	// what proves every field named a real date.
@@ -131,7 +131,7 @@ func (t TimeZoneAndTime) Time() (time.Time, bool) {
 		return time.Time{}, false
 	}
 
-	return when, true
+	return when.In(time.FixedZone("", int(offset/time.Second))), true
 }
 
 // NewTimeZoneAndTime encodes an instant and the offset its location is at.
@@ -143,18 +143,20 @@ func NewTimeZoneAndTime(when time.Time) (TimeZoneAndTime, error) {
 		return TimeZoneAndTime{}, err
 	}
 
-	year := when.Year()
+	utc := when.UTC()
+
+	year := utc.Year()
 	if year < 2000 || year > 2099 {
 		return TimeZoneAndTime{}, fmt.Errorf("nas: year %d is outside the two digits the element holds", year)
 	}
 
 	return TimeZoneAndTime{
 		Year:   swapBCDPair(year - 2000),
-		Month:  swapBCDPair(int(when.Month())),
-		Day:    swapBCDPair(when.Day()),
-		Hour:   swapBCDPair(when.Hour()),
-		Minute: swapBCDPair(when.Minute()),
-		Second: swapBCDPair(when.Second()),
+		Month:  swapBCDPair(int(utc.Month())),
+		Day:    swapBCDPair(utc.Day()),
+		Hour:   swapBCDPair(utc.Hour()),
+		Minute: swapBCDPair(utc.Minute()),
+		Second: swapBCDPair(utc.Second()),
 		Zone:   zone,
 	}, nil
 }
@@ -200,6 +202,29 @@ const (
 	DaylightSavingOneHour DaylightSavingTime = 1
 	DaylightSavingTwoHour DaylightSavingTime = 2
 )
+
+// NewDaylightSavingTime reports the summer-time part of when's offset.
+func NewDaylightSavingTime(when time.Time) DaylightSavingTime {
+	_, offset := when.Zone()
+
+	switch adjustment := time.Duration(offset-standardOffset(when)) * time.Second; adjustment {
+	case time.Hour:
+		return DaylightSavingOneHour
+	case 2 * time.Hour:
+		return DaylightSavingTwoHour
+	default:
+		return DaylightSavingNone
+	}
+}
+
+func standardOffset(when time.Time) int {
+	loc, year := when.Location(), when.Year()
+
+	_, january := time.Date(year, time.January, 15, 12, 0, 0, 0, loc).Zone()
+	_, july := time.Date(year, time.July, 15, 12, 0, 0, 0, loc).Zone()
+
+	return min(january, july)
+}
 
 // Adjustment returns the summer-time adjustment and whether the value is one
 // TS 24.008 assigns; the fourth is reserved.
