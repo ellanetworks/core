@@ -36,3 +36,11 @@ test("bad credentials keep the operator on the login page", async ({
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test("an admin-only route sends an unauthenticated visitor to login", async ({
+  page,
+}) => {
+  await page.goto("/users");
+
+  await expect(page).toHaveURL(/\/login$/);
+});

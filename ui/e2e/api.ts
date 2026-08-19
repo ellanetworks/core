@@ -68,6 +68,43 @@ export async function adminToken(request: APIRequestContext): Promise<string> {
   return login.token;
 }
 
+export const RoleID = {
+  Admin: 1,
+  ReadOnly: 2,
+  NetworkManager: 3,
+} as const;
+
+export async function ensureUser(
+  request: APIRequestContext,
+  token: string,
+  email: string,
+  password: string,
+  roleId: number,
+): Promise<void> {
+  const existing = await request.get(
+    `/api/v1/users/${encodeURIComponent(email)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (existing.ok()) return;
+
+  const response = await request.post("/api/v1/users", {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { email, password, role_id: roleId },
+  });
+
+  if (!response.ok()) {
+    const retry = await request.get(
+      `/api/v1/users/${encodeURIComponent(email)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!retry.ok()) {
+      throw new Error(
+        `could not create ${email}: ${response.status()} ${await response.text()}`,
+      );
+    }
+  }
+}
+
 export async function deleteSubscriberIfPresent(
   request: APIRequestContext,
   token: string,
