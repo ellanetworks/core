@@ -3,6 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 import { ADMIN_EMAIL, ADMIN_PASSWORD, ensureInitialized } from "../api";
+import { assertNoA11yViolations } from "../a11y";
 
 test.beforeAll(async ({ request }) => {
   await ensureInitialized(request);
@@ -43,4 +44,11 @@ test("an admin-only route sends an unauthenticated visitor to login", async ({
   await page.goto("/users");
 
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("the login page has no accessibility violations", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page.getByRole("button", { name: "Login" })).toBeVisible();
+
+  await assertNoA11yViolations(page, "Login");
 });

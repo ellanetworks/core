@@ -345,8 +345,16 @@ export default function DrawerLayout({
 
             {role === "Admin" && (
               <>
-                <Divider />
-                <ListSubheader>System</ListSubheader>
+                <ListSubheader
+                  sx={{
+                    borderTop: 1,
+                    borderColor: "divider",
+                    mt: 1,
+                    pt: 1,
+                  }}
+                >
+                  System
+                </ListSubheader>
 
                 <ListItem disablePadding>
                   <ListItemButton

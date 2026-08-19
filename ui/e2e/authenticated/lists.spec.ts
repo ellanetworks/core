@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { assertNoA11yViolations } from "../a11y";
 import {
   adminToken,
   deleteSubscriberIfPresent,
@@ -141,5 +142,7 @@ for (const resource of RESOURCES) {
     expect(text).not.toMatch(/\bundefined\b/);
     expect(text).not.toMatch(/\bNaN\b/);
     expect(text).not.toMatch(/\[object Object\]/);
+
+    await assertNoA11yViolations(page, resource.label);
   });
 }

@@ -3,6 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 import { adminToken, deleteSubscriberIfPresent } from "../api";
+import { assertNoA11yViolations } from "../a11y";
 
 const PROFILE = "default";
 const KEY = "00112233445566778899aabbccddeeff";
@@ -41,6 +42,7 @@ test("an operator can create, open and delete a subscriber", async ({
 
     const dialog = page.getByRole("dialog", { name: "Create Subscriber" });
     await expect(dialog).toBeVisible();
+    await assertNoA11yViolations(page, "Create Subscriber dialog");
 
     await dialog.getByLabel(/^IMSI/).fill(msin);
     await dialog.getByLabel(/^Key/).fill(KEY);
