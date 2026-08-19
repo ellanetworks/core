@@ -724,6 +724,54 @@ This path updates the flow accounting configuration.
 }
 ```
 
+# Local Switch
+
+Local switching forwards UE-to-UE traffic directly inside the user plane. When enabled, uplink traffic from one UE destined for another UE on the same UPF is forwarded locally instead of being routed out over N6. It is disabled by default.
+
+## Get Local Switch Info
+
+This path returns the current local switch status.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/networking/local-switch` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": false
+    }
+}
+```
+
+## Update Local Switch Info
+
+This path enables or disables local switching. The change is applied to the user plane immediately.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| PUT    | `/api/v1/networking/local-switch` |
+
+### Parameters
+
+- `enabled` (boolean): Enable or disable UE-to-UE local switching.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Local switch settings updated successfully"
+    }
+}
+```
+
 # BGP
 
 ## Get BGP Settings
