@@ -64,13 +64,14 @@ npm run build --prefix ui
 Install pre-requisites:
 
 ```shell
-sudo apt install clang llvm gcc-multilib libbpf-dev
+sudo apt install gcc
 sudo snap install go --channel=1.26/stable --classic
 ```
 
 Generate the eBPF Go bindings:
 
 ```shell
+sudo apt install clang llvm libbpf-dev
 go generate ./...
 ```
 
