@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -351,7 +352,7 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	acceptDefaultBearerFromAttach(ctx, m, ue, msg.ESMMessageContainer)
 
-	sendNetworkName(ctx, m, ue, ueConn)
+	sendNITZ(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
 }
@@ -368,26 +369,44 @@ func acceptDefaultBearerFromAttach(ctx context.Context, m *mme.MME, ue *mme.UeCo
 	handleActivateDefaultBearerAccept(ctx, m, ue, accept)
 }
 
-// sendNetworkName provides the operator's network name to the UE in an EMM
-// INFORMATION message (TS 24.301).
-func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+// sendNITZ provides the UE with the network's identity and time in an EMM
+// INFORMATION message (TS 24.301 §5.4.5). The procedure is optional in the
+// network and carries no acknowledgement, so this is the one chance the UE gets
+// until it attaches again.
+//
+// Every part is optional and independent: a missing operator record does not
+// withhold the time, and a clock the elements cannot describe does not withhold
+// the name. Only when nothing at all could be filled in is the message skipped,
+// since an empty EMM INFORMATION tells the UE nothing.
+func sendNITZ(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+	info := &eps.EMMInformation{}
+
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))
+	}
+
+	if op != nil {
+		if op.SpnFullName != "" {
+			info.FullNameForNetwork = new(nas.NewNetworkName(op.SpnFullName))
+		}
+
+		if op.SpnShortName != "" {
+			info.ShortNameForNetwork = new(nas.NewNetworkName(op.SpnShortName))
+		}
+	}
+
+	// Built from the host's clock and zone (TS 24.301 §8.2.13.4 to §8.2.13.6).
+	if networkTime, err := nas.NewNetworkTime(time.Now()); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("omitting the time from EMM INFORMATION", zap.String("imsi", ue.IMSI()), zap.Error(err))
+	} else {
+		info.LocalTimeZone = &networkTime.LocalTimeZone
+		info.UniversalTime = &networkTime.UniversalTime
+		info.DaylightSavingTime = &networkTime.DaylightSavingTime
+	}
+
+	if info.FullNameForNetwork == nil && info.ShortNameForNetwork == nil && info.UniversalTime == nil {
 		return
-	}
-
-	if op.SpnFullName == "" && op.SpnShortName == "" {
-		return
-	}
-
-	info := &eps.EMMInformation{}
-	if op.SpnFullName != "" {
-		info.FullNameForNetwork = new(nas.NewNetworkName(op.SpnFullName))
-	}
-
-	if op.SpnShortName != "" {
-		info.ShortNameForNetwork = new(nas.NewNetworkName(op.SpnShortName))
 	}
 
 	ueConn.SendDownlinkProtected(ctx, info)

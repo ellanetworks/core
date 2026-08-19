@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -498,7 +499,18 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		return
 	}
 
-	plain, err := BuildConfigurationUpdateCommand(guti, operator.SpnFullName, operator.SpnShortName, includeGUTI)
+	// The time-carrying NITZ elements are built from the host's clock and zone.
+	// A clock they cannot describe is worth reporting but must not withhold the
+	// 5G-GUTI, so the command goes out without them (TS 24.501 §8.2.19.9-11).
+	var networkTime *nas.NetworkTime
+
+	if built, err := nas.NewNetworkTime(time.Now()); err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("omitting the time from Configuration Update Command", zap.Error(err))
+	} else {
+		networkTime = &built
+	}
+
+	plain, err := BuildConfigurationUpdateCommand(guti, operator.SpnFullName, operator.SpnShortName, networkTime, includeGUTI)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("error building ConfigurationUpdateCommand", zap.Error(err))
 
