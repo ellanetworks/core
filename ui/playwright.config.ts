@@ -10,6 +10,7 @@ const SESSION_FILE = "e2e/.auth/admin.json";
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   globalTeardown: "./e2e/global-teardown.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -45,8 +46,10 @@ export default defineConfig({
   ...(!process.env.ELLA_E2E_BASE_URL && {
     webServer: {
       command:
-        "docker compose -f e2e/compose.yaml down -v && " +
-        "docker compose -f e2e/compose.yaml up",
+        "npm run build && " +
+        "mkdir -p e2e/.build && (cd .. && go build -o ui/e2e/.build/core ./cmd/core) && " +
+        "docker compose -f e2e/compose.yaml -f e2e/compose.local.yaml down -v && " +
+        "docker compose -f e2e/compose.yaml -f e2e/compose.local.yaml up",
       env: { ELLA_E2E_PORT: E2E_PORT },
       url: `${DEFAULT_URL}/api/v1/status`,
       reuseExistingServer: false,
