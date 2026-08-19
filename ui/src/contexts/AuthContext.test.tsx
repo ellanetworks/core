@@ -22,12 +22,12 @@ const Probe = () => {
   );
 };
 
-const mountWithNavToken = (token: string) =>
+const mount = () =>
   renderWithProviders(
     <AuthProvider>
       <Probe />
     </AuthProvider>,
-    { initialEntries: [{ pathname: "/dashboard", state: { token } }] },
+    { initialEntries: ["/dashboard"] },
   );
 
 const flush = async (ms = 0) => {
@@ -54,34 +54,56 @@ afterEach(() => {
 });
 
 describe("AuthProvider token handling", () => {
-  it("adopts a token passed through navigation state without calling refresh", async () => {
-    mountWithNavToken(makeToken({ expiresInSec: 3600, roleId: 1 }));
+  it("obtains its access token from the session cookie on mount", async () => {
+    refreshMock.mockResolvedValue({ token: makeToken({ expiresInSec: 3600 }) });
+
+    mount();
     await flush();
 
     expect(screen.getByTestId("token")).toHaveTextContent("present");
-    expect(screen.getByTestId("role")).toHaveTextContent("Admin");
-    expect(refreshMock).not.toHaveBeenCalled();
+    expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 
-  it("maps role ids to labels", async () => {
-    mountWithNavToken(makeToken({ expiresInSec: 3600, roleId: 3 }));
-    await flush();
-
-    expect(screen.getByTestId("role")).toHaveTextContent("Network Manager");
-  });
-
-  it("refreshes on mount when no token is supplied", async () => {
+  it("never reads a token from browser history state", async () => {
     refreshMock.mockResolvedValue({ token: makeToken({ expiresInSec: 3600 }) });
 
     renderWithProviders(
       <AuthProvider>
         <Probe />
       </AuthProvider>,
+      {
+        initialEntries: [
+          {
+            pathname: "/dashboard",
+            state: { token: makeToken({ roleId: 1 }) },
+          },
+        ],
+      },
     );
     await flush();
 
-    expect(screen.getByTestId("token")).toHaveTextContent("present");
     expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps role ids to labels", async () => {
+    refreshMock.mockResolvedValue({
+      token: makeToken({ expiresInSec: 3600, roleId: 3 }),
+    });
+
+    mount();
+    await flush();
+
+    expect(screen.getByTestId("role")).toHaveTextContent("Network Manager");
+  });
+
+  it("clears the session when the refresh call fails", async () => {
+    refreshMock.mockRejectedValue(new Error("no session"));
+
+    mount();
+    await flush();
+
+    expect(screen.getByTestId("token")).toHaveTextContent("absent");
+    expect(screen.getByTestId("email")).toHaveTextContent("-");
   });
 
   it("arms exactly one refresh chain when a visibility change interrupts a pending timer", async () => {
@@ -89,16 +111,17 @@ describe("AuthProvider token handling", () => {
       token: makeToken({ expiresInSec: 60 }),
     }));
 
-    mountWithNavToken(makeToken({ expiresInSec: 60 }));
+    mount();
     await flush();
-    expect(refreshMock).toHaveBeenCalledTimes(0);
+    expect(refreshMock).toHaveBeenCalledTimes(1);
 
     await flush(2000);
     fireVisible();
     await flush();
-    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(refreshMock).toHaveBeenCalledTimes(2);
 
     await flush(30_000);
-    expect(refreshMock).toHaveBeenCalledTimes(7);
+
+    expect(refreshMock).toHaveBeenCalledTimes(8);
   });
 });

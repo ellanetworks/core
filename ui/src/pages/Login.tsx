@@ -101,7 +101,7 @@ const LoginPage = () => {
       try {
         const r = await refresh();
         if (r?.token) {
-          navigate(redirectTo, { state: { token: r.token } });
+          navigate(redirectTo);
           return;
         }
       } catch {
@@ -121,7 +121,7 @@ const LoginPage = () => {
       if (!loginResp?.token)
         throw new Error("Login succeeded but could not obtain access token.");
 
-      navigate(redirectTo, { state: { token: loginResp.token } });
+      navigate(redirectTo);
     } catch (err) {
       const error = err as Error;
       showSnackbar(error.message || "Login failed", "error");

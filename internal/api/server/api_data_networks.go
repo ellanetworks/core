@@ -23,17 +23,17 @@ import (
 
 type CreateDataNetworkParams struct {
 	Name     string `json:"name"`
-	IPv4Pool string `json:"ipv4_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
-	DNS      string `json:"dns,omitempty"`
-	MTU      int32  `json:"mtu,omitempty"`
+	DNS      string `json:"dns"`
+	MTU      int32  `json:"mtu"`
 }
 
 type UpdateDataNetworkParams struct {
-	IPv4Pool string `json:"ipv4_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
-	DNS      string `json:"dns,omitempty"`
-	MTU      int32  `json:"mtu,omitempty"`
+	DNS      string `json:"dns"`
+	MTU      int32  `json:"mtu"`
 }
 
 type DataNetworkStatus struct {
@@ -50,8 +50,8 @@ type DataNetwork struct {
 	Name           string                   `json:"name"`
 	IPv4Pool       string                   `json:"ipv4_pool"`
 	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
-	DNS            string                   `json:"dns,omitempty"`
-	MTU            int32                    `json:"mtu,omitempty"`
+	DNS            string                   `json:"dns"`
+	MTU            int32                    `json:"mtu"`
 	Status         DataNetworkStatus        `json:"status"`
 	IPAllocation   *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
 	IPv6Allocation *DataNetworkIPAllocation `json:"ipv6_allocation,omitempty"`
@@ -527,9 +527,6 @@ func isUeIPPoolValid(ueIPPool string) bool {
 	return err == nil
 }
 
-// isIPv6PoolValid validates an IPv6 prefix delegation pool CIDR.
-// The prefix must be valid IPv6 with a prefix length between /48 and /60
-// (we delegate /64s from within the pool).
 func isIPv6PoolValid(pool string) bool {
 	prefix, err := netip.ParsePrefix(pool)
 	if err != nil {
@@ -603,9 +600,6 @@ func validateUpdateDataNetworkParams(p UpdateDataNetworkParams) error {
 	return nil
 }
 
-// validateNoOverlap checks that cidr does not overlap with any existing data
-// network pool. excludeName is the name of the data network being updated
-// (empty for create) — its own pool is excluded from the comparison.
 func validateNoOverlap(ctx context.Context, dbInstance *db.Database, cidr string, excludeName string) error {
 	newPrefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
@@ -652,9 +646,6 @@ func validateNoOverlap(ctx context.Context, dbInstance *db.Database, cidr string
 	return nil
 }
 
-// validateNoIPv6Overlap checks that cidr does not overlap with any existing data
-// network IPv6 pool. excludeName is the name of the data network being updated
-// (empty for create) — its own pool is excluded from the comparison.
 func validateNoIPv6Overlap(ctx context.Context, dbInstance *db.Database, cidr string, excludeName string) error {
 	newPrefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
@@ -701,7 +692,6 @@ func validateNoIPv6Overlap(ctx context.Context, dbInstance *db.Database, cidr st
 	return nil
 }
 
-// CollectUEPools returns the UE IP pool CIDRs from all data networks.
 func CollectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix {
 	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err != nil {
@@ -727,8 +717,6 @@ func CollectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	return pools
 }
 
-// CollectFramedRoutes returns every framed-route prefix, for the BGP import
-// reject set: advertised framed prefixes must not be relearned from a peer.
 func CollectFramedRoutes(ctx context.Context, dbInstance *db.Database) []netip.Prefix {
 	rows, err := dbInstance.ListAllFramedRoutes(ctx)
 	if err != nil {

@@ -79,6 +79,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const tokenRef = useRef<string | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
   const refreshingRef = useRef(false);
+  const pathnameRef = useRef(location.pathname);
+  const silentRefreshRef = useRef<() => void>(() => {});
 
   const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current != null) {
@@ -87,23 +89,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const scheduleRefresh = useCallback((token: string) => {
-    clearRefreshTimer();
-    let delayMs = 30_000;
-    try {
-      const { exp } = jwtDecode<DecodedToken>(token);
-      if (exp) {
-        const now = Math.floor(Date.now() / 1000);
-        delayMs = Math.max(
-          MIN_REFRESH_DELAY_MS,
-          (exp - LEEWAY_SEC - now) * 1000,
-        );
-      }
-    } catch {}
-    refreshTimerRef.current = window.setTimeout(() => {
-      void silentRefresh();
-    }, delayMs);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const scheduleRefresh = useCallback(
+    (token: string) => {
+      clearRefreshTimer();
+      let delayMs = 30_000;
+      try {
+        const { exp } = jwtDecode<DecodedToken>(token);
+        if (exp) {
+          const now = Math.floor(Date.now() / 1000);
+          delayMs = Math.max(
+            MIN_REFRESH_DELAY_MS,
+            (exp - LEEWAY_SEC - now) * 1000,
+          );
+        }
+      } catch {}
+      refreshTimerRef.current = window.setTimeout(() => {
+        silentRefreshRef.current();
+      }, delayMs);
+    },
+    [clearRefreshTimer],
+  );
 
   const silentRefresh = useCallback(async () => {
     if (refreshingRef.current) return;
@@ -123,7 +128,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (tokenExpiringSoon(token)) {
         clearRefreshTimer();
         refreshTimerRef.current = window.setTimeout(() => {
-          void silentRefresh();
+          silentRefreshRef.current();
         }, MIN_REFRESH_DELAY_MS);
       } else {
         scheduleRefresh(token);
@@ -140,44 +145,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [navigate, scheduleRefresh, clearRefreshTimer]);
 
-  const applyToken = useCallback(
-    (token: string): boolean => {
-      try {
-        const decoded = jwtDecode<DecodedToken>(token);
-        const role = roleToString(decoded.role_id);
+  useEffect(() => {
+    silentRefreshRef.current = () => void silentRefresh();
+  }, [silentRefresh]);
 
-        tokenRef.current = token;
-        setAccessToken(token);
-        setAuthData({ email: decoded.email, role });
-
-        if (tokenExpiringSoon(token)) {
-          clearRefreshTimer();
-          refreshTimerRef.current = window.setTimeout(() => {
-            void silentRefresh();
-          }, MIN_REFRESH_DELAY_MS);
-        } else {
-          scheduleRefresh(token);
-        }
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [scheduleRefresh, clearRefreshTimer], // eslint-disable-line react-hooks/exhaustive-deps
-  );
+  useEffect(() => {
+    pathnameRef.current = location.pathname;
+  }, [location.pathname]);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const navToken = (location.state as { token?: string } | null)?.token;
-      if (navToken && applyToken(navToken)) {
-        // Clear the token from navigation state so it isn't reused on back-navigation.
-        window.history.replaceState({}, "");
-        if (!cancelled) setAuthReady(true);
-        return;
-      }
-
       try {
         await silentRefresh();
       } finally {
@@ -188,7 +167,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       cancelled = true;
       clearRefreshTimer();
     };
-  }, [silentRefresh, clearRefreshTimer, location.state, applyToken]);
+  }, [silentRefresh, clearRefreshTimer]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -201,9 +180,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [silentRefresh]);
-
-  const pathnameRef = useRef(location.pathname);
-  pathnameRef.current = location.pathname;
 
   useEffect(() => {
     setOnUnauthorized(() => {
