@@ -6,6 +6,7 @@ package nas
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
@@ -144,6 +145,51 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Error("expected T3555 not to be armed for a NITZ-only ConfigurationUpdateCommand")
+	}
+}
+
+// TS 24.501 §8.2.19
+func TestHandleRegistrationComplete_ConfigurationUpdateCommandCarriesTime(t *testing.T) {
+	ue, ngapSender := setupRegistrationCompleteUE(t)
+
+	before := time.Now()
+
+	handleRegistrationComplete(t.Context(), newTestAMF(), ue)
+
+	after := time.Now()
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport (ConfigurationUpdateCommand), got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	plain := decipherGmmCount(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, 0, uint8(fgs.MsgConfigurationUpdateCommand))
+
+	cuc, err := fgs.ParseConfigurationUpdateCommand(plain)
+	if err != nil {
+		t.Fatalf("NAS decode failed: %v", err)
+	}
+
+	if cuc.LocalTimeZone == nil || cuc.UniversalTime == nil || cuc.DaylightSavingTime == nil {
+		t.Fatalf("expected all three time elements, got zone %v time %v dst %v",
+			cuc.LocalTimeZone, cuc.UniversalTime, cuc.DaylightSavingTime)
+	}
+
+	sent, ok := cuc.UniversalTime.Time()
+	if !ok {
+		t.Fatal("the universal time element did not decode")
+	}
+
+	if sent.Before(before.Truncate(time.Second)) || sent.After(after) {
+		t.Errorf("universal time %s is outside [%s, %s]", sent, before, after)
+	}
+
+	if *cuc.LocalTimeZone != cuc.UniversalTime.Zone {
+		t.Errorf("local time zone %#02x disagrees with the universal time's %#02x",
+			byte(*cuc.LocalTimeZone), byte(cuc.UniversalTime.Zone))
+	}
+
+	if _, ok := cuc.DaylightSavingTime.Adjustment(); !ok {
+		t.Errorf("daylight saving time is the reserved value %#02x", byte(*cuc.DaylightSavingTime))
 	}
 }
 
