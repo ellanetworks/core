@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -33,6 +34,7 @@ type tunnel struct {
 	upfAddr *net.UDPAddr
 	ulteid  uint32
 	dlteid  uint32
+	rxCount atomic.Uint64
 }
 
 // TunnelOpts configures a GTP-U datapath for an attached UE's default bearer.
@@ -228,6 +230,20 @@ func WaitForULAAddr(ifName, prefix string, timeout time.Duration) error {
 	return fmt.Errorf("s1enb: timeout waiting for a global IPv6 address (prefix %s) on %s", prefix, ifName)
 }
 
+// TunnelRXCount returns the number of downlink G-PDUs received for the given
+// downlink TEID.
+func (e *ENB) TunnelRXCount(dlteid uint32) uint64 {
+	e.mu.Lock()
+	t := e.tunnels[dlteid]
+	e.mu.Unlock()
+
+	if t == nil {
+		return 0
+	}
+
+	return t.rxCount.Load()
+}
+
 // CloseTunnel tears down the tunnel for the given downlink TEID.
 func (e *ENB) CloseTunnel(dlteid uint32) {
 	e.mu.Lock()
@@ -296,6 +312,8 @@ func (e *ENB) gtpReader() {
 		if t == nil {
 			continue
 		}
+
+		t.rxCount.Add(1)
 
 		start := gtpHeaderLen
 

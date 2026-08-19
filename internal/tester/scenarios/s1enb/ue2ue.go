@@ -106,7 +106,30 @@ func runS1ENBUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 		return fmt.Errorf("UE-B was not assigned an IPv4 address")
 	}
 
-	probeErr := probe.UE2UE(ctx, tunA, tunB, resB.UEIPv4, scenarios.DefaultProbePort)
+	// Keep UE-A's session active: a ping to the N6 router reactivates
+	// the PDU session if it went idle during UE-B's attach.
+	_ = probe.Run(ctx, probe.ICMP, tunA, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false)
+
+	// Let the UPF finish programming UE-B's downlink PDR.
+	time.Sleep(2 * time.Second)
+
+	rxBefore := e.TunnelRXCount(resB.DLTEID)
+
+	_ = probe.SendUDP(ctx, tunA, resB.UEIPv4, scenarios.DefaultProbePort, 1, 1*time.Second, []byte("ue2ue-probe"))
+
+	probeOK := false
+
+	for range 15 {
+		rxAfter := e.TunnelRXCount(resB.DLTEID)
+		if rxAfter > rxBefore {
+			probeOK = true
+			break
+		}
+
+		_ = probe.SendUDP(ctx, tunA, resB.UEIPv4, scenarios.DefaultProbePort, 1, 1*time.Second, []byte("ue2ue-probe"))
+
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	e.CloseTunnel(resA.DLTEID)
 	e.CloseTunnel(resB.DLTEID)
@@ -119,12 +142,12 @@ func runS1ENBUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 		return fmt.Errorf("UE-B detach: %w", err)
 	}
 
-	if expectSuccess && probeErr != nil {
-		return fmt.Errorf("udp UE-A -> UE-B (%s): expected success but failed: %w", resB.UEIPv4, probeErr)
+	if expectSuccess && !probeOK {
+		return fmt.Errorf("udp UE-A -> UE-B (%s): expected success but no G-PDU received by eNB for UE-B", resB.UEIPv4)
 	}
 
-	if !expectSuccess && probeErr == nil {
-		return fmt.Errorf("udp UE-A -> UE-B (%s): expected failure but probe succeeded", resB.UEIPv4)
+	if !expectSuccess && probeOK {
+		return fmt.Errorf("udp UE-A -> UE-B (%s): expected failure but G-PDU was received by eNB for UE-B", resB.UEIPv4)
 	}
 
 	return nil

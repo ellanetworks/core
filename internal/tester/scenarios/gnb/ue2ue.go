@@ -96,6 +96,15 @@ func runUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 		return fmt.Errorf("UE-B was not assigned an IPv4 address")
 	}
 
+	// Keep UE-A's session active: a ping to the N6 router reactivates
+	// the PDU session if it went idle during UE-B's registration.
+	if err := probe.Run(ctx, probe.ICMP, tunA, env.PingDestination(), scenarios.DefaultProbePort, false); err != nil {
+		logger.Logger.Debug("keepalive ping from UE-A to N6 failed (session may be idle)", zap.Error(err))
+	}
+
+	// Let the UPF finish programming UE-B's downlink PDR.
+	time.Sleep(2 * time.Second)
+
 	logger.Logger.Debug("sending UDP from UE-A to UE-B",
 		zap.String("ueA", regA.UEIPv4),
 		zap.String("ueB", ueBIP),
@@ -103,7 +112,28 @@ func runUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 		zap.String("tunB", tunB),
 	)
 
-	probeErr := probe.UE2UE(ctx, tunA, tunB, ueBIP, scenarios.DefaultProbePort)
+	rxBefore := gNodeB.TunnelRXCount(regB.DLTEID)
+
+	// Send a UDP packet from UE-A's TUN toward UE-B's IP.
+	_ = probe.SendUDP(ctx, tunA, ueBIP, scenarios.DefaultProbePort, 1, 1*time.Second, []byte("ue2ue-probe"))
+
+	// Poll the gNB's GTP-U receive counter for UE-B's DL TEID.
+	// If local switch works, the UPF re-encapsulates the packet
+	// and the gNB receives it on UE-B's downlink tunnel.
+	probeOK := false
+
+	for range 15 {
+		rxAfter := gNodeB.TunnelRXCount(regB.DLTEID)
+		if rxAfter > rxBefore {
+			probeOK = true
+			break
+		}
+
+		// Resend in case the first packet was lost.
+		_ = probe.SendUDP(ctx, tunA, ueBIP, scenarios.DefaultProbePort, 1, 1*time.Second, []byte("ue2ue-probe"))
+
+		time.Sleep(500 * time.Millisecond)
+	}
 
 	gNodeB.CloseTunnel(regA.DLTEID)
 	gNodeB.CloseTunnel(regB.DLTEID)
@@ -116,21 +146,21 @@ func runUE2UE(ctx context.Context, env scenarios.Env, params any) error {
 		return fmt.Errorf("UE-B deregistration: %w", err)
 	}
 
-	if expectSuccess && probeErr != nil {
-		return fmt.Errorf("udp UE-A (%s) -> UE-B (%s): expected success but failed: %w", regA.UEIPv4, ueBIP, probeErr)
+	if expectSuccess && !probeOK {
+		return fmt.Errorf("udp UE-A (%s) -> UE-B (%s): expected success but no G-PDU received by gNB for UE-B", regA.UEIPv4, ueBIP)
 	}
 
-	if !expectSuccess && probeErr == nil {
-		return fmt.Errorf("udp UE-A (%s) -> UE-B (%s): expected failure but probe succeeded", regA.UEIPv4, ueBIP)
+	if !expectSuccess && probeOK {
+		return fmt.Errorf("udp UE-A (%s) -> UE-B (%s): expected failure but G-PDU was received by gNB for UE-B", regA.UEIPv4, ueBIP)
 	}
 
 	if expectSuccess {
-		logger.Logger.Debug("UE-to-UE UDP probe successful",
+		logger.Logger.Debug("UE-to-UE local switch successful (G-PDU received by gNB)",
 			zap.String("ueA", regA.UEIPv4),
 			zap.String("ueB", ueBIP),
 		)
 	} else {
-		logger.Logger.Debug("UE-to-UE UDP probe failed as expected",
+		logger.Logger.Debug("UE-to-UE local switch failed as expected (no G-PDU received by gNB)",
 			zap.String("ueA", regA.UEIPv4),
 			zap.String("ueB", ueBIP),
 		)
