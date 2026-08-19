@@ -3935,7 +3935,7 @@ components:
         result:
           $ref: "#/components/schemas/SubscriberDetail"
 
-    Slice:
+    SNSSAI:
       type: object
       description: "5G network slice identifier (S-NSSAI). Absent for 4G sessions."
       properties:
@@ -3975,7 +3975,7 @@ components:
           type: string
           description: "Data network name (DNN in 5G / APN in 4G)."
         slice:
-          $ref: "#/components/schemas/Slice"
+          $ref: "#/components/schemas/SNSSAI"
         ambr_uplink:
           type: string
           description: "Effective uplink session AMBR (e.g. \"100 Mbps\")."

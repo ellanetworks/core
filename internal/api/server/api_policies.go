@@ -72,13 +72,10 @@ type CreatePolicyParams struct {
 	DataNetworkName     string       `json:"data_network_name"`
 	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
 	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
-	// Default marks this the profile's default data-network binding (default
-	// APN/DNN). The first policy created in a profile becomes the default
-	// regardless, so a profile always has exactly one.
-	Default *bool `json:"default,omitempty"`
+	Default             *bool        `json:"default,omitempty"`
 }
 
 type UpdatePolicyParams struct {
@@ -87,12 +84,10 @@ type UpdatePolicyParams struct {
 	DataNetworkName     string       `json:"data_network_name"`
 	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
 	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
-	// Default, when true, makes this the profile's default binding (clearing the
-	// previous default). Omitted/false leaves the current default unchanged.
-	Default *bool `json:"default,omitempty"`
+	Default             *bool        `json:"default,omitempty"`
 }
 
 type Policy struct {
@@ -102,17 +97,12 @@ type Policy struct {
 	DataNetworkName     string       `json:"data_network_name"`
 	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
 	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
 	Default             bool         `json:"default"`
 }
 
-// qciCompatible5Qi is the set of standardized 5QI values that have a QCI
-// counterpart (the QCI∩5QI standardized intersection, TS 23.203 Table 6.1.7 /
-// TS 23.501 Table 5.7.4-1). A policy on a profile that permits 4G must use one
-// of these so the value is meaningful as a QCI on S1AP; 5G-only / operator
-// specific 5QIs are rejected for 4G-capable profiles.
 var qciCompatible5Qi = []int32{1, 2, 3, 4, 5, 6, 7, 8, 9, 65, 66, 67, 69, 70, 75, 79, 80, 82, 83}
 
 func is4GCompatible5Qi(var5qi int32) bool {
@@ -148,10 +138,6 @@ func isValidBitrate(bitrate string) bool {
 
 	value := s[0]
 
-	// Kbps is the smallest unit both radio paths carry: the EPS APN-AMBR is
-	// scaled in kbps (TS 24.008 §10.5.6.5) and the 5G Session-AMBR has a 1 Kbps
-	// multiplier (TS 24.501 §9.11.4.14). "bps" is excluded: the SMF converts it
-	// with an integer division to kbps, which truncates sub-kbps rates to zero.
 	unit := s[1]
 	if unit != "Kbps" && unit != "Mbps" && unit != "Gbps" {
 		return false
@@ -165,15 +151,7 @@ func isValidBitrate(bitrate string) bool {
 	return valueInt > 0 && valueInt <= 1000000
 }
 
-// The radio paths encode a bitrate differently, so what is expressible depends
-// on which RATs the profile permits:
-//
-//   - EPS scales the APN-AMBR in kbps and stops at 10 Gbps: TS 24.008 §10.5.6.5B
-//     states rates above it are "currently not supported", and the encoder clamps
-//     silently rather than failing (nas/eps: encodeAPNAMBRExtended2).
-//   - 5G carries a unit plus a two-octet value (TS 24.501 §9.11.4.14), so the
-//     value — not the resolved rate — is what must fit.
-var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80} // only non-gbr 5Qi are supported for now
+var valid5Qi = []int32{5, 6, 7, 8, 9, 69, 70, 79, 80}
 
 func isValid5Qi(var5qi int32) bool {
 	return slices.Contains(valid5Qi, var5qi)
@@ -404,7 +382,6 @@ func getPolicyRulesForPolicy(ctx context.Context, dbInstance *db.Database, polic
 		}
 	}
 
-	// Return nil if no rules in either direction
 	if len(policyRules.Uplink) == 0 && len(policyRules.Downlink) == 0 {
 		return nil, nil
 	}
@@ -503,14 +480,6 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 	})
 }
 
-// checkPolicyBindingFree reports whether a policy may bind dataNetworkID under
-// profile/slice, excluding excludeName (empty on create).
-//
-// A subscription may configure a given data network once per slice: 5G keys a
-// slice's DNN configurations by DNN (TS 29.503 §6.1.6.2.8). When the profile
-// also permits 4G the rule tightens to once per profile, because EPS has no
-// slice to disambiguate and requires the APN to be unique across a subscriber's
-// configurations (TS 29.272 §7.3.35).
 func checkPolicyBindingFree(ctx context.Context, dbInstance *db.Database, profile *db.Profile, sliceID, dataNetworkID, dataNetworkName, excludeName string) error {
 	if profile.Allow4G {
 		policies, err := dbInstance.ListPoliciesByProfile(ctx, profile.ID)
@@ -570,8 +539,6 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		// A 4G-capable profile's bindings must use a QCI-compatible 5QI so the
-		// value is valid on S1AP (TS 23.203 Table 6.1.7).
 		if profile.Allow4G && !is4GCompatible5Qi(createPolicyParams.Var5qi) {
 			writeError(r.Context(), w, http.StatusBadRequest,
 				fmt.Sprintf("5QI %d is not valid for a 4G-capable profile (no QCI counterpart)", createPolicyParams.Var5qi),
@@ -653,8 +620,6 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		// The first policy in a profile becomes its default binding; a later one
-		// becomes default only when explicitly requested (TS 23.401 §3.1 default APN).
 		if numPolicies == 0 || boolOr(createPolicyParams.Default, false) {
 			if err := dbInstance.SetDefaultPolicy(r.Context(), profile.ID, createPolicyParams.Name); err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to set default policy", err, logger.APILog)

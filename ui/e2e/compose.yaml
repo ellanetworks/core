@@ -1,0 +1,55 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "info"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          address: "10.213.3.2"
+        n3:
+          name: "n3"
+        n6:
+          name: "n6"
+        api:
+          address: "0.0.0.0"
+          port: 5002
+      datapath:
+        attach-mode: "xdp-generic"
+
+services:
+  ella-core:
+    image: ${ELLA_CORE_IMAGE:-ella-core:latest}
+    configs:
+      - source: ella_config
+        target: /core.yaml
+    entrypoint: /bin/core --config /core.yaml
+    privileged: true
+    ports:
+      - "${ELLA_E2E_PORT:-5102}:5002"
+    networks:
+      default:
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.213.3.2
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.213.6.2
+
+networks:
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.213.3.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.213.6.0/24
