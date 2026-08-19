@@ -14,8 +14,8 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
-#include "bpf/n3_bpf.h"
 #include "bpf/n6_bpf.h"
+#include "bpf/n3_bpf.h"
 
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/common.h"
@@ -300,6 +300,71 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	PROFILE_START(PROF_N6_TOTAL);
 	enum ctx_action ret = process_downlink(&context);
 	PROFILE_END(PROF_N6_TOTAL);
+
+	return record_action(&context, ret);
+}
+
+CTX_DP_SEC("upf_local_switch")
+int upf_local_switch_func(struct __ctx_buff *ctx)
+{
+	struct upf_statistic *statistics = get_stats(&uplink_statistics);
+	if (!statistics)
+		return ctx_verdict(CTX_ACT_ABORTED);
+
+	struct packet_context context = {
+		.ctx_buff = ctx,
+		.statistics = statistics,
+		.interface = INTERFACE_N3,
+	};
+
+	if (ctx_vlan_ingress(ctx))
+		return record_action(&context, CTX_ACT_OK);
+
+	if (CTX_NEEDS_PULL && ctx_pull(ctx, CTX_PULL_LEN) < 0)
+		return record_action(&context,
+				     abort_with(&context, UPF_DROP_INTERNAL_PULL_FAILED));
+
+	context.data = ctx_data(ctx);
+	context.data_end = ctx_data_end(ctx);
+
+	__u16 l3 = parse_ethernet(&context);
+
+	if (l3 == ETH_P_IP) {
+		if (parse_ip4(&context) < 0)
+			return record_action(&context, DEFAULT_CTX_ACTION);
+
+		frag_resolve4(&context);
+	} else if (l3 == ETH_P_IPV6) {
+		if (parse_ip6(&context) < 0)
+			return record_action(&context, DEFAULT_CTX_ACTION);
+
+		parse_l4(context.l4_proto, &context);
+	} else {
+		return record_action(&context, DEFAULT_CTX_ACTION);
+	}
+
+	struct pdr_info *dl_pdr = try_local_switch(&context);
+	if (!dl_pdr)
+		return record_action(&context, DEFAULT_CTX_ACTION);
+
+	const __u32 lskey = 0;
+	struct pdr_info *ul_pdr =
+		bpf_map_lookup_elem(&local_switch_ul_pdr, &lskey);
+	if (!ul_pdr)
+		return record_action(&context, DEFAULT_CTX_ACTION);
+
+	enum ctx_action ret = local_switch_to_ue(&context, dl_pdr, ul_pdr);
+
+	if (ctx_action_forwards(ret)) {
+		const __u64 billed_bytes = ctx_full_len(ctx);
+		const __u32 dlkey = 0;
+		struct upf_statistic *dl_stats =
+			bpf_map_lookup_elem(&downlink_statistics, &dlkey);
+		if (dl_stats) {
+			dl_stats->packet_counters.tx++;
+			dl_stats->byte_counter.bytes += billed_bytes;
+		}
+	}
 
 	return record_action(&context, ret);
 }

@@ -32,6 +32,7 @@ const (
 type SettingsStore interface {
 	IsNATEnabled(ctx context.Context) (bool, error)
 	IsFlowAccountingEnabled(ctx context.Context) (bool, error)
+	IsLocalSwitchEnabled(ctx context.Context) (bool, error)
 	GetN3Settings(ctx context.Context) (*db.N3Settings, error)
 	ListPoliciesPage(ctx context.Context, page int, perPage int) ([]db.Policy, int, error)
 	ListRulesForPolicy(ctx context.Context, policyID string) ([]*db.NetworkRule, error)
@@ -42,6 +43,7 @@ type SettingsStore interface {
 type Updater interface {
 	ReloadNAT(enabled bool) error
 	ReloadFlowAccounting(enabled bool) error
+	ReloadLocalSwitch(enabled bool) error
 	UpdateAdvertisedN3Address(addr netip.Addr)
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 }
@@ -67,6 +69,7 @@ type SettingsReconciler struct {
 	stateMu               sync.Mutex
 	appliedNAT            *bool
 	appliedFlowAccounting *bool
+	appliedLocalSwitch    *bool
 	appliedN3Address      netip.Addr
 	appliedFilters        map[string]filterSnapshot
 }
@@ -138,6 +141,7 @@ func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}) {
 		sub := r.changefeed.Subscribe(
 			db.TopicNATSettings,
 			db.TopicFlowAccountingSettings,
+			db.TopicLocalSwitchSettings,
 			db.TopicN3Settings,
 			db.TopicPolicies,
 			db.TopicNetworkRules,
@@ -179,6 +183,10 @@ func (r *SettingsReconciler) Reconcile(ctx context.Context) error {
 
 	if err := r.reconcileFlowAccounting(ctx); err != nil {
 		return fmt.Errorf("flow accounting: %w", err)
+	}
+
+	if err := r.reconcileLocalSwitch(ctx); err != nil {
+		return fmt.Errorf("local switch: %w", err)
 	}
 
 	if err := r.reconcileN3Address(ctx); err != nil {
@@ -244,6 +252,34 @@ func (r *SettingsReconciler) reconcileFlowAccounting(ctx context.Context) error 
 	r.stateMu.Unlock()
 
 	logger.UpfLog.Info("applied flow accounting setting", zap.Bool("enabled", desired))
+
+	return nil
+}
+
+func (r *SettingsReconciler) reconcileLocalSwitch(ctx context.Context) error {
+	desired, err := r.store.IsLocalSwitchEnabled(ctx)
+	if err != nil {
+		return err
+	}
+
+	r.stateMu.Lock()
+	current := r.appliedLocalSwitch
+	r.stateMu.Unlock()
+
+	if current != nil && *current == desired {
+		return nil
+	}
+
+	if err := r.updater.ReloadLocalSwitch(desired); err != nil {
+		return err
+	}
+
+	r.stateMu.Lock()
+	v := desired
+	r.appliedLocalSwitch = &v
+	r.stateMu.Unlock()
+
+	logger.UpfLog.Info("applied local switch setting", zap.Bool("enabled", desired))
 
 	return nil
 }

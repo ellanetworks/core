@@ -8,7 +8,7 @@ import "testing"
 // TestClearNotifiedForSEID asserts that clearing a SEID removes all of its
 // paging entries (any PdrID/QFI) and leaves other sessions' entries intact.
 func TestClearNotifiedForSEID(t *testing.T) {
-	obj := NewBpfObjects(false, false, 0, 0, 0, 0)
+	obj := NewBpfObjects(false, false, false, 0, 0, 0, 0)
 
 	a1 := DataNotification{LocalSEID: 1, PdrID: 2, QFI: 5}
 	a2 := DataNotification{LocalSEID: 1, PdrID: 3, QFI: 9}
@@ -33,7 +33,7 @@ func TestClearNotifiedForSEID(t *testing.T) {
 // policy change in between moves the PDR's QFI, and only the current one is
 // knowable at the clear.
 func TestClearNotifiedIsQFIAgnostic(t *testing.T) {
-	obj := NewBpfObjects(false, false, 0, 0, 0, 0)
+	obj := NewBpfObjects(false, false, false, 0, 0, 0, 0)
 
 	oldQFI := DataNotification{LocalSEID: 1, PdrID: 2, QFI: 5}
 	newQFI := DataNotification{LocalSEID: 1, PdrID: 2, QFI: 9}

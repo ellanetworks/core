@@ -20,6 +20,7 @@ const (
 	// the ops that touch it via AffectsTopic in operations_register.go.
 	TopicNATSettings            Topic = "nat_settings"
 	TopicFlowAccountingSettings Topic = "flow_accounting_settings"
+	TopicLocalSwitchSettings    Topic = "local_switch_settings"
 	TopicN3Settings             Topic = "n3_settings"
 	TopicPolicies               Topic = "policies"
 	TopicNetworkRules           Topic = "network_rules"

@@ -256,10 +256,10 @@ func innerIPv4UDP(dst [4]byte, dport uint16) []byte { //nolint:unparam // genera
 // innerIPv4UDPSized is innerIPv4UDP padded so the inner packet is exactly total
 // bytes. The uplink rate limiter charges the inner packet, so a test that
 // asserts on a delivered bit rate needs its size fixed.
-func innerIPv4UDPSized(dst [4]byte, dport uint16, total int) []byte {
+func innerIPv4UDPSized(dst [4]byte, total int) []byte {
 	const ipUDPHdrLen = 20 + 8
 
-	return ipv4Packet([4]byte{10, 0, 0, 9}, dst, 17, udpDatagram(0, dport, make([]byte, total-ipUDPHdrLen)))
+	return ipv4Packet([4]byte{10, 0, 0, 9}, dst, 17, udpDatagram(0, 53, make([]byte, total-ipUDPHdrLen)))
 }
 
 // tcpSegment builds a minimal 20-byte TCP header (data offset 5, no flags).

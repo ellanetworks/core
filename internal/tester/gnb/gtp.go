@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ type Tunnel struct {
 	ulteid  uint32
 	dlteid  uint32
 	qfi     uint8
+	rxCount atomic.Uint64
 }
 
 // defaultTunMTU leaves room for GTP-U overhead, matching the 4G harness.
@@ -185,6 +187,21 @@ func (g *GnodeB) AddTunnel(opts *TunnelOpts) error {
 	return nil
 }
 
+// TunnelRXCount returns the number of downlink G-PDUs received for the given
+// downlink TEID. Used by UE-to-UE scenarios to detect locally-switched
+// packets without relying on TUN interface delivery.
+func (g *GnodeB) TunnelRXCount(dlteid uint32) uint64 {
+	g.mu.Lock()
+	t, ok := g.tunnels[dlteid]
+	g.mu.Unlock()
+
+	if !ok {
+		return 0
+	}
+
+	return t.rxCount.Load()
+}
+
 // CloseTunnel tears down the tunnel for the given downlink TEID. Closing a TEID
 // with no tunnel is a no-op, as on s1enb: a scenario tearing down a session the
 // network already released must not fail for it.
@@ -252,6 +269,8 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 			logger.GnbLogger.Warn("unknown TEID, dropping packet", zap.Uint32("teid", teid))
 			continue
 		}
+
+		t.rxCount.Add(1)
 
 		payloadStart := 8
 		if buf[0]&0x07 > 0 {

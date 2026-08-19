@@ -31,7 +31,7 @@ const (
 func loadTCProgramConfig(t *testing.T, masquerade bool, n3Ifindex, n6Ifindex int) *N3N6EntrypointTcObjects { //nolint:unparam // signature mirrors loadProgramConfig
 	t.Helper()
 
-	cfg := NewBpfObjects(false, masquerade, n3Ifindex, n6Ifindex, 0, 0)
+	cfg := NewBpfObjects(false, masquerade, false, n3Ifindex, n6Ifindex, 0, 0)
 
 	spec, err := LoadN3N6EntrypointTc()
 	if err != nil {

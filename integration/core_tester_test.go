@@ -45,6 +45,8 @@ var scenariosSkipped = map[string]string{
 	"gnb/framed_route_remove_live":           "requires NAT disabled; covered by TestIntegration5GFramedRoutingReconcile",
 	"s1enb/framed_route":                     "requires NAT disabled; covered by TestIntegration4GFramedRouting",
 	"s1enb/framed_route_ipv6":                "requires NAT disabled; covered by TestIntegration4GFramedRouting",
+	"gnb/ue2ue":                              "requires NAT disabled; covered by TestIntegration5GUE2UE",
+	"s1enb/ue2ue":                            "requires NAT disabled; covered by TestIntegration4GUE2UE",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP

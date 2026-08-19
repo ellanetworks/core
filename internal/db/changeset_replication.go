@@ -91,6 +91,7 @@ var localOnlyTables = []string{
 	N3SettingsTableName,
 	NATSettingsTableName,
 	FlowAccountingSettingsTableName,
+	LocalSwitchSettingsTableName,
 	PositioningSessionsTableName,
 }
 

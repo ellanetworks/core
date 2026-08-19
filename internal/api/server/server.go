@@ -195,6 +195,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowAccountingInfo, GetFlowAccountingInfo(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFlowAccountingInfo, UpdateFlowAccountingInfo(dbInstance))).ServeHTTP)
 
+	// Local Switch (Authenticated)
+	mux.HandleFunc("GET /api/v1/networking/local-switch", Authenticate(jwtSecret, dbInstance, Authorize(PermGetLocalSwitchInfo, GetLocalSwitchInfo(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/local-switch", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateLocalSwitchInfo, UpdateLocalSwitchInfo(dbInstance))).ServeHTTP)
+
 	// Interfaces (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/interfaces", Authenticate(jwtSecret, dbInstance, Authorize(PermListNetworkInterfaces, ListNetworkInterfaces(dbInstance, appCfg))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateN3Interface, UpdateN3Interface(dbInstance))).ServeHTTP)

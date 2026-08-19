@@ -20,6 +20,7 @@ type fakeStore struct {
 	mu              sync.Mutex
 	natEnabled      bool
 	flowAccounting  bool
+	localSwitch     bool
 	n3External      string
 	n3GetErr        error
 	policies        []db.Policy
@@ -38,6 +39,13 @@ func (f *fakeStore) IsFlowAccountingEnabled(_ context.Context) (bool, error) {
 	defer f.mu.Unlock()
 
 	return f.flowAccounting, nil
+}
+
+func (f *fakeStore) IsLocalSwitchEnabled(_ context.Context) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.localSwitch, nil
 }
 
 func (f *fakeStore) GetN3Settings(_ context.Context) (*db.N3Settings, error) {
@@ -79,13 +87,15 @@ type filterCall struct {
 }
 
 type fakeUpdater struct {
-	mu          sync.Mutex
-	natCalls    []bool
-	flowCalls   []bool
-	n3Calls     []netip.Addr
-	filterCalls []filterCall
-	natErr      error
-	flowErr     error
+	mu               sync.Mutex
+	natCalls         []bool
+	flowCalls        []bool
+	localSwitchCalls []bool
+	n3Calls          []netip.Addr
+	filterCalls      []filterCall
+	natErr           error
+	flowErr          error
+	localSwitchErr   error
 	// updateFiltersErr fails every UpdateFilters call; updateFiltersFunc, when
 	// set, takes precedence and decides per (policyID, direction, rules).
 	updateFiltersErr  error
@@ -114,6 +124,19 @@ func (f *fakeUpdater) ReloadFlowAccounting(enabled bool) error {
 	}
 
 	f.flowCalls = append(f.flowCalls, enabled)
+
+	return nil
+}
+
+func (f *fakeUpdater) ReloadLocalSwitch(enabled bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.localSwitchErr != nil {
+		return f.localSwitchErr
+	}
+
+	f.localSwitchCalls = append(f.localSwitchCalls, enabled)
 
 	return nil
 }

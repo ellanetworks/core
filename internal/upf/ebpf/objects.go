@@ -72,6 +72,7 @@ type BpfObjects struct {
 
 	FlowAccounting bool
 	Masquerade     bool
+	LocalSwitch    bool
 	// UseTCX selects the SCHED_CLS build of the datapath. Its spec carries
 	// the same map, program, and variable names as the XDP build (one C
 	// source), so it loads into N3N6EntrypointObjects through the ebpf
@@ -85,10 +86,11 @@ type BpfObjects struct {
 	pagingList       map[DataNotification]bool
 }
 
-func NewBpfObjects(flowact bool, masquerade bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
+func NewBpfObjects(flowact bool, masquerade bool, localSwitch bool, n3ifindex int, n6ifindex int, n3vlan uint32, n6vlan uint32) *BpfObjects {
 	return &BpfObjects{
 		FlowAccounting:   flowact,
 		Masquerade:       masquerade,
+		LocalSwitch:      localSwitch,
 		N3InterfaceIndex: uint32(n3ifindex),
 		N6InterfaceIndex: uint32(n6ifindex),
 		N3Vlan:           n3vlan,
@@ -103,6 +105,7 @@ const (
 	upfCallUplink      = 0
 	upfCallDownlink    = 1
 	upfCallGtpuControl = 2
+	upfCallLocalSwitch = 3
 )
 
 // populateTailCalls inserts the stage programs into the upf_calls PROG_ARRAY so
@@ -119,6 +122,10 @@ func populateTailCalls(objs *N3N6EntrypointObjects) error {
 
 	if err := objs.UpfCalls.Put(uint32(upfCallGtpuControl), objs.UpfGtpuControlFunc); err != nil {
 		return fmt.Errorf("put gtpu control stage in upf_calls: %w", err)
+	}
+
+	if err := objs.UpfCalls.Put(uint32(upfCallLocalSwitch), objs.UpfLocalSwitchFunc); err != nil {
+		return fmt.Errorf("put local switch stage in upf_calls: %w", err)
 	}
 
 	return nil
@@ -173,6 +180,11 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 
 	if err := spec.Variables["masquerade"].Set(bpfObjects.Masquerade); err != nil {
 		logger.UpfLog.Error("failed to set masquerade value", zap.Error(err))
+		return err
+	}
+
+	if err := spec.Variables["local_switch"].Set(bpfObjects.LocalSwitch); err != nil {
+		logger.UpfLog.Error("failed to set local_switch value", zap.Error(err))
 		return err
 	}
 
