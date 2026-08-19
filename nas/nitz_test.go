@@ -6,20 +6,16 @@ package nas
 import (
 	"testing"
 	"time"
-	// tzdata is embedded so the zone rules are the same wherever the test runs.
 	_ "time/tzdata"
 )
 
-// TestNewNetworkTime checks the three elements agree with each other: the
-// standalone time zone must be the one embedded in the universal time, and the
-// adjustment must be the zone's own.
+// TS 24.501 §3.1
 func TestNewNetworkTime(t *testing.T) {
 	loc, err := time.LoadLocation("Europe/Paris")
 	if err != nil {
 		t.Fatalf("LoadLocation: %v", err)
 	}
 
-	// Midsummer in Paris is CEST, UTC+2, of which one hour is summer time.
 	when := time.Date(2026, time.July, 28, 12, 30, 5, 0, time.UTC).In(loc)
 
 	got, err := NewNetworkTime(when)
@@ -41,7 +37,6 @@ func TestNewNetworkTime(t *testing.T) {
 		t.Errorf("daylight saving = %s, want %s", got.DaylightSavingTime, DaylightSavingOneHour)
 	}
 
-	// The timestamp is universal time, not the Paris wall clock.
 	instant, ok := got.UniversalTime.Time()
 	if !ok || !instant.Equal(when) {
 		t.Errorf("universal time = %s (ok %v), want %s", instant, ok, when)
@@ -52,8 +47,7 @@ func TestNewNetworkTime(t *testing.T) {
 	}
 }
 
-// TestNewNetworkTimeWinter checks the adjustment is reported as none out of
-// season, so a UE is never told to add an hour twice.
+// TS 24.008 §10.5.3.12
 func TestNewNetworkTimeWinter(t *testing.T) {
 	loc, err := time.LoadLocation("Europe/Paris")
 	if err != nil {
@@ -75,8 +69,7 @@ func TestNewNetworkTimeWinter(t *testing.T) {
 	}
 }
 
-// TestNewNetworkTimeRejectsUnrepresentableYear checks the error reaches the
-// caller rather than a half-filled set being sent.
+// TS 24.008 §10.5.3.9
 func TestNewNetworkTimeRejectsUnrepresentableYear(t *testing.T) {
 	if _, err := NewNetworkTime(time.Date(1999, time.December, 31, 23, 0, 0, 0, time.UTC)); err == nil {
 		t.Fatal("a year the element cannot hold must be reported")

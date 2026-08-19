@@ -277,11 +277,7 @@ func TestBuildRegistrationAcceptRefusesAContextTheAMFDoesNotServe(t *testing.T) 
 	}
 }
 
-// TestBuildConfigurationUpdateCommand_NITZTime checks the three time-carrying
-// NITZ elements reach the UE (TS 24.501 §8.2.19.9 to §8.2.19.11), and that the
-// command still asks for no acknowledgement: TS 24.501 §5.4.4.2 requires one
-// "for all parameters except when only NITZ information is included", and time
-// is NITZ, so adding it must not start T3555.
+// TS 24.501 §5.4.4.2
 func TestBuildConfigurationUpdateCommand_NITZTime(t *testing.T) {
 	when := time.Date(2026, time.July, 28, 14, 30, 5, 0, time.FixedZone("", 2*3600))
 

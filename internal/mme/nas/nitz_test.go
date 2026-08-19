@@ -27,9 +27,7 @@ func (spnBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
 	}, nil
 }
 
-// TestSendNITZ checks that, with an SPN configured, the MME provides the
-// network name to the UE in an integrity-protected EMM INFORMATION message
-// (TS 24.301 §5.4.5).
+// TS 24.301 §5.4.5
 func TestSendNITZ(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), spnBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
@@ -52,10 +50,7 @@ func TestSendNITZ(t *testing.T) {
 	}
 }
 
-// TestSendNITZNoSPN checks the time still reaches the UE when no service
-// provider name is configured. The parts of an EMM INFORMATION are independent
-// optional IEs (TS 24.301 §8.2.13), and a network with no name to advertise has
-// no less of a clock, so the message is sent carrying time alone.
+// TS 24.301 §8.2.13
 func TestSendNITZNoSPN(t *testing.T) {
 	m := newTestMME(t) // fakeBearerStore has no SPN configured
 	ue, cc := securedUE(t, m)
@@ -78,8 +73,7 @@ func TestSendNITZNoSPN(t *testing.T) {
 	}
 }
 
-// TestSendNITZTime checks the time-carrying elements are present and describe
-// the moment the message was built (TS 24.301 §8.2.13.4 to §8.2.13.6).
+// TS 24.301 §8.2.13.4
 func TestSendNITZTime(t *testing.T) {
 	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), spnBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
@@ -101,7 +95,6 @@ func TestSendNITZTime(t *testing.T) {
 			info.LocalTimeZone, info.UniversalTime, info.DaylightSavingTime)
 	}
 
-	// The element holds whole seconds, so the window is widened to match.
 	sent, ok := info.UniversalTime.Time()
 	if !ok {
 		t.Fatal("the universal time element did not decode")
@@ -111,8 +104,6 @@ func TestSendNITZTime(t *testing.T) {
 		t.Errorf("universal time %s is outside [%s, %s]", sent, before, after)
 	}
 
-	// The standalone zone must agree with the one inside the universal time,
-	// or the UE is told two different things about where it is.
 	if *info.LocalTimeZone != info.UniversalTime.Zone {
 		t.Errorf("local time zone %#02x disagrees with the universal time's %#02x",
 			byte(*info.LocalTimeZone), byte(info.UniversalTime.Zone))
@@ -123,8 +114,6 @@ func TestSendNITZTime(t *testing.T) {
 	}
 }
 
-// decodeEMMInformation unprotects a downlink and returns the EMM INFORMATION
-// it carries.
 func decodeEMMInformation(t *testing.T, ue *mme.UeContext, sent []byte) *eps.EMMInformation {
 	t.Helper()
 

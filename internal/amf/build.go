@@ -338,11 +338,6 @@ func BuildRegistrationAccept(
 
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-//
-// networkTime, when non-nil, adds the time-carrying NITZ elements (TS 24.501
-// §8.2.19.9 to §8.2.19.11). It is a pointer rather than an instant because a
-// clock the elements cannot describe must not stop the 5G-GUTI or the network
-// name from reaching the UE; the caller decides that and logs it.
 func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName string, networkTime *nas.NetworkTime, includeGUTI bool) ([]byte, error) {
 	m := &fgs.ConfigurationUpdateCommand{}
 

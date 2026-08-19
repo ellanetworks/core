@@ -55,9 +55,6 @@ func handleConfigurationUpdateCommand(ue *UE, plain []byte, amfUENGAPID int64, r
 	return nil
 }
 
-// logNITZ reports the network identity and time the command carried, which is
-// what a lab needs to confirm the core is the UE's time source rather than the
-// RAN (TS 24.501 §8.2.19.7 to §8.2.19.11).
 func logNITZ(ue *UE, cmd *fgs.ConfigurationUpdateCommand) {
 	if cmd.UniversalTime == nil && cmd.LocalTimeZone == nil && cmd.DaylightSavingTime == nil {
 		return

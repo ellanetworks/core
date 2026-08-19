@@ -89,19 +89,8 @@ func (t TimeZone) MarshalBinary() ([]byte, error) { return t.AppendBinary(nil) }
 
 // TimeZoneAndTime is the time zone and time information element value
 // (TS 24.008 §10.5.3.9), which TS 24.301 §9.9.3.30 and TS 24.501 §9.11.3.53 both
-// carry verbatim.
-//
-// The two halves are on different clocks, which that clause is explicit about:
-// the time part encodes "the universal time at which this information element
-// may have been sent by the network", while the trailing octet encodes "the
-// offset between universal time and local time". So the six timestamp octets are
-// UTC and the offset is what the UE adds to reach local time — they do not
-// describe the same wall clock.
-//
-//	NOTE: TS 24.008 §10.5.3.9 records that, due to ambiguities in earlier
-//	versions of the protocol specifications, some mobile stations read the
-//	received time as local time instead, and so land the wrong offset away.
-//	That is the UE's error to make; the network's obligation is UTC.
+// carry verbatim: the universal time at which the network sent the element,
+// followed by the local offset.
 //
 // The six timestamp octets are swapped BCD digit pairs (TS 23.040 §9.2.3.11) and
 // are kept as they arrived for the same reason TimeZone is; Time reports whether
@@ -112,10 +101,9 @@ type TimeZoneAndTime struct {
 	Zone                 TimeZone
 }
 
-// Time returns the instant the element names, located at the local offset it
-// carries, and whether every field was decimal and in range. The timestamp
-// fields are read as UTC per TS 24.008 §10.5.3.9. The year is two digits, which
-// TS 23.040 leaves to the receiver to place; this reads it as 2000-2099.
+// Time returns the instant the element names and whether every field was
+// decimal and in range. The year is two digits, which TS 23.040 leaves to the
+// receiver to place; this reads it as 2000-2099.
 func (t TimeZoneAndTime) Time() (time.Time, bool) {
 	fields := [6]int{}
 
@@ -137,26 +125,16 @@ func (t TimeZoneAndTime) Time() (time.Time, bool) {
 		fields[3], fields[4], fields[5], 0, time.UTC)
 
 	// A field out of range rolls over rather than failing, so the round trip is
-	// what proves every field named a real date. It is checked against UTC,
-	// which is the clock the fields were written on.
+	// what proves every field named a real date.
 	if when.Year()-2000 != fields[0] || int(when.Month()) != fields[1] || when.Day() != fields[2] ||
 		when.Hour() != fields[3] || when.Minute() != fields[4] || when.Second() != fields[5] {
 		return time.Time{}, false
 	}
 
-	// The instant is the same either way; presenting it at the offset the
-	// element carries is what makes the local time the network named readable.
 	return when.In(time.FixedZone("", int(offset/time.Second))), true
 }
 
-// NewTimeZoneAndTime encodes an instant as the universal time the element
-// carries, together with the offset from UTC that when's location is at
-// (TS 24.008 §10.5.3.9).
-//
-// The two halves come from the one argument: the timestamp fields are read off
-// when.UTC() and the offset off when's location, so passing an instant in the
-// zone the network serves is all that is needed. Passing one already in UTC is
-// well defined and says the network sits at UTC.
+// NewTimeZoneAndTime encodes an instant and the offset its location is at.
 func NewTimeZoneAndTime(when time.Time) (TimeZoneAndTime, error) {
 	_, offsetSeconds := when.Zone()
 
@@ -225,15 +203,7 @@ const (
 	DaylightSavingTwoHour DaylightSavingTime = 2
 )
 
-// NewDaylightSavingTime reports how much of the offset when's location is
-// currently at is a summer-time adjustment, which is what the network is
-// obliged to state whenever the local time zone it sent has been adjusted for
-// daylight saving (TS 24.301 §8.2.13.4 and §8.2.13.5).
-//
-// Go exposes whether a zone is on summer time but not by how much, so the
-// adjustment is the offset now less the offset the same zone sits at outside
-// summer time. An adjustment the element cannot name is reported as none rather
-// than as the reserved fourth value.
+// NewDaylightSavingTime reports the summer-time part of when's offset.
 func NewDaylightSavingTime(when time.Time) DaylightSavingTime {
 	_, offset := when.Zone()
 
@@ -247,12 +217,6 @@ func NewDaylightSavingTime(when time.Time) DaylightSavingTime {
 	}
 }
 
-// standardOffset returns the offset when's location is at outside summer time,
-// found by sampling midwinter in both hemispheres: a summer-time adjustment only
-// ever moves the clock forward, so the smaller of the two samples is the zone's
-// standard offset whichever hemisphere it is in. A zone that moved its standard
-// offset partway through the year reads as whichever half is smaller, which is
-// the closest a single octet can come to describing it.
 func standardOffset(when time.Time) int {
 	loc, year := when.Location(), when.Year()
 

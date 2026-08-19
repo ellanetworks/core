@@ -499,9 +499,6 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		return
 	}
 
-	// The time-carrying NITZ elements are built from the host's clock and zone.
-	// A clock they cannot describe is worth reporting but must not withhold the
-	// 5G-GUTI, so the command goes out without them (TS 24.501 §8.2.19.9-11).
 	var networkTime *nas.NetworkTime
 
 	if built, err := nas.NewNetworkTime(time.Now()); err != nil {

@@ -7,8 +7,6 @@ import (
 	"bytes"
 	"testing"
 	"time"
-	// tzdata is embedded so the daylight saving tests read the same zone rules
-	// wherever they run, including images that carry no zoneinfo.
 	_ "time/tzdata"
 )
 
@@ -108,15 +106,8 @@ func TestDaylightSavingTime(t *testing.T) {
 	}
 }
 
-// TestTimeZoneAndTimeEncodesUniversalTime pins the octets, because the two
-// halves of the element are on different clocks and only the bytes show it:
-// TS 24.008 §10.5.3.9 puts "the universal time at which this information
-// element may have been sent" in the timestamp and "the offset between
-// universal time and local time" in the trailing octet. A round trip through
-// Time cannot catch the timestamp being written as local time instead, since
-// that names the same instant.
+// TS 24.008 §10.5.3.9
 func TestTimeZoneAndTimeEncodesUniversalTime(t *testing.T) {
-	// 14:30:05 at +02:00 is 12:30:05 UTC, so the hour octet must read 12.
 	when := time.Date(2026, time.July, 28, 14, 30, 5, 0, time.FixedZone("", 2*3600))
 
 	in, err := NewTimeZoneAndTime(when)
@@ -129,15 +120,13 @@ func TestTimeZoneAndTimeEncodesUniversalTime(t *testing.T) {
 		t.Fatalf("MarshalBinary: %v", err)
 	}
 
-	// Year 26, month 07, day 28, hour 12, minute 30, second 05, +2h = 8 quarters.
 	want := []byte{0x62, 0x70, 0x82, 0x21, 0x03, 0x50, 0x80}
 	if !bytes.Equal(got, want) {
 		t.Fatalf("encoding = % x, want % x", got, want)
 	}
 }
 
-// TestTimeZoneAndTimeDecodesUniversalTime is the receiving half: the timestamp
-// octets name a UTC instant, which the local offset then presents.
+// TS 24.008 §10.5.3.9
 func TestTimeZoneAndTimeDecodesUniversalTime(t *testing.T) {
 	parsed, err := ParseTimeZoneAndTime([]byte{0x62, 0x70, 0x82, 0x21, 0x03, 0x50, 0x80})
 	if err != nil {
@@ -153,7 +142,6 @@ func TestTimeZoneAndTimeDecodesUniversalTime(t *testing.T) {
 		t.Fatalf("Time() = %s, want %s", got.UTC(), want)
 	}
 
-	// The offset it is presented at is the local time the network named.
 	if _, offset := got.Zone(); offset != 2*3600 {
 		t.Fatalf("Time() offset = %ds, want %ds", offset, 2*3600)
 	}
@@ -163,8 +151,7 @@ func TestTimeZoneAndTimeDecodesUniversalTime(t *testing.T) {
 	}
 }
 
-// TestTimeZoneAndTimeUTCArgument checks an instant handed over already in UTC
-// encodes as UTC at a zero offset rather than being shifted twice.
+// TS 24.008 §10.5.3.9
 func TestTimeZoneAndTimeUTCArgument(t *testing.T) {
 	when := time.Date(2026, time.July, 28, 12, 30, 5, 0, time.UTC)
 
@@ -184,8 +171,7 @@ func TestTimeZoneAndTimeUTCArgument(t *testing.T) {
 	}
 }
 
-// TestNewDaylightSavingTime checks the adjustment is derived from the zone's
-// own rules, in both hemispheres and across the summer-time boundary.
+// TS 24.008 §10.5.3.12
 func TestNewDaylightSavingTime(t *testing.T) {
 	cases := []struct {
 		name string
@@ -193,13 +179,10 @@ func TestNewDaylightSavingTime(t *testing.T) {
 		when time.Time
 		want DaylightSavingTime
 	}{
-		// Northern hemisphere: CET in winter, CEST in summer.
 		{"europe winter", "Europe/Paris", time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
 		{"europe summer", "Europe/Paris", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingOneHour},
-		// Southern hemisphere: the seasons, and so the samples, are reversed.
 		{"sydney winter", "Australia/Sydney", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
 		{"sydney summer", "Australia/Sydney", time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC), DaylightSavingOneHour},
-		// A zone that never adjusts must never claim an adjustment.
 		{"no summer time", "Asia/Tokyo", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
 		{"utc", "UTC", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
 	}
@@ -218,8 +201,7 @@ func TestNewDaylightSavingTime(t *testing.T) {
 	}
 }
 
-// TestNewDaylightSavingTimeFixedZone checks a zone with no rules at all, which
-// is what a network configured by bare offset presents.
+// TS 24.008 §10.5.3.12
 func TestNewDaylightSavingTimeFixedZone(t *testing.T) {
 	when := time.Date(2026, time.July, 15, 12, 0, 0, 0, time.FixedZone("", 5*3600))
 

@@ -148,10 +148,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 	}
 }
 
-// TestHandleRegistrationComplete_ConfigurationUpdateCommandCarriesTime checks the
-// time actually reaches the wire. The three elements were modelled and encodable
-// long before the AMF filled any of them in, so asserting the builder alone
-// would not notice the send path dropping them again.
+// TS 24.501 §8.2.19
 func TestHandleRegistrationComplete_ConfigurationUpdateCommandCarriesTime(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 
@@ -177,7 +174,6 @@ func TestHandleRegistrationComplete_ConfigurationUpdateCommandCarriesTime(t *tes
 			cuc.LocalTimeZone, cuc.UniversalTime, cuc.DaylightSavingTime)
 	}
 
-	// The element holds whole seconds, so the window is widened to match.
 	sent, ok := cuc.UniversalTime.Time()
 	if !ok {
 		t.Fatal("the universal time element did not decode")
@@ -187,8 +183,6 @@ func TestHandleRegistrationComplete_ConfigurationUpdateCommandCarriesTime(t *tes
 		t.Errorf("universal time %s is outside [%s, %s]", sent, before, after)
 	}
 
-	// The standalone zone must agree with the one inside the universal time,
-	// or the UE is told two different things about where it is.
 	if *cuc.LocalTimeZone != cuc.UniversalTime.Zone {
 		t.Errorf("local time zone %#02x disagrees with the universal time's %#02x",
 			byte(*cuc.LocalTimeZone), byte(cuc.UniversalTime.Zone))
