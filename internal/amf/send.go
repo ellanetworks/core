@@ -405,7 +405,7 @@ func SendRegistrationAccept(
 		}, func() {
 			logger.From(ctx, logger.AmfLog).Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
 
-			ue.TransitionTo(Registered)
+			amfInstance.MarkRegistered(context.Background(), ue)
 			ue.ClearRegistrationRequestData()
 		})
 	}
@@ -438,7 +438,8 @@ func ArmRegistrationAcceptGuard(amfInstance *AMF, ue *UeContext, plain []byte) {
 		}
 	}, func() {
 		logger.AmfLog.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
-		ue.TransitionTo(Registered)
+
+		amfInstance.MarkRegistered(context.Background(), ue)
 		ue.ClearRegistrationRequestData()
 	})
 }

@@ -313,25 +313,28 @@ func (a *AMF) dropUnadmittedSessions(ctx context.Context, ue *UeContext, bearers
 func (a *AMF) SuperviseHandoverFromEPS(ue *UeContext, targetUe *UeConn) {
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
-		func(cctx context.Context) error {
-			if !a.abandonHandoverFromEPS(cctx, ue, targetUe, causeRelocationExpiry) {
-				if !ue.BeginKeyChainProc(procedure.N2Handover) {
-					logger.From(cctx, logger.AmfLog).Error("could not re-claim the key chain for a committing handover from EPS")
-				}
-
-				return nil
+		func(cctx context.Context) (procedure.Disposition, error) {
+			switch a.unwindHandoverFromEPS(cctx, ue, targetUe, causeRelocationExpiry) {
+			case handoverCommitting:
+				return procedure.Retain, nil
+			case handoverNotInProgress:
+				return procedure.Release, nil
 			}
 
 			logger.From(cctx, logger.AmfLog).Warn("handover from EPS abandoned: the UE did not arrive in time",
 				logger.SUPI(ue.Supi().String()))
 
-			return nil
+			return procedure.Release, nil
 		})
 }
 
 func (a *AMF) abandonHandoverFromEPS(ctx context.Context, ue *UeContext, targetUe *UeConn, cause ngap.Cause) bool {
-	if !a.abandonHandover(ue) {
-		return false
+	return a.unwindHandoverFromEPS(ctx, ue, targetUe, cause) == handoverAbandoned
+}
+
+func (a *AMF) unwindHandoverFromEPS(ctx context.Context, ue *UeContext, targetUe *UeConn, cause ngap.Cause) handoverUnwind {
+	if unwound := a.unwindHandover(ue); unwound != handoverAbandoned {
+		return unwound
 	}
 
 	a.UnbindHandoverTarget(ctx, ue)
@@ -342,7 +345,7 @@ func (a *AMF) abandonHandoverFromEPS(ctx context.Context, ue *UeContext, targetU
 		targetUe.SendUEContextReleaseCommand(ctx, cause)
 	}
 
-	return true
+	return handoverAbandoned
 }
 
 func (a *AMF) CompleteRelocationFromEPS(ctx context.Context, ue *UeContext) {

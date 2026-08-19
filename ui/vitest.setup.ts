@@ -1,6 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// Date formatting is timezone-dependent, so a fixed zone is the only way these
-// assertions mean the same thing on a developer machine and in CI.
+import { afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+
 process.env.TZ = "UTC";
+
+afterEach(cleanup);

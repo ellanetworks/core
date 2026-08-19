@@ -110,6 +110,7 @@ type EPSPeer interface {
 	RelocationComplete(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 	MMContext(ctx context.Context, req MMContextRequest) (MMContextResponse, error)
 	MMContextAck(ctx context.Context, supi etsi.SUPI, transferred []uint8) error
+	CancelRegistration(ctx context.Context, supi etsi.SUPI)
 }
 
 type FiveGSPeer interface {
@@ -118,4 +119,5 @@ type FiveGSPeer interface {
 	RelocationComplete(ctx context.Context, supi etsi.SUPI, id RelocationID) error
 	EPSContext(ctx context.Context, req EPSContextRequest) (EPSContextResponse, error)
 	EPSContextAck(ctx context.Context, supi etsi.SUPI, transferred []uint8) error
+	CancelRegistration(ctx context.Context, supi etsi.SUPI)
 }

@@ -15,11 +15,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridPaginationModel,
-} from "@mui/x-data-grid";
+import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import {
   listAuditLogs,
   getAuditLogRetentionPolicy,
@@ -35,30 +31,22 @@ import EmptyState from "@/components/EmptyState";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-
-const getDefaultDateRange = () => {
-  const today = new Date();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  const format = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: format(sevenDaysAgo), endDate: format(today) };
-};
+import { defaultDateRange } from "@/utils/dates";
+import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 
 const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
 
   const outerTheme = useTheme();
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
-    page: 0,
-    pageSize: 25,
-  });
 
   const { showSnackbar } = useSnackbar();
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  const [{ startDate, endDate }, setDateRange] = useState(getDefaultDateRange);
+  const [{ startDate, endDate }, setDateRange] = useState(() =>
+    defaultDateRange(),
+  );
   const [searchParams] = useSearchParams();
   const [selectedUser, setSelectedUser] = useState(
     () => searchParams.get("user") ?? "",
@@ -83,7 +71,6 @@ const AuditLog: React.FC = () => {
     "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
 
   const queryClient = useQueryClient();
-  const pageOneBased = paginationModel.page + 1;
 
   const { data: retentionPolicy } = useQuery<AuditLogRetentionPolicy>({
     queryKey: ["auditLogRetention"],
@@ -110,6 +97,9 @@ const AuditLog: React.FC = () => {
     if (selectedAction) f.action = selectedAction;
     return f;
   }, [startDate, endDate, selectedUser, selectedAction]);
+
+  const [paginationModel, setPaginationModel] = useFilteredPagination(filters);
+  const pageOneBased = paginationModel.page + 1;
 
   const auditLogsQuery = useQuery<ListAuditLogsResponse>({
     queryKey: ["auditLogs", pageOneBased, paginationModel.pageSize, filters],

@@ -93,7 +93,11 @@ func runHandoverEPSTo5GS(ctx context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	return assertContinuity(before, after)
+	if err := assertContinuity(before, after); err != nil {
+		return err
+	}
+
+	return assertRegisteredOn(ctx, env, "5G")
 }
 
 func runHandoverEPSTo5GSTargetRefuses(ctx context.Context, env scenarios.Env, _ any) error {
@@ -125,7 +129,11 @@ func runHandoverEPSTo5GSTargetRefuses(ctx context.Context, env scenarios.Env, _ 
 		return err
 	}
 
-	return assertContinuity(before, after)
+	if err := assertContinuity(before, after); err != nil {
+		return err
+	}
+
+	return assertRegisteredOn(ctx, env, "4G")
 }
 
 func attachAndProbeOverEPS(ctx context.Context, env scenarios.Env, e *s1enb.ENB) (*s1enb.UE, *s1enb.AttachResult, sessionFacts, error) {

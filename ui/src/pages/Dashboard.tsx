@@ -53,6 +53,7 @@ import {
   formatProtocol,
 } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+import { defaultDateRange } from "@/utils/dates";
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
@@ -191,19 +192,11 @@ function KpiCard({
 
 const TOP_USERS = 10;
 
-const getDefaultDateRange = () => {
-  const today = new Date();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  const format = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: format(sevenDaysAgo), endDate: format(today) };
-};
-
 const Dashboard = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const { accessToken, authReady } = useAuth();
-  const { startDate, endDate } = getDefaultDateRange();
+  const { startDate, endDate } = defaultDateRange();
 
   const statusQuery = useQuery<APIStatus>({
     queryKey: ["dashboardStatus"],

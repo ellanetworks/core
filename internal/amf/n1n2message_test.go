@@ -6,6 +6,7 @@ package amf_test
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/guard"
+	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
@@ -689,4 +692,71 @@ func TestN2MessageTransferOrPage_SetupItemFailureReleasesICSClaim(t *testing.T) 
 	if got := ueConn.ICS(); got != amf.ICSNotStarted {
 		t.Fatalf("ICS = %v, want %v: the claim was not released", got, amf.ICSNotStarted)
 	}
+}
+
+// TS 23.501 §5.17.2.2.1
+//
+// A UE that never answers the REGISTRATION ACCEPT is written off by T3550 and treated as
+// registered anyway. That path reaches 5GMM-REGISTERED without a REGISTRATION COMPLETE, so
+// it has to supersede the EPS half of the registration too — otherwise a lost
+// acknowledgement leaves the subscriber holding an MM state in both the AMF and the MME.
+func TestRegistrationAcceptGuardExpiryDropsTheEPSRegistration(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	amfInstance.NASGuardCfg = guard.TimerValue{Enable: true, ExpireTime: time.Millisecond, MaxRetryTimes: 1}
+
+	peer := &cancelCountingEPSPeer{}
+	amfInstance.EPS = peer
+
+	ue := addUE(t, amfInstance, "001010000000031", nil)
+
+	sender := &fakeNGAPSender{}
+	radio := &amf.Radio{Conn: sender}
+	radio.BindAMFForTest(amfInstance)
+	ueConn := amf.NewUeConnForTest(radio, 1, 1, zap.NewNop())
+	ueConn.AMFForTest().AttachUeConn(ue, ueConn)
+
+	ue.TransitionTo(amf.RegistrationInitiated)
+
+	amf.ArmRegistrationAcceptGuard(amfInstance, ue, []byte{0x7e, 0x00, 0x42})
+
+	deadline := time.Now().Add(2 * time.Second)
+	for ue.State() != amf.Registered {
+		if time.Now().After(deadline) {
+			t.Fatalf("T3550 never wrote the registration off; state = %s", ue.State())
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	if got := peer.cancels.Load(); got != 1 {
+		t.Errorf("EPS registrations cancelled = %d, want 1", got)
+	}
+}
+
+type cancelCountingEPSPeer struct {
+	cancels atomic.Int64
+}
+
+func (p *cancelCountingEPSPeer) CancelRegistration(context.Context, etsi.SUPI) {
+	p.cancels.Add(1)
+}
+
+func (*cancelCountingEPSPeer) ForwardRelocation(context.Context, interworking.ForwardRelocationRequest) (interworking.ForwardRelocationResponse, error) {
+	return interworking.ForwardRelocationResponse{}, nil
+}
+
+func (*cancelCountingEPSPeer) RelocationCancel(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+func (*cancelCountingEPSPeer) RelocationComplete(context.Context, etsi.SUPI, interworking.RelocationID) error {
+	return nil
+}
+
+func (*cancelCountingEPSPeer) MMContext(context.Context, interworking.MMContextRequest) (interworking.MMContextResponse, error) {
+	return interworking.MMContextResponse{}, nil
+}
+
+func (*cancelCountingEPSPeer) MMContextAck(context.Context, etsi.SUPI, []uint8) error {
+	return nil
 }

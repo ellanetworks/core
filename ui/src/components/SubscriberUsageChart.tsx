@@ -24,6 +24,7 @@ import {
   UPLINK_COLOR,
   DOWNLINK_COLOR,
 } from "@/utils/formatters";
+import { defaultDateRange } from "@/utils/dates";
 
 interface SubscriberUsageChartProps {
   imsi: string;
@@ -37,21 +38,13 @@ type UsagePerDayRow = {
   total_bytes: number;
 };
 
-const getDateRange7Days = () => {
-  const today = new Date();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(today.getDate() - 6);
-  const format = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: format(sevenDaysAgo), endDate: format(today) };
-};
-
 const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   imsi,
   embedded = false,
 }) => {
   const { accessToken, authReady } = useAuth();
   // Computed once on mount: past midnight the range holds until a remount.
-  const { startDate, endDate } = useMemo(() => getDateRange7Days(), []);
+  const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
 
   const usageQuery = useQuery<UsageResult>({
     queryKey: ["subscriber-usage-chart", imsi, startDate, endDate],

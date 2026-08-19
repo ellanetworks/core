@@ -120,17 +120,11 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 			logger.SUPI(supi.String()), zap.Uint64("relocation", uint64(id)))
 	}
 
-	ue.releaseSmContexts(ctx)
+	a.releaseToEPS(ctx, ue, source,
+		ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 
-	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources",
+	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources and keeping its 5G security context for a return",
 		logger.SUPI(supi.String()))
-
-	if source == nil {
-		return nil
-	}
-
-	source.ReleaseAction = UeContextReleaseHandover
-	source.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
 
 	return nil
 }
@@ -142,9 +136,12 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext, id interworking.RelocationID
 
 	ue.SuperviseKeyChainProc(procedure.N2Handover,
 		time.Now().Add(a.handoverGuardTimeout),
-		func(cctx context.Context) error {
-			if !a.abandonHandover(ue) {
-				return nil
+		func(cctx context.Context) (procedure.Disposition, error) {
+			switch a.unwindHandover(ue) {
+			case handoverCommitting:
+				return procedure.Retain, nil
+			case handoverNotInProgress:
+				return procedure.Release, nil
 			}
 
 			logger.From(cctx, logger.AmfLog).Warn("handover to EPS abandoned: the UE did not arrive in time",
@@ -154,6 +151,6 @@ func (a *AMF) SuperviseHandoverToEPS(ue *UeContext, id interworking.RelocationID
 				logger.From(cctx, logger.AmfLog).Info("the peer had no handover to cancel", zap.Error(err))
 			}
 
-			return nil
+			return procedure.Release, nil
 		})
 }
