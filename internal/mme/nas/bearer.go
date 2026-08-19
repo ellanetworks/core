@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
@@ -351,7 +352,7 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	acceptDefaultBearerFromAttach(ctx, m, ue, msg.ESMMessageContainer)
 
-	sendNetworkName(ctx, m, ue, ueConn)
+	sendNITZ(ctx, m, ue, ueConn)
 
 	return nasreply.Handled()
 }
@@ -368,26 +369,34 @@ func acceptDefaultBearerFromAttach(ctx context.Context, m *mme.MME, ue *mme.UeCo
 	handleActivateDefaultBearerAccept(ctx, m, ue, accept)
 }
 
-// sendNetworkName provides the operator's network name to the UE in an EMM
-// INFORMATION message (TS 24.301).
-func sendNetworkName(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+func sendNITZ(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+	info := &eps.EMMInformation{}
+
 	op, err := m.Bearer.GetOperator(ctx)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to get operator for network name", zap.String("imsi", ue.IMSI()), zap.Error(err))
+	}
+
+	if op != nil {
+		if op.SpnFullName != "" {
+			info.FullNameForNetwork = new(nas.NewNetworkName(op.SpnFullName))
+		}
+
+		if op.SpnShortName != "" {
+			info.ShortNameForNetwork = new(nas.NewNetworkName(op.SpnShortName))
+		}
+	}
+
+	if networkTime, err := nas.NewNetworkTime(time.Now()); err != nil {
+		logger.From(ctx, logger.MmeLog).Warn("omitting the time from EMM INFORMATION", zap.String("imsi", ue.IMSI()), zap.Error(err))
+	} else {
+		info.LocalTimeZone = &networkTime.LocalTimeZone
+		info.UniversalTime = &networkTime.UniversalTime
+		info.DaylightSavingTime = &networkTime.DaylightSavingTime
+	}
+
+	if info.FullNameForNetwork == nil && info.ShortNameForNetwork == nil && info.UniversalTime == nil {
 		return
-	}
-
-	if op.SpnFullName == "" && op.SpnShortName == "" {
-		return
-	}
-
-	info := &eps.EMMInformation{}
-	if op.SpnFullName != "" {
-		info.FullNameForNetwork = new(nas.NewNetworkName(op.SpnFullName))
-	}
-
-	if op.SpnShortName != "" {
-		info.ShortNameForNetwork = new(nas.NewNetworkName(op.SpnShortName))
 	}
 
 	ueConn.SendDownlinkProtected(ctx, info)

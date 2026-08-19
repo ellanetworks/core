@@ -338,7 +338,7 @@ func BuildRegistrationAccept(
 
 // TS 24.501 Generic UE configuration update procedure.
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
+func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName string, networkTime *nas.NetworkTime, includeGUTI bool) ([]byte, error) {
 	m := &fgs.ConfigurationUpdateCommand{}
 
 	if includeGUTI {
@@ -363,6 +363,12 @@ func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName
 
 	if spnShortName != "" {
 		m.ShortNameForNetwork = new(nas.NewNetworkName(spnShortName))
+	}
+
+	if networkTime != nil {
+		m.LocalTimeZone = &networkTime.LocalTimeZone
+		m.UniversalTime = &networkTime.UniversalTime
+		m.DaylightSavingTime = &networkTime.DaylightSavingTime
 	}
 
 	return m.MarshalBinary()

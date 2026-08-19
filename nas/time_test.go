@@ -4,8 +4,10 @@
 package nas
 
 import (
+	"bytes"
 	"testing"
 	"time"
+	_ "time/tzdata"
 )
 
 // TestTimeZoneKnownValues checks the swapped-BCD-with-sign coding against
@@ -101,5 +103,109 @@ func TestDaylightSavingTime(t *testing.T) {
 
 	if _, ok := DaylightSavingTime(3).Adjustment(); ok {
 		t.Error("the reserved value must not decode to an adjustment")
+	}
+}
+
+// TS 24.008 §10.5.3.9
+func TestTimeZoneAndTimeEncodesUniversalTime(t *testing.T) {
+	when := time.Date(2026, time.July, 28, 14, 30, 5, 0, time.FixedZone("", 2*3600))
+
+	in, err := NewTimeZoneAndTime(when)
+	if err != nil {
+		t.Fatalf("NewTimeZoneAndTime: %v", err)
+	}
+
+	got, err := in.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	want := []byte{0x62, 0x70, 0x82, 0x21, 0x03, 0x50, 0x80}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("encoding = % x, want % x", got, want)
+	}
+}
+
+// TS 24.008 §10.5.3.9
+func TestTimeZoneAndTimeDecodesUniversalTime(t *testing.T) {
+	parsed, err := ParseTimeZoneAndTime([]byte{0x62, 0x70, 0x82, 0x21, 0x03, 0x50, 0x80})
+	if err != nil {
+		t.Fatalf("ParseTimeZoneAndTime: %v", err)
+	}
+
+	got, ok := parsed.Time()
+	if !ok {
+		t.Fatal("Time() rejected a well-formed element")
+	}
+
+	if want := time.Date(2026, time.July, 28, 12, 30, 5, 0, time.UTC); !got.Equal(want) {
+		t.Fatalf("Time() = %s, want %s", got.UTC(), want)
+	}
+
+	if _, offset := got.Zone(); offset != 2*3600 {
+		t.Fatalf("Time() offset = %ds, want %ds", offset, 2*3600)
+	}
+
+	if h := got.Hour(); h != 14 {
+		t.Fatalf("local hour = %d, want 14", h)
+	}
+}
+
+// TS 24.008 §10.5.3.9
+func TestTimeZoneAndTimeUTCArgument(t *testing.T) {
+	when := time.Date(2026, time.July, 28, 12, 30, 5, 0, time.UTC)
+
+	in, err := NewTimeZoneAndTime(when)
+	if err != nil {
+		t.Fatalf("NewTimeZoneAndTime: %v", err)
+	}
+
+	got, err := in.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary: %v", err)
+	}
+
+	want := []byte{0x62, 0x70, 0x82, 0x21, 0x03, 0x50, 0x00}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("encoding = % x, want % x", got, want)
+	}
+}
+
+// TS 24.008 §10.5.3.12
+func TestNewDaylightSavingTime(t *testing.T) {
+	cases := []struct {
+		name string
+		zone string
+		when time.Time
+		want DaylightSavingTime
+	}{
+		{"europe winter", "Europe/Paris", time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
+		{"europe summer", "Europe/Paris", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingOneHour},
+		{"sydney winter", "Australia/Sydney", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
+		{"sydney summer", "Australia/Sydney", time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC), DaylightSavingOneHour},
+		{"no summer time", "Asia/Tokyo", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
+		{"utc", "UTC", time.Date(2026, time.July, 15, 12, 0, 0, 0, time.UTC), DaylightSavingNone},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			loc, err := time.LoadLocation(c.zone)
+			if err != nil {
+				t.Fatalf("LoadLocation(%q): %v", c.zone, err)
+			}
+
+			if got := NewDaylightSavingTime(c.when.In(loc)); got != c.want {
+				t.Fatalf("NewDaylightSavingTime = %s, want %s", got, c.want)
+			}
+		})
+	}
+}
+
+// TS 24.008 §10.5.3.12
+func TestNewDaylightSavingTimeFixedZone(t *testing.T) {
+	when := time.Date(2026, time.July, 15, 12, 0, 0, 0, time.FixedZone("", 5*3600))
+
+	if got := NewDaylightSavingTime(when); got != DaylightSavingNone {
+		t.Fatalf("NewDaylightSavingTime = %s, want %s", got, DaylightSavingNone)
 	}
 }

@@ -6,6 +6,7 @@ package amf_test
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -49,7 +50,7 @@ func buildServedTestUE(t *testing.T, amfInstance *amf.AMF, imsi string) *amf.UeC
 }
 
 func TestBuildConfigurationUpdateCommand_WithoutGUTI(t *testing.T) {
-	raw, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", false)
+	raw, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", nil, false)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
@@ -91,7 +92,7 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 
 	ue.SetGutiForTest(guti)
 
-	raw, err := amf.BuildConfigurationUpdateCommand(guti, "ELLACORE5G", "ELLACORE", true)
+	raw, err := amf.BuildConfigurationUpdateCommand(guti, "ELLACORE5G", "ELLACORE", nil, true)
 	if err != nil {
 		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
 	}
@@ -123,7 +124,7 @@ func TestBuildConfigurationUpdateCommand_WithGUTI(t *testing.T) {
 }
 
 func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T) {
-	_, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", true)
+	_, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", nil, true)
 	if err == nil {
 		t.Fatal("expected error when includeGUTI is true but GUTI is invalid")
 	}
@@ -273,5 +274,44 @@ func TestBuildRegistrationAcceptRefusesAContextTheAMFDoesNotServe(t *testing.T) 
 				t.Fatal("built a registration accept for a UE the AMF cannot resolve by SUPI")
 			}
 		})
+	}
+}
+
+// TS 24.501 §5.4.4.2
+func TestBuildConfigurationUpdateCommand_NITZTime(t *testing.T) {
+	when := time.Date(2026, time.July, 28, 14, 30, 5, 0, time.FixedZone("", 2*3600))
+
+	networkTime, err := nas.NewNetworkTime(when)
+	if err != nil {
+		t.Fatalf("NewNetworkTime: %v", err)
+	}
+
+	raw, err := amf.BuildConfigurationUpdateCommand(etsi.InvalidGUTI5G, "ELLACORE5G", "ELLACORE", &networkTime, false)
+	if err != nil {
+		t.Fatalf("BuildConfigurationUpdateCommand failed: %v", err)
+	}
+
+	cuc, err := fgs.ParseConfigurationUpdateCommand(raw)
+	if err != nil {
+		t.Fatalf("parse ConfigurationUpdateCommand: %v", err)
+	}
+
+	if cuc.LocalTimeZone == nil || cuc.UniversalTime == nil || cuc.DaylightSavingTime == nil {
+		t.Fatalf("expected all three time elements, got zone %v time %v dst %v",
+			cuc.LocalTimeZone, cuc.UniversalTime, cuc.DaylightSavingTime)
+	}
+
+	got, ok := cuc.UniversalTime.Time()
+	if !ok || !got.Equal(when) {
+		t.Errorf("universal time = %s (ok %v), want %s", got, ok, when)
+	}
+
+	offset, ok := cuc.LocalTimeZone.Offset()
+	if !ok || offset != 2*time.Hour {
+		t.Errorf("local time zone = %s (ok %v), want %s", offset, ok, 2*time.Hour)
+	}
+
+	if cuc.ConfigurationUpdateIndication != nil {
+		t.Errorf("a NITZ-only command must request no acknowledgement, got %s", cuc.ConfigurationUpdateIndication)
 	}
 }
