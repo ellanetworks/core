@@ -366,6 +366,75 @@ describe("Traffic date range", () => {
   });
 });
 
+describe("Traffic date range accessibility", () => {
+  const invert = async (user: ReturnType<typeof userEvent.setup>) => {
+    const start = screen.getByLabelText("Start date");
+    const end = screen.getByLabelText("End date");
+    await user.clear(start);
+    await user.type(start, "2026-08-10");
+    await user.clear(end);
+    await user.type(end, "2026-08-01");
+    await screen.findByRole("alert");
+  };
+
+  it("describes the start date field with the reason it is invalid", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    await invert(user);
+
+    expect(screen.getByLabelText("Start date")).toHaveAccessibleDescription(
+      /end date must be on or after the start date/i,
+    );
+  });
+
+  it("describes the end date field with the reason it is invalid", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    await invert(user);
+
+    expect(screen.getByLabelText("End date")).toHaveAccessibleDescription(
+      /end date must be on or after the start date/i,
+    );
+  });
+
+  it("carries no stale description once the range is valid", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+    await invert(user);
+
+    const end = screen.getByLabelText("End date");
+    await user.clear(end);
+    await user.type(end, "2026-08-20");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+    expect(end).toHaveAccessibleDescription("");
+  });
+
+  it("stops the picker offering an end date before the start", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    const start = screen.getByLabelText("Start date");
+    await user.clear(start);
+    await user.type(start, "2026-08-10");
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("End date")).toHaveAttribute(
+        "min",
+        "2026-08-10",
+      ),
+    );
+  });
+});
+
 describe("Traffic incomplete date range", () => {
   it("explains why results stopped updating when a date is cleared", async () => {
     const user = userEvent.setup();
