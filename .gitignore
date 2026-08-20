@@ -35,6 +35,7 @@ site
 
 # local build / tooling artifacts
 /coverage.out
+ui/e2e/.build/
 /core-tester
 /*.backup
 .VSCodeCounter/

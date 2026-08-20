@@ -44,7 +44,6 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import IPProtocolChip from "@/components/IPProtocolChip";
-import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%", textAlign: "right" } as const;
@@ -471,7 +470,10 @@ const PolicyDetail: React.FC = () => {
                             }}
                           >
                             <NorthIcon
-                              sx={{ fontSize: 16, color: UPLINK_COLOR }}
+                              sx={{
+                                fontSize: 16,
+                                color: (t) => t.palette.chart.uplink,
+                              }}
                             />
                             <Typography variant="body2">
                               {policy.session_ambr_uplink}
@@ -499,7 +501,10 @@ const PolicyDetail: React.FC = () => {
                             }}
                           >
                             <SouthIcon
-                              sx={{ fontSize: 16, color: DOWNLINK_COLOR }}
+                              sx={{
+                                fontSize: 16,
+                                color: (t) => t.palette.chart.downlink,
+                              }}
                             />
                             <Typography variant="body2">
                               {policy.session_ambr_downlink}
@@ -572,7 +577,12 @@ const PolicyDetail: React.FC = () => {
                       <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                         Uplink
                       </Typography>
-                      <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+                      <NorthIcon
+                        sx={{
+                          fontSize: 16,
+                          color: (t) => t.palette.chart.uplink,
+                        }}
+                      />
                     </Box>
                     {canEdit && (
                       <IconButton
@@ -620,7 +630,12 @@ const PolicyDetail: React.FC = () => {
                       <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                         Downlink
                       </Typography>
-                      <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+                      <SouthIcon
+                        sx={{
+                          fontSize: 16,
+                          color: (t) => t.palette.chart.downlink,
+                        }}
+                      />
                     </Box>
                     {canEdit && (
                       <IconButton

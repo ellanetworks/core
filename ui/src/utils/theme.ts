@@ -4,18 +4,28 @@
 import { createTheme } from "@mui/material/styles";
 import type {} from "@mui/x-data-grid/themeAugmentation";
 
+export interface ChartPalette {
+  uplink: string;
+  downlink: string;
+  series: string[];
+  protocols: Record<number, string>;
+}
+
 declare module "@mui/material/styles" {
   interface Palette {
     link: string;
     backgroundSubtle: string;
+    chart: ChartPalette;
   }
   interface PaletteOptions {
     link?: string;
     backgroundSubtle?: string;
+    chart?: ChartPalette;
   }
 }
 
-const base = createTheme({
+const theme = createTheme({
+  cssVariables: true,
   palette: {
     // MUI defaults to 3, which lets getContrastText return white on backgrounds
     // that only reach 3:1 — below the 4.5:1 WCAG 1.4.3 needs for chip-sized text.
@@ -34,12 +44,41 @@ const base = createTheme({
     },
     link: "#2B3FD4",
     backgroundSubtle: "#F5F5F5",
+    chart: {
+      uplink: "#FF9800",
+      downlink: "#4254FB",
+      series: [
+        "#2196F3",
+        "#4CAF50",
+        "#FF9800",
+        "#C2185B",
+        "#9C27B0",
+        "#00BCD4",
+        "#FF5722",
+        "#795548",
+        "#546E7A",
+        "#8BC34A",
+        "#3F51B5",
+        "#CDDC39",
+      ],
+      protocols: {
+        1: "#FF9800",
+        6: "#2196F3",
+        17: "#4CAF50",
+        47: "#9C27B0",
+        58: "#C2185B",
+        132: "#00BCD4",
+      },
+    },
+    DataGrid: {
+      headerBg: "var(--mui-palette-backgroundSubtle)",
+    },
   },
   components: {
     MuiListItemText: {
       styleOverrides: {
         primary: {
-          color: "#26374a",
+          color: "var(--mui-palette-primary-main)",
         },
       },
     },
@@ -67,13 +106,6 @@ const base = createTheme({
     h3: {
       fontWeight: 500,
     },
-  },
-});
-
-// A second pass so the grid header can reference a token from the first.
-const theme = createTheme(base, {
-  palette: {
-    DataGrid: { headerBg: base.palette.backgroundSubtle },
   },
 });
 

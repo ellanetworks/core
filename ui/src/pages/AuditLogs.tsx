@@ -98,6 +98,11 @@ const AuditLog: React.FC = () => {
     return f;
   }, [startDate, endDate, selectedUser, selectedAction]);
 
+  const dateError =
+    startDate && endDate && startDate > endDate
+      ? "End date must be after start date"
+      : "";
+
   const [paginationModel, setPaginationModel] = useFilteredPagination(filters);
   const pageOneBased = paginationModel.page + 1;
 
@@ -110,18 +115,13 @@ const AuditLog: React.FC = () => {
         paginationModel.pageSize,
         filters,
       ),
-    enabled: authReady && !!accessToken,
+    enabled: authReady && !!accessToken && !dateError,
     placeholderData: (prev) => prev,
   });
 
   const hasActiveFilters = Boolean(
     startDate || endDate || selectedUser || selectedAction,
   );
-
-  const dateError =
-    startDate && endDate && startDate > endDate
-      ? "End date must be after start date"
-      : "";
 
   const rowCount = auditLogsQuery.data?.total_count ?? 0;
 

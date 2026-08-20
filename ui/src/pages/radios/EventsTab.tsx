@@ -9,6 +9,7 @@ import React, {
   useRef,
 } from "react";
 import {
+  Alert,
   Box,
   Button,
   Typography,
@@ -207,6 +208,12 @@ function usePageVisible() {
   return visible;
 }
 
+const toIsoInstant = (value: string): string => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+};
+
 const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
@@ -253,7 +260,10 @@ export default function EventsTab() {
     [protocolFilter],
   );
 
-  // A message type outside the selected protocol's set matches no rows.
+  const effectiveMessageType = messageTypeOptions.includes(messageTypeFilter)
+    ? messageTypeFilter
+    : "";
+
   useEffect(() => {
     if (messageTypeFilter && !messageTypeOptions.includes(messageTypeFilter)) {
       setMessageTypeFilter("");
@@ -278,23 +288,32 @@ export default function EventsTab() {
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
+  const timestampFromIso = toIsoInstant(timestampFrom);
+  const timestampToIso = toIsoInstant(timestampTo);
+
+  const timestampError =
+    (timestampFrom && !timestampFromIso) || (timestampTo && !timestampToIso)
+      ? "Enter a valid date and time."
+      : timestampFromIso && timestampToIso && timestampFromIso > timestampToIso
+        ? "The To timestamp must be on or after the From timestamp."
+        : "";
+
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
     if (radioFilter) params.radio = radioFilter;
     if (protocolFilter) params.protocol = protocolFilter;
     if (directionFilter) params.direction = directionFilter;
-    if (messageTypeFilter) params.message_type = messageTypeFilter;
-    if (timestampFrom)
-      params.timestamp_from = new Date(timestampFrom).toISOString();
-    if (timestampTo) params.timestamp_to = new Date(timestampTo).toISOString();
+    if (effectiveMessageType) params.message_type = effectiveMessageType;
+    if (timestampFromIso) params.timestamp_from = timestampFromIso;
+    if (timestampToIso) params.timestamp_to = timestampToIso;
     return params;
   }, [
     radioFilter,
     protocolFilter,
     directionFilter,
-    messageTypeFilter,
-    timestampFrom,
-    timestampTo,
+    effectiveMessageType,
+    timestampFromIso,
+    timestampToIso,
   ]);
 
   const [paginationModel, setPaginationModel] =
@@ -304,7 +323,7 @@ export default function EventsTab() {
 
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
     queryKey: ["networkLogs", pageOneBased, perPage, filterParams],
-    enabled: authReady && !!accessToken,
+    enabled: authReady && !!accessToken && !timestampError,
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: () =>
@@ -597,7 +616,7 @@ export default function EventsTab() {
           <TextField
             select
             label="Message Type"
-            value={messageTypeFilter}
+            value={effectiveMessageType}
             onChange={(e) => setMessageTypeFilter(e.target.value)}
             size="small"
             sx={{ minWidth: 180 }}
@@ -629,6 +648,7 @@ export default function EventsTab() {
             type="datetime-local"
             value={timestampFrom}
             onChange={(e) => setTimestampFrom(e.target.value)}
+            error={!!timestampError}
             size="small"
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ minWidth: 200 }}
@@ -638,11 +658,18 @@ export default function EventsTab() {
             type="datetime-local"
             value={timestampTo}
             onChange={(e) => setTimestampTo(e.target.value)}
+            error={!!timestampError}
             size="small"
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ minWidth: 200 }}
           />
         </Box>
+
+        {timestampError && (
+          <Alert severity="error" sx={{ alignSelf: "flex-start" }}>
+            {timestampError}
+          </Alert>
+        )}
 
         <Box
           sx={{
@@ -780,9 +807,7 @@ export default function EventsTab() {
           transition: dragging.current ? "none" : "transform 200ms ease-in-out",
           zIndex: (t) => t.zIndex.appBar - 1,
           bgcolor: "background.paper",
-          boxShadow: viewEventDrawerOpen
-            ? "-4px 0 16px rgba(0,0,0,0.12)"
-            : "none",
+          boxShadow: viewEventDrawerOpen ? 8 : "none",
           display: "flex",
           flexDirection: "row",
         }}
