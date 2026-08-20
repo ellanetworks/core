@@ -1,0 +1,4 @@
+services:
+  ella-core:
+    volumes:
+      - ./.build/core:/bin/core:ro

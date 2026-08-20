@@ -9,7 +9,15 @@ export default function globalTeardown() {
   try {
     execFileSync(
       "docker",
-      ["compose", "-f", "e2e/compose.yaml", "down", "-v"],
+      [
+        "compose",
+        "-f",
+        "e2e/compose.yaml",
+        "-f",
+        "e2e/compose.local.yaml",
+        "down",
+        "-v",
+      ],
       { stdio: "ignore" },
     );
   } catch {}

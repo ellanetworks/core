@@ -12,7 +12,7 @@ const TacValue: React.FC<{ tac: string }> = ({ tac }) => {
     <>
       {tac}
       {decimal !== null && (
-        <Box component="span" sx={{ opacity: 0.6, ml: 0.5 }}>
+        <Box component="span" sx={{ color: "text.secondary", ml: 0.5 }}>
           ({decimal})
         </Box>
       )}
