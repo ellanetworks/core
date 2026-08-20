@@ -227,11 +227,13 @@ const Traffic: React.FC = () => {
   );
 
   const dateRangeError =
-    startDate && endDate && startDate > endDate
-      ? "End date must be on or after the start date."
-      : "";
+    !startDate || !endDate
+      ? "Select both a start and an end date to load traffic."
+      : startDate > endDate
+        ? "End date must be on or after the start date."
+        : "";
 
-  const dateRangeReady = !!startDate && !!endDate && !dateRangeError;
+  const dateRangeReady = !dateRangeError;
 
   const { data: usageRetentionPolicy, refetch: refetchUsageRetention } =
     useQuery<UsageRetentionPolicy>({
@@ -989,52 +991,56 @@ const Traffic: React.FC = () => {
                 </Box>
               </Box>
 
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  Daily data usage ({selectedSubscriber || "all subscribers"})
-                  in {unit}
-                </Typography>
-                <BarChart
-                  dataset={chartDataset}
-                  xAxis={[{ scaleType: "band", dataKey: "date" }]}
-                  yAxis={[{ label: `Usage (${unit})` }]}
-                  series={[
-                    {
-                      dataKey: "downlink",
-                      label: `Downlink (${unit})`,
-                      color: theme.palette.chart.downlink,
-                    },
-                    {
-                      dataKey: "uplink",
-                      label: `Uplink (${unit})`,
-                      color: theme.palette.chart.uplink,
-                    },
-                  ]}
-                  height={300}
-                  slotProps={{
-                    legend: {
-                      direction: "horizontal",
-                      position: {
-                        vertical: "bottom",
-                        horizontal: "center",
-                      },
-                    },
-                  }}
-                />
-              </Box>
+              {dateRangeError ? null : (
+                <>
+                  <Box>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      Daily data usage (
+                      {selectedSubscriber || "all subscribers"}) in {unit}
+                    </Typography>
+                    <BarChart
+                      dataset={chartDataset}
+                      xAxis={[{ scaleType: "band", dataKey: "date" }]}
+                      yAxis={[{ label: `Usage (${unit})` }]}
+                      series={[
+                        {
+                          dataKey: "downlink",
+                          label: `Downlink (${unit})`,
+                          color: theme.palette.chart.downlink,
+                        },
+                        {
+                          dataKey: "uplink",
+                          label: `Uplink (${unit})`,
+                          color: theme.palette.chart.uplink,
+                        },
+                      ]}
+                      height={300}
+                      slotProps={{
+                        legend: {
+                          direction: "horizontal",
+                          position: {
+                            vertical: "bottom",
+                            horizontal: "center",
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
 
-              <DataGrid<UsageRow>
-                rows={usageRows}
-                columns={usageColumns}
-                getRowId={(row) => row.id}
-                paginationModel={usagePaginationModel}
-                onPaginationModelChange={setUsagePaginationModel}
-                pageSizeOptions={[10, 25, 50, 100]}
-                disableColumnMenu
-                disableRowSelectionOnClick
-                columnVisibilityModel={{ subscriber: !isSmDown }}
-                sx={gridSx}
-              />
+                  <DataGrid<UsageRow>
+                    rows={usageRows}
+                    columns={usageColumns}
+                    getRowId={(row) => row.id}
+                    paginationModel={usagePaginationModel}
+                    onPaginationModelChange={setUsagePaginationModel}
+                    pageSizeOptions={[10, 25, 50, 100]}
+                    disableColumnMenu
+                    disableRowSelectionOnClick
+                    columnVisibilityModel={{ subscriber: !isSmDown }}
+                    sx={gridSx}
+                  />
+                </>
+              )}
             </Box>
           )}
 
@@ -1098,122 +1104,123 @@ const Traffic: React.FC = () => {
                 </Box>
               </Box>
 
-              {(protocolPieData.length > 0 ||
-                topDestinationsPieData.length > 0) && (
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                    gap: 3,
-                    alignItems: "start",
-                  }}
-                >
-                  {protocolPieData.length > 0 && (
-                    <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Protocols (by flow count)
-                      </Typography>
-                      <PieChart
-                        series={[
-                          {
-                            data: protocolPieData,
-                            innerRadius: 30,
-                            outerRadius: 80,
-                            paddingAngle: 2,
-                            cornerRadius: 5,
-                            valueFormatter: (item) =>
-                              formatCountShare(
-                                item.value,
-                                protocolPieData.reduce(
-                                  (s, d) => s + d.value,
-                                  0,
+              {!dateRangeError &&
+                (protocolPieData.length > 0 ||
+                  topDestinationsPieData.length > 0) && (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                      gap: 3,
+                      alignItems: "start",
+                    }}
+                  >
+                    {protocolPieData.length > 0 && (
+                      <Box>
+                        <Typography variant="h6" sx={{ mb: 1 }}>
+                          Protocols (by flow count)
+                        </Typography>
+                        <PieChart
+                          series={[
+                            {
+                              data: protocolPieData,
+                              innerRadius: 30,
+                              outerRadius: 80,
+                              paddingAngle: 2,
+                              cornerRadius: 5,
+                              valueFormatter: (item) =>
+                                formatCountShare(
+                                  item.value,
+                                  protocolPieData.reduce(
+                                    (s, d) => s + d.value,
+                                    0,
+                                  ),
+                                  "flow",
                                 ),
-                                "flow",
-                              ),
-                          },
-                        ]}
-                        height={300}
-                        sx={{
-                          "& .MuiPieArc-root": {
-                            transitionProperty: "opacity, filter",
-                          },
-                        }}
-                        onItemClick={(_event, d) =>
-                          handleProtocolPieClick(d.dataIndex)
-                        }
-                        slotProps={{
-                          legend: {
-                            direction: "horizontal",
-                            position: {
-                              vertical: "bottom",
-                              horizontal: "center",
                             },
-                            onItemClick: (
-                              _event: React.MouseEvent,
-                              legendItem: { dataIndex?: number },
-                            ) =>
-                              handleProtocolPieClick(
-                                legendItem.dataIndex ?? -1,
-                              ),
-                          },
-                        }}
-                      />
-                    </Box>
-                  )}
-                  {topDestinationsPieData.length > 0 && (
-                    <Box>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        Top 10 Destinations (uplink, by flow count)
-                      </Typography>
-                      <PieChart
-                        series={[
-                          {
-                            data: topDestinationsPieData,
-                            innerRadius: 30,
-                            outerRadius: 80,
-                            paddingAngle: 2,
-                            cornerRadius: 5,
-                            valueFormatter: (item) =>
-                              formatCountShare(
-                                item.value,
-                                topDestinationsPieData.reduce(
-                                  (s, d) => s + d.value,
-                                  0,
+                          ]}
+                          height={300}
+                          sx={{
+                            "& .MuiPieArc-root": {
+                              transitionProperty: "opacity, filter",
+                            },
+                          }}
+                          onItemClick={(_event, d) =>
+                            handleProtocolPieClick(d.dataIndex)
+                          }
+                          slotProps={{
+                            legend: {
+                              direction: "horizontal",
+                              position: {
+                                vertical: "bottom",
+                                horizontal: "center",
+                              },
+                              onItemClick: (
+                                _event: React.MouseEvent,
+                                legendItem: { dataIndex?: number },
+                              ) =>
+                                handleProtocolPieClick(
+                                  legendItem.dataIndex ?? -1,
                                 ),
-                                "flow",
-                              ),
-                          },
-                        ]}
-                        height={300}
-                        sx={{
-                          "& .MuiPieArc-root": {
-                            transitionProperty: "opacity, filter",
-                          },
-                        }}
-                        onItemClick={(_event, d) =>
-                          handleDestinationPieClick(d.dataIndex)
-                        }
-                        slotProps={{
-                          legend: {
-                            direction: "horizontal",
-                            position: {
-                              vertical: "bottom",
-                              horizontal: "center",
                             },
-                            onItemClick: (
-                              _event: React.MouseEvent,
-                              legendItem: { dataIndex?: number },
-                            ) =>
-                              handleDestinationPieClick(
-                                legendItem.dataIndex ?? -1,
-                              ),
-                          },
-                        }}
-                      />
-                    </Box>
-                  )}
-                </Box>
-              )}
+                          }}
+                        />
+                      </Box>
+                    )}
+                    {topDestinationsPieData.length > 0 && (
+                      <Box>
+                        <Typography variant="h6" sx={{ mb: 1 }}>
+                          Top 10 Destinations (uplink, by flow count)
+                        </Typography>
+                        <PieChart
+                          series={[
+                            {
+                              data: topDestinationsPieData,
+                              innerRadius: 30,
+                              outerRadius: 80,
+                              paddingAngle: 2,
+                              cornerRadius: 5,
+                              valueFormatter: (item) =>
+                                formatCountShare(
+                                  item.value,
+                                  topDestinationsPieData.reduce(
+                                    (s, d) => s + d.value,
+                                    0,
+                                  ),
+                                  "flow",
+                                ),
+                            },
+                          ]}
+                          height={300}
+                          sx={{
+                            "& .MuiPieArc-root": {
+                              transitionProperty: "opacity, filter",
+                            },
+                          }}
+                          onItemClick={(_event, d) =>
+                            handleDestinationPieClick(d.dataIndex)
+                          }
+                          slotProps={{
+                            legend: {
+                              direction: "horizontal",
+                              position: {
+                                vertical: "bottom",
+                                horizontal: "center",
+                              },
+                              onItemClick: (
+                                _event: React.MouseEvent,
+                                legendItem: { dataIndex?: number },
+                              ) =>
+                                handleDestinationPieClick(
+                                  legendItem.dataIndex ?? -1,
+                                ),
+                            },
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                )}
 
               <Box
                 sx={{
@@ -1301,7 +1308,7 @@ const Traffic: React.FC = () => {
                 />
               </Box>
 
-              {flowRowCount === 0 && !isFlowLoading ? (
+              {dateRangeError ? null : flowRowCount === 0 && !isFlowLoading ? (
                 <EmptyState
                   primaryText="No flow reports found"
                   secondaryText="No flows match the current filters, or flow accounting has not recorded any data yet."

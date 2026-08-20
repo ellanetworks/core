@@ -4,8 +4,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithProviders } from "@/test/renderWithProviders";
-import { setupApiServer } from "@/test/apiServer";
+import {
+  renderWithProviders,
+  LOCATION_TEST_ID,
+} from "@/test/renderWithProviders";
+import { setupApiServer, httpError } from "@/test/apiServer";
 import {
   flowReport,
   flowReportPage,
@@ -104,6 +107,22 @@ const chooseSubscriber = async (
 
 beforeEach(() => {
   seedApi();
+});
+
+describe("Traffic flow filters authorization", () => {
+  it("sends the access token on every request", async () => {
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    const requests = api.requests();
+    expect(requests.length).toBeGreaterThan(0);
+    for (const request of requests) {
+      expect(
+        request.headers.get("authorization"),
+        `${request.method} ${request.url.pathname} was sent unauthenticated`,
+      ).toBe("Bearer test-token");
+    }
+  });
 });
 
 describe("Traffic flow filters", () => {
@@ -347,6 +366,162 @@ describe("Traffic date range", () => {
   });
 });
 
+describe("Traffic incomplete date range", () => {
+  it("explains why results stopped updating when a date is cleared", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    await user.clear(screen.getByLabelText("Start date"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /select both a start and an end date/i,
+    );
+  });
+
+  it("stops querying while the range is incomplete", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    const before = flowRequests().length;
+    await user.clear(screen.getByLabelText("Start date"));
+    await screen.findByRole("alert");
+
+    expect(flowRequests().length).toBe(before);
+  });
+
+  it("never disables the flow query without saying why", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    for (const label of ["Start date", "End date"]) {
+      await user.clear(screen.getByLabelText(label));
+      expect(
+        screen.queryAllByRole("alert").length,
+        `clearing ${label} froze the page with no explanation`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("resumes querying once the range is complete again", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    const start = screen.getByLabelText("Start date");
+    await user.clear(start);
+    await screen.findByRole("alert");
+
+    await user.type(start, "2026-07-01");
+
+    await waitFor(() => expect(lastFlowParams().start).toBe("2026-07-01"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("Traffic stale results", () => {
+  it("stops showing flow rows once the range is incomplete", async () => {
+    const user = userEvent.setup();
+    seedApi({ flows: [flowReport(1, { destination_ip: "93.184.216.34" })] });
+    await renderTraffic();
+    await screen.findAllByText("93.184.216.34");
+
+    await user.clear(screen.getByLabelText("Start date"));
+    await screen.findByRole("alert");
+
+    expect(screen.queryByText("93.184.216.34")).not.toBeInTheDocument();
+  });
+
+  it("does not claim there are no matching flows when it never asked", async () => {
+    const user = userEvent.setup();
+    seedApi({ flows: [] });
+    await renderTraffic();
+    await screen.findByText("No flow reports found");
+
+    await user.clear(screen.getByLabelText("Start date"));
+    await screen.findByRole("alert");
+
+    expect(screen.queryByText("No flow reports found")).not.toBeInTheDocument();
+  });
+
+  it("shows no loading indicator for a request it will never send", async () => {
+    const user = userEvent.setup();
+    await renderTraffic();
+    await waitForFlowRequests(1);
+
+    await user.clear(screen.getByLabelText("Start date"));
+    await screen.findByRole("alert");
+
+    expect(screen.queryAllByRole("progressbar")).toEqual([]);
+  });
+
+  it("hides the usage chart while the range is incomplete", async () => {
+    const user = userEvent.setup();
+    await renderTraffic("/traffic/usage");
+    await screen.findByText(/Daily data usage/);
+
+    await user.clear(screen.getByLabelText("Start date"));
+    await screen.findByRole("alert");
+
+    expect(screen.queryByText(/Daily data usage/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Traffic session expiry", () => {
+  it("signs the operator out when the flow query is rejected as unauthorized", async () => {
+    seedApi();
+    api.get(FLOWS_PATH, () => httpError(401, "token expired"));
+    renderWithProviders(<Traffic />, {
+      initialEntries: ["/traffic/flows"],
+      auth: {},
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId(LOCATION_TEST_ID)).toHaveTextContent("/login"),
+    );
+  });
+
+  it("stops rendering the page once signed out", async () => {
+    seedApi();
+    api.get(FLOWS_PATH, () => httpError(401, "token expired"));
+    renderWithProviders(<Traffic />, {
+      initialEntries: ["/traffic/flows"],
+      auth: {},
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId(LOCATION_TEST_ID)).toHaveTextContent("/login"),
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Traffic" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the operator on the page for a forbidden response", async () => {
+    seedApi();
+    api.get(FLOWS_PATH, () => httpError(403, "not allowed"));
+    await renderTraffic();
+
+    await waitForFlowRequests(1);
+    expect(screen.getByTestId(LOCATION_TEST_ID)).toHaveTextContent(
+      "/traffic/flows",
+    );
+  });
+
+  it("keeps the operator on the page for a server error", async () => {
+    seedApi();
+    api.get(FLOWS_PATH, () => httpError(500, "boom"));
+    await renderTraffic();
+
+    await waitForFlowRequests(1);
+    expect(screen.getByTestId(LOCATION_TEST_ID)).toHaveTextContent(
+      "/traffic/flows",
+    );
+  });
+});
+
 describe("Traffic flow table", () => {
   it("renders a flow row", async () => {
     seedApi({ flows: [flowReport(1, { destination_ip: "93.184.216.34" })] });
@@ -368,6 +543,100 @@ describe("Traffic flow table", () => {
 
     expect(await screen.findByText("No flow reports found")).toBeVisible();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+  });
+});
+
+describe("Traffic usage query", () => {
+  const usageRequests = () => api.requests(USAGE_PATH);
+
+  it("never requests an incomplete range", async () => {
+    const user = userEvent.setup();
+    await renderTraffic("/traffic/usage");
+    await waitFor(() => expect(usageRequests().length).toBeGreaterThan(0));
+
+    await user.clear(screen.getByLabelText("Start date"));
+    await screen.findByRole("alert");
+
+    const ranges = usageRequests().map((r) => [
+      r.params.get("start"),
+      r.params.get("end"),
+    ]);
+    expect(ranges.filter(([from, to]) => !from || !to)).toEqual([]);
+  });
+
+  it("never requests an inverted range", async () => {
+    const user = userEvent.setup();
+    await renderTraffic("/traffic/usage");
+    await waitFor(() => expect(usageRequests().length).toBeGreaterThan(0));
+
+    const start = screen.getByLabelText("Start date");
+    const end = screen.getByLabelText("End date");
+    await user.clear(start);
+    await user.type(start, "2026-08-10");
+    await user.clear(end);
+    await user.type(end, "2026-08-01");
+    await screen.findByRole("alert");
+
+    const inverted = usageRequests().filter((r) => {
+      const from = r.params.get("start");
+      const to = r.params.get("end");
+      return !!from && !!to && from > to;
+    });
+    expect(inverted).toEqual([]);
+  });
+
+  it("groups by both subscriber and day", async () => {
+    await renderTraffic("/traffic/usage");
+    await waitFor(() => expect(usageRequests().length).toBeGreaterThan(1));
+
+    const groupings = new Set(
+      usageRequests().map((r) => r.params.get("group_by")),
+    );
+    expect(groupings).toEqual(new Set(["subscriber", "day"]));
+  });
+});
+
+describe("Traffic usage pagination", () => {
+  const manyUsage = usageBySubscriber(
+    Object.fromEntries(
+      Array.from({ length: 30 }, (_, i) => [
+        `00101${String(i + 1).padStart(10, "0")}`,
+        (i + 1) * 1000,
+      ]),
+    ),
+  );
+
+  const footer = () =>
+    document.querySelector(".MuiTablePagination-displayedRows")?.textContent ??
+    "";
+
+  it("returns to the first page when the subscriber changes", async () => {
+    const user = userEvent.setup();
+    seedApi({ usageBySub: manyUsage });
+    await renderTraffic("/traffic/usage");
+    await waitFor(() => expect(footer()).toMatch(/1–25/));
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(footer()).toMatch(/26–30/));
+
+    await chooseSubscriber(user, IMSI_B);
+
+    await waitFor(() => expect(footer()).toMatch(/1–25/));
+  });
+});
+
+describe("Traffic unmount", () => {
+  it("sends no request after the page is unmounted mid-debounce", async () => {
+    const user = userEvent.setup();
+    const view = await renderTraffic();
+    await waitForFlowRequests(1);
+
+    await user.type(screen.getByLabelText("Source"), "10.45.0.1");
+    const before = flowRequests().length;
+    view.unmount();
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    expect(flowRequests().length).toBe(before);
   });
 });
 

@@ -89,6 +89,3 @@ export const usageBySubscriber = (
       total_bytes: total,
     },
   }));
-
-export const usageByDay = (entries: Record<string, number>): UsageResult =>
-  usageBySubscriber(entries);

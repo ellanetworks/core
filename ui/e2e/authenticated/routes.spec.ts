@@ -91,11 +91,6 @@ for (const { label, route, heading } of ROUTES) {
     }
 
     expect(pageErrors, `${route} raised an uncaught error`).toEqual([]);
-  });
-
-  test(`${label} has no accessibility violations`, async ({ page }) => {
-    await page.goto(route);
-    await settle(page, heading, route);
 
     await assertNoA11yViolations(page, label);
   });

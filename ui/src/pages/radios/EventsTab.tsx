@@ -280,7 +280,21 @@ export default function EventsTab() {
     enabled: authReady && !!accessToken,
     refetchInterval: 10_000,
   });
-  const radioOptions: APIRadio[] = radiosQuery.data?.items ?? [];
+  const radioOptions: APIRadio[] = useMemo(() => {
+    const radios = radiosQuery.data?.items ?? [];
+    return radioFilter && !radios.some((r) => r.name === radioFilter)
+      ? [
+          {
+            name: radioFilter,
+            id: radioFilter,
+            address: "",
+            type: "",
+            supported_tais: [],
+          },
+          ...radios,
+        ]
+      : radios;
+  }, [radiosQuery.data, radioFilter]);
 
   const retentionQuery = useQuery<RadioEventRetentionPolicy>({
     queryKey: ["networkLogRetention"],
@@ -722,78 +736,82 @@ export default function EventsTab() {
           </Typography>
         </Box>
 
-        <QueryState
-          query={networkLogsQuery}
-          resource="radio events"
-          isEmpty={(data) => (data.total_count ?? 0) === 0}
-          filtered={hasActiveFilters}
-          noResults={
-            <EmptyState
-              primaryText="No radio events match the selected filters"
-              secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
-            />
-          }
-          empty={
-            <EmptyState
-              primaryText="No radio events yet"
-              secondaryText="Signalling exchanged with connected radios will appear here."
-            />
-          }
-        >
-          {() => (
-            <DataGrid<APIRadioEvent>
-              rows={networkRows}
-              columns={networkColumns}
-              getRowId={(row) => row.id}
-              loading={
-                networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
-              }
-              paginationMode="server"
-              rowCount={subRowCount}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              disableColumnMenu
-              pageSizeOptions={[10, 25, 50, 100]}
-              onRowClick={handleRowClick}
-              rowSelectionModel={selectionModel}
-              disableRowSelectionOnClick
-              onRowSelectionModelChange={(model) => setSelectionModel(model)}
-              density="compact"
-              autoHeight
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
+        {timestampError ? null : (
+          <QueryState
+            query={networkLogsQuery}
+            resource="radio events"
+            isEmpty={(data) => (data.total_count ?? 0) === 0}
+            filtered={hasActiveFilters}
+            noResults={
+              <EmptyState
+                primaryText="No radio events match the selected filters"
+                secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
+              />
+            }
+            empty={
+              <EmptyState
+                primaryText="No radio events yet"
+                secondaryText="Signalling exchanged with connected radios will appear here."
+              />
+            }
+          >
+            {() => (
+              <DataGrid<APIRadioEvent>
+                rows={networkRows}
+                columns={networkColumns}
+                getRowId={(row) => row.id}
+                loading={
+                  networkLogsQuery.isLoading ||
+                  networkLogsQuery.isPlaceholderData
+                }
+                paginationMode="server"
+                rowCount={subRowCount}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                disableColumnMenu
+                pageSizeOptions={[10, 25, 50, 100]}
+                onRowClick={handleRowClick}
+                rowSelectionModel={selectionModel}
+                disableRowSelectionOnClick
+                onRowSelectionModelChange={(model) => setSelectionModel(model)}
+                density="compact"
+                autoHeight
+                sx={{
+                  width: "100%",
+                  border: 1,
                   borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-                "& .MuiDataGrid-row.Mui-selected": {
-                  backgroundColor: (t) => t.palette.action.selected,
-                  "&:hover": {
-                    backgroundColor: (t) => t.palette.action.selected,
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
                   },
-                  "& .MuiDataGrid-cell": { fontWeight: 500 },
-                  "&::before": { display: "none" },
-                },
-                "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
-                  outline: "none",
-                },
-                "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                  { outline: "none" },
-              }}
-            />
-          )}
-        </QueryState>
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                  "& .MuiDataGrid-row.Mui-selected": {
+                    backgroundColor: (t) => t.palette.action.selected,
+                    "&:hover": {
+                      backgroundColor: (t) => t.palette.action.selected,
+                    },
+                    "& .MuiDataGrid-cell": { fontWeight: 500 },
+                    "&::before": { display: "none" },
+                  },
+                  "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                    {
+                      outline: "none",
+                    },
+                  "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                    { outline: "none" },
+                }}
+              />
+            )}
+          </QueryState>
+        )}
       </Box>
 
       <Box

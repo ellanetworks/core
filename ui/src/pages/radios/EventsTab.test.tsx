@@ -84,6 +84,22 @@ beforeEach(() => {
   seedApi();
 });
 
+describe("EventsTab filters authorization", () => {
+  it("sends the access token on every request", async () => {
+    await renderEvents();
+    await waitForEventRequests(1);
+
+    const requests = api.requests();
+    expect(requests.length).toBeGreaterThan(0);
+    for (const request of requests) {
+      expect(
+        request.headers.get("authorization"),
+        `${request.method} ${request.url.pathname} was sent unauthenticated`,
+      ).toBe("Bearer test-token");
+    }
+  });
+});
+
 describe("EventsTab filters", () => {
   it("omits every filter the operator has not set", async () => {
     await renderEvents();
@@ -200,9 +216,7 @@ describe("EventsTab timestamps", () => {
     });
 
     await waitFor(() =>
-      expect(lastEventParams().timestamp_from).toBe(
-        new Date("2026-08-01T10:30").toISOString(),
-      ),
+      expect(lastEventParams().timestamp_from).toBe("2026-08-01T10:30:00.000Z"),
     );
   });
 
@@ -252,6 +266,54 @@ describe("EventsTab timestamps", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /to.*must be on or after.*from/i,
     );
+  });
+});
+
+describe("EventsTab stale results", () => {
+  const setInvalidRange = async () => {
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
+    await screen.findByRole("alert");
+  };
+
+  it("stops showing event rows once the range is invalid", async () => {
+    seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
+    await renderEvents();
+    await screen.findAllByText("radio-7");
+
+    await setInvalidRange();
+
+    expect(screen.queryByText("radio-7")).not.toBeInTheDocument();
+  });
+
+  it("shows no loading indicator for a request it will never send", async () => {
+    seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
+    await renderEvents();
+    await screen.findAllByText("radio-7");
+
+    await setInvalidRange();
+
+    expect(screen.queryAllByRole("progressbar")).toEqual([]);
+    expect(document.querySelectorAll(".MuiLinearProgress-root")).toHaveLength(
+      0,
+    );
+  });
+
+  it("restores the rows once the range is valid again", async () => {
+    seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
+    await renderEvents();
+    await screen.findAllByText("radio-7");
+    await setInvalidRange();
+
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-20T10:00" },
+    });
+
+    expect((await screen.findAllByText("radio-7")).length).toBeGreaterThan(0);
   });
 });
 

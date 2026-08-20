@@ -7,6 +7,7 @@ export type ApiRequest = {
   method: string;
   url: URL;
   params: URLSearchParams;
+  headers: Headers;
   body: unknown;
 };
 
@@ -16,13 +17,32 @@ export class ApiFailure {
   constructor(
     readonly status: number,
     readonly error?: string,
+    readonly headers: Record<string, string> = {},
   ) {}
 }
 
-export const httpError = (status: number, error?: string): ApiFailure =>
-  new ApiFailure(status, error);
+export const httpError = (
+  status: number,
+  error?: string,
+  headers?: Record<string, string>,
+): ApiFailure => new ApiFailure(status, error, headers);
 
-type Route = { method: string; segments: string[]; resolver: Resolver };
+export class RawBody {
+  constructor(
+    readonly body: BodyInit,
+    readonly headers: Record<string, string> = {},
+  ) {}
+}
+
+export const rawBody = (body: BodyInit, headers?: Record<string, string>) =>
+  new RawBody(body, headers);
+
+type Route = {
+  method: string;
+  path: string;
+  segments: string[];
+  resolver: Resolver;
+};
 
 const segmentsOf = (path: string) => path.replace(/^\/+|\/+$/g, "").split("/");
 
@@ -35,39 +55,63 @@ const matches = (route: Route, method: string, pathname: string) => {
   );
 };
 
+const parseBody = (body: BodyInit | null | undefined): unknown => {
+  if (body == null) return undefined;
+  if (typeof body !== "string") return body;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body;
+  }
+};
+
 const respond = (outcome: unknown): Response => {
   if (outcome instanceof ApiFailure) {
-    return {
+    return new Response(JSON.stringify({ error: outcome.error }), {
       status: outcome.status,
-      ok: false,
-      statusText: "",
-      json: async () => ({ error: outcome.error }),
-    } as Response;
+      headers: { "Content-Type": "application/json", ...outcome.headers },
+    });
   }
-  return {
+  if (outcome instanceof RawBody) {
+    return new Response(outcome.body, {
+      status: 200,
+      headers: outcome.headers,
+    });
+  }
+  if (outcome === undefined) {
+    return new Response(null, { status: 204 });
+  }
+  return new Response(JSON.stringify({ result: outcome }), {
     status: 200,
-    ok: true,
-    statusText: "OK",
-    json: async () => ({ result: outcome }),
-  } as Response;
+    headers: { "Content-Type": "application/json" },
+  });
 };
 
 export class ApiServer {
   private routes: Route[] = [];
   private calls: ApiRequest[] = [];
+  private unhandled: ApiRequest[] = [];
 
   on(method: string, path: string, resolver: Resolver): this {
-    this.routes.push({
+    const route: Route = {
       method: method.toUpperCase(),
+      path,
       segments: segmentsOf(path),
       resolver,
-    });
+    };
+    const existing = this.routes.findIndex(
+      (r) => r.method === route.method && r.path === route.path,
+    );
+    if (existing === -1) this.routes.push(route);
+    else this.routes[existing] = route;
     return this;
   }
 
   get = (path: string, resolver: Resolver) => this.on("GET", path, resolver);
   put = (path: string, resolver: Resolver) => this.on("PUT", path, resolver);
   post = (path: string, resolver: Resolver) => this.on("POST", path, resolver);
+  patch = (path: string, resolver: Resolver) =>
+    this.on("PATCH", path, resolver);
   delete = (path: string, resolver: Resolver) =>
     this.on("DELETE", path, resolver);
 
@@ -81,9 +125,18 @@ export class ApiServer {
     return this.requests(path).at(-1);
   }
 
+  authTokens(path?: string): (string | null)[] {
+    return this.requests(path).map((call) => call.headers.get("authorization"));
+  }
+
+  unhandledRequests(): ApiRequest[] {
+    return [...this.unhandled];
+  }
+
   reset(): void {
     this.routes = [];
     this.calls = [];
+    this.unhandled = [];
   }
 
   handle = async (
@@ -96,19 +149,21 @@ export class ApiServer {
       method,
       url,
       params: url.searchParams,
-      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      headers: new Headers(init?.headers),
+      body: parseBody(init?.body),
     };
     this.calls.push(request);
 
-    for (let i = this.routes.length - 1; i >= 0; i--) {
-      if (matches(this.routes[i], method, url.pathname)) {
-        return respond(this.routes[i].resolver(request));
-      }
+    const route = this.routes.find((r) => matches(r, method, url.pathname));
+    if (!route) {
+      this.unhandled.push(request);
+      return new Response(
+        JSON.stringify({ error: `no handler for ${method} ${url.pathname}` }),
+        { status: 501, headers: { "Content-Type": "application/json" } },
+      );
     }
 
-    throw new Error(
-      `no handler registered for ${method} ${url.pathname}${url.search}`,
-    );
+    return respond(route.resolver(request));
   };
 }
 
@@ -121,7 +176,16 @@ export function setupApiServer(): ApiServer {
   });
 
   afterEach(() => {
+    const unhandled = server.unhandledRequests();
     vi.unstubAllGlobals();
+    if (unhandled.length > 0) {
+      const list = unhandled
+        .map((r) => `  ${r.method} ${r.url.pathname}${r.url.search}`)
+        .join("\n");
+      throw new Error(
+        `the test made requests with no registered handler:\n${list}`,
+      );
+    }
   });
 
   return server;

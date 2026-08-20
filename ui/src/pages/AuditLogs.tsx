@@ -84,10 +84,12 @@ const AuditLog: React.FC = () => {
     enabled: authReady && !!accessToken,
   });
 
-  const userOptions = useMemo(
-    () => (usersData?.items ?? []).map((u) => u.email),
-    [usersData],
-  );
+  const userOptions = useMemo(() => {
+    const emails = (usersData?.items ?? []).map((u) => u.email);
+    return selectedUser && !emails.includes(selectedUser)
+      ? [selectedUser, ...emails]
+      : emails;
+  }, [usersData, selectedUser]);
 
   const filters: AuditLogFilters = useMemo(() => {
     const f: AuditLogFilters = {};

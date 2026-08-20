@@ -65,6 +65,22 @@ beforeEach(() => {
   seedApi();
 });
 
+describe("AuditLogs filters authorization", () => {
+  it("sends the access token on every request", async () => {
+    await renderAuditLogs();
+    await waitForLogRequests(1);
+
+    const requests = api.requests();
+    expect(requests.length).toBeGreaterThan(0);
+    for (const request of requests) {
+      expect(
+        request.headers.get("authorization"),
+        `${request.method} ${request.url.pathname} was sent unauthenticated`,
+      ).toBe("Bearer test-token");
+    }
+  });
+});
+
 describe("AuditLogs filters", () => {
   it("seeds the user filter from the URL", async () => {
     await renderAuditLogs("/audit-logs?user=ops@ellanetworks.com");
