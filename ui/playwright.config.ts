@@ -29,12 +29,13 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "setup",
-      testMatch: /auth\.setup\.ts/,
-    },
-    {
       name: "unauthenticated",
       testDir: "./e2e/unauthenticated",
+    },
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+      dependencies: ["unauthenticated"],
     },
     {
       name: "authenticated",

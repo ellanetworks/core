@@ -24,8 +24,7 @@ declare module "@mui/material/styles" {
   }
 }
 
-const theme = createTheme({
-  cssVariables: true,
+const base = createTheme({
   palette: {
     // MUI defaults to 3, which lets getContrastText return white on backgrounds
     // that only reach 3:1 — below the 4.5:1 WCAG 1.4.3 needs for chip-sized text.
@@ -70,18 +69,8 @@ const theme = createTheme({
         132: "#00BCD4",
       },
     },
-    DataGrid: {
-      headerBg: "var(--mui-palette-backgroundSubtle)",
-    },
   },
   components: {
-    MuiListItemText: {
-      styleOverrides: {
-        primary: {
-          color: "var(--mui-palette-primary-main)",
-        },
-      },
-    },
     MuiDataGrid: {
       styleOverrides: {
         columnHeaderTitle: {
@@ -105,6 +94,19 @@ const theme = createTheme({
     },
     h3: {
       fontWeight: 500,
+    },
+  },
+});
+
+const theme = createTheme(base, {
+  palette: {
+    DataGrid: { headerBg: base.palette.backgroundSubtle },
+  },
+  components: {
+    MuiListItemText: {
+      styleOverrides: {
+        primary: { color: base.palette.primary.main },
+      },
     },
   },
 });
