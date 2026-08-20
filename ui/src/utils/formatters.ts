@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
+import type { ChartPalette } from "@/utils/theme";
+
 export type DataUnit = "B" | "KB" | "MB" | "GB" | "TB";
 
 /**
@@ -227,15 +229,6 @@ export const formatCountShare = (
   return `${value.toLocaleString()} ${unit} (${pct}%)`;
 };
 
-export const PROTOCOL_CHIP_COLORS: Record<number, string> = {
-  6: "#2196F3", // TCP  — blue
-  17: "#4CAF50", // UDP  — green
-  1: "#FF9800", // ICMP — orange
-  58: "#C2185B", // IPv6-ICMP — pink
-  47: "#9C27B0", // GRE  — purple
-  132: "#00BCD4", // SCTP — cyan
-};
-
 /**
  * Always carries the year, since expiries are read against dates far from today.
  */
@@ -293,43 +286,21 @@ export const formatRelativeTime = (dateString: string): string => {
   return `${days}d ago`;
 };
 
-export const UPLINK_COLOR = "#FF9800";
-export const DOWNLINK_COLOR = "#4254FB";
-
-export const PIE_COLORS = [
-  "#2196F3",
-  "#4CAF50",
-  "#FF9800",
-  "#C2185B",
-  "#9C27B0",
-  "#00BCD4",
-  "#FF5722",
-  "#795548",
-  "#546E7A",
-  "#8BC34A",
-  "#3F51B5",
-  "#CDDC39",
-];
-
-/**
- * A protocol in PROTOCOL_CHIP_COLORS keeps that colour across views; the rest
- * draw from the palette entries the set has not claimed, so two protocols shown
- * together never share a colour.
- */
 export const buildProtocolColorMap = (
   protocols: number[],
+  chart: ChartPalette,
 ): Map<number, string> => {
   const claimed = new Set(
-    protocols.map((p) => PROTOCOL_CHIP_COLORS[p]).filter(Boolean),
+    protocols.map((p) => chart.protocols[p]).filter(Boolean),
   );
-  const unclaimed = PIE_COLORS.filter((c) => !claimed.has(c));
-  const pool = unclaimed.length > 0 ? unclaimed : PIE_COLORS;
+  const unclaimed = chart.series.filter((c) => !claimed.has(c));
+  const pool = unclaimed.length > 0 ? unclaimed : chart.series;
 
   const map = new Map<number, string>();
   let next = 0;
 
   protocols.forEach((p) => {
-    map.set(p, PROTOCOL_CHIP_COLORS[p] ?? pool[next++ % pool.length]);
+    map.set(p, chart.protocols[p] ?? pool[next++ % pool.length]);
   });
 
   return map;

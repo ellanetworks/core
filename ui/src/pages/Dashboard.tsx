@@ -45,7 +45,6 @@ import {
 } from "@/queries/flow_reports";
 import { getUsage, type UsageResult } from "@/queries/usage";
 import {
-  PIE_COLORS,
   formatBytesAutoUnit,
   formatCountShare,
   formatDateTime,
@@ -299,9 +298,9 @@ const Dashboard = () => {
       id: p.protocol,
       value: p.count,
       label: formatProtocol(p.protocol),
-      color: PIE_COLORS[i % PIE_COLORS.length],
+      color: theme.palette.chart.series[i % theme.palette.chart.series.length],
     }));
-  }, [flowStatsQuery.data]);
+  }, [flowStatsQuery.data, theme]);
 
   type TopUser = {
     id: string;

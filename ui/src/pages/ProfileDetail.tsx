@@ -43,7 +43,6 @@ import CreatePolicyModal from "@/components/CreatePolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
-import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const labelCellSx = {
@@ -306,7 +305,10 @@ const ProfileDetail: React.FC = () => {
                           }}
                         >
                           <NorthIcon
-                            sx={{ fontSize: 16, color: UPLINK_COLOR }}
+                            sx={{
+                              fontSize: 16,
+                              color: (t) => t.palette.chart.uplink,
+                            }}
                           />
                           <Typography variant="body2">
                             {profile.ue_ambr_uplink}
@@ -334,7 +336,10 @@ const ProfileDetail: React.FC = () => {
                           }}
                         >
                           <SouthIcon
-                            sx={{ fontSize: 16, color: DOWNLINK_COLOR }}
+                            sx={{
+                              fontSize: 16,
+                              color: (t) => t.palette.chart.downlink,
+                            }}
                           />
                           <Typography variant="body2">
                             {profile.ue_ambr_downlink}

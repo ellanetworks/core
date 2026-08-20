@@ -9,6 +9,7 @@ import React, {
   useRef,
 } from "react";
 import {
+  Alert,
   Box,
   Button,
   Typography,
@@ -207,6 +208,14 @@ function usePageVisible() {
   return visible;
 }
 
+const toIsoInstant = (value: string): string => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+};
+
+const TIMESTAMP_ERROR_ID = "radio-events-timestamp-error";
+
 const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
@@ -253,7 +262,10 @@ export default function EventsTab() {
     [protocolFilter],
   );
 
-  // A message type outside the selected protocol's set matches no rows.
+  const effectiveMessageType = messageTypeOptions.includes(messageTypeFilter)
+    ? messageTypeFilter
+    : "";
+
   useEffect(() => {
     if (messageTypeFilter && !messageTypeOptions.includes(messageTypeFilter)) {
       setMessageTypeFilter("");
@@ -270,7 +282,21 @@ export default function EventsTab() {
     enabled: authReady && !!accessToken,
     refetchInterval: 10_000,
   });
-  const radioOptions: APIRadio[] = radiosQuery.data?.items ?? [];
+  const radioOptions: APIRadio[] = useMemo(() => {
+    const radios = radiosQuery.data?.items ?? [];
+    return radioFilter && !radios.some((r) => r.name === radioFilter)
+      ? [
+          {
+            name: radioFilter,
+            id: radioFilter,
+            address: "",
+            type: "",
+            supported_tais: [],
+          },
+          ...radios,
+        ]
+      : radios;
+  }, [radiosQuery.data, radioFilter]);
 
   const retentionQuery = useQuery<RadioEventRetentionPolicy>({
     queryKey: ["networkLogRetention"],
@@ -278,23 +304,32 @@ export default function EventsTab() {
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
   });
 
+  const timestampFromIso = toIsoInstant(timestampFrom);
+  const timestampToIso = toIsoInstant(timestampTo);
+
+  const timestampError =
+    (timestampFrom && !timestampFromIso) || (timestampTo && !timestampToIso)
+      ? "Enter a valid date and time."
+      : timestampFromIso && timestampToIso && timestampFromIso > timestampToIso
+        ? "The To timestamp must be on or after the From timestamp."
+        : "";
+
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
     if (radioFilter) params.radio = radioFilter;
     if (protocolFilter) params.protocol = protocolFilter;
     if (directionFilter) params.direction = directionFilter;
-    if (messageTypeFilter) params.message_type = messageTypeFilter;
-    if (timestampFrom)
-      params.timestamp_from = new Date(timestampFrom).toISOString();
-    if (timestampTo) params.timestamp_to = new Date(timestampTo).toISOString();
+    if (effectiveMessageType) params.message_type = effectiveMessageType;
+    if (timestampFromIso) params.timestamp_from = timestampFromIso;
+    if (timestampToIso) params.timestamp_to = timestampToIso;
     return params;
   }, [
     radioFilter,
     protocolFilter,
     directionFilter,
-    messageTypeFilter,
-    timestampFrom,
-    timestampTo,
+    effectiveMessageType,
+    timestampFromIso,
+    timestampToIso,
   ]);
 
   const [paginationModel, setPaginationModel] =
@@ -304,7 +339,7 @@ export default function EventsTab() {
 
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
     queryKey: ["networkLogs", pageOneBased, perPage, filterParams],
-    enabled: authReady && !!accessToken,
+    enabled: authReady && !!accessToken && !timestampError,
     refetchInterval: autoRefresh && visible ? 3000 : false,
     placeholderData: keepPreviousData,
     queryFn: () =>
@@ -597,7 +632,7 @@ export default function EventsTab() {
           <TextField
             select
             label="Message Type"
-            value={messageTypeFilter}
+            value={effectiveMessageType}
             onChange={(e) => setMessageTypeFilter(e.target.value)}
             size="small"
             sx={{ minWidth: 180 }}
@@ -629,8 +664,16 @@ export default function EventsTab() {
             type="datetime-local"
             value={timestampFrom}
             onChange={(e) => setTimestampFrom(e.target.value)}
+            error={!!timestampError}
             size="small"
-            slotProps={{ inputLabel: { shrink: true } }}
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: {
+                "aria-describedby": timestampError
+                  ? TIMESTAMP_ERROR_ID
+                  : undefined,
+              },
+            }}
             sx={{ minWidth: 200 }}
           />
           <TextField
@@ -638,11 +681,30 @@ export default function EventsTab() {
             type="datetime-local"
             value={timestampTo}
             onChange={(e) => setTimestampTo(e.target.value)}
+            error={!!timestampError}
             size="small"
-            slotProps={{ inputLabel: { shrink: true } }}
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: {
+                min: timestampFrom || undefined,
+                "aria-describedby": timestampError
+                  ? TIMESTAMP_ERROR_ID
+                  : undefined,
+              },
+            }}
             sx={{ minWidth: 200 }}
           />
         </Box>
+
+        {timestampError && (
+          <Alert
+            id={TIMESTAMP_ERROR_ID}
+            severity="error"
+            sx={{ alignSelf: "flex-start" }}
+          >
+            {timestampError}
+          </Alert>
+        )}
 
         <Box
           sx={{
@@ -695,78 +757,82 @@ export default function EventsTab() {
           </Typography>
         </Box>
 
-        <QueryState
-          query={networkLogsQuery}
-          resource="radio events"
-          isEmpty={(data) => (data.total_count ?? 0) === 0}
-          filtered={hasActiveFilters}
-          noResults={
-            <EmptyState
-              primaryText="No radio events match the selected filters"
-              secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
-            />
-          }
-          empty={
-            <EmptyState
-              primaryText="No radio events yet"
-              secondaryText="Signalling exchanged with connected radios will appear here."
-            />
-          }
-        >
-          {() => (
-            <DataGrid<APIRadioEvent>
-              rows={networkRows}
-              columns={networkColumns}
-              getRowId={(row) => row.id}
-              loading={
-                networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
-              }
-              paginationMode="server"
-              rowCount={subRowCount}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              disableColumnMenu
-              pageSizeOptions={[10, 25, 50, 100]}
-              onRowClick={handleRowClick}
-              rowSelectionModel={selectionModel}
-              disableRowSelectionOnClick
-              onRowSelectionModelChange={(model) => setSelectionModel(model)}
-              density="compact"
-              autoHeight
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
+        {timestampError ? null : (
+          <QueryState
+            query={networkLogsQuery}
+            resource="radio events"
+            isEmpty={(data) => (data.total_count ?? 0) === 0}
+            filtered={hasActiveFilters}
+            noResults={
+              <EmptyState
+                primaryText="No radio events match the selected filters"
+                secondaryText="Try clearing the radio, protocol, direction, message type, or time filters."
+              />
+            }
+            empty={
+              <EmptyState
+                primaryText="No radio events yet"
+                secondaryText="Signalling exchanged with connected radios will appear here."
+              />
+            }
+          >
+            {() => (
+              <DataGrid<APIRadioEvent>
+                rows={networkRows}
+                columns={networkColumns}
+                getRowId={(row) => row.id}
+                loading={
+                  networkLogsQuery.isLoading ||
+                  networkLogsQuery.isPlaceholderData
+                }
+                paginationMode="server"
+                rowCount={subRowCount}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                disableColumnMenu
+                pageSizeOptions={[10, 25, 50, 100]}
+                onRowClick={handleRowClick}
+                rowSelectionModel={selectionModel}
+                disableRowSelectionOnClick
+                onRowSelectionModelChange={(model) => setSelectionModel(model)}
+                density="compact"
+                autoHeight
+                sx={{
+                  width: "100%",
+                  border: 1,
                   borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-                "& .MuiDataGrid-row.Mui-selected": {
-                  backgroundColor: (t) => t.palette.action.selected,
-                  "&:hover": {
-                    backgroundColor: (t) => t.palette.action.selected,
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
                   },
-                  "& .MuiDataGrid-cell": { fontWeight: 500 },
-                  "&::before": { display: "none" },
-                },
-                "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
-                  outline: "none",
-                },
-                "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                  { outline: "none" },
-              }}
-            />
-          )}
-        </QueryState>
+                  "& .MuiDataGrid-columnHeaders": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-footerContainer": {
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  },
+                  "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                  "& .MuiDataGrid-row.Mui-selected": {
+                    backgroundColor: (t) => t.palette.action.selected,
+                    "&:hover": {
+                      backgroundColor: (t) => t.palette.action.selected,
+                    },
+                    "& .MuiDataGrid-cell": { fontWeight: 500 },
+                    "&::before": { display: "none" },
+                  },
+                  "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
+                    {
+                      outline: "none",
+                    },
+                  "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                    { outline: "none" },
+                }}
+              />
+            )}
+          </QueryState>
+        )}
       </Box>
 
       <Box
@@ -780,9 +846,7 @@ export default function EventsTab() {
           transition: dragging.current ? "none" : "transform 200ms ease-in-out",
           zIndex: (t) => t.zIndex.appBar - 1,
           bgcolor: "background.paper",
-          boxShadow: viewEventDrawerOpen
-            ? "-4px 0 16px rgba(0,0,0,0.12)"
-            : "none",
+          boxShadow: viewEventDrawerOpen ? 8 : "none",
           display: "flex",
           flexDirection: "row",
         }}

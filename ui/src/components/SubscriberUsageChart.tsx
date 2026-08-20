@@ -13,6 +13,7 @@ import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { useQuery } from "@tanstack/react-query";
+import { useTheme } from "@mui/material/styles";
 import { getUsage, type UsageResult } from "@/queries/usage";
 import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,8 +22,6 @@ import {
   UNIT_FACTORS,
   chooseUnitFromMax,
   formatBytesAutoUnit,
-  UPLINK_COLOR,
-  DOWNLINK_COLOR,
 } from "@/utils/formatters";
 import { defaultDateRange } from "@/utils/dates";
 
@@ -43,6 +42,7 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
   embedded = false,
 }) => {
   const { accessToken, authReady } = useAuth();
+  const theme = useTheme();
   // Computed once on mount: past midnight the range holds until a remount.
   const { startDate, endDate } = useMemo(() => defaultDateRange(), []);
 
@@ -155,13 +155,17 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
               }}
             >
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+                <SouthIcon
+                  sx={{ fontSize: 16, color: theme.palette.chart.downlink }}
+                />
                 <Typography variant="body2" color="textSecondary">
                   {formatBytesAutoUnit(totalDownlink)}
                 </Typography>
               </Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+                <NorthIcon
+                  sx={{ fontSize: 16, color: theme.palette.chart.uplink }}
+                />
                 <Typography variant="body2" color="textSecondary">
                   {formatBytesAutoUnit(totalUplink)}
                 </Typography>
@@ -176,13 +180,13 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
                   dataKey: "downlink",
                   label: `Downlink (${unit})`,
                   stack: "total",
-                  color: DOWNLINK_COLOR,
+                  color: theme.palette.chart.downlink,
                 },
                 {
                   dataKey: "uplink",
                   label: `Uplink (${unit})`,
                   stack: "total",
-                  color: UPLINK_COLOR,
+                  color: theme.palette.chart.uplink,
                 },
               ]}
               height={250}

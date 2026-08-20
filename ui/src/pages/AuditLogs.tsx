@@ -4,6 +4,7 @@
 import React, { useMemo, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
   Box,
   Typography,
   TextField,
@@ -33,6 +34,8 @@ import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { defaultDateRange } from "@/utils/dates";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+
+const DATE_ERROR_ID = "audit-logs-date-range-error";
 
 const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -84,10 +87,12 @@ const AuditLog: React.FC = () => {
     enabled: authReady && !!accessToken,
   });
 
-  const userOptions = useMemo(
-    () => (usersData?.items ?? []).map((u) => u.email),
-    [usersData],
-  );
+  const userOptions = useMemo(() => {
+    const emails = (usersData?.items ?? []).map((u) => u.email);
+    return selectedUser && !emails.includes(selectedUser)
+      ? [selectedUser, ...emails]
+      : emails;
+  }, [usersData, selectedUser]);
 
   const filters: AuditLogFilters = useMemo(() => {
     const f: AuditLogFilters = {};
@@ -97,6 +102,11 @@ const AuditLog: React.FC = () => {
     if (selectedAction) f.action = selectedAction;
     return f;
   }, [startDate, endDate, selectedUser, selectedAction]);
+
+  const dateError =
+    startDate && endDate && startDate > endDate
+      ? "End date must be on or after the start date."
+      : "";
 
   const [paginationModel, setPaginationModel] = useFilteredPagination(filters);
   const pageOneBased = paginationModel.page + 1;
@@ -110,18 +120,13 @@ const AuditLog: React.FC = () => {
         paginationModel.pageSize,
         filters,
       ),
-    enabled: authReady && !!accessToken,
+    enabled: authReady && !!accessToken && !dateError,
     placeholderData: (prev) => prev,
   });
 
   const hasActiveFilters = Boolean(
     startDate || endDate || selectedUser || selectedAction,
   );
-
-  const dateError =
-    startDate && endDate && startDate > endDate
-      ? "End date must be after start date"
-      : "";
 
   const rowCount = auditLogsQuery.data?.total_count ?? 0;
 
@@ -249,7 +254,13 @@ const AuditLog: React.FC = () => {
             type="date"
             value={startDate}
             onChange={handleStartChange}
-            slotProps={{ inputLabel: { shrink: true } }}
+            error={!!dateError}
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: {
+                "aria-describedby": dateError ? DATE_ERROR_ID : undefined,
+              },
+            }}
             size="small"
           />
           <TextField
@@ -259,10 +270,12 @@ const AuditLog: React.FC = () => {
             onChange={handleEndChange}
             size="small"
             error={!!dateError}
-            helperText={dateError}
             slotProps={{
               inputLabel: { shrink: true },
-              input: { inputProps: { min: startDate || undefined } },
+              htmlInput: {
+                min: startDate || undefined,
+                "aria-describedby": dateError ? DATE_ERROR_ID : undefined,
+              },
             }}
           />
           <TextField
@@ -314,57 +327,67 @@ const AuditLog: React.FC = () => {
         </Box>
       </Box>
 
-      <QueryState
-        query={auditLogsQuery}
-        resource="audit logs"
-        isEmpty={(data) => (data.total_count ?? 0) === 0}
-        filtered={hasActiveFilters}
-        noResults={
-          <EmptyState
-            primaryText="No audit logs match the selected filters"
-            secondaryText="Try widening the date range or clearing the user and action filters."
-          />
-        }
-        empty={
-          <EmptyState
-            primaryText="No audit logs yet"
-            secondaryText="Actions taken in Ella Core will be recorded here."
-          />
-        }
-      >
-        {(data) => (
-          <DataGrid<APIAuditLog>
-            rows={data.items ?? []}
-            columns={columns}
-            getRowId={(row) => row.id}
-            paginationMode="server"
-            rowCount={rowCount}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            disableColumnMenu
-            disableRowSelectionOnClick
-            pageSizeOptions={[10, 25, 50, 100]}
-            rowHeight={52}
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
+      {dateError ? (
+        <Alert
+          id={DATE_ERROR_ID}
+          severity="error"
+          sx={{ alignSelf: "flex-start" }}
+        >
+          {dateError}
+        </Alert>
+      ) : (
+        <QueryState
+          query={auditLogsQuery}
+          resource="audit logs"
+          isEmpty={(data) => (data.total_count ?? 0) === 0}
+          filtered={hasActiveFilters}
+          noResults={
+            <EmptyState
+              primaryText="No audit logs match the selected filters"
+              secondaryText="Try widening the date range or clearing the user and action filters."
+            />
+          }
+          empty={
+            <EmptyState
+              primaryText="No audit logs yet"
+              secondaryText="Actions taken in Ella Core will be recorded here."
+            />
+          }
+        >
+          {(data) => (
+            <DataGrid<APIAuditLog>
+              rows={data.items ?? []}
+              columns={columns}
+              getRowId={(row) => row.id}
+              paginationMode="server"
+              rowCount={rowCount}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              disableColumnMenu
+              disableRowSelectionOnClick
+              pageSizeOptions={[10, 25, 50, 100]}
+              rowHeight={52}
+              sx={{
+                width: "100%",
+                border: 1,
                 borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
-          />
-        )}
-      </QueryState>
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            />
+          )}
+        </QueryState>
+      )}
 
       <EditAuditLogRetentionPolicyModal
         open={isEditModalOpen}

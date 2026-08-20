@@ -11,13 +11,13 @@ import {
   Typography,
 } from "@mui/material";
 import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
+import type { Theme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
 import ErrorAlert from "@/components/ErrorAlert";
-import theme from "@/utils/theme";
 import { getSubscriberCredentials } from "@/queries/subscribers";
 
 interface SubscriberProvisioningCardProps {
@@ -71,7 +71,7 @@ const FieldRow: React.FC<{
         wordBreak: "break-all",
         ...(linkTo
           ? {
-              color: theme.palette.link,
+              color: (t: Theme) => t.palette.link,
               textDecoration: "underline",
               "&:hover": { textDecoration: "underline" },
             }

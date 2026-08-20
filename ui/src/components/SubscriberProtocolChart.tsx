@@ -3,6 +3,7 @@
 
 import React, { useMemo } from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { PieChart } from "@mui/x-charts/PieChart";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -11,11 +12,7 @@ import {
 } from "@/queries/flow_reports";
 import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  formatProtocol,
-  PROTOCOL_CHIP_COLORS,
-  PIE_COLORS,
-} from "@/utils/formatters";
+import { formatProtocol } from "@/utils/formatters";
 
 interface SubscriberProtocolChartProps {
   imsi: string;
@@ -25,6 +22,7 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
   imsi,
 }) => {
   const { accessToken, authReady } = useAuth();
+  const theme = useTheme();
 
   const statsQuery = useQuery<FlowReportStatsResponse>({
     queryKey: ["subscriber-protocol-stats", imsi],
@@ -42,6 +40,8 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
 
   const statsData = statsQuery.data;
 
+  const chart = theme.palette.chart;
+
   const pieData = useMemo(() => {
     if (!statsData?.protocols?.length) return [];
     return statsData.protocols.map((p, i) => ({
@@ -49,9 +49,9 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
       value: p.count,
       label: formatProtocol(p.protocol),
       color:
-        PROTOCOL_CHIP_COLORS[p.protocol] ?? PIE_COLORS[i % PIE_COLORS.length],
+        chart.protocols[p.protocol] ?? chart.series[i % chart.series.length],
     }));
-  }, [statsData]);
+  }, [statsData, chart]);
 
   return (
     <Box>
