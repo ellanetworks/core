@@ -23,4 +23,5 @@ Ongoing management and maintenance of a running Ella Core deployment.
 - [Perform a Rolling Upgrade](rolling_upgrade.md)
 - [Tune Network Performance](performance_tuning.md)
 - [Advertise Subscriber Routes with BGP](bgp.md)
+- [Enable UE-to-UE Communication](enable_ue_to_ue.md)
 - [Manage Your Network with AI Agents](ai_agents.md)
