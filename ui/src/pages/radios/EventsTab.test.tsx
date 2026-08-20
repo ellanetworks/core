@@ -317,6 +317,63 @@ describe("EventsTab stale results", () => {
   });
 });
 
+describe("EventsTab timestamp accessibility", () => {
+  const invert = async () => {
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-01T10:00" },
+    });
+    await screen.findByRole("alert");
+  };
+
+  it.each(["From", "To"])(
+    "describes the %s field with the reason it is invalid",
+    async (label) => {
+      await renderEvents();
+      await waitForEventRequests(1);
+
+      await invert();
+
+      expect(screen.getByLabelText(label)).toHaveAccessibleDescription(
+        /must be on or after/i,
+      );
+    },
+  );
+
+  it("carries no stale description once the range is valid", async () => {
+    await renderEvents();
+    await waitForEventRequests(1);
+    await invert();
+
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-08-20T10:00" },
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("To")).toHaveAccessibleDescription("");
+  });
+
+  it("stops the picker offering a To before the From", async () => {
+    await renderEvents();
+    await waitForEventRequests(1);
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-08-10T10:00" },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("To")).toHaveAttribute(
+        "min",
+        "2026-08-10T10:00",
+      ),
+    );
+  });
+});
+
 describe("EventsTab pagination", () => {
   const manyEvents = Array.from({ length: 25 }, (_, i) => radioEvent(i + 1));
 

@@ -107,6 +107,84 @@ describe("AuditLogs filters", () => {
   });
 });
 
+describe("AuditLogs date range accessibility", () => {
+  const invert = async (user: ReturnType<typeof userEvent.setup>) => {
+    const start = screen.getByLabelText("Start date");
+    const end = screen.getByLabelText("End date");
+    await user.clear(start);
+    await user.type(start, "2026-08-10");
+    await user.clear(end);
+    await user.type(end, "2026-08-01");
+    await screen.findByRole("alert");
+  };
+
+  it.each(["Start date", "End date"])(
+    "describes the %s field with the reason it is invalid",
+    async (label) => {
+      const user = userEvent.setup();
+      await renderAuditLogs();
+      await waitForLogRequests(1);
+
+      await invert(user);
+
+      expect(screen.getByLabelText(label)).toHaveAccessibleDescription(
+        /end date must be on or after the start date/i,
+      );
+    },
+  );
+
+  it("stops the picker offering an end date before the start", async () => {
+    const user = userEvent.setup();
+    await renderAuditLogs();
+    await waitForLogRequests(1);
+
+    const start = screen.getByLabelText("Start date");
+    await user.clear(start);
+    await user.type(start, "2026-08-10");
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("End date")).toHaveAttribute(
+        "min",
+        "2026-08-10",
+      ),
+    );
+  });
+});
+
+describe("AuditLogs stale results", () => {
+  it("stops showing log rows once the range is inverted", async () => {
+    const user = userEvent.setup();
+    await renderAuditLogs();
+    await screen.findAllByText("create_subscriber");
+
+    const start = screen.getByLabelText("Start date");
+    const end = screen.getByLabelText("End date");
+    await user.clear(start);
+    await user.type(start, "2026-08-10");
+    await user.clear(end);
+    await user.type(end, "2026-08-01");
+    await screen.findByRole("alert");
+
+    expect(screen.queryByText("create_subscriber")).not.toBeInTheDocument();
+  });
+
+  it("shows no loading indicator for a request it will never send", async () => {
+    const user = userEvent.setup();
+    await renderAuditLogs();
+    await waitForLogRequests(1);
+
+    const start = screen.getByLabelText("Start date");
+    const end = screen.getByLabelText("End date");
+    await user.clear(start);
+    await user.type(start, "2026-08-10");
+    await user.clear(end);
+    await user.type(end, "2026-08-01");
+    await screen.findByRole("alert");
+
+    expect(screen.queryAllByRole("progressbar")).toEqual([]);
+  });
+});
+
 describe("AuditLogs date range", () => {
   it("reports an end date that precedes the start date", async () => {
     const user = userEvent.setup();
