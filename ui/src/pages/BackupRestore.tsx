@@ -25,11 +25,11 @@ import QueryState from "@/components/QueryState";
 import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import theme from "@/utils/theme";
+import type { Theme } from "@mui/material/styles";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const headerStyles = {
-  backgroundColor: theme.palette.backgroundSubtle,
+  backgroundColor: (theme: Theme) => theme.palette.backgroundSubtle,
   color: "text.primary",
   borderTopLeftRadius: 12,
   borderTopRightRadius: 12,

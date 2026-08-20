@@ -739,6 +739,7 @@ const Traffic: React.FC = () => {
   }, [flowStatsData, protocolColorMap, theme]);
 
   const destinationColorRef = useRef(new Map<string, string>());
+  const destinationSeriesRef = useRef(theme.palette.chart.series);
 
   // Keeps the map from growing unbounded as destinations change.
   useEffect(() => {
@@ -747,8 +748,12 @@ const Traffic: React.FC = () => {
 
   const topDestinationsPieData = useMemo(() => {
     if (!flowStatsData?.top_destinations_uplink?.length) return [];
-    const colorMap = destinationColorRef.current;
     const series = theme.palette.chart.series;
+    if (destinationSeriesRef.current !== series) {
+      destinationSeriesRef.current = series;
+      destinationColorRef.current.clear();
+    }
+    const colorMap = destinationColorRef.current;
     return flowStatsData.top_destinations_uplink.map((d, i) => {
       if (!colorMap.has(d.ip)) {
         colorMap.set(d.ip, series[colorMap.size % series.length]);
