@@ -121,7 +121,7 @@ describe("AuditLogs date range", () => {
     await user.type(end, "2026-08-01");
 
     expect(
-      await screen.findByText("End date must be after start date"),
+      await screen.findByText("End date must be on or after the start date."),
     ).toBeVisible();
   });
 
@@ -136,7 +136,7 @@ describe("AuditLogs date range", () => {
     await user.type(start, "2026-08-10");
     await user.clear(end);
     await user.type(end, "2026-08-01");
-    await screen.findByText("End date must be after start date");
+    await screen.findByText("End date must be on or after the start date.");
 
     const inverted = logRequests().filter((r) => {
       const from = r.params.get("start");

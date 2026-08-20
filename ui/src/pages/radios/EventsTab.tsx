@@ -214,6 +214,8 @@ const toIsoInstant = (value: string): string => {
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
 };
 
+const TIMESTAMP_ERROR_ID = "radio-events-timestamp-error";
+
 const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
@@ -664,7 +666,14 @@ export default function EventsTab() {
             onChange={(e) => setTimestampFrom(e.target.value)}
             error={!!timestampError}
             size="small"
-            slotProps={{ inputLabel: { shrink: true } }}
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: {
+                "aria-describedby": timestampError
+                  ? TIMESTAMP_ERROR_ID
+                  : undefined,
+              },
+            }}
             sx={{ minWidth: 200 }}
           />
           <TextField
@@ -674,13 +683,25 @@ export default function EventsTab() {
             onChange={(e) => setTimestampTo(e.target.value)}
             error={!!timestampError}
             size="small"
-            slotProps={{ inputLabel: { shrink: true } }}
+            slotProps={{
+              inputLabel: { shrink: true },
+              htmlInput: {
+                min: timestampFrom || undefined,
+                "aria-describedby": timestampError
+                  ? TIMESTAMP_ERROR_ID
+                  : undefined,
+              },
+            }}
             sx={{ minWidth: 200 }}
           />
         </Box>
 
         {timestampError && (
-          <Alert severity="error" sx={{ alignSelf: "flex-start" }}>
+          <Alert
+            id={TIMESTAMP_ERROR_ID}
+            severity="error"
+            sx={{ alignSelf: "flex-start" }}
+          >
             {timestampError}
           </Alert>
         )}

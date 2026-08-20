@@ -155,6 +155,8 @@ const TAB_PATHS = ["/traffic/usage", "/traffic/flows"] as const;
 
 const FILTER_DEBOUNCE_MS = 400;
 
+const DATE_ERROR_ID = "traffic-date-range-error";
+
 const Traffic: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
@@ -898,7 +900,14 @@ const Traffic: React.FC = () => {
               value={startDate}
               onChange={handleStartChange}
               error={!!dateRangeError}
-              slotProps={{ inputLabel: { shrink: true } }}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: {
+                  "aria-describedby": dateRangeError
+                    ? DATE_ERROR_ID
+                    : undefined,
+                },
+              }}
               size="small"
             />
             <TextField
@@ -907,7 +916,15 @@ const Traffic: React.FC = () => {
               value={endDate}
               onChange={handleEndChange}
               error={!!dateRangeError}
-              slotProps={{ inputLabel: { shrink: true } }}
+              slotProps={{
+                inputLabel: { shrink: true },
+                htmlInput: {
+                  min: startDate || undefined,
+                  "aria-describedby": dateRangeError
+                    ? DATE_ERROR_ID
+                    : undefined,
+                },
+              }}
               size="small"
             />
             <Autocomplete
@@ -927,7 +944,11 @@ const Traffic: React.FC = () => {
           </Box>
 
           {dateRangeError && (
-            <Alert severity="error" sx={{ alignSelf: "flex-start" }}>
+            <Alert
+              id={DATE_ERROR_ID}
+              severity="error"
+              sx={{ alignSelf: "flex-start" }}
+            >
               {dateRangeError}
             </Alert>
           )}
