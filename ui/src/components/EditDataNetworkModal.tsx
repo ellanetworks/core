@@ -49,7 +49,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
   });
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await updateDataNetwork(
       accessToken,
       values.name,

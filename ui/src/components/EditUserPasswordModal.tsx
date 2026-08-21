@@ -44,7 +44,7 @@ const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
   });
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await updateUserPassword(accessToken, values.email, values.password);
   };
 

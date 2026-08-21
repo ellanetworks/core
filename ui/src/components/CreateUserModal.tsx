@@ -45,7 +45,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
   });
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await createUser(
       accessToken,
       values.email,

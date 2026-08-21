@@ -40,7 +40,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   });
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await updateUser(accessToken, values.email, values.role);
   };
 

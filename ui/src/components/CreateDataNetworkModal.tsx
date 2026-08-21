@@ -54,7 +54,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
   });
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await createDataNetwork(
       accessToken,
       values.name,

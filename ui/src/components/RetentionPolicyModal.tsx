@@ -67,7 +67,7 @@ const RetentionPolicyModal: React.FC<RetentionPolicyModalProps> = ({
     days < initialDays;
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await onUpdate(accessToken, values.days);
   };
 

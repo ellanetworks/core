@@ -47,7 +47,7 @@ const EditSliceModal: React.FC<EditSliceModalProps> = ({
   });
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await updateSlice(accessToken, values.name, values.sst, values.sd);
   };
 

@@ -1,29 +1,24 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useRef, useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  Button,
   Alert,
-  Collapse,
+  Box,
+  Checkbox,
+  Divider,
   List,
   ListItem,
-  ListItemText,
   ListItemIcon,
-  Checkbox,
+  ListItemText,
   Typography,
-  Box,
-  Divider,
 } from "@mui/material";
 import { DragIndicator as DragIcon } from "@mui/icons-material";
+import { useController, useForm, useWatch } from "react-hook-form";
+import type { Control } from "react-hook-form";
 import { updateOperatorNASSecurity } from "@/queries/operator";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import FormDialog from "@/components/form/FormDialog";
 
 interface EditOperatorNASSecurityModalProps {
   open: boolean;
@@ -40,13 +35,14 @@ interface AlgorithmEntry {
   enabled: boolean;
 }
 
-// NAS security algorithms use the RAT-neutral identities shared by 4G (EEA/EIA)
-// and 5G (NEA/NIA): NULL, SNOW3G, AES.
+interface FormValues {
+  ciphering: AlgorithmEntry[];
+  integrity: AlgorithmEntry[];
+}
+
 const ALL_CIPHERING = ["NULL", "SNOW3G", "AES"];
 const ALL_INTEGRITY = ["NULL", "SNOW3G", "AES"];
 
-// 4G EEA/EIA identifiers are TS 24.301 §9.9.3.23; 5G NEA/NIA are TS 24.501
-// §9.11.3.34.
 const describeAlgorithm = (name: string, kind: string): React.ReactNode => {
   const cipher = kind === "ciphering";
   const fourG = { NULL: "EEA0", SNOW3G: "128-EEA1", AES: "128-EEA2" }[name];
@@ -94,299 +90,223 @@ const buildEntries = (enabled: string[], all: string[]): AlgorithmEntry[] => {
   return entries;
 };
 
+const enabledNames = (list: AlgorithmEntry[]) =>
+  list.filter((entry) => entry.enabled).map((entry) => entry.name);
+
+interface AlgorithmListFieldProps {
+  control: Control<FormValues>;
+  name: keyof FormValues;
+  title: string;
+}
+
+const AlgorithmListField: React.FC<AlgorithmListFieldProps> = ({
+  control,
+  name,
+  title,
+}) => {
+  const { field, fieldState } = useController({
+    control,
+    name,
+    rules: {
+      validate: (list: AlgorithmEntry[]) =>
+        list.some((entry) => entry.enabled) ||
+        "At least one algorithm must be enabled.",
+    },
+  });
+
+  const dragIndexRef = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const list = field.value;
+
+  const toggle = (index: number) => {
+    const next = [...list];
+    next[index] = { ...next[index], enabled: !next[index].enabled };
+    field.onChange(next);
+  };
+
+  const handleDragStart = (index: number) => (event: React.DragEvent) => {
+    dragIndexRef.current = index;
+    event.dataTransfer.effectAllowed = "move";
+    const element = event.currentTarget as HTMLElement;
+    event.dataTransfer.setDragImage(
+      element,
+      element.offsetWidth / 2,
+      element.offsetHeight / 2,
+    );
+  };
+
+  const handleDragOver = (index: number) => (event: React.DragEvent) => {
+    event.preventDefault();
+    if (dragIndexRef.current === null) return;
+    event.dataTransfer.dropEffect = "move";
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (index: number) => (event: React.DragEvent) => {
+    event.preventDefault();
+    const fromIndex = dragIndexRef.current;
+    if (fromIndex === null || fromIndex === index) return;
+    const next = [...list];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(index, 0, moved);
+    field.onChange(next);
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+  };
+
+  return (
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+        {title}
+      </Typography>
+      <List dense disablePadding>
+        {list.map((entry, index) => (
+          <ListItem
+            key={entry.name}
+            draggable
+            onDragStart={handleDragStart(index)}
+            onDragOver={handleDragOver(index)}
+            onDrop={handleDrop(index)}
+            onDragEnd={handleDragEnd}
+            disablePadding
+            sx={{
+              pl: 0.5,
+              pr: 1,
+              opacity: entry.enabled ? 1 : 0.5,
+              borderTop:
+                dragOverIndex === index ? "2px solid" : "2px solid transparent",
+              borderColor:
+                dragOverIndex === index ? "primary.main" : "transparent",
+              transition: "border-color 0.15s ease",
+              cursor: "grab",
+              "&:active": { cursor: "grabbing" },
+              userSelect: "none",
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 28, color: "text.disabled" }}>
+              <DragIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemIcon sx={{ minWidth: 36 }}>
+              <Checkbox
+                edge="start"
+                checked={entry.enabled}
+                onChange={() => toggle(index)}
+                size="small"
+                slotProps={{ input: { "aria-label": entry.name } }}
+              />
+            </ListItemIcon>
+            <ListItemText
+              primary={describeAlgorithm(entry.name, name)}
+              slotProps={{
+                primary: {
+                  variant: "body2",
+                  color: "textPrimary",
+                },
+              }}
+            />
+          </ListItem>
+        ))}
+      </List>
+      {fieldState.error && (
+        <Alert severity="error" sx={{ mt: 1 }}>
+          {fieldState.error.message}
+        </Alert>
+      )}
+    </Box>
+  );
+};
+
 const EditOperatorNASSecurityModal: React.FC<
   EditOperatorNASSecurityModalProps
 > = ({ open, onClose, onSuccess, initialData }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
 
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
-
-  const [ciphering, setCiphering] = useState<AlgorithmEntry[]>([]);
-  const [integrity, setIntegrity] = useState<AlgorithmEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
-  useEffect(() => {
-    if (open) {
-      setCiphering(buildEntries(initialData.ciphering, ALL_CIPHERING));
-      setIntegrity(buildEntries(initialData.integrity, ALL_INTEGRITY));
-      setAlert({ message: "" });
-    }
-  }, [open, initialData]);
-
-  const enabledCiphering = ciphering.filter((a) => a.enabled);
-  const enabledIntegrity = integrity.filter((a) => a.enabled);
-
-  const isValid = enabledCiphering.length > 0 && enabledIntegrity.length > 0;
-
-  const nullCipheringPreferred = isNullAlgorithm(enabledCiphering[0]?.name);
-  const nullIntegrityPreferred = isNullAlgorithm(enabledIntegrity[0]?.name);
-  const nullCipheringOffered = enabledCiphering.some((a) =>
-    isNullAlgorithm(a.name),
-  );
-  const nullIntegrityOffered = enabledIntegrity.some((a) =>
-    isNullAlgorithm(a.name),
-  );
-
-  const handleToggle =
-    (
-      list: AlgorithmEntry[],
-      setList: React.Dispatch<React.SetStateAction<AlgorithmEntry[]>>,
-    ) =>
-    (index: number) => {
-      const newList = [...list];
-      newList[index] = { ...newList[index], enabled: !newList[index].enabled };
-      setList(newList);
-    };
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-    if (!isValid) return;
-
-    setLoading(true);
-    setAlert({ message: "" });
-
-    const cipheringNames = enabledCiphering.map((a) => a.name);
-    const integrityNames = enabledIntegrity.map((a) => a.name);
-
-    try {
-      await updateOperatorNASSecurity(
-        accessToken,
-        cipheringNames,
-        integrityNames,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({
-        message: `Failed to update security algorithms: ${errorMessage}`,
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const dragIndexRef = useRef<number | null>(null);
-  const dragListIdRef = useRef<string | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [dragOverListId, setDragOverListId] = useState<string | null>(null);
-
-  const handleDragStart = useCallback(
-    (listId: string, index: number) => (e: React.DragEvent) => {
-      dragIndexRef.current = index;
-      dragListIdRef.current = listId;
-      e.dataTransfer.effectAllowed = "move";
-      const el = e.currentTarget as HTMLElement;
-      e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
+  const form = useForm<FormValues>({
+    mode: "onChange",
+    values: {
+      ciphering: buildEntries(initialData.ciphering, ALL_CIPHERING),
+      integrity: buildEntries(initialData.integrity, ALL_INTEGRITY),
     },
-    [],
-  );
+  });
 
-  const handleDragOver = useCallback(
-    (listId: string, index: number) => (e: React.DragEvent) => {
-      e.preventDefault();
-      if (dragListIdRef.current !== listId) return;
-      e.dataTransfer.dropEffect = "move";
-      setDragOverIndex(index);
-      setDragOverListId(listId);
-    },
-    [],
-  );
+  const ciphering = useWatch({ control: form.control, name: "ciphering" });
+  const integrity = useWatch({ control: form.control, name: "integrity" });
 
-  const handleDrop = useCallback(
-    (
-      listId: string,
-      index: number,
-      list: AlgorithmEntry[],
-      setList: React.Dispatch<React.SetStateAction<AlgorithmEntry[]>>,
-    ) =>
-      (e: React.DragEvent) => {
-        e.preventDefault();
-        if (dragListIdRef.current !== listId || dragIndexRef.current === null)
-          return;
-        const fromIndex = dragIndexRef.current;
-        if (fromIndex === index) return;
-        const newList = [...list];
-        const [moved] = newList.splice(fromIndex, 1);
-        newList.splice(index, 0, moved);
-        setList(newList);
-        dragIndexRef.current = null;
-        dragListIdRef.current = null;
-        setDragOverIndex(null);
-        setDragOverListId(null);
-      },
-    [],
-  );
+  const enabledCiphering = enabledNames(ciphering);
+  const enabledIntegrity = enabledNames(integrity);
 
-  const handleDragEnd = useCallback(() => {
-    dragIndexRef.current = null;
-    dragListIdRef.current = null;
-    setDragOverIndex(null);
-    setDragOverListId(null);
-  }, []);
+  const nullCipheringPreferred = isNullAlgorithm(enabledCiphering[0]);
+  const nullIntegrityPreferred = isNullAlgorithm(enabledIntegrity[0]);
+  const nullCipheringOffered = enabledCiphering.some(isNullAlgorithm);
+  const nullIntegrityOffered = enabledIntegrity.some(isNullAlgorithm);
 
-  const renderAlgorithmList = (
-    listId: string,
-    title: string,
-    list: AlgorithmEntry[],
-    setList: React.Dispatch<React.SetStateAction<AlgorithmEntry[]>>,
-  ) => {
-    const toggle = handleToggle(list, setList);
-
-    return (
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          {title}
-        </Typography>
-        <List dense disablePadding>
-          {list.map((entry, index) => {
-            const isDragTarget =
-              dragOverListId === listId && dragOverIndex === index;
-            return (
-              <ListItem
-                key={entry.name}
-                draggable
-                onDragStart={handleDragStart(listId, index)}
-                onDragOver={handleDragOver(listId, index)}
-                onDrop={handleDrop(listId, index, list, setList)}
-                onDragEnd={handleDragEnd}
-                disablePadding
-                sx={{
-                  pl: 0.5,
-                  pr: 1,
-                  opacity: entry.enabled ? 1 : 0.5,
-                  borderTop: isDragTarget
-                    ? "2px solid"
-                    : "2px solid transparent",
-                  borderColor: isDragTarget ? "primary.main" : "transparent",
-                  transition: "border-color 0.15s ease",
-                  cursor: "grab",
-                  "&:active": { cursor: "grabbing" },
-                  userSelect: "none",
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: 28, color: "text.disabled" }}>
-                  <DragIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemIcon sx={{ minWidth: 36 }}>
-                  <Checkbox
-                    edge="start"
-                    checked={entry.enabled}
-                    onChange={() => toggle(index)}
-                    size="small"
-                  />
-                </ListItemIcon>
-                <ListItemText
-                  primary={describeAlgorithm(entry.name, listId)}
-                  slotProps={{
-                    primary: {
-                      variant: "body2",
-                      color: "textPrimary",
-                    },
-                  }}
-                />
-              </ListItem>
-            );
-          })}
-        </List>
-        {list.filter((a) => a.enabled).length === 0 && (
-          <Alert severity="error" sx={{ mt: 1 }}>
-            At least one algorithm must be enabled.
-          </Alert>
-        )}
-      </Box>
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await updateOperatorNASSecurity(
+      accessToken,
+      enabledNames(values.ciphering),
+      enabledNames(values.integrity),
     );
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-operator-security-modal-title"
-      maxWidth="sm"
-      fullWidth
+      onSuccess={onSuccess}
+      title="Edit NAS Security Algorithms"
+      description="Configure the security algorithms used to protect NAS signaling between the subscriber and Ella Core. The order determines which algorithm Ella Core prefers."
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to update security algorithms"
+      submitLabel="Update"
+      submittingLabel="Updating..."
     >
-      <DialogTitle id="edit-operator-security-modal-title">
-        Edit NAS Security Algorithms
-      </DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-        <DialogContentText sx={{ mb: 2 }}>
-          Configure the security algorithms used to protect NAS signaling
-          between the subscriber and Ella Core. The order determines which
-          algorithm Ella Core prefers.
-        </DialogContentText>
+      {(nullCipheringPreferred || nullIntegrityPreferred) && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          NULL is the preferred{" "}
+          {nullCipheringPreferred && nullIntegrityPreferred
+            ? "ciphering and integrity algorithm"
+            : nullCipheringPreferred
+              ? "ciphering algorithm"
+              : "integrity algorithm"}
+          , so NAS signaling will normally carry no{" "}
+          {nullCipheringPreferred && nullIntegrityPreferred
+            ? "encryption or integrity protection"
+            : nullCipheringPreferred
+              ? "encryption"
+              : "integrity protection"}
+          . Move another algorithm above NULL to prefer it.
+        </Alert>
+      )}
 
-        {(nullCipheringPreferred || nullIntegrityPreferred) && (
+      {!nullCipheringPreferred &&
+        !nullIntegrityPreferred &&
+        (nullCipheringOffered || nullIntegrityOffered) && (
           <Alert severity="warning" sx={{ mb: 2 }}>
-            NULL is the preferred{" "}
-            {nullCipheringPreferred && nullIntegrityPreferred
-              ? "ciphering and integrity algorithm"
-              : nullCipheringPreferred
-                ? "ciphering algorithm"
-                : "integrity algorithm"}
-            , so NAS signaling will normally carry no{" "}
-            {nullCipheringPreferred && nullIntegrityPreferred
-              ? "encryption or integrity protection"
-              : nullCipheringPreferred
-                ? "encryption"
-                : "integrity protection"}
-            . Move another algorithm above NULL to prefer it.
+            NULL is enabled as a fallback. Subscribers that offer no stronger
+            algorithm will use unprotected NAS signaling.
           </Alert>
         )}
 
-        {!nullCipheringPreferred &&
-          !nullIntegrityPreferred &&
-          (nullCipheringOffered || nullIntegrityOffered) && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              NULL is enabled as a fallback. Subscribers that offer no stronger
-              algorithm will use unprotected NAS signaling.
-            </Alert>
-          )}
-
-        {renderAlgorithmList(
-          "ciphering",
-          "Ciphering Preference",
-          ciphering,
-          setCiphering,
-        )}
-        <Divider sx={{ my: 1 }} />
-        {renderAlgorithmList(
-          "integrity",
-          "Integrity Preference",
-          integrity,
-          setIntegrity,
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
-        >
-          {loading ? "Updating..." : "Update"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <AlgorithmListField
+        control={form.control}
+        name="ciphering"
+        title="Ciphering Preference"
+      />
+      <Divider sx={{ my: 1 }} />
+      <AlgorithmListField
+        control={form.control}
+        name="integrity"
+        title="Integrity Preference"
+      />
+    </FormDialog>
   );
 };
 

@@ -44,7 +44,7 @@ const CreateSliceModal: React.FC<CreateSliceModalProps> = ({
   });
 
   const submit = async (values: FormValues) => {
-    if (!accessToken) return;
+    if (!accessToken) return false;
     await createSlice(accessToken, values.name, values.sst, values.sd);
   };
 
