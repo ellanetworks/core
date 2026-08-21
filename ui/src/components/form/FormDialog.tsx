@@ -34,7 +34,7 @@ interface FormDialogProps<T extends FieldValues> {
   description?: string;
   form: UseFormReturn<T>;
   onSubmit: (values: T) => Promise<void | false>;
-  errorPrefix: string;
+  errorPrefix?: string;
   formatError?: (error: unknown) => string;
   submitLabel: string;
   submittingLabel: string;
@@ -77,7 +77,8 @@ const FormDialog = <T extends FieldValues>({
     try {
       if ((await onSubmit(values)) === false) return;
     } catch (error: unknown) {
-      setSubmitError(`${errorPrefix}: ${formatError(error)}`);
+      const message = formatError(error);
+      setSubmitError(errorPrefix ? `${errorPrefix}: ${message}` : message);
       return;
     }
     onClose();

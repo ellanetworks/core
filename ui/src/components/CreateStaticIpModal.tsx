@@ -1,26 +1,16 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Autocomplete,
-  Button,
-  Alert,
-  Collapse,
-} from "@mui/material";
-import { useQuery } from "@tanstack/react-query";
-import ErrorAlert from "@/components/ErrorAlert";
+import React from "react";
+import { Alert } from "@mui/material";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  createStaticIp,
-  updateStaticIp,
-  listEligibleSubscribers,
-} from "@/queries/data_networks";
+import { createStaticIp, updateStaticIp } from "@/queries/data_networks";
+import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
+import SubscriberSelectField from "@/components/SubscriberSelectField";
 
 interface StaticIpEdit {
   imsi: string;
@@ -39,6 +29,13 @@ interface CreateStaticIpModalProps {
   edit?: StaticIpEdit;
 }
 
+const schema = yup.object({
+  imsi: yup.string().trim().required(),
+  address: yup.string().trim().required(),
+});
+
+type FormValues = yup.InferType<typeof schema>;
+
 const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
   open,
   onClose,
@@ -48,29 +45,14 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
   ipv6Pool,
   edit,
 }) => {
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
   const isEdit = !!edit;
 
-  const [imsi, setImsi] = useState<string>(edit?.imsi ?? "");
-  const [address, setAddress] = useState<string>(edit?.address ?? "");
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState("");
-
-  useEffect(() => {
-    if (open) {
-      setImsi(edit?.imsi ?? "");
-      setAddress(edit?.address ?? "");
-      setAlert("");
-    }
-  }, [open, edit]);
-
-  const subscribersQuery = useQuery({
-    queryKey: ["eligible-subscribers", dataNetwork],
-    queryFn: () => listEligibleSubscribers(accessToken!, dataNetwork),
-    enabled: open && !isEdit && authReady && !!accessToken,
+  const form = useForm<FormValues>({
+    mode: "onChange",
+    resolver: yupResolver(schema),
+    values: { imsi: edit?.imsi ?? "", address: edit?.address ?? "" },
   });
-
-  const subscribers = subscribersQuery.data;
 
   const poolHelp = isEdit
     ? edit?.ipVersion === "ipv6"
@@ -83,114 +65,59 @@ const CreateStaticIpModal: React.FC<CreateStaticIpModalProps> = ({
         .filter(Boolean)
         .join(" · ");
 
-  const canSubmit = imsi.trim() !== "" && address.trim() !== "" && !loading;
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-
-    setLoading(true);
-    setAlert("");
-
-    try {
-      if (isEdit && edit) {
-        await updateStaticIp(
-          accessToken,
-          dataNetwork,
-          edit.imsi,
-          edit.ipVersion,
-          address.trim(),
-        );
-      } else {
-        await createStaticIp(
-          accessToken,
-          dataNetwork,
-          imsi.trim(),
-          address.trim(),
-        );
-      }
-
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert(message);
-    } finally {
-      setLoading(false);
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    if (isEdit && edit) {
+      await updateStaticIp(
+        accessToken,
+        dataNetwork,
+        edit.imsi,
+        edit.ipVersion,
+        values.address.trim(),
+      );
+    } else {
+      await createStaticIp(
+        accessToken,
+        dataNetwork,
+        values.imsi.trim(),
+        values.address.trim(),
+      );
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{isEdit ? "Edit Static IP" : "Add Static IP"}</DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert}>
-          <Alert onClose={() => setAlert("")} sx={{ mb: 2 }} severity="error">
-            {alert}
-          </Alert>
-        </Collapse>
-        {isEdit && edit?.active && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This subscriber has an active session. Saving a new address releases
-            it, and the subscriber reconnects on the new address.
-          </Alert>
-        )}
-        {isEdit ? (
-          <TextField
-            fullWidth
-            label="Subscriber"
-            value={imsi}
-            margin="normal"
-            disabled
-          />
-        ) : (
-          <>
-            <Autocomplete
-              options={(subscribers ?? []).map((s) => s.imsi)}
-              value={imsi || null}
-              onChange={(_, value) => setImsi(value ?? "")}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Subscriber"
-                  margin="normal"
-                  autoFocus
-                />
-              )}
-            />
-            {subscribersQuery.isLoadingError && (
-              <ErrorAlert
-                resource="eligible subscribers"
-                error={subscribersQuery.error}
-                onRetry={() => void subscribersQuery.refetch()}
-                retrying={subscribersQuery.isFetching}
-              />
-            )}
-          </>
-        )}
-        <TextField
-          fullWidth
-          label="Address"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          margin="normal"
-          helperText={poolHelp}
-          placeholder="e.g., 10.45.0.10 or 2001:db8:1::"
-          autoFocus={isEdit}
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-        >
-          {loading ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      onSuccess={onSuccess}
+      title={isEdit ? "Edit Static IP" : "Add Static IP"}
+      form={form}
+      onSubmit={submit}
+      submitLabel="Save"
+      submittingLabel="Saving..."
+      fullWidth
+    >
+      {isEdit && edit?.active && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          This subscriber has an active session. Saving a new address releases
+          it, and the subscriber reconnects on the new address.
+        </Alert>
+      )}
+      <SubscriberSelectField
+        control={form.control}
+        name="imsi"
+        dataNetwork={dataNetwork}
+        open={open}
+        readOnly={isEdit}
+      />
+      <TextControl<FormValues>
+        name="address"
+        label="Address"
+        helperText={poolHelp}
+        placeholder="e.g., 10.45.0.10 or 2001:db8:1::"
+        autoFocus={isEdit}
+      />
+    </FormDialog>
   );
 };
 
