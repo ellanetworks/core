@@ -57,9 +57,29 @@ func TestClassifyProposeErr_LeadershipLostIsOutcomeUnknown(t *testing.T) {
 	}
 }
 
-func TestClassifyProposeErr_ShutdownStaysTransient(t *testing.T) {
+// raft raises ErrRaftShutdown both at enqueue and from processLogs after
+// commit, so a propose that returns it may have been applied.
+func TestClassifyProposeErr_ShutdownIsOutcomeUnknown(t *testing.T) {
 	got := classifyProposeErr(hraft.ErrRaftShutdown)
+
+	if !errors.Is(got, ErrOutcomeUnknown) {
+		t.Fatalf("want ErrOutcomeUnknown, got %v", got)
+	}
+
+	if errors.Is(got, ErrProposeTimeout) {
+		t.Fatal("shutdown must not be advertised as retryable")
+	}
+}
+
+// The barrier carries no user payload, so a shutdown there applied nothing.
+func TestClassifyBarrierErr_ShutdownStaysRetryable(t *testing.T) {
+	got := classifyBarrierErr(hraft.ErrRaftShutdown)
+
 	if !errors.Is(got, ErrProposeTimeout) {
 		t.Fatalf("want ErrProposeTimeout, got %v", got)
+	}
+
+	if errors.Is(got, ErrOutcomeUnknown) {
+		t.Fatal("barrier shutdown applied nothing and must stay retryable")
 	}
 }

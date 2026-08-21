@@ -342,8 +342,8 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 			return narrowResult[R](op.name, result.Value)
 		}
 
-		if classified := classifyProposeErr(applyErr); !errors.Is(classified, hraft.ErrNotLeader) {
-			return zero, classified
+		if !errors.Is(applyErr, hraft.ErrNotLeader) {
+			return zero, applyErr
 		}
 		// Lost leadership mid-apply — fall through to forward path.
 	}
@@ -365,7 +365,9 @@ func (db *Database) leaderProposeIntent(data []byte) (*ellaraft.ProposeResult, e
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
 
-	return db.raftManager.ApplyBytes(data, db.proposeTimeout)
+	result, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
+
+	return result, classifyProposeErr(err)
 }
 
 // classifyBarrierErr maps a write-barrier failure. The barrier runs before
@@ -384,14 +386,16 @@ func classifyBarrierErr(err error) error {
 	}
 }
 
-// classifyProposeErr maps an error from a raft Apply that has already been
-// dispatched. Only ErrLeadershipLost is outcome-unknown; ErrNotLeader is
-// rejected before dispatch and stays retryable so callers can forward.
+// classifyProposeErr maps an error from a raft Apply. ErrLeadershipLost and
+// ErrRaftShutdown are outcome-unknown: raft raises both after commit as well
+// as before dispatch (api.go:847, raft.go:1300-1306) and the future cannot
+// tell the two apart. ErrNotLeader is rejected before dispatch and stays
+// retryable so callers can forward.
 func classifyProposeErr(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, hraft.ErrLeadershipLost):
+	case errors.Is(err, hraft.ErrLeadershipLost), errors.Is(err, hraft.ErrRaftShutdown):
 		return fmt.Errorf("%w: %v", ErrOutcomeUnknown, err)
 	case errors.Is(err, hraft.ErrNotLeader):
 		return err
@@ -546,7 +550,7 @@ func (db *Database) applyForwardedChangesetOp(opName string, h changesetOpHandle
 
 	res, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
 	if err != nil {
-		return nil, err
+		return nil, classifyProposeErr(err)
 	}
 
 	return &ellaraft.ProposeResult{Index: res.Index, Value: applyResult}, nil

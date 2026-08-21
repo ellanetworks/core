@@ -106,9 +106,9 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 		writeProposeForwardError(ctx, w, http.StatusMisdirectedRequest,
 			"not leader; nothing was applied, retry", err)
 
-	case errors.Is(err, hraft.ErrLeadershipLost):
+	case errors.Is(err, db.ErrOutcomeUnknown), errors.Is(err, hraft.ErrLeadershipLost):
 		writeProposeForwardCodedError(ctx, w, http.StatusConflict,
-			"leadership lost after propose; outcome unknown, do not retry",
+			"propose may have committed; outcome unknown, do not retry",
 			ellaraft.ForwardCodeOutcomeUnknown, err)
 
 	case errors.Is(err, db.ErrProposeTimeout),

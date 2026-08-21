@@ -210,10 +210,9 @@ func TestRunForwardRetryLoop_MaxAttemptsExhausted(t *testing.T) {
 		t.Fatal("expected error after exhausting retries")
 	}
 
-	// A 421 is raft rejecting before dispatch, so nothing was applied and
-	// the exhausted loop must surface a retryable sentinel. Note 503 is
-	// weaker: hashicorp/raft also raises ErrRaftShutdown from processLogs
-	// after commit (raft.go:1300-1306), which this loop still retries.
+	// Both retried statuses mean nothing was applied: 421 is raft rejecting
+	// before dispatch, and the leader now classifies any propose that may
+	// have committed as outcome-unknown (409) rather than 503.
 	if !errors.Is(err, hraft.ErrNotLeader) {
 		t.Fatalf("want ErrNotLeader, got %v", err)
 	}
