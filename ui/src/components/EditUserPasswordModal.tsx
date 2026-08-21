@@ -1,28 +1,24 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-} from "@mui/material";
+import React from "react";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { updateUserPassword } from "@/queries/users";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import FormDialog, { stripStatusPrefix } from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
 
-const schema = yup.object().shape({
+const schema = yup.object({
+  email: yup.string().required(),
   password: yup
     .string()
     .min(1, "Password is required")
     .required("Password is required"),
 });
+
+type FormValues = yup.InferType<typeof schema>;
 
 interface EditUserPasswordModalProps {
   open: boolean;
@@ -33,165 +29,49 @@ interface EditUserPasswordModalProps {
   };
 }
 
-interface FormValues {
-  email: string;
-  password: string;
-}
-
 const EditUserPasswordModal: React.FC<EditUserPasswordModalProps> = ({
   open,
   onClose,
   onSuccess,
   initialData,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
+  const { accessToken } = useAuth();
 
-  const [formValues, setFormValues] = useState<FormValues>({
-    email: initialData.email,
-    password: "",
+  const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
+    values: { email: initialData.email, password: "" },
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
-  const validateForm = useCallback(async () => {
-    try {
-      await schema.validate(
-        { password: formValues.password },
-        { abortEarly: false },
-      );
-      setIsValid(true);
-    } catch {
-      setIsValid(false);
-    }
-  }, [formValues.password]);
-
-  useEffect(() => {
-    validateForm();
-  }, [validateForm]);
-
-  useEffect(() => {
-    if (open) {
-      setFormValues({ email: initialData.email, password: "" });
-      setErrors({});
-      setTouched({});
-      setIsValid(false);
-    }
-  }, [open, initialData]);
-
-  const validateField = async (field: string, value: string) => {
-    try {
-      await schema.validateAt(field, { [field]: value });
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err: unknown) {
-      if (err instanceof yup.ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const handleChange = (field: keyof FormValues, value: string) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-    if (field === "password") validateField(field, value);
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
-
-  const handleSubmit = async () => {
+  const submit = async (values: FormValues) => {
     if (!accessToken) return;
-    setLoading(true);
-    setAlert({ message: "" });
-
-    try {
-      await updateUserPassword(
-        accessToken,
-        formValues.email,
-        formValues.password,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      let errorMessage = "Unknown error occurred.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setAlert({
-        message: `Failed to update password: ${errorMessage.replace(/^\d{3}: [A-Za-z ]+\.\s*/, "")}`,
-      });
-    } finally {
-      setLoading(false);
-    }
+    await updateUserPassword(accessToken, values.email, values.password);
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-user-password-modal-title"
-      aria-describedby="edit-user-password-modal-description"
+      onSuccess={onSuccess}
+      title="Change Password"
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to update password"
+      formatError={stripStatusPrefix}
+      submitLabel="Update"
+      submittingLabel="Updating..."
+      fullWidth={false}
     >
-      <DialogTitle id="edit-user-password-modal-title">
-        Change Password
-      </DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-        <TextField
-          fullWidth
-          label="Email"
-          value={formValues.email}
-          margin="normal"
-          disabled
-        />
-        <TextField
-          fullWidth
-          required
-          label="New Password"
-          type="password"
-          value={formValues.password}
-          onChange={(e) => handleChange("password", e.target.value)}
-          onBlur={() => handleBlur("password")}
-          error={!!errors.password && touched.password}
-          helperText={touched.password ? errors.password : ""}
-          margin="normal"
-          autoFocus
-          autoComplete="new-password"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
-        >
-          {loading ? "Updating..." : "Update"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <TextControl<FormValues> name="email" label="Email" disabled />
+      <TextControl<FormValues>
+        name="password"
+        label="New Password"
+        type="password"
+        required
+        autoComplete="new-password"
+        autoFocus
+      />
+    </FormDialog>
   );
 };
 
