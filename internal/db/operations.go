@@ -285,10 +285,6 @@ func (op *ChangesetOp[P, R]) Invoke(db *Database, payload *P) (R, error) {
 		if !errors.Is(err, hraft.ErrNotLeader) {
 			return zero, err
 		}
-
-		// Not leader, so nothing was proposed; fall through to the
-		// forward path. The payload is still valid; the leader we
-		// forward to will capture against its own state.
 	}
 
 	return op.invokeFollower(db, payload)
@@ -370,9 +366,6 @@ func (db *Database) leaderProposeIntent(data []byte) (*ellaraft.ProposeResult, e
 	return result, classifyProposeErr(err)
 }
 
-// classifyBarrierErr maps a write-barrier failure. The barrier runs before
-// capture, so no user log entry exists yet: a leadership change here is
-// always "nothing was proposed", never an unknown outcome.
 func classifyBarrierErr(err error) error {
 	switch {
 	case err == nil:
@@ -386,11 +379,6 @@ func classifyBarrierErr(err error) error {
 	}
 }
 
-// classifyProposeErr maps an error from a raft Apply. ErrLeadershipLost and
-// ErrRaftShutdown are outcome-unknown: raft raises both after commit as well
-// as before dispatch (api.go:847, raft.go:1300-1306) and the future cannot
-// tell the two apart. ErrNotLeader is rejected before dispatch and stays
-// retryable so callers can forward.
 func classifyProposeErr(err error) error {
 	switch {
 	case err == nil:

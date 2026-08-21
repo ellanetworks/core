@@ -210,9 +210,6 @@ func TestRunForwardRetryLoop_MaxAttemptsExhausted(t *testing.T) {
 		t.Fatal("expected error after exhausting retries")
 	}
 
-	// Both retried statuses mean nothing was applied: 421 is raft rejecting
-	// before dispatch, and the leader now classifies any propose that may
-	// have committed as outcome-unknown (409) rather than 503.
 	if !errors.Is(err, hraft.ErrNotLeader) {
 		t.Fatalf("want ErrNotLeader, got %v", err)
 	}

@@ -104,13 +104,8 @@ type ProposeForwardErrorBody struct {
 	Code    string `json:"code,omitempty"`
 }
 
-// ForwardCodeOutcomeUnknown marks a forwarded write whose log entry may
-// have committed before the leader lost leadership. Callers must not
-// retry it blindly; no idempotency key exists to make that safe.
 const ForwardCodeOutcomeUnknown = "outcome_unknown"
 
-// ErrOutcomeUnknown reports that a forwarded write may or may not have
-// been applied. It is deliberately not part of the retryable set.
 var ErrOutcomeUnknown = errors.New("forwarded write outcome unknown")
 
 type forwardAttemptFn func(ctx context.Context) (*ProposeResult, int, error)

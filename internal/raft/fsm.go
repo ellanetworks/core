@@ -99,10 +99,6 @@ func (f *FSM) AppliedIndex() uint64 {
 	return f.appliedIndex.Load()
 }
 
-// Apply implements raft.FSM. It is called by the Raft library on every node
-// (leader and followers) for each committed log entry. Raft selects
-// ApplyBatch over Apply for a BatchingFSM, so this path runs only for
-// RecoverCluster replay; it delegates so both share one implementation.
 func (f *FSM) Apply(l *raft.Log) interface{} {
 	if l.Type != raft.LogCommand {
 		return nil
