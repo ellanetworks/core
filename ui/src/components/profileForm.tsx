@@ -2,39 +2,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { Box, Checkbox, FormControlLabel, FormGroup } from "@mui/material";
+import { Checkbox, FormControlLabel, FormGroup } from "@mui/material";
 import { useController } from "react-hook-form";
 import type { Control, FieldValues, Path } from "react-hook-form";
-import * as yup from "yup";
-import NumberControl from "@/components/form/NumberControl";
-import SelectControl from "@/components/form/SelectControl";
-
-export const AMBR_UNITS = ["Kbps", "Mbps", "Gbps"] as const;
-
-export type AmbrUnit = (typeof AMBR_UNITS)[number];
-
-const UNIT_OPTIONS = AMBR_UNITS.map((unit) => ({ value: unit, label: unit }));
-
-const bitrateValue = () =>
-  yup
-    .number()
-    .min(1, "Value must be between 1 and 65535")
-    .max(65535, "Value must be between 1 and 65535")
-    .integer("Value must be a whole number")
-    .required("Value is required");
-
-const bitrateUnit = () =>
-  yup
-    .string()
-    .oneOf([...AMBR_UNITS], "Invalid unit")
-    .required();
-
-export const ambrSchema = {
-  ambrUpValue: bitrateValue(),
-  ambrUpUnit: bitrateUnit(),
-  ambrDownValue: bitrateValue(),
-  ambrDownUnit: bitrateUnit(),
-};
+import type { AmbrUnit } from "@/components/form/BitrateFields";
 
 export function parseAmbr(value: string): { num: number; unit: AmbrUnit } {
   const parts = value.split(" ");
@@ -47,29 +18,6 @@ export function parseAmbr(value: string): { num: number; unit: AmbrUnit } {
   }
   return { num: 100, unit: "Mbps" };
 }
-
-interface AmbrFieldsProps<T extends FieldValues> {
-  valueName: Path<T>;
-  unitName: Path<T>;
-  label: string;
-}
-
-export const AmbrFields = <T extends FieldValues>({
-  valueName,
-  unitName,
-  label,
-}: AmbrFieldsProps<T>) => (
-  <Box sx={{ display: "flex", gap: 2 }}>
-    <NumberControl<T> name={valueName} label={label} sx={{ flex: 2 }} />
-    <Box sx={{ flex: 1 }}>
-      <SelectControl<T, string>
-        name={unitName}
-        label="Unit"
-        options={UNIT_OPTIONS}
-      />
-    </Box>
-  </Box>
-);
 
 interface AccessCheckboxProps<T extends FieldValues> {
   control: Control<T>;

@@ -9,11 +9,8 @@ import { createProfile } from "@/queries/profiles";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
-import {
-  AccessCheckboxes,
-  AmbrFields,
-  ambrSchema,
-} from "@/components/profileForm";
+import { AccessCheckboxes } from "@/components/profileForm";
+import { AmbrFields, ambrSchema } from "@/components/form/BitrateFields";
 
 interface CreateProfileModalProps {
   open: boolean;

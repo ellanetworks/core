@@ -9,12 +9,8 @@ import { APIProfile, updateProfile } from "@/queries/profiles";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
-import {
-  AccessCheckboxes,
-  AmbrFields,
-  ambrSchema,
-  parseAmbr,
-} from "@/components/profileForm";
+import { AccessCheckboxes, parseAmbr } from "@/components/profileForm";
+import { AmbrFields, ambrSchema } from "@/components/form/BitrateFields";
 
 interface EditProfileModalProps {
   open: boolean;
