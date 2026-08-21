@@ -1,27 +1,20 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useState, useEffect } from "react";
-import {
-  Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-  MenuItem,
-  Checkbox,
-  FormControlLabel,
-  FormGroup,
-} from "@mui/material";
+import React from "react";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { ValidationError } from "yup";
 import { APIProfile, updateProfile } from "@/queries/profiles";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
+import {
+  AccessCheckboxes,
+  AmbrFields,
+  ambrSchema,
+  parseAmbr,
+} from "@/components/profileForm";
 
 interface EditProfileModalProps {
   open: boolean;
@@ -30,34 +23,14 @@ interface EditProfileModalProps {
   initialData: APIProfile;
 }
 
-const schema = yup.object().shape({
-  ambrUpValue: yup
-    .number()
-    .min(1, "Value must be between 1 and 65535")
-    .max(65535, "Value must be between 1 and 65535")
-    .integer("Value must be a whole number")
-    .required("Value is required"),
-  ambrUpUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
-  ambrDownValue: yup
-    .number()
-    .min(1, "Value must be between 1 and 65535")
-    .max(65535, "Value must be between 1 and 65535")
-    .integer("Value must be a whole number")
-    .required("Value is required"),
-  ambrDownUnit: yup.string().oneOf(["Kbps", "Mbps", "Gbps"], "Invalid unit"),
+const schema = yup.object({
+  name: yup.string().required(),
+  ...ambrSchema,
+  allow4g: yup.boolean().required(),
+  allow5g: yup.boolean().required(),
 });
 
-function parseAmbr(value: string): { num: number; unit: string } {
-  const parts = value.split(" ");
-  if (parts.length === 2) {
-    const num = Number(parts[0]);
-    const unit = parts[1];
-    if (!isNaN(num) && (unit === "Mbps" || unit === "Gbps")) {
-      return { num, unit };
-    }
-  }
-  return { num: 100, unit: "Mbps" };
-}
+type FormValues = yup.InferType<typeof schema>;
 
 const EditProfileModal: React.FC<EditProfileModalProps> = ({
   open,
@@ -65,246 +38,67 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
   onSuccess,
   initialData,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
 
-  useEffect(() => {
-    if (open && authReady && !accessToken) {
-      navigate("/login");
-    }
-  }, [open, authReady, accessToken, navigate]);
+  const up = parseAmbr(initialData.ue_ambr_uplink);
+  const down = parseAmbr(initialData.ue_ambr_downlink);
 
-  const upParsed = parseAmbr(initialData.ue_ambr_uplink);
-  const downParsed = parseAmbr(initialData.ue_ambr_downlink);
-
-  const [formValues, setFormValues] = useState({
-    ambrUpValue: upParsed.num,
-    ambrUpUnit: upParsed.unit,
-    ambrDownValue: downParsed.num,
-    ambrDownUnit: downParsed.unit,
-    allow4g: initialData.allow_4g,
-    allow5g: initialData.allow_5g,
-  });
-
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
-  useEffect(() => {
-    const up = parseAmbr(initialData.ue_ambr_uplink);
-    const down = parseAmbr(initialData.ue_ambr_downlink);
-    setFormValues({
+  const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
+    values: {
+      name: initialData.name,
       ambrUpValue: up.num,
       ambrUpUnit: up.unit,
       ambrDownValue: down.num,
       ambrDownUnit: down.unit,
       allow4g: initialData.allow_4g,
       allow5g: initialData.allow_5g,
-    });
-  }, [initialData]);
+    },
+  });
 
-  const handleChange = (field: string, value: string | number) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-    validateField(field, value);
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
-
-  const validateField = async (field: string, value: string | number) => {
-    try {
-      await schema.validateAt(field, { ...formValues, [field]: value });
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const validateForm = useCallback(async () => {
-    try {
-      await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-      setIsValid(true);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        const validationErrors = err.inner.reduce(
-          (acc, curr) => {
-            acc[curr.path!] = curr.message;
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-        setErrors(validationErrors);
-      }
-      setIsValid(false);
-    }
-  }, [formValues]);
-
-  useEffect(() => {
-    validateForm();
-  }, [validateForm, formValues]);
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setAlert({ message: "" });
-    try {
-      const ueAmbrUplink = `${formValues.ambrUpValue} ${formValues.ambrUpUnit}`;
-      const ueAmbrDownlink = `${formValues.ambrDownValue} ${formValues.ambrDownUnit}`;
-      await updateProfile(
-        accessToken,
-        initialData.name,
-        ueAmbrUplink,
-        ueAmbrDownlink,
-        formValues.allow4g,
-        formValues.allow5g,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({ message: `Failed to update profile: ${errorMessage}` });
-    } finally {
-      setLoading(false);
-    }
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await updateProfile(
+      accessToken,
+      initialData.name,
+      `${values.ambrUpValue} ${values.ambrUpUnit}`,
+      `${values.ambrDownValue} ${values.ambrDownUnit}`,
+      values.allow4g,
+      values.allow5g,
+    );
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-profile-modal-title"
-      fullWidth
-      maxWidth="sm"
+      onSuccess={onSuccess}
+      title="Edit Profile"
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to update profile"
+      submitLabel="Save"
+      submittingLabel="Saving..."
+      fullWidth={false}
     >
-      <DialogTitle id="edit-profile-modal-title">Edit Profile</DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-
-        <TextField
-          fullWidth
-          label="Name"
-          value={initialData.name}
-          margin="normal"
-          disabled
-        />
-
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <TextField
-            label="Bitrate Uplink"
-            type="number"
-            value={formValues.ambrUpValue}
-            onChange={(e) =>
-              handleChange("ambrUpValue", Number(e.target.value))
-            }
-            onBlur={() => handleBlur("ambrUpValue")}
-            error={!!errors.ambrUpValue && touched.ambrUpValue}
-            helperText={touched.ambrUpValue ? errors.ambrUpValue : ""}
-            margin="normal"
-          />
-          <TextField
-            select
-            label="Unit"
-            value={formValues.ambrUpUnit}
-            onChange={(e) => handleChange("ambrUpUnit", e.target.value)}
-            onBlur={() => handleBlur("ambrUpUnit")}
-            margin="normal"
-          >
-            <MenuItem value="Kbps">Kbps</MenuItem>
-            <MenuItem value="Mbps">Mbps</MenuItem>
-            <MenuItem value="Gbps">Gbps</MenuItem>
-          </TextField>
-        </Box>
-
-        <Box sx={{ display: "flex", gap: 2 }}>
-          <TextField
-            label="Bitrate Downlink"
-            type="number"
-            value={formValues.ambrDownValue}
-            onChange={(e) =>
-              handleChange("ambrDownValue", Number(e.target.value))
-            }
-            onBlur={() => handleBlur("ambrDownValue")}
-            error={!!errors.ambrDownValue && touched.ambrDownValue}
-            helperText={touched.ambrDownValue ? errors.ambrDownValue : ""}
-            margin="normal"
-          />
-          <TextField
-            select
-            label="Unit"
-            value={formValues.ambrDownUnit}
-            onChange={(e) => handleChange("ambrDownUnit", e.target.value)}
-            onBlur={() => handleBlur("ambrDownUnit")}
-            margin="normal"
-          >
-            <MenuItem value="Kbps">Kbps</MenuItem>
-            <MenuItem value="Mbps">Mbps</MenuItem>
-            <MenuItem value="Gbps">Gbps</MenuItem>
-          </TextField>
-        </Box>
-
-        <FormGroup sx={{ mt: 1 }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formValues.allow4g}
-                onChange={(e) =>
-                  setFormValues((prev) => ({
-                    ...prev,
-                    allow4g: e.target.checked,
-                  }))
-                }
-              />
-            }
-            label="Allow 4G access"
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formValues.allow5g}
-                onChange={(e) =>
-                  setFormValues((prev) => ({
-                    ...prev,
-                    allow5g: e.target.checked,
-                  }))
-                }
-              />
-            }
-            label="Allow 5G access"
-          />
-        </FormGroup>
-      </DialogContent>
-
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
-        >
-          {loading ? "Saving..." : "Save"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <TextControl<FormValues> name="name" label="Name" disabled />
+      <AmbrFields<FormValues>
+        valueName="ambrUpValue"
+        unitName="ambrUpUnit"
+        label="Bitrate Uplink"
+      />
+      <AmbrFields<FormValues>
+        valueName="ambrDownValue"
+        unitName="ambrDownUnit"
+        label="Bitrate Downlink"
+      />
+      <AccessCheckboxes
+        control={form.control}
+        allow4gName="allow4g"
+        allow5gName="allow5g"
+      />
+    </FormDialog>
   );
 };
 

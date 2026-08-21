@@ -1,37 +1,34 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Button,
+  Checkbox,
+  FormControlLabel,
   InputAdornment,
   TextField,
-  Button,
-  Typography,
-  Alert,
-  Collapse,
-  MenuItem,
-  FormControlLabel,
-  Select,
-  Checkbox,
-  InputLabel,
-  FormControl,
 } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
+import { useController, useForm, useWatch } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
-import {
-  listProfiles,
-  type APIProfile,
-  type ListProfilesResponse,
-} from "@/queries/profiles";
 import { getOperator } from "@/queries/operator";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
+import ProfileSelectField, {
+  useProfileNames,
+} from "@/components/ProfileSelectField";
+import {
+  getMSINBounds,
+  parseIMSIorMSIN,
+  randomKey,
+  randomMSIN,
+} from "@/components/subscriberIdentity";
 
 interface CreateSubscriberModalProps {
   open: boolean;
@@ -39,34 +36,7 @@ interface CreateSubscriberModalProps {
   onSuccess: () => void;
 }
 
-type FormValues = {
-  msin: string;
-  key: string;
-  opc: string;
-  sequenceNumber: string;
-  profileName: string;
-};
-
-type Operator = {
-  id: {
-    mcc: string;
-    mnc: string;
-  };
-};
-
-const MCC_DIGITS = 3;
-const IMSI_MIN_DIGITS = 6;
-const IMSI_MAX_DIGITS = 15;
-
-const getMSINBounds = (mncLength: number) => {
-  const prefixLength = MCC_DIGITS + mncLength;
-  return {
-    min: Math.max(1, IMSI_MIN_DIGITS - prefixLength),
-    max: Math.max(1, IMSI_MAX_DIGITS - prefixLength),
-  };
-};
-
-const schema = yup.object().shape({
+const schema = yup.object({
   msin: yup
     .string()
     .matches(/^\d+$/, "MSIN must be numeric.")
@@ -102,392 +72,225 @@ const schema = yup.object().shape({
   profileName: yup.string().required("Profile is required."),
   opc: yup
     .string()
+    .default("")
     .matches(
       /(^$)|(^[0-9a-fA-F]{32}$)/,
       "OPC must be empty or a 32-character hex string.",
-    )
-    .notRequired(),
+    ),
 });
+
+type FormValues = yup.InferType<typeof schema>;
+
+const GENERATE_BUTTON_SX = {
+  flex: "0 0 120px",
+  minWidth: 120,
+  flexShrink: 0,
+  mt: "16px",
+  height: "56px",
+};
 
 const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   open,
   onClose,
   onSuccess,
 }) => {
-  const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
-
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
-
-  const [formValues, setFormValues] = useState<FormValues>({
-    msin: "",
-    key: "",
-    opc: "",
-    sequenceNumber: "000000000022",
-    profileName: "",
-  });
-
-  const [mcc, setMcc] = useState("");
-  const [mnc, setMnc] = useState("");
-  const [profiles, setProfiles] = useState<string[]>([]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
   const [customOPC, setCustomOPC] = useState(false);
   const [imsiMismatch, setImsiMismatch] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchOperatorAndProfiles = async () => {
-      if (!accessToken) return;
-      try {
-        const operator: Operator = await getOperator(accessToken);
-        setMcc(operator.id.mcc);
-        setMnc(operator.id.mnc);
+  const operatorQuery = useQuery({
+    queryKey: ["operator"],
+    queryFn: () => getOperator(accessToken!),
+    enabled: open && authReady && !!accessToken,
+  });
+  const profilesQuery = useProfileNames(open);
 
-        const profilePage: ListProfilesResponse = await listProfiles(
-          accessToken,
-          1,
-          100,
-        );
-        setProfiles((profilePage.items ?? []).map((p: APIProfile) => p.name));
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
-        setAlert({
-          message: "Failed to load operator or profile data. Please try again.",
-        });
-      }
-    };
+  const mcc = operatorQuery.data?.id.mcc ?? "";
+  const mnc = operatorQuery.data?.id.mnc ?? "";
+  const profiles = useMemo(
+    () => profilesQuery.data ?? [],
+    [profilesQuery.data],
+  );
 
-    if (open) {
-      fetchOperatorAndProfiles();
-    }
-  }, [open, accessToken]);
+  const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
+    context: { mncLength: mnc.length },
+    defaultValues: {
+      msin: "",
+      key: "",
+      opc: "",
+      sequenceNumber: "000000000022",
+      profileName: "",
+    },
+  });
 
-  const handleChange = (field: string, value: string | number) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-    validateField(field, value);
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
-
-  const validateField = async (field: string, value: string | number) => {
-    try {
-      await schema.validateAt(
-        field,
-        { ...formValues, [field]: value },
-        { context: { mncLength: mnc.length } },
-      );
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const validateForm = useCallback(async () => {
-    try {
-      await schema.validate(formValues, {
-        abortEarly: false,
-        context: { mncLength: mnc.length },
-      });
-      setErrors({});
-      setIsValid(true);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        const validationErrors = err.inner.reduce(
-          (acc, curr) => {
-            acc[curr.path!] = curr.message;
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-        setErrors(validationErrors);
-      }
-      setIsValid(false);
-    }
-  }, [formValues, mnc.length]);
-
-  useEffect(() => {
-    validateForm();
-  }, [formValues, validateForm]);
+  const { field: msinField, fieldState: msinState } = useController({
+    control: form.control,
+    name: "msin",
+  });
+  const { field: keyField, fieldState: keyState } = useController({
+    control: form.control,
+    name: "key",
+  });
+  const profileName = useWatch({ control: form.control, name: "profileName" });
 
   useEffect(() => {
     if (!profiles.length) return;
+    if (profileName && profiles.includes(profileName)) return;
+    form.setValue("profileName", profiles[0], { shouldValidate: true });
+  }, [profiles, profileName, form]);
 
-    setFormValues((prev) => {
-      if (prev.profileName && profiles.includes(prev.profileName)) {
-        return prev;
-      }
-      return { ...prev, profileName: profiles[0] };
-    });
-  }, [profiles]);
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setAlert({ message: "" });
-    try {
-      const imsi = `${mcc}${mnc}${formValues.msin}`;
-      await createSubscriber(
-        accessToken,
-        imsi,
-        formValues.key,
-        formValues.sequenceNumber,
-        formValues.profileName,
-        formValues.opc,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({ message: `Failed to create subscriber: ${errorMessage}` });
-      console.error("Failed to create subscriber:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sanitizeDigits = (s: string) => s.replace(/\D/g, "");
-
-  const parseIMSIorMSIN = (
-    raw: string,
-    operatorMcc: string,
-    operatorMnc: string,
-  ) => {
-    const digits = sanitizeDigits(raw);
-    const prefix = `${operatorMcc}${operatorMnc}`;
-    const { max } = getMSINBounds(operatorMnc.length);
-
-    if (digits.length <= max) {
-      return { msin: digits, mismatchMsg: null };
-    }
-
-    if (digits.startsWith(prefix)) {
-      return {
-        msin: digits.slice(prefix.length, prefix.length + max),
-        mismatchMsg: null,
-      };
-    }
-
-    return {
-      msin: null,
-      mismatchMsg: `IMSI prefix does not match MCC ${operatorMcc} / MNC ${operatorMnc}.`,
-    };
-  };
-
-  const handleIMSIishInput = (raw: string) => {
+  const applyIMSIishInput = (raw: string) => {
     const { msin, mismatchMsg } = parseIMSIorMSIN(raw, mcc, mnc);
-
     setImsiMismatch(mismatchMsg);
-
     if (msin !== null) {
-      handleChange("msin", msin);
-      setTouched((t) => ({ ...t, msin: true }));
+      form.setValue("msin", msin, { shouldValidate: true, shouldTouch: true });
     }
   };
 
-  const randomDigits = (len: number) =>
-    Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
-
-  const generateRandomMSIN = () => {
-    const { max } = getMSINBounds(mnc.length);
-    const randomMSIN = randomDigits(max);
-    handleChange("msin", randomMSIN);
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await createSubscriber(
+      accessToken,
+      `${mcc}${mnc}${values.msin}`,
+      values.key,
+      values.sequenceNumber,
+      values.profileName,
+      values.opc,
+    );
   };
+
+  const showMsinError =
+    (!!msinState.error && msinState.isTouched) || !!imsiMismatch;
+  const showKeyError = !!keyState.error && keyState.isTouched;
+  const loadFailed = operatorQuery.isError || profilesQuery.isError;
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="create-subscriber-modal-title"
-      aria-describedby="create-subscriber-modal-description"
-      fullWidth
-      maxWidth="sm"
+      onSuccess={onSuccess}
+      title="Create Subscriber"
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to create subscriber"
+      submitLabel="Create"
+      submittingLabel="Creating..."
     >
-      <DialogTitle id="create-subscriber-modal-title">
-        Create Subscriber
-      </DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
+      {loadFailed && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Failed to load operator or profile data. Please try again.
+        </Alert>
+      )}
 
-        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
-          <TextField
-            fullWidth
-            label="IMSI"
-            value={formValues.msin}
-            onChange={(e) => handleIMSIishInput(e.target.value)}
-            onPaste={(e) => {
-              const pasted = e.clipboardData.getData("text");
-              if (/\d{12,}/.test(pasted)) {
-                e.preventDefault();
-                handleIMSIishInput(pasted);
-              }
-            }}
-            onBlur={() => handleBlur("msin")}
-            error={(!!errors.msin && touched.msin) || !!imsiMismatch}
-            helperText={(touched.msin && errors.msin) || imsiMismatch || " "}
-            margin="normal"
-            autoFocus
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">{`${mcc}${mnc}`}</InputAdornment>
-                ),
-              },
-            }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{
-              flex: "0 0 120px",
-              minWidth: 120,
-              flexShrink: 0,
-              mt: "16px",
-              height: "56px",
-            }}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={generateRandomMSIN}
-          >
-            Generate
-          </Button>
-        </Box>
-        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
-          <TextField
-            fullWidth
-            label="Key"
-            value={formValues.key}
-            onChange={(e) => handleChange("key", e.target.value)}
-            onBlur={() => handleBlur("key")}
-            error={!!errors.key && touched.key}
-            helperText={touched.key ? errors.key || " " : " "}
-            margin="normal"
-            sx={{ flex: 1 }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{
-              flex: "0 0 120px",
-              minWidth: 120,
-              flexShrink: 0,
-              mt: "16px",
-              height: "56px",
-            }}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              const randomKey = [...crypto.getRandomValues(new Uint8Array(16))]
-                .map((b) => b.toString(16).padStart(2, "0"))
-                .join("");
-              handleChange("key", randomKey);
-            }}
-          >
-            Generate
-          </Button>
-        </Box>
-
+      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
         <TextField
           fullWidth
-          label="Sequence Number"
-          value={formValues.sequenceNumber}
-          onChange={(e) => handleChange("sequenceNumber", e.target.value)}
-          onBlur={() => handleBlur("sequenceNumber")}
-          error={!!errors.sequenceNumber && touched.sequenceNumber}
+          label="IMSI"
+          value={msinField.value ?? ""}
+          onChange={(event) => applyIMSIishInput(event.target.value)}
+          onPaste={(event) => {
+            const pasted = event.clipboardData.getData("text");
+            if (/\d{12,}/.test(pasted)) {
+              event.preventDefault();
+              applyIMSIishInput(pasted);
+            }
+          }}
+          onBlur={msinField.onBlur}
+          inputRef={msinField.ref}
+          error={showMsinError}
           helperText={
-            (touched.sequenceNumber && errors.sequenceNumber) ||
-            "6-byte (12-char) hex string (e.g., 000000000001)"
+            (msinState.isTouched && msinState.error?.message) ||
+            imsiMismatch ||
+            " "
           }
           margin="normal"
+          autoFocus
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">{`${mcc}${mnc}`}</InputAdornment>
+              ),
+            },
+          }}
         />
-
-        <FormControl fullWidth margin="normal">
-          <InputLabel id="profile-select-label">Profile</InputLabel>
-          <Select
-            value={formValues.profileName}
-            onChange={(e) => handleChange("profileName", e.target.value)}
-            onBlur={() => handleBlur("profileName")}
-            error={!!errors.profileName && touched.profileName}
-            labelId="profile-select-label"
-            label="Profile"
-          >
-            {profiles.map((profile) => (
-              <MenuItem key={profile} value={profile}>
-                {profile}
-              </MenuItem>
-            ))}
-          </Select>
-          {touched.profileName && errors.profileName && (
-            <Typography color="error" variant="caption">
-              {errors.profileName}
-            </Typography>
-          )}
-        </FormControl>
-
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={customOPC}
-              onChange={(e) => {
-                setCustomOPC(e.target.checked);
-                if (!e.target.checked) handleChange("opc", "");
-              }}
-            />
-          }
-          label="Provide custom OPC"
-        />
-
-        {customOPC && (
-          <TextField
-            fullWidth
-            label="OPC (optional)"
-            value={formValues.opc}
-            onChange={(e) => handleChange("opc", e.target.value)}
-            onBlur={() => handleBlur("opc")}
-            error={!!errors.opc && touched.opc}
-            helperText={
-              touched.opc && errors.opc
-                ? errors.opc
-                : "Leave blank to use centrally managed OP"
-            }
-            margin="normal"
-          />
-        )}
-      </DialogContent>
-
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
         <Button
           variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
+          color="primary"
+          sx={GENERATE_BUTTON_SX}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() =>
+            form.setValue("msin", randomMSIN(mnc.length), {
+              shouldValidate: true,
+            })
+          }
         >
-          {loading ? "Creating..." : "Create"}
+          Generate
         </Button>
-      </DialogActions>
-    </Dialog>
+      </Box>
+
+      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+        <TextField
+          fullWidth
+          label="Key"
+          value={keyField.value ?? ""}
+          onChange={keyField.onChange}
+          onBlur={keyField.onBlur}
+          inputRef={keyField.ref}
+          error={showKeyError}
+          helperText={showKeyError ? keyState.error?.message : " "}
+          margin="normal"
+          sx={{ flex: 1 }}
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          sx={GENERATE_BUTTON_SX}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() =>
+            form.setValue("key", randomKey(), { shouldValidate: true })
+          }
+        >
+          Generate
+        </Button>
+      </Box>
+
+      <TextControl<FormValues>
+        name="sequenceNumber"
+        label="Sequence Number"
+        helperText="6-byte (12-char) hex string (e.g., 000000000001)"
+      />
+
+      <ProfileSelectField
+        control={form.control}
+        name="profileName"
+        profiles={profiles}
+      />
+
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={customOPC}
+            onChange={(event) => {
+              setCustomOPC(event.target.checked);
+              if (!event.target.checked) {
+                form.setValue("opc", "", { shouldValidate: true });
+              }
+            }}
+          />
+        }
+        label="Provide custom OPC"
+      />
+
+      {customOPC && (
+        <TextControl<FormValues>
+          name="opc"
+          label="OPC (optional)"
+          helperText="Leave blank to use centrally managed OP"
+        />
+      )}
+    </FormDialog>
   );
 };
 
