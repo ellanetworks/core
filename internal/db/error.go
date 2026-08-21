@@ -20,9 +20,9 @@ var (
 	ErrDNNNotInSlice     = errors.New("data network not found in slice")
 	ErrRestoreInProgress = errors.New("a restore is already in progress")
 	ErrInvalidBackupFile = errors.New("uploaded file is not a valid SQLite database")
-	// ErrProposeTimeout is returned when a Raft proposal cannot be committed
-	// (queue full, leader lost mid-commit, or Raft shutting down). Callers
-	// should treat it as a transient 503 condition.
+	// ErrProposeTimeout is returned when a Raft proposal was rejected before
+	// dispatch (queue full, not leader, or Raft shutting down). Nothing was
+	// applied, so callers may retry; the API maps it to 503.
 	ErrProposeTimeout = errors.New("raft commit timeout")
 
 	// ErrOutcomeUnknown reports a write that may or may not have been

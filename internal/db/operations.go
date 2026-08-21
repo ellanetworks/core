@@ -282,13 +282,13 @@ func (op *ChangesetOp[P, R]) Invoke(db *Database, payload *P) (R, error) {
 			return narrowResult[R](op.name, result)
 		}
 
-		if !errors.Is(err, hraft.ErrNotLeader) && !errors.Is(err, hraft.ErrLeadershipLost) {
+		if !errors.Is(err, hraft.ErrNotLeader) {
 			return zero, err
 		}
 
-		// Leadership lost between IsLeader() and Propose(); fall through
-		// to the forward path. The payload is still valid; the leader
-		// we forward to will capture against its own state.
+		// Not leader, so nothing was proposed; fall through to the
+		// forward path. The payload is still valid; the leader we
+		// forward to will capture against its own state.
 	}
 
 	return op.invokeFollower(db, payload)
@@ -342,16 +342,8 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 			return narrowResult[R](op.name, result.Value)
 		}
 
-		if errors.Is(applyErr, hraft.ErrLeadershipLost) {
-			return zero, fmt.Errorf("%w: %v", ErrOutcomeUnknown, applyErr)
-		}
-
-		if !errors.Is(applyErr, hraft.ErrNotLeader) {
-			if isTransientRaftErr(applyErr) {
-				return zero, fmt.Errorf("%w: %v", ErrProposeTimeout, applyErr)
-			}
-
-			return zero, applyErr
+		if classified := classifyProposeErr(applyErr); !errors.Is(classified, hraft.ErrNotLeader) {
+			return zero, classified
 		}
 		// Lost leadership mid-apply — fall through to forward path.
 	}
@@ -376,18 +368,42 @@ func (db *Database) leaderProposeIntent(data []byte) (*ellaraft.ProposeResult, e
 	return db.raftManager.ApplyBytes(data, db.proposeTimeout)
 }
 
-func (db *Database) writeBarrier() error {
-	err := db.raftManager.WriteBarrier(db.proposeTimeout)
+// classifyBarrierErr maps a write-barrier failure. The barrier runs before
+// capture, so no user log entry exists yet: a leadership change here is
+// always "nothing was proposed", never an unknown outcome.
+func classifyBarrierErr(err error) error {
 	switch {
 	case err == nil:
 		return nil
 	case errors.Is(err, hraft.ErrNotLeader), errors.Is(err, hraft.ErrLeadershipLost):
-		return err
+		return fmt.Errorf("%w: write barrier: %v", hraft.ErrNotLeader, err)
 	case errors.Is(err, ellaraft.ErrBarrierTimeout), isTransientRaftErr(err):
 		return fmt.Errorf("%w: %v", ErrProposeTimeout, err)
 	default:
 		return err
 	}
+}
+
+// classifyProposeErr maps an error from a raft Apply that has already been
+// dispatched. Only ErrLeadershipLost is outcome-unknown; ErrNotLeader is
+// rejected before dispatch and stays retryable so callers can forward.
+func classifyProposeErr(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, hraft.ErrLeadershipLost):
+		return fmt.Errorf("%w: %v", ErrOutcomeUnknown, err)
+	case errors.Is(err, hraft.ErrNotLeader):
+		return err
+	case isTransientRaftErr(err):
+		return fmt.Errorf("%w: %v", ErrProposeTimeout, err)
+	default:
+		return err
+	}
+}
+
+func (db *Database) writeBarrier() error {
+	return classifyBarrierErr(db.raftManager.WriteBarrier(db.proposeTimeout))
 }
 
 // leaderCaptureAndPropose runs the capture→propose cycle on the leader.
@@ -433,15 +449,7 @@ func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, app
 
 	index, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
 	if err != nil {
-		if errors.Is(err, hraft.ErrLeadershipLost) {
-			return nil, fmt.Errorf("%w: %v", ErrOutcomeUnknown, err)
-		}
-
-		if isTransientRaftErr(err) {
-			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
-		}
-
-		return nil, err
+		return nil, classifyProposeErr(err)
 	}
 
 	logger.DBLog.Debug("proposed changeset",
