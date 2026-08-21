@@ -87,6 +87,40 @@ func awaitLeader(t *testing.T, tc *TestCluster, survivors []int, appliers []*slo
 	}
 }
 
+func awaitStableLastIndex(t *testing.T, m *Manager) uint64 {
+	t.Helper()
+
+	const (
+		tick        = 10 * time.Millisecond
+		stableTicks = 50
+	)
+
+	deadline := time.After(15 * time.Second)
+	last := m.raft.LastIndex()
+	stable := 0
+
+	for {
+		select {
+		case <-deadline:
+			t.Fatalf("last index never settled (still %d)", last)
+		case <-time.After(tick):
+		}
+
+		cur := m.raft.LastIndex()
+		if cur != last {
+			last = cur
+			stable = 0
+
+			continue
+		}
+
+		stable++
+		if stable == stableTicks {
+			return last
+		}
+	}
+}
+
 func TestWriteBarrier_WaitsForPriorTermEntries(t *testing.T) {
 	const proposals = 30
 
@@ -153,7 +187,7 @@ func TestWriteBarrier_TimesOutOnBacklog(t *testing.T) {
 		t.Fatalf("write barrier against a backlog: want ErrBarrierTimeout, got %v", err)
 	}
 
-	beforeRetries := newLeader.raft.LastIndex()
+	beforeRetries := awaitStableLastIndex(t, newLeader)
 
 	for range 5 {
 		if err := newLeader.WriteBarrier(10 * time.Millisecond); !errors.Is(err, ErrBarrierTimeout) {
@@ -161,7 +195,7 @@ func TestWriteBarrier_TimesOutOnBacklog(t *testing.T) {
 		}
 	}
 
-	if got := newLeader.raft.LastIndex(); got != beforeRetries {
+	if got := awaitStableLastIndex(t, newLeader); got != beforeRetries {
 		t.Fatalf("last index after 5 timed-out retries: want %d (one barrier in flight), got %d", beforeRetries, got)
 	}
 
