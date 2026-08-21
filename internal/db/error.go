@@ -6,6 +6,7 @@ package db
 import (
 	"errors"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/mattn/go-sqlite3"
 )
 
@@ -23,6 +24,10 @@ var (
 	// (queue full, leader lost mid-commit, or Raft shutting down). Callers
 	// should treat it as a transient 503 condition.
 	ErrProposeTimeout = errors.New("raft commit timeout")
+
+	// ErrOutcomeUnknown reports a write that may or may not have been
+	// applied. Callers must verify state rather than retry.
+	ErrOutcomeUnknown = ellaraft.ErrOutcomeUnknown
 	// ErrMigrationPending is returned when a handler depends on a schema
 	// version the cluster has not yet rolled forward to. Surfaces as 503
 	// with Retry-After so clients back off until the slowest voter

@@ -100,78 +100,15 @@ func (f *FSM) AppliedIndex() uint64 {
 }
 
 // Apply implements raft.FSM. It is called by the Raft library on every node
-// (leader and followers) for each committed log entry.
+// (leader and followers) for each committed log entry. Raft selects
+// ApplyBatch over Apply for a BatchingFSM, so this path runs only for
+// RecoverCluster replay; it delegates so both share one implementation.
 func (f *FSM) Apply(l *raft.Log) interface{} {
 	if l.Type != raft.LogCommand {
 		return nil
 	}
 
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	// Skip already-applied entries. After a crash without a recent
-	// snapshot, hashicorp/raft replays committed entries from index 0.
-	// Changesets are not idempotent, so re-applying them would hit the
-	// conflict callback and crash-loop. The durable lastApplied value
-	// (fsm_state table) lets us skip entries that were already applied
-	// before the crash.
-	lastApplied, err := f.readLastApplied()
-	if err != nil {
-		logger.RaftLog.Error("FSM: failed to read lastApplied",
-			zap.Uint64("index", l.Index),
-			zap.Error(err))
-
-		return fmt.Errorf("read lastApplied: %w", err)
-	}
-
-	if l.Index <= lastApplied {
-		f.appliedIndex.Store(l.Index)
-		return nil
-	}
-
-	cmd, err := UnmarshalCommand(l.Data)
-	if err != nil {
-		logger.RaftLog.Error("FSM: failed to unmarshal command",
-			zap.Uint64("index", l.Index),
-			zap.Error(err))
-
-		return fmt.Errorf("unmarshal command: %w", err)
-	}
-
-	ctx := context.Background()
-
-	result, err := f.applier.ApplyCommand(ctx, cmd, l.Index)
-	if cmd.Type == CmdChangeset {
-		ObserveChangesetBytes(len(cmd.Payload))
-	}
-
-	if err != nil {
-		logger.RaftLog.Error("FSM: command failed — halting node",
-			zap.Uint64("index", l.Index),
-			zap.String("command", cmd.Label()),
-			zap.Error(err))
-
-		// A committed log entry that fails to apply means this node has
-		// diverged from the cluster. Continuing would silently desync
-		// state. The SAVEPOINT inside sqlite3changeset_apply guarantees
-		// the DB is clean (fully applied or fully rolled back), so the
-		// safest response is to stop the node. Recovery: restart and
-		// replay from the latest snapshot, or rejoin the cluster.
-		panic(fmt.Sprintf("FSM.Apply: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Label(), err))
-	}
-
-	// Persist the applied index so crash-recovery replay can skip it.
-	if err := f.writeLastApplied(l.Index); err != nil {
-		logger.RaftLog.Error("FSM: failed to persist lastApplied — halting node",
-			zap.Uint64("index", l.Index),
-			zap.Error(err))
-
-		panic(fmt.Sprintf("FSM.Apply: failed to write lastApplied at index %d: %v", l.Index, err))
-	}
-
-	f.appliedIndex.Store(l.Index)
-
-	return result
+	return f.ApplyBatch([]*raft.Log{l})[0]
 }
 
 // ApplyBatch implements raft.BatchingFSM. The Raft library calls this instead
@@ -184,15 +121,10 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 
 	lastApplied, err := f.readLastApplied()
 	if err != nil {
-		logger.RaftLog.Error("FSM: failed to read lastApplied in batch",
+		logger.RaftLog.Error("FSM: failed to read lastApplied in batch — halting node",
 			zap.Error(err))
 
-		ret := make([]interface{}, len(logs))
-		for i := range ret {
-			ret[i] = fmt.Errorf("read lastApplied: %w", err)
-		}
-
-		return ret
+		panic(fmt.Sprintf("FSM.ApplyBatch: failed to read lastApplied: %v", err))
 	}
 
 	results := make([]interface{}, len(logs))
@@ -214,13 +146,11 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 
 		cmd, err := UnmarshalCommand(l.Data)
 		if err != nil {
-			logger.RaftLog.Error("FSM: failed to unmarshal command in batch",
+			logger.RaftLog.Error("FSM: failed to unmarshal command in batch — halting node",
 				zap.Uint64("index", l.Index),
 				zap.Error(err))
 
-			results[i] = fmt.Errorf("unmarshal command: %w", err)
-
-			continue
+			panic(fmt.Sprintf("FSM.ApplyBatch: failed to unmarshal command at index %d: %v", l.Index, err))
 		}
 
 		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index)

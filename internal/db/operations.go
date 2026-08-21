@@ -342,7 +342,11 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 			return narrowResult[R](op.name, result.Value)
 		}
 
-		if !errors.Is(applyErr, hraft.ErrNotLeader) && !errors.Is(applyErr, hraft.ErrLeadershipLost) {
+		if errors.Is(applyErr, hraft.ErrLeadershipLost) {
+			return zero, fmt.Errorf("%w: %v", ErrOutcomeUnknown, applyErr)
+		}
+
+		if !errors.Is(applyErr, hraft.ErrNotLeader) {
 			if isTransientRaftErr(applyErr) {
 				return zero, fmt.Errorf("%w: %v", ErrProposeTimeout, applyErr)
 			}
@@ -429,6 +433,10 @@ func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, app
 
 	index, err := db.raftManager.ApplyBytes(data, db.proposeTimeout)
 	if err != nil {
+		if errors.Is(err, hraft.ErrLeadershipLost) {
+			return nil, fmt.Errorf("%w: %v", ErrOutcomeUnknown, err)
+		}
+
 		if isTransientRaftErr(err) {
 			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
 		}
@@ -458,6 +466,10 @@ func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*e
 
 	result, err := db.raftManager.ForwardOperation(ctx, opName, payload, db.proposeTimeout)
 	if err != nil {
+		if errors.Is(err, ErrOutcomeUnknown) {
+			return nil, err
+		}
+
 		if isTransientRaftErr(err) {
 			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
 		}
