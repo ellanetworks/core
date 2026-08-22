@@ -257,7 +257,7 @@ type (
 // the caller should retry or surface a 503.
 func isTransientRaftErr(err error) bool {
 	return errors.Is(err, hraft.ErrEnqueueTimeout) ||
-		errors.Is(err, hraft.ErrLeadershipLost) ||
+		errors.Is(err, hraft.ErrNotLeader) ||
 		errors.Is(err, hraft.ErrLeadershipTransferInProgress) ||
 		errors.Is(err, hraft.ErrRaftShutdown)
 }

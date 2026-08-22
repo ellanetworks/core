@@ -568,7 +568,7 @@ func (m *Manager) WriteBarrier(timeout time.Duration) error {
 		return raft.ErrNotLeader
 	}
 
-	att := m.barrierFor(term, timeout)
+	att := m.barrierFor(term)
 
 	select {
 	case <-att.done:
@@ -580,7 +580,7 @@ func (m *Manager) WriteBarrier(timeout time.Duration) error {
 
 // barrierFor shares one in-flight barrier per term: a caller that gives up
 // leaves it running, so repeated timeouts still cost the log a single entry.
-func (m *Manager) barrierFor(term uint64, timeout time.Duration) *barrierAttempt {
+func (m *Manager) barrierFor(term uint64) *barrierAttempt {
 	m.barrierMu.Lock()
 	defer m.barrierMu.Unlock()
 
@@ -592,7 +592,7 @@ func (m *Manager) barrierFor(term uint64, timeout time.Duration) *barrierAttempt
 	m.barrier = att
 
 	go func() {
-		att.err = m.raft.Barrier(timeout).Error()
+		att.err = m.raft.Barrier(0).Error()
 
 		if att.err == nil {
 			m.barrieredTerm.Store(term)

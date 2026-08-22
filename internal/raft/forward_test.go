@@ -5,7 +5,9 @@ package raft
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -208,11 +210,12 @@ func TestRunForwardRetryLoop_MaxAttemptsExhausted(t *testing.T) {
 		t.Fatal("expected error after exhausting retries")
 	}
 
-	// Must surface ErrLeadershipLost so db.isTransientRaftErr classifies
-	// the failure as transient — the NF caller then gets ErrProposeTimeout
-	// and HTTP callers get 503.
-	if !errors.Is(err, hraft.ErrLeadershipLost) {
-		t.Fatalf("want ErrLeadershipLost, got %v", err)
+	if !errors.Is(err, hraft.ErrNotLeader) {
+		t.Fatalf("want ErrNotLeader, got %v", err)
+	}
+
+	if errors.Is(err, ErrOutcomeUnknown) {
+		t.Fatal("exhausted retries must not report an unknown outcome")
 	}
 
 	if got := s.calls.Load(); got != int32(maxForwardAttempts) {
@@ -323,4 +326,49 @@ func contains(s, substr string) bool {
 	}
 
 	return false
+}
+
+func TestRunForwardRetryLoop_OutcomeUnknownIsTerminal(t *testing.T) {
+	m := newRetryLoopTestManager(t)
+
+	s := &scriptedAttempter{
+		responses: []attemptResponse{
+			{status: http.StatusConflict, err: fmt.Errorf("%w: leadership lost after propose", ErrOutcomeUnknown)},
+			{status: http.StatusOK, result: &ProposeResult{Index: 9}},
+		},
+	}
+
+	_, err := m.runForwardRetryLoop(context.Background(), time.Second, s.fn())
+	if !errors.Is(err, ErrOutcomeUnknown) {
+		t.Fatalf("want ErrOutcomeUnknown, got %v", err)
+	}
+
+	if got := s.calls.Load(); got != 1 {
+		t.Fatalf("an ambiguous outcome must not be retried; got %d attempts", got)
+	}
+}
+
+func TestDecodeForwardError_OutcomeUnknownCode(t *testing.T) {
+	body, err := json.Marshal(ProposeForwardErrorBody{
+		Message: "leadership lost after propose",
+		Code:    ForwardCodeOutcomeUnknown,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	if got := decodeForwardError(body, http.StatusConflict); !errors.Is(got, ErrOutcomeUnknown) {
+		t.Fatalf("want ErrOutcomeUnknown, got %v", got)
+	}
+}
+
+func TestDecodeForwardError_NoCodeStaysPlain(t *testing.T) {
+	body, err := json.Marshal(ProposeForwardErrorBody{Message: "not leader; nothing was applied, retry"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	if got := decodeForwardError(body, http.StatusMisdirectedRequest); errors.Is(got, ErrOutcomeUnknown) {
+		t.Fatalf("retryable error must not decode as outcome-unknown: %v", got)
+	}
 }
