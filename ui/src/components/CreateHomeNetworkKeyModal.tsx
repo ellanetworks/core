@@ -1,27 +1,16 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useState, useEffect } from "react";
-import {
-  Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-  MenuItem,
-  Select,
-  InputLabel,
-  FormControl,
-} from "@mui/material";
+import React from "react";
+import { Box, Button, TextField } from "@mui/material";
+import { useController, useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { createHomeNetworkKey } from "@/queries/operator";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import FormDialog from "@/components/form/FormDialog";
+import NumberControl from "@/components/form/NumberControl";
+import SelectControl from "@/components/form/SelectControl";
 
 interface CreateHomeNetworkKeyModalProps {
   open: boolean;
@@ -29,13 +18,7 @@ interface CreateHomeNetworkKeyModalProps {
   onSuccess: () => void;
 }
 
-type FormValues = {
-  keyIdentifier: string;
-  scheme: "A" | "B";
-  privateKey: string;
-};
-
-const schema = yup.object().shape({
+const schema = yup.object({
   keyIdentifier: yup
     .number()
     .typeError("Key Identifier must be a number.")
@@ -55,227 +38,118 @@ const schema = yup.object().shape({
     .required("Private Key is required."),
 });
 
+type FormValues = yup.InferType<typeof schema>;
+
+const SCHEME_OPTIONS = [
+  { value: "A", label: "Profile A (X25519)" },
+  { value: "B", label: "Profile B (P-256)" },
+] as const;
+
+const randomPrivateKey = () => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+};
+
 const CreateHomeNetworkKeyModal: React.FC<CreateHomeNetworkKeyModalProps> = ({
   open,
   onClose,
   onSuccess,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
 
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
-
-  const [formValues, setFormValues] = useState<FormValues>({
-    keyIdentifier: "0",
-    scheme: "A",
-    privateKey: "",
+  const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
+    defaultValues: { keyIdentifier: 0, scheme: "A", privateKey: "" },
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  useEffect(() => {
-    if (open) {
-      setFormValues({ keyIdentifier: "0", scheme: "A", privateKey: "" });
-      setErrors({});
-      setTouched({});
-      setAlert({ message: "" });
-    }
-  }, [open]);
+  const { field: privateKeyField, fieldState: privateKeyState } = useController(
+    { control: form.control, name: "privateKey" },
+  );
+  const showKeyError = !!privateKeyState.error && privateKeyState.isTouched;
 
-  const handleChange = (field: string, value: string) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-    validateField(field, value);
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
-
-  const validateField = async (field: string, value: string) => {
-    try {
-      await schema.validateAt(field, { ...formValues, [field]: value });
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof yup.ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const validateForm = useCallback(async () => {
-    try {
-      await schema.validate(
-        {
-          ...formValues,
-          keyIdentifier: Number(formValues.keyIdentifier),
-        },
-        { abortEarly: false },
-      );
-      setIsValid(true);
-    } catch {
-      setIsValid(false);
-    }
-  }, [formValues]);
-
-  useEffect(() => {
-    validateForm();
-  }, [validateForm]);
-
-  const generatePrivateKey = () => {
-    const bytes = new Uint8Array(32);
-    crypto.getRandomValues(bytes);
-    const hex = Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    handleChange("privateKey", hex);
-    setTouched((prev) => ({ ...prev, privateKey: true }));
-  };
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setAlert({ message: "" });
-    try {
-      await createHomeNetworkKey(
-        accessToken,
-        Number(formValues.keyIdentifier),
-        formValues.scheme,
-        formValues.privateKey,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({
-        message: `Failed to create home network key: ${errorMessage}`,
-      });
-    } finally {
-      setLoading(false);
-    }
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await createHomeNetworkKey(
+      accessToken,
+      Number(values.keyIdentifier),
+      values.scheme,
+      values.privateKey,
+    );
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="create-home-network-key-modal-title"
-      fullWidth
-      maxWidth="sm"
+      onSuccess={onSuccess}
+      title="Add Home Network Key"
+      description="Configure a home network key for SUCI de-concealment. The key identifier and scheme must match the values provisioned on the subscriber's SIM card."
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to create home network key"
+      submitLabel="Create"
+      submittingLabel="Creating..."
+      fullWidth={false}
     >
-      <DialogTitle id="create-home-network-key-modal-title">
-        Add Home Network Key
-      </DialogTitle>
-      <DialogContent dividers>
-        <DialogContentText sx={{ mb: 1 }}>
-          Configure a home network key for SUCI de-concealment. The key
-          identifier and scheme must match the values provisioned on the
-          subscriber&apos;s SIM card.
-        </DialogContentText>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-
+      <NumberControl<FormValues>
+        name="keyIdentifier"
+        label="Key Identifier"
+        min={0}
+        max={255}
+        helperText="0-255. Must match the value provisioned on the SIM/USIM."
+        autoFocus
+      />
+      <SelectControl<FormValues, string>
+        name="scheme"
+        label="Scheme"
+        options={SCHEME_OPTIONS}
+      />
+      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
         <TextField
           fullWidth
-          label="Key Identifier"
-          type="number"
-          value={formValues.keyIdentifier}
-          onChange={(e) => handleChange("keyIdentifier", e.target.value)}
-          onBlur={() => handleBlur("keyIdentifier")}
-          error={touched.keyIdentifier && !!errors.keyIdentifier}
-          helperText={
-            touched.keyIdentifier && errors.keyIdentifier
-              ? errors.keyIdentifier
-              : "0-255. Must match the value provisioned on the SIM/USIM."
-          }
+          label="Private Key"
+          value={privateKeyField.value ?? ""}
+          onChange={privateKeyField.onChange}
+          onBlur={privateKeyField.onBlur}
+          inputRef={privateKeyField.ref}
+          error={showKeyError}
+          helperText={showKeyError ? privateKeyState.error?.message : " "}
           margin="normal"
-          autoFocus
-          slotProps={{ input: { inputProps: { min: 0, max: 255 } } }}
+          sx={{
+            flex: 1,
+            "& .MuiInputBase-input": {
+              textOverflow: "ellipsis",
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+            },
+          }}
         />
-
-        <FormControl fullWidth margin="normal">
-          <InputLabel id="scheme-select-label">Scheme</InputLabel>
-          <Select
-            labelId="scheme-select-label"
-            label="Scheme"
-            value={formValues.scheme}
-            onChange={(e) => handleChange("scheme", e.target.value)}
-            onBlur={() => handleBlur("scheme")}
-            error={touched.scheme && !!errors.scheme}
-          >
-            <MenuItem value="A">Profile A (X25519)</MenuItem>
-            <MenuItem value="B">Profile B (P-256)</MenuItem>
-          </Select>
-        </FormControl>
-
-        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
-          <TextField
-            fullWidth
-            label="Private Key"
-            value={formValues.privateKey}
-            onChange={(e) => handleChange("privateKey", e.target.value)}
-            onBlur={() => handleBlur("privateKey")}
-            error={touched.privateKey && !!errors.privateKey}
-            helperText={
-              touched.privateKey && errors.privateKey ? errors.privateKey : " "
-            }
-            margin="normal"
-            sx={{
-              flex: 1,
-              "& .MuiInputBase-input": {
-                textOverflow: "ellipsis",
-                overflow: "hidden",
-                whiteSpace: "nowrap",
-              },
-            }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{
-              flex: "0 0 120px",
-              minWidth: 120,
-              flexShrink: 0,
-              mt: "16px",
-              height: "56px",
-            }}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={generatePrivateKey}
-          >
-            Generate
-          </Button>
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
         <Button
           variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
+          color="primary"
+          sx={{
+            flex: "0 0 120px",
+            minWidth: 120,
+            flexShrink: 0,
+            mt: "16px",
+            height: "56px",
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() =>
+            form.setValue("privateKey", randomPrivateKey(), {
+              shouldValidate: true,
+              shouldTouch: true,
+            })
+          }
         >
-          {loading ? "Creating..." : "Create"}
+          Generate
         </Button>
-      </DialogActions>
-    </Dialog>
+      </Box>
+    </FormDialog>
   );
 };
 

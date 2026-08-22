@@ -1,52 +1,46 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-  MenuItem,
-  FormControlLabel,
-  Checkbox,
-} from "@mui/material";
+import React, { useEffect } from "react";
+import { Checkbox, FormControlLabel } from "@mui/material";
+import { useController, useForm, useWatch } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { ValidationError } from "yup";
 import { createRoute } from "@/queries/routes";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { ipRegex, isValidCidr } from "@/utils/ip";
+import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
+import NumberControl from "@/components/form/NumberControl";
+import SelectControl from "@/components/form/SelectControl";
 
-const schema = yup.object().shape({
-  defaultRoute: yup.boolean(),
+interface CreateRouteModalProps {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+const schema = yup.object({
+  defaultRoute: yup.boolean().required(),
   destination: yup
     .string()
+    .default("")
     .when(["defaultRoute"], (values, destinationSchema) => {
       const defaultRoute = values[0] as boolean;
       if (defaultRoute) {
         return destinationSchema.test(
           "default-route",
           "For a default route, destination must be 0.0.0.0/0 or ::/0",
-          (value) => {
-            return value === "0.0.0.0/0" || value === "::/0";
-          },
+          (value) => value === "0.0.0.0/0" || value === "::/0",
         );
-      } else {
-        return destinationSchema
-          .required("Destination is required")
-          .test(
-            "valid-cidr",
-            "Destination must be a valid CIDR (IPv4 or IPv6)",
-            (value) => {
-              return value != null && value !== "" && isValidCidr(value);
-            },
-          );
       }
+      return destinationSchema
+        .required("Destination is required")
+        .test(
+          "valid-cidr",
+          "Destination must be a valid CIDR (IPv4 or IPv6)",
+          (value) => value != null && value !== "" && isValidCidr(value),
+        );
     }),
   gateway: yup
     .string()
@@ -54,9 +48,7 @@ const schema = yup.object().shape({
     .test(
       "valid-gateway",
       "Gateway must be a valid IPv4 or IPv6 address",
-      (value) => {
-        return value != null && ipRegex.test(value);
-      },
+      (value) => value != null && ipRegex.test(value),
     ),
   interface: yup
     .string()
@@ -65,245 +57,106 @@ const schema = yup.object().shape({
   metric: yup.number().required("Metric is required"),
 });
 
-interface CreateRouteModalProps {
-  open: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}
+type FormValues = yup.InferType<typeof schema>;
 
-type FormValues = {
-  defaultRoute: boolean;
-  destination: string;
-  gateway: string;
-  interface: string;
-  metric: number;
-};
+const INTERFACE_OPTIONS = [
+  { value: "n3", label: "n3" },
+  { value: "n6", label: "n6" },
+] as const;
+
+const defaultDestinationFor = (gateway: string) =>
+  gateway.includes(":") ? "::/0" : "0.0.0.0/0";
 
 const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
   open,
   onClose,
   onSuccess,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
 
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
-
-  const [formValues, setFormValues] = useState<FormValues>({
-    destination: "",
-    gateway: "",
-    interface: "n6",
-    metric: 0,
-    defaultRoute: false,
+  const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
+    defaultValues: {
+      destination: "",
+      gateway: "",
+      interface: "n6",
+      metric: 0,
+      defaultRoute: false,
+    },
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
-  const handleChange = (field: string, value: string | number | boolean) => {
-    let newDestination = formValues.destination;
-
-    if (field === "defaultRoute" && typeof value === "boolean") {
-      newDestination = value
-        ? formValues.gateway.includes(":")
-          ? "::/0"
-          : "0.0.0.0/0"
-        : "";
-
-      setFormValues((prev) => ({
-        ...prev,
-        defaultRoute: value,
-        destination: newDestination,
-      }));
-      validateField("destination", newDestination);
-    } else if (field === "gateway" && formValues.defaultRoute) {
-      const gatewayStr = String(value);
-      newDestination = gatewayStr.includes(":") ? "::/0" : "0.0.0.0/0";
-
-      setFormValues((prev) => ({
-        ...prev,
-        gateway: gatewayStr,
-        destination: newDestination,
-      }));
-      validateField("gateway", gatewayStr);
-    } else {
-      setFormValues((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-      validateField(field, value);
-    }
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({
-      ...prev,
-      [field]: true,
-    }));
-  };
-
-  const validateField = async (
-    field: string,
-    value: string | number | boolean,
-  ) => {
-    try {
-      await schema.validateAt(field, { ...formValues, [field]: value });
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const validateForm = useCallback(async () => {
-    try {
-      await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-      setIsValid(true);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        const validationErrors = err.inner.reduce(
-          (acc, curr) => {
-            acc[curr.path!] = curr.message;
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-        setErrors(validationErrors);
-      }
-      setIsValid(false);
-    }
-  }, [formValues]);
+  const { field: defaultRouteField } = useController({
+    control: form.control,
+    name: "defaultRoute",
+  });
+  const defaultRoute = useWatch({
+    control: form.control,
+    name: "defaultRoute",
+  });
+  const gateway = useWatch({ control: form.control, name: "gateway" });
 
   useEffect(() => {
-    validateForm();
-  }, [formValues, validateForm]);
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setAlert({ message: "" });
-    try {
-      await createRoute(
-        accessToken,
-        formValues.destination,
-        formValues.gateway,
-        formValues.interface,
-        formValues.metric,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({
-        message: `Failed to create route: ${errorMessage}`,
+    if (defaultRoute) {
+      form.setValue("destination", defaultDestinationFor(gateway ?? ""), {
+        shouldValidate: true,
       });
-      console.error("Failed to create route:", error);
-    } finally {
-      setLoading(false);
     }
+  }, [defaultRoute, gateway, form]);
+
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await createRoute(
+      accessToken,
+      values.destination,
+      values.gateway,
+      values.interface,
+      values.metric,
+    );
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="create-route-modal-title"
-      aria-describedby="create-route-modal-description"
+      onSuccess={onSuccess}
+      title="Create Route"
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to create route"
+      submitLabel="Create"
+      submittingLabel="Creating..."
+      fullWidth={false}
     >
-      <DialogTitle id="create-route-modal-title">Create Route</DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={formValues.defaultRoute}
-              onChange={(e) => handleChange("defaultRoute", e.target.checked)}
-            />
-          }
-          label="Default Route (0.0.0.0/0 or ::/0)"
-        />
-        <TextField
-          fullWidth
-          label="Destination"
-          value={formValues.destination}
-          onChange={(e) => handleChange("destination", e.target.value)}
-          onBlur={() => handleBlur("destination")}
-          error={!!errors.destination && touched.destination}
-          helperText={touched.destination ? errors.destination : ""}
-          margin="normal"
-          disabled={formValues.defaultRoute}
-          autoFocus
-        />
-        <TextField
-          fullWidth
-          label="Gateway"
-          value={formValues.gateway}
-          onChange={(e) => handleChange("gateway", e.target.value)}
-          onBlur={() => handleBlur("gateway")}
-          error={!!errors.gateway && touched.gateway}
-          helperText={touched.gateway ? errors.gateway : ""}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          select
-          label="Interface"
-          value={formValues.interface}
-          onChange={(e) => handleChange("interface", e.target.value)}
-          onBlur={() => handleBlur("interface")}
-          error={!!errors.interface && touched.interface}
-          helperText={touched.interface ? errors.interface : ""}
-          margin="normal"
-        >
-          <MenuItem value="n3">n3</MenuItem>
-          <MenuItem value="n6">n6</MenuItem>
-        </TextField>
-        <TextField
-          fullWidth
-          label="Metric"
-          type="number"
-          value={formValues.metric}
-          onChange={(e) => handleChange("metric", Number(e.target.value))}
-          onBlur={() => handleBlur("metric")}
-          error={!!errors.metric && touched.metric}
-          helperText={touched.metric ? errors.metric : ""}
-          margin="normal"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
-        >
-          {loading ? "Creating..." : "Create"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <FormControlLabel
+        control={
+          <Checkbox
+            checked={defaultRouteField.value}
+            onChange={(event) => {
+              const checked = event.target.checked;
+              defaultRouteField.onChange(checked);
+              if (!checked) {
+                form.setValue("destination", "", { shouldValidate: true });
+              }
+            }}
+          />
+        }
+        label="Default Route (0.0.0.0/0 or ::/0)"
+      />
+      <TextControl<FormValues>
+        name="destination"
+        label="Destination"
+        disabled={defaultRoute}
+        autoFocus
+      />
+      <TextControl<FormValues> name="gateway" label="Gateway" />
+      <SelectControl<FormValues, string>
+        name="interface"
+        label="Interface"
+        options={INTERFACE_OPTIONS}
+      />
+      <NumberControl<FormValues> name="metric" label="Metric" />
+    </FormDialog>
   );
 };
 

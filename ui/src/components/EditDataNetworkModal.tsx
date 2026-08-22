@@ -1,28 +1,18 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-} from "@mui/material";
+import React from "react";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { ValidationError } from "yup";
 import { updateDataNetwork, APIDataNetwork } from "@/queries/data_networks";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
 import {
-  ipv4Regex,
-  ipv6Regex,
-  isValidIpv4Cidr,
-  isValidIpv6PoolCidr,
-} from "@/utils/ip";
+  DataNetworkFields,
+  poolAndDnsSchema,
+} from "@/components/dataNetworkForm";
 
 interface EditDataNetworkModalProps {
   open: boolean;
@@ -31,46 +21,12 @@ interface EditDataNetworkModalProps {
   initialData: APIDataNetwork;
 }
 
-export const schema = yup.object().shape({
-  ipv4_pool: yup
-    .string()
-    .test(
-      "at-least-one-pool",
-      "At least one IP pool (IPv4 or IPv6) is required",
-      function (value) {
-        const { ipv6_pool } = this.parent;
-        return !!(value || ipv6_pool);
-      },
-    )
-    .test(
-      "ipv4-pool-format",
-      "Must be a valid IPv4 CIDR (e.g., 10.45.0.0/16)",
-      (value) => (value ? isValidIpv4Cidr(value) : true),
-    ),
-  ipv6_pool: yup
-    .string()
-    .test(
-      "at-least-one-pool",
-      "At least one IP pool (IPv4 or IPv6) is required",
-      function (value) {
-        const { ipv4_pool } = this.parent;
-        return !!(value || ipv4_pool);
-      },
-    )
-    .test(
-      "ipv6-pool-format",
-      "Must be a valid IPv6 CIDR with a prefix length between /48 and /60 (e.g., 2001:db8::/56)",
-      (value) => (value ? isValidIpv6PoolCidr(value) : true),
-    ),
-  dns: yup
-    .string()
-    .test("dns-format", "Must be a valid IPv4 or IPv6 address", (value) => {
-      if (!value) return false;
-      return ipv4Regex.test(value) || ipv6Regex.test(value);
-    })
-    .required("DNS is required"),
-  mtu: yup.number().min(1).max(65535).required("MTU is required"),
+export const schema = yup.object({
+  name: yup.string().required(),
+  ...poolAndDnsSchema,
 });
+
+type FormValues = yup.InferType<typeof schema>;
 
 const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
   open,
@@ -78,199 +34,48 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
   onSuccess,
   initialData,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
 
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
+  const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
+    values: {
+      name: initialData.name,
+      ipv4_pool: initialData.ipv4_pool,
+      ipv6_pool: initialData.ipv6_pool || "",
+      dns: initialData.dns,
+      mtu: initialData.mtu,
+    },
+  });
 
-  const [formValues, setFormValues] = useState(initialData);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
-  useEffect(() => {
-    if (open) {
-      setFormValues({
-        name: initialData.name,
-        ipv4_pool: initialData.ipv4_pool,
-        ipv6_pool: initialData.ipv6_pool || "",
-        dns: initialData.dns,
-        mtu: initialData.mtu,
-      });
-      setErrors({});
-      setTouched({});
-    }
-  }, [open, initialData]);
-
-  const handleChange = (field: string, value: string | number) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    validateField(field, value);
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
-
-  const validateField = async (field: string, value: string | number) => {
-    try {
-      await schema.validateAt(field, { ...formValues, [field]: value });
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const validateForm = useCallback(async () => {
-    try {
-      await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-      setIsValid(true);
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        const validationErrors = err.inner.reduce(
-          (acc, curr) => {
-            acc[curr.path!] = curr.message;
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-        setErrors(validationErrors);
-      }
-      setIsValid(false);
-    }
-  }, [formValues]);
-
-  useEffect(() => {
-    validateForm();
-  }, [validateForm, formValues]);
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-    setLoading(true);
-    setAlert({ message: "" });
-
-    try {
-      await updateDataNetwork(
-        accessToken,
-        formValues.name,
-        formValues.ipv4_pool,
-        formValues.dns,
-        formValues.mtu,
-        formValues.ipv6_pool || undefined,
-      );
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({ message: `Failed to update data network: ${errorMessage}` });
-    } finally {
-      setLoading(false);
-    }
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await updateDataNetwork(
+      accessToken,
+      values.name,
+      values.ipv4_pool,
+      values.dns,
+      values.mtu,
+      values.ipv6_pool || undefined,
+    );
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-data-network-modal-title"
-      aria-describedby="edit-data-network-modal-description"
+      onSuccess={onSuccess}
+      title="Edit Data Network"
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to update data network"
+      submitLabel="Update"
+      submittingLabel="Updating..."
+      fullWidth={false}
     >
-      <DialogTitle id="edit-data-network-modal-title">
-        Edit Data Network
-      </DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-        <TextField
-          fullWidth
-          label="Name"
-          value={formValues.name}
-          margin="normal"
-          disabled
-        />
-        <TextField
-          fullWidth
-          label="IPv4 Pool"
-          value={formValues.ipv4_pool}
-          onChange={(e) => handleChange("ipv4_pool", e.target.value)}
-          onBlur={() => handleBlur("ipv4_pool")}
-          error={!!errors.ipv4_pool && touched.ipv4_pool}
-          helperText={touched.ipv4_pool ? errors.ipv4_pool : ""}
-          margin="normal"
-          autoFocus
-        />
-        <TextField
-          fullWidth
-          label="IPv6 Pool"
-          value={formValues.ipv6_pool || ""}
-          onChange={(e) => handleChange("ipv6_pool", e.target.value)}
-          onBlur={() => handleBlur("ipv6_pool")}
-          error={!!errors.ipv6_pool && touched.ipv6_pool}
-          helperText={
-            touched.ipv6_pool && errors.ipv6_pool
-              ? errors.ipv6_pool
-              : "Prefix length between /48 and /60 — Ella Core delegates /64s from within the pool."
-          }
-          margin="normal"
-          placeholder="e.g., 2001:db8::/48"
-        />
-        <TextField
-          fullWidth
-          label="DNS"
-          value={formValues.dns}
-          onChange={(e) => handleChange("dns", e.target.value)}
-          onBlur={() => handleBlur("dns")}
-          error={!!errors.dns && touched.dns}
-          helperText={touched.dns ? errors.dns : ""}
-          margin="normal"
-        />
-        <TextField
-          fullWidth
-          label="MTU"
-          type="number"
-          value={formValues.mtu}
-          onChange={(e) => handleChange("mtu", Number(e.target.value))}
-          onBlur={() => handleBlur("mtu")}
-          error={!!errors.mtu && touched.mtu}
-          helperText={touched.mtu ? errors.mtu : ""}
-          margin="normal"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
-        >
-          {loading ? "Updating..." : "Update"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <TextControl<FormValues> name="name" label="Name" disabled />
+      <DataNetworkFields autoFocusPool />
+    </FormDialog>
   );
 };
 
