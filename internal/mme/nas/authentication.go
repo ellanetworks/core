@@ -36,7 +36,9 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 }
 
 func authRejectCause(err error) eps.EMMCause {
-	if errors.Is(err, db.ErrProposeTimeout) || errors.Is(err, db.ErrMigrationPending) {
+	if errors.Is(err, db.ErrProposeTimeout) ||
+		errors.Is(err, db.ErrOutcomeUnknown) ||
+		errors.Is(err, db.ErrMigrationPending) {
 		return eps.EMMCauseNetworkFailure
 	}
 

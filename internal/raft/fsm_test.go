@@ -163,31 +163,33 @@ func TestFSM_Apply_AdvancesAppliedIndex(t *testing.T) {
 	}
 }
 
-// TestFSM_Apply_BadPayload returns an error and leaves appliedIndex unchanged.
-func TestFSM_Apply_BadPayload(t *testing.T) {
+func TestFSM_Apply_PanicsOnBadPayload(t *testing.T) {
 	a := newTestApplier(t)
 	fsm := NewFSM(a, t.TempDir())
 
-	// One-byte payload is shorter than the 2-byte header.
-	resp := fsm.Apply(&hraft.Log{Index: 3, Data: []byte{0x01}})
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on undecodable payload, but Apply returned normally")
+		}
 
-	err, ok := resp.(error)
-	if !ok {
-		t.Fatalf("expected error response, got %T: %v", resp, resp)
-	}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T: %v", r, r)
+		}
 
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
+		if !strings.Contains(msg, "unmarshal") {
+			t.Fatalf("panic message should mention unmarshal, got: %s", msg)
+		}
 
-	if got := fsm.AppliedIndex(); got != 0 {
-		t.Fatalf("applied index must not advance on unmarshal failure, got %d", got)
-	}
+		if len(a.seen()) != 0 {
+			t.Fatalf("no command should have been applied, got %d", len(a.seen()))
+		}
+	}()
+
+	fsm.Apply(&hraft.Log{Index: 3, Data: []byte{0x01}})
 }
 
-// TestFSM_Apply_PanicsOnApplierError verifies that an applier error causes
-// the FSM to panic (fail-stop) rather than silently continuing with a
-// diverged state.
 func TestFSM_Apply_PanicsOnApplierError(t *testing.T) {
 	a := newTestApplier(t)
 	a.applyErr = errors.New("boom")
@@ -611,10 +613,7 @@ func TestFSM_ApplyBatch_AllSkipped(t *testing.T) {
 	}
 }
 
-// TestFSM_ApplyBatch_BadPayloadMidBatch verifies that an unmarshal error for
-// one entry in a batch returns an error for that slot but does not panic and
-// does not prevent subsequent entries from being applied.
-func TestFSM_ApplyBatch_BadPayloadMidBatch(t *testing.T) {
+func TestFSM_ApplyBatch_PanicsOnBadPayloadMidBatch(t *testing.T) {
 	a := newTestApplier(t)
 	fsm := NewFSM(a, t.TempDir())
 
@@ -630,44 +629,31 @@ func TestFSM_ApplyBatch_BadPayloadMidBatch(t *testing.T) {
 
 	logs := []*hraft.Log{
 		{Index: 1, Data: goodData},
-		{Index: 2, Data: []byte{0xFF}}, // too short to unmarshal
+		{Index: 2, Data: []byte{0xFF}},
 		{Index: 3, Data: goodData},
 	}
 
-	results := fsm.ApplyBatch(logs)
-	if len(results) != 3 {
-		t.Fatalf("expected 3 results, got %d", len(results))
-	}
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on undecodable payload, but ApplyBatch returned normally")
+		}
 
-	if results[0] != nil {
-		t.Fatalf("result[0]: expected nil, got %v", results[0])
-	}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T: %v", r, r)
+		}
 
-	if results[1] == nil {
-		t.Fatal("result[1]: expected error for bad payload, got nil")
-	}
+		if !strings.Contains(msg, "unmarshal") {
+			t.Fatalf("panic message should mention unmarshal, got: %s", msg)
+		}
 
-	errMsg, ok := results[1].(error)
-	if !ok {
-		t.Fatalf("result[1]: expected error type, got %T", results[1])
-	}
+		if got := len(a.seen()); got != 1 {
+			t.Fatalf("only the entry before the bad payload should have applied, got %d", got)
+		}
+	}()
 
-	if !strings.Contains(errMsg.Error(), "unmarshal") {
-		t.Fatalf("result[1] error should mention unmarshal, got: %v", errMsg)
-	}
-
-	if results[2] != nil {
-		t.Fatalf("result[2]: expected nil, got %v", results[2])
-	}
-
-	// Entries 1 and 3 applied; entry 2 skipped due to bad payload.
-	if got := len(a.seen()); got != 2 {
-		t.Fatalf("expected 2 commands applied, got %d", got)
-	}
-
-	if got := fsm.AppliedIndex(); got != 3 {
-		t.Fatalf("applied index: want 3, got %d", got)
-	}
+	fsm.ApplyBatch(logs)
 }
 
 // TestFSM_ApplyBatch_SingleEntry verifies that a batch with a single element
@@ -867,4 +853,91 @@ func (byteReadCloser) Close() error { return nil }
 
 func newReadCloser(b []byte) byteReadCloser {
 	return byteReadCloser{Reader: bytes.NewReader(b)}
+}
+
+func TestFSM_Apply_PanicsOnReadLastAppliedError(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"v": "x"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	if err := a.db.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on readLastApplied error, but Apply returned normally")
+		}
+
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T: %v", r, r)
+		}
+
+		if !strings.Contains(msg, "failed to read lastApplied") {
+			t.Fatalf("panic message should name the read failure, got: %s", msg)
+		}
+
+		if len(a.seen()) != 0 {
+			t.Fatalf("no command should have been applied, got %d", len(a.seen()))
+		}
+	}()
+
+	fsm.Apply(&hraft.Log{Index: 5, Data: data})
+}
+
+func TestFSM_ApplyBatch_PanicsOnReadLastAppliedError(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"v": "y"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	logs := []*hraft.Log{
+		{Index: 1, Data: data},
+		{Index: 2, Data: data},
+	}
+
+	if err := a.db.Close(); err != nil {
+		t.Fatalf("close db: %v", err)
+	}
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on readLastApplied error, but ApplyBatch returned normally")
+		}
+
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T: %v", r, r)
+		}
+
+		if !strings.Contains(msg, "failed to read lastApplied") {
+			t.Fatalf("panic message should name the read failure, got: %s", msg)
+		}
+
+		if len(a.seen()) != 0 {
+			t.Fatalf("no command should have been applied, got %d", len(a.seen()))
+		}
+	}()
+
+	fsm.ApplyBatch(logs)
 }

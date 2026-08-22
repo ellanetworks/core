@@ -102,9 +102,14 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 		writeProposeForwardError(ctx, w, http.StatusBadRequest,
 			"unknown operation", err)
 
-	case errors.Is(err, hraft.ErrNotLeader), errors.Is(err, hraft.ErrLeadershipLost):
+	case errors.Is(err, hraft.ErrNotLeader):
 		writeProposeForwardError(ctx, w, http.StatusMisdirectedRequest,
-			"leadership changed during apply; retry", err)
+			"not leader; nothing was applied, retry", err)
+
+	case errors.Is(err, db.ErrOutcomeUnknown), errors.Is(err, hraft.ErrLeadershipLost):
+		writeProposeForwardCodedError(ctx, w, http.StatusConflict,
+			"propose may have committed; outcome unknown, do not retry",
+			ellaraft.ForwardCodeOutcomeUnknown, err)
 
 	case errors.Is(err, db.ErrProposeTimeout),
 		errors.Is(err, hraft.ErrEnqueueTimeout),
@@ -119,6 +124,10 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 }
 
 func writeProposeForwardError(ctx context.Context, w http.ResponseWriter, status int, message string, cause error) {
+	writeProposeForwardCodedError(ctx, w, status, message, "", cause)
+}
+
+func writeProposeForwardCodedError(ctx context.Context, w http.ResponseWriter, status int, message string, code string, cause error) {
 	if cause != nil {
 		logger.APILog.Warn("cluster propose forward error",
 			zap.Int("status", status),
@@ -126,7 +135,7 @@ func writeProposeForwardError(ctx context.Context, w http.ResponseWriter, status
 			zap.Error(cause))
 	}
 
-	body := ellaraft.ProposeForwardErrorBody{Message: message}
+	body := ellaraft.ProposeForwardErrorBody{Message: message, Code: code}
 	if cause != nil {
 		body.Message = message + ": " + cause.Error()
 	}

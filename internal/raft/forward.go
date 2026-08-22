@@ -101,7 +101,12 @@ type ProposeForwardResponse struct {
 // ProposeForwardErrorBody is the JSON envelope for non-2xx responses.
 type ProposeForwardErrorBody struct {
 	Message string `json:"error"`
+	Code    string `json:"code,omitempty"`
 }
+
+const ForwardCodeOutcomeUnknown = "outcome_unknown"
+
+var ErrOutcomeUnknown = errors.New("forwarded write outcome unknown")
 
 type forwardAttemptFn func(ctx context.Context) (*ProposeResult, int, error)
 
@@ -133,7 +138,7 @@ func (m *Manager) ForwardOperation(ctx context.Context, opName string, payload j
 func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration, attempt forwardAttemptFn) (*ProposeResult, error) {
 	deadline := time.Now().Add(timeout)
 
-	lastErr := hraft.ErrLeadershipLost
+	lastErr := hraft.ErrNotLeader
 
 	for range maxForwardAttempts {
 		if err := ctx.Err(); err != nil {
@@ -157,12 +162,15 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 		}
 
 		switch status {
+		case http.StatusConflict:
+			return nil, err
+
 		case http.StatusMisdirectedRequest:
-			lastErr = hraft.ErrLeadershipLost
+			lastErr = hraft.ErrNotLeader
 			continue
 
 		case http.StatusServiceUnavailable:
-			lastErr = hraft.ErrLeadershipLost
+			lastErr = hraft.ErrNotLeader
 
 			if err := waitOrDone(ctx, noLeaderBackoff); err != nil {
 				return nil, err
@@ -253,7 +261,15 @@ func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leade
 func decodeForwardError(body []byte, status int) error {
 	var env ProposeForwardErrorBody
 	if err := json.Unmarshal(body, &env); err == nil && env.Message != "" {
+		if env.Code == ForwardCodeOutcomeUnknown {
+			return fmt.Errorf("%w: %s", ErrOutcomeUnknown, env.Message)
+		}
+
 		return errors.New(env.Message)
+	}
+
+	if status == http.StatusConflict {
+		return ErrOutcomeUnknown
 	}
 
 	return fmt.Errorf("leader returned status %d", status)

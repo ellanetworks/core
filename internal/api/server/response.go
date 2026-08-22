@@ -64,6 +64,11 @@ func writeError(ctx context.Context, w http.ResponseWriter, status int, message 
 		message = "raft commit timeout"
 	}
 
+	if errors.Is(err, db.ErrOutcomeUnknown) {
+		status = http.StatusInternalServerError
+		message = "write outcome unknown; verify state before retrying"
+	}
+
 	if errors.Is(err, db.ErrMigrationPending) {
 		status = http.StatusServiceUnavailable
 		message = "cluster is upgrading; feature unavailable until schema migration completes"
