@@ -1,26 +1,16 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-  Autocomplete,
-  Chip,
-} from "@mui/material";
+import React, { useState } from "react";
+import { Autocomplete, Chip, TextField } from "@mui/material";
+import { useController, useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { updateOperatorTracking } from "@/queries/operator";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { TAC_HEX_PATTERN, formatTacDecimal } from "@/utils/tac";
 import TacValue from "@/components/TacValue";
+import FormDialog from "@/components/form/FormDialog";
 
 interface EditOperatorTrackingModalProps {
   open: boolean;
@@ -31,12 +21,29 @@ interface EditOperatorTrackingModalProps {
   };
 }
 
-const schema = yup
+const tacSchema = yup
   .string()
   .matches(
     TAC_HEX_PATTERN,
     "Each TAC must be a 3 bytes hex string, range: 000000~FFFFFF)",
   );
+
+const schema = yup.object({
+  supportedTacs: yup
+    .array()
+    .of(yup.string().required())
+    .required()
+    .test("valid-tacs", function (tacs) {
+      const invalid = (tacs ?? []).filter((tac) => !tacSchema.isValidSync(tac));
+      return invalid.length === 0
+        ? true
+        : this.createError({
+            message: `Invalid TACs: ${invalid.join(", ")}`,
+          });
+    }),
+});
+
+type FormValues = yup.InferType<typeof schema>;
 
 const DEFAULT_TAC_HELPER_TEXT =
   "Enter each TAC as a 3 bytes hex string (e.g., 000001)";
@@ -57,156 +64,88 @@ const EditOperatorTrackingModal: React.FC<EditOperatorTrackingModalProps> = ({
   onSuccess,
   initialData,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
-
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
-
-  const [formValues, setFormValues] = useState<{ supportedTacs: string[] }>({
-    supportedTacs: [],
-  });
+  const { accessToken } = useAuth();
   const [inputValue, setInputValue] = useState("");
-  const [errors, setErrors] = useState<{ supportedTacs?: string }>({});
-  const [isValid, setIsValid] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  useEffect(() => {
-    if (open) {
-      setFormValues(initialData);
-      setInputValue("");
-      setErrors({});
-      setIsValid(true);
-    }
-  }, [open, initialData]);
+  const form = useForm<FormValues>({
+    mode: "onChange",
+    resolver: yupResolver(schema),
+    values: { supportedTacs: initialData.supportedTacs },
+  });
 
-  const validateTacs = (tacs: string[]): boolean => {
-    const invalidTacs = tacs.filter((tac) => !schema.isValidSync(tac));
-    if (invalidTacs.length > 0) {
-      setErrors({ supportedTacs: `Invalid TACs: ${invalidTacs.join(", ")}` });
-      setIsValid(false);
-      return false;
-    }
-    setErrors({});
-    setIsValid(true);
-    return true;
-  };
+  const { field, fieldState } = useController({
+    control: form.control,
+    name: "supportedTacs",
+  });
 
-  const handleTacsChange = (
-    _event: React.SyntheticEvent<Element, Event>,
-    value: string[],
-  ) => {
-    setFormValues({ supportedTacs: value });
-    validateTacs(value);
-  };
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
     const pending = inputValue.trim();
     const tacs = pending
-      ? [...formValues.supportedTacs, pending]
-      : formValues.supportedTacs;
+      ? [...values.supportedTacs, pending]
+      : values.supportedTacs;
 
-    if (!validateTacs(tacs)) return;
-
-    setLoading(true);
-    setAlert({ message: "" });
-
-    try {
-      await updateOperatorTracking(accessToken, tacs);
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({ message: `Failed to update supported TACs: ${errorMessage}` });
-    } finally {
-      setLoading(false);
+    const invalid = tacs.filter((tac) => !tacSchema.isValidSync(tac));
+    if (invalid.length > 0) {
+      form.setError("supportedTacs", {
+        message: `Invalid TACs: ${invalid.join(", ")}`,
+      });
+      return false;
     }
+
+    await updateOperatorTracking(accessToken, tacs);
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-operator-tracking-modal-title"
-      aria-describedby="edit-operator-tracking-modal-description"
+      onSuccess={onSuccess}
+      title="Edit Operator Tracking Information"
+      description="Tracking Area Codes (TACs) are used to identify a tracking area in a mobile network. Only radios with TACs listed here will be able to connect to the network."
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to update supported TACs"
+      submitLabel="Update"
+      submittingLabel="Updating..."
+      fullWidth={false}
     >
-      <DialogTitle id="edit-operator-tracking-modal-title">
-        Edit Operator Tracking Information
-      </DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-        <DialogContentText
-          id="edit-operator-supportedtacs-modal-description"
-          sx={{ marginBottom: 3 }}
-        >
-          Tracking Area Codes (TACs) are used to identify a tracking area in a
-          mobile network. Only radios with TACs listed here will be able to
-          connect to the network.
-        </DialogContentText>
-        <Autocomplete
-          multiple
-          freeSolo
-          options={[]}
-          value={formValues.supportedTacs}
-          onChange={handleTacsChange}
-          inputValue={inputValue}
-          onInputChange={(_event, value) => setInputValue(value)}
-          renderValue={(tacs, getItemProps) =>
-            tacs.map((tac, index) => {
-              const { key, ...itemProps } = getItemProps({ index });
+      <Autocomplete
+        multiple
+        freeSolo
+        options={[]}
+        value={field.value}
+        onChange={(_event, value) => field.onChange(value)}
+        onBlur={field.onBlur}
+        inputValue={inputValue}
+        onInputChange={(_event, value) => setInputValue(value)}
+        renderValue={(tacs, getItemProps) =>
+          tacs.map((tac, index) => {
+            const { key, ...itemProps } = getItemProps({ index });
 
-              return (
-                <Chip key={key} label={<TacValue tac={tac} />} {...itemProps} />
-              );
-            })
-          }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              variant="outlined"
-              label="Supported TACs"
-              placeholder="Enter TACs (e.g., 000001)"
-              error={!!errors.supportedTacs}
-              helperText={
-                errors.supportedTacs ||
-                decimalHint(inputValue) ||
-                DEFAULT_TAC_HELPER_TEXT
-              }
-              autoFocus
-            />
-          )}
-          sx={{ marginBottom: 2 }}
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
-        >
-          {loading ? "Updating..." : "Update"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+            return (
+              <Chip key={key} label={<TacValue tac={tac} />} {...itemProps} />
+            );
+          })
+        }
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            variant="outlined"
+            label="Supported TACs"
+            placeholder="Enter TACs (e.g., 000001)"
+            error={!!fieldState.error}
+            helperText={
+              fieldState.error?.message ||
+              decimalHint(inputValue) ||
+              DEFAULT_TAC_HELPER_TEXT
+            }
+            autoFocus
+          />
+        )}
+        sx={{ marginBottom: 2 }}
+      />
+    </FormDialog>
   );
 };
 

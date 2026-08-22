@@ -2,19 +2,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useState } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Typography,
-  Backdrop,
-  CircularProgress,
-} from "@mui/material";
+import { Backdrop, CircularProgress } from "@mui/material";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { generateSupportBundle } from "@/queries/support";
+import ConfirmDialog from "@/components/form/ConfirmDialog";
 
 export default function SupportModal({
   open,
@@ -77,39 +69,17 @@ export default function SupportModal({
         <CircularProgress color="inherit" />
       </Backdrop>
 
-      <Dialog
+      <ConfirmDialog
         open={open}
         onClose={onClose}
+        onConfirm={handleGenerate}
+        title="Generate Support Bundle"
+        description="The support bundle contains system diagnostics, configuration and database-derived information to help Ella Networks investigate issues. Sensitive fields (like private keys) are redacted where possible. You can inspect the downloaded archive before sharing it."
+        confirmLabel="Generate"
+        confirmingLabel="Generating…"
+        confirmColor="success"
         fullWidth
-        maxWidth="sm"
-        aria-labelledby="support-modal-title"
-        aria-describedby="support-modal-description"
-      >
-        <DialogTitle id="support-modal-title">
-          Generate Support Bundle
-        </DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" color="textSecondary">
-            The support bundle contains system diagnostics, configuration and
-            database-derived information to help Ella Networks investigate
-            issues. Sensitive fields (like private keys) are redacted where
-            possible. You can inspect the downloaded archive before sharing it.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose} disabled={isGenerating}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleGenerate}
-            disabled={isGenerating}
-          >
-            {isGenerating ? "Generating…" : "Generate"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </>
   );
 }

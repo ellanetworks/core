@@ -1,23 +1,15 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-} from "@mui/material";
+import React from "react";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { updateN3Settings } from "@/queries/interfaces";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { ipv4Regex, ipv6Regex } from "@/utils/ip";
+import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
 
 interface EditInterfaceN3ModalProps {
   open: boolean;
@@ -28,10 +20,11 @@ interface EditInterfaceN3ModalProps {
   };
 }
 
-const schema = yup.object().shape({
+const schema = yup.object({
   externalAddress: yup
     .string()
     .trim()
+    .default("")
     .test(
       "empty-or-ipv4-or-ipv6",
       "External address must be a valid IPv4 or IPv6 address",
@@ -42,139 +35,49 @@ const schema = yup.object().shape({
     ),
 });
 
+type FormValues = yup.InferType<typeof schema>;
+
 const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
   open,
   onClose,
   onSuccess,
   initialData,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
 
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
-
-  const [formValues, setFormValues] = useState<{ externalAddress: string }>({
-    externalAddress: "",
+  const form = useForm<FormValues>({
+    mode: "onChange",
+    resolver: yupResolver(schema),
+    values: { externalAddress: initialData.externalAddress },
   });
-  const [errors, setErrors] = useState<{ externalAddress?: string }>({});
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
-  useEffect(() => {
-    if (open) {
-      setFormValues(initialData);
-      setErrors({});
-      setAlert({ message: "" });
-    }
-  }, [open, initialData]);
-
-  const handleExternalAddressChange = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    setFormValues({ externalAddress: event.target.value });
-    if (errors.externalAddress) {
-      setErrors((prev) => ({ ...prev, externalAddress: undefined }));
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-
-    setLoading(true);
-    setAlert({ message: "" });
-
-    try {
-      await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-    } catch (err) {
-      if (err instanceof yup.ValidationError) {
-        setErrors({ externalAddress: err.message });
-        setLoading(false);
-        return;
-      }
-
-      setAlert({ message: "Validation failed due to an unexpected error." });
-      setLoading(false);
-      return;
-    }
-
-    try {
-      await updateN3Settings(accessToken, formValues.externalAddress || "");
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({
-        message: `Failed to update N3 external address: ${errorMessage}`,
-      });
-    } finally {
-      setLoading(false);
-    }
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await updateN3Settings(accessToken, values.externalAddress || "");
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-interface-n3-modal-title"
-      aria-describedby="edit-interface-n3-modal-description"
+      onSuccess={onSuccess}
+      title="Edit N3 Interface"
+      description="Configure an external address (IPv4 or IPv6) for N3. Ella Core will advertise this address to radios which will use it to establish GTP tunnels. Use this if Ella Core is behind a proxy, NAT, or load-balancer. If not set, Ella Core will use N3's address as defined in the config file."
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to update N3 external address"
+      submitLabel="Update"
+      submittingLabel="Updating..."
+      fullWidth={false}
     >
-      <DialogTitle id="edit-interface-n3-modal-title">
-        Edit N3 Interface
-      </DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-        <DialogContentText
-          id="edit-interface-n3-modal-description"
-          sx={{ marginBottom: 3 }}
-        >
-          Configure an external address (IPv4 or IPv6) for N3. Ella Core will
-          advertise this address to radios which will use it to establish GTP
-          tunnels. Use this if Ella Core is behind a proxy, NAT, or
-          load-balancer. If not set, Ella Core will use N3&apos;s address as
-          defined in the config file.
-        </DialogContentText>
-        <TextField
-          fullWidth
-          label="External Address"
-          value={formValues.externalAddress}
-          onChange={handleExternalAddressChange}
-          error={!!errors.externalAddress}
-          helperText={
-            errors.externalAddress ||
-            "Leave empty to use N3's configured address. Supports both IPv4 and IPv6."
-          }
-          margin="normal"
-          autoFocus
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={loading}
-        >
-          {loading ? "Updating..." : "Update"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <TextControl<FormValues>
+        name="externalAddress"
+        label="External Address"
+        helperText="Leave empty to use N3's configured address. Supports both IPv4 and IPv6."
+        showErrorWhileTyping
+        autoFocus
+      />
+    </FormDialog>
   );
 };
 

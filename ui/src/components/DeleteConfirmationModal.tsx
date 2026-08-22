@@ -1,16 +1,8 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState } from "react";
-import {
-  Button,
-  CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-} from "@mui/material";
+import React from "react";
+import ConfirmDialog from "@/components/form/ConfirmDialog";
 
 interface ConfirmationModalProps {
   open: boolean;
@@ -26,47 +18,17 @@ const DeleteConfirmationModal: React.FC<ConfirmationModalProps> = ({
   onConfirm,
   title,
   description,
-}) => {
-  const [loading, setLoading] = useState(false);
-
-  const handleConfirm = async () => {
-    setLoading(true);
-    try {
-      await onConfirm();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onClose={loading ? undefined : onClose}
-      aria-labelledby="confirmation-modal-title"
-      aria-describedby="confirmation-modal-description"
-    >
-      <DialogTitle id="confirmation-modal-title">{title}</DialogTitle>
-      <DialogContent dividers>
-        <DialogContentText>{description}</DialogContentText>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading} sx={{ marginRight: 2 }}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          color="error"
-          onClick={handleConfirm}
-          disabled={loading}
-          startIcon={
-            loading ? <CircularProgress size={16} color="inherit" /> : undefined
-          }
-        >
-          {loading ? "Deleting…" : "Confirm"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
+}) => (
+  <ConfirmDialog
+    open={open}
+    onClose={onClose}
+    onConfirm={onConfirm}
+    title={title}
+    description={description}
+    confirmLabel="Confirm"
+    confirmingLabel="Deleting…"
+    confirmColor="error"
+  />
+);
 
 export default DeleteConfirmationModal;

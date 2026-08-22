@@ -1,23 +1,14 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  TextField,
-  Button,
-  Alert,
-  Collapse,
-} from "@mui/material";
+import React from "react";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { ValidationError } from "yup";
 import { updateOperatorID } from "@/queries/operator";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import FormDialog from "@/components/form/FormDialog";
+import TextControl from "@/components/form/TextControl";
 
 interface EditOperatorIdModalProps {
   open: boolean;
@@ -29,7 +20,7 @@ interface EditOperatorIdModalProps {
   };
 }
 
-const schema = yup.object().shape({
+const schema = yup.object({
   mcc: yup
     .string()
     .matches(/^\d{3}$/, "MCC must be a 3 decimal digit")
@@ -40,154 +31,44 @@ const schema = yup.object().shape({
     .required("MNC is required"),
 });
 
+type FormValues = yup.InferType<typeof schema>;
+
 const EditOperatorIdModal: React.FC<EditOperatorIdModalProps> = ({
   open,
   onClose,
   onSuccess,
   initialData,
 }) => {
-  const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken } = useAuth();
 
-  useEffect(() => {
-    if (!authReady || !accessToken) {
-      navigate("/login");
-    }
-  }, [authReady, accessToken, navigate]);
+  const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
+    values: { mcc: initialData.mcc, mnc: initialData.mnc },
+  });
 
-  const [formValues, setFormValues] = useState(initialData);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [alert, setAlert] = useState<{ message: string }>({ message: "" });
-
-  useEffect(() => {
-    if (open) {
-      setFormValues(initialData);
-      setErrors({});
-      setTouched({});
-    }
-  }, [open, initialData]);
-
-  const handleChange = (field: string, value: string) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    validateField(field, value);
-  };
-
-  const handleBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
-
-  const validateField = async (field: string, value: string) => {
-    try {
-      await schema.validateAt(field, { [field]: value });
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const validateForm = useCallback(async () => {
-    try {
-      await schema.validate(formValues, { abortEarly: false });
-      setIsValid(true);
-    } catch {
-      setIsValid(false);
-    }
-  }, [formValues]);
-
-  useEffect(() => {
-    validateForm();
-  }, [validateForm]);
-
-  const handleSubmit = async () => {
-    if (!accessToken) return;
-
-    setLoading(true);
-    setAlert({ message: "" });
-
-    try {
-      await updateOperatorID(accessToken, formValues.mcc, formValues.mnc);
-      onClose();
-      onSuccess();
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred.";
-      setAlert({ message: `Failed to update operator ID: ${errorMessage}` });
-    } finally {
-      setLoading(false);
-    }
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
+    await updateOperatorID(accessToken, values.mcc, values.mnc);
   };
 
   return (
-    <Dialog
+    <FormDialog
       open={open}
       onClose={onClose}
-      aria-labelledby="edit-operator-id-modal-title"
-      aria-describedby="edit-operator-id-modal-description"
+      onSuccess={onSuccess}
+      title="Edit Operator ID"
+      description="The Operator ID is a combination of Mobile Country Code (MCC) and Mobile Network Code (MNC). The Operator ID is used to uniquely identify the operator in the network."
+      form={form}
+      onSubmit={submit}
+      errorPrefix="Failed to update operator ID"
+      submitLabel="Update"
+      submittingLabel="Updating..."
+      fullWidth={false}
     >
-      <DialogTitle id="edit-operator-id-modal-title">
-        Edit Operator ID
-      </DialogTitle>
-      <DialogContent dividers>
-        <Collapse in={!!alert.message}>
-          <Alert
-            onClose={() => setAlert({ message: "" })}
-            sx={{ mb: 2 }}
-            severity="error"
-          >
-            {alert.message}
-          </Alert>
-        </Collapse>
-        <DialogContentText id="alert-dialog-slide-description">
-          The Operator ID is a combination of Mobile Country Code (MCC) and
-          Mobile Network Code (MNC). The Operator ID is used to uniquely
-          identify the operator in the network.
-        </DialogContentText>
-        <TextField
-          fullWidth
-          label="MCC"
-          value={formValues.mcc}
-          onChange={(e) => handleChange("mcc", e.target.value)}
-          onBlur={() => handleBlur("mcc")}
-          error={touched.mcc && !!errors.mcc}
-          helperText={touched.mcc ? errors.mcc : ""}
-          margin="normal"
-          autoFocus
-        />
-        <TextField
-          fullWidth
-          label="MNC"
-          value={formValues.mnc}
-          onChange={(e) => handleChange("mnc", e.target.value)}
-          onBlur={() => handleBlur("mnc")}
-          error={touched.mnc && !!errors.mnc}
-          helperText={touched.mnc ? errors.mnc : ""}
-          margin="normal"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSubmit}
-          disabled={!isValid || loading}
-        >
-          {loading ? "Updating..." : "Update"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      <TextControl<FormValues> name="mcc" label="MCC" autoFocus />
+      <TextControl<FormValues> name="mnc" label="MNC" />
+    </FormDialog>
   );
 };
 

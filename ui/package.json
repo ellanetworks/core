@@ -18,6 +18,7 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@hookform/resolvers": "^5.9.1",
     "@mui/icons-material": "^9.3.1",
     "@mui/material": "^9.1.2",
     "@mui/x-charts": "^9.11.1",
@@ -28,6 +29,7 @@
     "jwt-decode": "^4.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-hook-form": "^7.85.0",
     "react-router-dom": "^7.18.2",
     "yup": "1.7.1"
   },

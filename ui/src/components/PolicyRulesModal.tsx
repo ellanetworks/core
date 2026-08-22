@@ -1,65 +1,29 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState, useRef, useCallback } from "react";
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Box,
-  Button,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Alert,
-  Chip,
-  Typography,
-  IconButton,
-  Collapse,
-  Autocomplete,
-} from "@mui/material";
+import React, { useRef, useState } from "react";
+import { Box, Button, Chip, IconButton, Typography } from "@mui/material";
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   DragIndicator as DragIcon,
 } from "@mui/icons-material";
+import { useController, useForm, useFormState } from "react-hook-form";
 import {
   updatePolicy,
   type APIPolicy,
   type PolicyRule,
 } from "@/queries/policies";
 import { useAuth } from "@/contexts/AuthContext";
-
-import * as yup from "yup";
-import { ValidationError } from "yup";
 import { PROTOCOL_NAMES } from "@/utils/formatters";
 import IPProtocolChip from "@/components/IPProtocolChip";
-import { isValidCidr } from "@/utils/ip";
-
-const parseProtocol = (value: string): number | undefined => {
-  if (!value || value.trim() === "") return undefined;
-  const trimmed = value.trim().toUpperCase();
-  if (/^\d+$/.test(trimmed)) {
-    const num = parseInt(trimmed, 10);
-    return num >= 0 && num <= 255 ? num : undefined;
-  }
-  const entry = Object.entries(PROTOCOL_NAMES).find(
-    ([, name]) => name.toUpperCase() === trimmed,
-  );
-  return entry ? parseInt(entry[0], 10) : undefined;
-};
-
-const getProtocolOptions = (): Array<{ label: string; value: string }> => {
-  const options = Object.entries(PROTOCOL_NAMES).map(([num, name]) => ({
-    label: `${name} (${num})`,
-    value: name,
-  }));
-  return options.sort((a, b) => a.label.localeCompare(b.label));
-};
+import FormDialog from "@/components/form/FormDialog";
+import PolicyRuleFormDialog, {
+  EMPTY_RULE_FORM,
+  parseProtocol,
+  type PolicyRuleFormValues,
+} from "@/components/PolicyRuleFormDialog";
 
 interface PolicyRulesModalProps {
   open: boolean;
@@ -82,58 +46,45 @@ interface InMemoryRule {
 }
 
 interface FormValues {
-  description: string;
-  action: Action;
-  remotePrefix: string;
-  protocol: string;
-  portLow: string;
-  portHigh: string;
+  rules: InMemoryRule[];
 }
 
-const schema = yup.object().shape({
-  description: yup
-    .string()
-    .required("Description is required")
-    .max(256, "Description must be 256 characters or fewer"),
-  action: yup
-    .string()
-    .oneOf(["allow", "deny"], "Invalid action")
-    .required("Action is required"),
-  remotePrefix: yup
-    .string()
-    .test(
-      "cidr-or-empty",
-      "Must be valid CIDR format (e.g., 192.168.0.0/24 or 2001:db8::/32)",
-      (val) => {
-        if (!val || val.trim() === "") return true;
-        return isValidCidr(val);
-      },
-    ),
-  protocol: yup
-    .string()
-    .test(
-      "valid-protocol",
-      "Protocol must be a valid name (tcp, udp, icmp) or number 0-255",
-      (val) => {
-        if (!val) return true;
-        return parseProtocol(val) !== undefined;
-      },
-    ),
-  portLow: yup
-    .string()
-    .test("valid-port-low", "Port Low must be between 0 and 65535", (val) => {
-      if (!val) return true;
-      const num = Number(val);
-      return !isNaN(num) && num >= 0 && num <= 65535;
-    }),
-  portHigh: yup
-    .string()
-    .test("valid-port-high", "Port High must be between 0 and 65535", (val) => {
-      if (!val) return true;
-      const num = Number(val);
-      return !isNaN(num) && num >= 0 && num <= 65535;
-    }),
+const formatPorts = (rule: InMemoryRule): string => {
+  if (rule.port_low === 0 && rule.port_high === 0) return "any";
+  if (rule.port_low === rule.port_high) return String(rule.port_low);
+  return `${rule.port_low}-${rule.port_high}`;
+};
+
+const toFormValues = (rule: InMemoryRule): PolicyRuleFormValues => ({
+  description: rule.description,
+  action: rule.action,
+  remotePrefix: rule.remote_prefix || "",
+  protocol:
+    rule.protocol !== 0
+      ? (PROTOCOL_NAMES[rule.protocol] ?? String(rule.protocol))
+      : "",
+  portLow: rule.port_low !== 0 ? String(rule.port_low) : "",
+  portHigh: rule.port_high !== 0 ? String(rule.port_high) : "",
 });
+
+const fromFormValues = (values: PolicyRuleFormValues) => ({
+  description: values.description,
+  action: values.action as Action,
+  remote_prefix: values.remotePrefix || undefined,
+  protocol: (values.protocol ? parseProtocol(values.protocol) : undefined) ?? 0,
+  port_low: values.portLow ? Number(values.portLow) : 0,
+  port_high: values.portHigh ? Number(values.portHigh) : 0,
+});
+
+const toApiRules = (rules: InMemoryRule[]): PolicyRule[] =>
+  rules.map((rule) => ({
+    description: rule.description,
+    remote_prefix: rule.remote_prefix,
+    protocol: rule.protocol,
+    port_low: rule.port_low,
+    port_high: rule.port_high,
+    action: rule.action,
+  }));
 
 const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
   open,
@@ -148,605 +99,273 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
     (direction === "uplink" ? policy.rules?.uplink : policy.rules?.downlink) ??
     [];
 
-  const [rules, setRules] = useState<InMemoryRule[]>(() =>
-    directionRules.map((rule, idx) => ({
-      tempId: `rule-${idx}-${Date.now()}`,
-      description: rule.description,
-      action: rule.action,
-      remote_prefix: rule.remote_prefix,
-      protocol: rule.protocol,
-      port_low: rule.port_low,
-      port_high: rule.port_high,
-    })),
-  );
-
-  const [isFormDialogOpen, setFormDialogOpen] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [formValues, setFormValues] = useState<FormValues>({
-    description: "",
-    action: "allow",
-    remotePrefix: "",
-    protocol: "",
-    portLow: "",
-    portHigh: "",
+  const form = useForm<FormValues>({
+    defaultValues: {
+      rules: directionRules.map((rule, index) => ({
+        tempId: `rule-${index}`,
+        description: rule.description,
+        action: rule.action,
+        remote_prefix: rule.remote_prefix,
+        protocol: rule.protocol,
+        port_low: rule.port_low,
+        port_high: rule.port_high,
+      })),
+    },
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [formAlert, setFormAlert] = useState<string>("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const { field } = useController({ control: form.control, name: "rules" });
+  const { isSubmitting } = useFormState({ control: form.control });
+  const rules: InMemoryRule[] = field.value ?? [];
+
+  const [ruleFormOpen, setRuleFormOpen] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [editingValues, setEditingValues] =
+    useState<PolicyRuleFormValues>(EMPTY_RULE_FORM);
+  const nextId = useRef(0);
 
   const dragIndexRef = useRef<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  const handleDragStart = useCallback(
-    (index: number) => (e: React.DragEvent) => {
-      dragIndexRef.current = index;
-      e.dataTransfer.effectAllowed = "move";
-      const el = e.currentTarget as HTMLElement;
-      e.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
-    },
-    [],
-  );
+  const handleDragStart = (index: number) => (event: React.DragEvent) => {
+    dragIndexRef.current = index;
+    event.dataTransfer.effectAllowed = "move";
+    const element = event.currentTarget as HTMLElement;
+    event.dataTransfer.setDragImage(
+      element,
+      element.offsetWidth / 2,
+      element.offsetHeight / 2,
+    );
+  };
 
-  const handleDragOver = useCallback(
-    (index: number) => (e: React.DragEvent) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setHoverIndex(index);
-    },
-    [],
-  );
+  const handleDragOver = (index: number) => (event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setHoverIndex(index);
+  };
 
-  const handleDrop = useCallback(
-    (targetIndex: number) => (e: React.DragEvent) => {
-      e.preventDefault();
-      setHoverIndex(null);
+  const handleDrop = (targetIndex: number) => (event: React.DragEvent) => {
+    event.preventDefault();
+    setHoverIndex(null);
 
-      const sourceIndex = dragIndexRef.current;
-      if (sourceIndex === null || sourceIndex === targetIndex) {
-        dragIndexRef.current = null;
-        return;
-      }
+    const sourceIndex = dragIndexRef.current;
+    dragIndexRef.current = null;
+    if (sourceIndex === null || sourceIndex === targetIndex) return;
 
-      setRules((prev) => {
-        const newRules = [...prev];
-        const [moved] = newRules.splice(sourceIndex, 1);
-        newRules.splice(targetIndex, 0, moved);
-        return newRules;
-      });
+    const next = [...rules];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    field.onChange(next);
+  };
 
-      dragIndexRef.current = null;
-    },
-    [],
-  );
-
-  const handleDragEnd = useCallback(() => {
+  const handleDragEnd = () => {
     dragIndexRef.current = null;
     setHoverIndex(null);
-  }, []);
+  };
 
-  const resetForm = () => {
-    setFormValues({
-      description: "",
-      action: "allow",
-      remotePrefix: "",
-      protocol: "",
-      portLow: "",
-      portHigh: "",
-    });
-    setErrors({});
-    setTouched({});
-    setFormAlert("");
+  const openCreateForm = () => {
     setEditingRuleId(null);
+    setEditingValues(EMPTY_RULE_FORM);
+    setRuleFormOpen(true);
   };
 
-  const validateField = async (field: string, value: string) => {
-    try {
-      await schema.validateAt(field, { ...formValues, [field]: value });
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        setErrors((prev) => ({ ...prev, [field]: err.message }));
-      }
-    }
-  };
-
-  const validateForm = async (): Promise<boolean> => {
-    try {
-      await schema.validate(formValues, { abortEarly: false });
-      setErrors({});
-      return true;
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        const validationErrors = err.inner.reduce(
-          (acc, curr) => {
-            acc[curr.path!] = curr.message;
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-        setErrors(validationErrors);
-      }
-      return false;
-    }
-  };
-
-  const handleOpenCreateForm = () => {
-    resetForm();
-    setFormDialogOpen(true);
-  };
-
-  const handleEditRule = (rule: InMemoryRule) => {
-    setFormValues({
-      description: rule.description,
-      action: rule.action,
-      remotePrefix: rule.remote_prefix || "",
-      protocol:
-        rule.protocol !== 0
-          ? (PROTOCOL_NAMES[rule.protocol] ?? String(rule.protocol))
-          : "",
-      portLow: rule.port_low !== 0 ? String(rule.port_low) : "",
-      portHigh: rule.port_high !== 0 ? String(rule.port_high) : "",
-    });
-    setErrors({});
-    setTouched({});
-    setFormAlert("");
+  const openEditForm = (rule: InMemoryRule) => {
     setEditingRuleId(rule.tempId);
-    setFormDialogOpen(true);
+    setEditingValues(toFormValues(rule));
+    setRuleFormOpen(true);
   };
 
-  const handleDeleteRule = (rule: InMemoryRule) => {
-    setRules((prev) => prev.filter((r) => r.tempId !== rule.tempId));
-  };
-
-  const handleFormChange = (field: keyof FormValues, value: string) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-    validateField(field, value);
-  };
-
-  const handleFormBlur = (field: string) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  };
-
-  const handleFormSubmit = async () => {
-    const isValid = await validateForm();
-    if (!isValid) return;
-
-    setFormAlert("");
-
-    const protocol = formValues.protocol
-      ? parseProtocol(formValues.protocol)
-      : undefined;
-    const portLow = formValues.portLow ? Number(formValues.portLow) : undefined;
-    const portHigh = formValues.portHigh
-      ? Number(formValues.portHigh)
-      : undefined;
-    const remotePrefix = formValues.remotePrefix || undefined;
-
+  const saveRule = (values: PolicyRuleFormValues) => {
+    const patch = fromFormValues(values);
     if (editingRuleId) {
-      setRules((prev) =>
-        prev.map((r) => {
-          if (r.tempId === editingRuleId) {
-            return {
-              ...r,
-              description: formValues.description,
-              action: formValues.action,
-              remote_prefix: remotePrefix,
-              protocol: protocol ?? 0,
-              port_low: portLow ?? 0,
-              port_high: portHigh ?? 0,
-            };
-          }
-          return r;
-        }),
+      field.onChange(
+        rules.map((rule) =>
+          rule.tempId === editingRuleId ? { ...rule, ...patch } : rule,
+        ),
       );
     } else {
-      const newRule: InMemoryRule = {
-        tempId: `temp-${Date.now()}`,
-        description: formValues.description,
-        action: formValues.action,
-        remote_prefix: remotePrefix,
-        protocol: protocol ?? 0,
-        port_low: portLow ?? 0,
-        port_high: portHigh ?? 0,
-      };
-      setRules((prev) => [...prev, newRule]);
+      nextId.current += 1;
+      field.onChange([...rules, { tempId: `new-${nextId.current}`, ...patch }]);
     }
-
-    setFormDialogOpen(false);
-    resetForm();
+    setRuleFormOpen(false);
   };
 
-  const handleSave = async () => {
-    if (!accessToken) return;
-    setSaving(true);
-    setSaveError(null);
+  const submit = async (values: FormValues) => {
+    if (!accessToken) return false;
 
-    try {
-      const toApiRules = (arr: InMemoryRule[]): PolicyRule[] =>
-        arr.map((r) => ({
-          description: r.description,
-          remote_prefix: r.remote_prefix,
-          protocol: r.protocol,
-          port_low: r.port_low,
-          port_high: r.port_high,
-          action: r.action,
-        }));
+    const otherDirection =
+      direction === "uplink" ? policy.rules?.downlink : policy.rules?.uplink;
+    const hasOther = !!otherDirection && otherDirection.length > 0;
 
-      const otherDirection =
-        direction === "uplink" ? policy.rules?.downlink : policy.rules?.uplink;
+    const updatedRules =
+      direction === "uplink"
+        ? {
+            uplink: toApiRules(values.rules),
+            ...(hasOther ? { downlink: otherDirection } : {}),
+          }
+        : {
+            downlink: toApiRules(values.rules),
+            ...(hasOther ? { uplink: otherDirection } : {}),
+          };
 
-      const updatedRules = {
-        ...(direction === "uplink"
-          ? {
-              uplink: toApiRules(rules),
-              ...(otherDirection && otherDirection.length > 0
-                ? { downlink: otherDirection }
-                : {}),
-            }
-          : {
-              downlink: toApiRules(rules),
-              ...(otherDirection && otherDirection.length > 0
-                ? { uplink: otherDirection }
-                : {}),
-            }),
-      };
-
-      await updatePolicy(accessToken, policy.name, {
-        profile_name: policy.profile_name,
-        slice_name: policy.slice_name,
-        data_network_name: policy.data_network_name,
-        session_ambr_uplink: policy.session_ambr_uplink,
-        session_ambr_downlink: policy.session_ambr_downlink,
-        var5qi: policy.var5qi,
-        arp: policy.arp,
-        rules: Object.keys(updatedRules).length > 0 ? updatedRules : undefined,
-      });
-
-      onClose();
-      onSuccess();
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      setSaveError(`Failed to save rules: ${errorMessage}`);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const formatPorts = (rule: InMemoryRule): string => {
-    if (rule.port_low === 0 && rule.port_high === 0) return "any";
-    if (rule.port_low === rule.port_high) return String(rule.port_low);
-    return `${rule.port_low}-${rule.port_high}`;
+    await updatePolicy(accessToken, policy.name, {
+      profile_name: policy.profile_name,
+      slice_name: policy.slice_name,
+      data_network_name: policy.data_network_name,
+      session_ambr_uplink: policy.session_ambr_uplink,
+      session_ambr_downlink: policy.session_ambr_downlink,
+      var5qi: policy.var5qi,
+      arp: policy.arp,
+      rules: updatedRules,
+    });
   };
 
   const directionLabel = direction === "uplink" ? "Uplink" : "Downlink";
 
   return (
     <>
-      <Dialog
+      <FormDialog
         open={open}
         onClose={onClose}
-        aria-labelledby="policy-rules-modal-title"
-        fullWidth
+        onSuccess={onSuccess}
+        title={`Edit ${directionLabel} Rules`}
+        description="Rules are evaluated in order, top to bottom. The first matching rule is applied. Drag rows to reorder."
+        form={form}
+        onSubmit={submit}
+        errorPrefix="Failed to save rules"
+        submitLabel="Save"
+        submittingLabel="Saving..."
         maxWidth="md"
+        fullWidth
       >
-        <DialogTitle id="policy-rules-modal-title" sx={{ pb: 0 }}>
-          Edit {directionLabel} Rules
-        </DialogTitle>
-
-        <DialogContent dividers>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Rules are evaluated in order, top to bottom. The first matching rule
-            is applied. Drag rows to reorder.
+        {rules.length === 0 ? (
+          <Typography color="textSecondary" sx={{ p: 2 }}>
+            No {direction} rules configured.
           </Typography>
-
-          {saveError && (
-            <Alert
-              severity="error"
-              onClose={() => setSaveError(null)}
-              sx={{ mb: 2 }}
-            >
-              {saveError}
-            </Alert>
-          )}
-
-          {rules.length === 0 ? (
-            <Typography color="textSecondary" sx={{ p: 2 }}>
-              No {direction} rules configured.
-            </Typography>
-          ) : (
-            <Box
-              sx={{
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 1,
-              }}
-            >
-              {rules.map((rule, index) => (
-                <Box
-                  key={rule.tempId}
-                  draggable
-                  onDragStart={handleDragStart(index)}
-                  onDragOver={handleDragOver(index)}
-                  onDrop={handleDrop(index)}
-                  onDragEnd={handleDragEnd}
+        ) : (
+          <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
+            {rules.map((rule, index) => (
+              <Box
+                key={rule.tempId}
+                draggable
+                onDragStart={handleDragStart(index)}
+                onDragOver={handleDragOver(index)}
+                onDrop={handleDrop(index)}
+                onDragEnd={handleDragEnd}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  py: 1,
+                  px: 1.5,
+                  backgroundColor:
+                    hoverIndex === index ? "action.hover" : "transparent",
+                  cursor: "grab",
+                  transition: "background-color 0.2s",
+                  "&:not(:last-child)": {
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                  },
+                }}
+              >
+                <DragIcon
+                  fontSize="small"
+                  sx={{ color: "text.secondary", flexShrink: 0, mr: 1 }}
+                />
+                <Typography
+                  variant="body2"
+                  sx={{ fontWeight: 600, width: 24, flexShrink: 0 }}
+                >
+                  {index + 1}
+                </Typography>
+                <Box sx={{ width: 72, flexShrink: 0 }}>
+                  <Chip
+                    label={rule.action.toUpperCase()}
+                    size="small"
+                    color={rule.action === "allow" ? "success" : "error"}
+                    variant="outlined"
+                  />
+                </Box>
+                <Box sx={{ width: 100, flexShrink: 0 }}>
+                  <IPProtocolChip protocol={rule.protocol} />
+                </Box>
+                <Typography
+                  variant="body2"
                   sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    py: 1,
-                    px: 1.5,
-                    backgroundColor:
-                      hoverIndex === index ? "action.hover" : "transparent",
-                    cursor: "grab",
-                    transition: "background-color 0.2s",
-                    "&:not(:last-child)": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
+                    minWidth: 220,
+                    flex: "0 1 220px",
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                    pr: 1,
                   }}
                 >
-                  <DragIcon
-                    fontSize="small"
-                    sx={{ color: "text.secondary", flexShrink: 0, mr: 1 }}
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: 600,
-                      width: 24,
-                      flexShrink: 0,
-                    }}
+                  {rule.remote_prefix || "any"}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  sx={{ width: 90, flexShrink: 0, whiteSpace: "nowrap" }}
+                >
+                  {formatPorts(rule)}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {rule.description || "—"}
+                </Typography>
+                <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, ml: 1 }}>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => openEditForm(rule)}
+                    title="Edit rule"
                   >
-                    {index + 1}
-                  </Typography>
-                  <Box sx={{ width: 72, flexShrink: 0 }}>
-                    <Chip
-                      label={rule.action.toUpperCase()}
-                      size="small"
-                      color={rule.action === "allow" ? "success" : "error"}
-                      variant="outlined"
-                    />
-                  </Box>
-                  <Box sx={{ width: 100, flexShrink: 0 }}>
-                    <IPProtocolChip protocol={rule.protocol} />
-                  </Box>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      minWidth: 220,
-                      flex: "0 1 220px",
-                      whiteSpace: "normal",
-                      wordBreak: "break-word",
-                      pr: 1,
-                    }}
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() =>
+                      field.onChange(
+                        rules.filter((r) => r.tempId !== rule.tempId),
+                      )
+                    }
+                    title="Delete rule"
                   >
-                    {rule.remote_prefix || "any"}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    sx={{ width: 90, flexShrink: 0, whiteSpace: "nowrap" }}
-                  >
-                    {formatPorts(rule)}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    color="textSecondary"
-                    sx={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {rule.description || "—"}
-                  </Typography>
-                  <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, ml: 1 }}>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => handleEditRule(rule)}
-                      title="Edit rule"
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => handleDeleteRule(rule)}
-                      title="Delete rule"
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
                 </Box>
-              ))}
-            </Box>
-          )}
-
-          <Box sx={{ mt: 2 }}>
-            <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={handleOpenCreateForm}
-              disabled={saving}
-              size="small"
-            >
-              Add Rule
-            </Button>
+              </Box>
+            ))}
           </Box>
-        </DialogContent>
+        )}
 
-        <DialogActions>
-          <Button onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
+        <Box sx={{ mt: 2 }}>
           <Button
-            variant="contained"
-            color="success"
-            onClick={handleSave}
-            disabled={saving}
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={openCreateForm}
+            disabled={isSubmitting}
+            size="small"
           >
-            {saving ? "Saving..." : "Save"}
+            Add Rule
           </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </FormDialog>
 
-      <Dialog
-        open={isFormDialogOpen}
-        onClose={() => setFormDialogOpen(false)}
-        aria-labelledby="rule-form-dialog-title"
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle id="rule-form-dialog-title">
-          {editingRuleId ? "Edit Rule" : "Add Rule"}
-        </DialogTitle>
-
-        <DialogContent dividers>
-          <Collapse in={!!formAlert}>
-            <Alert
-              onClose={() => setFormAlert("")}
-              severity="error"
-              sx={{ mb: 2 }}
-            >
-              {formAlert}
-            </Alert>
-          </Collapse>
-
-          <TextField
-            fullWidth
-            label="Description"
-            value={formValues.description}
-            onChange={(e) => handleFormChange("description", e.target.value)}
-            onBlur={() => handleFormBlur("description")}
-            error={!!errors.description && touched.description}
-            helperText={
-              touched.description && errors.description
-                ? errors.description
-                : "A short label for this rule"
-            }
-            margin="normal"
-            autoFocus
-          />
-
-          <FormControl fullWidth margin="normal">
-            <InputLabel id="action-label">Action</InputLabel>
-            <Select
-              labelId="action-label"
-              label="Action"
-              value={formValues.action}
-              onChange={(e) => handleFormChange("action", e.target.value)}
-              onBlur={() => handleFormBlur("action")}
-              error={!!errors.action && touched.action}
-            >
-              <MenuItem value="allow">Allow</MenuItem>
-              <MenuItem value="deny">Deny</MenuItem>
-            </Select>
-          </FormControl>
-
-          <TextField
-            fullWidth
-            label="Remote Prefix (CIDR)"
-            placeholder="e.g., 192.168.0.0/24"
-            value={formValues.remotePrefix}
-            onChange={(e) => handleFormChange("remotePrefix", e.target.value)}
-            onBlur={() => handleFormBlur("remotePrefix")}
-            error={!!errors.remotePrefix && touched.remotePrefix}
-            helperText={
-              touched.remotePrefix && errors.remotePrefix
-                ? errors.remotePrefix
-                : "Optional — IPv4 or IPv6 CIDR (e.g., 10.0.0.0/8 or 2001:db8::/32)"
-            }
-            margin="normal"
-          />
-
-          <Autocomplete
-            fullWidth
-            options={getProtocolOptions()}
-            getOptionLabel={(option) => option.label}
-            value={
-              getProtocolOptions().find(
-                (opt) => opt.value === formValues.protocol,
-              ) ?? null
-            }
-            onChange={(_, value) => {
-              handleFormChange("protocol", value?.value ?? "");
-            }}
-            onBlur={() => handleFormBlur("protocol")}
-            isOptionEqualToValue={(option, value) =>
-              option.value === value.value
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Protocol"
-                placeholder="Search protocols..."
-                error={!!errors.protocol && touched.protocol}
-                helperText={
-                  touched.protocol && errors.protocol
-                    ? errors.protocol
-                    : "Optional \u2013 search or leave empty for any"
-                }
-                margin="normal"
-              />
-            )}
-          />
-
-          <Box sx={{ display: "flex", gap: 2 }}>
-            <TextField
-              label="Port Low"
-              type="number"
-              placeholder="0-65535"
-              value={formValues.portLow}
-              onChange={(e) => handleFormChange("portLow", e.target.value)}
-              onBlur={() => handleFormBlur("portLow")}
-              error={!!errors.portLow && touched.portLow}
-              helperText={
-                touched.portLow && errors.portLow
-                  ? errors.portLow
-                  : "Optional — applies to TCP/UDP only"
-              }
-              margin="normal"
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="Port High"
-              type="number"
-              placeholder="0-65535"
-              value={formValues.portHigh}
-              onChange={(e) => handleFormChange("portHigh", e.target.value)}
-              onBlur={() => handleFormBlur("portHigh")}
-              error={!!errors.portHigh && touched.portHigh}
-              helperText={
-                touched.portHigh && errors.portHigh
-                  ? errors.portHigh
-                  : "Optional — applies to TCP/UDP only"
-              }
-              margin="normal"
-              sx={{ flex: 1 }}
-            />
-          </Box>
-        </DialogContent>
-
-        <DialogActions>
-          <Button onClick={() => setFormDialogOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={handleFormSubmit}
-          >
-            {editingRuleId ? "Update" : "Add"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <PolicyRuleFormDialog
+        open={ruleFormOpen}
+        onClose={() => setRuleFormOpen(false)}
+        onSave={saveRule}
+        initialValues={editingValues}
+        isEditing={!!editingRuleId}
+      />
     </>
   );
 };
