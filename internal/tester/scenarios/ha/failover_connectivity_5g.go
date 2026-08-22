@@ -132,11 +132,6 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("phase2: wait for NG Setup Response on new peer: %w", err)
 	}
 
-	// Registration bumps the subscriber's sequenceNumber, a Raft-replicated
-	// write. Killing the leader starts a heartbeat-timeout → election cycle
-	// of a few seconds, during which forwarded writes return
-	// ErrLeadershipLost and NAS sends Registration Reject. Retry with backoff
-	// until the new leader settles.
 	const (
 		phase2Deadline = 30 * time.Second
 		phase2Backoff  = 2 * time.Second
