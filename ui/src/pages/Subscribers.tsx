@@ -220,7 +220,11 @@ const SubscriberPage: React.FC = () => {
     {
       groupId: "statusGroup",
       headerName: "Status",
-      children: [{ field: "registration" }, { field: "pduSessions" }],
+      children: [
+        { field: "registration" },
+        { field: "access" },
+        { field: "sessions" },
+      ],
     },
   ];
 
