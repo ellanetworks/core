@@ -25,12 +25,12 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  DataGrid,
   type GridColDef,
   GridActionsCellItem,
   type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import {
   getBGPSettings,
   updateBGPSettings,
@@ -123,6 +123,12 @@ export default function BGPTab() {
     page: 0,
     pageSize: 25,
   });
+
+  const [advertisedPagination, setAdvertisedPagination] =
+    useState<GridPaginationModel>({ page: 0, pageSize: 25 });
+
+  const [learnedPagination, setLearnedPagination] =
+    useState<GridPaginationModel>({ page: 0, pageSize: 25 });
 
   const peersQuery = useQuery<ListBGPPeersResponse>({
     queryKey: ["bgp-peers", peersPagination.page, peersPagination.pageSize],
@@ -466,7 +472,7 @@ export default function BGPTab() {
 
         <QueryState query={peersQuery} resource="BGP peers">
           {(data) => (
-            <DataGrid<APIBGPPeer>
+            <EntityGrid<APIBGPPeer>
               rows={data.items ?? []}
               columns={peerColumns}
               getRowId={(row) => row.id}
@@ -474,26 +480,6 @@ export default function BGPTab() {
               rowCount={data.total_count ?? 0}
               paginationModel={peersPagination}
               onPaginationModelChange={setPeersPagination}
-              pageSizeOptions={[10, 25, 50]}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
             />
           )}
         </QueryState>
@@ -517,30 +503,12 @@ export default function BGPTab() {
 
         <QueryState query={advertisedQuery} resource="advertised routes">
           {() => (
-            <DataGrid
+            <EntityGrid
               rows={advertisedRows}
               columns={advertisedColumns}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              pageSizeOptions={[10, 25, 50]}
+              paginationModel={advertisedPagination}
+              onPaginationModelChange={setAdvertisedPagination}
               slots={advertisedGridSlots}
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
             />
           )}
         </QueryState>
@@ -557,29 +525,11 @@ export default function BGPTab() {
 
         <QueryState query={learnedQuery} resource="learned routes">
           {() => (
-            <DataGrid
+            <EntityGrid
               rows={learnedRows}
               columns={learnedColumns}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              pageSizeOptions={[10, 25, 50]}
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
+              paginationModel={learnedPagination}
+              onPaginationModelChange={setLearnedPagination}
             />
           )}
         </QueryState>

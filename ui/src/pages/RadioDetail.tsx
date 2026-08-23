@@ -18,11 +18,11 @@ import {
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import {
-  DataGrid,
   type GridColDef,
   type GridPaginationModel,
   type GridRenderCellParams,
 } from "@mui/x-data-grid";
+import EntityGrid, { EMBEDDED_GRID_HEIGHT } from "@/components/grid/EntityGrid";
 import { useQuery } from "@tanstack/react-query";
 import { getRadio, type APIRadioDetail, type Snssai } from "@/queries/radios";
 import {
@@ -50,8 +50,6 @@ const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
 
 // 10 compact DataGrid rows (33px) + header (36px) + pagination footer (52px)
-const PANEL_HEIGHT = 421;
-
 const RadioDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
@@ -331,7 +329,7 @@ const RadioDetail: React.FC = () => {
                   <TableContainer
                     sx={{
                       ...tableContainerSx,
-                      height: PANEL_HEIGHT,
+                      height: EMBEDDED_GRID_HEIGHT,
                       overflow: "auto",
                     }}
                   >
@@ -475,7 +473,10 @@ const RadioDetail: React.FC = () => {
                     isEmpty={(data) => (data.total_count ?? 0) === 0}
                     empty={
                       <TableContainer
-                        sx={{ ...tableContainerSx, height: PANEL_HEIGHT }}
+                        sx={{
+                          ...tableContainerSx,
+                          height: EMBEDDED_GRID_HEIGHT,
+                        }}
                       >
                         <Box sx={{ p: 3, textAlign: "center" }}>
                           <Typography variant="body2" color="textSecondary">
@@ -487,7 +488,7 @@ const RadioDetail: React.FC = () => {
                     }
                   >
                     {(data) => (
-                      <DataGrid<APISubscriberSummary>
+                      <EntityGrid<APISubscriberSummary>
                         rows={data.items ?? []}
                         columns={subscriberColumns}
                         getRowId={(row) => row.imsi}
@@ -495,19 +496,8 @@ const RadioDetail: React.FC = () => {
                         rowCount={data.total_count ?? 0}
                         paginationModel={subsPaginationModel}
                         onPaginationModelChange={setSubsPaginationModel}
-                        pageSizeOptions={[10]}
-                        disableColumnMenu
-                        disableRowSelectionOnClick
-                        density="compact"
-                        sx={{
-                          height: PANEL_HEIGHT,
-                          border: 1,
-                          borderColor: "divider",
-                          "& .MuiDataGrid-cell": {
-                            borderBottom: "1px solid",
-                            borderColor: "divider",
-                          },
-                        }}
+                        variant="embedded"
+                        height={EMBEDDED_GRID_HEIGHT}
                       />
                     )}
                   </QueryState>
@@ -552,27 +542,20 @@ const RadioDetail: React.FC = () => {
                   }
                 >
                   {(data) => (
-                    <DataGrid
+                    <EntityGrid
                       rows={data.items ?? []}
                       columns={eventColumns}
                       getRowId={(row) => row.id}
-                      disableColumnMenu
-                      disableRowSelectionOnClick
                       hideFooter
+                      defaultPageSize={100}
                       autoHeight
-                      density="compact"
                       onRowClick={(params) => {
                         navigate(
                           `/radios/events?radio=${encodeURIComponent(radio.name)}&event=${params.row.id}`,
                         );
                       }}
+                      variant="embedded"
                       sx={{
-                        border: 1,
-                        borderColor: "divider",
-                        "& .MuiDataGrid-cell": {
-                          borderBottom: "1px solid",
-                          borderColor: "divider",
-                        },
                         "& .MuiDataGrid-row": { cursor: "pointer" },
                       }}
                     />

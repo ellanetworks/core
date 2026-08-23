@@ -18,11 +18,11 @@ import {
 import Grid from "@mui/material/Grid";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import {
-  DataGrid,
   type GridColDef,
   type GridRenderCellParams,
   GridActionsCellItem,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
@@ -577,26 +577,12 @@ const ClusterPage: React.FC = () => {
         versionsDiffer={versionsDiffer}
       />
 
-      <DataGrid<JoinedRow>
+      <EntityGrid<JoinedRow>
         rows={rows}
         columns={columns}
-        disableColumnMenu
-        disableRowSelectionOnClick
         autoHeight
         hideFooter
-        sx={{
-          width: "100%",
-          border: 1,
-          borderColor: "divider",
-          "& .MuiDataGrid-cell": {
-            borderBottom: "1px solid",
-            borderColor: "divider",
-          },
-          "& .MuiDataGrid-columnHeaders": {
-            borderBottom: "1px solid",
-            borderColor: "divider",
-          },
-        }}
+        defaultPageSize={100}
       />
 
       {isMintOpen && <AddNodeModal open onClose={() => setMintOpen(false)} />}

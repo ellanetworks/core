@@ -24,11 +24,8 @@ import {
 } from "@mui/icons-material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRenderCellParams,
-} from "@mui/x-data-grid";
+import { type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
+import EntityGrid, { EMBEDDED_GRID_HEIGHT } from "@/components/grid/EntityGrid";
 import { useQuery } from "@tanstack/react-query";
 import {
   getPolicy,
@@ -47,8 +44,6 @@ import IPProtocolChip from "@/components/IPProtocolChip";
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%", textAlign: "right" } as const;
-
-const GRID_HEIGHT = 421;
 
 interface RuleRow extends PolicyRule {
   index: number;
@@ -595,23 +590,14 @@ const PolicyDetail: React.FC = () => {
                       </IconButton>
                     )}
                   </Box>
-                  <DataGrid<RuleRow>
+                  <EntityGrid<RuleRow>
                     rows={uplinkRules}
                     columns={ruleColumns}
                     getRowId={(row) => row.index}
-                    disableColumnMenu
-                    disableRowSelectionOnClick
-                    density="compact"
                     hideFooter
-                    sx={{
-                      height: GRID_HEIGHT,
-                      border: 1,
-                      borderColor: "divider",
-                      "& .MuiDataGrid-cell": {
-                        borderBottom: "1px solid",
-                        borderColor: "divider",
-                      },
-                    }}
+                    defaultPageSize={100}
+                    variant="embedded"
+                    height={EMBEDDED_GRID_HEIGHT}
                   />
                 </Box>
 
@@ -648,23 +634,14 @@ const PolicyDetail: React.FC = () => {
                       </IconButton>
                     )}
                   </Box>
-                  <DataGrid<RuleRow>
+                  <EntityGrid<RuleRow>
                     rows={downlinkRules}
                     columns={ruleColumns}
                     getRowId={(row) => row.index}
-                    disableColumnMenu
-                    disableRowSelectionOnClick
-                    density="compact"
                     hideFooter
-                    sx={{
-                      height: GRID_HEIGHT,
-                      border: 1,
-                      borderColor: "divider",
-                      "& .MuiDataGrid-cell": {
-                        borderBottom: "1px solid",
-                        borderColor: "divider",
-                      },
-                    }}
+                    defaultPageSize={100}
+                    variant="embedded"
+                    height={EMBEDDED_GRID_HEIGHT}
                   />
                 </Box>
               </Box>

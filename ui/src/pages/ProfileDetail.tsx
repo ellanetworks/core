@@ -24,11 +24,8 @@ import {
 } from "@mui/icons-material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRenderCellParams,
-} from "@mui/x-data-grid";
+import { type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getProfile, deleteProfile, type APIProfile } from "@/queries/profiles";
 import {
@@ -438,31 +435,11 @@ const ProfileDetail: React.FC = () => {
           }
         >
           {(data) => (
-            <DataGrid<APIPolicy>
+            <EntityGrid<APIPolicy>
               rows={data.items ?? []}
               columns={policyColumns}
               getRowId={(row) => row.name}
-              disableRowSelectionOnClick
-              disableColumnMenu
               hideFooter={(data.items?.length ?? 0) <= 25}
-              pageSizeOptions={[25, 50, 100]}
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
             />
           )}
         </QueryState>

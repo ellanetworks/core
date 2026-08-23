@@ -6,11 +6,11 @@ import { Box, Typography, Button, Chip } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import {
-  DataGrid,
   GridColDef,
   GridRenderCellParams,
   GridPaginationModel,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import { Link } from "react-router-dom";
 import {
   listSubscribers,
@@ -270,35 +270,15 @@ const SubscriberPage: React.FC = () => {
         }
       >
         {(data) => (
-          <DataGrid<APISubscriberSummary>
+          <EntityGrid<APISubscriberSummary>
             rows={data.items ?? []}
             columns={columns}
             getRowId={(row) => row.imsi}
             columnGroupingModel={columnGroupingModel}
-            disableRowSelectionOnClick
             paginationMode="server"
             rowCount={data.total_count ?? 0}
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}
-            pageSizeOptions={[10, 25, 50, 100]}
-            disableColumnMenu
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
           />
         )}
       </QueryState>

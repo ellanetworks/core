@@ -22,12 +22,12 @@ import {
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import {
-  DataGrid,
   type GridColDef,
   type GridRowParams,
   type GridRowId,
   type GridRowSelectionModel,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import { useSearchParams, Link } from "react-router-dom";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
@@ -777,7 +777,7 @@ export default function EventsTab() {
             }
           >
             {() => (
-              <DataGrid<APIRadioEvent>
+              <EntityGrid<APIRadioEvent>
                 rows={networkRows}
                 columns={networkColumns}
                 getRowId={(row) => row.id}
@@ -789,30 +789,12 @@ export default function EventsTab() {
                 rowCount={subRowCount}
                 paginationModel={paginationModel}
                 onPaginationModelChange={setPaginationModel}
-                disableColumnMenu
-                pageSizeOptions={[10, 25, 50, 100]}
                 onRowClick={handleRowClick}
                 rowSelectionModel={selectionModel}
-                disableRowSelectionOnClick
                 onRowSelectionModelChange={(model) => setSelectionModel(model)}
                 density="compact"
                 autoHeight
                 sx={{
-                  width: "100%",
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
                   "& .MuiDataGrid-row:hover": { cursor: "pointer" },
                   "& .MuiDataGrid-row.Mui-selected": {
                     backgroundColor: (t) => t.palette.action.selected,
