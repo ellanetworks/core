@@ -1317,6 +1317,7 @@ const Traffic: React.FC = () => {
                 />
               ) : (
                 <EntityGrid<FlowReport>
+                  variant="log"
                   rows={flowRows}
                   columns={flowColumns}
                   getRowId={(row) => row.id}

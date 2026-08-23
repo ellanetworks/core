@@ -81,11 +81,18 @@ export default function EntityGrid<R extends GridValidRowModel>({
   sx,
   ...rest
 }: EntityGridProps<R>) {
-  const options =
+  const baseOptions =
     pageSizeOptions ??
     (variant === "embedded"
       ? EMBEDDED_PAGE_SIZE_OPTIONS
       : LIST_PAGE_SIZE_OPTIONS);
+
+  const options =
+    defaultPageSize !== undefined && !baseOptions.includes(defaultPageSize)
+      ? [...baseOptions, defaultPageSize].sort((a, b) => a - b)
+      : baseOptions;
+
+  const isControlled = paginationModel !== undefined;
 
   const [fallbackModel, setFallbackModel] = useState<GridPaginationModel>(
     () => ({
@@ -102,8 +109,15 @@ export default function EntityGrid<R extends GridValidRowModel>({
         (variant === "embedded" || variant === "log" ? "compact" : undefined)
       }
       pageSizeOptions={options}
-      paginationModel={paginationModel ?? fallbackModel}
-      onPaginationModelChange={onPaginationModelChange ?? setFallbackModel}
+      paginationModel={isControlled ? paginationModel : fallbackModel}
+      onPaginationModelChange={
+        isControlled
+          ? onPaginationModelChange
+          : (model, details) => {
+              setFallbackModel(model);
+              onPaginationModelChange?.(model, details);
+            }
+      }
       disableColumnMenu
       disableRowSelectionOnClick
       sx={[

@@ -49,7 +49,6 @@ const tableContainerSx = {
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
 
-// 10 compact DataGrid rows (33px) + header (36px) + pagination footer (52px)
 const RadioDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();

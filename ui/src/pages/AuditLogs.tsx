@@ -365,7 +365,7 @@ const AuditLog: React.FC = () => {
               rowCount={rowCount}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              rowHeight={60}
+              getRowHeight={() => "auto"}
             />
           )}
         </QueryState>
