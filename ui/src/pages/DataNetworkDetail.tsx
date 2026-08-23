@@ -29,11 +29,11 @@ import {
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme } from "@mui/material/styles";
 import {
-  DataGrid,
   type GridColDef,
   type GridPaginationModel,
   type GridRenderCellParams,
 } from "@mui/x-data-grid";
+import EntityGrid, { EMBEDDED_GRID_HEIGHT } from "@/components/grid/EntityGrid";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getDataNetwork,
@@ -65,8 +65,6 @@ const tableContainerSx = {
 
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
-
-const GRID_HEIGHT = 421;
 
 const DataNetworkDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
@@ -833,7 +831,10 @@ const DataNetworkDetail: React.FC = () => {
                           query={allocationsQuery}
                           resource="IPv4 allocations"
                           loading={
-                            <Skeleton variant="rounded" height={GRID_HEIGHT} />
+                            <Skeleton
+                              variant="rounded"
+                              height={EMBEDDED_GRID_HEIGHT}
+                            />
                           }
                           isEmpty={(data) => (data.total_count ?? 0) === 0}
                           empty={
@@ -844,7 +845,7 @@ const DataNetworkDetail: React.FC = () => {
                           }
                         >
                           {(data) => (
-                            <DataGrid<APIIPAllocation>
+                            <EntityGrid<APIIPAllocation>
                               rows={data.items ?? []}
                               columns={allocationColumns}
                               getRowId={(row) => row.address}
@@ -852,19 +853,8 @@ const DataNetworkDetail: React.FC = () => {
                               rowCount={data.total_count ?? 0}
                               paginationModel={allocPaginationModel}
                               onPaginationModelChange={setAllocPaginationModel}
-                              pageSizeOptions={[10, 25]}
-                              disableColumnMenu
-                              disableRowSelectionOnClick
-                              density="compact"
-                              sx={{
-                                height: GRID_HEIGHT,
-                                border: 1,
-                                borderColor: "divider",
-                                "& .MuiDataGrid-cell": {
-                                  borderBottom: "1px solid",
-                                  borderColor: "divider",
-                                },
-                              }}
+                              variant="embedded"
+                              height={EMBEDDED_GRID_HEIGHT}
                             />
                           )}
                         </QueryState>
@@ -881,7 +871,10 @@ const DataNetworkDetail: React.FC = () => {
                           query={ipv6AllocationsQuery}
                           resource="IPv6 allocations"
                           loading={
-                            <Skeleton variant="rounded" height={GRID_HEIGHT} />
+                            <Skeleton
+                              variant="rounded"
+                              height={EMBEDDED_GRID_HEIGHT}
+                            />
                           }
                           isEmpty={(data) => (data.total_count ?? 0) === 0}
                           empty={
@@ -892,7 +885,7 @@ const DataNetworkDetail: React.FC = () => {
                           }
                         >
                           {(data) => (
-                            <DataGrid<APIIPAllocation>
+                            <EntityGrid<APIIPAllocation>
                               rows={data.items ?? []}
                               columns={ipv6AllocationColumns}
                               getRowId={(row) => row.address}
@@ -902,19 +895,8 @@ const DataNetworkDetail: React.FC = () => {
                               onPaginationModelChange={
                                 setIpv6AllocPaginationModel
                               }
-                              pageSizeOptions={[10, 25]}
-                              disableColumnMenu
-                              disableRowSelectionOnClick
-                              density="compact"
-                              sx={{
-                                height: GRID_HEIGHT,
-                                border: 1,
-                                borderColor: "divider",
-                                "& .MuiDataGrid-cell": {
-                                  borderBottom: "1px solid",
-                                  borderColor: "divider",
-                                },
-                              }}
+                              variant="embedded"
+                              height={EMBEDDED_GRID_HEIGHT}
                             />
                           )}
                         </QueryState>

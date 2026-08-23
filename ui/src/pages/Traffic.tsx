@@ -31,11 +31,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, alpha } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRowParams,
-} from "@mui/x-data-grid";
+import { type GridColDef, type GridRowParams } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { PieChart } from "@mui/x-charts/PieChart";
 import {
@@ -840,24 +837,7 @@ const Traffic: React.FC = () => {
     (isUsagePerSubLoading && !usagePerSubscriberData) ||
     (isUsagePerDayLoading && !usagePerDayData);
 
-  const gridSx = {
-    width: "100%",
-    border: 1,
-    borderColor: "divider",
-    "& .MuiDataGrid-cell": {
-      borderBottom: "1px solid",
-      borderColor: "divider",
-    },
-    "& .MuiDataGrid-columnHeaders": {
-      borderBottom: "1px solid",
-      borderColor: "divider",
-      backgroundColor: "backgroundSubtle",
-    },
-    "& .MuiDataGrid-footerContainer": {
-      borderTop: "1px solid",
-      borderColor: "divider",
-    },
-    // Low alpha preserves text contrast against the error color.
+  const flowGridSx = {
     "& .MuiDataGrid-row.flow-row-dropped .MuiDataGrid-cell": {
       backgroundColor: alpha(theme.palette.error.main, 0.08),
     },
@@ -1053,17 +1033,13 @@ const Traffic: React.FC = () => {
                     />
                   </Box>
 
-                  <DataGrid<UsageRow>
+                  <EntityGrid<UsageRow>
                     rows={usageRows}
                     columns={usageColumns}
                     getRowId={(row) => row.id}
                     paginationModel={usagePaginationModel}
                     onPaginationModelChange={setUsagePaginationModel}
-                    pageSizeOptions={[10, 25, 50, 100]}
-                    disableColumnMenu
-                    disableRowSelectionOnClick
                     columnVisibilityModel={{ subscriber: !isSmDown }}
-                    sx={gridSx}
                   />
                 </>
               )}
@@ -1338,10 +1314,10 @@ const Traffic: React.FC = () => {
                 <EmptyState
                   primaryText="No flow reports found"
                   secondaryText="No flows match the current filters, or flow accounting has not recorded any data yet."
-                  button={false}
                 />
               ) : (
-                <DataGrid<FlowReport>
+                <EntityGrid<FlowReport>
+                  variant="log"
                   rows={flowRows}
                   columns={flowColumns}
                   getRowId={(row) => row.id}
@@ -1353,12 +1329,8 @@ const Traffic: React.FC = () => {
                   paginationModel={flowPaginationModel}
                   onPaginationModelChange={setFlowPaginationModel}
                   disableColumnSorting
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  density="compact"
                   columnVisibilityModel={{}}
-                  sx={gridSx}
+                  sx={flowGridSx}
                 />
               )}
             </Box>

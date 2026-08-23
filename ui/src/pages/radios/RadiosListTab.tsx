@@ -5,11 +5,8 @@ import React, { useMemo, useState } from "react";
 import { Box, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridPaginationModel,
-} from "@mui/x-data-grid";
+import { type GridColDef, type GridPaginationModel } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import { Link } from "react-router-dom";
 
 import {
@@ -136,7 +133,7 @@ export default function RadiosListTab() {
       >
         {(data) => (
           <Box sx={{ width: "100%" }}>
-            <DataGrid<APIRadio>
+            <EntityGrid<APIRadio>
               rows={data.items ?? []}
               columns={columns}
               getRowId={(row) => row.address}
@@ -144,27 +141,7 @@ export default function RadiosListTab() {
               rowCount={data.total_count ?? 0}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              pageSizeOptions={[10, 25, 50, 100]}
-              disableColumnMenu
-              disableRowSelectionOnClick
               columnVisibilityModel={{ id: !isSmDown }}
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
             />
           </Box>
         )}

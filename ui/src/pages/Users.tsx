@@ -6,11 +6,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Box, Typography, Button } from "@mui/material";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import {
-  DataGrid,
   type GridColDef,
   type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import {
   listUsers,
   roleIDToLabel,
@@ -133,7 +133,7 @@ const UserPage: React.FC = () => {
         }
       >
         {(data) => (
-          <DataGrid<APIUser>
+          <EntityGrid<APIUser>
             rows={data.items ?? []}
             columns={columns}
             getRowId={(row) => row.email}
@@ -141,27 +141,7 @@ const UserPage: React.FC = () => {
             rowCount={data.total_count ?? 0}
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}
-            pageSizeOptions={[10, 25, 50, 100]}
             sortingMode="server"
-            disableColumnMenu
-            disableRowSelectionOnClick
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
           />
         )}
       </QueryState>

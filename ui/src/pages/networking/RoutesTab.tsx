@@ -6,12 +6,12 @@ import { Box, Typography, Button, Chip } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import {
-  DataGrid,
   type GridColDef,
   GridActionsCellItem,
   type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import {
   listRoutes,
   deleteRoute,
@@ -169,7 +169,7 @@ export default function RoutesTab() {
         }
       >
         {(data) => (
-          <DataGrid<APIRoute>
+          <EntityGrid<APIRoute>
             rows={data.items ?? []}
             columns={columns}
             getRowId={(row) =>
@@ -181,26 +181,6 @@ export default function RoutesTab() {
             rowCount={data.total_count ?? 0}
             paginationModel={pagination}
             onPaginationModelChange={setPagination}
-            pageSizeOptions={[10, 25, 50, 100]}
-            disableColumnMenu
-            disableRowSelectionOnClick
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
           />
         )}
       </QueryState>
