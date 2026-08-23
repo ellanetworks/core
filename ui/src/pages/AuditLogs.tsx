@@ -160,22 +160,26 @@ const AuditLog: React.FC = () => {
                 height: "100%",
               }}
             >
-              <Link
-                to={`/users/${encodeURIComponent(user)}`}
-                style={{ textDecoration: "none" }}
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: outerTheme.palette.link,
-                    textDecoration: "underline",
-                    "&:hover": { textDecoration: "underline" },
-                  }}
+              {user.includes("@") ? (
+                <Link
+                  to={`/users/${encodeURIComponent(user)}`}
+                  style={{ textDecoration: "none" }}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 >
-                  {user}
-                </Typography>
-              </Link>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: outerTheme.palette.link,
+                      textDecoration: "underline",
+                      "&:hover": { textDecoration: "underline" },
+                    }}
+                  >
+                    {user}
+                  </Typography>
+                </Link>
+              ) : (
+                <Typography variant="body2">{user}</Typography>
+              )}
             </Box>
           );
         },
