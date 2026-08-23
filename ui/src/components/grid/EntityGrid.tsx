@@ -19,7 +19,10 @@ const PREFERRED_PAGE_SIZE = 25;
 
 export interface EntityGridProps<R extends GridValidRowModel> extends Omit<
   DataGridProps<R>,
-  "disableColumnMenu" | "disableRowSelectionOnClick" | "pageSizeOptions"
+  | "disableColumnMenu"
+  | "disableRowSelectionOnClick"
+  | "pageSizeOptions"
+  | "autoHeight"
 > {
   variant?: "list" | "embedded";
   height?: number | string;

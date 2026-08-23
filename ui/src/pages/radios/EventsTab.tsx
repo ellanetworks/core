@@ -793,7 +793,6 @@ export default function EventsTab() {
                 rowSelectionModel={selectionModel}
                 onRowSelectionModelChange={(model) => setSelectionModel(model)}
                 density="compact"
-                autoHeight
                 sx={{
                   "& .MuiDataGrid-row:hover": { cursor: "pointer" },
                   "& .MuiDataGrid-row.Mui-selected": {

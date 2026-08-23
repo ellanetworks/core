@@ -1328,7 +1328,6 @@ const Traffic: React.FC = () => {
                   paginationModel={flowPaginationModel}
                   onPaginationModelChange={setFlowPaginationModel}
                   disableColumnSorting
-                  density="compact"
                   columnVisibilityModel={{}}
                   sx={flowGridSx}
                 />

@@ -548,7 +548,6 @@ const RadioDetail: React.FC = () => {
                       getRowId={(row) => row.id}
                       hideFooter
                       defaultPageSize={100}
-                      autoHeight
                       onRowClick={(params) => {
                         navigate(
                           `/radios/events?radio=${encodeURIComponent(radio.name)}&event=${params.row.id}`,

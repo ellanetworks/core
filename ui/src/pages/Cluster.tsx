@@ -580,7 +580,6 @@ const ClusterPage: React.FC = () => {
       <EntityGrid<JoinedRow>
         rows={rows}
         columns={columns}
-        autoHeight
         hideFooter
         defaultPageSize={100}
       />
