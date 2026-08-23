@@ -24,7 +24,7 @@ export interface EntityGridProps<R extends GridValidRowModel> extends Omit<
   | "pageSizeOptions"
   | "autoHeight"
 > {
-  variant?: "list" | "embedded";
+  variant?: "list" | "log" | "embedded";
   height?: number | string;
   pageSizeOptions?: number[];
   defaultPageSize?: number;
@@ -97,7 +97,10 @@ export default function EntityGrid<R extends GridValidRowModel>({
   return (
     <DataGrid<R>
       {...rest}
-      density={density ?? (variant === "embedded" ? "compact" : undefined)}
+      density={
+        density ??
+        (variant === "embedded" || variant === "log" ? "compact" : undefined)
+      }
       pageSizeOptions={options}
       paginationModel={paginationModel ?? fallbackModel}
       onPaginationModelChange={onPaginationModelChange ?? setFallbackModel}

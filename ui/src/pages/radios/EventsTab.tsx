@@ -778,6 +778,7 @@ export default function EventsTab() {
           >
             {() => (
               <EntityGrid<APIRadioEvent>
+                variant="log"
                 rows={networkRows}
                 columns={networkColumns}
                 getRowId={(row) => row.id}
@@ -792,7 +793,6 @@ export default function EventsTab() {
                 onRowClick={handleRowClick}
                 rowSelectionModel={selectionModel}
                 onRowSelectionModelChange={(model) => setSelectionModel(model)}
-                density="compact"
                 sx={{
                   "& .MuiDataGrid-row:hover": { cursor: "pointer" },
                   "& .MuiDataGrid-row.Mui-selected": {

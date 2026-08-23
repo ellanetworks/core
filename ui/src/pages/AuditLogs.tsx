@@ -357,6 +357,7 @@ const AuditLog: React.FC = () => {
         >
           {(data) => (
             <EntityGrid<APIAuditLog>
+              variant="log"
               rows={data.items ?? []}
               columns={columns}
               getRowId={(row) => row.id}
@@ -364,7 +365,7 @@ const AuditLog: React.FC = () => {
               rowCount={rowCount}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              rowHeight={52}
+              rowHeight={60}
             />
           )}
         </QueryState>
