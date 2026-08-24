@@ -52,9 +52,8 @@ func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.6.1.2: the NAS-PDU is carried without interpretation, so a SERVICE REQUEST
-// Initial UE Message goes through the same HandleNAS entry point as any other NAS message;
-// a request that binds no context leaves no bare RAN connection behind.
+// A SERVICE REQUEST Initial UE Message goes through the same HandleNAS entry point as any
+// other NAS message; a request that binds no context leaves no bare RAN connection behind.
 func TestHandleInitialUEMessage_ServiceRequestGoesThroughHandleNAS(t *testing.T) {
 	fakeNAS := &fakeNASHandler{LeavesBare: true}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
