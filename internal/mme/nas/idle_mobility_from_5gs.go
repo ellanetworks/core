@@ -5,6 +5,7 @@ package nas
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
@@ -37,6 +38,11 @@ func recoverContextFrom5GS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pd
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Info("the 5GS peer returned no context for an inter-system change; the update is rejected",
 			zap.Error(err))
+
+		if errors.Is(err, interworking.ErrNoTransferableSessions) {
+			cause := eps.EMMCauseNoEPSBearerContextActivated
+			conn.TauRejectCause = &cause
+		}
 
 		return nil, nil
 	}
