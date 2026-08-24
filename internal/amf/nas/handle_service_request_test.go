@@ -318,6 +318,7 @@ func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 		wantMsgType uint8
 	}{
 		{"high-priority access is accepted", uint8(fgs.ServiceTypeHighPriorityAccess), uint8(fgs.MsgServiceAccept)},
+		{"elevated signalling is accepted", uint8(fgs.ServiceTypeElevatedSignalling), uint8(fgs.MsgServiceAccept)},
 		{"emergency is rejected (unsupported)", uint8(fgs.ServiceTypeEmergencyServices), uint8(fgs.MsgServiceReject)},
 		{"emergency fallback is rejected", uint8(fgs.ServiceTypeEmergencyServicesFallback), uint8(fgs.MsgServiceReject)},
 		{"unknown service type is rejected", 0x07, uint8(fgs.MsgServiceReject)},

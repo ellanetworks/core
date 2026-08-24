@@ -45,16 +45,9 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	// A SERVICE REQUEST is resolved and answered (accept, or SERVICE REJECT #9 when no
-	// context) by its dedicated handler, without the optimistic resume or the mint gate —
-	// it never mints a context.
-	if amfInstance.NAS.IsServiceRequest(msg.NASPDU) {
-		amfInstance.NAS.HandleServiceRequest(ctx, ueConn, msg.NASPDU)
-	} else {
-		resumeExistingContext(ctx, amfInstance, ueConn, msg)
+	resumeExistingContext(ctx, amfInstance, ueConn, msg)
 
-		amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU)
-	}
+	amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU)
 
 	// A NAS message that never established a UE context (undecodable, no usable mobile
 	// identity, not a registration request, or a service request the AMF has no context
@@ -69,10 +62,10 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 }
 
 // resumeExistingContext optimistically binds an existing, integrity-verified context to a
-// fresh connection when a non-service-request initial NAS message cites a known 5G-S-TMSI,
-// so the NAS layer need not re-resolve it. It binds nothing when the message cannot be
-// authenticated for the cited context (TS 24.501), leaving the NAS layer to register on a
-// fresh context.
+// fresh connection when an initial NAS message cites a known 5G-S-TMSI in the NGAP IE, so
+// the NAS layer need not re-resolve it. It binds nothing when the message cannot be
+// authenticated for the cited context (TS 24.501), leaving the NAS layer to resolve or
+// register on a fresh context.
 func resumeExistingContext(ctx context.Context, amfInstance *amf.AMF, ueConn *amf.UeConn, msg *ngap.InitialUEMessage) {
 	if msg.FiveGSTMSI == nil {
 		return

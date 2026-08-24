@@ -17,7 +17,7 @@ import (
 
 // A SERVICE REQUEST that resolves no 5GMM context (e.g. the UE deregistered, or an unknown
 // 5G-S-TMSI) must be answered with a SERVICE REJECT #9, never dropped
-// (TS 24.501 §5.6.1.5, §4.4.4.3). The dedicated pre-context handler never mints a context.
+// (TS 24.501 §5.6.1.5, §4.4.4.3). The mint gate never mints a context for one.
 func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 	ngapSender := &fakeNGAPSender{}
 	amfInstance := amf.New(&fakeDBInstance{
@@ -31,7 +31,7 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 		t.Fatalf("could not create ueConn: %v", err)
 	}
 
-	HandleServiceRequest(context.Background(), amfInstance, ueConn, encodePlainServiceRequest(t))
+	HandleNAS(context.Background(), amfInstance, ueConn, encodePlainServiceRequest(t))
 
 	if ueConn.UeContext() != nil {
 		t.Fatal("no-context service request minted a UE context; the bare connection would leak")
@@ -57,7 +57,7 @@ func TestHandleServiceRequest_NoContext_SendsServiceReject(t *testing.T) {
 func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
 	malformed := []byte{0x7e, 0x00, 0x4c} // plain 5GMM, message type ServiceRequest, no IEs
 
-	if !IsServiceRequest(malformed) {
+	if !isServiceRequest(malformed) {
 		t.Fatal("a truncated plain SERVICE REQUEST must still be recognized by message type")
 	}
 
@@ -73,7 +73,7 @@ func TestHandleServiceRequest_ProtocolError_SendsServiceReject96(t *testing.T) {
 		t.Fatalf("could not create ueConn: %v", err)
 	}
 
-	HandleServiceRequest(context.Background(), amfInstance, ueConn, malformed)
+	HandleNAS(context.Background(), amfInstance, ueConn, malformed)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 downlink (SERVICE REJECT), got %d", len(ngapSender.SentDownlinkNASTransport))

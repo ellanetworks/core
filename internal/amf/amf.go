@@ -117,8 +117,6 @@ type DBer interface {
 
 type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *UeConn, nasPdu []byte)
-	IsServiceRequest(nasPdu []byte) bool
-	HandleServiceRequest(ctx context.Context, ue *UeConn, nasPdu []byte)
 }
 
 // LPPHandler is called by the AMF when an UL NAS Transport carries an LPP payload.
