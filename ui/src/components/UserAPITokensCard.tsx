@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useState } from "react";
+
+import { useNow } from "../hooks/useNow";
 import {
   Alert,
   Box,
@@ -46,6 +48,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
   targetEmail,
 }) => {
   const { showSnackbar } = useSnackbar();
+  const now = useNow(30_000);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -194,7 +197,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
 
                 {tokens.map((token) => {
                   const isExpired = token.expires_at
-                    ? new Date(token.expires_at).getTime() < Date.now()
+                    ? new Date(token.expires_at).getTime() < now
                     : false;
 
                   return (

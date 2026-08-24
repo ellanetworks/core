@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useId, useState } from "react";
+import React, { useId, useState } from "react";
 import {
   Alert,
   Box,
@@ -53,12 +53,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const [error, setError] = useState("");
   const [showDetails, setShowDetails] = useState(false);
 
-  useEffect(() => {
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setError("");
       setShowDetails(false);
     }
-  }, [open]);
+  }
 
   const handleConfirm = async () => {
     setLoading(true);

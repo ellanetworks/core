@@ -189,6 +189,20 @@ describe("EventsTab protocol and message type", () => {
     expect(impossible).toEqual([]);
   });
 
+  it("does not restore a message type when its protocol is reselected", async () => {
+    const user = userEvent.setup();
+    await renderEvents();
+    const messageType = () =>
+      screen.getByRole("combobox", { name: "Message Type" });
+
+    await selectOption(user, "Protocol", "NGAP (5G)");
+    await selectOption(user, "Message Type", NGAP_ONLY_MESSAGE);
+    await selectOption(user, "Protocol", "S1AP (4G)");
+    await selectOption(user, "Protocol", "NGAP (5G)");
+
+    expect(messageType()).not.toHaveTextContent(NGAP_ONLY_MESSAGE);
+  });
+
   it("keeps a message type both protocols share", async () => {
     const user = userEvent.setup();
     await renderEvents();
@@ -416,5 +430,103 @@ describe("EventsTab table", () => {
     expect(
       await screen.findByText("No radio events match the selected filters"),
     ).toBeVisible();
+  });
+});
+
+const seedDecodedEvent = (id: number) =>
+  api.get(`/api/v1/ran/events/${id}`, () => ({
+    decoded: {
+      pdu_type: "InitiatingMessage",
+      procedure_code: { value: 0, name: "PathSwitchRequest" },
+      criticality: { value: 0, name: "reject" },
+      value: {},
+    },
+    raw: "00",
+  }));
+
+const panelTitle = () => screen.findByTestId("event-panel-title");
+
+const panelIsOpen = async () =>
+  (await screen.findByTestId("event-panel")).getAttribute("data-open") ===
+  "true";
+
+describe("EventsTab event panel", () => {
+  it("opens the panel for the event named in the URL", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    seedDecodedEvent(7);
+    await renderEvents("/radios/events?event=7");
+
+    expect(await panelTitle()).toHaveTextContent("PathSwitchRequest");
+    expect(await panelIsOpen()).toBe(true);
+  });
+
+  it("leaves the panel shut when the URL names no event", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents();
+
+    expect(await panelIsOpen()).toBe(false);
+  });
+
+  it("opens the panel for a row the operator clicks", async () => {
+    const user = userEvent.setup();
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    seedDecodedEvent(7);
+    await renderEvents();
+
+    const grid = await screen.findByRole("grid");
+    await user.click(await within(grid).findByText("PathSwitchRequest"));
+
+    await waitFor(async () =>
+      expect(await panelTitle()).toHaveTextContent("PathSwitchRequest"),
+    );
+  });
+
+  it("keeps the panel shut for an event id that is not on the page", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents("/radios/events?event=999");
+
+    await screen.findByText("radio-1");
+    expect(await panelIsOpen()).toBe(false);
+  });
+
+  it("keeps the panel open when the operator pages past the event", async () => {
+    const user = userEvent.setup();
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+      totalCount: 60,
+    });
+    seedDecodedEvent(7);
+    await renderEvents("/radios/events?event=7");
+    expect(await panelIsOpen()).toBe(true);
+
+    seedApi({ events: [radioEvent(42, { message_type: "Paging" })] });
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    await screen.findByText("Paging");
+    expect(await panelIsOpen()).toBe(true);
+  });
+
+  it("shuts the panel again when the event is dismissed", async () => {
+    const user = userEvent.setup();
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    seedDecodedEvent(7);
+    await renderEvents("/radios/events?event=7");
+
+    expect(await panelIsOpen()).toBe(true);
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(async () => expect(await panelIsOpen()).toBe(false));
+    expect(await panelTitle()).toHaveTextContent("PathSwitchRequest");
   });
 });

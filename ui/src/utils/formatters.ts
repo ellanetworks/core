@@ -305,3 +305,17 @@ export const buildProtocolColorMap = (
 
   return map;
 };
+
+export const buildDestinationColorMap = (
+  ips: string[],
+  series: string[],
+): Map<string, string> => {
+  const map = new Map<string, string>();
+  if (series.length === 0) return map;
+
+  [...new Set(ips)].sort().forEach((ip, i) => {
+    map.set(ip, series[i % series.length]);
+  });
+
+  return map;
+};

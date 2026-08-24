@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -62,16 +62,15 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
     return MIN_NODE_ID;
   }, [members]);
 
-  const [nodeId, setNodeId] = useState<number>(suggestedNodeId);
+  const [chosenNodeId, setChosenNodeId] = useState<number | null>(null);
+  const [mintedNodeId, setMintedNodeId] = useState<number | null>(null);
   const [ttlSeconds, setTtlSeconds] = useState<number>(DEFAULT_TTL);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState("");
   const [token, setToken] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<number>(0);
 
-  useEffect(() => {
-    if (open && !token) setNodeId(suggestedNodeId);
-  }, [open, suggestedNodeId, token]);
+  const nodeId = mintedNodeId ?? chosenNodeId ?? suggestedNodeId;
 
   const nodeIdValid = nodeId >= MIN_NODE_ID && nodeId <= MAX_NODE_ID;
   const nodeIdTaken = (members ?? []).some((m) => m.nodeId === nodeId);
@@ -81,6 +80,8 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
     setExpiresAt(0);
     setAlert("");
     setTtlSeconds(DEFAULT_TTL);
+    setChosenNodeId(null);
+    setMintedNodeId(null);
     onClose();
   };
 
@@ -95,6 +96,7 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
       });
       setToken(resp.token);
       setExpiresAt(resp.expiresAt);
+      setMintedNodeId(nodeId);
     } catch (err) {
       setAlert(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -158,7 +160,7 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
               label="Node ID"
               type="number"
               value={nodeId}
-              onChange={(e) => setNodeId(Number(e.target.value))}
+              onChange={(e) => setChosenNodeId(Number(e.target.value))}
               error={!nodeIdValid || nodeIdTaken}
               helperText={
                 !nodeIdValid

@@ -65,11 +65,14 @@ const FormDialog = <T extends FieldValues>({
   const { isValid, isSubmitting } = useFormState({ control: form.control });
   const [submitError, setSubmitError] = useState("");
 
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setSubmitError("");
+  }
+
   useEffect(() => {
-    if (open) {
-      form.reset();
-      setSubmitError("");
-    }
+    if (open) form.reset();
   }, [open, form]);
 
   const submit = form.handleSubmit(async (values) => {

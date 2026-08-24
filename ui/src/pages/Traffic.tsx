@@ -73,6 +73,7 @@ import EmptyState from "@/components/EmptyState";
 import {
   UNIT_FACTORS,
   buildProtocolColorMap,
+  buildDestinationColorMap,
   chooseUnitFromMax,
   formatBytesAutoUnit,
   formatCountShare,
@@ -735,33 +736,19 @@ const Traffic: React.FC = () => {
     }));
   }, [flowStatsData, protocolColorMap, theme]);
 
-  const destinationColorRef = useRef(new Map<string, string>());
-  const destinationSeriesRef = useRef(theme.palette.chart.series);
-
-  // Keeps the map from growing unbounded as destinations change.
-  useEffect(() => {
-    destinationColorRef.current.clear();
-  }, [startDate, endDate]);
-
   const topDestinationsPieData = useMemo(() => {
-    if (!flowStatsData?.top_destinations_uplink?.length) return [];
-    const series = theme.palette.chart.series;
-    if (destinationSeriesRef.current !== series) {
-      destinationSeriesRef.current = series;
-      destinationColorRef.current.clear();
-    }
-    const colorMap = destinationColorRef.current;
-    return flowStatsData.top_destinations_uplink.map((d, i) => {
-      if (!colorMap.has(d.ip)) {
-        colorMap.set(d.ip, series[colorMap.size % series.length]);
-      }
-      return {
-        id: i,
-        value: d.count,
-        label: d.ip,
-        color: colorMap.get(d.ip)!,
-      };
-    });
+    const destinations = flowStatsData?.top_destinations_uplink ?? [];
+    if (!destinations.length) return [];
+    const colorMap = buildDestinationColorMap(
+      destinations.map((d) => d.ip),
+      theme.palette.chart.series,
+    );
+    return destinations.map((d, i) => ({
+      id: i,
+      value: d.count,
+      label: d.ip,
+      color: colorMap.get(d.ip)!,
+    }));
   }, [flowStatsData, theme]);
 
   const handleProtocolPieClick = useCallback(

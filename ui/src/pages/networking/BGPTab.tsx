@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   Alert,
   Box,
@@ -72,6 +72,23 @@ const NoAdvertisedRoutesOverlay = () => (
 );
 
 const advertisedGridSlots = { noRowsOverlay: NoAdvertisedRoutesOverlay };
+
+const getImportPolicyLabel = (prefixes: BGPImportPrefix[] | undefined) => {
+  if (!prefixes || prefixes.length === 0) return "Deny All";
+  if (
+    prefixes.length === 1 &&
+    prefixes[0].prefix === "0.0.0.0/0" &&
+    prefixes[0].maxLength === 0
+  )
+    return "Default Route Only";
+  if (
+    prefixes.length === 1 &&
+    prefixes[0].prefix === "0.0.0.0/0" &&
+    prefixes[0].maxLength === 32
+  )
+    return "Accept All";
+  return `${prefixes.length} ${prefixes.length === 1 ? "prefix" : "prefixes"}`;
+};
 
 export default function BGPTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -152,10 +169,10 @@ export default function BGPTab() {
   const [isDeletePeerOpen, setDeletePeerOpen] = useState(false);
   const [selectedPeerId, setSelectedPeerId] = useState<number | null>(null);
 
-  const handleRequestDeletePeer = (id: number) => {
+  const handleRequestDeletePeer = useCallback((id: number) => {
     setSelectedPeerId(id);
     setDeletePeerOpen(true);
-  };
+  }, []);
 
   const handleConfirmDeletePeer = async () => {
     if (selectedPeerId == null || !accessToken) return;
@@ -175,35 +192,18 @@ export default function BGPTab() {
   const [isEditPeerOpen, setEditPeerOpen] = useState(false);
   const [editPeer, setEditPeer] = useState<APIBGPPeer | null>(null);
 
-  const handleEditPeer = (peer: APIBGPPeer) => {
+  const handleEditPeer = useCallback((peer: APIBGPPeer) => {
     setEditPeer(peer);
     setEditPeerOpen(true);
-  };
+  }, []);
 
   const [isViewPeerOpen, setViewPeerOpen] = useState(false);
   const [viewPeer, setViewPeer] = useState<APIBGPPeer | null>(null);
 
-  const handleViewPeer = (peer: APIBGPPeer) => {
+  const handleViewPeer = useCallback((peer: APIBGPPeer) => {
     setViewPeer(peer);
     setViewPeerOpen(true);
-  };
-
-  const getImportPolicyLabel = (prefixes: BGPImportPrefix[] | undefined) => {
-    if (!prefixes || prefixes.length === 0) return "Deny All";
-    if (
-      prefixes.length === 1 &&
-      prefixes[0].prefix === "0.0.0.0/0" &&
-      prefixes[0].maxLength === 0
-    )
-      return "Default Route Only";
-    if (
-      prefixes.length === 1 &&
-      prefixes[0].prefix === "0.0.0.0/0" &&
-      prefixes[0].maxLength === 32
-    )
-      return "Accept All";
-    return `${prefixes.length} ${prefixes.length === 1 ? "prefix" : "prefixes"}`;
-  };
+  }, []);
 
   const peerColumns: GridColDef<APIBGPPeer>[] = useMemo(() => {
     return [
@@ -268,7 +268,7 @@ export default function BGPTab() {
         ],
       } as GridColDef<APIBGPPeer>,
     ];
-  }, [canEdit]);
+  }, [canEdit, handleViewPeer, handleEditPeer, handleRequestDeletePeer]);
 
   const advertisedQuery = useQuery<BGPAdvertisedRoutesResponse>({
     queryKey: ["bgp-advertised-routes"],
