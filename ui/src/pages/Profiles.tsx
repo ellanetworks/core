@@ -7,11 +7,11 @@ import AccessChip from "@/components/AccessChip";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import {
-  DataGrid,
   type GridColDef,
   type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listProfiles,
@@ -167,7 +167,7 @@ const ProfilesPage: React.FC = () => {
         }
       >
         {(data) => (
-          <DataGrid<APIProfile>
+          <EntityGrid<APIProfile>
             rows={data.items ?? []}
             columns={columns}
             getRowId={(row) => row.name}
@@ -175,26 +175,6 @@ const ProfilesPage: React.FC = () => {
             rowCount={data.total_count ?? 0}
             paginationModel={pagination}
             onPaginationModelChange={setPagination}
-            pageSizeOptions={[10, 25, 50, 100]}
-            disableRowSelectionOnClick
-            disableColumnMenu
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
           />
         )}
       </QueryState>

@@ -8,40 +8,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/osutil"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
 var ErrBarrierTimeout = errors.New("raft barrier timed out")
-
-// umaskMu serialises the process-wide umask window used by
-// withTightUmask.
-var umaskMu sync.Mutex
-
-// withTightUmask runs fn with umask 0o077 so the raft bolt file,
-// snapshot files, and snapshot subdirectories land at 0o600/0o700 —
-// the raft library uses os.Create and MkdirAll with default perms, and
-// snapshots and the raft log contain CA signing keys until the next
-// compaction.
-func withTightUmask(fn func() error) error {
-	umaskMu.Lock()
-	defer umaskMu.Unlock()
-
-	prev := syscall.Umask(0o077)
-	defer syscall.Umask(prev)
-
-	return fn()
-}
 
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
 type ClusterConfig struct {
@@ -136,6 +118,10 @@ type Manager struct {
 	boltNoSync      bool
 	clusterListener *listener.Listener
 
+	// leaderClient pools the cluster-HTTP connections this node uses
+	// to reach the current leader. nil when clustering is disabled.
+	leaderClient *leaderHTTPClient
+
 	barrieredTerm atomic.Uint64
 	barrierMu     sync.Mutex
 	barrier       *barrierAttempt
@@ -215,7 +201,7 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	// Skipping per-entry fsync halves write latency (one fsync per
 	// COMMIT instead of two). HA mode keeps fsync enabled: replicas
 	// derive truth from the log.
-	err = withTightUmask(func() error {
+	err = osutil.WithTightUmask(func() error {
 		var bsErr error
 
 		boltStore, bsErr = raftboltdb.New(raftboltdb.Options{
@@ -316,19 +302,20 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:            r,
-		fsm:             fsm,
-		transport:       transport,
-		logStore:        boltStore,
-		snaps:           snapshotStore,
-		config:          cfg,
-		nodeID:          nodeID,
-		dataDir:         dataDir,
-		observer:        observer,
-		needsDiscovery:  !singleServer && !hasState && !recovered,
-		boltNoSync:      singleServer,
-		clusterListener: options.clusterListener,
+		raft:           r,
+		fsm:            fsm,
+		transport:      transport,
+		logStore:       boltStore,
+		snaps:          snapshotStore,
+		config:         cfg,
+		nodeID:         nodeID,
+		dataDir:        dataDir,
+		observer:       observer,
+		needsDiscovery: !singleServer && !hasState && !recovered,
+		boltNoSync:     singleServer,
 	}
+
+	m.attachClusterListener(options.clusterListener)
 
 	if !singleServer {
 		ft := newFollowerTracker(r)
@@ -530,6 +517,21 @@ func (m *Manager) AdvertiseAddress() string {
 // APIAddress returns the operator-facing API URL for this node.
 func (m *Manager) APIAddress() string {
 	return m.config.APIAddress
+}
+
+// attachClusterListener installs the cluster listener and the pooled
+// HTTP client that dials the leader through it. Every Manager
+// construction path goes through here so the two can never drift apart.
+func (m *Manager) attachClusterListener(ln *listener.Listener) {
+	m.clusterListener = ln
+
+	if ln == nil {
+		return
+	}
+
+	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, addr string, peerID int) (net.Conn, error) {
+		return ln.Dial(ctx, addr, peerID, listener.ALPNHTTP, dialTimeout)
+	})
 }
 
 // ProposeTimeout returns the configured maximum wait for a Raft commit, or
@@ -747,6 +749,10 @@ func (m *Manager) Shutdown() error {
 		if err := tc.Close(); err != nil {
 			return fmt.Errorf("close transport: %w", err)
 		}
+	}
+
+	if m.leaderClient != nil {
+		m.leaderClient.close()
 	}
 
 	return nil

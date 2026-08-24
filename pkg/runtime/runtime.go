@@ -275,12 +275,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	var wg sync.WaitGroup
 
-	sessionsGuard := sessions.NewLeaderGuard()
-	jobsGuard := jobs.NewLeaderGuard()
-
 	if observer := dbInstance.LeaderObserver(); observer != nil {
-		observer.Register(sessionsGuard)
-		observer.Register(jobsGuard)
 		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
 
 		if pki != nil {
@@ -289,15 +284,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	wg.Go(func() {
-		jobs.RunDataRetentionWorker(ctx, dbInstance, jobsGuard)
+		jobs.RunDataRetentionWorker(ctx, dbInstance)
 	})
 
 	wg.Go(func() {
-		jobs.RunJoinTokenTidyWorker(ctx, dbInstance, jobsGuard)
+		jobs.RunJoinTokenTidyWorker(ctx, dbInstance)
 	})
 
 	wg.Go(func() {
-		sessions.CleanUp(ctx, dbInstance, sessionsGuard)
+		sessions.CleanUp(ctx, dbInstance)
 	})
 
 	// Pin-cache propagation: runPinSubscriber rebuilds the in-memory
@@ -851,21 +846,17 @@ type ausfDBAdapter struct {
 	db *db.Database
 }
 
-func (a *ausfDBAdapter) GetSubscriber(ctx context.Context, imsi string) (*ausf.Subscriber, error) {
-	sub, err := a.db.GetSubscriber(ctx, imsi)
+func (a *ausfDBAdapter) AdvanceSequenceNumber(ctx context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
+	creds, err := a.db.AdvanceSubscriberSQN(ctx, imsi, resyncAuts, resyncRand)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ausf.Subscriber{
-		PermanentKey:   sub.PermanentKey,
-		Opc:            sub.Opc,
-		SequenceNumber: sub.SequenceNumber,
+	return &udm.AdvancedCredentials{
+		PermanentKey:   creds.PermanentKey,
+		Opc:            creds.Opc,
+		SequenceNumber: creds.SequenceNumber,
 	}, nil
-}
-
-func (a *ausfDBAdapter) UpdateSequenceNumber(ctx context.Context, imsi string, sqn string) error {
-	return a.db.EditSubscriberSequenceNumber(ctx, imsi, sqn)
 }
 
 // bgpImportPrefixAdapter adapts *db.Database to the bgp.ImportPrefixStore interface.

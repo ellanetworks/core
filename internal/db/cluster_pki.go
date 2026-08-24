@@ -148,6 +148,14 @@ func (db *Database) applyInitJoinHMAC(ctx context.Context, r *ClusterJoinHMAC) (
 // ListClusterNodeCerts returns every pinned per-node cert. The
 // listener verifier consults this through an in-memory pin map
 // rebuilt on a tick by the runtime.
+//
+// This read must always be served from the local replica, never
+// routed to the leader. The pin map it builds is what authorises the
+// mTLS dial to any peer, the leader included, so a leader-routed read
+// would be circular: a node that missed a leader cert rotation could
+// not dial the leader to learn the new fingerprint, and would be
+// locked out of the cluster with no way to recover. cluster_node_certs
+// is replicated, so every node already holds the rows.
 func (db *Database) ListClusterNodeCerts(ctx context.Context) ([]ClusterNodeCert, error) {
 	var rows []ClusterNodeCert
 

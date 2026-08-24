@@ -2,26 +2,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { Box, Typography, Button } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 
 interface EmptyStateProps {
   primaryText: string;
   secondaryText: string;
-  extraContent?: React.ReactNode;
-  button?: boolean;
-  buttonText?: string;
-  onCreate?: () => void;
-  readOnlyHint?: string;
 }
 
 const EmptyState: React.FC<EmptyStateProps> = ({
   primaryText,
   secondaryText,
-  extraContent,
-  button = false,
-  buttonText,
-  onCreate,
-  readOnlyHint,
 }) => {
   return (
     <Box
@@ -44,35 +34,6 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       <Typography variant="body1" gutterBottom align="left">
         {secondaryText}
       </Typography>
-
-      {extraContent && (
-        <Box sx={{ mt: 1, width: "100%" }}>
-          {typeof extraContent === "string" ? (
-            <Typography variant="body1" color="textSecondary">
-              {extraContent}
-            </Typography>
-          ) : (
-            extraContent
-          )}
-        </Box>
-      )}
-
-      {button && buttonText && onCreate && (
-        <Button
-          variant="contained"
-          color="success"
-          onClick={onCreate}
-          sx={{ mt: 2 }}
-        >
-          {buttonText}
-        </Button>
-      )}
-
-      {!button && readOnlyHint && (
-        <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-          {readOnlyHint}
-        </Typography>
-      )}
     </Box>
   );
 };

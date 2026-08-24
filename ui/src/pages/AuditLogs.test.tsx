@@ -16,7 +16,7 @@ const auditLog = (seed: number) => ({
   id: seed,
   timestamp: "2026-08-01T10:00:00Z",
   level: "info",
-  actor: "admin@ellanetworks.com",
+  user: "admin@ellanetworks.com",
   action: "create_subscriber",
   ip: "10.0.0.1",
   details: "created",
@@ -223,4 +223,28 @@ describe("AuditLogs date range", () => {
     });
     expect(inverted).toEqual([]);
   });
+});
+
+describe("AuditLogs actor column", () => {
+  it("links an actor that is a user account", async () => {
+    seedApi({ logs: [{ ...auditLog(1), user: "admin@ellanetworks.com" }] });
+    await renderAuditLogs();
+
+    const cell = await screen.findByText("admin@ellanetworks.com");
+    expect(cell.closest("a")).toHaveAttribute(
+      "href",
+      "/users/admin%40ellanetworks.com",
+    );
+  });
+
+  it.each(["system", "ella-node-1"])(
+    "renders the %s actor as plain text",
+    async (actor) => {
+      seedApi({ logs: [{ ...auditLog(1), user: actor }] });
+      await renderAuditLogs();
+
+      const cell = await screen.findByText(actor);
+      expect(cell.closest("a")).toBeNull();
+    },
+  );
 });

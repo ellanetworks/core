@@ -16,7 +16,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
-import { DataGrid, type GridColDef } from "@mui/x-data-grid";
+import { type GridColDef } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import {
   listAuditLogs,
   getAuditLogRetentionPolicy,
@@ -159,22 +160,26 @@ const AuditLog: React.FC = () => {
                 height: "100%",
               }}
             >
-              <Link
-                to={`/users/${encodeURIComponent(user)}`}
-                style={{ textDecoration: "none" }}
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              >
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: outerTheme.palette.link,
-                    textDecoration: "underline",
-                    "&:hover": { textDecoration: "underline" },
-                  }}
+              {user.includes("@") ? (
+                <Link
+                  to={`/users/${encodeURIComponent(user)}`}
+                  style={{ textDecoration: "none" }}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 >
-                  {user}
-                </Typography>
-              </Link>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: outerTheme.palette.link,
+                      textDecoration: "underline",
+                      "&:hover": { textDecoration: "underline" },
+                    }}
+                  >
+                    {user}
+                  </Typography>
+                </Link>
+              ) : (
+                <Typography variant="body2">{user}</Typography>
+              )}
             </Box>
           );
         },
@@ -355,7 +360,8 @@ const AuditLog: React.FC = () => {
           }
         >
           {(data) => (
-            <DataGrid<APIAuditLog>
+            <EntityGrid<APIAuditLog>
+              variant="log"
               rows={data.items ?? []}
               columns={columns}
               getRowId={(row) => row.id}
@@ -363,27 +369,7 @@ const AuditLog: React.FC = () => {
               rowCount={rowCount}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              pageSizeOptions={[10, 25, 50, 100]}
-              rowHeight={52}
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
+              getRowHeight={() => "auto"}
             />
           )}
         </QueryState>

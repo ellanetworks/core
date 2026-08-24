@@ -73,6 +73,12 @@ func (a *testApplier) open() error {
 	}
 
 	db.SetMaxOpenConns(1)
+
+	if _, err := db.ExecContext(context.Background(), "PRAGMA journal_mode = WAL;"); err != nil {
+		_ = db.Close()
+		return err
+	}
+
 	a.db = db
 
 	return nil
@@ -940,4 +946,179 @@ func TestFSM_ApplyBatch_PanicsOnReadLastAppliedError(t *testing.T) {
 	}()
 
 	fsm.ApplyBatch(logs)
+}
+
+func TestFSM_Snapshot_PinsStateAtSnapshotTime(t *testing.T) {
+	a := newTestApplier(t)
+	ctx := context.Background()
+
+	if _, err := a.db.ExecContext(ctx, `INSERT INTO t(id, v) VALUES (1, 'pinned')`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	fsm := NewFSM(a, t.TempDir())
+
+	snap, err := fsm.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	defer snap.Release()
+
+	if _, err := a.db.ExecContext(ctx, `INSERT INTO t(id, v) VALUES (2, 'after')`); err != nil {
+		t.Fatalf("insert after snapshot: %v", err)
+	}
+
+	sink := &memSink{}
+	if err := snap.Persist(sink); err != nil {
+		t.Fatalf("persist: %v", err)
+	}
+
+	tmp := filepath.Join(t.TempDir(), "out.db")
+	if err := os.WriteFile(tmp, sink.buf.Bytes()[snapshotHeaderSize:], 0o600); err != nil {
+		t.Fatalf("write snapshot: %v", err)
+	}
+
+	conn, err := sql.Open("sqlite3", tmp)
+	if err != nil {
+		t.Fatalf("open snapshot: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	var n int
+	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM t`).Scan(&n); err != nil {
+		t.Fatalf("count snapshot rows: %v", err)
+	}
+
+	if n != 1 {
+		t.Fatalf("snapshot must contain only rows committed before Snapshot(); got %d rows", n)
+	}
+}
+
+func TestFSM_Snapshot_DefersCopyToPersist(t *testing.T) {
+	a := newTestApplier(t)
+	dataDir := t.TempDir()
+
+	fsm := NewFSM(a, dataDir)
+
+	snap, err := fsm.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	defer snap.Release()
+
+	tmpDir := filepath.Join(dataDir, "raft", "snapshots", "tmp")
+	if entries, err := os.ReadDir(tmpDir); err == nil && len(entries) != 0 {
+		t.Fatalf("Snapshot() must not copy the database; found %d temp files", len(entries))
+	}
+
+	if err := snap.Persist(&memSink{}); err != nil {
+		t.Fatalf("persist: %v", err)
+	}
+
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil || len(entries) == 0 {
+		t.Fatalf("Persist() must produce the copy; ReadDir=%v err=%v", entries, err)
+	}
+}
+
+// blockingSink blocks on its first Write until release is closed, so a
+// test can observe FSM state during the streaming phase of Persist.
+type blockingSink struct {
+	memSink
+
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (s *blockingSink) Write(p []byte) (int, error) {
+	s.once.Do(func() {
+		close(s.entered)
+		<-s.release
+	})
+
+	return s.memSink.Write(p)
+}
+
+// Restore unlinks ella.db-wal/-shm and renames a new file over ella.db.
+// Raft runs Restore on the FSM goroutine and Persist on the snapshot
+// goroutine, so the two can overlap: without the FSM read lock held
+// across the page copy, Restore can pull the WAL out from under the
+// pinned reader mid-backup.
+func TestFSM_Snapshot_ExcludesRestoreUntilCopyCompletes(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	snap, err := fsm.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	defer snap.Release()
+
+	if fsm.mu.TryLock() {
+		fsm.mu.Unlock()
+		t.Fatal("Restore must be excluded while a snapshot read transaction is pinned")
+	}
+
+	sink := &blockingSink{entered: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+
+	go func() { done <- snap.Persist(sink) }()
+
+	<-sink.entered
+
+	// The copy has finished and streaming has begun. The pinned
+	// transaction is no longer needed, so Restore must be able to run
+	// and the WAL must be free to checkpoint.
+	if !fsm.mu.TryLock() {
+		close(sink.release)
+		t.Fatal("the pinned read transaction must be released once the page copy completes")
+	}
+
+	fsm.mu.Unlock()
+	close(sink.release)
+
+	if err := <-done; err != nil {
+		t.Fatalf("persist: %v", err)
+	}
+}
+
+// go-sqlite3 truncates a DSN at the first '?' unless it starts with
+// "file:", which silently turns mode=ro into READWRITE|CREATE — a
+// second write-capable handle to ella.db, and an empty database
+// fabricated out of thin air if the path is ever wrong.
+func TestSnapshotReadDSN_IsReadOnlyAndRefusesToCreate(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "does-not-exist.db")
+
+	readDB, err := sql.Open("sqlite3", snapshotReadDSN(missing))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	defer func() { _ = readDB.Close() }()
+
+	if err := readDB.PingContext(context.Background()); err == nil {
+		t.Fatal("a read-only handle must fail on a missing database, not create an empty one")
+	}
+
+	if _, err := os.Stat(missing); err == nil {
+		t.Fatal("opening the snapshot read handle must not create the database file")
+	}
+
+	a := newTestApplier(t)
+
+	liveDB, err := sql.Open("sqlite3", snapshotReadDSN(a.dbPath))
+	if err != nil {
+		t.Fatalf("open live: %v", err)
+	}
+
+	defer func() { _ = liveDB.Close() }()
+
+	if _, err := liveDB.ExecContext(context.Background(), "INSERT INTO t (v) VALUES ('nope')"); err == nil {
+		t.Fatal("the snapshot read handle must not be able to write to ella.db")
+	}
 }

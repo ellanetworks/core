@@ -5,11 +5,8 @@ import React, { useMemo } from "react";
 import { Box, Chip, CircularProgress, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Link as RouterLink } from "react-router-dom";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRenderCellParams,
-} from "@mui/x-data-grid";
+import { type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import type { SessionInfo } from "@/queries/subscribers";
 import AccessChip from "@/components/AccessChip";
 
@@ -186,31 +183,11 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
           <CircularProgress size={24} />
         </Box>
       ) : (
-        <DataGrid<SessionInfo>
+        <EntityGrid<SessionInfo>
           rows={sessions}
           columns={columns}
           getRowId={(row) => `${row.radio_access_type}-${row.id}`}
-          disableRowSelectionOnClick
-          disableColumnMenu
           hideFooter={sessions.length <= 25}
-          pageSizeOptions={[25, 50, 100]}
-          sx={{
-            width: "100%",
-            border: 1,
-            borderColor: "divider",
-            "& .MuiDataGrid-cell": {
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            },
-            "& .MuiDataGrid-columnHeaders": {
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            },
-            "& .MuiDataGrid-footerContainer": {
-              borderTop: "1px solid",
-              borderColor: "divider",
-            },
-          }}
         />
       )}
     </Box>

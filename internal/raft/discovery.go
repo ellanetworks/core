@@ -223,6 +223,13 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, ex
 
 			return conn, nil
 		},
+		// This transport wraps one already-dialled connection and is
+		// discarded with the response. Without DisableKeepAlives the
+		// connection would be parked in the transport's idle pool once
+		// the caller closes the body, and nothing could ever reach that
+		// pool again to close it — a leaked socket and goroutine on both
+		// ends of every probe.
+		DisableKeepAlives: true,
 	}
 
 	client := &http.Client{Transport: transport, Timeout: discoveryHTTPTimeout}

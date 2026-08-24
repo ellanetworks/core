@@ -6,11 +6,11 @@ import { Box, Typography, Button } from "@mui/material";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import {
-  DataGrid,
   type GridColDef,
   GridActionsCellItem,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
+import EntityGrid from "@/components/grid/EntityGrid";
 import {
   listSlices,
   deleteSlice,
@@ -156,7 +156,7 @@ export default function SlicesTab() {
         }
       >
         {(data) => (
-          <DataGrid<APISlice>
+          <EntityGrid<APISlice>
             rows={data.items ?? []}
             columns={columns}
             getRowId={(row) => row.name}
@@ -164,26 +164,6 @@ export default function SlicesTab() {
             rowCount={data.total_count ?? 0}
             paginationModel={pagination}
             onPaginationModelChange={setPagination}
-            pageSizeOptions={[10, 25, 50, 100]}
-            disableColumnMenu
-            disableRowSelectionOnClick
-            sx={{
-              width: "100%",
-              border: 1,
-              borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
           />
         )}
       </QueryState>

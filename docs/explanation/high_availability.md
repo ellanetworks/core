@@ -24,13 +24,13 @@ Two things HA does not handle automatically:
 
 ## What replicates, and what does not
 
-Network-wide resources — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, audit logs, the operator configuration — replicate across the cluster. Every replicated record carries a globally-unique ID, so rows created on different nodes never collide. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
+Network-wide resources — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, the operator configuration — replicate across the cluster. Every replicated record carries a globally-unique ID, so rows created on different nodes never collide. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
 
 Per-node configuration does not replicate. This covers the local data-plane and routing settings each node owns: static routes, BGP settings, BGP peers and import prefixes, NAT, the N3 external address, and flow accounting. To configure these on an HA cluster, hit each node's API directly — a change made on one node does not propagate to its peers. This lets nodes in different racks or AZs run with different upstream gateways and BGP topologies.
 
 Runtime state tied to a specific connection or session also does not replicate: SCTP associations with radios, UE contexts, active sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
 
-Observability is per-node: each instance exposes its own Prometheus endpoint, radio events, and flow reports, so operators scrape every node for a cluster-wide view.
+Observability is per-node: each instance exposes its own Prometheus endpoint, radio events, flow reports, and audit logs, so operators scrape every node for a cluster-wide view.
 
 ## User plane and routing
 

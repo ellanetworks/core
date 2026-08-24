@@ -15,6 +15,7 @@ var (
 	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber)
 	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, AffectsTopic(TopicSessionReconcile))
 	opEditSubscriberSeqNum    = registerChangesetOp("EditSubscriberSeqNum", (*Database).applyEditSubscriberSeqNum)
+	opAdvanceSubscriberSQN    = registerChangesetOpReturning[AdvanceSQNPayload, *AdvancedCredentials]("AdvanceSubscriberSQN", (*Database).applyAdvanceSubscriberSQN)
 	opDeleteSubscriber        = registerChangesetOp("DeleteSubscriber", (*Database).applyDeleteSubscriber)
 )
 
@@ -41,7 +42,7 @@ var (
 
 // Audit logs
 var (
-	opInsertAuditLog = registerChangesetOp("InsertAuditLog", (*Database).applyInsertAuditLog)
+	_ = registerChangesetOp("InsertAuditLog", (*Database).applyInsertAuditLog)
 )
 
 // Users
@@ -165,7 +166,7 @@ var (
 // FSM via CommandType. Call sites use intentOp.Invoke; the forwarded-op
 // envelope carries the same name the leader's dispatcher looks up here.
 var (
-	opDeleteOldAuditLogs     = registerIntentOp("DeleteOldAuditLogs", ellaraft.CmdDeleteOldAuditLogs)
+	_                        = registerIntentOp("DeleteOldAuditLogs", ellaraft.CmdDeleteOldAuditLogs)
 	opDeleteOldDailyUsage    = registerIntentOp("DeleteOldDailyUsage", ellaraft.CmdDeleteOldDailyUsage)
 	opDeleteAllDynamicLeases = registerIntentOp("DeleteAllDynamicLeases", ellaraft.CmdDeleteAllDynamicLeases, AffectsTopic(TopicIPLeases))
 	opDeleteExpiredSessions  = registerIntentOpReturning[int]("DeleteExpiredSessions", ellaraft.CmdDeleteExpiredSessions)

@@ -12,9 +12,9 @@ import (
 )
 
 // runAuditLogsHAMatrix triggers a known mutation on one node and asserts
-// the resulting audit entry is visible — with the same ID — on all three
-// nodes. The ID match proves the row replicated through Raft, rather
-// than each node generating its own.
+// the resulting audit entry is visible only on the node that served the
+// request. audit_logs is a local-only table: each node records what it
+// served, and the rows do not replicate through Raft.
 func runAuditLogsHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 	const (
 		canaryEmail = "apimat-ha-audit-canary@example.com"
@@ -43,8 +43,6 @@ func runAuditLogsHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 	end := time.Now().UTC().Add(30 * time.Second).Format(time.RFC3339)
 
-	var canonicalID string
-
 	for i, c := range nodes {
 		logs, err := c.ListAuditLogs(ctx, &client.ListAuditLogsParams{
 			Page:    1,
@@ -58,34 +56,35 @@ func runAuditLogsHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		}
 
 		found := findAuditLogByDetails(logs.Items, canaryEmail)
+
+		if i > 0 {
+			if found != nil {
+				t.Fatalf("node %d holds an audit entry for canary %q; audit_logs is local-only and must not replicate",
+					i+1, canaryEmail)
+			}
+
+			continue
+		}
+
 		if found == nil {
-			t.Fatalf("node %d audit log for canary %q not found (page returned %d items, totalCount %d)",
-				i+1, canaryEmail, len(logs.Items), logs.TotalCount)
+			t.Fatalf("node 1 audit log for canary %q not found (page returned %d items, totalCount %d)",
+				canaryEmail, len(logs.Items), logs.TotalCount)
 		}
 
 		if found.Action != "create_user" {
-			t.Fatalf("node %d Action: got %q, want %q", i+1, found.Action, "create_user")
+			t.Fatalf("node 1 Action: got %q, want %q", found.Action, "create_user")
 		}
 
 		if found.User != adminEmail {
-			t.Fatalf("node %d User (actor): got %q, want %q", i+1, found.User, adminEmail)
+			t.Fatalf("node 1 User (actor): got %q, want %q", found.User, adminEmail)
 		}
 
 		if found.ID == "" {
-			t.Fatalf("node %d ID: got empty, want non-empty", i+1)
+			t.Fatalf("node 1 ID: got empty, want non-empty")
 		}
 
 		if _, err := time.Parse(time.RFC3339, found.Timestamp); err != nil {
-			t.Fatalf("node %d Timestamp: not RFC 3339: %q (%v)", i+1, found.Timestamp, err)
-		}
-
-		if i == 0 {
-			canonicalID = found.ID
-		}
-
-		if found.ID != canonicalID {
-			t.Fatalf("node %d audit log ID: got %q, want %q (entry not replicated, each node generated its own)",
-				i+1, found.ID, canonicalID)
+			t.Fatalf("node 1 Timestamp: not RFC 3339: %q (%v)", found.Timestamp, err)
 		}
 	}
 }
