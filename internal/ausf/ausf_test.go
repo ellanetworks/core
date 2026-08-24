@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sqn"
 )
 
 // fakeStore implements ausf.SubscriberStore for testing.
@@ -541,4 +542,27 @@ func TestAuthenticate_SQNWrapsAt48BitBoundary(t *testing.T) {
 	if sqn != "000000000000" {
 		t.Fatalf("expected SQN to wrap to 000000000000, got %s", sqn)
 	}
+}
+
+func (f *fakeStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAuts, resyncRand string) (*ausf.AdvancedCredentials, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	sub, ok := f.subs[imsi]
+	if !ok {
+		return nil, fmt.Errorf("subscriber %s not found", imsi)
+	}
+
+	next, err := sqn.Next(sub.SequenceNumber, sub.Opc, sub.PermanentKey, resyncAuts, resyncRand)
+	if err != nil {
+		return nil, err
+	}
+
+	sub.SequenceNumber = next
+
+	return &ausf.AdvancedCredentials{
+		PermanentKey:   sub.PermanentKey,
+		Opc:            sub.Opc,
+		SequenceNumber: next,
+	}, nil
 }

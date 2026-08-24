@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/osutil"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
@@ -58,7 +59,7 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 		snapshots raft.SnapshotStore
 	)
 
-	if err := withTightUmask(func() error {
+	if err := osutil.WithTightUmask(func() error {
 		var bsErr error
 
 		boltStore, bsErr = raftboltdb.NewBoltStore(boltPath)

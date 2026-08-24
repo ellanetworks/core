@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sqn"
 	"github.com/ellanetworks/core/internal/udm"
 )
 
@@ -256,4 +257,27 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	if gotSQN != wantSQN {
 		t.Fatalf("after resync: want SQN %s, got %s", wantSQN, gotSQN)
 	}
+}
+
+func (f *internalStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	sub, ok := f.subs[imsi]
+	if !ok {
+		return nil, fmt.Errorf("subscriber %s not found", imsi)
+	}
+
+	next, err := sqn.Next(sub.SequenceNumber, sub.Opc, sub.PermanentKey, resyncAuts, resyncRand)
+	if err != nil {
+		return nil, err
+	}
+
+	sub.SequenceNumber = next
+
+	return &AdvancedCredentials{
+		PermanentKey:   sub.PermanentKey,
+		Opc:            sub.Opc,
+		SequenceNumber: next,
+	}, nil
 }

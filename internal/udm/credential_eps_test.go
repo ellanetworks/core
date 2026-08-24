@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"context"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/sqn"
 )
 
 // fakeEPSStore is a SubscriberStore seeded with TS 35.208 test-set-1 credentials.
@@ -15,16 +17,20 @@ type fakeEPSStore struct {
 	updatedSQN string
 }
 
-func (f *fakeEPSStore) GetSubscriber(_ context.Context, _ string) (*Subscriber, error) {
-	s := f.sub
+func (f *fakeEPSStore) AdvanceSequenceNumber(_ context.Context, _, resyncAuts, resyncRand string) (*AdvancedCredentials, error) {
+	next, err := sqn.Next(f.sub.SequenceNumber, f.sub.Opc, f.sub.PermanentKey, resyncAuts, resyncRand)
+	if err != nil {
+		return nil, err
+	}
 
-	return &s, nil
-}
+	f.sub.SequenceNumber = next
+	f.updatedSQN = next
 
-func (f *fakeEPSStore) UpdateSequenceNumber(_ context.Context, _, sqn string) error {
-	f.updatedSQN = sqn
-
-	return nil
+	return &AdvancedCredentials{
+		PermanentKey:   f.sub.PermanentKey,
+		Opc:            f.sub.Opc,
+		SequenceNumber: next,
+	}, nil
 }
 
 // TestGenerateEPSVectorConsistency checks the EPS-AKA vector the way a UE does:

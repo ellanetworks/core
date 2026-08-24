@@ -9,13 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
 
-	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/logger"
 	hraft "github.com/hashicorp/raft"
 	"go.uber.org/zap"
@@ -116,7 +113,7 @@ type forwardAttemptFn func(ctx context.Context) (*ProposeResult, int, error)
 // (421, 503), never on network errors or 5xx, to avoid double-applying
 // non-idempotent ops if a leader commit crossed with a lost response.
 func (m *Manager) ForwardOperation(ctx context.Context, opName string, payload json.RawMessage, timeout time.Duration) (*ProposeResult, error) {
-	if m.clusterListener == nil {
+	if m.leaderClient == nil {
 		return nil, hraft.ErrNotLeader
 	}
 
@@ -190,60 +187,27 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 }
 
 func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leaderID int, data []byte) (*ProposeResult, int, error) {
-	conn, err := m.clusterListener.Dial(ctx, leaderAddr, leaderID, listener.ALPNHTTP, dialTimeout)
+	resp, err := m.leaderClient.do(ctx, leaderAddr, leaderID, leaderHTTPRequest{
+		method:           http.MethodPost,
+		path:             ProposeForwardPath,
+		contentType:      ProposeForwardContentType,
+		body:             data,
+		maxResponseBytes: maxForwardResponseBytes,
+	})
 	if err != nil {
-		return nil, http.StatusServiceUnavailable, fmt.Errorf("dial leader: %w", err)
-	}
-
-	connUsed := false
-
-	defer func() {
-		if !connUsed {
-			_ = conn.Close()
+		if errors.Is(err, ErrLeaderUnreachable) {
+			return nil, http.StatusServiceUnavailable, err
 		}
-	}()
 
-	transport := &http.Transport{
-		DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
-			if connUsed {
-				return nil, errors.New("cluster HTTP transport: connection already consumed")
-			}
-
-			connUsed = true
-
-			return conn, nil
-		},
-	}
-
-	client := &http.Client{Transport: transport}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://"+leaderAddr+ProposeForwardPath, bytes.NewReader(data))
-	if err != nil {
-		return nil, 0, fmt.Errorf("new request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", ProposeForwardContentType)
-	req.ContentLength = int64(len(data))
-
-	resp, err := client.Do(req) // #nosec G107 -- leaderAddr comes from Raft, not user input
-	if err != nil {
-		return nil, 0, fmt.Errorf("post: %w", err)
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxForwardResponseBytes))
-	if err != nil {
-		return nil, 0, fmt.Errorf("read body: %w", err)
+		return nil, 0, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, resp.StatusCode, decodeForwardError(bodyBytes, resp.StatusCode)
+		return nil, resp.StatusCode, decodeForwardError(resp.Body, resp.StatusCode)
 	}
 
 	var env ProposeForwardResponse
-	if err := json.Unmarshal(bodyBytes, &env); err != nil {
+	if err := json.Unmarshal(resp.Body, &env); err != nil {
 		return nil, 0, fmt.Errorf("decode body: %w", err)
 	}
 
@@ -331,73 +295,24 @@ type LeaderResponse struct {
 // transient miss is preferable to amplifying load on a flapping
 // leader.
 func (m *Manager) LeaderRequest(ctx context.Context, method, path string, body []byte, contentType string) (*LeaderResponse, error) {
-	if m.clusterListener == nil {
-		return nil, hraft.ErrNotLeader
-	}
-
 	leaderAddr, leaderID := m.LeaderAddressAndID()
-	if leaderAddr == "" || leaderID == 0 {
+	if m.leaderClient == nil || leaderAddr == "" || leaderID == 0 {
 		return nil, hraft.ErrNotLeader
 	}
 
-	conn, err := m.clusterListener.Dial(ctx, leaderAddr, leaderID, listener.ALPNHTTP, dialTimeout)
+	resp, err := m.leaderClient.do(ctx, leaderAddr, leaderID, leaderHTTPRequest{
+		method:           method,
+		path:             path,
+		contentType:      contentType,
+		body:             body,
+		maxResponseBytes: maxForwardResponseBytes,
+		timeout:          m.ProposeTimeout(),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("dial leader: %w", err)
+		return nil, err
 	}
 
-	connUsed := false
-
-	defer func() {
-		if !connUsed {
-			_ = conn.Close()
-		}
-	}()
-
-	transport := &http.Transport{
-		DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
-			if connUsed {
-				return nil, errors.New("cluster HTTP transport: connection already consumed")
-			}
-
-			connUsed = true
-
-			return conn, nil
-		},
-	}
-
-	client := &http.Client{Transport: transport}
-
-	var reqBody io.Reader
-	if len(body) > 0 {
-		reqBody = bytes.NewReader(body)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, "https://"+leaderAddr+path, reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("new request: %w", err)
-	}
-
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-
-	if len(body) > 0 {
-		req.ContentLength = int64(len(body))
-	}
-
-	resp, err := client.Do(req) // #nosec G107 -- leaderAddr comes from Raft, not user input
-	if err != nil {
-		return nil, fmt.Errorf("post: %w", err)
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxForwardResponseBytes))
-	if err != nil {
-		return nil, fmt.Errorf("read body: %w", err)
-	}
-
-	return &LeaderResponse{StatusCode: resp.StatusCode, Body: bodyBytes}, nil
+	return &LeaderResponse{StatusCode: resp.StatusCode, Body: resp.Body}, nil
 }
 
 // WriteProposeForwardResponse serialises a successful ProposeResult as the

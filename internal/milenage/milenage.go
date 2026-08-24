@@ -3,7 +3,7 @@
 // Modified by Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package udm
+package milenage
 
 import (
 	"crypto/aes"

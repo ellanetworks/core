@@ -13,27 +13,23 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// captureAuditLogChangeset returns the changeset bytes for a single
-// InsertAuditLog op without committing it locally. captureChangeset
-// rolls back its inner transaction, so the audit_logs table remains
+// captureSliceChangeset returns the changeset bytes for a single
+// CreateNetworkSlice op without committing it locally. captureChangeset
+// rolls back its inner transaction, so the network_slices table remains
 // untouched after this returns.
-func captureAuditLogChangeset(t *testing.T, database *Database) []byte {
+func captureSliceChangeset(t *testing.T, database *Database) []byte {
 	t.Helper()
 
-	payload := &auditLogPayload{
-		ID:        "01900000-0000-7000-8000-00000000aaaa",
-		Timestamp: "2026-05-02T13:00:00Z",
-		Level:     "info",
-		Actor:     "test",
-		Action:    "test_action",
-		IP:        "1.2.3.4",
-		Details:   "regression test",
+	slice := &NetworkSlice{
+		ID:   "01900000-0000-7000-8000-00000000aaaa",
+		Sst:  1,
+		Name: "changeset-regression",
 	}
 
 	bytes, _, err := database.captureChangeset(context.Background(),
 		func(ctx context.Context) (any, error) {
-			return database.applyInsertAuditLog(ctx, payload)
-		}, "InsertAuditLog")
+			return database.applyCreateNetworkSlice(ctx, slice)
+		}, "CreateNetworkSlice")
 	if err != nil {
 		t.Fatalf("capture changeset: %v", err)
 	}
@@ -67,14 +63,14 @@ func readLastApplied(t *testing.T, database *Database) uint64 {
 	return uint64(v)
 }
 
-func countAuditLogs(t *testing.T, database *Database) int {
+func countSlices(t *testing.T, database *Database) int {
 	t.Helper()
 
 	var n int
 
 	if err := database.PlainDB().QueryRowContext(context.Background(),
-		"SELECT COUNT(*) FROM audit_logs").Scan(&n); err != nil {
-		t.Fatalf("count audit_logs: %v", err)
+		"SELECT COUNT(*) FROM network_slices WHERE name = 'changeset-regression'").Scan(&n); err != nil {
+		t.Fatalf("count network_slices: %v", err)
 	}
 
 	return n
@@ -103,19 +99,19 @@ func TestApplyChangeset_AdvancesLastAppliedOnSuccess(t *testing.T) {
 	database := newAtomicTestDB(t)
 	ctx := context.Background()
 
-	bytes := captureAuditLogChangeset(t, database)
+	bytes := captureSliceChangeset(t, database)
 
 	setLastApplied(t, database, 7)
 
 	if _, err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     bytes,
-		Operation: "InsertAuditLog",
+		Operation: "CreateNetworkSlice",
 	}, 42); err != nil {
 		t.Fatalf("applyChangeset: %v", err)
 	}
 
-	if got := countAuditLogs(t, database); got != 1 {
-		t.Fatalf("audit_logs count: want 1, got %d", got)
+	if got := countSlices(t, database); got != 1 {
+		t.Fatalf("network_slices count: want 1, got %d", got)
 	}
 
 	if got := readLastApplied(t, database); got != 42 {
@@ -127,7 +123,7 @@ func TestApplyChangeset_AdvancesLastAppliedOnSuccess(t *testing.T) {
 // half of the same contract: when sqlite3changeset_apply fails, the
 // fsm_state.lastApplied write must roll back too. Re-applying the same
 // changeset bytes a second time forces a duplicate-PK conflict on the
-// audit_logs auto-increment id.
+// network_slices primary key.
 //
 // Without the surrounding transaction, the lastApplied write would
 // commit even though the apply failed, corrupting crash-recovery
@@ -136,13 +132,13 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 	database := newAtomicTestDB(t)
 	ctx := context.Background()
 
-	bytes := captureAuditLogChangeset(t, database)
+	bytes := captureSliceChangeset(t, database)
 
 	setLastApplied(t, database, 7)
 
 	if _, err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     bytes,
-		Operation: "InsertAuditLog",
+		Operation: "CreateNetworkSlice",
 	}, 42); err != nil {
 		t.Fatalf("first applyChangeset: %v", err)
 	}
@@ -153,17 +149,17 @@ func TestApplyChangeset_RollsBackBothOnConflict(t *testing.T) {
 	}
 
 	// Re-apply the same bytes. The captured INSERT carries a concrete
-	// auto-increment id; SQLite reports a CONFLICT on the duplicate row.
+	// primary key; SQLite reports a CONFLICT on the duplicate row.
 	_, err := database.applyChangeset(ctx, &bytesPayload{
 		Value:     bytes,
-		Operation: "InsertAuditLog",
+		Operation: "CreateNetworkSlice",
 	}, 43)
 	if err == nil {
 		t.Fatalf("second applyChangeset: want conflict error, got nil")
 	}
 
-	if got := countAuditLogs(t, database); got != 1 {
-		t.Fatalf("audit_logs count after conflict: want 1, got %d", got)
+	if got := countSlices(t, database); got != 1 {
+		t.Fatalf("network_slices count after conflict: want 1, got %d", got)
 	}
 
 	if got := readLastApplied(t, database); got != 42 {

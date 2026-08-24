@@ -111,6 +111,7 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener) func() {
 	srv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
 		ConnContext:       peerNodeIDConnContext,
 	}
 

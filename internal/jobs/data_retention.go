@@ -5,8 +5,9 @@ package jobs
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -14,25 +15,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// LeaderGuard tracks leadership state for the data retention worker.
-// Implements raft.LeaderCallback.
-type LeaderGuard struct {
-	isLeader atomic.Bool
-}
+const retentionInterval = 24 * time.Hour
 
-func NewLeaderGuard() *LeaderGuard {
-	return &LeaderGuard{}
-}
-
-func (g *LeaderGuard) OnBecameLeader()   { g.isLeader.Store(true) }
-func (g *LeaderGuard) OnLostLeadership() { g.isLeader.Store(false) }
-func (g *LeaderGuard) IsLeader() bool    { return g.isLeader.Load() }
-
-// RunDataRetentionWorker runs the data retention loop. It blocks until ctx
-// is cancelled, so callers should invoke it in a goroutine.
-func RunDataRetentionWorker(ctx context.Context, database *db.Database, guard *LeaderGuard) {
-	ticker := time.NewTicker(24 * time.Hour)
+func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
+	ticker := time.NewTicker(retentionInterval)
 	defer ticker.Stop()
+
+	runRetentionPass(ctx, database, database.IsLeader())
 
 	for {
 		select {
@@ -42,75 +31,103 @@ func RunDataRetentionWorker(ctx context.Context, database *db.Database, guard *L
 		case <-ticker.C:
 		}
 
-		if !guard.IsLeader() {
-			continue
-		}
-
-		if err := enforceAuditDataRetention(ctx, database); err != nil {
-			logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
-		}
-
-		if err := enforceRadioDataRetention(ctx, database); err != nil {
-			logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
-		}
-
-		if err := enforceSubscriberUsageDataRetention(ctx, database); err != nil {
-			logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
-		}
-
-		if err := enforceFlowReportsDataRetention(ctx, database); err != nil {
-			logger.EllaLog.Error("error enforcing flow reports retention", zap.Error(err))
-		}
+		runRetentionPass(ctx, database, database.IsLeader())
 	}
+}
+
+func runRetentionPass(ctx context.Context, database *db.Database, isLeader bool) {
+	if err := enforceRadioDataRetention(ctx, database); err != nil {
+		logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
+	}
+
+	if err := enforceFlowReportsDataRetention(ctx, database); err != nil {
+		logger.EllaLog.Error("error enforcing flow reports retention", zap.Error(err))
+	}
+
+	if err := enforceAuditDataRetention(ctx, database); err != nil {
+		logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
+	}
+
+	if !isLeader {
+		return
+	}
+
+	if err := enforceSubscriberUsageDataRetention(ctx, database); err != nil {
+		logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
+	}
+}
+
+func retentionDays(ctx context.Context, database *db.Database, category db.RetentionCategory) (int, bool, error) {
+	days, err := database.GetRetentionPolicy(ctx, category)
+	if errors.Is(err, sql.ErrNoRows) {
+		logger.EllaLog.Warn("no retention policy configured; skipping retention for this category",
+			zap.String("category", string(category)))
+
+		return 0, false, nil
+	}
+
+	if err != nil {
+		return 0, false, err
+	}
+
+	return days, true, nil
 }
 
 func enforceAuditDataRetention(ctx context.Context, database *db.Database) error {
-	days, err := database.GetRetentionPolicy(ctx, db.CategoryAuditLogs)
+	days, ok, err := retentionDays(ctx, database, db.CategoryAuditLogs)
 	if err != nil {
 		return err
 	}
 
-	if err := database.DeleteOldAuditLogs(ctx, days); err != nil {
-		return err
+	if !ok {
+		return nil
 	}
 
-	return nil
+	return database.DeleteOldAuditLogs(ctx, days)
 }
 
 func enforceRadioDataRetention(ctx context.Context, database *db.Database) error {
-	days, err := database.GetRetentionPolicy(ctx, db.CategoryRadioLogs)
+	days, ok, err := retentionDays(ctx, database, db.CategoryRadioLogs)
 	if err != nil {
 		return err
 	}
 
-	if err := database.DeleteOldRadioEvents(ctx, days); err != nil {
-		return err
+	if !ok {
+		return nil
 	}
 
-	return nil
+	return database.DeleteOldRadioEvents(ctx, days)
 }
 
 func enforceSubscriberUsageDataRetention(ctx context.Context, database *db.Database) error {
-	days, err := database.GetRetentionPolicy(ctx, db.CategorySubscriberUsage)
+	days, ok, err := retentionDays(ctx, database, db.CategorySubscriberUsage)
 	if err != nil {
-		return fmt.Errorf("failed to get subscriber usage retention policy: %v", err)
+		return fmt.Errorf("failed to get subscriber usage retention policy: %w", err)
+	}
+
+	if !ok {
+		return nil
 	}
 
 	if err := database.DeleteOldDailyUsage(ctx, days); err != nil {
-		return fmt.Errorf("failed to delete old daily usage data: %v", err)
+		return fmt.Errorf("failed to delete old daily usage data: %w", err)
 	}
 
 	return nil
 }
 
 func enforceFlowReportsDataRetention(ctx context.Context, database *db.Database) error {
-	days, err := database.GetRetentionPolicy(ctx, db.CategoryFlowReports)
+	days, ok, err := retentionDays(ctx, database, db.CategoryFlowReports)
 	if err != nil {
-		return fmt.Errorf("failed to get flow reports retention policy: %v", err)
+		return fmt.Errorf("failed to get flow reports retention policy: %w", err)
+	}
+
+	if !ok {
+		return nil
 	}
 
 	if err := database.DeleteOldFlowReports(ctx, days); err != nil {
-		return fmt.Errorf("failed to delete old flow reports: %v", err)
+		return fmt.Errorf("failed to delete old flow reports: %w", err)
 	}
 
 	return nil

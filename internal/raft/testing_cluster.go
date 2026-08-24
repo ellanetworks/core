@@ -16,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
+	"github.com/ellanetworks/core/internal/osutil"
 	hraft "github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
@@ -261,7 +262,7 @@ func createTestNode(t testing.TB, nodeID, port int, pki *testutil.PKI, applier A
 		snapshots hraft.SnapshotStore
 	)
 
-	if err := withTightUmask(func() error {
+	if err := osutil.WithTightUmask(func() error {
 		var bsErr error
 
 		boltStore, bsErr = raftboltdb.NewBoltStore(boltPath)
@@ -299,17 +300,18 @@ func createTestNode(t testing.TB, nodeID, port int, pki *testutil.PKI, applier A
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:            r,
-		fsm:             fsm,
-		transport:       transport,
-		logStore:        boltStore,
-		snaps:           snapshots,
-		config:          ClusterConfig{Enabled: true, BindAddress: addr, AdvertiseAddress: addr},
-		nodeID:          nodeID,
-		dataDir:         dataDir,
-		observer:        observer,
-		clusterListener: ln,
+		raft:      r,
+		fsm:       fsm,
+		transport: transport,
+		logStore:  boltStore,
+		snaps:     snapshots,
+		config:    ClusterConfig{Enabled: true, BindAddress: addr, AdvertiseAddress: addr},
+		nodeID:    nodeID,
+		dataDir:   dataDir,
+		observer:  observer,
 	}
+
+	m.attachClusterListener(ln)
 
 	return m, ln
 }

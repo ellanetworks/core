@@ -20,6 +20,7 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/osutil"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/google/uuid"
 	autopilot "github.com/hashicorp/raft-autopilot"
@@ -61,6 +62,7 @@ type Database struct {
 	createSubscriberStmt        *sqlair.Statement
 	updateSubscriberProfileStmt *sqlair.Statement
 	updateSubscriberSqnNumStmt  *sqlair.Statement
+	casSubscriberSqnNumStmt     *sqlair.Statement
 	deleteSubscriberStmt        *sqlair.Statement
 
 	// IP Lease statements
@@ -385,6 +387,20 @@ const (
 	InitialPolicyArp                 = 1 // Default ARP of 1
 )
 
+func warnIfWorldReadable(path string) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return
+	}
+
+	if perms := info.Mode().Perm(); perms&0o077 != 0 {
+		logger.DBLog.Warn("database file has wider permissions than needed",
+			zap.String("path", path),
+			zap.String("existing", perms.String()),
+			zap.String("needed", os.FileMode(0o600).String()))
+	}
+}
+
 // openSQLiteConnection opens a SQLite database at the given path and configures
 // connection limits, busy timeout, WAL journaling, synchronous mode, and foreign keys.
 func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, error) {
@@ -393,30 +409,35 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 	// (prevents two processes from entering the same migration) and is
 	// harmless for normal operations because SetMaxOpenConns(1) already
 	// serialises all in-process access.
-	dsn := databasePath + "?_txlock=immediate"
+	dsn := databasePath + "?_txlock=immediate" +
+		"&_busy_timeout=5000" +
+		"&_journal_mode=WAL" +
+		"&_synchronous=NORMAL" +
+		"&_foreign_keys=on"
 
-	sqlConnection, err := sql.Open("sqlite3", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
+	warnIfWorldReadable(databasePath)
 
-	sqlConnection.SetMaxOpenConns(1)
+	var sqlConnection *sql.DB
 
-	pragmas := []struct {
-		sql  string
-		desc string
-	}{
-		{"PRAGMA busy_timeout = 5000;", "set busy_timeout"},
-		{"PRAGMA journal_mode = WAL;", "enable WAL journaling"},
-		{"PRAGMA synchronous = NORMAL;", "set synchronous to NORMAL"},
-		{"PRAGMA foreign_keys = ON;", "enable foreign key support"},
-	}
-
-	for _, p := range pragmas {
-		if _, err := sqlConnection.ExecContext(ctx, p.sql); err != nil {
-			_ = sqlConnection.Close()
-			return nil, fmt.Errorf("failed to %s: %w", p.desc, err)
+	err := osutil.WithTightUmask(func() error {
+		conn, openErr := sql.Open("sqlite3", dsn)
+		if openErr != nil {
+			return fmt.Errorf("failed to open database: %w", openErr)
 		}
+
+		conn.SetMaxOpenConns(1)
+
+		if pingErr := conn.PingContext(ctx); pingErr != nil {
+			_ = conn.Close()
+			return fmt.Errorf("failed to open database connection: %w", pingErr)
+		}
+
+		sqlConnection = conn
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return sqlConnection, nil
@@ -1289,6 +1310,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.casSubscriberSqnNumStmt, fmt.Sprintf(casSubscriberSeqNumStmt, SubscribersTableName), []any{sqnCAS{}}},
 		{&db.deleteSubscriberStmt, fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 
 		// IP Leases
