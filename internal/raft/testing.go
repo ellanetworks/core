@@ -130,6 +130,7 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 		observer:  observer,
 
 		leaderBarrier: make(chan struct{}),
+		shutdownCh:    make(chan struct{}),
 	}
 
 	observer.Register(leaderBarrierCallback{m: m})

@@ -95,8 +95,12 @@ const (
 
 	leaderPollInterval = 25 * time.Millisecond
 
-	leaderBarrierTimeout = 2 * time.Minute
+	leaderBarrierRetryInterval = 1 * time.Second
 )
+
+// errShuttingDown aborts a wait that the manager's own shutdown has
+// overtaken. It never reaches a caller outside this package.
+var errShuttingDown = errors.New("raft manager shutting down")
 
 // closeTransport best-effort closes a raft.Transport. The interface itself
 // has no Close method, but concrete transports (TCP, in-mem) implement
@@ -134,6 +138,9 @@ type Manager struct {
 
 	leaderBarrier     chan struct{}
 	leaderBarrierOnce sync.Once
+
+	shutdownCh   chan struct{}
+	shutdownOnce sync.Once
 }
 
 // leaderBarrierCallback applies a raft barrier on every leadership
@@ -147,14 +154,51 @@ type leaderBarrierCallback struct {
 func (c leaderBarrierCallback) OnLostLeadership() {}
 
 func (c leaderBarrierCallback) OnBecameLeader() {
-	if err := c.m.WriteBarrier(leaderBarrierTimeout); err != nil {
-		logger.RaftLog.Error("Post-leadership barrier failed; reads may lag the committed log",
+	for {
+		err := c.m.barrierForLeadership()
+		if err == nil {
+			c.m.leaderBarrierOnce.Do(func() { close(c.m.leaderBarrier) })
+			return
+		}
+
+		if errors.Is(err, errShuttingDown) || c.m.raft.State() != raft.Leader {
+			logger.RaftLog.Warn("Post-leadership barrier abandoned", zap.Error(err))
+			return
+		}
+
+		logger.RaftLog.Error("Post-leadership barrier failed; retrying before leader initialization runs",
 			zap.Error(err))
 
-		return
+		select {
+		case <-c.m.shutdownCh:
+			return
+		case <-time.After(leaderBarrierRetryInterval):
+		}
+	}
+}
+
+// barrierForLeadership waits out the shared per-term barrier with no deadline
+// of its own: raft.Barrier already ends when the FSM catches up or raft shuts
+// down, and a deadline here would only strand the waiter while the barrier it
+// abandoned went on to succeed.
+func (m *Manager) barrierForLeadership() error {
+	term := m.raft.CurrentTerm()
+	if term != 0 && m.barrieredTerm.Load() == term {
+		return nil
 	}
 
-	c.m.leaderBarrierOnce.Do(func() { close(c.m.leaderBarrier) })
+	if m.raft.State() != raft.Leader {
+		return raft.ErrNotLeader
+	}
+
+	att := m.barrierFor(term)
+
+	select {
+	case <-att.done:
+		return att.err
+	case <-m.shutdownCh:
+		return errShuttingDown
+	}
 }
 
 // WaitForLeaderBarrier blocks until this node has completed a post-leadership
@@ -340,6 +384,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		observer:      observer,
 		boltNoSync:    false,
 		leaderBarrier: make(chan struct{}),
+		shutdownCh:    make(chan struct{}),
 	}
 
 	observer.Register(leaderBarrierCallback{m: m})
@@ -770,6 +815,8 @@ func (m *Manager) MemberIDs() []int {
 
 // Shutdown gracefully shuts down the Raft node.
 func (m *Manager) Shutdown() error {
+	m.shutdownOnce.Do(func() { close(m.shutdownCh) })
+
 	if m.observer != nil {
 		m.observer.Stop()
 	}

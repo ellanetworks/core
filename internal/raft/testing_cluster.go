@@ -311,6 +311,7 @@ func createTestNode(t testing.TB, nodeID, port int, pki *testutil.PKI, applier A
 		observer:  observer,
 
 		leaderBarrier: make(chan struct{}),
+		shutdownCh:    make(chan struct{}),
 	}
 
 	observer.Register(leaderBarrierCallback{m: m})
