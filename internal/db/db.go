@@ -409,7 +409,11 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 	// (prevents two processes from entering the same migration) and is
 	// harmless for normal operations because SetMaxOpenConns(1) already
 	// serialises all in-process access.
-	dsn := databasePath + "?_txlock=immediate"
+	dsn := databasePath + "?_txlock=immediate" +
+		"&_busy_timeout=5000" +
+		"&_journal_mode=WAL" +
+		"&_synchronous=NORMAL" +
+		"&_foreign_keys=on"
 
 	warnIfWorldReadable(databasePath)
 
@@ -423,9 +427,9 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 
 		conn.SetMaxOpenConns(1)
 
-		if _, pingErr := conn.ExecContext(ctx, "PRAGMA journal_mode = WAL;"); pingErr != nil {
+		if pingErr := conn.PingContext(ctx); pingErr != nil {
 			_ = conn.Close()
-			return fmt.Errorf("failed to enable WAL journaling: %w", pingErr)
+			return fmt.Errorf("failed to open database connection: %w", pingErr)
 		}
 
 		sqlConnection = conn
@@ -434,22 +438,6 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	pragmas := []struct {
-		sql  string
-		desc string
-	}{
-		{"PRAGMA busy_timeout = 5000;", "set busy_timeout"},
-		{"PRAGMA synchronous = NORMAL;", "set synchronous to NORMAL"},
-		{"PRAGMA foreign_keys = ON;", "enable foreign key support"},
-	}
-
-	for _, p := range pragmas {
-		if _, err := sqlConnection.ExecContext(ctx, p.sql); err != nil {
-			_ = sqlConnection.Close()
-			return nil, fmt.Errorf("failed to %s: %w", p.desc, err)
-		}
 	}
 
 	return sqlConnection, nil

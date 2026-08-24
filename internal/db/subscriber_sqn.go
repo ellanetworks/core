@@ -5,6 +5,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"sync"
@@ -54,7 +56,11 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 		row := Subscriber{Imsi: payload.IMSI}
 
 		if err := db.runner(ctx).Query(ctx, db.getSubscriberStmt, row).Get(&row); err != nil {
-			return nil, ErrNotFound
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+
+			return nil, fmt.Errorf("read subscriber %s: %w", payload.IMSI, err)
 		}
 
 		if row.PermanentKey == "" || row.Opc == "" {
@@ -92,9 +98,18 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 }
 
 func (db *Database) AdvanceSubscriberSQN(ctx context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error) {
-	return opAdvanceSubscriberSQN.Invoke(db, &AdvanceSQNPayload{
+	creds, err := opAdvanceSubscriberSQN.Invoke(db, &AdvanceSQNPayload{
 		IMSI:       imsi,
 		ResyncAuts: resyncAuts,
 		ResyncRand: resyncRand,
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	if creds == nil {
+		return nil, fmt.Errorf("advance sequence number for subscriber %s: leader returned no credentials", imsi)
+	}
+
+	return creds, nil
 }

@@ -37,3 +37,43 @@ func TestOpenSQLiteConnectionCreatesPrivateFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenSQLiteConnectionAppliesPragmasToEveryConnection(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "ella.db")
+
+	conn, err := openSQLiteConnection(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	want := map[string]string{
+		"journal_mode": "wal",
+		"busy_timeout": "5000",
+		"synchronous":  "1",
+		"foreign_keys": "1",
+	}
+
+	check := func(stage string) {
+		t.Helper()
+
+		for pragma, expected := range want {
+			var got string
+			if err := conn.QueryRowContext(context.Background(), "PRAGMA "+pragma).Scan(&got); err != nil {
+				t.Fatalf("%s: read %s: %v", stage, pragma, err)
+			}
+
+			if got != expected {
+				t.Fatalf("%s: %s = %q, want %q", stage, pragma, got, expected)
+			}
+		}
+	}
+
+	check("initial connection")
+
+	conn.SetMaxIdleConns(0)
+	conn.SetMaxIdleConns(1)
+
+	check("replacement connection")
+}

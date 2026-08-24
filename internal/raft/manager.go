@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -90,6 +91,13 @@ const (
 	// (commit is microseconds) and a reasonable default for HA with healthy
 	// replication; operators tune via ClusterConfig.ProposeTimeout.
 	defaultProposeTimeout = 5 * time.Second
+
+	// defaultStandaloneNodeID is the node ID a standalone install adopts and
+	// persists when neither config, environment, nor a previously written
+	// node-id file supplies one.
+	defaultStandaloneNodeID = 1
+
+	standaloneLeaderTimeout = 60 * time.Second
 )
 
 // closeTransport best-effort closes a raft.Transport. The interface itself
@@ -192,19 +200,12 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		snapshotStore raft.SnapshotStore
 	)
 
-	// In single-server mode the raft log is auxiliary: ella.db (fsynced
-	// on COMMIT) is the canonical FSM state, there are no peers to
-	// replicate to, and losing trailing raft-log entries on crash is
-	// harmless — the FSM state on disk is already authoritative.
-	// Skipping per-entry fsync halves write latency (one fsync per
-	// COMMIT instead of two). HA mode keeps fsync enabled: replicas
-	// derive truth from the log.
 	err = osutil.WithTightUmask(func() error {
 		var bsErr error
 
 		boltStore, bsErr = raftboltdb.New(raftboltdb.Options{
 			Path:   boltPath,
-			NoSync: singleServer,
+			NoSync: false,
 		})
 		if bsErr != nil {
 			return fmt.Errorf("create bolt store at %s: %w", boltPath, bsErr)
@@ -310,7 +311,7 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		dataDir:        dataDir,
 		observer:       observer,
 		needsDiscovery: !singleServer && !hasState && !recovered,
-		boltNoSync:     singleServer,
+		boltNoSync:     false,
 	}
 
 	m.attachClusterListener(options.clusterListener)
@@ -325,14 +326,25 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	}
 
 	if singleServer {
-		if err := m.waitForLeader(ctx); err != nil {
+		leaderCtx, cancelLeader := context.WithTimeout(ctx, standaloneLeaderTimeout)
+		leaderErr := m.waitForLeader(leaderCtx)
+
+		cancelLeader()
+
+		if leaderErr != nil {
+			servers := describeServers(r)
+
 			_ = r.Shutdown().Error()
 
 			closeTransport(transport)
 
 			_ = boltStore.Close()
 
-			return nil, err
+			return nil, fmt.Errorf("standalone node %d did not become raft leader (%w); the raft "+
+				"state in %s lists servers [%s], and a standalone node can only elect itself when "+
+				"it is the sole voter; write a peers.json recovery file into that directory to "+
+				"reset the server configuration",
+				nodeID, leaderErr, raftDir, servers)
 		}
 
 		// Post-snapshot committed entries are applied asynchronously,
@@ -354,17 +366,37 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	return m, nil
 }
 
-// resolveNodeIDForMode picks the Raft server ID. In single-server mode the
-// node is alone in its configuration, so ID 1 is sufficient and doesn't
-// require operators to provision cluster.node-id on every standalone install.
-// HA mode goes through ResolveNodeID, which enforces config/env/file
-// consistency and rejects mismatches that would invalidate issued GUTIs.
-func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) (int, error) {
-	if singleServer && cfg.NodeID == 0 {
-		return 1, nil
+func describeServers(r *raft.Raft) string {
+	future := r.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return fmt.Sprintf("unreadable: %v", err)
 	}
 
-	id, err := ResolveNodeID(cfg.NodeID, dataDir)
+	servers := future.Configuration().Servers
+	if len(servers) == 0 {
+		return "none"
+	}
+
+	ids := make([]string, 0, len(servers))
+	for _, s := range servers {
+		ids = append(ids, string(s.ID))
+	}
+
+	return strings.Join(ids, ", ")
+}
+
+// resolveNodeIDForMode picks the Raft server ID. Both modes go through the
+// same config/env/file chain, which persists the ID on first boot and
+// rejects later mismatches that would invalidate issued GUTIs. Single-server
+// mode additionally falls back to defaultStandaloneNodeID when no source
+// supplies one, so standalone installs need not provision cluster.node-id.
+func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) (int, error) {
+	fallback := 0
+	if singleServer {
+		fallback = defaultStandaloneNodeID
+	}
+
+	id, err := resolveNodeID(cfg.NodeID, dataDir, fallback)
 	if err != nil {
 		return 0, fmt.Errorf("resolve node ID: %w", err)
 	}
@@ -689,9 +721,7 @@ func (m *Manager) ClusterEnabled() bool {
 }
 
 // BoltNoSync reports whether the raft log store was opened with fsync
-// disabled. Single-server nodes skip fsync because ella.db is the canonical
-// FSM state and is itself fsynced on COMMIT; HA nodes keep fsync enabled
-// because the raft log is the replicated source of truth.
+// disabled.
 func (m *Manager) BoltNoSync() bool {
 	return m.boltNoSync
 }
