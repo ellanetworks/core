@@ -45,8 +45,6 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	// TS 38.413 §8.6.1.2: the NAS-PDU is carried without interpretation. Which NAS message
-	// this is, and whether it may bind or mint a context, is the NAS layer's decision.
 	resumeExistingContext(ctx, amfInstance, ueConn, msg)
 
 	amfInstance.NAS.HandleNAS(ctx, ueConn, msg.NASPDU)

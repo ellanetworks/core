@@ -28,8 +28,7 @@ var nasTracer = otel.Tracer("ella-core/amf/nas")
 // it resolves to: a REGISTRATION REQUEST mints a fresh persistent context; a message the AMF
 // cannot process draws the STATUS the spec mandates (§7.4, §7.5.1) or an audited silence
 // (§4.4.4.3), never a bare drop; a message that establishes no context leaves the connection
-// bare for the NGAP layer to release. Every uplink NAS PDU enters here, whichever NGAP
-// procedure carried it.
+// bare for the NGAP layer to release.
 func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
 	if ue == nil {
 		logger.From(ctx, logger.AmfLog).Error("inbound NAS on a nil UE connection")
@@ -57,11 +56,6 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 			// §4.4.4.3's silent discard does not apply here.
 			logger.From(ctx, logger.AmfLog).Warn("failed to resolve UE context from mobile identity", zap.Error(err))
 
-			// A SERVICE REQUEST recognizable by message type but undecodable is a protocol
-			// error: §5.6.1.8 b) answers it with a SERVICE REJECT #96, not a STATUS. One
-			// that decodes but whose identity the AMF could not look up is not the UE's
-			// protocol error, so it draws the #9 that leaves its contexts unchanged
-			// (§4.4.4.3) like any other unresolved request.
 			if isServiceRequest(nasPdu) {
 				cause := fgs.GMMCauseUEIdentityCannotBeDerived
 				if !decodesAsServiceRequest(ctx, nasPdu) {
@@ -77,10 +71,6 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		}
 
 		if amfUe == nil {
-			// §4.4.4.3 admits a SERVICE REQUEST before secure exchange even when its MAC
-			// fails, but it never mints a context. With none resolved — or none the message
-			// authenticates against — the answer is a SERVICE REJECT #9, leaving the 5GMM
-			// and 5G NAS security contexts unchanged.
 			if isServiceRequest(nasPdu) {
 				rejectBareServiceRequest(ctx, ue, fgs.GMMCauseUEIdentityCannotBeDerived)
 
@@ -189,16 +179,12 @@ func isRegistrationRequest(payload []byte) bool {
 }
 
 // isServiceRequest reports whether a fresh connection's first NAS message is a SERVICE
-// REQUEST, so the mint gate can answer it with a SERVICE REJECT instead of minting a
-// context or returning a 5GMM STATUS.
+// REQUEST, so the mint gate can answer it with a SERVICE REJECT rather than mint a context.
 func isServiceRequest(payload []byte) bool {
 	mt, ok := peekInitialGmmType(payload)
 	return ok && mt == uint8(fgs.MsgServiceRequest)
 }
 
-// decodesAsServiceRequest reports whether a PDU already recognized as a SERVICE REQUEST by
-// message type also decodes, telling the protocol error §5.6.1.8 b) answers with cause #96
-// apart from a well-formed request the AMF simply could not resolve to a context.
 func decodesAsServiceRequest(ctx context.Context, payload []byte) bool {
 	body, ok := initialGmmBody(payload)
 	if !ok {
@@ -231,9 +217,6 @@ func peekInitialGmmType(payload []byte) (uint8, bool) {
 	return uint8(mt), true
 }
 
-// initialGmmBody returns the plain 5GMM message carried by a fresh connection's first NAS
-// PDU. ok is false for a non-5GMM, ciphered, or too-short PDU, none of which the AMF can
-// classify without a security context.
 func initialGmmBody(payload []byte) ([]byte, bool) {
 	sht, err := fgs.PeekSecurityHeaderType(payload)
 	if err != nil {

@@ -41,9 +41,6 @@ func sendServiceAccept(
 	pending *pendingN1,
 ) error {
 	if initialContextSetup {
-		// TS 33.501 §6.8.1.2.2: KgNB is derived from the uplink NAS COUNT of the message that
-		// took the UE from CM-IDLE to CM-CONNECTED, and handed to the NG-RAN node in the
-		// INITIAL CONTEXT SETUP that carries the accept.
 		if err := ue.UpdateSecurityContext(); err != nil {
 			return fmt.Errorf("error updating security context: %v", err)
 		}
@@ -173,8 +170,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	msg, err := fgs.ParseServiceRequest(plain)
 	if !decoded(ctx, "ServiceRequest", err) {
-		// TS 24.501 §5.6.1.8 b): a SERVICE REQUEST carrying a protocol error is answered
-		// with a SERVICE REJECT #96, not a 5GMM STATUS.
 		logger.From(ctx, logger.AmfLog).Warn("failed to decode Service Request", zap.Error(err))
 		rejectService(ctx, ueConn, fgs.GMMCauseInvalidMandatoryInformation)
 
@@ -280,11 +275,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return nasreply.Silent(nasreply.ReasonUnspecified)
 	}
 
-	// The UE Context Request IE has the AMF trigger an Initial Context Setup (TS 38.413
-	// §8.6.1.2), and only that procedure carries the KgNB derived from this message's
-	// uplink NAS COUNT (TS 33.501 §6.8.1.2.2). A SERVICE REQUEST sent in 5GMM-CONNECTED
-	// mode is not the message that established the AS context, so the claim it loses
-	// routes its PDU sessions through a standalone PDU Session Resource Setup instead.
 	initialContextSetup := ueConn.UeContextRequest && ueConn.ClaimICS()
 
 	if requestData := ue.N1N2Message(); requestData != nil {
@@ -436,8 +426,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 }
 
 // rejectService answers a service request the AMF cannot accept with a SERVICE REJECT
-// carrying cause (TS 24.501 §5.6.1.5), and releases the N1 NAS signalling connection only
-// when the UE expects the network to (§5.3.1.3).
+// carrying cause, releasing the RAN connection only when TS 24.501 §5.3.1.3 expects it.
 func rejectService(ctx context.Context, ueConn *amf.UeConn, cause fgs.GMMCause) {
 	amf.SendServiceReject(ctx, ueConn, cause)
 
@@ -449,12 +438,6 @@ func rejectService(ctx context.Context, ueConn *amf.UeConn, cause fgs.GMMCause) 
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
 }
 
-// releasesN1Connection reports whether a SERVICE REJECT carrying cause is one on whose
-// receipt the UE starts T3540 to let the network release the N1 NAS signalling connection
-// (TS 24.501 §5.3.1.3 a) and d)). Any other cause is a protocol error, whose reject leaves
-// the AMF in its current 5GMM mode (§5.6.1.8 b)): the UE starts T3540 for it only when the
-// service request procedure was started from 5GMM-IDLE mode (§5.3.1.3 a1), §5.6.1.7 i)), so
-// a UE that sent the request in 5GMM-CONNECTED mode keeps its connection and user plane.
 func releasesN1Connection(ueConn *amf.UeConn, cause fgs.GMMCause) bool {
 	switch cause {
 	case fgs.GMMCauseServicesNotAllowed,

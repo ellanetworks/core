@@ -253,9 +253,6 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	return nil
 }
 
-// rejectSHT selects the security header type for a REGISTRATION REJECT or SERVICE REJECT.
-// TS 24.501 §4.4.4.2 admits either unprotected only before the network has established
-// secure exchange on the connection; the UE discards one that arrives unprotected after.
 func rejectSHT(ue *UeConn) uint8 {
 	if ue.SecureExchangeEstablished() {
 		return uint8(fgs.SHTIntegrityProtectedCiphered)

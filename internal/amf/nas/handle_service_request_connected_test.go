@@ -26,7 +26,6 @@ type connectedModeFixture struct {
 
 func (f connectedModeFixture) conn() *amf.UeConn { return f.ue.Conn() }
 
-// serviceRequest encodes a ciphered SERVICE REQUEST of svcType for this fixture's UE.
 func (f connectedModeFixture) serviceRequest(t *testing.T, svcType fgs.ServiceType) []byte {
 	t.Helper()
 
@@ -38,9 +37,6 @@ func (f connectedModeFixture) serviceRequest(t *testing.T, svcType fgs.ServiceTy
 	return encSR(t, m)
 }
 
-// connectedModeUe builds a registered, secured UE whose connection carries the UE Context
-// Request the gNB set on the INITIAL UE MESSAGE, with one PDU session (PSI 12 — the one
-// buildTestServiceRequestCiphered names in its Uplink data status IE).
 func connectedModeUe(t *testing.T, smf amf.SmfSbi) connectedModeFixture {
 	t.Helper()
 
@@ -90,20 +86,11 @@ func connectedModeUe(t *testing.T, smf amf.SmfSbi) connectedModeFixture {
 	}
 
 	ue.Conn().UeContextRequest = true
-	// The SERVICE REQUEST was integrity checked before dispatch, which is what establishes
-	// secure exchange on the connection (TS 24.501 §4.4.4.3).
 	ue.Conn().MarkSecureExchangeEstablished()
 
 	return connectedModeFixture{amf: amfInstance, ue: ue, ngapSender: ngapSender, key: key, algo: algo}
 }
 
-// The Initial Context Setup carries the KgNB derived from the uplink NAS COUNT of the NAS
-// message that took the UE from CM-IDLE to CM-CONNECTED (TS 33.501 §6.8.1.2.2), and the AMF
-// triggers it because the UE Context Request IE arrived on the INITIAL UE MESSAGE
-// (TS 38.413 §8.6.1.2). A SERVICE REQUEST the UE sends later in 5GMM-CONNECTED mode
-// (TS 24.501 §5.6.1.1 cases e) and j)) is not that message: it must neither repeat the
-// procedure nor re-derive the key, and its user-plane resources go up in a standalone PDU
-// Session Resource Setup instead.
 func TestHandleServiceRequest_ContextAlreadySetUp_NoSecondInitialContextSetup(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -148,10 +135,6 @@ func TestHandleServiceRequest_ContextAlreadySetUp_NoSecondInitialContextSetup(t 
 	}
 }
 
-// TS 24.501 §5.6.1.8 b): a SERVICE REJECT for a protocol error leaves the AMF in its current
-// 5GMM mode. The UE starts T3540 to let the network release the N1 NAS signalling connection
-// only when it sent the request from 5GMM-IDLE mode (§5.3.1.3 a1), §5.6.1.7 i)) — a UE that
-// sent it in 5GMM-CONNECTED mode keeps its connection and its user plane.
 func TestHandleServiceRequest_ProtocolErrorReject_ReleasesOnlyFrom5GMMIdle(t *testing.T) {
 	const unassignedServiceType = fgs.ServiceType(0x07)
 
@@ -181,8 +164,6 @@ func TestHandleServiceRequest_ProtocolErrorReject_ReleasesOnlyFrom5GMMIdle(t *te
 	}
 }
 
-// TS 24.501 §5.3.1.3 d): a SERVICE REJECT with 5GMM cause #9 has the UE start T3540 whatever
-// mode it sent the request from, so the network releases the connection either way.
 func TestHandleServiceRequest_Cause9Reject_ReleasesFrom5GMMConnected(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 
@@ -199,10 +180,6 @@ func TestHandleServiceRequest_Cause9Reject_ReleasesFrom5GMMConnected(t *testing.
 	}
 }
 
-// TS 24.501 §5.6.1.4.1 conditions the AMF's user-plane re-establishment on the Uplink data
-// status IE being present, not on the service type, and §5.6.1.2.1 case c) has a UE with an
-// always-on PDU session include that IE alongside service type "signalling". Such a request
-// must re-establish the named PDU session and report the result in the SERVICE ACCEPT.
 func TestHandleServiceRequest_SignallingWithUplinkDataStatus_ReactivatesPDUSession(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 
@@ -235,10 +212,6 @@ func TestHandleServiceRequest_SignallingWithUplinkDataStatus_ReactivatesPDUSessi
 	}
 }
 
-// The N1 NAS signalling connection is established by the NGAP INITIAL UE MESSAGE that
-// carries a connection's first uplink NAS message (TS 38.413 §8.6.1.1, TS 24.501 §5.3.1.1),
-// so HandleNAS — the one entry point every uplink NAS PDU passes through — is where the AMF
-// learns which 5GMM mode the UE sent each message from.
 func TestHandleNAS_CountsTheConnectionsFirstMessageAsSentFrom5GMMIdle(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 

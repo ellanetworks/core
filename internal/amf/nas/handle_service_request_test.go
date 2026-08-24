@@ -318,8 +318,6 @@ func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 		wantMsgType uint8
 	}{
 		{"high-priority access is accepted", uint8(fgs.ServiceTypeHighPriorityAccess), uint8(fgs.MsgServiceAccept)},
-		// TS 24.501 §5.6.1.2.1: a UE outside an allowed area sets this type to report a
-		// change of 3GPP PS data off status, so it is a request the AMF serves.
 		{"elevated signalling is accepted", uint8(fgs.ServiceTypeElevatedSignalling), uint8(fgs.MsgServiceAccept)},
 		{"emergency is rejected (unsupported)", uint8(fgs.ServiceTypeEmergencyServices), uint8(fgs.MsgServiceReject)},
 		{"emergency fallback is rejected", uint8(fgs.ServiceTypeEmergencyServicesFallback), uint8(fgs.MsgServiceReject)},
