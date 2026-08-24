@@ -150,6 +150,15 @@ func TestInitializationSignalMeansSeedingFinished(t *testing.T) {
 		}
 	}
 
+	op, err := database.GetOperator(t.Context())
+	if err != nil {
+		t.Fatalf("GetOperator: %v", err)
+	}
+
+	if op.ClusterID == "" {
+		t.Error("cluster ID missing the moment the readiness signal flipped; it must be written with the operator row, not after it")
+	}
+
 	numKeys, err := database.CountHomeNetworkKeys(t.Context())
 	if err != nil {
 		t.Fatalf("CountHomeNetworkKeys: %v", err)

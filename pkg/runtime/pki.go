@@ -35,7 +35,29 @@ type pkiState struct {
 
 	issuerMu sync.Mutex
 
-	pins atomic.Pointer[map[string]int]
+	// Pins come from two independent sources. bootstrapPins is the
+	// disk-resident snapshot written by JoinFlow: it is all a fresh joiner
+	// has until cluster_node_certs replicates, and replication must never
+	// destroy it. pins mirrors that replicated table and is authoritative
+	// once it holds anything, so a revoked cert stops being honoured as
+	// soon as the removal replicates.
+	bootstrapPins atomic.Pointer[map[string]int]
+	pins          atomic.Pointer[map[string]int]
+}
+
+// activePins resolves the two sources. The replicated table wins whenever it
+// has landed; the bootstrap snapshot covers only the window before that, so
+// neither source can be emptied by a refresh racing cluster formation.
+func (p *pkiState) activePins() map[string]int {
+	if m := p.pins.Load(); m != nil && len(*m) > 0 {
+		return *m
+	}
+
+	if m := p.bootstrapPins.Load(); m != nil {
+		return *m
+	}
+
+	return nil
 }
 
 func (p *pkiState) ensureIssuer(dbInstance *db.Database) {
@@ -62,22 +84,22 @@ func (p *pkiState) LeafFunc() listener.LeafFunc {
 // fingerprint against the cached pin map.
 func (p *pkiState) PinFunc() listener.PinFunc {
 	return func(fingerprint string) listener.PinResult {
-		m := p.pins.Load()
+		m := p.activePins()
 		if m == nil {
 			return listener.PinResult{}
 		}
 
-		nid, ok := (*m)[fingerprint]
+		nid, ok := m[fingerprint]
 
-		known := make([]int, 0, len(*m))
-		for _, n := range *m {
+		known := make([]int, 0, len(m))
+		for _, n := range m {
 			known = append(known, n)
 		}
 
 		return listener.PinResult{
 			Found:        ok,
 			NodeID:       nid,
-			CacheSize:    len(*m),
+			CacheSize:    len(m),
 			KnownNodeIDs: known,
 		}
 	}
@@ -86,8 +108,7 @@ func (p *pkiState) PinFunc() listener.PinFunc {
 // SeedPinsFromAgentDisk installs the disk-resident pin map (the
 // local node's own pin plus the peer-pins.json snapshot saved by
 // the most recent JoinFlow / register call) so the listener can
-// verify peers during the startup window before the first
-// RefreshPins reads the replicated table.
+// verify peers for as long as the replicated table has not landed.
 func (p *pkiState) SeedPinsFromAgentDisk() {
 	m, err := p.agent.LoadPeerPins()
 	if err != nil {
@@ -104,10 +125,12 @@ func (p *pkiState) SeedPinsFromAgentDisk() {
 		return
 	}
 
-	p.pins.Store(&m)
+	p.bootstrapPins.Store(&m)
 }
 
-// RefreshPins reads cluster_node_certs and replaces the cache.
+// RefreshPins reads cluster_node_certs and replaces the replicated pin set.
+// An empty table means replication has not landed yet, not that every peer
+// became untrusted, so the bootstrap snapshot stays in effect until it does.
 func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) error {
 	rows, err := dbInstance.ListClusterNodeCerts(ctx)
 	if err != nil {

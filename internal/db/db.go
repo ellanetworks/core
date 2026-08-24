@@ -1820,6 +1820,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			Mcc:          InitialMcc,
 			Mnc:          InitialMnc,
 			OperatorCode: initialOp,
+			ClusterID:    uuid.New().String(),
 		}
 
 		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
