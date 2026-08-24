@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useId, useState } from "react";
+import React, { useId, useState } from "react";
 import {
   Alert,
   Button,
@@ -65,12 +65,14 @@ const FormDialog = <T extends FieldValues>({
   const { isValid, isSubmitting } = useFormState({ control: form.control });
   const [submitError, setSubmitError] = useState("");
 
-  useEffect(() => {
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       form.reset();
       setSubmitError("");
     }
-  }, [open, form]);
+  }
 
   const submit = form.handleSubmit(async (values) => {
     setSubmitError("");

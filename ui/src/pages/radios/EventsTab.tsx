@@ -1,13 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, {
-  useState,
-  useMemo,
-  useEffect,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Alert,
   Box,
@@ -221,23 +215,19 @@ const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
 const TOOLBAR_HEIGHT = 64;
 
+const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
+  type: "include",
+  ids: new Set<GridRowId>(ids),
+});
+
 export default function EventsTab() {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
   const theme = useTheme();
 
   const { showSnackbar } = useSnackbar();
-  const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
-  const [selectedRow, setSelectedRow] = useState<LogRow | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const visible = usePageVisible();
-
-  const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
-    type: "include",
-    ids: new Set<GridRowId>(ids),
-  });
-  const [selectionModel, setSelectionModel] =
-    useState<GridRowSelectionModel>(makeSelection());
 
   const [isNetworkEditModalOpen, setNetworkEditModalOpen] = useState(false);
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
@@ -266,15 +256,11 @@ export default function EventsTab() {
     ? messageTypeFilter
     : "";
 
-  useEffect(() => {
-    if (messageTypeFilter && !messageTypeOptions.includes(messageTypeFilter)) {
-      setMessageTypeFilter("");
-    }
-  }, [messageTypeOptions, messageTypeFilter]);
-
-  useEffect(() => {
+  const [prevRadioParam, setPrevRadioParam] = useState(radioParam);
+  if (radioParam !== prevRadioParam) {
+    setPrevRadioParam(radioParam);
     setRadioFilter(radioParam);
-  }, [radioParam]);
+  }
 
   const radiosQuery = useQuery<ListRadiosResponse>({
     queryKey: ["radios-for-filter"],
@@ -352,24 +338,36 @@ export default function EventsTab() {
 
   const hasActiveFilters = Object.keys(filterParams).length > 0;
 
-  useEffect(() => {
-    if (!eventIdParam || !networkLogsQuery.data?.items) return;
-    const eventId = Number(eventIdParam);
-    const match = networkLogsQuery.data.items.find((r) => r.id === eventId);
-    if (match) {
-      setSelectionModel(makeSelection([match.id]));
-      setSelectedRow({
-        id: String(match.id),
-        timestamp: match.timestamp,
-        protocol: match.protocol,
-        messageType: match.message_type,
-        direction: match.direction,
-        radio: match.radio,
-        address: match.address,
-      });
-      setViewEventDrawerOpen(true);
-    }
+  const viewEventDrawerOpen = !!eventIdParam;
+
+  const selectionModel = useMemo(
+    () => makeSelection(eventIdParam ? [Number(eventIdParam)] : []),
+    [eventIdParam],
+  );
+
+  const eventRow = useMemo<LogRow | null>(() => {
+    if (!eventIdParam) return null;
+    const match = networkLogsQuery.data?.items?.find(
+      (r) => r.id === Number(eventIdParam),
+    );
+    return match
+      ? {
+          id: String(match.id),
+          timestamp: match.timestamp,
+          protocol: match.protocol,
+          messageType: match.message_type,
+          direction: match.direction,
+          radio: match.radio,
+          address: match.address,
+        }
+      : null;
   }, [eventIdParam, networkLogsQuery.data?.items]);
+
+  // Held past the param being cleared so the panel keeps its contents while it slides out.
+  const [selectedRow, setSelectedRow] = useState<LogRow | null>(eventRow);
+  if (eventRow && eventRow.id !== selectedRow?.id) {
+    setSelectedRow(eventRow);
+  }
 
   const handleConfirmDeleteRadioEvents = async () => {
     if (!accessToken) return;
@@ -481,22 +479,10 @@ export default function EventsTab() {
 
   const handleRowClick = useCallback(
     (params: GridRowParams<APIRadioEvent>) => {
-      const r = params.row;
-      setSelectionModel(makeSelection([params.id]));
-      setSelectedRow({
-        id: String(r.id),
-        timestamp: r.timestamp,
-        protocol: r.protocol,
-        messageType: r.message_type,
-        direction: r.direction,
-        radio: r.radio,
-        address: r.address,
-      });
-      setViewEventDrawerOpen(true);
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          next.set("event", String(r.id));
+          next.set("event", String(params.row.id));
           return next;
         },
         { replace: true },
@@ -508,8 +494,23 @@ export default function EventsTab() {
   const subDescription =
     "Review NGAP (5G) and S1AP (4G) control-plane messages exchanged between Ella Core and connected radios. These logs are useful for auditing and troubleshooting purposes.";
 
+  const handleSelectionChange = useCallback(
+    (model: GridRowSelectionModel) => {
+      const [id] = [...model.ids];
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (id == null) next.delete("event");
+          else next.set("event", String(id));
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   const closePanel = useCallback(() => {
-    setViewEventDrawerOpen(false);
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
@@ -529,20 +530,19 @@ export default function EventsTab() {
   }, [viewEventDrawerOpen, closePanel]);
 
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
-  const dragging = useRef(false);
+  const [dragging, setDragging] = useState(false);
 
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    dragging.current = true;
+    setDragging(true);
 
     const onMouseMove = (ev: MouseEvent) => {
-      if (!dragging.current) return;
       const maxPx = window.innerWidth * PANEL_MAX_VW;
       const next = window.innerWidth - ev.clientX;
       setPanelWidth(Math.max(PANEL_MIN_WIDTH, Math.min(maxPx, next)));
     };
     const onMouseUp = () => {
-      dragging.current = false;
+      setDragging(false);
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
@@ -792,7 +792,7 @@ export default function EventsTab() {
                 onPaginationModelChange={setPaginationModel}
                 onRowClick={handleRowClick}
                 rowSelectionModel={selectionModel}
-                onRowSelectionModelChange={(model) => setSelectionModel(model)}
+                onRowSelectionModelChange={handleSelectionChange}
                 sx={{
                   "& .MuiDataGrid-row:hover": { cursor: "pointer" },
                   "& .MuiDataGrid-row.Mui-selected": {
@@ -824,7 +824,7 @@ export default function EventsTab() {
           bottom: 0,
           width: panelWidth,
           transform: viewEventDrawerOpen ? "translateX(0)" : "translateX(100%)",
-          transition: dragging.current ? "none" : "transform 200ms ease-in-out",
+          transition: dragging ? "none" : "transform 200ms ease-in-out",
           zIndex: (t) => t.zIndex.appBar - 1,
           bgcolor: "background.paper",
           boxShadow: viewEventDrawerOpen ? 8 : "none",
