@@ -418,3 +418,44 @@ describe("EventsTab table", () => {
     ).toBeVisible();
   });
 });
+
+describe("EventsTab event panel", () => {
+  it("opens the panel for the event named in the URL", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents("/radios/events?event=7");
+
+    expect(await screen.findByText("PathSwitchRequest")).toBeVisible();
+  });
+
+  it("leaves the panel shut when the URL names no event", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents();
+
+    expect(await screen.findByText("Event details")).toBeVisible();
+  });
+
+  it("opens the panel for a row the operator clicks", async () => {
+    const user = userEvent.setup();
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents();
+
+    await user.click(await screen.findByText("radio-1"));
+
+    expect(await screen.findByText("PathSwitchRequest")).toBeVisible();
+  });
+
+  it("ignores an event id that is not on the page", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents("/radios/events?event=999");
+
+    expect(await screen.findByText("Event details")).toBeVisible();
+  });
+});
