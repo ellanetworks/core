@@ -59,9 +59,10 @@ func requiresNewContextSecurityHeader(plain []byte) bool {
 // plainNasAllowed reports whether a NAS message type may be processed without a verified
 // MAC before secure exchange (TS 24.501 §4.4.4.3, TS 33.501) — either sent as plain NAS,
 // or received integrity-protected with a failed MAC. SERVICE REQUEST is on the spec's
-// MAC-failed list but absent here: on a connection with no secure exchange it is verified
-// at context resolution and rejected with cause #9 on failure, and once secure exchange is
-// established §4.4.4.3 requires an unverified message to be discarded.
+// MAC-failed list but absent here: once secure exchange is established §4.4.4.3 requires an
+// unverified message to be discarded, and before it the request is verified at context
+// resolution, where a failed MAC resolves no context and draws the cause #9 §4.4.4.3
+// prescribes rather than being processed.
 func plainNasAllowed(msgType uint8) bool {
 	switch msgType {
 	case uint8(fgs.MsgRegistrationRequest),

@@ -73,7 +73,11 @@ type UeConn struct {
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
 	ics atomic.Int32
-	Log *zap.Logger
+	// inboundNAS counts the uplink NAS messages dispatched on this connection; see
+	// NoteInboundNAS. Atomic like the other fields a UeConn exposes outside the NGAP
+	// dispatch goroutine that writes it.
+	inboundNAS atomic.Uint32
+	Log        *zap.Logger
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -288,6 +292,22 @@ func (ueConn *UeConn) MarkICSPending() {
 // MarkICSCompleted records that the InitialContextSetupResponse has been received.
 func (ueConn *UeConn) MarkICSCompleted() {
 	ueConn.ics.Store(int32(ICSCompleted))
+}
+
+// NoteInboundNAS records that an uplink NAS message is being dispatched on this connection.
+// The NGAP INITIAL UE MESSAGE carries the first one (TS 38.413 §8.6.1.1) and establishes the
+// N1 NAS signalling connection, which is what takes the UE to 5GMM-CONNECTED mode
+// (TS 24.501 §5.3.1.1).
+func (ueConn *UeConn) NoteInboundNAS() {
+	ueConn.inboundNAS.Add(1)
+}
+
+// SentFrom5GMMIdle reports whether the UE was in 5GMM-IDLE mode when it sent the uplink NAS
+// message now being dispatched — true for the connection's first message, false for every
+// later one, which the UE sent in 5GMM-CONNECTED mode over an already established N1 NAS
+// signalling connection.
+func (ueConn *UeConn) SentFrom5GMMIdle() bool {
+	return ueConn.inboundNAS.Load() <= 1
 }
 
 // ResetICS returns the connection to ICSNotStarted, rolling back a claim whose send

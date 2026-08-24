@@ -55,11 +55,11 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 }
 
 // A SERVICE REQUEST is not confined to the first NAS message of a connection: TS 24.501
-// §5.6.1.1 cases b), e), h), i), j) and o) are sent in 5GMM-CONNECTED mode, and §5.6.1.7 a)
-// names that trigger explicitly. Such a request reaches the AMF in an NGAP UPLINK NAS
-// TRANSPORT (TS 38.413 §8.6.3.1), so HandleGmmMessage must dispatch it to the service
-// request procedure rather than answer 5GMM STATUS #97 (§7.4), whose cause is untrue of a
-// message type the AMF implements.
+// §5.6.1.1 cases b), e), h), i), j), k) and o) are sent in 5GMM-CONNECTED mode, and
+// §5.6.1.2.1 sets the NAS message container apart as the form used "from 5GMM-IDLE mode".
+// Such a request reaches the AMF in an NGAP UPLINK NAS TRANSPORT (TS 38.413 §8.6.3.1), so
+// HandleGmmMessage must dispatch it to the service request procedure rather than answer
+// 5GMM STATUS #97 (§7.4), whose cause is untrue of a message type the AMF implements.
 func TestHandleGmmMessage_DispatchesToServiceRequest(t *testing.T) {
 	amfInstance := amf.New(
 		&fakeDBInstance{

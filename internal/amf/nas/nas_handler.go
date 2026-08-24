@@ -36,6 +36,8 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu
 		return
 	}
 
+	ue.NoteInboundNAS()
+
 	dispositionForNAS(ctx, amfInstance, ue, nasPdu).Finalize(ctx, egress{ue: ue})
 }
 
@@ -56,9 +58,17 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 			logger.From(ctx, logger.AmfLog).Warn("failed to resolve UE context from mobile identity", zap.Error(err))
 
 			// A SERVICE REQUEST recognizable by message type but undecodable is a protocol
-			// error: §5.6.1.8 b) answers it with a SERVICE REJECT #96, not a STATUS.
+			// error: §5.6.1.8 b) answers it with a SERVICE REJECT #96, not a STATUS. One
+			// that decodes but whose identity the AMF could not look up is not the UE's
+			// protocol error, so it draws the #9 that leaves its contexts unchanged
+			// (§4.4.4.3) like any other unresolved request.
 			if isServiceRequest(nasPdu) {
-				rejectBareServiceRequest(ctx, ue, fgs.GMMCauseInvalidMandatoryInformation)
+				cause := fgs.GMMCauseUEIdentityCannotBeDerived
+				if !decodesAsServiceRequest(ctx, nasPdu) {
+					cause = fgs.GMMCauseInvalidMandatoryInformation
+				}
+
+				rejectBareServiceRequest(ctx, ue, cause)
 
 				return nasreply.Handled()
 			}
@@ -186,6 +196,20 @@ func isServiceRequest(payload []byte) bool {
 	return ok && mt == uint8(fgs.MsgServiceRequest)
 }
 
+// decodesAsServiceRequest reports whether a PDU already recognized as a SERVICE REQUEST by
+// message type also decodes, telling the protocol error §5.6.1.8 b) answers with cause #96
+// apart from a well-formed request the AMF simply could not resolve to a context.
+func decodesAsServiceRequest(ctx context.Context, payload []byte) bool {
+	body, ok := initialGmmBody(payload)
+	if !ok {
+		return false
+	}
+
+	_, err := fgs.ParseServiceRequest(body)
+
+	return decoded(ctx, "ServiceRequest", err)
+}
+
 // peekInitialGmmType returns the GMM message type of a fresh connection's first NAS PDU by
 // reading the message-type octet directly (plain: octet 3; integrity-protected: octet 3 of
 // the inner plain message). It deliberately does NOT fully decode the body, so a
@@ -194,24 +218,8 @@ func isServiceRequest(payload []byte) bool {
 // not silently drop it. ok is false for a non-5GMM, ciphered, or too-short PDU. Mirrors the
 // MME's raw message-type peek.
 func peekInitialGmmType(payload []byte) (uint8, bool) {
-	sht, err := fgs.PeekSecurityHeaderType(payload)
-	if err != nil {
-		return 0, false
-	}
-
-	body := payload
-
-	switch sht {
-	case fgs.SHTPlain:
-	case fgs.SHTIntegrityProtected:
-		// The inner plain message follows the security header (EPD, SHT, MAC[4], seq).
-		spm, err := fgs.ParseSecurityProtectedMessage(payload)
-		if err != nil {
-			return 0, false
-		}
-
-		body = spm.UnverifiedPayload
-	default:
+	body, ok := initialGmmBody(payload)
+	if !ok {
 		return 0, false
 	}
 
@@ -221,6 +229,31 @@ func peekInitialGmmType(payload []byte) (uint8, bool) {
 	}
 
 	return uint8(mt), true
+}
+
+// initialGmmBody returns the plain 5GMM message carried by a fresh connection's first NAS
+// PDU. ok is false for a non-5GMM, ciphered, or too-short PDU, none of which the AMF can
+// classify without a security context.
+func initialGmmBody(payload []byte) ([]byte, bool) {
+	sht, err := fgs.PeekSecurityHeaderType(payload)
+	if err != nil {
+		return nil, false
+	}
+
+	switch sht {
+	case fgs.SHTPlain:
+		return payload, true
+	case fgs.SHTIntegrityProtected:
+		// The inner plain message follows the security header (EPD, SHT, MAC[4], seq).
+		spm, err := fgs.ParseSecurityProtectedMessage(payload)
+		if err != nil {
+			return nil, false
+		}
+
+		return spm.UnverifiedPayload, true
+	default:
+		return nil, false
+	}
 }
 
 // rejectBareServiceRequest answers a SERVICE REQUEST the AMF cannot accept with a SERVICE
