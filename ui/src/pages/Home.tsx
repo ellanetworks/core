@@ -32,7 +32,6 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-    // `attempt` is a trigger, not an input: bumping it re-runs the check on retry.
     // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [navigate, attempt]);
 

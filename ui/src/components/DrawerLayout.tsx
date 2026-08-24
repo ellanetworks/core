@@ -90,7 +90,6 @@ export default function DrawerLayout({
       return;
     }
     document.getElementById("main-content")?.focus();
-    // `pathname` is a trigger, not an input: focus moves on every route change.
     // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [pathname]);
 

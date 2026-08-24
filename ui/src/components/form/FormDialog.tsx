@@ -71,7 +71,6 @@ const FormDialog = <T extends FieldValues>({
     if (open) setSubmitError("");
   }
 
-  // The form is owned by the caller, so resetting it is an external sync.
   useEffect(() => {
     if (open) form.reset();
   }, [open, form]);

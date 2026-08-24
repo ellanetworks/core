@@ -256,6 +256,10 @@ export default function EventsTab() {
     ? messageTypeFilter
     : "";
 
+  if (messageTypeFilter && !messageTypeOptions.includes(messageTypeFilter)) {
+    setMessageTypeFilter("");
+  }
+
   const [prevRadioParam, setPrevRadioParam] = useState(radioParam);
   if (radioParam !== prevRadioParam) {
     setPrevRadioParam(radioParam);
@@ -356,13 +360,11 @@ export default function EventsTab() {
       : null;
   }, [eventIdParam, networkLogsQuery.data?.items]);
 
-  // Held past the param being cleared so the panel keeps its contents while it slides out.
   const [selectedRow, setSelectedRow] = useState<LogRow | null>(eventRow);
   if (eventRow && eventRow.id !== selectedRow?.id) {
     setSelectedRow(eventRow);
   }
 
-  // An id no page holds must not open an empty panel, so the row gates the drawer.
   const viewEventDrawerOpen =
     !!eventIdParam && selectedRow?.id === eventIdParam;
 

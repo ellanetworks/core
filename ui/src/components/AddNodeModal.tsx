@@ -70,7 +70,6 @@ const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
   const [token, setToken] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<number>(0);
 
-  // Pinned once minted so a members refetch cannot drift the id in the snippet.
   const nodeId = mintedNodeId ?? chosenNodeId ?? suggestedNodeId;
 
   const nodeIdValid = nodeId >= MIN_NODE_ID && nodeId <= MAX_NODE_ID;

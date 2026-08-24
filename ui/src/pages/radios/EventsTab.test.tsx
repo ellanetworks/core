@@ -189,6 +189,20 @@ describe("EventsTab protocol and message type", () => {
     expect(impossible).toEqual([]);
   });
 
+  it("does not restore a message type when its protocol is reselected", async () => {
+    const user = userEvent.setup();
+    await renderEvents();
+    const messageType = () =>
+      screen.getByRole("combobox", { name: "Message Type" });
+
+    await selectOption(user, "Protocol", "NGAP (5G)");
+    await selectOption(user, "Message Type", NGAP_ONLY_MESSAGE);
+    await selectOption(user, "Protocol", "S1AP (4G)");
+    await selectOption(user, "Protocol", "NGAP (5G)");
+
+    expect(messageType()).not.toHaveTextContent(NGAP_ONLY_MESSAGE);
+  });
+
   it("keeps a message type both protocols share", async () => {
     const user = userEvent.setup();
     await renderEvents();
@@ -483,6 +497,23 @@ describe("EventsTab event panel", () => {
     expect(await panelIsOpen()).toBe(false);
   });
 
+  it("keeps the panel open when the operator pages past the event", async () => {
+    const user = userEvent.setup();
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+      totalCount: 60,
+    });
+    seedDecodedEvent(7);
+    await renderEvents("/radios/events?event=7");
+    expect(await panelIsOpen()).toBe(true);
+
+    seedApi({ events: [radioEvent(42, { message_type: "Paging" })] });
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+
+    await screen.findByText("Paging");
+    expect(await panelIsOpen()).toBe(true);
+  });
+
   it("shuts the panel again when the event is dismissed", async () => {
     const user = userEvent.setup();
     seedApi({
@@ -496,7 +527,6 @@ describe("EventsTab event panel", () => {
     await user.keyboard("{Escape}");
 
     await waitFor(async () => expect(await panelIsOpen()).toBe(false));
-    // the contents outlive the param so the panel does not blank mid-slide
     expect(await panelTitle()).toHaveTextContent("PathSwitchRequest");
   });
 });

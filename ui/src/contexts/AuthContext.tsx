@@ -167,8 +167,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       cancelled = true;
       clearRefreshTimer();
     };
-    // Bootstrapping auth is the external system this effect synchronises with;
-    // the rule does not count `silentRefresh` awaited inside the async IIFE.
     // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [silentRefresh, clearRefreshTimer]);
 

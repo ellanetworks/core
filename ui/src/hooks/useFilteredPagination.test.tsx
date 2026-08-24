@@ -24,8 +24,6 @@ const Grid = () => {
 
   useEffect(() => {
     requested.push(pagination.page);
-    // `user` is a trigger, not an input: recording the page against the new
-    // filter is what proves the stale page is never requested.
     // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [pagination.page, user]);
 

@@ -313,8 +313,6 @@ export const buildDestinationColorMap = (
   const map = new Map<string, string>();
   if (series.length === 0) return map;
 
-  // Slots follow the sorted address, not the rank, so the palette is walked in
-  // order while a destination keeps its colour as the top-N reorders.
   [...new Set(ips)].sort().forEach((ip, i) => {
     map.set(ip, series[i % series.length]);
   });
