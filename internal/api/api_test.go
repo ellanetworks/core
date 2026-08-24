@@ -59,9 +59,13 @@ func TestStartServerStandup(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	testdb, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
+	testdb, err := db.NewDatabase(context.Background(), dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("could not create new database: %v", err)
+	}
+
+	if err := testdb.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	port := freePort(t)

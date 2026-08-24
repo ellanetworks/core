@@ -274,6 +274,8 @@ func (op *ChangesetOp[P, R]) Invoke(db *Database, payload *P) (R, error) {
 		return narrowResult[R](op.name, result)
 	}
 
+	db.holdForLeader()
+
 	if db.IsLeader() {
 		result, err := db.leaderCaptureAndPropose(op.name, op.minSchema, func(ctx context.Context) (any, error) {
 			return op.apply(db, ctx, payload)
@@ -326,6 +328,8 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 
 		return narrowResult[R](op.name, result)
 	}
+
+	db.holdForLeader()
 
 	if db.IsLeader() {
 		data, err := cmd.MarshalBinary()

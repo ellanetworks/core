@@ -23,6 +23,8 @@ const (
 	discoveryPollInterval = 1 * time.Second
 	defaultJoinTimeout    = 2 * time.Minute
 	discoveryHTTPTimeout  = 5 * time.Second
+
+	discoveryErrLogInterval = 30 * time.Second
 )
 
 type peerState int
@@ -49,55 +51,80 @@ type statusResponse struct {
 	Result statusResult `json:"result"`
 }
 
-// RunDiscovery performs cluster formation for HA mode. It must be called after
-// the cluster listener starts so peers can reach this node's cluster port. In
-// standalone mode or when resuming existing Raft state, it returns immediately.
-func (m *Manager) RunDiscovery(ctx context.Context) error {
-	if !m.needsDiscovery {
-		return nil
+// StartDiscovery performs cluster formation for HA mode in the background. It
+// must be called after the cluster listener starts so peers can reach this
+// node's cluster port. In standalone mode or when resuming existing Raft
+// state, it is a no-op.
+func (m *Manager) StartDiscovery(ctx context.Context) {
+	if !m.discoveryPending.Load() {
+		return
 	}
 
 	if m.clusterListener == nil {
-		return fmt.Errorf("cluster discovery requires a cluster listener (mTLS)")
+		logger.RaftLog.Error("Cluster discovery requires a cluster listener (mTLS); node will stay unready")
+		return
 	}
 
-	timeout := m.config.JoinTimeout
-	if timeout == 0 {
-		timeout = defaultJoinTimeout
-	}
+	go m.runDiscovery(ctx)
+}
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+func (m *Manager) runDiscovery(ctx context.Context) {
+	slowAfter := m.config.JoinTimeout
+	if slowAfter == 0 {
+		slowAfter = defaultJoinTimeout
+	}
 
 	logger.RaftLog.Info("Starting cluster discovery",
 		zap.Int("node_id", m.nodeID),
 		zap.Bool("has_join_token", m.config.HasJoinToken),
 		zap.Int("peers", len(m.config.Peers)),
-		zap.Duration("join_timeout", timeout),
+		zap.Duration("warn_after", slowAfter),
 	)
+
+	started := time.Now()
+	warned := false
+
+	var lastErrLog time.Time
 
 	ticker := time.NewTicker(discoveryPollInterval)
 	defer ticker.Stop()
 
 	for {
 		joined, err := m.discoveryTick(ctx)
-		if err != nil {
-			return err
+		if err != nil && time.Since(lastErrLog) >= discoveryErrLogInterval {
+			lastErrLog = time.Now()
+
+			logger.RaftLog.Error("Cluster discovery attempt failed; retrying",
+				zap.Int("node_id", m.nodeID),
+				zap.Error(err),
+			)
 		}
 
-		if joined {
-			m.needsDiscovery = false
+		if err == nil && joined {
+			m.discoveryPending.Store(false)
 
-			if err := m.waitForLeader(ctx); err != nil {
-				return err
-			}
+			logger.RaftLog.Info("Cluster formation complete",
+				zap.Int("node_id", m.nodeID),
+				zap.Duration("took", time.Since(started)),
+			)
 
-			return nil
+			return
+		}
+
+		if !warned && time.Since(started) > slowAfter {
+			warned = true
+
+			logger.RaftLog.Warn("Cluster formation is taking longer than expected; still retrying",
+				zap.Int("node_id", m.nodeID),
+				zap.Duration("elapsed", time.Since(started)),
+				zap.Strings("peers", m.config.Peers),
+			)
 		}
 
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("cluster discovery timed out after %s", timeout)
+			logger.RaftLog.Info("Cluster discovery stopped", zap.Error(ctx.Err()))
+			return
 		case <-ticker.C:
 		}
 	}

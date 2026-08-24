@@ -54,9 +54,13 @@ func TestClusterHTTP_Status(t *testing.T) {
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 
-	testDB, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
+	testDB, err := db.NewDatabase(context.Background(), dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("create test db: %v", err)
+	}
+
+	if err := testDB.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	stopCluster := server.StartClusterHTTP(testDB, serverLn)
@@ -157,9 +161,13 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serv
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 
-	testDB, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
+	testDB, err := db.NewDatabase(context.Background(), dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("create test db: %v", err)
+	}
+
+	if err := testDB.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	stopCluster := server.StartClusterHTTP(testDB, serverLn)

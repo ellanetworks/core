@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
@@ -31,7 +33,19 @@ type pkiState struct {
 	agent  *pkiagent.Agent
 	issuer *pkiissuer.Service
 
+	issuerMu sync.Mutex
+
 	pins atomic.Pointer[map[string]int]
+}
+
+func (p *pkiState) ensureIssuer(dbInstance *db.Database) {
+	p.issuerMu.Lock()
+	defer p.issuerMu.Unlock()
+
+	if p.issuer == nil {
+		p.issuer = pkiissuer.New(dbInstance)
+		server.SetPKIIssuer(p.issuer)
+	}
 }
 
 func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {

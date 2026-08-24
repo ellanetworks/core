@@ -18,6 +18,15 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
+func FastTestConfig() ClusterConfig {
+	return ClusterConfig{
+		HeartbeatTimeout:   50 * time.Millisecond,
+		ElectionTimeout:    50 * time.Millisecond,
+		LeaderLeaseTimeout: 50 * time.Millisecond,
+		CommitTimeout:      5 * time.Millisecond,
+	}
+}
+
 // NewTestManager spins up a single-node Raft cluster over an in-memory
 // transport, tuned for fast unit tests. No TCP bind, small trailing-log window, low snapshot
 // threshold. Tests reach leader in milliseconds and don't compete for ports.

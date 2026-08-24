@@ -54,7 +54,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `peers` (list of strings): `host:port` of every node in the cluster. Host may be an IP or DNS name. Must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string.
     - `join-token` (string, optional): Single-use token minted on an existing voter via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts. Its presence also tells the daemon that this node is a joiner, not the founder.
     - `initial-suffrage` (string, optional): `voter` or `nonvoter`. Defaults to `voter`.
-    - `join-timeout` (duration string, optional): Maximum wait for cluster formation during discovery.
+    - `join-timeout` (duration string, optional): Wait for cluster formation after which discovery starts logging that it is slow. Discovery keeps retrying past it.
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.
     - `snapshot-interval` (duration string, optional): Minimum interval between automatic Raft snapshots.
     - `snapshot-threshold` (int, optional): Minimum number of applied log entries between automatic snapshots.

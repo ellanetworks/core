@@ -17,9 +17,13 @@ import (
 func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("couldn't create test database: %s", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {
@@ -240,9 +244,13 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("couldn't create test database: %s", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {

@@ -25,7 +25,6 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/cluster/listener"
-	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -55,16 +54,26 @@ import (
 
 var getInterfaceIPs = config.GetInterfaceIPs
 
-var staleLeaseCleanup sync.Once
+var staleLeaseCleanup struct {
+	mu   sync.Mutex
+	done bool
+}
 
 func clearStaleDynamicLeases(ctx context.Context, dbInstance *db.Database) error {
-	var err error
+	staleLeaseCleanup.mu.Lock()
+	defer staleLeaseCleanup.mu.Unlock()
 
-	staleLeaseCleanup.Do(func() {
-		err = dbInstance.DeleteDynamicLeasesByNode(ctx, dbInstance.NodeID())
-	})
+	if staleLeaseCleanup.done {
+		return nil
+	}
 
-	return err
+	if err := dbInstance.DeleteDynamicLeasesByNode(ctx, dbInstance.NodeID()); err != nil {
+		return err
+	}
+
+	staleLeaseCleanup.done = true
+
+	return nil
 }
 
 type RuntimeConfig struct {
@@ -239,41 +248,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	if err := dbInstance.RunDiscovery(ctx); err != nil {
-		return fmt.Errorf("cluster discovery failed: %w", err)
-	}
-
-	// Leader-side init runs from runLeaderInit via the OnBecameLeader
-	// callback registered below. Followers block here until the
-	// leader's Initialize replicates. Standalone runs Initialize from
-	// NewDatabase.
-	if cfg.Cluster.Enabled {
-		if !dbInstance.IsLeader() {
-			logger.EllaLog.Info("Waiting for leader initialization to replicate")
-
-			if err := dbInstance.WaitForInitialization(ctx, 30*time.Second); err != nil {
-				return fmt.Errorf("follower couldn't sync initial settings: %w", err)
-			}
-
-			logger.EllaLog.Info("Leader initialization replicated successfully")
-
-			if err := clearStaleDynamicLeases(ctx, dbInstance); err != nil {
-				logger.EllaLog.Warn("could not release this node's stale dynamic leases; they will hold addresses until the next successful start",
-					zap.Error(err))
-			}
-
-			if pki != nil {
-				pki.issuer = pkiissuer.New(dbInstance)
-				server.SetPKIIssuer(pki.issuer)
-			}
-		}
-	} else {
-		if err := clearStaleDynamicLeases(ctx, dbInstance); err != nil {
-			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
-		}
-	}
+	dbInstance.StartDiscovery(ctx)
 
 	var wg sync.WaitGroup
+
+	wg.Go(func() {
+		awaitInitialSettings(ctx, dbInstance, pki)
+	})
 
 	if observer := dbInstance.LeaderObserver(); observer != nil {
 		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
