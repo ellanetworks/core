@@ -24,8 +24,7 @@ const (
 
 // pkiAdminEndpoint resolves the pkiissuer.Service at request time and
 // dispatches to build. Returns 503 until the issuer service has been
-// installed by runtime and its join-HMAC key is committed; both are
-// transient startup states, so the caller should retry.
+// installed by runtime and its join-HMAC key is committed.
 func pkiAdminEndpoint(build func(*pkiissuer.Service) http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		svc := loadPKIIssuer()

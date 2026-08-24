@@ -30,10 +30,6 @@ func (db *Database) WaitForLeader(ctx context.Context) error {
 	return db.raftManager.WaitForLeader(ctx)
 }
 
-// WaitForFSMCatchUp blocks until local reads reflect every committed write.
-// A standalone node is the only voter, so it always elects itself and the
-// post-leadership barrier is guaranteed to land. An HA follower has no way to
-// force its FSM forward, so it does not wait; its leader barriers on election.
 func (db *Database) WaitForFSMCatchUp(ctx context.Context) error {
 	if db.raftManager == nil || db.raftManager.ClusterEnabled() {
 		return nil
@@ -55,12 +51,6 @@ func (db *Database) WaitUntilReady(ctx context.Context) error {
 	return db.WaitForInitialization(ctx, 0)
 }
 
-// holdForLeader waits out an in-progress election before a write is
-// dispatched. It is a pure wait with no side effects, so it honours the
-// caller's context: a client that has gone away, or a shutdown, stops the
-// wait instead of pinning the request for the full budget. Exhausting the
-// budget is reported as a transient failure so the caller does not go on to
-// spend a second budget forwarding to a leader that does not exist.
 func (db *Database) holdForLeader(ctx context.Context) error {
 	if db.raftManager == nil || db.raftManager.HasLeader() {
 		return nil

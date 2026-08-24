@@ -35,19 +35,10 @@ type pkiState struct {
 
 	issuerMu sync.Mutex
 
-	// Pins come from two independent sources. bootstrapPins is the
-	// disk-resident snapshot written by JoinFlow: it is all a fresh joiner
-	// has until cluster_node_certs replicates, and replication must never
-	// destroy it. pins mirrors that replicated table and is authoritative
-	// once it holds anything, so a revoked cert stops being honoured as
-	// soon as the removal replicates.
 	bootstrapPins atomic.Pointer[map[string]int]
 	pins          atomic.Pointer[map[string]int]
 }
 
-// activePins resolves the two sources. The replicated table wins whenever it
-// has landed; the bootstrap snapshot covers only the window before that, so
-// neither source can be emptied by a refresh racing cluster formation.
 func (p *pkiState) activePins() map[string]int {
 	if m := p.pins.Load(); m != nil && len(*m) > 0 {
 		return *m
@@ -129,8 +120,6 @@ func (p *pkiState) SeedPinsFromAgentDisk() {
 }
 
 // RefreshPins reads cluster_node_certs and replaces the replicated pin set.
-// An empty table means replication has not landed yet, not that every peer
-// became untrusted, so the bootstrap snapshot stays in effect until it does.
 func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) error {
 	rows, err := dbInstance.ListClusterNodeCerts(ctx)
 	if err != nil {

@@ -20,11 +20,6 @@ func newPinState(bootstrap map[string]int) *pkiState {
 	return p
 }
 
-// TestRefreshPinsDoesNotWipeBootstrapPins covers a fresh joiner: the pin
-// subscriber refreshes from cluster_node_certs the moment it starts, long
-// before that table has replicated. An empty table means "not replicated
-// yet", and treating it as the truth leaves the node unable to complete any
-// cluster TLS handshake — including the ones replication itself needs.
 func TestRefreshPinsDoesNotWipeBootstrapPins(t *testing.T) {
 	t.Parallel()
 
@@ -53,10 +48,6 @@ func TestRefreshPinsDoesNotWipeBootstrapPins(t *testing.T) {
 	}
 }
 
-// TestReplicatedPinsSupersedeBootstrap is the other half: once the replicated
-// table has landed it is authoritative, so a pin it no longer lists must stop
-// being honoured. Otherwise a revoked certificate would live on in the
-// bootstrap snapshot forever.
 func TestReplicatedPinsSupersedeBootstrap(t *testing.T) {
 	t.Parallel()
 

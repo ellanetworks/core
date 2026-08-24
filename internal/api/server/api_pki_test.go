@@ -137,10 +137,6 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 	}
 }
 
-// TestPKIAdminEndpoints_InstalledButNotBootstrapped503 covers the startup
-// window where the issuer handle is published before its join-HMAC key is
-// committed. The condition is transient, so it must read as a retryable 503
-// rather than a 500 from deep inside MintJoinToken.
 func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
 	env, err := setupServer(filepath.Join(t.TempDir(), "ella.db"))
 	if err != nil {
@@ -153,7 +149,6 @@ func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Installed, but deliberately never bootstrapped.
 	server.SetPKIIssuer(pkiissuer.New(env.DB))
 	t.Cleanup(func() { server.SetPKIIssuer(nil) })
 

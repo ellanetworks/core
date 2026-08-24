@@ -49,8 +49,6 @@ func TestRunDiscoveryStopsOnTerminalError(t *testing.T) {
 		t.Fatalf("barrier: %v", err)
 	}
 
-	// The node is already bootstrapped, so the founder path cannot bootstrap
-	// again. Retrying that at 1 Hz forever would hide the problem.
 	mgr.config.HasJoinToken = false
 	mgr.discoveryPending.Store(true)
 

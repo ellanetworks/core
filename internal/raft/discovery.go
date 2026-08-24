@@ -28,10 +28,6 @@ const (
 	discoveryErrLogInterval = 30 * time.Second
 )
 
-// ErrDiscoveryFatal marks a cluster-formation failure that retrying cannot
-// resolve, such as a duplicate node-id. Transient conditions (unreachable
-// peers, a cluster that has not formed yet) are retried indefinitely and
-// never carry it.
 var ErrDiscoveryFatal = errors.New("fatal cluster discovery error")
 
 type peerState int
@@ -58,10 +54,9 @@ type statusResponse struct {
 	Result statusResult `json:"result"`
 }
 
-// StartDiscovery performs cluster formation for HA mode in the background. It
-// must be called after the cluster listener starts so peers can reach this
-// node's cluster port. In standalone mode or when resuming existing Raft
-// state, it is a no-op.
+// StartDiscovery performs cluster formation for HA mode in the background.
+// It must be called after the cluster listener starts so peers can reach
+// this node's cluster port. Standalone or resumed state makes it a no-op.
 func (m *Manager) StartDiscovery(ctx context.Context) {
 	if !m.discoveryPending.Load() {
 		return
@@ -75,9 +70,6 @@ func (m *Manager) StartDiscovery(ctx context.Context) {
 	go m.runDiscovery(ctx)
 }
 
-// setDiscoveryFatal records a misconfiguration that retrying cannot resolve.
-// Discovery stops, the node stays up and unready, and the reason is reported
-// through the status endpoint so an operator sees it without reading logs.
 func (m *Manager) setDiscoveryFatal(err error) {
 	msg := err.Error()
 	m.discoveryFatal.Store(&msg)
@@ -88,8 +80,6 @@ func (m *Manager) setDiscoveryFatal(err error) {
 	)
 }
 
-// DiscoveryError reports a terminal cluster-formation failure, or "" when
-// discovery is progressing or already complete.
 func (m *Manager) DiscoveryError() string {
 	if msg := m.discoveryFatal.Load(); msg != nil {
 		return *msg

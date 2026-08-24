@@ -98,8 +98,6 @@ const (
 	leaderBarrierRetryInterval = 1 * time.Second
 )
 
-// errShuttingDown aborts a wait that the manager's own shutdown has
-// overtaken. It never reaches a caller outside this package.
 var errShuttingDown = errors.New("raft manager shutting down")
 
 // closeTransport best-effort closes a raft.Transport. The interface itself
@@ -143,10 +141,6 @@ type Manager struct {
 	shutdownOnce sync.Once
 }
 
-// leaderBarrierCallback applies a raft barrier on every leadership
-// acquisition, so the FSM has drained every entry committed before this term
-// before anything reads it. Post-snapshot entries are applied asynchronously,
-// so on a restart the FSM lags the durable log until this completes.
 type leaderBarrierCallback struct {
 	m *Manager
 }
@@ -177,10 +171,6 @@ func (c leaderBarrierCallback) OnBecameLeader() {
 	}
 }
 
-// barrierForLeadership waits out the shared per-term barrier with no deadline
-// of its own: raft.Barrier already ends when the FSM catches up or raft shuts
-// down, and a deadline here would only strand the waiter while the barrier it
-// abandoned went on to succeed.
 func (m *Manager) barrierForLeadership() error {
 	term := m.raft.CurrentTerm()
 	if term != 0 && m.barrieredTerm.Load() == term {
@@ -201,8 +191,6 @@ func (m *Manager) barrierForLeadership() error {
 	}
 }
 
-// WaitForLeaderBarrier blocks until this node has completed a post-leadership
-// barrier, so local reads reflect every committed write.
 func (m *Manager) WaitForLeaderBarrier(ctx context.Context) error {
 	select {
 	case <-m.leaderBarrier:
@@ -866,10 +854,9 @@ func (m *Manager) HoldForLeader(ctx context.Context, timeout time.Duration) erro
 }
 
 // waitForLeader blocks until the cluster has an elected leader or ctx is
-// cancelled. It polls LeaderWithID rather than selecting on LeaderCh:
-// LeaderCh only reports this node's own leadership transitions, and raft
-// delivers each of its values to exactly one receiver, so LeaderObserver
-// must stay its sole consumer or leadership callbacks are silently lost.
+// cancelled. It polls LeaderWithID rather than selecting on LeaderCh, which
+// only reports this node's own transitions and delivers each value to exactly
+// one receiver, so LeaderObserver must stay its sole consumer.
 func (m *Manager) waitForLeader(ctx context.Context) error {
 	if addr, _ := m.raft.LeaderWithID(); addr != "" {
 		return nil

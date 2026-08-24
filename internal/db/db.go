@@ -1576,8 +1576,7 @@ func (db *Database) PrepareStatements() error {
 }
 
 // WaitForInitialization polls until the replicated initial settings are
-// visible on this node (the operator row exists), ctx is cancelled, or
-// timeout elapses. A timeout of zero or less waits indefinitely.
+// visible here, ctx is cancelled, or timeout elapses. Zero waits forever.
 func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Duration) error {
 	var deadline <-chan time.Time
 

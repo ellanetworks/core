@@ -61,9 +61,6 @@ func TestStandaloneRestartBarriersBeforeReadsAreServed(t *testing.T) {
 	}
 }
 
-// TestBarrierForLeadershipAbortsOnShutdown pins the ordering hazard in
-// Manager.Shutdown: it stops the observer before shutting raft down, so a
-// leadership barrier still waiting on the FSM would hold shutdown open.
 func TestBarrierForLeadershipAbortsOnShutdown(t *testing.T) {
 	t.Parallel()
 
@@ -81,8 +78,6 @@ func TestBarrierForLeadershipAbortsOnShutdown(t *testing.T) {
 		t.Fatalf("barrier: %v", err)
 	}
 
-	// Install a barrier attempt that never completes, standing in for an FSM
-	// still draining a large replay backlog.
 	mgr.barrieredTerm.Store(0)
 
 	mgr.barrierMu.Lock()
@@ -93,7 +88,6 @@ func TestBarrierForLeadershipAbortsOnShutdown(t *testing.T) {
 
 	go func() { done <- mgr.barrierForLeadership() }()
 
-	// Let the waiter park on the barrier before shutdown overtakes it.
 	time.Sleep(200 * time.Millisecond)
 
 	if err := mgr.Shutdown(); err != nil {

@@ -100,9 +100,7 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 }
 
 // pkiEndpoint resolves the current pkiissuer.Service at request time
-// and dispatches. Returns 503 until the service is installed and its
-// join-HMAC key is committed; both are transient startup states, so the
-// caller should retry rather than treat them as a failed request.
+// and dispatches. Returns 503 until the service is installed and ready.
 func pkiEndpoint(build func(*pkiissuer.Service) http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		svc := loadPKIIssuer()
