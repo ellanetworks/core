@@ -20,7 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
 	"github.com/hashicorp/raft"
-	_ "github.com/mattn/go-sqlite3"
+	sqlite3 "github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
 )
 
@@ -233,17 +233,10 @@ var sqliteMagic = []byte("SQLite format 3\x00")
 
 // readSchemaVersion opens a SQLite file read-only and returns the
 // schema_version value. Returns 0 if the table doesn't exist.
-func readSchemaVersion(ctx context.Context, path string) (uint32, error) {
-	db, err := sql.Open("sqlite3", path+"?mode=ro")
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() { _ = db.Close() }()
-
+func readSchemaVersionConn(ctx context.Context, conn *sql.Conn) (uint32, error) {
 	var v uint32
 
-	err = db.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&v)
+	err := conn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&v)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no such table: schema_version") {
 			return 0, nil
@@ -263,50 +256,74 @@ func writeSnapshotHeader(buf []byte, schemaVersion, protocolVersion uint32) {
 	binary.BigEndian.PutUint32(buf[12:16], protocolVersion)
 }
 
-// Snapshot implements raft.FSM. It uses SQLite's VACUUM INTO to produce a
-// consistent, WAL-free copy of ella.db in a temp file, then returns an
-// FSMSnapshot that streams it to the Raft snapshot sink.
+func snapshotReadDSN(path string) string {
+	return "file:" + path + "?mode=ro&_busy_timeout=5000"
+}
+
+// Snapshot implements raft.FSM. It pins a read transaction over ella.db and
+// returns an FSMSnapshot that copies and streams it to the Raft snapshot sink.
 //
-// The RLock participates in Apply/Restore exclusion. MaxOpenConns(1) already
-// serialises SQLite writers, but the lock guards against future changes to
-// the connection cap.
+// The RLock participates in Apply/Restore exclusion, and is held by the
+// snapshot until the copy completes so Restore cannot unlink the WAL under it.
 func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	snapshotDir := filepath.Join(f.dataDir, "raft", "snapshots", "tmp")
-	if err := os.MkdirAll(snapshotDir, 0o700); err != nil {
-		return nil, fmt.Errorf("create snapshot tmp dir: %w", err)
-	}
-
-	tmpFile, err := os.CreateTemp(snapshotDir, "snapshot-*.db")
-	if err != nil {
-		return nil, fmt.Errorf("create snapshot temp file: %w", err)
-	}
-
-	tmpPath := tmpFile.Name()
-
-	// Close immediately — VACUUM INTO creates the file itself.
-	_ = tmpFile.Close()
 
 	ctx := context.Background()
 
-	_, err = f.applier.PlainDB().ExecContext(ctx, "VACUUM INTO ?", tmpPath)
+	snap := &fsmSnapshot{dataDir: f.dataDir, unpin: f.mu.RUnlock}
+
+	readDB, err := sql.Open("sqlite3", snapshotReadDSN(f.applier.Path()))
 	if err != nil {
-		_ = os.Remove(tmpPath)
-		return nil, fmt.Errorf("VACUUM INTO snapshot: %w", err)
+		snap.Release()
+		return nil, fmt.Errorf("open snapshot read connection: %w", err)
 	}
 
-	schemaVer, err := readSchemaVersion(ctx, tmpPath)
+	snap.readDB = readDB
+
+	conn, err := readDB.Conn(ctx)
 	if err != nil {
-		_ = os.Remove(tmpPath)
-		return nil, fmt.Errorf("read schema_version from snapshot: %w", err)
+		snap.Release()
+		return nil, fmt.Errorf("acquire snapshot read connection: %w", err)
 	}
 
-	var header [snapshotHeaderSize]byte
-	writeSnapshotHeader(header[:], schemaVer, version.ProtocolVersion())
+	snap.readConn = conn
 
-	return &fsmSnapshot{path: tmpPath, header: header}, nil
+	if err := conn.Raw(func(dc any) error {
+		raw, ok := dc.(*sqlite3.SQLiteConn)
+		if !ok {
+			return fmt.Errorf("unexpected sqlite driver conn type %T", dc)
+		}
+
+		snap.readRaw = raw
+
+		return nil
+	}); err != nil {
+		snap.Release()
+		return nil, fmt.Errorf("unwrap snapshot read connection: %w", err)
+	}
+
+	if _, err := conn.ExecContext(ctx, "BEGIN"); err != nil {
+		snap.Release()
+		return nil, fmt.Errorf("begin snapshot read transaction: %w", err)
+	}
+
+	snap.inTx = true
+
+	var tables int
+	if err := conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM sqlite_schema").Scan(&tables); err != nil {
+		snap.Release()
+		return nil, fmt.Errorf("materialize snapshot read transaction: %w", err)
+	}
+
+	schemaVer, err := readSchemaVersionConn(ctx, conn)
+	if err != nil {
+		snap.Release()
+		return nil, fmt.Errorf("read schema_version for snapshot: %w", err)
+	}
+
+	writeSnapshotHeader(snap.header[:], schemaVer, version.ProtocolVersion())
+
+	return snap, nil
 }
 
 // Restore implements raft.FSM. It replaces the database file with the
@@ -462,18 +479,34 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-// fsmSnapshot holds a temp-file-backed snapshot of ella.db.
+// fsmSnapshot holds a pinned read transaction over ella.db.
 type fsmSnapshot struct {
-	path   string
-	header [snapshotHeaderSize]byte
+	dataDir  string
+	readDB   *sql.DB
+	readConn *sql.Conn
+	readRaw  *sqlite3.SQLiteConn
+	inTx     bool
+	path     string
+	header   [snapshotHeaderSize]byte
+
+	unpin     func()
+	unpinOnce sync.Once
 }
 
 const snapshotChunkSize = 64 * 1024
 
-// Persist streams the snapshot header followed by the SQLite file to the Raft
-// snapshot sink in 64 KiB chunks.
+// Persist copies the pinned snapshot into a temp file, then streams it and
+// the snapshot header to the Raft snapshot sink in 64 KiB chunks.
 func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
-	// Write the ELSN header first.
+	err := s.copyPinned()
+
+	s.releasePinned()
+
+	if err != nil {
+		_ = sink.Cancel()
+		return err
+	}
+
 	if _, err := sink.Write(s.header[:]); err != nil {
 		_ = sink.Cancel()
 		return fmt.Errorf("write snapshot header: %w", err)
@@ -515,7 +548,96 @@ func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	return nil
 }
 
+func (s *fsmSnapshot) copyPinned() error {
+	snapshotDir := filepath.Join(s.dataDir, "raft", "snapshots", "tmp")
+	if err := os.MkdirAll(snapshotDir, 0o700); err != nil {
+		return fmt.Errorf("create snapshot tmp dir: %w", err)
+	}
+
+	tmpFile, err := os.CreateTemp(snapshotDir, "snapshot-*.db")
+	if err != nil {
+		return fmt.Errorf("create snapshot temp file: %w", err)
+	}
+
+	s.path = tmpFile.Name()
+
+	_ = tmpFile.Close()
+
+	ctx := context.Background()
+
+	destDB, err := sql.Open("sqlite3", s.path)
+	if err != nil {
+		return fmt.Errorf("open snapshot destination: %w", err)
+	}
+
+	defer func() { _ = destDB.Close() }()
+
+	destConn, err := destDB.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire snapshot destination connection: %w", err)
+	}
+
+	defer func() { _ = destConn.Close() }()
+
+	return destConn.Raw(func(dc any) error {
+		destRaw, ok := dc.(*sqlite3.SQLiteConn)
+		if !ok {
+			return fmt.Errorf("unexpected sqlite driver conn type %T", dc)
+		}
+
+		backup, err := destRaw.Backup("main", s.readRaw, "main")
+		if err != nil {
+			return fmt.Errorf("start snapshot backup: %w", err)
+		}
+
+		done, err := backup.Step(-1)
+		if err != nil {
+			_ = backup.Finish()
+			return fmt.Errorf("copy snapshot pages: %w", err)
+		}
+
+		if !done {
+			_ = backup.Finish()
+			return errors.New("snapshot backup did not copy every page")
+		}
+
+		if err := backup.Finish(); err != nil {
+			return fmt.Errorf("finish snapshot backup: %w", err)
+		}
+
+		return nil
+	})
+}
+
+func (s *fsmSnapshot) releasePinned() {
+	if s.inTx {
+		_, _ = s.readConn.ExecContext(context.Background(), "ROLLBACK")
+		s.inTx = false
+	}
+
+	if s.readConn != nil {
+		_ = s.readConn.Close()
+		s.readConn = nil
+	}
+
+	if s.readDB != nil {
+		_ = s.readDB.Close()
+		s.readDB = nil
+	}
+
+	s.readRaw = nil
+
+	if s.unpin != nil {
+		s.unpinOnce.Do(s.unpin)
+	}
+}
+
 // Release cleans up the temp snapshot file.
 func (s *fsmSnapshot) Release() {
-	_ = os.Remove(s.path)
+	s.releasePinned()
+
+	if s.path != "" {
+		_ = os.Remove(s.path)
+		s.path = ""
+	}
 }

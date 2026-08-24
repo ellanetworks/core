@@ -33,6 +33,12 @@ const (
 // Once resolved, the ID is written to <dataDir>/node-id. On subsequent boots,
 // the persisted value is validated against config/env; mismatches fail loudly.
 func ResolveNodeID(configNodeID int, dataDir string) (int, error) {
+	return resolveNodeID(configNodeID, dataDir, 0)
+}
+
+// resolveNodeID implements ResolveNodeID. A non-zero fallback is adopted and
+// persisted when no source supplies an ID, instead of returning an error.
+func resolveNodeID(configNodeID int, dataDir string, fallback int) (int, error) {
 	nodeIDPath := filepath.Join(dataDir, nodeIDFilename)
 
 	// Resolve from the three sources.
@@ -44,13 +50,17 @@ func ResolveNodeID(configNodeID int, dataDir string) (int, error) {
 	if resolved == 0 {
 		// Try the persisted file.
 		persisted, err := readNodeIDFile(nodeIDPath)
-		if err != nil {
+		if err == nil {
+			return persisted, nil
+		}
+
+		if fallback == 0 {
 			return 0, fmt.Errorf("node ID not provided: set cluster.node-id in config, "+
 				"ELLA_CLUSTER_NODE_ID environment variable, or ensure %s exists: %w",
 				nodeIDPath, err)
 		}
 
-		return persisted, nil
+		resolved, source = fallback, "standalone default"
 	}
 
 	if err := validateNodeID(resolved); err != nil {

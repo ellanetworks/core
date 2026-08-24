@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sqn"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -378,4 +379,27 @@ func establishResumeForTest(m *mme.MME, ue *mme.UeContext, conn mme.S1APWriter, 
 	c.ServingTAI = servedAttachTAI // set from the resume's INITIAL UE MESSAGE in production
 	m.AttachUeConn(ue, c)
 	c.MarkSecureExchangeEstablished()
+}
+
+func (f *fakeCredStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	sub, ok := f.subs[imsi]
+	if !ok {
+		return nil, fmt.Errorf("subscriber %s not found", imsi)
+	}
+
+	next, err := sqn.Next(sub.SequenceNumber, sub.Opc, sub.PermanentKey, resyncAuts, resyncRand)
+	if err != nil {
+		return nil, err
+	}
+
+	sub.SequenceNumber = next
+
+	return &udm.AdvancedCredentials{
+		PermanentKey:   sub.PermanentKey,
+		Opc:            sub.Opc,
+		SequenceNumber: next,
+	}, nil
 }

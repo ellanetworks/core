@@ -223,6 +223,7 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, ex
 
 			return conn, nil
 		},
+		DisableKeepAlives: true,
 	}
 
 	client := &http.Client{Transport: transport, Timeout: discoveryHTTPTimeout}

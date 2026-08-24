@@ -13,9 +13,9 @@ import (
 )
 
 // RunJoinTokenTidyWorker prunes expired and old-consumed rows from
-// cluster_join_tokens hourly. Runs on the leader only (gated by
-// guard); follows the RunDataRetentionWorker pattern.
-func RunJoinTokenTidyWorker(ctx context.Context, database *db.Database, guard *LeaderGuard) {
+// cluster_join_tokens hourly. Runs on the leader only; follows the
+// RunDataRetentionWorker pattern.
+func RunJoinTokenTidyWorker(ctx context.Context, database *db.Database) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
@@ -27,7 +27,7 @@ func RunJoinTokenTidyWorker(ctx context.Context, database *db.Database, guard *L
 		case <-ticker.C:
 		}
 
-		if !guard.IsLeader() {
+		if !database.IsLeader() {
 			continue
 		}
 

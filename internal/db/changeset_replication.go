@@ -49,7 +49,6 @@ var replicatedChangesetTables = []string{
 	NetworkRulesTableName,
 	FramedRoutesTableName,
 	IPLeasesTableName,
-	AuditLogsTableName,
 	UsersTableName,
 	APITokensTableName,
 	SessionsTableName,
@@ -82,6 +81,7 @@ var replicatedChangesetTables = []string{
 // in db.InitializeLocalSettings AND extend the fresh-DB regression test
 // in local_only_defaults_test.go.
 var localOnlyTables = []string{
+	AuditLogsTableName,
 	RadioEventsTableName,
 	FlowReportsTableName,
 	RoutesTableName,

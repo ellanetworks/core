@@ -28,8 +28,13 @@ type Subscriber struct {
 // database). The SQN update is the single per-subscriber counter shared by 4G
 // and 5G.
 type SubscriberStore interface {
-	GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error)
-	UpdateSequenceNumber(ctx context.Context, imsi string, sqn string) error
+	AdvanceSequenceNumber(ctx context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error)
+}
+
+type AdvancedCredentials struct {
+	PermanentKey   string
+	Opc            string
+	SequenceNumber string
 }
 
 // Service is the home credential authority.
@@ -125,55 +130,25 @@ func (s *Service) Generate5GHEAV(ctx context.Context, suci, servingNetwork, resy
 // from AUTS when provided), persists the new SQN, and returns K, OPc, and the
 // SQN to use for the vector.
 func (s *Service) advance(ctx context.Context, imsi, resyncAuts, resyncRand string) (k, opc, sqn []byte, err error) {
-	sub, err := s.store.GetSubscriber(ctx, imsi)
+	creds, err := s.store.AdvanceSequenceNumber(ctx, imsi, resyncAuts, resyncRand)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("couldn't get subscriber %s: %w", imsi, err)
+		return nil, nil, nil, fmt.Errorf("couldn't advance sequence number for subscriber %s: %w", imsi, err)
 	}
 
-	if sub.PermanentKey == "" || sub.Opc == "" {
+	if creds.PermanentKey == "" || creds.Opc == "" {
 		return nil, nil, nil, fmt.Errorf("subscriber %s missing key material", imsi)
 	}
 
-	if k, err = hex.DecodeString(sub.PermanentKey); err != nil {
+	if k, err = hex.DecodeString(creds.PermanentKey); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to decode k: %w", err)
 	}
 
-	if opc, err = hex.DecodeString(sub.Opc); err != nil {
+	if opc, err = hex.DecodeString(creds.Opc); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to decode opc: %w", err)
 	}
 
-	var nextSQN string
-
-	if resyncAuts != "" {
-		auts, err := hex.DecodeString(resyncAuts)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("could not decode auts: %w", err)
-		}
-
-		randBytes, err := hex.DecodeString(resyncRand)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("could not decode rand: %w", err)
-		}
-
-		sqnMsHex, err := resyncSQN(opc, k, auts, randBytes)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("SQN resync failed for %s: %w", imsi, err)
-		}
-
-		// TS 33.102 §C.3.4: after resync, advance by IND+1 to the next IND slot.
-		if nextSQN, err = AdvanceSQN(sqnMsHex, IndStep+1); err != nil {
-			return nil, nil, nil, fmt.Errorf("SQN advance failed: %w", err)
-		}
-	} else if nextSQN, err = AdvanceSQN(strictHex(sub.SequenceNumber, 12), IndStep); err != nil {
-		return nil, nil, nil, fmt.Errorf("SQN increment failed: %w", err)
-	}
-
-	if sqn, err = hex.DecodeString(nextSQN); err != nil {
+	if sqn, err = hex.DecodeString(creds.SequenceNumber); err != nil {
 		return nil, nil, nil, fmt.Errorf("error decoding sqn: %w", err)
-	}
-
-	if err = s.store.UpdateSequenceNumber(ctx, imsi, nextSQN); err != nil {
-		return nil, nil, nil, fmt.Errorf("couldn't update subscriber %s: %w", imsi, err)
 	}
 
 	return k, opc, sqn, nil

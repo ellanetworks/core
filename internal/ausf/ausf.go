@@ -28,6 +28,8 @@ type (
 	SubscriberStore = udm.SubscriberStore
 	Subscriber      = udm.Subscriber
 	KeyResolver     = udm.KeyResolver
+
+	AdvancedCredentials = udm.AdvancedCredentials
 )
 
 // AuthResult is returned by Authenticate to the AMF.

@@ -297,3 +297,90 @@ func readPersistedID(t testing.TB, dir string) int {
 
 	return id
 }
+
+func TestResolveNodeIDForMode_StandalonePersistsDefault(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	id, err := resolveNodeIDForMode(ClusterConfig{}, true, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if id != defaultStandaloneNodeID {
+		t.Fatalf("want %d, got %d", defaultStandaloneNodeID, id)
+	}
+
+	if persisted := readPersistedID(t, dir); persisted != defaultStandaloneNodeID {
+		t.Fatalf("persisted id: want %d, got %d", defaultStandaloneNodeID, persisted)
+	}
+}
+
+func TestResolveNodeIDForMode_StandalonePrefersPersistedOverDefault(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if err := writeNodeIDFile(filepath.Join(dir, nodeIDFilename), 7); err != nil {
+		t.Fatalf("writeNodeIDFile: %v", err)
+	}
+
+	id, err := resolveNodeIDForMode(ClusterConfig{}, true, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if id != 7 {
+		t.Fatalf("want 7, got %d", id)
+	}
+}
+
+func TestResolveNodeIDForMode_StandaloneThenHAKeepsID(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	standaloneID, err := resolveNodeIDForMode(ClusterConfig{}, true, dir)
+	if err != nil {
+		t.Fatalf("standalone boot: %v", err)
+	}
+
+	haID, err := resolveNodeIDForMode(ClusterConfig{Enabled: true, NodeID: standaloneID}, false, dir)
+	if err != nil {
+		t.Fatalf("HA boot after standalone: %v", err)
+	}
+
+	if haID != standaloneID {
+		t.Fatalf("id changed across mode switch: standalone %d, HA %d", standaloneID, haID)
+	}
+}
+
+func TestResolveNodeIDForMode_StandaloneThenHARejectsChangedID(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if _, err := resolveNodeIDForMode(ClusterConfig{}, true, dir); err != nil {
+		t.Fatalf("standalone boot: %v", err)
+	}
+
+	_, err := resolveNodeIDForMode(ClusterConfig{Enabled: true, NodeID: 3}, false, dir)
+	if err == nil {
+		t.Fatal("expected error when HA config assigns an ID the standalone boot did not persist")
+	}
+
+	if !strings.Contains(err.Error(), "mismatch") {
+		t.Fatalf("want mismatch error, got: %v", err)
+	}
+}
+
+func TestResolveNodeIDForMode_HAStillRequiresExplicitID(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	if _, err := resolveNodeIDForMode(ClusterConfig{Enabled: true}, false, dir); err == nil {
+		t.Fatal("expected error when HA supplies no node ID")
+	}
+}

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-package udm
+package sqn
 
 import (
 	"crypto/hmac"
@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/ellanetworks/core/internal/milenage"
 )
 
 // aucSQN recovers the UE's SQN from AUTS using Milenage and returns
 // the recovered SQN bytes and MAC-S for verification.
-func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
+func AucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 	if len(auts) < 14 {
 		return nil, nil, fmt.Errorf("AUTS too short: need 14 bytes, got %d", len(auts))
 	}
@@ -27,7 +29,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to decode AMF: %w", err)
 	}
 
-	err = F2345(opc, k, rand, nil, nil, nil, nil, AK)
+	err = milenage.F2345(opc, k, rand, nil, nil, nil, nil, AK)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate AK: %w", err)
 	}
@@ -36,7 +38,7 @@ func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
 		SQNms[i] = AK[i] ^ ConcSQNms[i]
 	}
 
-	err = F1(opc, k, rand, SQNms, AMF, nil, macS)
+	err = milenage.F1(opc, k, rand, SQNms, AMF, nil, macS)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate macS: %w", err)
 	}
@@ -59,7 +61,7 @@ const IndStep uint64 = 32
 
 // AdvanceSQN adds delta to sqn, masked to 48 bits, and returns the
 // new value as a zero-padded 12-character hex string.
-func AdvanceSQN(sqnHex string, delta uint64) (string, error) {
+func Advance(sqnHex string, delta uint64) (string, error) {
 	n, err := strconv.ParseUint(sqnHex, 16, 64)
 	if err != nil {
 		return "", fmt.Errorf("invalid SQN hex %q: %w", sqnHex, err)
@@ -73,8 +75,8 @@ func AdvanceSQN(sqnHex string, delta uint64) (string, error) {
 // resyncSQN recovers the UE's SQN from an AUTS and verifies MAC-S.
 // It returns the recovered SQN_MS as a hex string. The caller is
 // responsible for incrementing before use.
-func resyncSQN(opc, k, auts, rand []byte) (string, error) {
-	sqnMs, macS, err := aucSQN(opc, k, auts, rand)
+func Resync(opc, k, auts, rand []byte) (string, error) {
+	sqnMs, macS, err := AucSQN(opc, k, auts, rand)
 	if err != nil {
 		return "", err
 	}
@@ -90,13 +92,13 @@ func resyncSQN(opc, k, auts, rand []byte) (string, error) {
 // and returns the next 6-octet SQN the network should use for that subscriber —
 // the recovered SQN advanced by one SEQ step. It errors if the AUTS MAC-S is
 // invalid (a spoofed or corrupt resynchronisation parameter).
-func ResyncSQN(opc, k, auts, rand []byte) ([]byte, error) {
-	sqnMS, err := resyncSQN(opc, k, auts, rand)
+func ResyncNext(opc, k, auts, rand []byte) ([]byte, error) {
+	sqnMS, err := Resync(opc, k, auts, rand)
 	if err != nil {
 		return nil, err
 	}
 
-	next, err := AdvanceSQN(sqnMS, IndStep)
+	next, err := Advance(sqnMS, IndStep)
 	if err != nil {
 		return nil, err
 	}
@@ -105,11 +107,44 @@ func ResyncSQN(opc, k, auts, rand []byte) ([]byte, error) {
 }
 
 // strictHex pads or truncates a hex string to exactly n characters.
-func strictHex(s string, n int) string {
+func StrictHex(s string, n int) string {
 	l := len(s)
 	if l < n {
 		return strings.Repeat("0", n-l) + s
 	}
 
 	return s[l-n : l]
+}
+
+func Next(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
+	if autsHex == "" {
+		return Advance(StrictHex(currentSQN, 12), IndStep)
+	}
+
+	opc, err := hex.DecodeString(opcHex)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode opc: %w", err)
+	}
+
+	k, err := hex.DecodeString(kHex)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode k: %w", err)
+	}
+
+	auts, err := hex.DecodeString(autsHex)
+	if err != nil {
+		return "", fmt.Errorf("could not decode auts: %w", err)
+	}
+
+	randBytes, err := hex.DecodeString(randHex)
+	if err != nil {
+		return "", fmt.Errorf("could not decode rand: %w", err)
+	}
+
+	sqnMsHex, err := Resync(opc, k, auts, randBytes)
+	if err != nil {
+		return "", fmt.Errorf("SQN resync failed: %w", err)
+	}
+
+	return Advance(sqnMsHex, IndStep+1)
 }

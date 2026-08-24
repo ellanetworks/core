@@ -28,6 +28,7 @@ const (
 	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
 	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
 	editSubscriberSeqNumStmt  = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
+	casSubscriberSeqNumStmt   = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
 	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	countSubscribersStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
