@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useId, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import {
   Alert,
   Button,
@@ -68,11 +68,13 @@ const FormDialog = <T extends FieldValues>({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) {
-      form.reset();
-      setSubmitError("");
-    }
+    if (open) setSubmitError("");
   }
+
+  // The form is owned by the caller, so resetting it is an external sync.
+  useEffect(() => {
+    if (open) form.reset();
+  }, [open, form]);
 
   const submit = form.handleSubmit(async (values) => {
     setSubmitError("");

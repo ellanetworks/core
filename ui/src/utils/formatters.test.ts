@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   buildProtocolColorMap,
+  buildDestinationColorMap,
   chooseUnitFromMax,
   formatBytesAutoUnit,
   formatBytesWithUnit,
@@ -259,5 +260,42 @@ describe("formatRelativeTime", () => {
   // A clock skew between server and browser must not render "-5s ago".
   it("reports a future timestamp as just now", () => {
     expect(at("2026-07-14T12:00:05Z")).toBe("just now");
+  });
+});
+
+describe("buildDestinationColorMap", () => {
+  const series = theme.palette.chart.series;
+  const ips = ["10.0.0.5", "93.184.216.34", "1.1.1.1"];
+
+  it("keeps a destination's colour when the ranking reorders", () => {
+    const first = buildDestinationColorMap(ips, series);
+    const second = buildDestinationColorMap([...ips].reverse(), series);
+
+    ips.forEach((ip) => expect(first.get(ip)).toBe(second.get(ip)));
+  });
+
+  it("colours every destination distinctly while the palette allows", () => {
+    const colors = [...buildDestinationColorMap(ips, series).values()];
+
+    expect(new Set(colors).size).toBe(ips.length);
+  });
+
+  it("only hands out palette colours", () => {
+    const map = buildDestinationColorMap(ips, series);
+
+    map.forEach((color) => expect(series).toContain(color));
+  });
+
+  it("terminates when there are more destinations than colours", () => {
+    const many = Array.from(
+      { length: series.length + 5 },
+      (_, i) => `10.0.0.${i}`,
+    );
+
+    expect(buildDestinationColorMap(many, series).size).toBe(many.length);
+  });
+
+  it("has no entries for an empty set", () => {
+    expect(buildDestinationColorMap([], series).size).toBe(0);
   });
 });
