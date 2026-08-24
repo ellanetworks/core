@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/cluster/listener"
-	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
@@ -198,9 +197,7 @@ func setupLeaderPKI(ctx context.Context, p *pkiState, dbInstance *db.Database, n
 
 	// Step 2: install the issuer so the leader can mint join tokens
 	// and accept register requests.
-	if p.issuer == nil {
-		p.issuer = pkiissuer.New(dbInstance)
-	}
+	p.ensureIssuer(dbInstance)
 
 	if err := p.issuer.Bootstrap(ctx); err != nil {
 		return fmt.Errorf("issuer bootstrap: %w", err)
@@ -223,8 +220,6 @@ func setupLeaderPKI(ctx context.Context, p *pkiState, dbInstance *db.Database, n
 	if err := p.RefreshPins(ctx, dbInstance); err != nil {
 		return fmt.Errorf("refresh pin cache: %w", err)
 	}
-
-	server.SetPKIIssuer(p.issuer)
 
 	return nil
 }

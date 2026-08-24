@@ -218,8 +218,8 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 }
 
 // Upgrade swaps the discovery-only handler for the full API handler. It
-// must be called after cluster formation and database initialization so
-// that the JWT secret and all settings are available.
+// must be called after Initialize has seeded the replicated JWT secret on
+// this node; it does not require a leader or a formed cluster.
 func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	jwtSecretBytes, err := opts.DB.GetJWTSecret(ctx)
 	if err != nil {

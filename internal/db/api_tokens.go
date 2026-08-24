@@ -125,7 +125,7 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 		apiToken.ID = id.String()
 	}
 
-	_, err := opCreateAPIToken.Invoke(db, apiToken)
+	_, err := opCreateAPIToken.Invoke(ctx, db, apiToken)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -194,7 +194,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "delete").Inc()
 
-	_, err := opDeleteAPIToken.Invoke(db, &stringPayload{Value: id})
+	_, err := opDeleteAPIToken.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

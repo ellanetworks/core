@@ -95,7 +95,7 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 			Version:       ver.Version,
 			Revision:      ver.Revision,
 			Initialized:   initialized,
-			Ready:         ready.Load(),
+			Ready:         ready.Load() && dbInstance.HasLeader() && dbInstance.IsOperatorInitialized(ctx),
 			SchemaVersion: db.SchemaVersion(),
 		}
 

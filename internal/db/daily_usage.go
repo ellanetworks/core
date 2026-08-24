@@ -120,7 +120,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
-	_, err := opIncrementDailyUsage.Invoke(db, &usage)
+	_, err := opIncrementDailyUsage.Invoke(ctx, db, &usage)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -247,7 +247,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	_, err := opClearDailyUsage.Invoke(db, &emptyPayload{})
+	_, err := opClearDailyUsage.Invoke(ctx, db, &emptyPayload{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -284,7 +284,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	// desync replicas.
 	cutoffDay := time.Now().UTC().AddDate(0, 0, -days).Unix() / 86400
 
-	_, err := opDeleteOldDailyUsage.Invoke(db, &int64Payload{Value: cutoffDay})
+	_, err := opDeleteOldDailyUsage.Invoke(ctx, db, &int64Payload{Value: cutoffDay})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

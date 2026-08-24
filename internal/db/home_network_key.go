@@ -224,7 +224,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 		return fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
 	}
 
-	_, err := opCreateHomeNetworkKey.Invoke(db, key)
+	_, err := opCreateHomeNetworkKey.Invoke(ctx, db, key)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -256,7 +256,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
-	_, err := opDeleteHomeNetworkKey.Invoke(db, &stringPayload{Value: id})
+	_, err := opDeleteHomeNetworkKey.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

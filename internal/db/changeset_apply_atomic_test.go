@@ -82,9 +82,13 @@ func newAtomicTestDB(t *testing.T) *Database {
 	tmp := t.TempDir()
 
 	database, err := NewDatabase(context.Background(),
-		filepath.Join(tmp, "db.sqlite3"), ellaraft.ClusterConfig{})
+		filepath.Join(tmp, "db.sqlite3"), ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("NewDatabase: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	t.Cleanup(func() { _ = database.Close() })

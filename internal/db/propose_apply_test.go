@@ -26,9 +26,13 @@ func TestProposeApply_RoundTrip_WritesShowUpAndAdvanceAppliedIndex(t *testing.T)
 	ctx := context.Background()
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"), ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("new database: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {
@@ -83,9 +87,13 @@ func TestProposeApply_ApplierErrorSurfacesToCaller(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"), ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("new database: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {

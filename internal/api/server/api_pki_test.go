@@ -136,3 +136,40 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 		t.Fatal("empty expiresAt")
 	}
 }
+
+func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
+	env, err := setupServer(filepath.Join(t.TempDir(), "ella.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = env.DB.Close() }()
+
+	if err := env.DB.UpdateOperatorClusterID(context.Background(), "test-cluster"); err != nil {
+		t.Fatal(err)
+	}
+
+	server.SetPKIIssuer(pkiissuer.New(env.DB))
+	t.Cleanup(func() { server.SetPKIIssuer(nil) })
+
+	admin, err := initializeAndRefresh(env.Server.URL, env.Server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		env.Server.URL+"/api/v1/cluster/pki/join-tokens", strings.NewReader(`{"nodeID": 5}`))
+	req.Header.Set("Authorization", "Bearer "+admin)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := env.Server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("got %d, want 503 while the issuer is installed but not yet bootstrapped", resp.StatusCode)
+	}
+}

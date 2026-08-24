@@ -183,7 +183,7 @@ func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerp
 // UpsertClusterNodeCert pins (or re-pins on rotation) a node's cert.
 // The leader's /cluster/pki/register handler drives this.
 func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCert) error {
-	_, err := opUpsertNodeCert.Invoke(db, r)
+	_, err := opUpsertNodeCert.Invoke(ctx, db, r)
 
 	return err
 }
@@ -192,7 +192,7 @@ func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCer
 // RemoveClusterMember; once the deletion replicates, peers reject
 // the removed node's handshakes.
 func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID int) error {
-	_, err := opDeleteNodeCert.Invoke(db, &ClusterNodeCert{NodeID: nodeID})
+	_, err := opDeleteNodeCert.Invoke(ctx, db, &ClusterNodeCert{NodeID: nodeID})
 
 	return err
 }
@@ -201,7 +201,7 @@ func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID int) error
 // token can be checked for single-use. The token string itself is
 // emitted by pki.MintJoinToken; this row only carries metadata.
 func (db *Database) MintJoinTokenRecord(ctx context.Context, r *ClusterJoinToken) error {
-	_, err := opMintJoinToken.Invoke(db, r)
+	_, err := opMintJoinToken.Invoke(ctx, db, r)
 
 	return err
 }
@@ -226,7 +226,7 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 // UPDATE only matches unconsumed rows, so a second caller on a different
 // voter (post-replication) finds nothing to update.
 func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int) error {
-	_, err := opConsumeJoinToken.Invoke(db, &ClusterJoinToken{
+	_, err := opConsumeJoinToken.Invoke(ctx, db, &ClusterJoinToken{
 		ID:         id,
 		ConsumedAt: time.Now().Unix(),
 		ConsumedBy: nodeID,
@@ -240,7 +240,7 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) error {
 	cutoffConsumed := now.Add(-time.Hour).Unix()
 
-	_, err := opDeleteStaleJoinTokens.Invoke(db, &ClusterJoinToken{
+	_, err := opDeleteStaleJoinTokens.Invoke(ctx, db, &ClusterJoinToken{
 		ExpiresAt:  now.Unix(),
 		ConsumedAt: cutoffConsumed,
 	})
@@ -269,7 +269,7 @@ func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 // leader promotion. Subsequent calls are no-ops (ON CONFLICT DO
 // NOTHING) so the key is fixed for the cluster's lifetime.
 func (db *Database) InitClusterJoinHMACKey(ctx context.Context, key []byte) error {
-	_, err := opInitJoinHMAC.Invoke(db, &ClusterJoinHMAC{HMACKey: key})
+	_, err := opInitJoinHMAC.Invoke(ctx, db, &ClusterJoinHMAC{HMACKey: key})
 
 	return err
 }

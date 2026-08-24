@@ -24,9 +24,13 @@ func TestRestore(t *testing.T) {
 
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {
@@ -81,9 +85,13 @@ func TestRestore_InvalidFile(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {
@@ -135,9 +143,13 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {
@@ -235,9 +247,13 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 	databasePath := filepath.Join(tempDir, "data")
 	ctx := context.Background()
 
-	database, err := db.NewDatabase(ctx, databasePath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(ctx, databasePath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {

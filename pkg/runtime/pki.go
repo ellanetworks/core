@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
@@ -31,7 +33,32 @@ type pkiState struct {
 	agent  *pkiagent.Agent
 	issuer *pkiissuer.Service
 
-	pins atomic.Pointer[map[string]int]
+	issuerMu sync.Mutex
+
+	bootstrapPins atomic.Pointer[map[string]int]
+	pins          atomic.Pointer[map[string]int]
+}
+
+func (p *pkiState) activePins() map[string]int {
+	if m := p.pins.Load(); m != nil && len(*m) > 0 {
+		return *m
+	}
+
+	if m := p.bootstrapPins.Load(); m != nil {
+		return *m
+	}
+
+	return nil
+}
+
+func (p *pkiState) ensureIssuer(dbInstance *db.Database) {
+	p.issuerMu.Lock()
+	defer p.issuerMu.Unlock()
+
+	if p.issuer == nil {
+		p.issuer = pkiissuer.New(dbInstance)
+		server.SetPKIIssuer(p.issuer)
+	}
 }
 
 func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {
@@ -48,22 +75,22 @@ func (p *pkiState) LeafFunc() listener.LeafFunc {
 // fingerprint against the cached pin map.
 func (p *pkiState) PinFunc() listener.PinFunc {
 	return func(fingerprint string) listener.PinResult {
-		m := p.pins.Load()
+		m := p.activePins()
 		if m == nil {
 			return listener.PinResult{}
 		}
 
-		nid, ok := (*m)[fingerprint]
+		nid, ok := m[fingerprint]
 
-		known := make([]int, 0, len(*m))
-		for _, n := range *m {
+		known := make([]int, 0, len(m))
+		for _, n := range m {
 			known = append(known, n)
 		}
 
 		return listener.PinResult{
 			Found:        ok,
 			NodeID:       nid,
-			CacheSize:    len(*m),
+			CacheSize:    len(m),
 			KnownNodeIDs: known,
 		}
 	}
@@ -72,8 +99,7 @@ func (p *pkiState) PinFunc() listener.PinFunc {
 // SeedPinsFromAgentDisk installs the disk-resident pin map (the
 // local node's own pin plus the peer-pins.json snapshot saved by
 // the most recent JoinFlow / register call) so the listener can
-// verify peers during the startup window before the first
-// RefreshPins reads the replicated table.
+// verify peers for as long as the replicated table has not landed.
 func (p *pkiState) SeedPinsFromAgentDisk() {
 	m, err := p.agent.LoadPeerPins()
 	if err != nil {
@@ -90,10 +116,10 @@ func (p *pkiState) SeedPinsFromAgentDisk() {
 		return
 	}
 
-	p.pins.Store(&m)
+	p.bootstrapPins.Store(&m)
 }
 
-// RefreshPins reads cluster_node_certs and replaces the cache.
+// RefreshPins reads cluster_node_certs and replaces the replicated pin set.
 func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) error {
 	rows, err := dbInstance.ListClusterNodeCerts(ctx)
 	if err != nil {

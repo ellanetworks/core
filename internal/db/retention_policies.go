@@ -151,7 +151,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 		policy.ID = id.String()
 	}
 
-	_, err := opSetRetentionPolicy.Invoke(db, policy)
+	_, err := opSetRetentionPolicy.Invoke(ctx, db, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

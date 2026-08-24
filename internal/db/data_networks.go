@@ -245,7 +245,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		dataNetwork.ID = id.String()
 	}
 
-	_, err := opCreateDataNetwork.Invoke(db, dataNetwork)
+	_, err := opCreateDataNetwork.Invoke(ctx, db, dataNetwork)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -276,7 +276,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "update").Inc()
 
-	_, err := opUpdateDataNetwork.Invoke(db, dataNetwork)
+	_, err := opUpdateDataNetwork.Invoke(ctx, db, dataNetwork)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -307,7 +307,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "delete").Inc()
 
-	_, err := opDeleteDataNetwork.Invoke(db, &stringPayload{Value: name})
+	_, err := opDeleteDataNetwork.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

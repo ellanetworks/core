@@ -200,7 +200,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 		profile.ID = id.String()
 	}
 
-	_, err := opCreateProfile.Invoke(db, profile)
+	_, err := opCreateProfile.Invoke(ctx, db, profile)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -231,7 +231,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "update").Inc()
 
-	_, err := opUpdateProfile.Invoke(db, profile)
+	_, err := opUpdateProfile.Invoke(ctx, db, profile)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -262,7 +262,7 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "delete").Inc()
 
-	_, err := opDeleteProfile.Invoke(db, &stringPayload{Value: name})
+	_, err := opDeleteProfile.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

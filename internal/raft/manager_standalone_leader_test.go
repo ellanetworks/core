@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -64,7 +63,7 @@ func seedMultiServerRaftState(t testing.TB, dataDir string) {
 	}
 }
 
-func TestNewManagerStandaloneFailsOnMultiServerState(t *testing.T) {
+func TestNewManagerStandaloneStartsWithMultiServerState(t *testing.T) {
 	t.Parallel()
 
 	applier := newTestApplier(t)
@@ -72,33 +71,113 @@ func TestNewManagerStandaloneFailsOnMultiServerState(t *testing.T) {
 
 	seedMultiServerRaftState(t, dataDir)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	mgr, err := NewManager(ctx, ClusterConfig{}, applier, dataDir)
-	if err == nil {
-		_ = mgr.Shutdown()
-
-		t.Fatal("expected NewManager to fail when standalone state lists multiple servers")
+	mgr, err := NewManager(ctx, FastTestConfig(), applier, dataDir)
+	if err != nil {
+		t.Fatalf("NewManager must start even when it can never elect itself: %v", err)
 	}
 
-	for _, want := range []string{"did not become raft leader", "lists servers", "peers.json"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("error missing %q; got: %v", want, err)
-		}
-	}
+	t.Cleanup(func() { _ = mgr.Shutdown() })
 
-	for _, id := range []string{"1", "2", "3"} {
-		if !strings.Contains(err.Error(), id) {
-			t.Fatalf("error does not name server %q; got: %v", id, err)
-		}
+	if mgr.HasLeader() {
+		t.Fatal("node with a stale three-server configuration must not report a leader")
 	}
 }
 
-func TestStandaloneLeaderTimeoutIsBounded(t *testing.T) {
+func TestNewManagerStandaloneDoesNotBlockOnElection(t *testing.T) {
 	t.Parallel()
 
-	if standaloneLeaderTimeout <= 0 || standaloneLeaderTimeout > 5*time.Minute {
-		t.Fatalf("standaloneLeaderTimeout must be a sane positive bound on startup, got %s", standaloneLeaderTimeout)
+	applier := newTestApplier(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cfg := ClusterConfig{
+		ElectionTimeout:    10 * time.Second,
+		HeartbeatTimeout:   10 * time.Second,
+		LeaderLeaseTimeout: 5 * time.Second,
+	}
+
+	start := time.Now()
+
+	mgr, err := NewManager(ctx, cfg, applier, t.TempDir())
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	t.Cleanup(func() { _ = mgr.Shutdown() })
+
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("NewManager blocked for %s; startup must not wait for leadership", elapsed)
+	}
+}
+
+func TestApplyTimeoutsUsesLibraryDefaults(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		cfg          ClusterConfig
+		singleServer bool
+		heartbeat    time.Duration
+		election     time.Duration
+		lease        time.Duration
+	}{
+		{
+			name:         "standalone",
+			singleServer: true,
+			heartbeat:    1000 * time.Millisecond,
+			election:     1000 * time.Millisecond,
+			lease:        500 * time.Millisecond,
+		},
+		{
+			name:      "ha",
+			cfg:       ClusterConfig{Enabled: true},
+			heartbeat: 5000 * time.Millisecond,
+			election:  5000 * time.Millisecond,
+			lease:     2500 * time.Millisecond,
+		},
+		{
+			name:      "ha with multiplier",
+			cfg:       ClusterConfig{Enabled: true, PerformanceMultiplier: 2},
+			heartbeat: 2000 * time.Millisecond,
+			election:  2000 * time.Millisecond,
+			lease:     1000 * time.Millisecond,
+		},
+		{
+			name:         "explicit overrides win",
+			singleServer: true,
+			cfg: ClusterConfig{
+				HeartbeatTimeout:   7 * time.Millisecond,
+				ElectionTimeout:    8 * time.Millisecond,
+				LeaderLeaseTimeout: 9 * time.Millisecond,
+			},
+			heartbeat: 7 * time.Millisecond,
+			election:  8 * time.Millisecond,
+			lease:     9 * time.Millisecond,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rc := raft.DefaultConfig()
+			applyTimeouts(rc, tt.cfg, tt.singleServer)
+
+			if rc.HeartbeatTimeout != tt.heartbeat {
+				t.Errorf("HeartbeatTimeout = %s, want %s", rc.HeartbeatTimeout, tt.heartbeat)
+			}
+
+			if rc.ElectionTimeout != tt.election {
+				t.Errorf("ElectionTimeout = %s, want %s", rc.ElectionTimeout, tt.election)
+			}
+
+			if rc.LeaderLeaseTimeout != tt.lease {
+				t.Errorf("LeaderLeaseTimeout = %s, want %s", rc.LeaderLeaseTimeout, tt.lease)
+			}
+		})
 	}
 }
