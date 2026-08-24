@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"go.uber.org/zap"
@@ -161,35 +162,39 @@ func stagePendingN1(
 }
 
 // TS 24501 5.6.1
-func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte, integrityVerified bool) {
+func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, plain []byte, integrityVerified bool) nasreply.Disposition {
+	ueConn := ue.Conn()
+	if ueConn == nil {
+		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
+		return nasreply.Silent(nasreply.ReasonNoContext)
+	}
+
 	msg, err := fgs.ParseServiceRequest(plain)
 	if !decoded(ctx, "ServiceRequest", err) {
+		// TS 24.501 §5.6.1.8 b): a SERVICE REQUEST carrying a protocol error is answered
+		// with a SERVICE REJECT #96, not a 5GMM STATUS.
 		logger.From(ctx, logger.AmfLog).Warn("failed to decode Service Request", zap.Error(err))
-		return
+		rejectService(ctx, ueConn, fgs.GMMCauseInvalidMandatoryInformation)
+
+		return nasreply.Handled()
 	}
 
 	state := ue.State()
 	if state != amf.Deregistered && state != amf.Registered {
 		logger.From(ctx, logger.AmfLog).Warn("state mismatch: receive Service Request message", zap.String("state", string(state)))
-		return
-	}
-
-	ueConn := ue.Conn()
-	if ueConn == nil {
-		logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
-		return
+		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
 	// TS 24.501: reject service request from deregistered UE
 	if state == amf.Deregistered {
 		rejectService(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
-		return
+		return nasreply.Handled()
 	}
 
 	conn := ue.Conn()
 	if conn == nil {
 		logger.From(ctx, logger.AmfLog).Warn("no active NAS connection")
-		return
+		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
 	ue.StopPaging()
@@ -208,7 +213,9 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			inner, err := fgs.ParseServiceRequest(contents)
 			if !decoded(ctx, "ServiceRequest", err) {
 				logger.From(ctx, logger.AmfLog).Warn("failed to decode service request NAS message container", zap.Error(err))
-				return
+				rejectService(ctx, ueConn, fgs.GMMCauseInvalidMandatoryInformation)
+
+				return nasreply.Handled()
 			}
 
 			msg = inner
@@ -226,7 +233,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 		rejectService(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
 
-		return
+		return nasreply.Handled()
 	}
 
 	serviceType := msg.ServiceType
@@ -252,13 +259,13 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		logger.From(ctx, logger.AmfLog).Warn("emergency service is not supported; rejecting service request")
 		rejectService(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
 
-		return
+		return nasreply.Handled()
 	}
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error getting operator info", zap.Error(err))
-		return
+		return nasreply.Silent(nasreply.ReasonUnspecified)
 	}
 
 	if serviceType == fgs.ServiceTypeSignalling {
@@ -266,7 +273,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
 		}
 
-		return
+		return nasreply.Handled()
 	}
 
 	if requestData := ue.N1N2Message(); requestData != nil {
@@ -356,7 +363,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			case requestData.Standalone():
 				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
-					return
+					return nasreply.Handled()
 				}
 
 			default:
@@ -365,7 +372,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 					ue.ClearN1N2Message()
 					logger.From(ctx, logger.AmfLog).Warn("service Request triggered by Network for pduSessionID that does not exist")
 
-					return
+					return nasreply.Silent(nasreply.ReasonNoContext)
 				}
 
 				ue.SetSmContextActive(requestData.PduSessionID)
@@ -381,7 +388,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 				if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, pending); err != nil {
 					logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
-					return
+					return nasreply.Handled()
 				}
 
 				ue.ClearN1N2Message()
@@ -389,14 +396,14 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		} else {
 			if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
 				logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
-				return
+				return nasreply.Handled()
 			}
 		}
 
 		err := amfInstance.ReallocateGUTI(ctx, ue)
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error reallocating GUTI to UE", zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 
 		amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, true)
@@ -404,7 +411,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	case fgs.ServiceTypeData, fgs.ServiceTypeHighPriorityAccess:
 		if err := sendServiceAccept(ctx, ue, ueConn, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, nil); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error sending service accept", zap.Error(err))
-			return
+			return nasreply.Handled()
 		}
 	default:
 		// TS 24.501 §5.6.1.5: a service request with an unsupported or unknown service type
@@ -412,12 +419,14 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		logger.From(ctx, logger.AmfLog).Warn("service type is not supported; rejecting", zap.Stringer("service_type", serviceType))
 		rejectService(ctx, ueConn, fgs.GMMCauseProtocolErrorUnspecified)
 
-		return
+		return nasreply.Handled()
 	}
 
 	if len(errPduSessionID) != 0 {
 		logger.From(ctx, logger.AmfLog).Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	}
+
+	return nasreply.Handled()
 }
 
 // rejectService answers a service request the AMF cannot accept with a SERVICE REJECT
