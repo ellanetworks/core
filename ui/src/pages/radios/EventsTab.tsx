@@ -338,13 +338,6 @@ export default function EventsTab() {
 
   const hasActiveFilters = Object.keys(filterParams).length > 0;
 
-  const viewEventDrawerOpen = !!eventIdParam;
-
-  const selectionModel = useMemo(
-    () => makeSelection(eventIdParam ? [Number(eventIdParam)] : []),
-    [eventIdParam],
-  );
-
   const eventRow = useMemo<LogRow | null>(() => {
     if (!eventIdParam) return null;
     const match = networkLogsQuery.data?.items?.find(
@@ -368,6 +361,15 @@ export default function EventsTab() {
   if (eventRow && eventRow.id !== selectedRow?.id) {
     setSelectedRow(eventRow);
   }
+
+  // An id no page holds must not open an empty panel, so the row gates the drawer.
+  const viewEventDrawerOpen =
+    !!eventIdParam && selectedRow?.id === eventIdParam;
+
+  const selectionModel = useMemo(
+    () => makeSelection(viewEventDrawerOpen ? [Number(eventIdParam)] : []),
+    [viewEventDrawerOpen, eventIdParam],
+  );
 
   const handleConfirmDeleteRadioEvents = async () => {
     if (!accessToken) return;
@@ -479,10 +481,20 @@ export default function EventsTab() {
 
   const handleRowClick = useCallback(
     (params: GridRowParams<APIRadioEvent>) => {
+      const r = params.row;
+      setSelectedRow({
+        id: String(r.id),
+        timestamp: r.timestamp,
+        protocol: r.protocol,
+        messageType: r.message_type,
+        direction: r.direction,
+        radio: r.radio,
+        address: r.address,
+      });
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
-          next.set("event", String(params.row.id));
+          next.set("event", String(r.id));
           return next;
         },
         { replace: true },
@@ -817,6 +829,8 @@ export default function EventsTab() {
       </Box>
 
       <Box
+        data-testid="event-panel"
+        data-open={viewEventDrawerOpen}
         sx={{
           position: "fixed",
           top: TOOLBAR_HEIGHT,

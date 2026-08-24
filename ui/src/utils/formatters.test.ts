@@ -280,6 +280,12 @@ describe("buildDestinationColorMap", () => {
     expect(new Set(colors).size).toBe(ips.length);
   });
 
+  it("walks the palette in order", () => {
+    const colors = [...buildDestinationColorMap(ips, series).values()];
+
+    expect(colors).toEqual(series.slice(0, ips.length));
+  });
+
   it("only hands out palette colours", () => {
     const map = buildDestinationColorMap(ips, series);
 

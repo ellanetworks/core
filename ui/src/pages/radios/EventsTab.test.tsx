@@ -432,6 +432,10 @@ const seedDecodedEvent = (id: number) =>
 
 const panelTitle = () => screen.findByTestId("event-panel-title");
 
+const panelIsOpen = async () =>
+  (await screen.findByTestId("event-panel")).getAttribute("data-open") ===
+  "true";
+
 describe("EventsTab event panel", () => {
   it("opens the panel for the event named in the URL", async () => {
     seedApi({
@@ -441,6 +445,7 @@ describe("EventsTab event panel", () => {
     await renderEvents("/radios/events?event=7");
 
     expect(await panelTitle()).toHaveTextContent("PathSwitchRequest");
+    expect(await panelIsOpen()).toBe(true);
   });
 
   it("leaves the panel shut when the URL names no event", async () => {
@@ -449,7 +454,7 @@ describe("EventsTab event panel", () => {
     });
     await renderEvents();
 
-    expect(await panelTitle()).toHaveTextContent("Event details");
+    expect(await panelIsOpen()).toBe(false);
   });
 
   it("opens the panel for a row the operator clicks", async () => {
@@ -468,13 +473,30 @@ describe("EventsTab event panel", () => {
     );
   });
 
-  it("ignores an event id that is not on the page", async () => {
+  it("keeps the panel shut for an event id that is not on the page", async () => {
     seedApi({
       events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
     });
-    seedDecodedEvent(999);
     await renderEvents("/radios/events?event=999");
 
-    expect(await panelTitle()).toHaveTextContent("Event details");
+    await screen.findByText("radio-1");
+    expect(await panelIsOpen()).toBe(false);
+  });
+
+  it("shuts the panel again when the event is dismissed", async () => {
+    const user = userEvent.setup();
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    seedDecodedEvent(7);
+    await renderEvents("/radios/events?event=7");
+
+    expect(await panelIsOpen()).toBe(true);
+
+    await user.keyboard("{Escape}");
+
+    await waitFor(async () => expect(await panelIsOpen()).toBe(false));
+    // the contents outlive the param so the panel does not blank mid-slide
+    expect(await panelTitle()).toHaveTextContent("PathSwitchRequest");
   });
 });

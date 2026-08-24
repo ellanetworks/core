@@ -306,15 +306,6 @@ export const buildProtocolColorMap = (
   return map;
 };
 
-const hashString = (s: string): number => {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-};
-
 export const buildDestinationColorMap = (
   ips: string[],
   series: string[],
@@ -322,17 +313,10 @@ export const buildDestinationColorMap = (
   const map = new Map<string, string>();
   if (series.length === 0) return map;
 
-  const taken = new Set<number>();
-
-  // Sorted so a destination's slot turns on its own hash rather than its rank,
-  // which keeps its colour steady as the top-N reorders between polls.
-  [...new Set(ips)].sort().forEach((ip) => {
-    let slot = hashString(ip) % series.length;
-    while (taken.size < series.length && taken.has(slot)) {
-      slot = (slot + 1) % series.length;
-    }
-    taken.add(slot);
-    map.set(ip, series[slot]);
+  // Slots follow the sorted address, not the rank, so the palette is walked in
+  // order while a destination keeps its colour as the top-N reorders.
+  [...new Set(ips)].sort().forEach((ip, i) => {
+    map.set(ip, series[i % series.length]);
   });
 
   return map;
