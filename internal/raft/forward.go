@@ -20,25 +20,18 @@ import (
 
 // Follower→leader forwarding for in-process replicated writes.
 //
-// Writes forward; reads do not. Every write against the replicated
-// FSM — whether it originates in an operator API handler or in NF code
-// — goes through a typed-op Invoke helper in internal/db. On a
-// follower the helper forwards (operation name, payload JSON) to the
-// leader's /cluster/internal/propose endpoint. The leader's handler
-// dispatches to the same apply function a local caller would, captures
-// the resulting SQLite changeset against leader state, and proposes it
-// through Raft.
+// Write-path parity between the entry points Ella Core has to the
+// replicated FSM:
 //
-// Reads of replicated tables are always served from the calling node's
-// own copy. Every node applies every committed entry, so the data is
-// already local; routing reads to the leader would make the signalling
-// plane — UE attach, authentication, session establishment — fail on
-// every follower during an election or a partition, funnel the whole
-// cluster's reads through one node, and, for cluster_node_certs,
-// deadlock the mTLS pin cache against itself. Replication lag is the
-// accepted cost, and it is bounded in practice because ForwardOperation
-// waits for the local FSM to apply the entry before returning: a write
-// and any later read on the same node are ordered.
+//   1. Operator HTTP writes are caught by LeaderProxyMiddleware and
+//      re-issued against the leader's /cluster/proxy/ mount.
+//   2. In-process replicated writes (NF code, audit logs, bulk deletes,
+//      migrations) call typed-op Invoke helpers in internal/db. On a
+//      follower, the helper forwards (operation name, payload JSON)
+//      to the leader's /cluster/internal/propose endpoint. The
+//      leader's handler dispatches to the same apply function a local
+//      caller would, captures the resulting SQLite changeset against
+//      leader state, and proposes it through Raft.
 //
 // The follower never captures: captures encode row-level deltas against
 // a specific base state (auto-increment IDs, UPDATE before-images,
@@ -202,8 +195,6 @@ func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leade
 		maxResponseBytes: maxForwardResponseBytes,
 	})
 	if err != nil {
-		// Only a failure that provably never reached the leader is
-		// retryable; anything else may have committed.
 		if errors.Is(err, ErrLeaderUnreachable) {
 			return nil, http.StatusServiceUnavailable, err
 		}

@@ -31,9 +31,6 @@ type SubscriberStore interface {
 	AdvanceSequenceNumber(ctx context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error)
 }
 
-// AdvancedCredentials is the result of a single atomic advance of a
-// subscriber's SQN: the key material plus the sequence number reserved
-// for this authentication.
 type AdvancedCredentials struct {
 	PermanentKey   string
 	Opc            string

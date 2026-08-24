@@ -31,10 +31,6 @@ type sqnCAS struct {
 	Next     string `db:"next"`
 }
 
-// Every advance for a given subscriber runs in one process — on the
-// leader in HA, or on the single node standalone — so serialising by
-// IMSI removes contention on the compare-and-swap entirely rather than
-// leaving authentications to race and retry.
 const sqnLockShards = 256
 
 var sqnLocks [sqnLockShards]sync.Mutex
@@ -49,9 +45,6 @@ func lockSQN(imsi string) *sync.Mutex {
 	return mu
 }
 
-// maxSQNCASAttempts is a backstop for a writer outside this path (an
-// operator editing the subscriber) landing between the read and the
-// swap. The per-IMSI lock means authentications never contend here.
 const maxSQNCASAttempts = 16
 
 func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *AdvanceSQNPayload) (any, error) {

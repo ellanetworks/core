@@ -1024,8 +1024,6 @@ func TestFSM_Snapshot_DefersCopyToPersist(t *testing.T) {
 	}
 }
 
-// blockingSink blocks on its first Write until release is closed, so a
-// test can observe FSM state during the streaming phase of Persist.
 type blockingSink struct {
 	memSink
 
@@ -1043,11 +1041,6 @@ func (s *blockingSink) Write(p []byte) (int, error) {
 	return s.memSink.Write(p)
 }
 
-// Restore unlinks ella.db-wal/-shm and renames a new file over ella.db.
-// Raft runs Restore on the FSM goroutine and Persist on the snapshot
-// goroutine, so the two can overlap: without the FSM read lock held
-// across the page copy, Restore can pull the WAL out from under the
-// pinned reader mid-backup.
 func TestFSM_Snapshot_ExcludesRestoreUntilCopyCompletes(t *testing.T) {
 	a := newTestApplier(t)
 	fsm := NewFSM(a, t.TempDir())
@@ -1071,9 +1064,6 @@ func TestFSM_Snapshot_ExcludesRestoreUntilCopyCompletes(t *testing.T) {
 
 	<-sink.entered
 
-	// The copy has finished and streaming has begun. The pinned
-	// transaction is no longer needed, so Restore must be able to run
-	// and the WAL must be free to checkpoint.
 	if !fsm.mu.TryLock() {
 		close(sink.release)
 		t.Fatal("the pinned read transaction must be released once the page copy completes")
@@ -1087,10 +1077,6 @@ func TestFSM_Snapshot_ExcludesRestoreUntilCopyCompletes(t *testing.T) {
 	}
 }
 
-// go-sqlite3 truncates a DSN at the first '?' unless it starts with
-// "file:", which silently turns mode=ro into READWRITE|CREATE — a
-// second write-capable handle to ella.db, and an empty database
-// fabricated out of thin air if the path is ever wrong.
 func TestSnapshotReadDSN_IsReadOnlyAndRefusesToCreate(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "does-not-exist.db")
 

@@ -118,8 +118,6 @@ type Manager struct {
 	boltNoSync      bool
 	clusterListener *listener.Listener
 
-	// leaderClient pools the cluster-HTTP connections this node uses
-	// to reach the current leader. nil when clustering is disabled.
 	leaderClient *leaderHTTPClient
 
 	barrieredTerm atomic.Uint64
@@ -519,9 +517,6 @@ func (m *Manager) APIAddress() string {
 	return m.config.APIAddress
 }
 
-// attachClusterListener installs the cluster listener and the pooled
-// HTTP client that dials the leader through it. Every Manager
-// construction path goes through here so the two can never drift apart.
 func (m *Manager) attachClusterListener(ln *listener.Listener) {
 	m.clusterListener = ln
 

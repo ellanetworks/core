@@ -116,10 +116,6 @@ func StrictHex(s string, n int) string {
 	return s[l-n : l]
 }
 
-// Next returns the sequence number to use for the next authentication
-// vector. With no AUTS it advances the stored SQN by one SEQ step;
-// with an AUTS it recovers the UE's SQN and advances to the next IND
-// slot per TS 33.102 §C.3.4.
 func Next(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
 	if autsHex == "" {
 		return Advance(StrictHex(currentSQN, 12), IndStep)

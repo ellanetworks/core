@@ -111,14 +111,8 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener) func() {
 	srv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
-		// Peers keep cluster-HTTP connections alive between forwarded
-		// reads and writes. IdleTimeout is the server-side backstop that
-		// reaps a connection whose client went away without closing it,
-		// so an abandoned peer cannot pin a goroutine and a descriptor
-		// here indefinitely. Set longer than the client-side
-		// IdleConnTimeout so the client normally closes first.
-		IdleTimeout: 120 * time.Second,
-		ConnContext: peerNodeIDConnContext,
+		IdleTimeout:       120 * time.Second,
+		ConnContext:       peerNodeIDConnContext,
 	}
 
 	go func() {

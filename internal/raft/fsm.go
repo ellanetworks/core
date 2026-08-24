@@ -256,30 +256,15 @@ func writeSnapshotHeader(buf []byte, schemaVersion, protocolVersion uint32) {
 	binary.BigEndian.PutUint32(buf[12:16], protocolVersion)
 }
 
-// snapshotReadDSN builds the DSN for the pinned snapshot reader. The
-// file: prefix is required for SQLite to parse mode=ro at all —
-// go-sqlite3 truncates a DSN at the first '?' when it does not start
-// with file:, which would silently open the handle READWRITE|CREATE and
-// fabricate an empty database if the path were ever missing.
 func snapshotReadDSN(path string) string {
 	return "file:" + path + "?mode=ro&_busy_timeout=5000"
 }
 
-// Snapshot implements raft.FSM. It pins a read snapshot of ella.db on a
-// dedicated connection and returns immediately; the page copy happens in
-// Persist, which Raft runs on its own goroutine.
+// Snapshot implements raft.FSM. It pins a read transaction over ella.db and
+// returns an FSMSnapshot that copies and streams it to the Raft snapshot sink.
 //
-// Raft calls Snapshot on the runFSM goroutine that also runs ApplyBatch, so
-// no apply can interleave here: the pinned transaction observes exactly the
-// state Raft records as the snapshot index. SQLite's WAL keeps that view
-// stable while later applies continue to commit.
-//
-// The f.mu read lock taken here is handed to the returned snapshot and
-// held until the page copy in Persist finishes. Raft runs Persist on the
-// snapshot goroutine, concurrently with the runFSM goroutine that serves
-// Restore, and Restore unlinks ella.db-wal/-shm and renames a new file
-// over ella.db. Keeping the read lock across the copy is what stops a
-// Restore from pulling those files out from under the pinned reader.
+// The RLock participates in Apply/Restore exclusion, and is held by the
+// snapshot until the copy completes so Restore cannot unlink the WAL under it.
 func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	f.mu.RLock()
 
@@ -494,8 +479,7 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-// fsmSnapshot holds a pinned read transaction over ella.db, plus the
-// FSM read lock that keeps Restore out while that transaction is live.
+// fsmSnapshot holds a pinned read transaction over ella.db.
 type fsmSnapshot struct {
 	dataDir  string
 	readDB   *sql.DB
@@ -505,25 +489,14 @@ type fsmSnapshot struct {
 	path     string
 	header   [snapshotHeaderSize]byte
 
-	// unpin releases the FSM read lock acquired in Snapshot. unpinOnce
-	// guarantees exactly one release across the Persist and Release
-	// paths, either of which may run first.
 	unpin     func()
 	unpinOnce sync.Once
 }
 
 const snapshotChunkSize = 64 * 1024
 
-// Persist copies the pinned snapshot into a temp file using SQLite's online
-// backup API, then streams the header and that file to the Raft snapshot sink
-// in 64 KiB chunks. Raft runs Persist on a dedicated goroutine, so the copy
-// no longer blocks applies; the backup reads through the transaction pinned
-// in Snapshot, so its contents match the recorded snapshot index.
-//
-// The pinned transaction and the FSM read lock are dropped as soon as the
-// page copy completes, before the (potentially long) streaming phase: the
-// temp file is self-contained by then, and holding the read transaction any
-// longer would block WAL checkpointing while applies keep appending.
+// Persist copies the pinned snapshot into a temp file, then streams it and
+// the snapshot header to the Raft snapshot sink in 64 KiB chunks.
 func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	err := s.copyPinned()
 
@@ -636,9 +609,6 @@ func (s *fsmSnapshot) copyPinned() error {
 	})
 }
 
-// releasePinned rolls back the pinned read transaction, closes its
-// connection, and releases the FSM read lock so Restore can proceed.
-// Idempotent; safe to call from Persist and again from Release.
 func (s *fsmSnapshot) releasePinned() {
 	if s.inTx {
 		_, _ = s.readConn.ExecContext(context.Background(), "ROLLBACK")
@@ -662,7 +632,7 @@ func (s *fsmSnapshot) releasePinned() {
 	}
 }
 
-// Release rolls back the pinned read transaction and removes the temp file.
+// Release cleans up the temp snapshot file.
 func (s *fsmSnapshot) Release() {
 	s.releasePinned()
 

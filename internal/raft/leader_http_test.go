@@ -15,10 +15,6 @@ import (
 	"time"
 )
 
-// startClusterHTTPStub serves handler over a plain TCP listener. The
-// leader client hands DialTLSContext a connection the cluster listener
-// already authenticated, so http.Transport speaks plain HTTP over
-// whatever it is given.
 func startClusterHTTPStub(t *testing.T, handler http.Handler) (addr string) {
 	t.Helper()
 
@@ -38,10 +34,6 @@ func startClusterHTTPStub(t *testing.T, handler http.Handler) (addr string) {
 	return ln.Addr().String()
 }
 
-// A fresh http.Transport per request leaves the connection in an idle
-// pool nobody can reach, leaking a socket and a goroutine on both ends
-// for every forwarded read — and forwarded reads sit on the per-UE
-// attach path.
 func TestLeaderHTTPClient_ReusesConnections(t *testing.T) {
 	addr := startClusterHTTPStub(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"ok":true}`))
@@ -100,8 +92,6 @@ func TestLeaderHTTPClient_RebuildsOnLeaderChange(t *testing.T) {
 	}
 }
 
-// io.LimitReader truncates; a clipped JSON body surfaces downstream as
-// "unexpected end of JSON input" rather than as a size problem.
 func TestLeaderHTTPClient_OversizeResponseIsAnError(t *testing.T) {
 	addr := startClusterHTTPStub(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(strings.Repeat("x", 4096)))
@@ -127,9 +117,6 @@ func TestLeaderHTTPClient_OversizeResponseIsAnError(t *testing.T) {
 	}
 }
 
-// The propose retry loop may only retry when the request provably never
-// reached the leader, so a dial failure has to stay distinguishable
-// from a failure after the request was written.
 func TestLeaderHTTPClient_DialFailureIsMarkedUnreachable(t *testing.T) {
 	c := newLeaderHTTPClient(func(context.Context, string, int) (net.Conn, error) {
 		return nil, fmt.Errorf("no route to host")
