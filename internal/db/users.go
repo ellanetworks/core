@@ -210,7 +210,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 		user.ID = id.String()
 	}
 
-	if _, err := opCreateUser.Invoke(db, user); err != nil {
+	if _, err := opCreateUser.Invoke(ctx, db, user); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
@@ -246,7 +246,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		RoleID: roleID,
 	}
 
-	_, err := opUpdateUser.Invoke(db, user)
+	_, err := opUpdateUser.Invoke(ctx, db, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -283,7 +283,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		HashedPassword: hashedPassword,
 	}
 
-	_, err := opUpdateUserPassword.Invoke(db, user)
+	_, err := opUpdateUserPassword.Invoke(ctx, db, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -315,7 +315,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
-	_, err := opDeleteUser.Invoke(db, &stringPayload{Value: email})
+	_, err := opDeleteUser.Invoke(ctx, db, &stringPayload{Value: email})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

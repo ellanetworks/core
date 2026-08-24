@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -26,6 +27,12 @@ const (
 
 	discoveryErrLogInterval = 30 * time.Second
 )
+
+// ErrDiscoveryFatal marks a cluster-formation failure that retrying cannot
+// resolve, such as a duplicate node-id. Transient conditions (unreachable
+// peers, a cluster that has not formed yet) are retried indefinitely and
+// never carry it.
+var ErrDiscoveryFatal = errors.New("fatal cluster discovery error")
 
 type peerState int
 
@@ -61,11 +68,34 @@ func (m *Manager) StartDiscovery(ctx context.Context) {
 	}
 
 	if m.clusterListener == nil {
-		logger.RaftLog.Error("Cluster discovery requires a cluster listener (mTLS); node will stay unready")
+		m.setDiscoveryFatal(fmt.Errorf("%w: cluster discovery requires a cluster listener (mTLS)", ErrDiscoveryFatal))
 		return
 	}
 
 	go m.runDiscovery(ctx)
+}
+
+// setDiscoveryFatal records a misconfiguration that retrying cannot resolve.
+// Discovery stops, the node stays up and unready, and the reason is reported
+// through the status endpoint so an operator sees it without reading logs.
+func (m *Manager) setDiscoveryFatal(err error) {
+	msg := err.Error()
+	m.discoveryFatal.Store(&msg)
+
+	logger.RaftLog.Error("Cluster discovery cannot continue; fix the configuration and restart",
+		zap.Int("node_id", m.nodeID),
+		zap.Error(err),
+	)
+}
+
+// DiscoveryError reports a terminal cluster-formation failure, or "" when
+// discovery is progressing or already complete.
+func (m *Manager) DiscoveryError() string {
+	if msg := m.discoveryFatal.Load(); msg != nil {
+		return *msg
+	}
+
+	return ""
 }
 
 func (m *Manager) runDiscovery(ctx context.Context) {
@@ -91,6 +121,12 @@ func (m *Manager) runDiscovery(ctx context.Context) {
 
 	for {
 		joined, err := m.discoveryTick(ctx)
+
+		if errors.Is(err, ErrDiscoveryFatal) {
+			m.setDiscoveryFatal(err)
+			return
+		}
+
 		if err != nil && time.Since(lastErrLog) >= discoveryErrLogInterval {
 			lastErrLog = time.Now()
 
@@ -149,7 +185,11 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 			zap.Int("node_id", m.nodeID),
 		)
 
-		return true, m.bootstrapCluster()
+		if err := m.bootstrapCluster(); err != nil {
+			return false, fmt.Errorf("%w: %w", ErrDiscoveryFatal, err)
+		}
+
+		return true, nil
 	}
 
 	for _, peerAddr := range m.config.Peers {
@@ -169,7 +209,7 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 		// so the operator fixes cluster.node-id rather than letting the
 		// cluster form silently wrong.
 		if nodeID > 0 && nodeID == m.nodeID {
-			return false, fmt.Errorf("peer %s advertises the same node-id (%d) as this node; check cluster.node-id configuration", peerAddr, nodeID)
+			return false, fmt.Errorf("%w: peer %s advertises the same node-id (%d) as this node; check cluster.node-id configuration", ErrDiscoveryFatal, peerAddr, nodeID)
 		}
 
 		if state != peerFormed {

@@ -128,7 +128,11 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 		nodeID:    1,
 		dataDir:   dataDir,
 		observer:  observer,
+
+		leaderBarrier: make(chan struct{}),
 	}
+
+	observer.Register(leaderBarrierCallback{m: m})
 
 	if err := waitForLeaderTest(t, m); err != nil {
 		_ = r.Shutdown().Error()
@@ -170,14 +174,18 @@ func waitForLeaderTest(t testing.TB, m *Manager) error {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
+	ticker := time.NewTicker(leaderPollInterval)
+	defer ticker.Stop()
+
 	for {
+		if m.raft.State() == raft.Leader {
+			return nil
+		}
+
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("no leader elected: %w", ctx.Err())
-		case isLeader := <-m.raft.LeaderCh():
-			if isLeader {
-				return nil
-			}
+		case <-ticker.C:
 		}
 	}
 }

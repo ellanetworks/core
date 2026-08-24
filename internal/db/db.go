@@ -835,7 +835,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("targetVersion", v))
 
-		if _, err := opMigrateShared.Invoke(db, migrateSharedPayload{TargetVersion: v}); err != nil {
+		if _, err := opMigrateShared.Invoke(ctx, db, migrateSharedPayload{TargetVersion: v}); err != nil {
 			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}
@@ -1659,44 +1659,6 @@ func (db *Database) Initialize(ctx context.Context) error {
 		}
 	}
 
-	if !db.IsOperatorInitialized(ctx) {
-		initialOp, err := generateOperatorCode()
-		if err != nil {
-			return fmt.Errorf("couldn't generate operator code: %w", err)
-		}
-
-		initialOperator := &Operator{
-			Mcc:          InitialMcc,
-			Mnc:          InitialMnc,
-			OperatorCode: initialOp,
-		}
-
-		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
-		if err != nil {
-			return fmt.Errorf("failed to set supported TACs: %w", err)
-		}
-
-		// RAT-neutral NAS algorithm identities (AES preferred, SNOW3G fallback),
-		// shared by EPS (EEA/EIA) and 5G (NEA/NIA) — TS 24.301 §9.9.3.23 ≡
-		// TS 24.501 §9.11.3.34.
-		if err = initialOperator.SetCiphering([]string{"AES", "SNOW3G"}); err != nil {
-			return fmt.Errorf("failed to set default ciphering: %w", err)
-		}
-
-		if err = initialOperator.SetIntegrity([]string{"AES", "SNOW3G"}); err != nil {
-			return fmt.Errorf("failed to set default integrity: %w", err)
-		}
-
-		err = db.InitializeOperator(ctx, initialOperator)
-		if err != nil {
-			return fmt.Errorf("failed to initialize network configuration: %v", err)
-		}
-	}
-
-	if err := db.ensureClusterID(ctx); err != nil {
-		return fmt.Errorf("failed to ensure cluster ID: %w", err)
-	}
-
 	numKeys, err := db.CountHomeNetworkKeys(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to count home network keys: %w", err)
@@ -1846,6 +1808,44 @@ func (db *Database) Initialize(ctx context.Context) error {
 		if err := db.SetDefaultPolicy(ctx, profile.ID, initialPolicy.Name); err != nil {
 			return fmt.Errorf("failed to set default policy: %v", err)
 		}
+	}
+
+	if !db.IsOperatorInitialized(ctx) {
+		initialOp, err := generateOperatorCode()
+		if err != nil {
+			return fmt.Errorf("couldn't generate operator code: %w", err)
+		}
+
+		initialOperator := &Operator{
+			Mcc:          InitialMcc,
+			Mnc:          InitialMnc,
+			OperatorCode: initialOp,
+		}
+
+		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
+		if err != nil {
+			return fmt.Errorf("failed to set supported TACs: %w", err)
+		}
+
+		// RAT-neutral NAS algorithm identities (AES preferred, SNOW3G fallback),
+		// shared by EPS (EEA/EIA) and 5G (NEA/NIA) — TS 24.301 §9.9.3.23 ≡
+		// TS 24.501 §9.11.3.34.
+		if err = initialOperator.SetCiphering([]string{"AES", "SNOW3G"}); err != nil {
+			return fmt.Errorf("failed to set default ciphering: %w", err)
+		}
+
+		if err = initialOperator.SetIntegrity([]string{"AES", "SNOW3G"}); err != nil {
+			return fmt.Errorf("failed to set default integrity: %w", err)
+		}
+
+		err = db.InitializeOperator(ctx, initialOperator)
+		if err != nil {
+			return fmt.Errorf("failed to initialize network configuration: %v", err)
+		}
+	}
+
+	if err := db.ensureClusterID(ctx); err != nil {
+		return fmt.Errorf("failed to ensure cluster ID: %w", err)
 	}
 
 	return nil

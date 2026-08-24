@@ -98,7 +98,7 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 }
 
 func (db *Database) AdvanceSubscriberSQN(ctx context.Context, imsi, resyncAuts, resyncRand string) (*AdvancedCredentials, error) {
-	creds, err := opAdvanceSubscriberSQN.Invoke(db, &AdvanceSQNPayload{
+	creds, err := opAdvanceSubscriberSQN.Invoke(ctx, db, &AdvanceSQNPayload{
 		IMSI:       imsi,
 		ResyncAuts: resyncAuts,
 		ResyncRand: resyncRand,

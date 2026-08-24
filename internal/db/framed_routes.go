@@ -67,7 +67,7 @@ func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID
 		normalized = append(normalized, p.Masked().String())
 	}
 
-	_, err := opReplaceFramedRoutes.Invoke(db, &framedRoutesPayload{
+	_, err := opReplaceFramedRoutes.Invoke(ctx, db, &framedRoutesPayload{
 		Imsi:          imsi,
 		DataNetworkID: dataNetworkID,
 		Prefixes:      normalized,

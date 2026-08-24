@@ -528,8 +528,22 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}())
 	mmeReconciler.Start()
 
-	// --- Phase B: upgrade the API server to serve all routes now that
-	// the cluster is formed, settings are seeded, and NFs are running. ---
+	// --- Phase B: upgrade the API server to serve all routes. The full
+	// handler needs the replicated JWT secret, which the leader seeds
+	// through Initialize, so hold here until that row is visible on this
+	// node. Phase A keeps answering status, metrics and the 503 fallback
+	// meanwhile, and cluster formation runs on the cluster port, so a node
+	// that never sees a leader stays up and unready instead of exiting. ---
+	logger.EllaLog.Info("Waiting for initial settings before serving the full API")
+
+	if err := dbInstance.WaitForFSMCatchUp(ctx); err != nil {
+		return fmt.Errorf("couldn't wait for the state machine to catch up: %w", err)
+	}
+
+	if err := dbInstance.WaitForInitialization(ctx, 0); err != nil {
+		return fmt.Errorf("couldn't wait for initial settings: %w", err)
+	}
+
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
 		DB:                  dbInstance,
 		Sessions:            smfInstance,

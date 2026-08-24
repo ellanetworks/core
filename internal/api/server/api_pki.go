@@ -24,13 +24,14 @@ const (
 
 // pkiAdminEndpoint resolves the pkiissuer.Service at request time and
 // dispatches to build. Returns 503 until the issuer service has been
-// installed by runtime.
+// installed by runtime and its join-HMAC key is committed; both are
+// transient startup states, so the caller should retry.
 func pkiAdminEndpoint(build func(*pkiissuer.Service) http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		svc := loadPKIIssuer()
-		if svc == nil {
+		if svc == nil || !svc.Ready(r.Context()) {
 			writeError(r.Context(), w, http.StatusServiceUnavailable,
-				"pki issuer not yet installed", nil, logger.APILog)
+				"pki issuer not yet ready", nil, logger.APILog)
 
 			return
 		}

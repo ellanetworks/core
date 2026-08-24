@@ -92,6 +92,10 @@ const (
 	// persists when neither config, environment, nor a previously written
 	// node-id file supplies one.
 	defaultStandaloneNodeID = 1
+
+	leaderPollInterval = 25 * time.Millisecond
+
+	leaderBarrierTimeout = 2 * time.Minute
 )
 
 // closeTransport best-effort closes a raft.Transport. The interface itself
@@ -122,10 +126,46 @@ type Manager struct {
 	leaderClient *leaderHTTPClient
 
 	discoveryPending atomic.Bool
+	discoveryFatal   atomic.Pointer[string]
 
 	barrieredTerm atomic.Uint64
 	barrierMu     sync.Mutex
 	barrier       *barrierAttempt
+
+	leaderBarrier     chan struct{}
+	leaderBarrierOnce sync.Once
+}
+
+// leaderBarrierCallback applies a raft barrier on every leadership
+// acquisition, so the FSM has drained every entry committed before this term
+// before anything reads it. Post-snapshot entries are applied asynchronously,
+// so on a restart the FSM lags the durable log until this completes.
+type leaderBarrierCallback struct {
+	m *Manager
+}
+
+func (c leaderBarrierCallback) OnLostLeadership() {}
+
+func (c leaderBarrierCallback) OnBecameLeader() {
+	if err := c.m.WriteBarrier(leaderBarrierTimeout); err != nil {
+		logger.RaftLog.Error("Post-leadership barrier failed; reads may lag the committed log",
+			zap.Error(err))
+
+		return
+	}
+
+	c.m.leaderBarrierOnce.Do(func() { close(c.m.leaderBarrier) })
+}
+
+// WaitForLeaderBarrier blocks until this node has completed a post-leadership
+// barrier, so local reads reflect every committed write.
+func (m *Manager) WaitForLeaderBarrier(ctx context.Context) error {
+	select {
+	case <-m.leaderBarrier:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 type barrierAttempt struct {
@@ -289,17 +329,20 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:       r,
-		fsm:        fsm,
-		transport:  transport,
-		logStore:   boltStore,
-		snaps:      snapshotStore,
-		config:     cfg,
-		nodeID:     nodeID,
-		dataDir:    dataDir,
-		observer:   observer,
-		boltNoSync: false,
+		raft:          r,
+		fsm:           fsm,
+		transport:     transport,
+		logStore:      boltStore,
+		snaps:         snapshotStore,
+		config:        cfg,
+		nodeID:        nodeID,
+		dataDir:       dataDir,
+		observer:      observer,
+		boltNoSync:    false,
+		leaderBarrier: make(chan struct{}),
 	}
+
+	observer.Register(leaderBarrierCallback{m: m})
 
 	m.discoveryPending.Store(!singleServer && !hasState && !recovered)
 
@@ -776,25 +819,22 @@ func (m *Manager) HoldForLeader(ctx context.Context, timeout time.Duration) erro
 }
 
 // waitForLeader blocks until the cluster has an elected leader or ctx is
-// cancelled. On the bootstrapper LeaderCh fires quickly; on joiners we
-// poll LeaderWithID because LeaderCh only signals this node's own
-// leadership transitions.
+// cancelled. It polls LeaderWithID rather than selecting on LeaderCh:
+// LeaderCh only reports this node's own leadership transitions, and raft
+// delivers each of its values to exactly one receiver, so LeaderObserver
+// must stay its sole consumer or leadership callbacks are silently lost.
 func (m *Manager) waitForLeader(ctx context.Context) error {
 	if addr, _ := m.raft.LeaderWithID(); addr != "" {
 		return nil
 	}
 
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(leaderPollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case isLeader := <-m.raft.LeaderCh():
-			if isLeader {
-				return nil
-			}
 		case <-ticker.C:
 			if addr, _ := m.raft.LeaderWithID(); addr != "" {
 				return nil

@@ -360,7 +360,7 @@ func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
-	_, err := opSetDefaultPolicy.Invoke(db, &Policy{ProfileID: profileID, Name: name})
+	_, err := opSetDefaultPolicy.Invoke(ctx, db, &Policy{ProfileID: profileID, Name: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -553,7 +553,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 		policy.ID = id.String()
 	}
 
-	_, err := opCreatePolicy.Invoke(db, policy)
+	_, err := opCreatePolicy.Invoke(ctx, db, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -584,7 +584,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
-	_, err := opUpdatePolicy.Invoke(db, policy)
+	_, err := opUpdatePolicy.Invoke(ctx, db, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -615,7 +615,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "delete").Inc()
 
-	_, err := opDeletePolicy.Invoke(db, &stringPayload{Value: name})
+	_, err := opDeletePolicy.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -239,7 +239,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 		slice.ID = id.String()
 	}
 
-	_, err := opCreateNetworkSlice.Invoke(db, slice)
+	_, err := opCreateNetworkSlice.Invoke(ctx, db, slice)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -270,7 +270,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "update").Inc()
 
-	_, err := opUpdateNetworkSlice.Invoke(db, slice)
+	_, err := opUpdateNetworkSlice.Invoke(ctx, db, slice)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -301,7 +301,7 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "delete").Inc()
 
-	_, err := opDeleteNetworkSlice.Invoke(db, &stringPayload{Value: name})
+	_, err := opDeleteNetworkSlice.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

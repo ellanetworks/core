@@ -57,6 +57,10 @@ func TestStartDiscoveryRetriesPastJoinTimeout(t *testing.T) {
 	if !m.discoveryPending.Load() {
 		t.Error("discovery must still be pending, not abandoned")
 	}
+
+	if got := m.DiscoveryError(); got != "" {
+		t.Errorf("an unreachable peer is transient and must never be treated as terminal, got %q", got)
+	}
 }
 
 func TestStartDiscoveryStopsOnContextCancel(t *testing.T) {

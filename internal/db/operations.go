@@ -256,7 +256,7 @@ func narrowResult[R any](opName string, raw any) (R, error) {
 	}
 }
 
-func (op *ChangesetOp[P, R]) Invoke(db *Database, payload *P) (R, error) {
+func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *P) (R, error) {
 	var zero R
 
 	if err := db.checkOpSchema(op.minSchema); err != nil {
@@ -274,7 +274,9 @@ func (op *ChangesetOp[P, R]) Invoke(db *Database, payload *P) (R, error) {
 		return narrowResult[R](op.name, result)
 	}
 
-	db.holdForLeader()
+	if err := db.holdForLeader(ctx); err != nil {
+		return zero, err
+	}
 
 	if db.IsLeader() {
 		result, err := db.leaderCaptureAndPropose(op.name, op.minSchema, func(ctx context.Context) (any, error) {
@@ -308,7 +310,7 @@ func (op *ChangesetOp[P, R]) invokeFollower(db *Database, payload *P) (R, error)
 	return narrowResult[R](op.name, result.Value)
 }
 
-func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
+func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R, error) {
 	var zero R
 
 	if err := db.checkOpSchema(op.minSchema); err != nil {
@@ -329,7 +331,9 @@ func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
 		return narrowResult[R](op.name, result)
 	}
 
-	db.holdForLeader()
+	if err := db.holdForLeader(ctx); err != nil {
+		return zero, err
+	}
 
 	if db.IsLeader() {
 		data, err := cmd.MarshalBinary()
