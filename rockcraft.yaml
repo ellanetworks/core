@@ -37,17 +37,17 @@ parts:
       npm install --prefix ui
       npm run build --prefix ui
       REVISION=`git rev-parse HEAD`
-      go build -v -o ${CRAFT_PART_INSTALL}/bin/core -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./cmd/core
+      go build -v -o ${CRAFT_PART_INSTALL}/bin/core -ldflags "-s -w -X github.com/ellanetworks/core/version.GitCommit=${REVISION}" ./cmd/core
 
   ip:
     plugin: nil
     stage-packages:
-      - iproute2
+      - iproute2_bins
 
   iptables:
     plugin: nil
     stage-packages:
-      - iptables
+      - iptables_bins
 
   core-release-data:
     plugin: nil
