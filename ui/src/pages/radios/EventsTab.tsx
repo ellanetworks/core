@@ -883,7 +883,7 @@ export default function EventsTab() {
                 gap: 1,
               }}
             >
-              <Typography variant="h6" noWrap>
+              <Typography variant="h6" noWrap data-testid="event-panel-title">
                 {selectedRow?.messageType ?? "Event details"}
               </Typography>
               {selectedRow?.protocol && (

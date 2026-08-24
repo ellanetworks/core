@@ -419,14 +419,28 @@ describe("EventsTab table", () => {
   });
 });
 
+const seedDecodedEvent = (id: number) =>
+  api.get(`/api/v1/ran/events/${id}`, () => ({
+    decoded: {
+      pdu_type: "InitiatingMessage",
+      procedure_code: { value: 0, name: "PathSwitchRequest" },
+      criticality: { value: 0, name: "reject" },
+      value: {},
+    },
+    raw: "00",
+  }));
+
+const panelTitle = () => screen.findByTestId("event-panel-title");
+
 describe("EventsTab event panel", () => {
   it("opens the panel for the event named in the URL", async () => {
     seedApi({
       events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
     });
+    seedDecodedEvent(7);
     await renderEvents("/radios/events?event=7");
 
-    expect(await screen.findByText("PathSwitchRequest")).toBeVisible();
+    expect(await panelTitle()).toHaveTextContent("PathSwitchRequest");
   });
 
   it("leaves the panel shut when the URL names no event", async () => {
@@ -435,7 +449,7 @@ describe("EventsTab event panel", () => {
     });
     await renderEvents();
 
-    expect(await screen.findByText("Event details")).toBeVisible();
+    expect(await panelTitle()).toHaveTextContent("Event details");
   });
 
   it("opens the panel for a row the operator clicks", async () => {
@@ -443,19 +457,24 @@ describe("EventsTab event panel", () => {
     seedApi({
       events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
     });
+    seedDecodedEvent(7);
     await renderEvents();
 
-    await user.click(await screen.findByText("radio-1"));
+    const grid = await screen.findByRole("grid");
+    await user.click(await within(grid).findByText("PathSwitchRequest"));
 
-    expect(await screen.findByText("PathSwitchRequest")).toBeVisible();
+    await waitFor(async () =>
+      expect(await panelTitle()).toHaveTextContent("PathSwitchRequest"),
+    );
   });
 
   it("ignores an event id that is not on the page", async () => {
     seedApi({
       events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
     });
+    seedDecodedEvent(999);
     await renderEvents("/radios/events?event=999");
 
-    expect(await screen.findByText("Event details")).toBeVisible();
+    expect(await panelTitle()).toHaveTextContent("Event details");
   });
 });
