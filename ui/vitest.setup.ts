@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { afterEach, vi } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 process.env.TZ = "UTC";
+
+configure({ reactStrictMode: true });
 
 if (!("ResizeObserver" in globalThis)) {
   globalThis.ResizeObserver = class {

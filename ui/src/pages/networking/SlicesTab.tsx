@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Box, Typography, Button } from "@mui/material";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
@@ -50,15 +50,15 @@ export default function SlicesTab() {
   const [isDeleteOpen, setDeleteOpen] = useState(false);
   const [selectedName, setSelectedName] = useState<string | null>(null);
 
-  const handleRequestEdit = (slice: APISlice) => {
+  const handleRequestEdit = useCallback((slice: APISlice) => {
     setEditSlice(slice);
     setEditOpen(true);
-  };
+  }, []);
 
-  const handleRequestDelete = (name: string) => {
+  const handleRequestDelete = useCallback((name: string) => {
     setSelectedName(name);
     setDeleteOpen(true);
-  };
+  }, []);
 
   const handleConfirmDelete = async () => {
     if (!selectedName || !accessToken) return;
@@ -113,7 +113,7 @@ export default function SlicesTab() {
           ]
         : []),
     ];
-  }, [canEdit]);
+  }, [canEdit, handleRequestEdit, handleRequestDelete]);
 
   const knownCount = slicesQuery.data?.total_count;
 

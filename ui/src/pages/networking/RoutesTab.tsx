@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Box, Typography, Button, Chip } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
@@ -46,10 +46,10 @@ export default function RoutesTab() {
   const [isDeleteOpen, setDeleteOpen] = useState(false);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
 
-  const handleRequestDelete = (routeID: number) => {
+  const handleRequestDelete = useCallback((routeID: number) => {
     setSelectedRouteId(routeID);
     setDeleteOpen(true);
-  };
+  }, []);
 
   const handleConfirmDelete = async () => {
     if (selectedRouteId == null || !accessToken) return;
@@ -128,7 +128,7 @@ export default function RoutesTab() {
           ]
         : []),
     ];
-  }, [canEdit]);
+  }, [canEdit, handleRequestDelete]);
 
   const knownCount = routesQuery.data?.total_count;
 

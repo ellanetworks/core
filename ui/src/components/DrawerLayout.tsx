@@ -90,6 +90,7 @@ export default function DrawerLayout({
       return;
     }
     document.getElementById("main-content")?.focus();
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [pathname]);
 
   const [supportOpen, setSupportOpen] = useState(false);

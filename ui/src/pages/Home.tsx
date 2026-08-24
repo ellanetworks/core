@@ -27,12 +27,12 @@ export default function Home() {
       }
     };
 
-    setError(null);
     void checkInitialization();
 
     return () => {
       cancelled = true;
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [navigate, attempt]);
 
   if (!error) return null;
@@ -42,7 +42,10 @@ export default function Home() {
       <ErrorAlert
         resource="Ella Core"
         error={error}
-        onRetry={() => setAttempt((a) => a + 1)}
+        onRetry={() => {
+          setError(null);
+          setAttempt((a) => a + 1);
+        }}
       />
     </Box>
   );

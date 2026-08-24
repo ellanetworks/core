@@ -167,6 +167,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       cancelled = true;
       clearRefreshTimer();
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [silentRefresh, clearRefreshTimer]);
 
   useEffect(() => {

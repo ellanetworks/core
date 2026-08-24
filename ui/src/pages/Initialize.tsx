@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -38,7 +38,6 @@ const InitializePage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checkingInitialization, setCheckingInitialization] = useState(true);
 
@@ -77,18 +76,14 @@ const InitializePage = () => {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
-  const validateForm = useCallback(async () => {
+  const isValid = useMemo(() => {
     try {
-      await schema.validate({ email, password }, { abortEarly: false });
-      setIsValid(true);
+      schema.validateSync({ email, password }, { abortEarly: false });
+      return true;
     } catch {
-      setIsValid(false);
+      return false;
     }
   }, [email, password]);
-
-  useEffect(() => {
-    validateForm();
-  }, [email, password, validateForm]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
