@@ -104,7 +104,7 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 
 	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "update").Inc()
 
-	_, err := opSetJWTSecret.Invoke(db, &bytesPayload{Value: secret})
+	_, err := opSetJWTSecret.Invoke(ctx, db, &bytesPayload{Value: secret})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

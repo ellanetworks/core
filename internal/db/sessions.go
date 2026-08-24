@@ -79,7 +79,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 		session.ID = id.String()
 	}
 
-	_, err := opCreateSession.Invoke(db, session)
+	_, err := opCreateSession.Invoke(ctx, db, session)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -148,7 +148,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := opDeleteSessionByTokenHash.Invoke(db, &bytesPayload{Value: tokenHash})
+	_, err := opDeleteSessionByTokenHash.Invoke(ctx, db, &bytesPayload{Value: tokenHash})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -181,7 +181,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	nowUnix := time.Now().Unix()
 
-	count, err := opDeleteExpiredSessions.Invoke(db, &int64Payload{Value: nowUnix})
+	count, err := opDeleteExpiredSessions.Invoke(ctx, db, &int64Payload{Value: nowUnix})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -247,7 +247,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, lim
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := opDeleteOldestSessions.Invoke(db, &DeleteOldestArgs{UserID: userID, Limit: limit})
+	_, err := opDeleteOldestSessions.Invoke(ctx, db, &DeleteOldestArgs{UserID: userID, Limit: limit})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -278,7 +278,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string)
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := opDeleteAllSessionsForUser.Invoke(db, &stringPayload{Value: userID})
+	_, err := opDeleteAllSessionsForUser.Invoke(ctx, db, &stringPayload{Value: userID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -309,7 +309,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := opDeleteAllSessions.Invoke(db, &emptyPayload{})
+	_, err := opDeleteAllSessions.Invoke(ctx, db, &emptyPayload{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

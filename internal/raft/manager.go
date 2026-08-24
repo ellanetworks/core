@@ -18,10 +18,12 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/osutil"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
+	"go.uber.org/zap"
 )
 
 var ErrBarrierTimeout = errors.New("raft barrier timed out")
@@ -46,11 +48,12 @@ type ClusterConfig struct {
 	SnapshotInterval  time.Duration
 	SnapshotThreshold uint64
 
-	// PerformanceMultiplier scales heartbeat/election/leader-lease timeouts
-	// in HA mode. Trading a
-	// slower election for tolerance of real-network jitter. Ignored in
-	// single-server mode, which uses fixed fast timeouts.
 	PerformanceMultiplier int
+
+	HeartbeatTimeout   time.Duration
+	ElectionTimeout    time.Duration
+	LeaderLeaseTimeout time.Duration
+	CommitTimeout      time.Duration
 
 	// TrailingLogs bounds the number of Raft log entries retained after a
 	// snapshot. Lower values shrink BoltDB at the cost of forcing full
@@ -77,14 +80,7 @@ const (
 	// applied to the library's default timeouts when running in HA mode.
 	defaultPerformanceMultiplier = 5
 
-	// standaloneHeartbeatTimeout and friends govern the single-server bootstrap
-	// path. Aggressive values are safe because there are no peers to time
-	// out against — the timeout is a ceiling, not a floor, and the real
-	// election completes in microseconds over the loopback listener.
-	standaloneHeartbeatTimeout   = 50 * time.Millisecond
-	standaloneElectionTimeout    = 50 * time.Millisecond
-	standaloneLeaderLeaseTimeout = 50 * time.Millisecond
-	standaloneCommitTimeout      = 5 * time.Millisecond
+	standalonePerformanceMultiplier = 1
 
 	// defaultProposeTimeout caps how long a write waits for Raft commit
 	// before the API layer returns 503. 5 s is generous for single-server
@@ -97,8 +93,12 @@ const (
 	// node-id file supplies one.
 	defaultStandaloneNodeID = 1
 
-	standaloneLeaderTimeout = 60 * time.Second
+	leaderPollInterval = 25 * time.Millisecond
+
+	leaderBarrierRetryInterval = 1 * time.Second
 )
+
+var errShuttingDown = errors.New("raft manager shutting down")
 
 // closeTransport best-effort closes a raft.Transport. The interface itself
 // has no Close method, but concrete transports (TCP, in-mem) implement
@@ -120,7 +120,6 @@ type Manager struct {
 	nodeID          int
 	dataDir         string
 	observer        *LeaderObserver
-	needsDiscovery  bool
 	autopilot       *autopilotRunner
 	followerTracker *followerTracker
 	boltNoSync      bool
@@ -128,9 +127,77 @@ type Manager struct {
 
 	leaderClient *leaderHTTPClient
 
+	discoveryPending atomic.Bool
+	discoveryFatal   atomic.Pointer[string]
+
 	barrieredTerm atomic.Uint64
 	barrierMu     sync.Mutex
 	barrier       *barrierAttempt
+
+	leaderBarrier     chan struct{}
+	leaderBarrierOnce sync.Once
+
+	shutdownCh   chan struct{}
+	shutdownOnce sync.Once
+}
+
+type leaderBarrierCallback struct {
+	m *Manager
+}
+
+func (c leaderBarrierCallback) OnLostLeadership() {}
+
+func (c leaderBarrierCallback) OnBecameLeader() {
+	for {
+		err := c.m.barrierForLeadership()
+		if err == nil {
+			c.m.leaderBarrierOnce.Do(func() { close(c.m.leaderBarrier) })
+			return
+		}
+
+		if errors.Is(err, errShuttingDown) || c.m.raft.State() != raft.Leader {
+			logger.RaftLog.Warn("Post-leadership barrier abandoned", zap.Error(err))
+			return
+		}
+
+		logger.RaftLog.Error("Post-leadership barrier failed; retrying before leader initialization runs",
+			zap.Error(err))
+
+		select {
+		case <-c.m.shutdownCh:
+			return
+		case <-time.After(leaderBarrierRetryInterval):
+		}
+	}
+}
+
+func (m *Manager) barrierForLeadership() error {
+	term := m.raft.CurrentTerm()
+	if term != 0 && m.barrieredTerm.Load() == term {
+		return nil
+	}
+
+	if m.raft.State() != raft.Leader {
+		return raft.ErrNotLeader
+	}
+
+	att := m.barrierFor(term)
+
+	select {
+	case <-att.done:
+		return att.err
+	case <-m.shutdownCh:
+		return errShuttingDown
+	}
+}
+
+func (m *Manager) WaitForLeaderBarrier(ctx context.Context) error {
+	select {
+	case <-m.leaderBarrier:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 type barrierAttempt struct {
@@ -149,15 +216,8 @@ const defaultStandaloneBindAddress = "127.0.0.1:0"
 // NewManager creates and starts a Raft node over a real TCP transport. The
 // applier is called by the FSM for every committed log entry.
 //
-// When cfg.Enabled is false, the manager runs as a single-server cluster:
-// fast timeouts, auto-bootstrap on fresh state, and a synchronous wait for
-// self-election. This is the shipping standalone mode. Tests that want an
-// in-memory transport should use NewTestManager instead.
-//
-// When cfg.Enabled is true, the manager runs in HA mode: library default
-// timeouts scaled by PerformanceMultiplier, and no auto-bootstrap (operators
-// drive cluster formation explicitly).
-func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir string, opts ...ManagerOption) (*Manager, error) {
+// Tests that want an in-memory transport should use NewTestManager instead.
+func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir string, opts ...ManagerOption) (*Manager, error) {
 	options := managerOptions{}
 	for _, opt := range opts {
 		opt(&options)
@@ -301,18 +361,23 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:           r,
-		fsm:            fsm,
-		transport:      transport,
-		logStore:       boltStore,
-		snaps:          snapshotStore,
-		config:         cfg,
-		nodeID:         nodeID,
-		dataDir:        dataDir,
-		observer:       observer,
-		needsDiscovery: !singleServer && !hasState && !recovered,
-		boltNoSync:     false,
+		raft:          r,
+		fsm:           fsm,
+		transport:     transport,
+		logStore:      boltStore,
+		snaps:         snapshotStore,
+		config:        cfg,
+		nodeID:        nodeID,
+		dataDir:       dataDir,
+		observer:      observer,
+		boltNoSync:    false,
+		leaderBarrier: make(chan struct{}),
+		shutdownCh:    make(chan struct{}),
 	}
+
+	observer.Register(leaderBarrierCallback{m: m})
+
+	m.discoveryPending.Store(!singleServer && !hasState && !recovered)
 
 	m.attachClusterListener(options.clusterListener)
 
@@ -326,39 +391,7 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	}
 
 	if singleServer {
-		leaderCtx, cancelLeader := context.WithTimeout(ctx, standaloneLeaderTimeout)
-		leaderErr := m.waitForLeader(leaderCtx)
-
-		cancelLeader()
-
-		if leaderErr != nil {
-			servers := describeServers(r)
-
-			_ = r.Shutdown().Error()
-
-			closeTransport(transport)
-
-			_ = boltStore.Close()
-
-			return nil, fmt.Errorf("standalone node %d did not become raft leader (%w); the raft "+
-				"state in %s lists servers [%s], and a standalone node can only elect itself when "+
-				"it is the sole voter; write a peers.json recovery file into that directory to "+
-				"reset the server configuration",
-				nodeID, leaderErr, raftDir, servers)
-		}
-
-		// Post-snapshot committed entries are applied asynchronously,
-		// so the FSM can lag the durable log on startup. Barrier
-		// requires leadership, just confirmed by waitForLeader.
-		if err := m.raft.Barrier(m.ProposeTimeout()).Error(); err != nil {
-			_ = r.Shutdown().Error()
-
-			closeTransport(transport)
-
-			_ = boltStore.Close()
-
-			return nil, fmt.Errorf("post-startup barrier: %w", err)
-		}
+		warnOnMultiServerStandaloneState(r, nodeID, raftDir)
 	}
 
 	go observer.Run(r)
@@ -385,6 +418,24 @@ func describeServers(r *raft.Raft) string {
 	return strings.Join(ids, ", ")
 }
 
+func warnOnMultiServerStandaloneState(r *raft.Raft, nodeID int, raftDir string) {
+	future := r.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return
+	}
+
+	if len(future.Configuration().Servers) <= 1 {
+		return
+	}
+
+	logger.RaftLog.Error("Standalone node cannot elect itself: on-disk raft state lists multiple servers",
+		zap.Int("node_id", nodeID),
+		zap.String("raft_dir", raftDir),
+		zap.String("servers", describeServers(r)),
+		zap.String("remedy", "write a peers.json recovery file into the raft directory to reset the server configuration"),
+	)
+}
+
 // resolveNodeIDForMode picks the Raft server ID. Both modes go through the
 // same config/env/file chain, which persists the ID on first boot and
 // rejects later mismatches that would invalidate issued GUTIs. Single-server
@@ -405,38 +456,35 @@ func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) 
 }
 
 // applyTimeouts configures heartbeat / election / leader-lease / commit
-// timeouts based on whether the manager is single-server or HA.
-//
-// Single-server mode uses fixed 50 ms timeouts: with no peers to negotiate
-// with the library defaults are pure dead time during bootstrap.
-//
-// HA mode scales the library defaults by PerformanceMultiplier (default 5)
-// from day one — including on fresh boot. We used to override freshBoot
-// nodes with the 50 ms standalone values to accelerate the first election,
-// but LeaderLeaseTimeout is not runtime-reloadable, so it then stayed at
-// 50 ms forever. Any operation that stalled a follower's FSM for longer
-// than 50 ms (snapshot install, raft.Restore, a slow Apply) caused the
-// leader to drop its lease and step down, triggering a leadership
-// oscillation that could not recover. Paying the one-time 1–5 s first
-// election cost is the correct tradeoff for a multi-node cluster.
+// timeouts.
 func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer bool) {
-	if singleServer {
-		rc.HeartbeatTimeout = standaloneHeartbeatTimeout
-		rc.ElectionTimeout = standaloneElectionTimeout
-		rc.LeaderLeaseTimeout = standaloneLeaderLeaseTimeout
-		rc.CommitTimeout = standaloneCommitTimeout
-
-		return
-	}
-
 	multiplier := cfg.PerformanceMultiplier
 	if multiplier <= 0 {
 		multiplier = defaultPerformanceMultiplier
+		if singleServer {
+			multiplier = standalonePerformanceMultiplier
+		}
 	}
 
 	rc.HeartbeatTimeout *= time.Duration(multiplier)
 	rc.ElectionTimeout *= time.Duration(multiplier)
 	rc.LeaderLeaseTimeout *= time.Duration(multiplier)
+
+	if cfg.HeartbeatTimeout > 0 {
+		rc.HeartbeatTimeout = cfg.HeartbeatTimeout
+	}
+
+	if cfg.ElectionTimeout > 0 {
+		rc.ElectionTimeout = cfg.ElectionTimeout
+	}
+
+	if cfg.LeaderLeaseTimeout > 0 {
+		rc.LeaderLeaseTimeout = cfg.LeaderLeaseTimeout
+	}
+
+	if cfg.CommitTimeout > 0 {
+		rc.CommitTimeout = cfg.CommitTimeout
+	}
 }
 
 // Propose serializes a command and applies it through Raft consensus.
@@ -755,6 +803,8 @@ func (m *Manager) MemberIDs() []int {
 
 // Shutdown gracefully shuts down the Raft node.
 func (m *Manager) Shutdown() error {
+	m.shutdownOnce.Do(func() { close(m.shutdownCh) })
+
 	if m.observer != nil {
 		m.observer.Stop()
 	}
@@ -783,26 +833,42 @@ func (m *Manager) Shutdown() error {
 	return nil
 }
 
+func (m *Manager) HasLeader() bool {
+	addr, _ := m.raft.LeaderWithID()
+	return addr != ""
+}
+
+func (m *Manager) WaitForLeader(ctx context.Context) error {
+	return m.waitForLeader(ctx)
+}
+
+func (m *Manager) HoldForLeader(ctx context.Context, timeout time.Duration) error {
+	if m.HasLeader() {
+		return nil
+	}
+
+	holdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	return m.waitForLeader(holdCtx)
+}
+
 // waitForLeader blocks until the cluster has an elected leader or ctx is
-// cancelled. On the bootstrapper LeaderCh fires quickly; on joiners we
-// poll LeaderWithID because LeaderCh only signals this node's own
-// leadership transitions.
+// cancelled. It polls LeaderWithID rather than selecting on LeaderCh, which
+// only reports this node's own transitions and delivers each value to exactly
+// one receiver, so LeaderObserver must stay its sole consumer.
 func (m *Manager) waitForLeader(ctx context.Context) error {
 	if addr, _ := m.raft.LeaderWithID(); addr != "" {
 		return nil
 	}
 
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(leaderPollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case isLeader := <-m.raft.LeaderCh():
-			if isLeader {
-				return nil
-			}
 		case <-ticker.C:
 			if addr, _ := m.raft.LeaderWithID(); addr != "" {
 				return nil

@@ -100,8 +100,12 @@ func setupServer(filepath string) (testEnv, error) {
 // setupServerWithRaft is the slow path for tests that exercise cluster /
 // restore behavior and therefore need a live Raft manager.
 func setupServerWithRaft(filepath string) (testEnv, error) {
-	testdb, err := db.NewDatabase(context.Background(), filepath, ellaraft.ClusterConfig{})
+	testdb, err := db.NewDatabase(context.Background(), filepath, ellaraft.FastTestConfig())
 	if err != nil {
+		return testEnv{}, err
+	}
+
+	if err := testdb.WaitUntilReady(context.Background()); err != nil {
 		return testEnv{}, err
 	}
 

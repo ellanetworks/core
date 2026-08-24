@@ -90,9 +90,13 @@ func TestJWTSecretPersistsAcrossReopen(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(context.Background(), dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	secret, err := database.GetJWTSecret(context.Background())
@@ -105,9 +109,13 @@ func TestJWTSecretPersistsAcrossReopen(t *testing.T) {
 	}
 
 	// Re-open the same database file.
-	database2, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
+	database2, err := db.NewDatabase(context.Background(), dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase on reopen: %s", err)
+	}
+
+	if err := database2.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {

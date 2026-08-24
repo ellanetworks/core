@@ -40,13 +40,13 @@ func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, r
 		policy.ID = id.String()
 	}
 
-	_, err := opCreatePolicyWithRules.Invoke(db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	_, err := opCreatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
 
 	return err
 }
 
 func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) error {
-	_, err := opUpdatePolicyWithRules.Invoke(db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	_, err := opUpdatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
 
 	return err
 }

@@ -104,7 +104,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate").Inc()
 
-	addrStr, err := opAllocateIPLease.Invoke(db, &allocateIPLeasePayload{
+	addrStr, err := opAllocateIPLease.Invoke(ctx, db, &allocateIPLeasePayload{
 		PoolID:    poolID,
 		PoolType:  poolType,
 		IMSI:      imsi,
@@ -155,7 +155,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate_ipv6").Inc()
 
-	addrStr, err := opAllocateIPv6Lease.Invoke(db, &allocateIPLeasePayload{
+	addrStr, err := opAllocateIPv6Lease.Invoke(ctx, db, &allocateIPLeasePayload{
 		PoolID:    poolID,
 		PoolType:  poolType,
 		IMSI:      imsi,
@@ -207,7 +207,7 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	b := address.As16()
 	lease.AddressBin = b[:]
 
-	_, err := opCreateLease.Invoke(db, lease)
+	_, err := opCreateLease.Invoke(ctx, db, lease)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -280,7 +280,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 
 	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
-	_, err := opUpdateLeaseSession.Invoke(db, lease)
+	_, err := opUpdateLeaseSession.Invoke(ctx, db, lease)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -311,7 +311,7 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "release").Inc()
 
-	addrStr, err := opReleaseIPLease.Invoke(db, &releaseIPLeasePayload{
+	addrStr, err := opReleaseIPLease.Invoke(ctx, db, &releaseIPLeasePayload{
 		PoolID:    poolID,
 		PoolType:  poolType,
 		IMSI:      imsi,
@@ -362,7 +362,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := opDeleteDynamicLease.Invoke(db, &stringPayload{Value: leaseID})
+	_, err := opDeleteDynamicLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -395,7 +395,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := opDeleteAllDynamicLeases.Invoke(db, nil)
+	_, err := opDeleteAllDynamicLeases.Invoke(ctx, db, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -430,7 +430,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := opDeleteDynamicLeasesByNode.Invoke(db, &intPayload{Value: nodeID})
+	_, err := opDeleteDynamicLeasesByNode.Invoke(ctx, db, &intPayload{Value: nodeID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -465,7 +465,7 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID 
 
 	lease := &IPLease{ID: leaseID, NodeID: nodeID, SessionID: &sessionID}
 
-	_, err := opUpdateLeaseNode.Invoke(db, lease)
+	_, err := opUpdateLeaseNode.Invoke(ctx, db, lease)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -922,7 +922,7 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 		IMSI:       imsi,
 	}
 
-	_, err := opCreateStaticLease.Invoke(db, lease)
+	_, err := opCreateStaticLease.Invoke(ctx, db, lease)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1076,7 +1076,7 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
 
-	_, err := opUpdateLeaseSession.Invoke(db, &IPLease{ID: leaseID})
+	_, err := opUpdateLeaseSession.Invoke(ctx, db, &IPLease{ID: leaseID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1112,7 +1112,7 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 
 	b := addr.As16()
 
-	_, err := opUpdateStaticLeaseAddress.Invoke(db, &IPLease{ID: leaseID, AddressBin: b[:]})
+	_, err := opUpdateStaticLeaseAddress.Invoke(ctx, db, &IPLease{ID: leaseID, AddressBin: b[:]})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1145,7 +1145,7 @@ func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := opDeleteStaticLease.Invoke(db, &stringPayload{Value: leaseID})
+	_, err := opDeleteStaticLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

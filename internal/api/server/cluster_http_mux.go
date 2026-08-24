@@ -100,13 +100,13 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 }
 
 // pkiEndpoint resolves the current pkiissuer.Service at request time
-// and dispatches. Returns 503 if the service is not yet installed.
+// and dispatches. Returns 503 until the service is installed and ready.
 func pkiEndpoint(build func(*pkiissuer.Service) http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		svc := loadPKIIssuer()
-		if svc == nil {
+		if svc == nil || !svc.Ready(r.Context()) {
 			writeError(r.Context(), w, http.StatusServiceUnavailable,
-				"pki issuer not yet installed", nil, logger.APILog)
+				"pki issuer not yet ready", nil, logger.APILog)
 
 			return
 		}

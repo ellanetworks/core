@@ -975,9 +975,13 @@ func TestUpdatePolicyWithRules_AllZeroRule_Raft(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "data")
 
-	database, err := db.NewDatabase(ctx, dbPath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(ctx, dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("NewDatabase: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {
@@ -1088,9 +1092,13 @@ func TestUpdatePolicyWithRules_Raft_SurviveRestart(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "data")
 
-	database, err := db.NewDatabase(ctx, dbPath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(ctx, dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("NewDatabase: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	// Create prerequisite entities.
@@ -1157,9 +1165,13 @@ func TestUpdatePolicyWithRules_Raft_SurviveRestart(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	database2, err := db.NewDatabase(ctx, dbPath, ellaraft.ClusterConfig{})
+	database2, err := db.NewDatabase(ctx, dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("NewDatabase (reopen): %v", err)
+	}
+
+	if err := database2.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {
@@ -1207,9 +1219,13 @@ func TestUpdatePolicyWithRules_SnapshotRestore_SurviveRestart(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "data")
 
-	database, err := db.NewDatabase(ctx, dbPath, ellaraft.ClusterConfig{})
+	database, err := db.NewDatabase(ctx, dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("NewDatabase: %v", err)
+	}
+
+	if err := database.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	// Create prerequisite entities.
@@ -1286,9 +1302,13 @@ func TestUpdatePolicyWithRules_SnapshotRestore_SurviveRestart(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	database2, err := db.NewDatabase(ctx, dbPath, ellaraft.ClusterConfig{})
+	database2, err := db.NewDatabase(ctx, dbPath, ellaraft.FastTestConfig())
 	if err != nil {
 		t.Fatalf("NewDatabase (reopen): %v", err)
+	}
+
+	if err := database2.WaitUntilReady(t.Context()); err != nil {
+		t.Fatalf("database never became ready: %v", err)
 	}
 
 	defer func() {

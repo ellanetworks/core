@@ -835,7 +835,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("targetVersion", v))
 
-		if _, err := opMigrateShared.Invoke(db, migrateSharedPayload{TargetVersion: v}); err != nil {
+		if _, err := opMigrateShared.Invoke(ctx, db, migrateSharedPayload{TargetVersion: v}); err != nil {
 			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}
@@ -1042,19 +1042,15 @@ func (db *Database) RemoveServer(nodeID int) error {
 	return db.raftManager.RemoveServer(nodeID)
 }
 
-// RunDiscovery performs cluster formation for HA mode. Must be called after
-// the HTTP server starts so peers can reach this node's API.
-// After discovery, the leader generates a cluster ID if none exists yet.
-func (db *Database) RunDiscovery(ctx context.Context) error {
+// StartDiscovery performs cluster formation for HA mode in the background.
+// Must be called after the HTTP server starts so peers can reach this
+// node's API.
+func (db *Database) StartDiscovery(ctx context.Context) {
 	if db.raftManager == nil {
-		return nil
+		return
 	}
 
-	if err := db.raftManager.RunDiscovery(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	db.raftManager.StartDiscovery(ctx)
 }
 
 // ensureClusterID populates the operator row's ClusterID if empty.
@@ -1205,21 +1201,20 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	// Local-only singleton tables (NAT, flow accounting, BGP, N3) seed
 	// their default rows here on every node — leader, follower, standalone.
 	// Local-only writes don't go through Raft, so no leader is required
-	// and this is safe to run before RunDiscovery. Each Initialize* is
+	// and this is safe to run before cluster discovery. Each Initialize* is
 	// idempotent: an existing row (default or operator-set) is preserved.
 	if err := db.InitializeLocalSettings(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("seed local-only settings: %w", err)
 	}
 
-	// In HA mode, defer Initialize() until RunDiscovery has formed or
-	// joined the cluster and a leader exists — otherwise every propose()
-	// here would fail with ErrNotLeader on a fresh follower. Callers must
-	// invoke Initialize explicitly after RunDiscovery.
+	// Replicated singleton rows (JWT secret, operator, admin user) are
+	// seeded on leadership, not here: Initialize proposes through Raft and
+	// no node is leader this early. HA mode seeds through runLeaderInit in
+	// pkg/runtime; standalone seeds through the callback registered below.
 	if !raftCfg.Enabled {
-		if err := db.Initialize(ctx); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("failed to initialize database: %w", err)
+		if observer := raftMgr.LeaderObserver(); observer != nil {
+			observer.Register(newStandaloneInitializer(db, workerCtx))
 		}
 	}
 
@@ -1580,10 +1575,17 @@ func (db *Database) PrepareStatements() error {
 	return nil
 }
 
-// WaitForInitialization polls until the leader's Initialize data has
-// replicated to this follower (operator row exists), or ctx is cancelled.
+// WaitForInitialization polls until the replicated initial settings are
+// visible here, ctx is cancelled, or timeout elapses. Zero waits forever.
 func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Duration) error {
-	deadline := time.After(timeout)
+	var deadline <-chan time.Time
+
+	if timeout > 0 {
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
+
+		deadline = timer.C
+	}
 
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -1611,7 +1613,7 @@ func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Dura
 //
 // Runs on every node — leader, follower, standalone — from NewDatabase.
 // Local-only writes do not go through Raft, so this is safe to call
-// before RunDiscovery / leader election.
+// before cluster discovery / leader election.
 //
 // Invariant: every singleton table in localOnlyTables (see
 // changeset_replication.go) MUST have its initializer registered here.
@@ -1654,44 +1656,6 @@ func (db *Database) Initialize(ctx context.Context) error {
 		if err := step.fn(); err != nil {
 			return fmt.Errorf("failed to initialize %s: %w", step.name, err)
 		}
-	}
-
-	if !db.IsOperatorInitialized(ctx) {
-		initialOp, err := generateOperatorCode()
-		if err != nil {
-			return fmt.Errorf("couldn't generate operator code: %w", err)
-		}
-
-		initialOperator := &Operator{
-			Mcc:          InitialMcc,
-			Mnc:          InitialMnc,
-			OperatorCode: initialOp,
-		}
-
-		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
-		if err != nil {
-			return fmt.Errorf("failed to set supported TACs: %w", err)
-		}
-
-		// RAT-neutral NAS algorithm identities (AES preferred, SNOW3G fallback),
-		// shared by EPS (EEA/EIA) and 5G (NEA/NIA) — TS 24.301 §9.9.3.23 ≡
-		// TS 24.501 §9.11.3.34.
-		if err = initialOperator.SetCiphering([]string{"AES", "SNOW3G"}); err != nil {
-			return fmt.Errorf("failed to set default ciphering: %w", err)
-		}
-
-		if err = initialOperator.SetIntegrity([]string{"AES", "SNOW3G"}); err != nil {
-			return fmt.Errorf("failed to set default integrity: %w", err)
-		}
-
-		err = db.InitializeOperator(ctx, initialOperator)
-		if err != nil {
-			return fmt.Errorf("failed to initialize network configuration: %v", err)
-		}
-	}
-
-	if err := db.ensureClusterID(ctx); err != nil {
-		return fmt.Errorf("failed to ensure cluster ID: %w", err)
 	}
 
 	numKeys, err := db.CountHomeNetworkKeys(ctx)
@@ -1843,6 +1807,45 @@ func (db *Database) Initialize(ctx context.Context) error {
 		if err := db.SetDefaultPolicy(ctx, profile.ID, initialPolicy.Name); err != nil {
 			return fmt.Errorf("failed to set default policy: %v", err)
 		}
+	}
+
+	if !db.IsOperatorInitialized(ctx) {
+		initialOp, err := generateOperatorCode()
+		if err != nil {
+			return fmt.Errorf("couldn't generate operator code: %w", err)
+		}
+
+		initialOperator := &Operator{
+			Mcc:          InitialMcc,
+			Mnc:          InitialMnc,
+			OperatorCode: initialOp,
+			ClusterID:    uuid.New().String(),
+		}
+
+		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
+		if err != nil {
+			return fmt.Errorf("failed to set supported TACs: %w", err)
+		}
+
+		// RAT-neutral NAS algorithm identities (AES preferred, SNOW3G fallback),
+		// shared by EPS (EEA/EIA) and 5G (NEA/NIA) — TS 24.301 §9.9.3.23 ≡
+		// TS 24.501 §9.11.3.34.
+		if err = initialOperator.SetCiphering([]string{"AES", "SNOW3G"}); err != nil {
+			return fmt.Errorf("failed to set default ciphering: %w", err)
+		}
+
+		if err = initialOperator.SetIntegrity([]string{"AES", "SNOW3G"}); err != nil {
+			return fmt.Errorf("failed to set default integrity: %w", err)
+		}
+
+		err = db.InitializeOperator(ctx, initialOperator)
+		if err != nil {
+			return fmt.Errorf("failed to initialize network configuration: %v", err)
+		}
+	}
+
+	if err := db.ensureClusterID(ctx); err != nil {
+		return fmt.Errorf("failed to ensure cluster ID: %w", err)
 	}
 
 	return nil

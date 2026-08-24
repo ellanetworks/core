@@ -17,7 +17,7 @@ func TestManagerBoltFsyncStandalone(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	mgr, err := NewManager(ctx, ClusterConfig{}, applier, t.TempDir())
+	mgr, err := NewManager(ctx, FastTestConfig(), applier, t.TempDir())
 	if err != nil {
 		t.Fatalf("NewManager standalone: %v", err)
 	}

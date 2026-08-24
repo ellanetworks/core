@@ -309,7 +309,12 @@ func createTestNode(t testing.TB, nodeID, port int, pki *testutil.PKI, applier A
 		nodeID:    nodeID,
 		dataDir:   dataDir,
 		observer:  observer,
+
+		leaderBarrier: make(chan struct{}),
+		shutdownCh:    make(chan struct{}),
 	}
+
+	observer.Register(leaderBarrierCallback{m: m})
 
 	m.attachClusterListener(ln)
 
