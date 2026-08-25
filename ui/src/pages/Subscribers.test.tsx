@@ -20,7 +20,6 @@ const subscriber = (imsi: string) => ({
   status: { registered: false, num_sessions: 0 },
 });
 
-/** Mirrors the server: `search` is a literal IMSI substring, then paginate. */
 const seedApi = (imsis = IMSIS) => {
   api.get(SUBSCRIBERS_PATH, ({ params }) => {
     const search = params.get("search") ?? "";
@@ -211,6 +210,57 @@ describe("Subscribers search", () => {
     await screen.findByText(IMSIS[0]);
 
     expect(screen.getByLabelText("Search")).toBeInTheDocument();
+  });
+
+  it("keeps the search box mounted while a cleared zero-result search refetches", async () => {
+    let release: (() => void) | undefined;
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.type(searchBox(), "12345");
+    await screen.findByText(
+      "No subscribers match your search",
+      {},
+      { timeout: 2000 },
+    );
+
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    api.get(SUBSCRIBERS_PATH, async () => {
+      await gate;
+      return {
+        items: IMSIS.map(subscriber),
+        page: 1,
+        per_page: 25,
+        total_count: IMSIS.length,
+      };
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+
+    await waitFor(
+      () =>
+        expect(api.lastRequest(SUBSCRIBERS_PATH)?.params.has("search")).toBe(
+          false,
+        ),
+      { timeout: 2000 },
+    );
+    expect(screen.getByLabelText("Search")).toBeInTheDocument();
+
+    release?.();
+    await screen.findByText(IMSIS[0]);
+    expect(screen.getByLabelText("Search")).toBeInTheDocument();
+  });
+
+  it("caps the search input at the length the API accepts", async () => {
+    seedApi();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    expect(searchBox()).toHaveAttribute("maxlength", "254");
   });
 
   it("keeps the search box on screen when the search matches nothing", async () => {

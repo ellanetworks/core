@@ -57,7 +57,6 @@ describe("ListPageHeader", () => {
     expect(screen.queryByLabelText("Search")).not.toBeInTheDocument();
   });
 
-  // A read-only page with no filters must not leave an empty toolbar row.
   it("omits the toolbar row when neither slot is filled", () => {
     render(<ListPageHeader {...props} filters={false} action={false} />);
 

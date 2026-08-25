@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	url2 "net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1576,6 +1577,18 @@ func TestListSubscribers_SearchFilter(t *testing.T) {
 		res = list(t, "search=0748&page=2&per_page=1")
 		if len(res.Items) != 1 || res.TotalCount != 2 || res.Items[0].Imsi != "001010100007488" {
 			t.Fatalf("expected page 2 of 2 matches, got total=%d items=%+v", res.TotalCount, res.Items)
+		}
+	})
+
+	t.Run("the length cap counts characters, not bytes", func(t *testing.T) {
+		code, resp, err := listSubscribersWithQuery(url, client, token,
+			"search="+url2.QueryEscape(strings.Repeat("é", server.MaxSearchLength)))
+		if err != nil {
+			t.Fatalf("list: %s", err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("expected 200 for a %d-character search, got %d (%q)", server.MaxSearchLength, code, resp.Error)
 		}
 	})
 

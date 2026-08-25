@@ -34,6 +34,10 @@ import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
+const MAX_SEARCH_LENGTH = 254;
+
+type SubscribersPage = ListSubscribersResponse & { search: string };
+
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const theme = useTheme();
@@ -54,8 +58,15 @@ const SubscriberPage: React.FC = () => {
 
   const subscribersQuery = useQuery({
     queryKey: ["subscribers", pageOneBased, perPage, appliedSearch],
-    queryFn: (): Promise<ListSubscribersResponse> =>
-      listSubscribers(accessToken || "", pageOneBased, perPage, appliedSearch),
+    queryFn: async (): Promise<SubscribersPage> => ({
+      ...(await listSubscribers(
+        accessToken || "",
+        pageOneBased,
+        perPage,
+        appliedSearch,
+      )),
+      search: appliedSearch,
+    }),
     enabled: authReady && !!accessToken,
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
@@ -244,10 +255,18 @@ const SubscriberPage: React.FC = () => {
 
   const knownCount = subscribersQuery.data?.total_count;
 
-  // Nothing to search on a network with no subscribers, where the empty state
-  // is the whole page. It stays put once a search is active so a zero-result
-  // search can still be cleared.
-  const showSearch = appliedSearch !== "" || (knownCount ?? 0) > 0;
+  const [hasSubscribers, setHasSubscribers] = useState(false);
+
+  const unfilteredHasRows =
+    subscribersQuery.data?.search === ""
+      ? (subscribersQuery.data.total_count ?? 0) > 0
+      : null;
+
+  if (unfilteredHasRows !== null && unfilteredHasRows !== hasSubscribers) {
+    setHasSubscribers(unfilteredHasRows);
+  }
+
+  const showSearch = appliedSearch !== "" || hasSubscribers;
 
   return (
     <Box
@@ -266,8 +285,14 @@ const SubscriberPage: React.FC = () => {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               size="small"
-              sx={{ minWidth: 260 }}
+              sx={{
+                minWidth: 260,
+                '& input[type="search"]::-webkit-search-cancel-button': {
+                  display: "none",
+                },
+              }}
               slotProps={{
+                htmlInput: { maxLength: MAX_SEARCH_LENGTH },
                 input: {
                   startAdornment: (
                     <InputAdornment position="start">

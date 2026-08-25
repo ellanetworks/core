@@ -396,7 +396,6 @@ func TestListSubscribersFilterBySearch(t *testing.T) {
 		t.Fatalf("expected no matches, got count=%d subs=%v", total, subs)
 	}
 
-	// LIKE wildcards in the query are matched literally, not as wildcards.
 	for _, q := range []string{"%", "_", `\`} {
 		if subs, total := search(q); len(subs) != 0 || total != 0 {
 			t.Fatalf("expected %q to match nothing, got count=%d subs=%v", q, total, subs)
@@ -407,7 +406,6 @@ func TestListSubscribersFilterBySearch(t *testing.T) {
 		t.Fatalf("expected an empty search to match all, got count=%d subs=%v", total, subs)
 	}
 
-	// An out-of-range page still reports the filtered total.
 	shared := "0748"
 
 	subs, total, err := database.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &shared}, 5, 25)

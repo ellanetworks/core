@@ -58,8 +58,6 @@ type Subscriber struct {
 	ProfileID      string `db:"profileID"`
 }
 
-// SubscriberFilters holds optional filters for subscriber queries. Search is a
-// raw substring: the LIKE pattern and its escaping are built by args.
 type SubscriberFilters struct {
 	Search        *string
 	DataNetworkID *string
@@ -123,10 +121,11 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 
-			// COUNT(*) OVER() yields no row for an empty page, so the total for
-			// an out-of-range page has to be counted separately.
 			fallbackCount, countErr := db.countSubscribersFiltered(ctx, filterArgs)
 			if countErr != nil {
+				span.RecordError(countErr)
+				span.SetStatus(codes.Error, "fallback count failed")
+
 				return nil, 0, nil
 			}
 
@@ -150,6 +149,18 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 }
 
 func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs subscriberFilterArgs) (int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (filtered count)", "SELECT", SubscribersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", SubscribersTableName),
+		),
+	)
+	defer span.End()
+
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
 
@@ -158,8 +169,13 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	var result NumItems
 
 	if err := db.conn().Query(ctx, db.countSubscribersFilteredStmt, filterArgs).Get(&result); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
+
+	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
 }

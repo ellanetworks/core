@@ -361,7 +361,7 @@ export default function BGPTab() {
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
+        <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
           BGP Settings
         </Typography>
         <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
@@ -476,7 +476,7 @@ export default function BGPTab() {
       </Box>
 
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
+        <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
           Advertised Routes
         </Typography>
         <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
@@ -505,7 +505,7 @@ export default function BGPTab() {
       </Box>
 
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
+        <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
           Learned Routes
         </Typography>
         <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>

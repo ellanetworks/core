@@ -53,7 +53,7 @@ export default function LocalSwitchTab() {
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
       <Box sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
+        <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
           Local Switch
         </Typography>
         <Typography variant="body2" color="textSecondary">

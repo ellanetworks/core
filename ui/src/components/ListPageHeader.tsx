@@ -6,14 +6,10 @@ import { Box, Typography } from "@mui/material";
 
 interface ListPageHeaderProps {
   title: string;
-  /** Rendered as `Title (count)`; omit while the count is still unknown. */
   count?: number;
   description: string;
-  /** "section" steps the type down for a list nested under a page heading. */
   variant?: "page" | "section";
-  /** Filter controls, left of the toolbar row. */
   filters?: React.ReactNode;
-  /** Primary page action, right of the toolbar row. */
   action?: React.ReactNode;
 }
 

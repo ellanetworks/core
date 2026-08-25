@@ -56,7 +56,7 @@ export default function NATTab() {
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
       <Box sx={{ mb: 2 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
+        <Typography variant="h5" component="h2" sx={{ mb: 0.5 }}>
           NAT
         </Typography>
         <Typography variant="body2" color="textSecondary">

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -225,7 +226,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			return
 		}
 
-		if len(searchFilter) > MaxSearchLength {
+		if utf8.RuneCountInString(searchFilter) > MaxSearchLength {
 			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("search must be at most %d characters", MaxSearchLength), nil, logger.APILog)
 			return
 		}
