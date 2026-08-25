@@ -46,11 +46,17 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 		err         error
 		noPeer      bool
 		unprotected bool
+		wantCause   eps.EMMCause
 	}{
-		{name: "the 5GS peer holds no context", err: interworking.ErrUnknownUEContext},
-		{name: "the 5GS peer could not verify the update", err: interworking.ErrIntegrityCheckFailed},
-		{name: "the update carries no integrity protection", err: interworking.ErrIntegrityCheckFailed, unprotected: true},
-		{name: "the operator configured no 5GS peer", noPeer: true},
+		{name: "the 5GS peer holds no context", err: interworking.ErrUnknownUEContext, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
+		{name: "the 5GS peer could not verify the update", err: interworking.ErrIntegrityCheckFailed, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
+		{name: "the update carries no integrity protection", err: interworking.ErrIntegrityCheckFailed, unprotected: true, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
+		{name: "the operator configured no 5GS peer", noPeer: true, wantCause: eps.EMMCauseUEIdentityCannotBeDerived},
+		{
+			name:      "the 5GS peer holds no session EPS can adopt",
+			err:       interworking.ErrNoTransferableSessions,
+			wantCause: eps.EMMCauseNoEPSBearerContextActivated,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)
@@ -105,8 +111,8 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 				t.Fatalf("parse TAU Reject: %v", err)
 			}
 
-			if rej.Cause != eps.EMMCauseUEIdentityCannotBeDerived {
-				t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, eps.EMMCauseUEIdentityCannotBeDerived)
+			if rej.Cause != tc.wantCause {
+				t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, tc.wantCause)
 			}
 
 			// TS 24.301 §5.3.1.2.1 d)

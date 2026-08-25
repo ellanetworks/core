@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -51,6 +52,7 @@ type UeConn struct {
 	TauRequestPlain           []byte
 	TauAcceptPlain            []byte
 	TauReleaseOnComplete      bool
+	TauRejectCause            *eps.EMMCause
 	FiveGSArrival             *FiveGSArrival
 	DeferredTAUPlain          []byte
 	nasGuard                  guard.Guard
