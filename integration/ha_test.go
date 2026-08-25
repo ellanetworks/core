@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1392,6 +1393,15 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 	// can't reach a leader after step-down) are both acceptable;
 	// success would mean split-brain.
 	isolatedClient := clients[leaderIdx]
+
+	if err := waitForRoleLeft(ctx, isolatedClient, "Leader", 60*time.Second); err != nil {
+		t.Fatalf("isolated former leader did not step down: %v", err)
+	}
+
+	if _, err := isolatedClient.GetProfile(ctx, &client.GetProfileOptions{Name: "default"}); err != nil {
+		t.Fatalf("isolated node stopped serving reads of pre-partition data: %v", err)
+	}
+
 	writeCtx, writeCancel := context.WithTimeout(ctx, 30*time.Second)
 
 	err = isolatedClient.CreateSubscriber(writeCtx, &client.CreateSubscriberOptions{
@@ -1406,6 +1416,10 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("isolated former leader accepted a write while partitioned; split-brain regression")
+	}
+
+	if !isPartitionRejection(err) {
+		t.Fatalf("isolated former leader failed with an unexpected error; want a 502/503 served by the node itself: %v", err)
 	}
 
 	HALogf(t, "write on isolated former leader correctly rejected: %v", err)
@@ -1498,4 +1512,30 @@ func healClusterPort(ctx context.Context, dc *DockerClient, container string) er
 	}
 
 	return firstErr
+}
+
+func isPartitionRejection(err error) bool {
+	msg := err.Error()
+
+	return strings.Contains(msg, "server error 502") || strings.Contains(msg, "server error 503")
+}
+
+func waitForRoleLeft(ctx context.Context, c *client.Client, role string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	var last string
+
+	for time.Now().Before(deadline) {
+		status, err := c.GetStatus(ctx)
+		if err == nil && status.Cluster != nil {
+			last = status.Cluster.Role
+			if last != role {
+				return nil
+			}
+		}
+
+		time.Sleep(time.Second)
+	}
+
+	return fmt.Errorf("node still reports role %q after %v", last, timeout)
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	hraft "github.com/hashicorp/raft"
+	autopilot "github.com/hashicorp/raft-autopilot"
 )
 
 func proposeAndIndex(t *testing.T, m *Manager, n int) uint64 {
@@ -191,5 +192,121 @@ func TestCluster_PartitionBlocksBothDirections(t *testing.T) {
 
 	if tc.nodes[0].gate.addrBlocked(tc.nodes[1].addr) {
 		t.Error("heal did not clear the partition")
+	}
+}
+
+func waitForMembers(m *Manager, want int, timeout time.Duration) []int {
+	deadline := time.Now().Add(timeout)
+
+	var ids []int
+
+	for time.Now().Before(deadline) {
+		ids = m.MemberIDs()
+		if len(ids) == want {
+			return ids
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	return ids
+}
+
+func waitForUnhealthyPeer(t *testing.T, leader *Manager, peerID hraft.ServerID, timeout time.Duration) {
+	t.Helper()
+
+	ft := leader.followerTracker
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		ft.mu.RLock()
+		state, known := ft.peers[peerID]
+
+		unhealthy := known && !state.healthy
+
+		ft.mu.RUnlock()
+
+		if unhealthy {
+			return
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("leader never marked peer %s unhealthy", peerID)
+}
+
+func TestCluster_RemoveStoppedNode(t *testing.T) {
+	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
+
+	leaderIdx := tc.LeaderIndex()
+	if leaderIdx < 0 {
+		t.Fatal("no leader")
+	}
+
+	leader := tc.Nodes[leaderIdx]
+	followerIdx := (leaderIdx + 1) % 3
+	stoppedID := tc.nodes[followerIdx].nodeID
+
+	proposeAndIndex(t, leader, 3)
+	tc.StopNode(followerIdx)
+
+	if err := leader.RemoveServer(stoppedID); err != nil {
+		t.Fatalf("remove stopped node %d: %v", stoppedID, err)
+	}
+
+	ids := waitForMembers(leader, 2, 10*time.Second)
+	for _, id := range ids {
+		if id == stoppedID {
+			t.Fatalf("stopped node %d still in configuration %v", stoppedID, ids)
+		}
+	}
+
+	if _, err := leader.Propose(&Command{Type: 1, Payload: []byte("after-removal")}, 5*time.Second); err != nil {
+		t.Fatalf("write after removing stopped node: %v", err)
+	}
+}
+
+func TestCluster_AutopilotRemovesFailedServer(t *testing.T) {
+	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
+
+	leaderIdx := tc.LeaderIndex()
+	if leaderIdx < 0 {
+		t.Fatal("no leader")
+	}
+
+	leader := tc.Nodes[leaderIdx]
+	followerIdx := (leaderIdx + 1) % 3
+	failedID := tc.nodes[followerIdx].nodeID
+	peerID := hraft.ServerID(strconv.Itoa(failedID))
+
+	proposeAndIndex(t, leader, 3)
+	tc.StopNode(followerIdx)
+	waitForUnhealthyPeer(t, leader, peerID, 15*time.Second)
+
+	delegate := &autopilotDelegate{
+		manager:          leader,
+		inflightRemovals: make(map[hraft.ServerID]bool),
+	}
+
+	known := delegate.KnownServers()
+
+	failed, ok := known[peerID]
+	if !ok {
+		t.Fatalf("stopped node %s missing from KnownServers", peerID)
+	}
+
+	if failed.NodeStatus != autopilot.NodeLeft {
+		t.Fatalf("stopped node %s reported as %v, want NodeLeft", peerID, failed.NodeStatus)
+	}
+
+	delegate.RemoveFailedServer(failed)
+	delegate.RemoveFailedServer(failed)
+
+	ids := waitForMembers(leader, 2, 10*time.Second)
+	for _, id := range ids {
+		if id == failedID {
+			t.Fatalf("failed node %d still in configuration %v", failedID, ids)
+		}
 	}
 }
