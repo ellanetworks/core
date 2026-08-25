@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -1418,8 +1417,8 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 		t.Fatal("isolated former leader accepted a write while partitioned; split-brain regression")
 	}
 
-	if !isPartitionRejection(err) {
-		t.Fatalf("isolated former leader failed with an unexpected error; want a 502/503 served by the node itself: %v", err)
+	if _, aliveErr := isolatedClient.GetProfile(ctx, &client.GetProfileOptions{Name: "default"}); aliveErr != nil {
+		t.Fatalf("isolated node stopped answering after the rejected write, so the rejection proves nothing: %v", aliveErr)
 	}
 
 	HALogf(t, "write on isolated former leader correctly rejected: %v", err)
@@ -1514,28 +1513,41 @@ func healClusterPort(ctx context.Context, dc *DockerClient, container string) er
 	return firstErr
 }
 
-func isPartitionRejection(err error) bool {
-	msg := err.Error()
-
-	return strings.Contains(msg, "server error 502") || strings.Contains(msg, "server error 503")
-}
-
 func waitForRoleLeft(ctx context.Context, c *client.Client, role string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
-	var last string
+	var (
+		lastRole string
+		lastErr  error
+	)
 
 	for time.Now().Before(deadline) {
 		status, err := c.GetStatus(ctx)
-		if err == nil && status.Cluster != nil {
-			last = status.Cluster.Role
-			if last != role {
+
+		switch {
+		case err != nil:
+			lastErr = err
+		case status.Cluster == nil:
+			lastErr = fmt.Errorf("status response carries no cluster section")
+		default:
+			lastErr = nil
+			lastRole = status.Cluster.Role
+
+			if lastRole != role {
 				return nil
 			}
 		}
 
-		time.Sleep(time.Second)
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for role %q to change: %w", role, ctx.Err())
+		case <-time.After(time.Second):
+		}
 	}
 
-	return fmt.Errorf("node still reports role %q after %v", last, timeout)
+	if lastErr != nil {
+		return fmt.Errorf("node unreachable while waiting for role %q to change after %v: %w", role, timeout, lastErr)
+	}
+
+	return fmt.Errorf("node still reports role %q after %v", lastRole, timeout)
 }

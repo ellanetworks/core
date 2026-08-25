@@ -5,7 +5,6 @@ package raft
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -17,8 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
 	hraft "github.com/hashicorp/raft"
 )
-
-var errPeerPartitioned = errors.New("peer partitioned by test harness")
 
 type peerGate struct {
 	mu      sync.RWMutex
@@ -49,57 +46,21 @@ func (g *peerGate) reset() {
 	g.nodeIDs = make(map[int]struct{})
 }
 
-func (g *peerGate) addrBlocked(addr string) bool {
+func (g *peerGate) reachable(nodeID int, addr string) bool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	_, ok := g.addrs[addr]
-
-	return ok
-}
-
-func (g *peerGate) nodeBlocked(nodeID int) bool {
-	g.mu.RLock()
-	defer g.mu.RUnlock()
-
-	_, ok := g.nodeIDs[nodeID]
-
-	return ok
-}
-
-type gatedStreamLayer struct {
-	hraft.StreamLayer
-
-	gate *peerGate
-}
-
-func (g *gatedStreamLayer) Dial(address hraft.ServerAddress, timeout time.Duration) (net.Conn, error) {
-	if g.gate.addrBlocked(string(address)) {
-		return nil, errPeerPartitioned
+	if _, blocked := g.nodeIDs[nodeID]; blocked {
+		return false
 	}
 
-	return g.StreamLayer.Dial(address, timeout)
-}
-
-func (g *gatedStreamLayer) Accept() (net.Conn, error) {
-	for {
-		conn, err := g.StreamLayer.Accept()
-		if err != nil {
-			return nil, err
+	if addr != "" {
+		if _, blocked := g.addrs[addr]; blocked {
+			return false
 		}
-
-		tlsConn, ok := conn.(*tls.Conn)
-		if !ok {
-			return conn, nil
-		}
-
-		peerID, idErr := listener.PeerNodeID(tlsConn)
-		if idErr != nil || !g.gate.nodeBlocked(peerID) {
-			return conn, nil
-		}
-
-		_ = conn.Close()
 	}
+
+	return true
 }
 
 type testNode struct {
@@ -123,6 +84,7 @@ type TestCluster struct {
 	pki     *testutil.PKI
 	t       testing.TB
 	ctx     context.Context
+	cancel  context.CancelFunc
 	cleanup sync.Once
 }
 
@@ -150,10 +112,14 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 		nodeIDs[i] = i + 1
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	tc := &TestCluster{
-		pki: testutil.GenTestPKI(t, nodeIDs),
-		t:   t,
-		ctx: t.Context(),
+		pki:    testutil.GenTestPKI(t, nodeIDs),
+		t:      t,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	t.Cleanup(tc.Close)
@@ -171,6 +137,7 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 	}
 
 	for _, node := range tc.nodes {
+		tc.newListener(node)
 		tc.startNode(node)
 	}
 
@@ -208,14 +175,6 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 func (tc *TestCluster) startNode(node *testNode) {
 	tc.t.Helper()
 
-	ln := listener.New(listener.Config{
-		BindAddress:      node.addr,
-		AdvertiseAddress: node.addr,
-		NodeID:           node.nodeID,
-		Pin:              tc.pki.PinFunc(),
-		Leaf:             tc.pki.LeafFunc(node.nodeID),
-	})
-
 	cfg := ClusterConfig{
 		Enabled:            true,
 		NodeID:             node.nodeID,
@@ -228,23 +187,29 @@ func (tc *TestCluster) startNode(node *testNode) {
 		SnapshotInterval:   time.Second,
 		SnapshotThreshold:  100,
 		TrailingLogs:       100,
+
+		AutopilotLastContactThreshold:    200 * time.Millisecond,
+		AutopilotServerStabilizationTime: 100 * time.Millisecond,
 	}
 
-	gate := node.gate
-
-	m, err := NewManager(tc.ctx, cfg, node.applier, node.dataDir,
-		WithClusterListener(ln),
-		withStreamLayerWrapper(func(sl hraft.StreamLayer) hraft.StreamLayer {
-			return &gatedStreamLayer{StreamLayer: sl, gate: gate}
-		}),
-	)
+	m, err := NewManager(tc.ctx, cfg, node.applier, node.dataDir, WithClusterListener(node.ln))
 	if err != nil {
 		tc.t.Fatalf("create node %d: %v", node.nodeID, err)
 	}
 
 	node.mgr = m
-	node.ln = ln
 	node.running = true
+}
+
+func (tc *TestCluster) newListener(node *testNode) {
+	node.ln = listener.New(listener.Config{
+		BindAddress:      node.addr,
+		AdvertiseAddress: node.addr,
+		NodeID:           node.nodeID,
+		Pin:              tc.pki.PinFunc(),
+		Leaf:             tc.pki.LeafFunc(node.nodeID),
+		Reachable:        node.gate.reachable,
+	})
 }
 
 func (tc *TestCluster) startListener(node *testNode) {
@@ -314,7 +279,6 @@ func (tc *TestCluster) StopNode(idx int) {
 		tc.t.Errorf("shutdown node %d: %v", node.nodeID, err)
 	}
 
-	node.ln.Stop()
 	node.running = false
 }
 
@@ -323,7 +287,6 @@ func (tc *TestCluster) RestartNode(idx int) {
 
 	tc.StopNode(idx)
 	tc.startNode(tc.nodes[idx])
-	tc.startListener(tc.nodes[idx])
 	tc.refresh()
 }
 
@@ -356,6 +319,10 @@ func (tc *TestCluster) dropPooledConnections() {
 
 		if nt, ok := node.mgr.transport.(*hraft.NetworkTransport); ok {
 			nt.CloseStreams()
+		}
+
+		if node.mgr.leaderClient != nil {
+			node.mgr.leaderClient.close()
 		}
 	}
 }
@@ -407,6 +374,14 @@ func (tc *TestCluster) Close() {
 		for i := range tc.nodes {
 			tc.StopNode(i)
 		}
+
+		for _, node := range tc.nodes {
+			if node.ln != nil {
+				node.ln.Stop()
+			}
+		}
+
+		tc.cancel()
 	})
 }
 

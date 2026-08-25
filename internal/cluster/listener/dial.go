@@ -27,6 +27,10 @@ func (l *Listener) DialAnyPeer(ctx context.Context, addr, alpn string, timeout t
 }
 
 func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID int, alpn string, timeout time.Duration) (*tls.Conn, error) {
+	if l.cfg.Reachable != nil && !l.cfg.Reachable(expectedPeerID, addr) {
+		return nil, fmt.Errorf("cluster dial %s (ALPN %s): peer unreachable", addr, alpn)
+	}
+
 	dialCfg := l.tlsConfig.Clone()
 	dialCfg.NextProtos = []string{alpn}
 

@@ -4,12 +4,14 @@
 package raft
 
 import (
+	"encoding/json"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	hraft "github.com/hashicorp/raft"
-	autopilot "github.com/hashicorp/raft-autopilot"
 )
 
 func proposeAndIndex(t *testing.T, m *Manager, n int) uint64 {
@@ -56,15 +58,12 @@ func TestCluster_ConstructsHAWiring(t *testing.T) {
 		}
 	}
 
-	leader := tc.Leader()
-	if leader == nil {
-		t.Fatal("no leader")
-	}
-
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		if st := leader.autopilot.State(); st != nil && len(st.Servers) == 3 {
-			return
+		if leader := tc.Leader(); leader != nil {
+			if st := leader.autopilot.State(); st != nil && len(st.Servers) == 3 {
+				return
+			}
 		}
 
 		time.Sleep(20 * time.Millisecond)
@@ -176,21 +175,21 @@ func TestCluster_PartitionBlocksBothDirections(t *testing.T) {
 
 	tc.Isolate(0)
 
-	if !tc.nodes[0].gate.addrBlocked(tc.nodes[1].addr) {
+	if tc.nodes[0].gate.reachable(0, tc.nodes[1].addr) {
 		t.Error("isolated node can still dial a peer")
 	}
 
-	if !tc.nodes[1].gate.nodeBlocked(tc.nodes[0].nodeID) {
+	if tc.nodes[1].gate.reachable(tc.nodes[0].nodeID, "") {
 		t.Error("peer still accepts connections from the isolated node")
 	}
 
-	if tc.nodes[1].gate.addrBlocked(tc.nodes[2].addr) {
+	if !tc.nodes[1].gate.reachable(0, tc.nodes[2].addr) {
 		t.Error("partition blocked two nodes on the same side")
 	}
 
 	tc.Heal()
 
-	if tc.nodes[0].gate.addrBlocked(tc.nodes[1].addr) {
+	if !tc.nodes[0].gate.reachable(0, tc.nodes[1].addr) {
 		t.Error("heal did not clear the partition")
 	}
 }
@@ -284,29 +283,124 @@ func TestCluster_AutopilotRemovesFailedServer(t *testing.T) {
 	tc.StopNode(followerIdx)
 	waitForUnhealthyPeer(t, leader, peerID, 15*time.Second)
 
-	delegate := &autopilotDelegate{
-		manager:          leader,
-		inflightRemovals: make(map[hraft.ServerID]bool),
-	}
-
-	known := delegate.KnownServers()
-
-	failed, ok := known[peerID]
-	if !ok {
-		t.Fatalf("stopped node %s missing from KnownServers", peerID)
-	}
-
-	if failed.NodeStatus != autopilot.NodeLeft {
-		t.Fatalf("stopped node %s reported as %v, want NodeLeft", peerID, failed.NodeStatus)
-	}
-
-	delegate.RemoveFailedServer(failed)
-	delegate.RemoveFailedServer(failed)
-
-	ids := waitForMembers(leader, 2, 10*time.Second)
+	ids := waitForMembers(leader, 2, 30*time.Second)
 	for _, id := range ids {
 		if id == failedID {
-			t.Fatalf("failed node %d still in configuration %v", failedID, ids)
+			t.Fatalf("autopilot did not evict failed node %d; configuration is %v", failedID, ids)
 		}
+	}
+}
+
+func countGoroutines(t *testing.T, needles ...string) int {
+	t.Helper()
+
+	buf := make([]byte, 1<<20)
+	buf = buf[:runtime.Stack(buf, true)]
+
+	count := 0
+
+	for _, frame := range strings.Split(string(buf), "\n\n") {
+		for _, needle := range needles {
+			if strings.Contains(frame, needle) {
+				count++
+				break
+			}
+		}
+	}
+
+	return count
+}
+
+func TestCluster_ShutdownStopsLeaderRoutines(t *testing.T) {
+	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
+
+	if tc.LeaderIndex() < 0 {
+		t.Fatal("no leader")
+	}
+
+	proposeAndIndex(t, tc.Nodes[tc.LeaderIndex()], 3)
+
+	if countGoroutines(t, "raft-autopilot", "followerTracker).run") == 0 {
+		t.Fatal("expected autopilot and follower-tracker goroutines while leader is running")
+	}
+
+	for i := range tc.nodes {
+		tc.StopNode(i)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if countGoroutines(t, "raft-autopilot", "followerTracker).run") == 0 {
+			return
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Fatalf("leader routines still running after shutdown: %d", countGoroutines(t, "raft-autopilot", "followerTracker).run"))
+}
+
+func TestCluster_PartitionBlocksClusterHTTP(t *testing.T) {
+	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
+	wireClusterProposeHandlers(t, tc)
+
+	leaderIdx := tc.LeaderIndex()
+	if leaderIdx < 0 {
+		t.Fatal("no leader")
+	}
+
+	followerIdx := (leaderIdx + 1) % 3
+	follower := tc.Nodes[followerIdx]
+
+	payload, err := json.Marshal(map[string]string{"via": "follower"})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := follower.ForwardOperation(t.Context(), "TestOp", payload, 5*time.Second); err != nil {
+		t.Fatalf("forward before partition: %v", err)
+	}
+
+	tc.Isolate(followerIdx)
+
+	if _, err := follower.ForwardOperation(t.Context(), "TestOp", payload, 2*time.Second); err == nil {
+		t.Fatal("partitioned follower forwarded a write to the leader over cluster HTTP")
+	}
+}
+
+func TestCluster_RestartKeepsNonRaftALPNHandlers(t *testing.T) {
+	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
+	wireClusterProposeHandlers(t, tc)
+
+	leaderIdx := tc.LeaderIndex()
+	if leaderIdx < 0 {
+		t.Fatal("no leader")
+	}
+
+	followerIdx := (leaderIdx + 1) % 3
+
+	payload, err := json.Marshal(map[string]string{"via": "follower"})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	tc.RestartNode(followerIdx)
+
+	if tc.WaitForLeader(15*time.Second) == nil {
+		t.Fatal("no leader after restart")
+	}
+
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		_, err = tc.Nodes[followerIdx].ForwardOperation(t.Context(), "TestOp", payload, 5*time.Second)
+		if err == nil || time.Now().After(deadline) {
+			break
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	if err != nil {
+		t.Fatalf("cluster HTTP forwarding broken after restart: %v", err)
 	}
 }

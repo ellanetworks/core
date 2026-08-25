@@ -41,12 +41,22 @@ func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
 		minQuorum = 1
 	}
 
+	lastContact := defaultLastContactThreshold
+	if d.manager.config.AutopilotLastContactThreshold > 0 {
+		lastContact = d.manager.config.AutopilotLastContactThreshold
+	}
+
+	stabilization := defaultServerStabilizationTime
+	if d.manager.config.AutopilotServerStabilizationTime > 0 {
+		stabilization = d.manager.config.AutopilotServerStabilizationTime
+	}
+
 	return &autopilot.Config{
 		CleanupDeadServers:      defaultCleanupDeadServers,
-		LastContactThreshold:    defaultLastContactThreshold,
+		LastContactThreshold:    lastContact,
 		MaxTrailingLogs:         defaultMaxTrailingLogs,
 		MinQuorum:               minQuorum,
-		ServerStabilizationTime: defaultServerStabilizationTime,
+		ServerStabilizationTime: stabilization,
 	}
 }
 
@@ -131,6 +141,7 @@ func (d *autopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 			Name:       string(srv.ID),
 			Address:    srv.Address,
 			NodeStatus: status,
+			NodeType:   autopilot.NodeVoter,
 		}
 	}
 

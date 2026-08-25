@@ -55,6 +55,9 @@ type ClusterConfig struct {
 	LeaderLeaseTimeout time.Duration
 	CommitTimeout      time.Duration
 
+	AutopilotLastContactThreshold    time.Duration
+	AutopilotServerStabilizationTime time.Duration
+
 	// TrailingLogs bounds the number of Raft log entries retained after a
 	// snapshot. Lower values shrink BoltDB at the cost of forcing full
 	// snapshots to followers that lag. Zero keeps the hashicorp/raft
@@ -294,7 +297,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	var transport raft.Transport
 
 	if !singleServer && options.clusterListener != nil {
-		transport, err = clusterTransportFactory(options.clusterListener, cfg, options.streamLayerWrapper)
+		transport, err = clusterTransportFactory(options.clusterListener, cfg)
 	} else {
 		transport, err = tcpTransportFactory(cfg)
 	}
@@ -807,6 +810,14 @@ func (m *Manager) Shutdown() error {
 
 	if m.observer != nil {
 		m.observer.Stop()
+	}
+
+	if m.autopilot != nil {
+		<-m.autopilot.ap.Stop()
+	}
+
+	if m.followerTracker != nil {
+		m.followerTracker.stop()
 	}
 
 	future := m.raft.Shutdown()
