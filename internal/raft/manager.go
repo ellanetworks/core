@@ -294,7 +294,7 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 	var transport raft.Transport
 
 	if !singleServer && options.clusterListener != nil {
-		transport, err = clusterTransportFactory(options.clusterListener, cfg)
+		transport, err = clusterTransportFactory(options.clusterListener, cfg, options.streamLayerWrapper)
 	} else {
 		transport, err = tcpTransportFactory(cfg)
 	}

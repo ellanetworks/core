@@ -51,20 +51,32 @@ func tcpTransportFactory(cfg ClusterConfig) (hraft.Transport, error) {
 // clusterTransportFactory builds a Raft transport backed by the cluster
 // listener's ALPNRaft handler. Used in HA mode where all Raft traffic
 // rides the mTLS-protected cluster port.
-func clusterTransportFactory(ln *listener.Listener, cfg ClusterConfig) (hraft.Transport, error) {
+func clusterTransportFactory(ln *listener.Listener, cfg ClusterConfig, wrap streamLayerWrapper) (hraft.Transport, error) {
 	sl, err := newRaftStreamLayer(ln, cfg.AdvertiseAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	return hraft.NewNetworkTransport(sl, 3, 10*time.Second, newZapIOWriter("transport")), nil
+	var layer hraft.StreamLayer = sl
+	if wrap != nil {
+		layer = wrap(layer)
+	}
+
+	return hraft.NewNetworkTransport(layer, 3, 10*time.Second, newZapIOWriter("transport")), nil
 }
 
 // ManagerOption configures optional behaviour of NewManager.
 type ManagerOption func(*managerOptions)
 
+type streamLayerWrapper func(hraft.StreamLayer) hraft.StreamLayer
+
 type managerOptions struct {
-	clusterListener *listener.Listener
+	clusterListener    *listener.Listener
+	streamLayerWrapper streamLayerWrapper
+}
+
+func withStreamLayerWrapper(wrap streamLayerWrapper) ManagerOption {
+	return func(o *managerOptions) { o.streamLayerWrapper = wrap }
 }
 
 // WithClusterListener provides the cluster listener for HA mode. The
