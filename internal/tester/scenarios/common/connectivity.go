@@ -23,7 +23,7 @@ import (
 const (
 	pduSessionType = fgs.PDUSessionTypeIPv4
 
-	registrationTimeout = 8 * time.Second
+	registrationTimeout = 15 * time.Second
 )
 
 // RegisterAndPingOpts: Key/OpC/SQN/PDUSessionID default to

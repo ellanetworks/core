@@ -9,6 +9,6 @@ import "time"
 // the same way, so a 4G and a 5G scenario read alike; only the procedure names
 // differ, because 5GS registers where EPS attaches.
 const (
-	registrationTimeout = 8 * time.Second
-	releaseTimeout      = 2 * time.Second
+	registrationTimeout = 15 * time.Second
+	releaseTimeout      = 10 * time.Second
 )

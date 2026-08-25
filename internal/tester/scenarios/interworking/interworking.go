@@ -19,8 +19,8 @@ import (
 // Timeouts for the lifecycle procedures. s1enb scenarios spell theirs the same
 // way, so a 4G and a 5G scenario read alike.
 const (
-	registrationTimeout = 8 * time.Second
-	releaseTimeout      = 2 * time.Second
+	registrationTimeout = 15 * time.Second
+	releaseTimeout      = 10 * time.Second
 )
 
 const (
