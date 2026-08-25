@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -18,7 +17,7 @@ import (
 )
 
 const (
-	defaultCleanupDeadServers      = true
+	defaultCleanupDeadServers      = false
 	defaultLastContactThreshold    = 10 * time.Second
 	defaultMaxTrailingLogs         = uint64(500)
 	defaultServerStabilizationTime = 10 * time.Second
@@ -28,20 +27,10 @@ const (
 // Raft configuration, with per-peer liveness supplied by the follower
 // tracker.
 type autopilotDelegate struct {
-	manager          *Manager
-	mu               sync.Mutex
-	inflightRemovals map[raft.ServerID]bool
+	manager *Manager
 }
 
 func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
-	// Derive the floor on cluster size from the configured peers list
-	// (ceil(N/2)). Autopilot refuses to auto-remove dead servers below
-	// this count, protecting against quorum loss from over-eager cleanup.
-	minQuorum := uint((len(d.manager.config.Peers) + 1) / 2)
-	if minQuorum < 1 {
-		minQuorum = 1
-	}
-
 	lastContact := defaultLastContactThreshold
 	if d.manager.config.Autopilot.LastContactThreshold > 0 {
 		lastContact = d.manager.config.Autopilot.LastContactThreshold
@@ -56,7 +45,6 @@ func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
 		CleanupDeadServers:      defaultCleanupDeadServers,
 		LastContactThreshold:    lastContact,
 		MaxTrailingLogs:         defaultMaxTrailingLogs,
-		MinQuorum:               minQuorum,
 		ServerStabilizationTime: stabilization,
 	}
 }
@@ -150,33 +138,10 @@ func (d *autopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 }
 
 func (d *autopilotDelegate) RemoveFailedServer(srv *autopilot.Server) {
-	d.mu.Lock()
-	if d.inflightRemovals[srv.ID] {
-		d.mu.Unlock()
-		return
-	}
-
-	d.inflightRemovals[srv.ID] = true
-	d.mu.Unlock()
-
-	go func() {
-		logger.RaftLog.Info("Autopilot: removing failed server",
-			zap.String("id", string(srv.ID)),
-			zap.String("address", string(srv.Address)),
-		)
-
-		future := d.manager.raft.RemoveServer(srv.ID, 0, 0)
-		if err := future.Error(); err != nil {
-			logger.RaftLog.Error("Autopilot: failed to remove server",
-				zap.String("id", string(srv.ID)),
-				zap.Error(err),
-			)
-		}
-
-		d.mu.Lock()
-		delete(d.inflightRemovals, srv.ID)
-		d.mu.Unlock()
-	}()
+	logger.RaftLog.Warn("Autopilot asked to remove a failed server; membership changes are operator-driven",
+		zap.String("id", string(srv.ID)),
+		zap.String("address", string(srv.Address)),
+	)
 }
 
 func parseRaftStats(stats map[string]string) *autopilot.ServerStats {
@@ -207,10 +172,7 @@ type autopilotRunner struct {
 }
 
 func newAutopilotRunner(r *raft.Raft, m *Manager) *autopilotRunner {
-	delegate := &autopilotDelegate{
-		manager:          m,
-		inflightRemovals: make(map[raft.ServerID]bool),
-	}
+	delegate := &autopilotDelegate{manager: m}
 
 	opts := []autopilot.Option{
 		autopilot.WithLogger(hclog.NewNullLogger()),
