@@ -278,7 +278,6 @@ func (tc *TestCluster) Leader() *Manager {
 	return nil
 }
 
-// LeaderIndex returns the index of the current leader, or -1 if none.
 func (tc *TestCluster) LeaderIndex() int {
 	for i, node := range tc.nodes {
 		if node.running && node.mgr.IsLeader() {
@@ -289,7 +288,6 @@ func (tc *TestCluster) LeaderIndex() int {
 	return -1
 }
 
-// WaitForLeader polls until some running node reports itself leader.
 func (tc *TestCluster) WaitForLeader(timeout time.Duration) *Manager {
 	deadline := time.Now().Add(timeout)
 
@@ -304,8 +302,6 @@ func (tc *TestCluster) WaitForLeader(timeout time.Duration) *Manager {
 	return nil
 }
 
-// StopNode shuts down one node's Manager and listener, leaving its data
-// directory and port intact so RestartNode can bring it back.
 func (tc *TestCluster) StopNode(idx int) {
 	tc.t.Helper()
 
@@ -322,8 +318,6 @@ func (tc *TestCluster) StopNode(idx int) {
 	node.running = false
 }
 
-// RestartNode stops a node and starts it again on its own bolt store,
-// snapshot store and address.
 func (tc *TestCluster) RestartNode(idx int) {
 	tc.t.Helper()
 
@@ -333,8 +327,6 @@ func (tc *TestCluster) RestartNode(idx int) {
 	tc.refresh()
 }
 
-// Partition isolates the nodes at the given indices from the rest of the
-// cluster, in both directions. Nodes on the same side stay connected.
 func (tc *TestCluster) Partition(far []int) {
 	tc.t.Helper()
 
@@ -368,14 +360,12 @@ func (tc *TestCluster) dropPooledConnections() {
 	}
 }
 
-// Isolate partitions a single node away from every other node.
 func (tc *TestCluster) Isolate(idx int) {
 	tc.t.Helper()
 
 	tc.Partition([]int{idx})
 }
 
-// Heal removes every partition, restoring full connectivity.
 func (tc *TestCluster) Heal() {
 	tc.t.Helper()
 
