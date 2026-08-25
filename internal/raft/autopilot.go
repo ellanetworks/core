@@ -17,14 +17,7 @@ import (
 )
 
 const (
-	// defaultCleanupDeadServers is false: cluster membership is
-	// operator-driven, through the drain and remove endpoints in
-	// internal/api/server/api_cluster.go. A node evicted without an
-	// operator asking has no way back — it has Raft state, so it never
-	// re-runs discovery (Manager.discoveryPending) — and this deployment
-	// has no membership gossip that would put it back.
-	defaultCleanupDeadServers = false
-
+	defaultCleanupDeadServers      = false
 	defaultLastContactThreshold    = 10 * time.Second
 	defaultMaxTrailingLogs         = uint64(500)
 	defaultServerStabilizationTime = 10 * time.Second
@@ -144,9 +137,6 @@ func (d *autopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 	return servers
 }
 
-// RemoveFailedServer satisfies autopilot.ApplicationIntegration.
-// pruneDeadServers returns before reaching it while CleanupDeadServers is
-// false, so a call here means the configuration and this delegate disagree.
 func (d *autopilotDelegate) RemoveFailedServer(srv *autopilot.Server) {
 	logger.RaftLog.Warn("Autopilot asked to remove a failed server; membership changes are operator-driven",
 		zap.String("id", string(srv.ID)),
