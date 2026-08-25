@@ -1,0 +1,199 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+import { describe, it, expect } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { renderWithProviders } from "@/test/renderWithProviders";
+import { setupApiServer } from "@/test/apiServer";
+import Subscribers from "./Subscribers";
+
+const api = setupApiServer();
+
+const SUBSCRIBERS_PATH = "/api/v1/subscribers";
+
+const IMSIS = ["001010100007487", "001010100007488", "001010100009999"];
+
+const subscriber = (imsi: string) => ({
+  imsi,
+  profile_name: "default",
+  status: { registered: false, num_sessions: 0 },
+});
+
+/** Mirrors the server: `search` is a literal IMSI substring, then paginate. */
+const seedApi = (imsis = IMSIS) => {
+  api.get(SUBSCRIBERS_PATH, ({ params }) => {
+    const search = params.get("search") ?? "";
+    const page = Number(params.get("page") ?? 1);
+    const perPage = Number(params.get("per_page") ?? 25);
+
+    const matched = imsis.filter((imsi) => imsi.includes(search));
+    const start = (page - 1) * perPage;
+
+    return {
+      items: matched.slice(start, start + perPage).map(subscriber),
+      page,
+      per_page: perPage,
+      total_count: matched.length,
+    };
+  });
+};
+
+const renderSubscribers = async () => {
+  const result = renderWithProviders(<Subscribers />, { auth: {} });
+  await screen.findByRole("heading", { name: /^Subscribers/ });
+  return result;
+};
+
+const searchBox = () => screen.getByLabelText("Search");
+
+const lastParams = () => {
+  const request = api.lastRequest(SUBSCRIBERS_PATH);
+  if (!request) throw new Error("no subscribers request was made");
+  return request.params;
+};
+
+const waitForRequests = async (n: number) =>
+  waitFor(() => expect(api.requests(SUBSCRIBERS_PATH).length).toBe(n));
+
+describe("Subscribers search", () => {
+  it("sends no search parameter before the operator types", async () => {
+    seedApi();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    expect(lastParams().has("search")).toBe(false);
+    expect(await screen.findByText(IMSIS[0])).toBeInTheDocument();
+  });
+
+  it("applies the search once typing settles", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.type(searchBox(), "0748");
+
+    await waitFor(() => expect(lastParams().get("search")).toBe("0748"), {
+      timeout: 2000,
+    });
+  });
+
+  it("issues one request for a burst of keystrokes, not one per character", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    const before = api.requests(SUBSCRIBERS_PATH).length;
+    await user.type(searchBox(), "0748");
+
+    await waitFor(() => expect(lastParams().get("search")).toBe("0748"), {
+      timeout: 2000,
+    });
+
+    const searched = api
+      .requests(SUBSCRIBERS_PATH)
+      .slice(before)
+      .filter((r) => r.params.get("search"));
+
+    expect(searched).toHaveLength(1);
+  });
+
+  it("shows only the matching subscribers", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await screen.findByText(IMSIS[2]);
+
+    await user.type(searchBox(), "0748");
+
+    await waitFor(
+      () => expect(screen.queryByText(IMSIS[2])).not.toBeInTheDocument(),
+      { timeout: 2000 },
+    );
+    expect(screen.getByText(IMSIS[0])).toBeInTheDocument();
+    expect(screen.getByText(IMSIS[1])).toBeInTheDocument();
+  });
+
+  it("drops the parameter when the search is cleared", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.type(searchBox(), "0748");
+    await waitFor(() => expect(lastParams().get("search")).toBe("0748"), {
+      timeout: 2000,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+
+    await waitFor(() => expect(lastParams().has("search")).toBe(false), {
+      timeout: 2000,
+    });
+  });
+
+  it("treats a whitespace-only search as unset", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.type(searchBox(), "   ");
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    expect(
+      api
+        .requests(SUBSCRIBERS_PATH)
+        .every((r) => !r.params.has("search") || r.params.get("search") === ""),
+    ).toBe(true);
+  });
+
+  it("returns to the first page when the search changes", async () => {
+    seedApi(Array.from({ length: 60 }, (_v, i) => `00101010000${1000 + i}`));
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(lastParams().get("page")).toBe("2"));
+
+    await user.type(searchBox(), "1005");
+
+    await waitFor(
+      () => {
+        const params = lastParams();
+        expect(params.get("search")).toBe("1005");
+        expect(params.get("page")).toBe("1");
+      },
+      { timeout: 2000 },
+    );
+  });
+
+  it("offers no-results guidance rather than the create-one empty state", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.type(searchBox(), "12345");
+
+    expect(
+      await screen.findByText(
+        "No subscribers match your search",
+        {},
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No subscribers yet")).not.toBeInTheDocument();
+  });
+
+  it("keeps the empty state when there are no subscribers at all", async () => {
+    seedApi([]);
+    await renderSubscribers();
+
+    expect(await screen.findByText("No subscribers yet")).toBeInTheDocument();
+  });
+});

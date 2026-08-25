@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { listAllSubscriberImsis } from "./subscribers";
+import { listAllSubscriberImsis, listSubscribers } from "./subscribers";
 
 const PER_PAGE = 100;
 
@@ -154,5 +154,60 @@ describe("listAllSubscriberImsis", () => {
         headers: expect.objectContaining({ Authorization: "Bearer t0k" }),
       }),
     );
+  });
+});
+
+describe("listSubscribers", () => {
+  const stubOk = () => {
+    const requested: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        requested.push(url);
+        return {
+          status: 200,
+          ok: true,
+          statusText: "OK",
+          json: async () => ({ result: { items: [], total_count: 0 } }),
+        } as Response;
+      }),
+    );
+
+    return () => new URL(requested[0], "http://x");
+  };
+
+  it("omits search when it is not given", async () => {
+    const requested = stubOk();
+
+    await listSubscribers("t0k", 2, 25);
+
+    expect(requested().search).toBe("?page=2&per_page=25");
+  });
+
+  it("omits search when it is empty", async () => {
+    const requested = stubOk();
+
+    await listSubscribers("t0k", 1, 25, "");
+
+    expect(requested().searchParams.has("search")).toBe(false);
+  });
+
+  it("sends search alongside the pagination params", async () => {
+    const requested = stubOk();
+
+    await listSubscribers("t0k", 1, 25, "0748");
+
+    expect(requested().searchParams.get("search")).toBe("0748");
+  });
+
+  it("encodes a search that would otherwise break the query string", async () => {
+    const requested = stubOk();
+
+    await listSubscribers("t0k", 1, 25, "a b&per_page=1");
+
+    const url = requested();
+    expect(url.searchParams.get("search")).toBe("a b&per_page=1");
+    expect(url.searchParams.get("per_page")).toBe("25");
   });
 });

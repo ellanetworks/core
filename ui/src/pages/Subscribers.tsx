@@ -2,14 +2,20 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
-import { Box, Typography, Button, Chip } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  Chip,
+  TextField,
+  InputAdornment,
+  IconButton,
+} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
-import {
-  GridColDef,
-  GridRenderCellParams,
-  GridPaginationModel,
-} from "@mui/x-data-grid";
+import { GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
 import { Link } from "react-router-dom";
 import {
@@ -23,6 +29,8 @@ import QueryState from "@/components/QueryState";
 import AccessChip from "@/components/AccessChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const SubscriberPage: React.FC = () => {
@@ -30,9 +38,11 @@ const SubscriberPage: React.FC = () => {
   const theme = useTheme();
   const canEdit = role === "Admin" || role === "Network Manager";
 
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
-    page: 0,
-    pageSize: 25,
+  const [searchInput, setSearchInput] = useState("");
+  const appliedSearch = useDebouncedValue(searchInput).trim();
+
+  const [paginationModel, setPaginationModel] = useFilteredPagination({
+    search: appliedSearch,
   });
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -42,9 +52,9 @@ const SubscriberPage: React.FC = () => {
   const perPage = paginationModel.pageSize;
 
   const subscribersQuery = useQuery({
-    queryKey: ["subscribers", pageOneBased, perPage],
+    queryKey: ["subscribers", pageOneBased, perPage, appliedSearch],
     queryFn: (): Promise<ListSubscribersResponse> =>
-      listSubscribers(accessToken || "", pageOneBased, perPage),
+      listSubscribers(accessToken || "", pageOneBased, perPage, appliedSearch),
     enabled: authReady && !!accessToken,
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
@@ -258,10 +268,50 @@ const SubscriberPage: React.FC = () => {
         )}
       </Box>
 
+      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
+        <TextField
+          label="Search"
+          type="search"
+          placeholder="IMSI"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          size="small"
+          sx={{ minWidth: 260 }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: searchInput ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="Clear search"
+                    size="small"
+                    edge="end"
+                    onClick={() => setSearchInput("")}
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            },
+          }}
+        />
+      </Box>
+
       <QueryState
         query={subscribersQuery}
         resource="subscribers"
         isEmpty={(data) => (data.total_count ?? 0) === 0}
+        filtered={appliedSearch !== ""}
+        noResults={
+          <EmptyState
+            primaryText="No subscribers match your search"
+            secondaryText="Check the IMSI, or clear the search to see every subscriber."
+          />
+        }
         empty={
           <EmptyState
             primaryText="No subscribers yet"
