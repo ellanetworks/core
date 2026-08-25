@@ -211,10 +211,20 @@ func newAutopilotRunner(r *raft.Raft, m *Manager) *autopilotRunner {
 		inflightRemovals: make(map[raft.ServerID]bool),
 	}
 
-	ap := autopilot.New(r, delegate,
+	opts := []autopilot.Option{
 		autopilot.WithLogger(hclog.NewNullLogger()),
 		autopilot.WithPromoter(autopilot.DefaultPromoter()),
-	)
+	}
+
+	if m.config.AutopilotReconcileInterval > 0 {
+		opts = append(opts, autopilot.WithReconcileInterval(m.config.AutopilotReconcileInterval))
+	}
+
+	if m.config.AutopilotUpdateInterval > 0 {
+		opts = append(opts, autopilot.WithUpdateInterval(m.config.AutopilotUpdateInterval))
+	}
+
+	ap := autopilot.New(r, delegate, opts...)
 
 	return &autopilotRunner{ap: ap}
 }

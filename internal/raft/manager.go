@@ -57,6 +57,8 @@ type ClusterConfig struct {
 
 	AutopilotLastContactThreshold    time.Duration
 	AutopilotServerStabilizationTime time.Duration
+	AutopilotReconcileInterval       time.Duration
+	AutopilotUpdateInterval          time.Duration
 
 	// TrailingLogs bounds the number of Raft log entries retained after a
 	// snapshot. Lower values shrink BoltDB at the cost of forcing full

@@ -190,6 +190,8 @@ func (tc *TestCluster) startNode(node *testNode) {
 
 		AutopilotLastContactThreshold:    200 * time.Millisecond,
 		AutopilotServerStabilizationTime: 100 * time.Millisecond,
+		AutopilotReconcileInterval:       100 * time.Millisecond,
+		AutopilotUpdateInterval:          50 * time.Millisecond,
 	}
 
 	m, err := NewManager(tc.ctx, cfg, node.applier, node.dataDir, WithClusterListener(node.ln))

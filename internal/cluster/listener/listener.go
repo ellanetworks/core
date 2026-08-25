@@ -71,18 +71,9 @@ type Config struct {
 	// Leaf returns this node's self-signed cluster cert.
 	Leaf LeafFunc
 
-	// Reachable reports whether cluster traffic may flow to or from a
-	// peer. It is consulted on every outbound dial with the target
-	// address (and the expected node-id when the caller knows it), and
-	// on every inbound connection with the peer's node-id. Nil means
-	// every peer is reachable; a non-nil filter is fail-closed, so an
-	// inbound connection whose node-id cannot be determined is refused.
 	Reachable ReachableFunc
 }
 
-// ReachableFunc reports whether a peer is currently reachable. nodeID is
-// 0 when the caller has not yet identified the peer, and addr is empty
-// when the caller has no meaningful address for it.
 type ReachableFunc func(nodeID int, addr string) bool
 
 // Listener is the multiplexed cluster port. One TCP socket, one TLS
@@ -179,10 +170,6 @@ func (l *Listener) Register(alpn string, handler ConnHandler) {
 	l.handlers[alpn] = handler
 }
 
-// Deregister removes the handler for one ALPN protocol, so the owner of
-// that protocol can release it when it shuts down. Connections already
-// dispatched are unaffected; later ones are refused until something
-// registers the protocol again.
 func (l *Listener) Deregister(alpn string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
