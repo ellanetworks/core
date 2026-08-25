@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -104,6 +105,7 @@ const (
 const (
 	MaxNumSubscribers = 1000
 	MaxSessions       = 26
+	MaxSearchLength   = 254
 )
 
 func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
@@ -211,6 +213,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 		perPage := atoiDefault(q.Get("per_page"), 25)
 		radioFilter := q.Get("radio")
 		dataNetworkFilter := q.Get("data_network")
+		searchFilter := strings.TrimSpace(q.Get("search"))
 
 		if page < 1 {
 			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
@@ -219,6 +222,11 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 		if perPage < 1 || perPage > 100 {
 			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
+		if len(searchFilter) > MaxSearchLength {
+			writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("search must be at most %d characters", MaxSearchLength), nil, logger.APILog)
 			return
 		}
 
@@ -264,7 +272,11 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			dbPerPage = MaxNumSubscribers
 		}
 
-		var dataNetworkID string
+		filters := &db.SubscriberFilters{}
+
+		if searchFilter != "" {
+			filters.Search = &searchFilter
+		}
 
 		if dataNetworkFilter != "" {
 			dn, dnErr := dbInstance.GetDataNetwork(ctx, dataNetworkFilter)
@@ -273,21 +285,10 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				return
 			}
 
-			dataNetworkID = dn.ID
+			filters.DataNetworkID = &dn.ID
 		}
 
-		var (
-			dbSubscribers []db.Subscriber
-			total         int
-			err           error
-		)
-
-		if dataNetworkID != "" {
-			dbSubscribers, total, err = dbInstance.ListSubscribersByDataNetworkPage(ctx, dataNetworkID, dbPage, dbPerPage)
-		} else {
-			dbSubscribers, total, err = dbInstance.ListSubscribersPage(ctx, dbPage, dbPerPage)
-		}
-
+		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, filters, dbPage, dbPerPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list subscribers", err, logger.APILog)
 			return

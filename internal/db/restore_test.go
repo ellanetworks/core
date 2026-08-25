@@ -71,7 +71,7 @@ func TestRestore(t *testing.T) {
 	}
 
 	// Verify the restored database is functional by running a query
-	_, total, err := database.ListSubscribersPage(context.Background(), 1, 10)
+	_, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
 	if err != nil {
 		t.Fatalf("failed to query restored database: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestRestore_InvalidFile(t *testing.T) {
 	}
 
 	// Verify the original database is still functional
-	_, total, err := database.ListSubscribersPage(context.Background(), 1, 10)
+	_, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
 	if err != nil {
 		t.Fatalf("database should still be functional after rejected restore, got: %v", err)
 	}
@@ -228,7 +228,7 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 	}
 
 	// Database should still be functional
-	_, total, err := database.ListSubscribersPage(context.Background(), 1, 10)
+	_, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
 	if err != nil {
 		t.Fatalf("database should be functional after concurrent restore, got: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 		t.Fatalf("clear flow reports failed: %v", err)
 	}
 
-	subsAfterDelete, totalSubs, err := database.ListSubscribersPage(ctx, 1, 10)
+	subsAfterDelete, totalSubs, err := database.ListSubscribersPage(ctx, nil, 1, 10)
 	if err != nil {
 		t.Fatalf("list after delete failed: %v", err)
 	}
@@ -337,7 +337,7 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 	}
 
 	// Subscriber should be back after restore.
-	subs, total, err := database.ListSubscribersPage(ctx, 1, 10)
+	subs, total, err := database.ListSubscribersPage(ctx, nil, 1, 10)
 	if err != nil {
 		t.Fatalf("list subscribers after restore failed: %v", err)
 	}

@@ -93,7 +93,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, total, err := database.ListSubscribersPage(context.Background(), 1, 10)
+	res, total, err := database.ListSubscribersPage(context.Background(), nil, 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -124,7 +124,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, total, err = database.ListSubscribersPage(context.Background(), 1, 10)
+	res, total, err = database.ListSubscribersPage(context.Background(), nil, 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
@@ -192,7 +192,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 
-	res, total, _ = database.ListSubscribersPage(context.Background(), 1, 10)
+	res, total, _ = database.ListSubscribersPage(context.Background(), nil, 1, 10)
 
 	if total != 0 {
 		t.Fatalf("Expected total count to be 0, but got %d", total)
@@ -305,14 +305,14 @@ func TestCountSubscribersInProfile(t *testing.T) {
 	}
 }
 
-func TestListSubscribersByDataNetworkPage(t *testing.T) {
+func TestListSubscribersFilterByDataNetwork(t *testing.T) {
 	database, dnID, imsi, _ := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
 	// The subscriber's profile has a policy binding this data network.
-	subs, count, err := database.ListSubscribersByDataNetworkPage(ctx, dnID, 1, 25)
+	subs, count, err := database.ListSubscribersPage(ctx, &db.SubscriberFilters{DataNetworkID: &dnID}, 1, 25)
 	if err != nil {
-		t.Fatalf("ListSubscribersByDataNetworkPage: %s", err)
+		t.Fatalf("ListSubscribersPage(data network): %s", err)
 	}
 
 	if count != 1 || len(subs) != 1 || subs[0].Imsi != imsi {
@@ -330,12 +330,144 @@ func TestListSubscribersByDataNetworkPage(t *testing.T) {
 		t.Fatalf("GetDataNetwork: %s", err)
 	}
 
-	subs, count, err = database.ListSubscribersByDataNetworkPage(ctx, createdOther.ID, 1, 25)
+	subs, count, err = database.ListSubscribersPage(ctx, &db.SubscriberFilters{DataNetworkID: &createdOther.ID}, 1, 25)
 	if err != nil {
-		t.Fatalf("ListSubscribersByDataNetworkPage(other): %s", err)
+		t.Fatalf("ListSubscribersPage(other data network): %s", err)
 	}
 
 	if count != 0 || len(subs) != 0 {
 		t.Fatalf("expected no subscribers for unbound data network, got count=%d subs=%v", count, subs)
+	}
+}
+
+func TestListSubscribersFilterBySearch(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	profileID, err := createDataNetworkAndPolicy(database)
+	if err != nil {
+		t.Fatalf("Couldn't create data network and policy: %s", err)
+	}
+
+	imsis := []string{"001010100007487", "001010100007488", "001010100009999"}
+	for _, imsi := range imsis {
+		sub := &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			ProfileID:      profileID,
+		}
+		if err := database.CreateSubscriber(ctx, sub); err != nil {
+			t.Fatalf("Couldn't complete Create: %s", err)
+		}
+	}
+
+	search := func(q string) ([]db.Subscriber, int) {
+		t.Helper()
+
+		subs, total, err := database.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &q}, 1, 25)
+		if err != nil {
+			t.Fatalf("ListSubscribersPage(search=%q): %s", q, err)
+		}
+
+		return subs, total
+	}
+
+	if subs, total := search("0748"); len(subs) != 2 || total != 2 {
+		t.Fatalf("expected 2 matches for a shared substring, got count=%d subs=%v", total, subs)
+	}
+
+	if subs, total := search("9999"); len(subs) != 1 || total != 1 || subs[0].Imsi != "001010100009999" {
+		t.Fatalf("expected the single 9999 match, got count=%d subs=%v", total, subs)
+	}
+
+	if subs, total := search("12345"); len(subs) != 0 || total != 0 {
+		t.Fatalf("expected no matches, got count=%d subs=%v", total, subs)
+	}
+
+	// LIKE wildcards in the query are matched literally, not as wildcards.
+	for _, q := range []string{"%", "_", `\`} {
+		if subs, total := search(q); len(subs) != 0 || total != 0 {
+			t.Fatalf("expected %q to match nothing, got count=%d subs=%v", q, total, subs)
+		}
+	}
+
+	if subs, total := search(""); len(subs) != 3 || total != 3 {
+		t.Fatalf("expected an empty search to match all, got count=%d subs=%v", total, subs)
+	}
+
+	// An out-of-range page still reports the filtered total.
+	shared := "0748"
+
+	subs, total, err := database.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &shared}, 5, 25)
+	if err != nil {
+		t.Fatalf("ListSubscribersPage(out of range): %s", err)
+	}
+
+	if len(subs) != 0 || total != 2 {
+		t.Fatalf("expected no rows and a filtered total of 2, got count=%d subs=%v", total, subs)
+	}
+}
+
+func TestListSubscribersOrdersByImsi(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	profileID, err := createDataNetworkAndPolicy(database)
+	if err != nil {
+		t.Fatalf("Couldn't create data network and policy: %s", err)
+	}
+
+	for _, imsi := range []string{"001010100000003", "001010100000001", "001010100000002"} {
+		sub := &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			ProfileID:      profileID,
+		}
+		if err := database.CreateSubscriber(ctx, sub); err != nil {
+			t.Fatalf("Couldn't complete Create: %s", err)
+		}
+	}
+
+	first, _, err := database.ListSubscribersPage(ctx, nil, 1, 2)
+	if err != nil {
+		t.Fatalf("ListSubscribersPage(page 1): %s", err)
+	}
+
+	second, _, err := database.ListSubscribersPage(ctx, nil, 2, 2)
+	if err != nil {
+		t.Fatalf("ListSubscribersPage(page 2): %s", err)
+	}
+
+	got := []string{first[0].Imsi, first[1].Imsi, second[0].Imsi}
+
+	want := []string{"001010100000001", "001010100000002", "001010100000003"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected pages ordered by imsi %v, got %v", want, got)
+		}
 	}
 }

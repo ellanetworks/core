@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -22,8 +23,6 @@ import (
 const SubscribersTableName = "subscribers"
 
 const (
-	listSubscribersPagedStmt  = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listSubscribersByDNStmt   = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID IN (SELECT profileID FROM %s WHERE dataNetworkID==$Policy.dataNetworkID) ORDER BY imsi LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
 	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
 	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
@@ -32,6 +31,23 @@ const (
 	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	countSubscribersStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
+
+const subscriberFilterClause = `
+    ($subscriberFilterArgs.search IS NULL OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\')
+    AND ($subscriberFilterArgs.data_network_id IS NULL
+         OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))`
+
+const listSubscribersFilteredStmt = `
+  SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count
+  FROM %s
+  WHERE` + subscriberFilterClause + `
+  ORDER BY imsi
+  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+
+const countSubscribersFilteredStmt = `
+  SELECT COUNT(*) AS &NumItems.count
+  FROM %s
+  WHERE` + subscriberFilterClause
 
 type Subscriber struct {
 	ID             string `db:"id"` // UUIDv7
@@ -42,7 +58,36 @@ type Subscriber struct {
 	ProfileID      string `db:"profileID"`
 }
 
-func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage int) ([]Subscriber, int, error) {
+// SubscriberFilters holds optional filters for subscriber queries. Search is a
+// raw substring: the LIKE pattern and its escaping are built by args.
+type SubscriberFilters struct {
+	Search        *string
+	DataNetworkID *string
+}
+
+type subscriberFilterArgs struct {
+	Search        *string `db:"search"`
+	DataNetworkID *string `db:"data_network_id"`
+}
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+
+func (f *SubscriberFilters) args() subscriberFilterArgs {
+	if f == nil {
+		return subscriberFilterArgs{}
+	}
+
+	args := subscriberFilterArgs{DataNetworkID: f.DataNetworkID}
+
+	if f.Search != nil {
+		pattern := "%" + likeEscaper.Replace(*f.Search) + "%"
+		args.Search = &pattern
+	}
+
+	return args
+}
+
+func (db *Database) ListSubscribersPage(ctx context.Context, filters *SubscriberFilters, page int, perPage int) ([]Subscriber, int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (paged)", "SELECT", SubscribersTableName),
@@ -71,12 +116,16 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn().Query(ctx, db.listSubscribersStmt, args).GetAll(&subs, &counts)
+	filterArgs := filters.args()
+
+	err := db.conn().Query(ctx, db.listSubscribersStmt, args, filterArgs).GetAll(&subs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 
-			fallbackCount, countErr := db.CountSubscribers(ctx)
+			// COUNT(*) OVER() yields no row for an empty page, so the total for
+			// an out-of-range page has to be counted separately.
+			fallbackCount, countErr := db.countSubscribersFiltered(ctx, filterArgs)
 			if countErr != nil {
 				return nil, 0, nil
 			}
@@ -100,58 +149,19 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 	return subs, count, nil
 }
 
-// ListSubscribersByDataNetworkPage returns a page of subscribers whose
-// profile has a policy binding the given data network.
-func (db *Database) ListSubscribersByDataNetworkPage(ctx context.Context, dataNetworkID string, page, perPage int) ([]Subscriber, int, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (paged by data network)", "SELECT", SubscribersTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
-			attribute.Int("page", page),
-			attribute.Int("per_page", perPage),
-		),
-	)
-	defer span.End()
-
+func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs subscriberFilterArgs) (int, error) {
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
-	var subs []Subscriber
+	var result NumItems
 
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
+	if err := db.conn().Query(ctx, db.countSubscribersFilteredStmt, filterArgs).Get(&result); err != nil {
+		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	err := db.conn().Query(ctx, db.listSubscribersByDNStmt, args, Policy{DataNetworkID: dataNetworkID}).GetAll(&subs, &counts)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-			return nil, 0, nil
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return nil, 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return subs, count, nil
+	return result.Count, nil
 }
 
 func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error) {

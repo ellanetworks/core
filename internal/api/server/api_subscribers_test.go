@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/smf"
 )
 
@@ -1426,6 +1427,170 @@ func TestListSubscribers_DataNetworkFilter(t *testing.T) {
 		code, _, _ := listSubscribersByDataNetwork(url, client, token, "no-such-dn")
 		if code != http.StatusNotFound {
 			t.Fatalf("expected 404, got %d", code)
+		}
+	})
+}
+
+func listSubscribersWithQuery(url string, client *http.Client, token, query string) (int, *ListSubscriberResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", url+"/api/v1/subscribers?"+query, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var out ListSubscriberResponse
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &out, nil
+}
+
+func TestListSubscribers_SearchFilter(t *testing.T) {
+	env, err := setupServer(filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+	url := env.Server.URL
+
+	token, err := initializeAndRefresh(url, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	mustCreate := func(name string, code int, callErr error) {
+		t.Helper()
+
+		if callErr != nil {
+			t.Fatalf("%s: %s", name, callErr)
+		}
+
+		if code != http.StatusCreated {
+			t.Fatalf("%s: expected 201, got %d", name, code)
+		}
+	}
+
+	sc, _, err := createDataNetwork(url, client, token, &CreateDataNetworkParams{Name: "search-dn", IPv4Pool: IPv4Pool, DNS: DNS, MTU: MTU})
+	mustCreate("createDataNetwork", sc, err)
+
+	sc, _, err = createSlice(url, client, token, &CreateSliceParams{Name: "search-slice", Sst: 1})
+	mustCreate("createSlice", sc, err)
+
+	sc, _, err = createProfile(url, client, token, &CreateProfileParams{Name: TestProfileName, UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps"})
+	mustCreate("createProfile", sc, err)
+
+	sc, _, err = createPolicy(url, client, token, &CreatePolicyParams{
+		Name: "search-policy", ProfileName: TestProfileName, SliceName: "search-slice",
+		SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkName: "search-dn",
+	})
+	mustCreate("createPolicy", sc, err)
+
+	imsis := []string{"001010100007487", "001010100007488", "001010100009999"}
+	for _, imsi := range imsis {
+		sc, _, err = createSubscriber(url, client, token, &CreateSubscriberParams{
+			Imsi: imsi, Key: Key, Opc: Opc, SequenceNumber: SequenceNumber, ProfileName: TestProfileName,
+		})
+		mustCreate("createSubscriber "+imsi, sc, err)
+	}
+
+	list := func(t *testing.T, query string) *ListSubscriberResponseResult {
+		t.Helper()
+
+		code, resp, err := listSubscribersWithQuery(url, client, token, query)
+		if err != nil {
+			t.Fatalf("list %q: %s", query, err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("list %q: expected 200, got %d (%q)", query, code, resp.Error)
+		}
+
+		return &resp.Result
+	}
+
+	t.Run("substring narrows results and total_count", func(t *testing.T) {
+		res := list(t, "search=0748")
+		if len(res.Items) != 2 || res.TotalCount != 2 {
+			t.Fatalf("expected 2 matches, got total=%d items=%+v", res.TotalCount, res.Items)
+		}
+
+		res = list(t, "search=9999")
+		if len(res.Items) != 1 || res.Items[0].Imsi != "001010100009999" {
+			t.Fatalf("expected only 001010100009999, got %+v", res.Items)
+		}
+	})
+
+	t.Run("no match returns an empty page", func(t *testing.T) {
+		res := list(t, "search=12345")
+		if len(res.Items) != 0 || res.TotalCount != 0 {
+			t.Fatalf("expected no matches, got total=%d items=%+v", res.TotalCount, res.Items)
+		}
+	})
+
+	t.Run("empty and whitespace search behave as unset", func(t *testing.T) {
+		for _, query := range []string{"", "search=", "search=%20%20"} {
+			res := list(t, query)
+			if len(res.Items) != len(imsis) || res.TotalCount != len(imsis) {
+				t.Fatalf("query %q: expected all %d subscribers, got total=%d items=%+v", query, len(imsis), res.TotalCount, res.Items)
+			}
+		}
+	})
+
+	t.Run("wildcards are literal", func(t *testing.T) {
+		for _, query := range []string{"search=%25", "search=_"} {
+			res := list(t, query)
+			if len(res.Items) != 0 || res.TotalCount != 0 {
+				t.Fatalf("query %q: expected no matches, got total=%d items=%+v", query, res.TotalCount, res.Items)
+			}
+		}
+	})
+
+	t.Run("combines with the data network filter", func(t *testing.T) {
+		res := list(t, "search=0748&data_network=search-dn")
+		if len(res.Items) != 2 || res.TotalCount != 2 {
+			t.Fatalf("expected 2 matches on the bound data network, got total=%d items=%+v", res.TotalCount, res.Items)
+		}
+	})
+
+	t.Run("paginates within the filtered set", func(t *testing.T) {
+		res := list(t, "search=0748&page=1&per_page=1")
+		if len(res.Items) != 1 || res.TotalCount != 2 || res.Items[0].Imsi != "001010100007487" {
+			t.Fatalf("expected page 1 of 2 matches, got total=%d items=%+v", res.TotalCount, res.Items)
+		}
+
+		res = list(t, "search=0748&page=2&per_page=1")
+		if len(res.Items) != 1 || res.TotalCount != 2 || res.Items[0].Imsi != "001010100007488" {
+			t.Fatalf("expected page 2 of 2 matches, got total=%d items=%+v", res.TotalCount, res.Items)
+		}
+	})
+
+	t.Run("over-long search is rejected", func(t *testing.T) {
+		code, resp, err := listSubscribersWithQuery(url, client, token, "search="+strings.Repeat("1", server.MaxSearchLength+1))
+		if err != nil {
+			t.Fatalf("list: %s", err)
+		}
+
+		if code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", code)
+		}
+
+		if resp.Error == "" {
+			t.Fatal("expected an error message")
 		}
 	})
 }

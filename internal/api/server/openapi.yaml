@@ -887,7 +887,7 @@ paths:
       tags: [Subscribers]
       summary: List subscribers
       description: |
-        Returns a paginated list of all provisioned 5G subscribers.
+        Returns a paginated list of all provisioned 5G subscribers, ordered by IMSI.
         Each entry includes the IMSI, assigned profile, and connection status
         (whether the device is currently registered on the network and its IP address).
       parameters:
@@ -903,6 +903,15 @@ paths:
           schema:
             type: string
           description: Filter subscribers whose profile reaches the named data network.
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 254
+          description: |
+            Filter subscribers whose IMSI contains this substring. Matching is
+            case-insensitive and the value is treated as literal text, not a
+            pattern. Combines with the other filters.
       responses:
         "200":
           description: Paginated list of subscribers.
