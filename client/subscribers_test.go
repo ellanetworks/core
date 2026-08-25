@@ -323,6 +323,38 @@ func TestListSubscribers_Success(t *testing.T) {
 	}
 }
 
+func TestListSubscribers_Query(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		params client.ListSubscribersParams
+		want   string
+	}{
+		{"no filters", client.ListSubscribersParams{Page: 1, PerPage: 10}, "page=1&per_page=10"},
+		{"search", client.ListSubscribersParams{Page: 1, PerPage: 10, Search: "0748"}, "page=1&per_page=10&search=0748"},
+		{"radio and search", client.ListSubscribersParams{Page: 2, PerPage: 25, Radio: "gnb-01", Search: "0748"}, "page=2&per_page=25&radio=gnb-01&search=0748"},
+		{"search needing escaping", client.ListSubscribersParams{Page: 1, PerPage: 10, Search: "a b&c"}, "page=1&per_page=10&search=a+b%26c"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeRequester{
+				response: &client.RequestResponse{
+					StatusCode: 200,
+					Headers:    http.Header{},
+					Result:     []byte(`{"items": [], "page": 1, "per_page": 10, "total_count": 0}`),
+				},
+			}
+			clientObj := &client.Client{Requester: fake}
+
+			if _, err := clientObj.ListSubscribers(context.Background(), &tc.params); err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			if got := fake.lastOpts.Query.Encode(); got != tc.want {
+				t.Fatalf("expected query %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
 func TestListSubscribers_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{

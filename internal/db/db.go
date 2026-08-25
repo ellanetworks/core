@@ -55,15 +55,15 @@ type Database struct {
 	migrationCheckCancel context.CancelFunc
 
 	// Subscriber statements
-	listSubscribersStmt         *sqlair.Statement
-	listSubscribersByDNStmt     *sqlair.Statement
-	countSubscribersStmt        *sqlair.Statement
-	getSubscriberStmt           *sqlair.Statement
-	createSubscriberStmt        *sqlair.Statement
-	updateSubscriberProfileStmt *sqlair.Statement
-	updateSubscriberSqnNumStmt  *sqlair.Statement
-	casSubscriberSqnNumStmt     *sqlair.Statement
-	deleteSubscriberStmt        *sqlair.Statement
+	listSubscribersStmt          *sqlair.Statement
+	countSubscribersStmt         *sqlair.Statement
+	countSubscribersFilteredStmt *sqlair.Statement
+	getSubscriberStmt            *sqlair.Statement
+	createSubscriberStmt         *sqlair.Statement
+	updateSubscriberProfileStmt  *sqlair.Statement
+	updateSubscriberSqnNumStmt   *sqlair.Statement
+	casSubscriberSqnNumStmt      *sqlair.Statement
+	deleteSubscriberStmt         *sqlair.Statement
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
@@ -1298,9 +1298,9 @@ func (db *Database) PrepareStatements() error {
 
 	stmts := []stmtDef{
 		// Subscribers
-		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersPagedStmt, SubscribersTableName), []any{ListArgs{}, Subscriber{}, NumItems{}}},
-		{&db.listSubscribersByDNStmt, fmt.Sprintf(listSubscribersByDNStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, Policy{}}},
+		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, subscriberFilterArgs{}}},
 		{&db.countSubscribersStmt, fmt.Sprintf(countSubscribersStmt, SubscribersTableName), []any{NumItems{}}},
+		{&db.countSubscribersFilteredStmt, fmt.Sprintf(countSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},

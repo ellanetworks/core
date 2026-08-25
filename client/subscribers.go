@@ -51,6 +51,7 @@ type ListSubscribersParams struct {
 	Page    int    `json:"page"`
 	PerPage int    `json:"per_page"`
 	Radio   string `json:"radio,omitempty"`
+	Search  string `json:"search,omitempty"`
 }
 
 type ListSubscribersResponse struct {
@@ -216,6 +217,10 @@ func (c *Client) ListSubscribers(ctx context.Context, p *ListSubscribersParams) 
 
 	if p.Radio != "" {
 		query.Set("radio", p.Radio)
+	}
+
+	if p.Search != "" {
+		query.Set("search", p.Search)
 	}
 
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

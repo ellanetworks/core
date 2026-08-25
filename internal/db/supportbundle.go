@@ -99,7 +99,7 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 
 	page := 1
 	for {
-		subs, total, err := db.ListSubscribersPage(ctx, page, perPage)
+		subs, total, err := db.ListSubscribersPage(ctx, nil, page, perPage)
 		if err != nil {
 			logger.DBLog.Warn("failed to list subscribers for support export", zap.Error(err))
 			break

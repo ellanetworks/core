@@ -22,6 +22,7 @@ import CreateProfileModal from "@/components/CreateProfileModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
 import { useAuth } from "@/contexts/AuthContext";
+import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { Link } from "react-router-dom";
 
@@ -132,24 +133,22 @@ const ProfilesPage: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h4" component="h1">
-          {knownCount === undefined ? "Profiles" : `Profiles (${knownCount})`}
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          {descriptionText}
-        </Typography>
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setCreateModalOpen(true)}
-            sx={{ maxWidth: 200 }}
-          >
-            Create
-          </Button>
-        )}
-      </Box>
+      <ListPageHeader
+        title="Profiles"
+        count={knownCount}
+        description={descriptionText}
+        action={
+          canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => setCreateModalOpen(true)}
+            >
+              Create
+            </Button>
+          )
+        }
+      />
 
       <QueryState
         query={profilesQuery}
