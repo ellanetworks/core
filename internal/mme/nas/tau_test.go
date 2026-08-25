@@ -704,3 +704,18 @@ func TestTrackingAreaUpdateRejectedWhen4GNotAllowed(t *testing.T) {
 		t.Fatalf("TAU Reject cause = %d, want %d (EPS services not allowed)", rej.Cause, eps.EMMCauseEPSServicesNotAllowed)
 	}
 }
+
+func TestTrackingAreaUpdateReadsOperatorOnce(t *testing.T) {
+	m, store := newCountingMME(t)
+	ue, cc := securedUE(t, m)
+
+	HandleNAS(context.Background(), m, ue.Conn(), trackingAreaUpdateNAS(t, ue, nil))
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
+	}
+
+	if got := store.reads.Load(); got != 1 {
+		t.Fatalf("tracking area update read the operator row %d times, want 1", got)
+	}
+}

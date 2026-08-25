@@ -31,7 +31,13 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	if served, err := m.ServesTAI(ctx, ueConn.ServingTAI); err != nil {
+	operator, err := m.Operator(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to read the operator configuration for Tracking Area Update", zap.Error(err))
+		return nasreply.Handled()
+	}
+
+	if served, err := operator.ServesTAI(ueConn.ServingTAI); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for Tracking Area Update", zap.Error(err))
 		return nasreply.Handled()
 	} else if !served {
@@ -83,7 +89,7 @@ func handleTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	accept, err := buildTrackingAreaUpdateAccept(ctx, m, ue, tauAcceptOptions{
+	accept, err := buildTrackingAreaUpdateAccept(ctx, m, ue, operator, tauAcceptOptions{
 		combined: isCombinedUpdate(uint8(req.EPSUpdateType)),
 		bearerStatus: (req.EPSBearerContextStatus != nil || ue.LocalBearerDeactivationPending()) &&
 			len(m.SnapshotPDNs(ue)) > 0,
@@ -236,14 +242,9 @@ type tauAcceptOptions struct {
 // current TAI list and a reallocated GUTI (TS 24.301). A combined update includes
 // EMM cause #18, since the MME has no SGs interface, to stop the UE attempting CS
 // registration.
-func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
+func buildTrackingAreaUpdateAccept(ctx context.Context, m *mme.MME, ue *mme.UeContext, operator mme.OperatorConfig, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
 	if !m.ServesUeContext(ue) {
 		return nil, fmt.Errorf("refusing to build tracking area update accept: UE context is not indexed by IMSI")
-	}
-
-	operator, err := m.Operator(ctx)
-	if err != nil {
-		return nil, err
 	}
 
 	plmn := operator.PLMN()

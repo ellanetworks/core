@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -169,12 +170,8 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 	return nil
 }
 
-func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-
-func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string) (bool, error) {
-	return false, nil
+func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string) (models.SubscriptionDelta, error) {
+	return models.SubscriptionDelta{}, nil
 }
 
 // fakeBearerStore resolves a fixed default-bearer QoS for any subscriber.
@@ -294,6 +291,27 @@ func newTestMME(t *testing.T) *mme.MME {
 	m.NAS = &nasHandler{m: m}
 
 	return m
+}
+
+type countingBearerStore struct {
+	fakeBearerStore
+	reads atomic.Int64
+}
+
+func (s *countingBearerStore) GetOperator(ctx context.Context) (*db.Operator, error) {
+	s.reads.Add(1)
+
+	return s.fakeBearerStore.GetOperator(ctx)
+}
+
+func newCountingMME(t *testing.T) (*mme.MME, *countingBearerStore) {
+	t.Helper()
+
+	store := &countingBearerStore{}
+	m := mme.New(udm.New(newFakeCredStore(), noopKeyResolver), store, &fakeSessionManager{})
+	m.NAS = &nasHandler{m: m}
+
+	return m, store
 }
 
 // nasHandler implements mme.NASHandler over the in-package handlers, so the

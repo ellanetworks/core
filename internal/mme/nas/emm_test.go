@@ -1069,3 +1069,41 @@ func TestAuthenticationSuccessMakesTheMMEServeTheUE(t *testing.T) {
 		t.Error("the MME does not serve a UE it has just authenticated, so no attach accept can be built for it")
 	}
 }
+
+func TestAttachReadsOperatorOnce(t *testing.T) {
+	m, store := newCountingMME(t)
+	cc := &captureConn{}
+	ue := newAttachUe(m, cc, 7)
+
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	attach := &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
+		ESMMessageContainer: esm,
+	}
+
+	b, err := attach.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), b)
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one downlink (Authentication Request), got %d", len(cc.sent))
+	}
+
+	if mt, err := eps.PeekMessageType(decodeDownlinkNAS(t, cc.sent[0])); err != nil || mt != eps.MsgAuthenticationRequest {
+		t.Fatalf("expected Authentication Request, got mt=%#x err=%v", mt, err)
+	}
+
+	if got := store.reads.Load(); got != 1 {
+		t.Fatalf("attach read the operator row %d times, want 1", got)
+	}
+}

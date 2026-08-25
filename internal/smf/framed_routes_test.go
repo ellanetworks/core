@@ -8,6 +8,9 @@ import (
 	"errors"
 	"net/netip"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 func framedTestPrefixes(t *testing.T, cidrs ...string) []netip.Prefix {
@@ -73,7 +76,7 @@ func TestFramedRoutesChanged(t *testing.T) {
 
 	store.framedRoutes = framedTestPrefixes(t, "192.168.11.0/24", "192.168.10.0/24")
 
-	changed, err := s.FramedRoutesChanged(context.Background(), bearer.Ref)
+	changed, err := framedRoutesChanged(s, bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +87,7 @@ func TestFramedRoutesChanged(t *testing.T) {
 
 	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24")
 
-	changed, err = s.FramedRoutesChanged(context.Background(), bearer.Ref)
+	changed, err = framedRoutesChanged(s, bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,12 +96,46 @@ func TestFramedRoutesChanged(t *testing.T) {
 		t.Fatal("a changed framed-route set was not detected")
 	}
 
-	changed, err = s.FramedRoutesChanged(context.Background(), "no-such-session")
+	changed, err = framedRoutesChanged(s, "no-such-session")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if changed {
 		t.Fatal("unknown session reported a framed-route change")
+	}
+}
+
+func framedRoutesChanged(s *smf.SMF, ref string) (bool, error) {
+	delta, err := s.EPSSubscriptionChanged(context.Background(), ref)
+
+	return delta.FramedRoutes, err
+}
+
+func TestEPSSubscriptionChangedResolvesDNNOnce(t *testing.T) {
+	store, upf := epsTestSMF()
+	store.framedRoutes = framedTestPrefixes(t, "192.168.10.0/24")
+	store.staticIPv4 = store.allocatedIP
+
+	s := newTestSMF(&fakePCF{}, store, upf, &fakeAMF{})
+
+	bearer, err := s.CreateEPSSession(context.Background(), epsRequest(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before := store.dnnResolves()
+
+	delta, err := s.EPSSubscriptionChanged(context.Background(), bearer.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if delta != (models.SubscriptionDelta{}) {
+		t.Fatalf("subscription delta = %+v, want no change", delta)
+	}
+
+	if got := store.dnnResolves() - before; got != 1 {
+		t.Fatalf("the subscription check resolved the data network %d times, want 1", got)
 	}
 }

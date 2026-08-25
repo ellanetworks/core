@@ -54,9 +54,15 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 		}
 	}
 
+	operator, err := m.Operator(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Error("failed to read the operator configuration for attach", zap.Error(err))
+		return nasreply.Handled()
+	}
+
 	// The UE's serving cell must be in this MME's served area, or ATTACH REJECT #12
 	// (ServesTAI, TS 24.301 §5.5.1.2.5).
-	if served, err := m.ServesTAI(ctx, ueConn.ServingTAI); err != nil {
+	if served, err := operator.ServesTAI(ueConn.ServingTAI); err != nil {
 		logger.From(ctx, logger.MmeLog).Error("failed to evaluate serving TAI for attach", zap.Error(err))
 		return nasreply.Handled()
 	} else if !served {
@@ -97,7 +103,7 @@ func handleAttachRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 
 	if imsi := req.EPSMobileIdentity.IMSI; imsi != nil {
 		m.SetIMSI(ue, string(*imsi))
-		authenticateOrReject(ctx, m, ue, ueConn)
+		startAuthentication(ctx, m, ue, ueConn, operator.PLMN())
 
 		return nasreply.Handled()
 	}

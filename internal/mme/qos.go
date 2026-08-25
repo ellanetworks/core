@@ -90,7 +90,7 @@ func ResolveQoSByAPN(ctx context.Context, m *MME, imsi, apn string) (*EpsQoS, er
 		}
 
 		if dn.Name == apn {
-			return qosForPolicy(ctx, m, profile, &policies[i])
+			return qosForResolvedPolicy(ctx, m, profile, &policies[i], dn)
 		}
 	}
 
@@ -103,6 +103,10 @@ func qosForPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Poli
 		return nil, fmt.Errorf("get data network: %w", err)
 	}
 
+	return qosForResolvedPolicy(ctx, m, profile, pol, dn)
+}
+
+func qosForResolvedPolicy(ctx context.Context, m *MME, profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) (*EpsQoS, error) {
 	snssai, err := snssaiForPolicy(ctx, m, pol)
 	if err != nil {
 		return nil, err

@@ -9,7 +9,14 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 )
+
+func staticIPChanged(s *smf.SMF, ref string) (bool, error) {
+	delta, err := s.EPSSubscriptionChanged(context.Background(), ref)
+
+	return delta.StaticIP, err
+}
 
 // TestStaticIPChanged covers the reconcile comparison used by the MME: a
 // reservation identical to the one cached at establishment is unchanged; a
@@ -26,7 +33,7 @@ func TestStaticIPChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changed, err := s.StaticIPChanged(context.Background(), bearer.Ref)
+	changed, err := staticIPChanged(s, bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +45,7 @@ func TestStaticIPChanged(t *testing.T) {
 	// Repin to a different address.
 	store.staticIPv4 = netip.AddrFrom4([4]byte{10, 45, 0, 8})
 
-	changed, err = s.StaticIPChanged(context.Background(), bearer.Ref)
+	changed, err = staticIPChanged(s, bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +57,7 @@ func TestStaticIPChanged(t *testing.T) {
 	// Delete the reservation.
 	store.staticIPv4 = netip.Addr{}
 
-	changed, err = s.StaticIPChanged(context.Background(), bearer.Ref)
+	changed, err = staticIPChanged(s, bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +66,7 @@ func TestStaticIPChanged(t *testing.T) {
 		t.Fatal("a deleted static reservation was not detected")
 	}
 
-	changed, err = s.StaticIPChanged(context.Background(), "no-such-session")
+	changed, err = staticIPChanged(s, "no-such-session")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +89,7 @@ func TestStaticIPChangedCreatedOnDynamicSession(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changed, err := s.StaticIPChanged(context.Background(), bearer.Ref)
+	changed, err := staticIPChanged(s, bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +101,7 @@ func TestStaticIPChangedCreatedOnDynamicSession(t *testing.T) {
 	// Operator pins a static IP mid-session.
 	store.staticIPv4 = netip.AddrFrom4([4]byte{10, 45, 0, 9})
 
-	changed, err = s.StaticIPChanged(context.Background(), bearer.Ref)
+	changed, err = staticIPChanged(s, bearer.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

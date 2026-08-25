@@ -11,16 +11,25 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
 
 func authenticateOrReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
-	startAuthentication(ctx, m, ue, ueConn)
+	plmn, err := m.OperatorPLMN(ctx)
+	if err != nil {
+		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
+		rejectAttach(ctx, m, ue, ueConn, authRejectCause(err))
+
+		return
+	}
+
+	startAuthentication(ctx, m, ue, ueConn, plmn)
 }
 
-func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
+func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, servingPLMN models.PlmnID) {
 	// resyncTried scopes to one authentication exchange's consecutive synch
 	// failures, so a fresh procedure starts with a full budget (TS 24.301 §5.4.2.7).
 	ueConn.SetResyncTried(false)
@@ -29,7 +38,7 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	// its current context usable until the new one is taken into use (TS 24.301 §5.4.2.4).
 	ue.SetEksi(nas.KeySetIdentifier{Value: mme.NextEksi(ue.Eksi().Value)})
 
-	if err := sendAuthRequest(ctx, m, ue, ueConn, "", ""); err != nil {
+	if err := sendAuthRequest(ctx, m, ue, ueConn, servingPLMN, "", ""); err != nil {
 		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
 		rejectAttach(ctx, m, ue, ueConn, authRejectCause(err))
 	}
@@ -47,13 +56,8 @@ func authRejectCause(err error) eps.EMMCause {
 
 // sendAuthRequest sends an AUTHENTICATION REQUEST; a set resync pair drives an
 // AUTS re-synchronisation.
-func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, resyncAuts, resyncRand string) error {
-	op, err := m.OperatorPLMN(ctx)
-	if err != nil {
-		return err
-	}
-
-	plmn, err := mme.EncodePLMN(op)
+func sendAuthRequest(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, servingPLMN models.PlmnID, resyncAuts, resyncRand string) error {
+	plmn, err := mme.EncodePLMN(servingPLMN)
 	if err != nil {
 		return fmt.Errorf("encode serving PLMN: %w", err)
 	}

@@ -56,7 +56,15 @@ func handleAuthenticationFailure(ctx context.Context, m *mme.MME, ue *mme.UeCont
 
 		logger.From(ctx, logger.MmeLog).Info("re-synchronising SQN, re-authenticating")
 
-		if err := sendAuthRequest(ctx, m, ue, ueConn, hex.EncodeToString(fail.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
+		plmn, err := m.OperatorPLMN(ctx)
+		if err != nil {
+			logger.From(ctx, logger.MmeLog).Warn("SQN re-synchronisation failed", zap.Error(err))
+			rejectAuthentication(ctx, m, ue, ueConn)
+
+			return nasreply.Handled()
+		}
+
+		if err := sendAuthRequest(ctx, m, ue, ueConn, plmn, hex.EncodeToString(fail.AUTS), hex.EncodeToString(c.AuthVector.RAND[:])); err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("SQN re-synchronisation failed", zap.Error(err))
 			rejectAuthentication(ctx, m, ue, ueConn)
 		}

@@ -6,8 +6,51 @@ package mme
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/udm"
 )
+
+type countingBearerStore struct {
+	fakeBearerStore
+	dataNetworkReads atomic.Int64
+}
+
+func (s *countingBearerStore) GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error) {
+	s.dataNetworkReads.Add(1)
+
+	return s.fakeBearerStore.GetDataNetworkByID(ctx, id)
+}
+
+func TestResolveQoSByAPNReadsDataNetworkOnce(t *testing.T) {
+	for _, tc := range []struct {
+		apn      string
+		examined int64
+	}{
+		{apn: "internet", examined: 1},
+		{apn: "ims", examined: 2},
+	} {
+		t.Run(tc.apn, func(t *testing.T) {
+			store := &countingBearerStore{}
+			m := New(udm.New(newFakeCredStore(), noopKeyResolver), store, &fakeSessionManager{})
+
+			qos, err := ResolveQoSByAPN(context.Background(), m, testSubscriber.IMSI, tc.apn)
+			if err != nil {
+				t.Fatalf("ResolveQoSByAPN: %v", err)
+			}
+
+			if qos.APN != tc.apn {
+				t.Fatalf("APN = %q, want %q", qos.APN, tc.apn)
+			}
+
+			if got := store.dataNetworkReads.Load(); got != tc.examined {
+				t.Fatalf("read the data network %d times, want %d", got, tc.examined)
+			}
+		})
+	}
+}
 
 // TestResolveAttachQoSDefaultWhenNoAPN: with no requested APN the attach uses the
 // subscriber's default policy (TS 24.301 §6.5.1.3).
