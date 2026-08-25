@@ -73,6 +73,8 @@ func (s *raftStreamLayer) Accept() (net.Conn, error) {
 }
 
 func (s *raftStreamLayer) Close() error {
+	s.ln.Deregister(listener.ALPNRaft)
+
 	select {
 	case <-s.closeCh:
 	default:

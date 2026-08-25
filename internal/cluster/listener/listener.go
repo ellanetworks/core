@@ -166,6 +166,17 @@ func (l *Listener) Register(alpn string, handler ConnHandler) {
 	l.handlers[alpn] = handler
 }
 
+// Deregister drops the handler for one ALPN protocol. Connections
+// negotiating it are closed instead of dispatched, which is how a
+// subsystem stops serving its protocol without taking the shared
+// cluster socket down with it.
+func (l *Listener) Deregister(alpn string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	delete(l.handlers, alpn)
+}
+
 // Start binds the TCP socket and begins accepting and dispatching
 // connections in the background. Returns immediately after the socket
 // is bound (or with an error if binding fails). Cancel ctx or call

@@ -27,6 +27,7 @@ type followerTracker struct {
 	r        *raft.Raft
 	stopCh   chan struct{}
 	stopped  chan struct{}
+	running  bool
 }
 
 func newFollowerTracker(r *raft.Raft) *followerTracker {
@@ -43,6 +44,14 @@ func newFollowerTracker(r *raft.Raft) *followerTracker {
 func (ft *followerTracker) start(localID raft.ServerID) {
 	ft.mu.Lock()
 
+	if ft.running {
+		ft.mu.Unlock()
+		return
+	}
+
+	ft.running = true
+	stopCh := ft.stopCh
+	stopped := ft.stopped
 	ft.peers = make(map[raft.ServerID]*followerState)
 
 	future := ft.r.GetConfiguration()
@@ -75,15 +84,15 @@ func (ft *followerTracker) start(localID raft.ServerID) {
 
 	ft.r.RegisterObserver(ft.observer)
 
-	go ft.run(ch, localID)
+	go ft.run(ch, localID, stopCh, stopped)
 }
 
-func (ft *followerTracker) run(ch <-chan raft.Observation, localID raft.ServerID) {
-	defer close(ft.stopped)
+func (ft *followerTracker) run(ch <-chan raft.Observation, localID raft.ServerID, stopCh chan struct{}, stopped chan struct{}) {
+	defer close(stopped)
 
 	for {
 		select {
-		case <-ft.stopCh:
+		case <-stopCh:
 			return
 		case obs := <-ch:
 			switch v := obs.Data.(type) {
@@ -133,18 +142,30 @@ func (ft *followerTracker) run(ch <-chan raft.Observation, localID raft.ServerID
 // stop deregisters the Raft observer and shuts down the run loop.
 // Call when leadership is lost.
 func (ft *followerTracker) stop() {
-	if ft.observer != nil {
-		ft.r.DeregisterObserver(ft.observer)
-		ft.observer = nil
+	ft.mu.Lock()
+	if !ft.running {
+		ft.mu.Unlock()
+		return
+	}
+
+	ft.running = false
+	observer := ft.observer
+	ft.observer = nil
+	stopCh := ft.stopCh
+	stopped := ft.stopped
+	ft.mu.Unlock()
+
+	if observer != nil {
+		ft.r.DeregisterObserver(observer)
 	}
 
 	select {
-	case <-ft.stopCh:
+	case <-stopCh:
 	default:
-		close(ft.stopCh)
+		close(stopCh)
 	}
 
-	<-ft.stopped
+	<-stopped
 
 	ft.mu.Lock()
 	ft.peers = make(map[raft.ServerID]*followerState)
@@ -153,8 +174,8 @@ func (ft *followerTracker) stop() {
 	ft.mu.Unlock()
 }
 
-// peerStats returns the last contact duration and health for the given
-// follower. Returns (0, false) if the peer is unknown.
+// peerStats returns how long the peer has been out of contact and whether
+// it is answering heartbeats. An untracked peer reports (0, false).
 func (ft *followerTracker) peerStats(id raft.ServerID) (lastContact time.Duration, healthy bool) {
 	ft.mu.RLock()
 	defer ft.mu.RUnlock()
@@ -169,19 +190,6 @@ func (ft *followerTracker) peerStats(id raft.ServerID) (lastContact time.Duratio
 	}
 
 	return 0, true
-}
-
-// isHealthy reports whether the given peer is considered reachable.
-func (ft *followerTracker) isHealthy(id raft.ServerID) bool {
-	ft.mu.RLock()
-	defer ft.mu.RUnlock()
-
-	s, ok := ft.peers[id]
-	if !ok {
-		return false
-	}
-
-	return s.healthy
 }
 
 // followerTrackerCallback adapts followerTracker to LeaderCallback so the

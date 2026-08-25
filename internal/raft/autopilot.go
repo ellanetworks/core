@@ -24,8 +24,9 @@ const (
 	defaultServerStabilizationTime = 10 * time.Second
 )
 
-// autopilotDelegate implements autopilot.ApplicationIntegration using the
-// cluster_members table as the source of known servers.
+// autopilotDelegate implements autopilot.ApplicationIntegration over the
+// Raft configuration, with per-peer liveness supplied by the follower
+// tracker.
 type autopilotDelegate struct {
 	manager          *Manager
 	mu               sync.Mutex
@@ -41,12 +42,22 @@ func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
 		minQuorum = 1
 	}
 
+	lastContact := defaultLastContactThreshold
+	if d.manager.config.Autopilot.LastContactThreshold > 0 {
+		lastContact = d.manager.config.Autopilot.LastContactThreshold
+	}
+
+	stabilization := defaultServerStabilizationTime
+	if d.manager.config.Autopilot.ServerStabilizationTime > 0 {
+		stabilization = d.manager.config.Autopilot.ServerStabilizationTime
+	}
+
 	return &autopilot.Config{
 		CleanupDeadServers:      defaultCleanupDeadServers,
-		LastContactThreshold:    defaultLastContactThreshold,
+		LastContactThreshold:    lastContact,
 		MaxTrailingLogs:         defaultMaxTrailingLogs,
 		MinQuorum:               minQuorum,
-		ServerStabilizationTime: defaultServerStabilizationTime,
+		ServerStabilizationTime: stabilization,
 	}
 }
 
@@ -87,10 +98,9 @@ func (d *autopilotDelegate) FetchServerStats(_ context.Context, servers map[raft
 		}
 
 		// Follower rows mirror the leader's LastTerm/LastIndex because we
-		// don't track per-peer log progression here. This makes autopilot's
-		// internal log-lag check a no-op; the effective liveness signal
-		// comes from the follower tracker, which flips NodeStatus to "left"
-		// in KnownServers when heartbeats stop.
+		// don't track per-peer log progression here, which makes autopilot's
+		// internal log-lag check a no-op. LastContact carries the follower
+		// tracker's view and is what drives the health readout.
 		stats := &autopilot.ServerStats{
 			LastTerm:  parsed.LastTerm,
 			LastIndex: parsed.LastIndex,
@@ -122,8 +132,10 @@ func (d *autopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 	for _, srv := range future.Configuration().Servers {
 		status := autopilot.NodeAlive
 
-		if ft != nil && srv.ID != localID && !ft.isHealthy(srv.ID) {
-			status = autopilot.NodeLeft
+		if ft != nil && srv.ID != localID {
+			if _, healthy := ft.peerStats(srv.ID); !healthy {
+				status = autopilot.NodeLeft
+			}
 		}
 
 		servers[srv.ID] = &autopilot.Server{
@@ -200,10 +212,20 @@ func newAutopilotRunner(r *raft.Raft, m *Manager) *autopilotRunner {
 		inflightRemovals: make(map[raft.ServerID]bool),
 	}
 
-	ap := autopilot.New(r, delegate,
+	opts := []autopilot.Option{
 		autopilot.WithLogger(hclog.NewNullLogger()),
 		autopilot.WithPromoter(autopilot.DefaultPromoter()),
-	)
+	}
+
+	if m.config.Autopilot.ReconcileInterval > 0 {
+		opts = append(opts, autopilot.WithReconcileInterval(m.config.Autopilot.ReconcileInterval))
+	}
+
+	if m.config.Autopilot.UpdateInterval > 0 {
+		opts = append(opts, autopilot.WithUpdateInterval(m.config.Autopilot.UpdateInterval))
+	}
+
+	ap := autopilot.New(r, delegate, opts...)
 
 	return &autopilotRunner{ap: ap}
 }
