@@ -28,20 +28,19 @@ var nasTracer = otel.Tracer("ella-core/amf/nas")
 // it resolves to: a REGISTRATION REQUEST mints a fresh persistent context; a message the AMF
 // cannot process draws the STATUS the spec mandates (§7.4, §7.5.1) or an audited silence
 // (§4.4.4.3), never a bare drop; a message that establishes no context leaves the connection
-// bare for the NGAP layer to release. A SERVICE REQUEST is routed to HandleServiceRequest at
-// the NGAP layer, before HandleNAS.
+// bare for the NGAP layer to release.
 func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
 	if ue == nil {
 		logger.From(ctx, logger.AmfLog).Error("inbound NAS on a nil UE connection")
 		return
 	}
 
+	ue.NoteInboundNAS()
+
 	dispositionForNAS(ctx, amfInstance, ue, nasPdu).Finalize(ctx, egress{ue: ue})
 }
 
 // dispositionForNAS resolves an inbound NAS PDU to the single outcome the finalizer applies.
-// A SERVICE REQUEST never reaches here — it is resolved-or-rejected by HandleServiceRequest,
-// routed at the NGAP layer before the mint gate.
 func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) nasreply.Disposition {
 	if nasPdu == nil {
 		logger.From(ctx, logger.AmfLog).Error("inbound NAS with a nil PDU")
@@ -56,10 +55,28 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 			// rather than dropping it. No secure exchange exists on a fresh connection, so
 			// §4.4.4.3's silent discard does not apply here.
 			logger.From(ctx, logger.AmfLog).Warn("failed to resolve UE context from mobile identity", zap.Error(err))
+
+			if isServiceRequest(nasPdu) {
+				cause := fgs.GMMCauseUEIdentityCannotBeDerived
+				if !decodesAsServiceRequest(ctx, nasPdu) {
+					cause = fgs.GMMCauseInvalidMandatoryInformation
+				}
+
+				rejectBareServiceRequest(ctx, ue, cause)
+
+				return nasreply.Handled()
+			}
+
 			return dispositionForUnresolved(nasPdu)
 		}
 
 		if amfUe == nil {
+			if isServiceRequest(nasPdu) {
+				rejectBareServiceRequest(ctx, ue, fgs.GMMCauseUEIdentityCannotBeDerived)
+
+				return nasreply.Handled()
+			}
+
 			// Mint a context only for an initial REGISTRATION REQUEST — the only message
 			// that establishes a fresh context. This keeps minting reserved to registration
 			// so an unauthenticated peer cannot leak a context per message. Any other message
@@ -161,48 +178,22 @@ func isRegistrationRequest(payload []byte) bool {
 	return ok && mt == uint8(fgs.MsgRegistrationRequest)
 }
 
-// IsServiceRequest reports whether a fresh connection's first NAS message is a SERVICE
-// REQUEST, so the NGAP layer can route it to HandleServiceRequest before the mint gate.
-func IsServiceRequest(payload []byte) bool {
+// isServiceRequest reports whether a fresh connection's first NAS message is a SERVICE
+// REQUEST, so the mint gate can answer it with a SERVICE REJECT rather than mint a context.
+func isServiceRequest(payload []byte) bool {
 	mt, ok := peekInitialGmmType(payload)
 	return ok && mt == uint8(fgs.MsgServiceRequest)
 }
 
-// HandleServiceRequest answers an initial SERVICE REQUEST, routed here from the NGAP layer
-// before the HandleNAS mint gate. It resolves the UE by the request's 5G-S-TMSI —
-// integrity-verified against the held context — and either dispatches the accept, or
-// answers a SERVICE REJECT (#96 for a protocol error per §5.6.1.8, else #9 when no context
-// can be derived per §5.6.1.5/§4.4.4.3). It never mints a context and leaves the
-// 5GMM/security context unchanged on rejection.
-func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) {
-	amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
-	if err != nil {
-		// The SERVICE REQUEST is recognizable but could not be decoded (a protocol error,
-		// e.g. a missing mandatory IE). TS 24.501 §5.6.1.8 b): the AMF shall return a
-		// SERVICE REJECT with cause #96 "invalid mandatory information", not a silent drop.
-		logger.From(ctx, logger.AmfLog).Warn("malformed service request; rejecting", zap.Error(err))
-		rejectBareServiceRequest(ctx, ue, fgs.GMMCauseInvalidMandatoryInformation)
-
-		return
+func decodesAsServiceRequest(ctx context.Context, payload []byte) bool {
+	body, ok := initialGmmBody(payload)
+	if !ok {
+		return false
 	}
 
-	if amfUe == nil {
-		// The request decoded, but no 5GMM context exists for the cited 5G-S-TMSI (or it
-		// failed the integrity check): it cannot be accepted. SERVICE REJECT #9 without
-		// binding or mutating any context; the NGAP layer releases the bare connection.
-		rejectBareServiceRequest(ctx, ue, fgs.GMMCauseUEIdentityCannotBeDerived)
-		return
-	}
+	_, err := fgs.ParseServiceRequest(body)
 
-	amfInstance.AttachUeConn(amfUe, ue)
-
-	result, err := amf.DecodeNASMessage(amfUe, nasPdu)
-	if err != nil {
-		amf.DispositionForDecodeError(err).Finalize(ctx, egress{ue: ue})
-		return
-	}
-
-	handleServiceRequest(ctx, amfInstance, amfUe, result.Plain, result.IntegrityVerified)
+	return decoded(ctx, "ServiceRequest", err)
 }
 
 // peekInitialGmmType returns the GMM message type of a fresh connection's first NAS PDU by
@@ -213,24 +204,8 @@ func HandleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 // not silently drop it. ok is false for a non-5GMM, ciphered, or too-short PDU. Mirrors the
 // MME's raw message-type peek.
 func peekInitialGmmType(payload []byte) (uint8, bool) {
-	sht, err := fgs.PeekSecurityHeaderType(payload)
-	if err != nil {
-		return 0, false
-	}
-
-	body := payload
-
-	switch sht {
-	case fgs.SHTPlain:
-	case fgs.SHTIntegrityProtected:
-		// The inner plain message follows the security header (EPD, SHT, MAC[4], seq).
-		spm, err := fgs.ParseSecurityProtectedMessage(payload)
-		if err != nil {
-			return 0, false
-		}
-
-		body = spm.UnverifiedPayload
-	default:
+	body, ok := initialGmmBody(payload)
+	if !ok {
 		return 0, false
 	}
 
@@ -240,6 +215,28 @@ func peekInitialGmmType(payload []byte) (uint8, bool) {
 	}
 
 	return uint8(mt), true
+}
+
+func initialGmmBody(payload []byte) ([]byte, bool) {
+	sht, err := fgs.PeekSecurityHeaderType(payload)
+	if err != nil {
+		return nil, false
+	}
+
+	switch sht {
+	case fgs.SHTPlain:
+		return payload, true
+	case fgs.SHTIntegrityProtected:
+		// The inner plain message follows the security header (EPD, SHT, MAC[4], seq).
+		spm, err := fgs.ParseSecurityProtectedMessage(payload)
+		if err != nil {
+			return nil, false
+		}
+
+		return spm.UnverifiedPayload, true
+	default:
+		return nil, false
+	}
 }
 
 // rejectBareServiceRequest answers a SERVICE REQUEST the AMF cannot accept with a SERVICE

@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -50,4 +52,58 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgGMMStatus), buildTestStatus5gmmPlain(t), true, false)
+}
+
+func TestHandleGmmMessage_DispatchesToServiceRequest(t *testing.T) {
+	amfInstance := amf.New(
+		&fakeDBInstance{
+			Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
+		},
+		nil,
+		nil,
+	)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.Registered)
+	ue.SetSecuredForTest(true)
+
+	plain := encSR(t, buildTestServiceRequest())
+
+	got := HandleGmmMessage(context.Background(), amfInstance, ue, uint8(fgs.MsgServiceRequest), plain, true, false)
+
+	if got.Action == nasreply.ActionStatus && got.Cause == nasreply.CauseMessageTypeNotImplemented {
+		t.Fatal("SERVICE REQUEST answered with 5GMM STATUS #97; it must run the service request procedure")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("downlinks = %d, want 1 (SERVICE ACCEPT)", len(ngapSender.SentDownlinkNASTransport))
+	}
+}
+
+func TestHandleNAS_PlainServiceRequest_Discarded(t *testing.T) {
+	amfInstance := amf.New(
+		&fakeDBInstance{
+			Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
+		},
+		nil,
+		nil,
+	)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.ForceStateForTest(amf.Registered)
+	ue.SetSecuredForTest(true)
+
+	HandleNAS(context.Background(), amfInstance, ue.Conn(), encSR(t, buildTestServiceRequest()))
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatalf("plain SERVICE REQUEST drew %d downlinks, want 0 (TS 24.501 §4.4.4.3)", len(ngapSender.SentDownlinkNASTransport))
+	}
 }

@@ -186,7 +186,7 @@ func SendAuthenticationReject(ctx context.Context, ue *UeConn) {
 
 func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_service_reject",
-		[]attribute.KeyValue{attribute.Int("cause", int(cause))}, uint8(fgs.SHTPlain),
+		[]attribute.KeyValue{attribute.Int("cause", int(cause))}, rejectSHT(ue),
 		func(_ *UeContext) ([]byte, error) { return BuildServiceReject(cause) })
 }
 
@@ -194,7 +194,7 @@ func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
 	sendGmm(ctx, ue, "nas/send_registration_reject",
 		[]attribute.KeyValue{attribute.Int("cause", int(cause5GMM))},
-		registrationRejectSHT(ue),
+		rejectSHT(ue),
 		func(_ *UeContext) ([]byte, error) {
 			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
 		})
@@ -253,7 +253,7 @@ func sendSecurityModeCommand(ctx context.Context, amfInstance *AMF, ue *UeConn, 
 	return nil
 }
 
-func registrationRejectSHT(ue *UeConn) uint8 {
+func rejectSHT(ue *UeConn) uint8 {
 	if ue.SecureExchangeEstablished() {
 		return uint8(fgs.SHTIntegrityProtectedCiphered)
 	}

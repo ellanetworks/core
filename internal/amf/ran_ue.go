@@ -72,8 +72,9 @@ type UeConn struct {
 	// ics is the Initial Context Setup progress (an ICSState). It is read and written
 	// from the NGAP dispatch goroutine, the SMF N1N2 path, and the NAS-guard timer
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
-	ics atomic.Int32
-	Log *zap.Logger
+	ics        atomic.Int32
+	inboundNAS atomic.Uint32
+	Log        *zap.Logger
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -288,6 +289,14 @@ func (ueConn *UeConn) MarkICSPending() {
 // MarkICSCompleted records that the InitialContextSetupResponse has been received.
 func (ueConn *UeConn) MarkICSCompleted() {
 	ueConn.ics.Store(int32(ICSCompleted))
+}
+
+func (ueConn *UeConn) NoteInboundNAS() {
+	ueConn.inboundNAS.Add(1)
+}
+
+func (ueConn *UeConn) SentFrom5GMMIdle() bool {
+	return ueConn.inboundNAS.Load() <= 1
 }
 
 // ResetICS returns the connection to ICSNotStarted, rolling back a claim whose send

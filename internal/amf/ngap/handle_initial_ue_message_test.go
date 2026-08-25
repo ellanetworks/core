@@ -52,11 +52,10 @@ func TestHandleInitialUEMessage_CreatesNewUeConn(t *testing.T) {
 	}
 }
 
-// A SERVICE REQUEST Initial UE Message is routed to the dedicated HandleServiceRequest,
-// never through the generic HandleNAS mint path (mirrors the MME's S1AP peek); a request
-// that binds no context leaves no bare RAN connection behind.
-func TestHandleInitialUEMessage_ServiceRequestRoutedToDedicatedHandler(t *testing.T) {
-	fakeNAS := &fakeNASHandler{ServiceRequest: true, LeavesBare: true}
+// A SERVICE REQUEST Initial UE Message goes through the same HandleNAS entry point as any
+// other NAS message; a request that binds no context leaves no bare RAN connection behind.
+func TestHandleInitialUEMessage_ServiceRequestGoesThroughHandleNAS(t *testing.T) {
+	fakeNAS := &fakeNASHandler{LeavesBare: true}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
 	ran := newTestRadio(amfInstance)
@@ -69,12 +68,8 @@ func TestHandleInitialUEMessage_ServiceRequestRoutedToDedicatedHandler(t *testin
 		NASPDU:      ngap.NASPDU(nasPDU),
 	})
 
-	if len(fakeNAS.ServiceRequestCalls) != 1 {
-		t.Fatalf("HandleServiceRequest calls = %d, want 1", len(fakeNAS.ServiceRequestCalls))
-	}
-
-	if len(fakeNAS.Calls) != 0 {
-		t.Fatalf("HandleNAS calls = %d, want 0 (a service request must not go through the mint gate)", len(fakeNAS.Calls))
+	if len(fakeNAS.Calls) != 1 {
+		t.Fatalf("HandleNAS calls = %d, want 1", len(fakeNAS.Calls))
 	}
 
 	if ran.NumUEsForTest() != 0 {

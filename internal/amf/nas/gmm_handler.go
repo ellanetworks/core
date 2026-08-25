@@ -36,6 +36,8 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	switch msg := msg.(type) {
 	case *fgs.RegistrationRequest:
 		return handleRegistrationRequest(ctx, amfInstance, ue, msg, plain, integrityVerified, arrivedPlain)
+	case *fgs.ServiceRequest:
+		return handleServiceRequest(ctx, amfInstance, ue, plain, integrityVerified)
 	case *fgs.ULNASTransport:
 		return handleULNASTransport(ctx, amfInstance, ue, msg)
 	case *fgs.ConfigurationUpdateComplete:
