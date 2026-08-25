@@ -70,11 +70,7 @@ type Config struct {
 
 	// Leaf returns this node's self-signed cluster cert.
 	Leaf LeafFunc
-
-	Reachable ReachableFunc
 }
-
-type ReachableFunc func(nodeID int, addr string) bool
 
 // Listener is the multiplexed cluster port. One TCP socket, one TLS
 // configuration, N logical protocols dispatched by ALPN NegotiatedProtocol.
@@ -170,6 +166,10 @@ func (l *Listener) Register(alpn string, handler ConnHandler) {
 	l.handlers[alpn] = handler
 }
 
+// Deregister drops the handler for one ALPN protocol. Connections
+// negotiating it are closed instead of dispatched, which is how a
+// subsystem stops serving its protocol without taking the shared
+// cluster socket down with it.
 func (l *Listener) Deregister(alpn string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -323,14 +323,6 @@ func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
 	}
 
 	_ = tlsConn.SetDeadline(time.Time{})
-
-	if l.cfg.Reachable != nil {
-		peerID, idErr := PeerNodeID(tlsConn)
-		if idErr != nil || !l.cfg.Reachable(peerID, "") {
-			_ = conn.Close()
-			return
-		}
-	}
 
 	proto := tlsConn.ConnectionState().NegotiatedProtocol
 

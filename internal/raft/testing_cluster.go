@@ -14,53 +14,45 @@ import (
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
+	"github.com/ellanetworks/core/internal/pki"
 	hraft "github.com/hashicorp/raft"
 )
 
+// peerGate is one node's view of which peers it can reach. A blocked peer
+// is dropped from this node's pin lookup, so the mTLS handshake fails in
+// both directions — the same rejection a node gets once its pin row is
+// deleted, and the closest a test can get to a partition without touching
+// the production dial and accept paths.
 type peerGate struct {
 	mu      sync.RWMutex
-	addrs   map[string]struct{}
-	nodeIDs map[int]struct{}
+	blocked map[int]struct{}
 }
 
 func newPeerGate() *peerGate {
-	return &peerGate{
-		addrs:   make(map[string]struct{}),
-		nodeIDs: make(map[int]struct{}),
-	}
+	return &peerGate{blocked: make(map[int]struct{})}
 }
 
-func (g *peerGate) block(nodeID int, addr string) {
+func (g *peerGate) block(nodeID int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	g.addrs[addr] = struct{}{}
-	g.nodeIDs[nodeID] = struct{}{}
+	g.blocked[nodeID] = struct{}{}
 }
 
 func (g *peerGate) reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	g.addrs = make(map[string]struct{})
-	g.nodeIDs = make(map[int]struct{})
+	g.blocked = make(map[int]struct{})
 }
 
-func (g *peerGate) reachable(nodeID int, addr string) bool {
+func (g *peerGate) reachable(nodeID int) bool {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	if _, blocked := g.nodeIDs[nodeID]; blocked {
-		return false
-	}
+	_, blocked := g.blocked[nodeID]
 
-	if addr != "" {
-		if _, blocked := g.addrs[addr]; blocked {
-			return false
-		}
-	}
-
-	return true
+	return !blocked
 }
 
 type testNode struct {
@@ -74,6 +66,16 @@ type testNode struct {
 	running bool
 }
 
+// ClusterWiring registers cluster-port handlers for one node. The harness
+// runs it at setup and again after RestartNode, so the listener always
+// dispatches to the node's current Manager.
+type ClusterWiring func(idx int, m *Manager, ln *listener.Listener)
+
+type clusterWiring struct {
+	alpns   []string
+	install ClusterWiring
+}
+
 // TestCluster is a multi-node mTLS Raft cluster for HA unit tests.
 type TestCluster struct {
 	Nodes     []*Manager
@@ -81,6 +83,7 @@ type TestCluster struct {
 	Appliers  []Applier
 
 	nodes   []*testNode
+	wirings []clusterWiring
 	pki     *testutil.PKI
 	t       testing.TB
 	ctx     context.Context
@@ -188,10 +191,12 @@ func (tc *TestCluster) startNode(node *testNode) {
 		SnapshotThreshold:  100,
 		TrailingLogs:       100,
 
-		AutopilotLastContactThreshold:    200 * time.Millisecond,
-		AutopilotServerStabilizationTime: 100 * time.Millisecond,
-		AutopilotReconcileInterval:       100 * time.Millisecond,
-		AutopilotUpdateInterval:          50 * time.Millisecond,
+		Autopilot: AutopilotConfig{
+			LastContactThreshold:    200 * time.Millisecond,
+			ServerStabilizationTime: 100 * time.Millisecond,
+			ReconcileInterval:       100 * time.Millisecond,
+			UpdateInterval:          50 * time.Millisecond,
+		},
 	}
 
 	m, err := NewManager(tc.ctx, cfg, node.applier, node.dataDir, WithClusterListener(node.ln))
@@ -208,10 +213,41 @@ func (tc *TestCluster) newListener(node *testNode) {
 		BindAddress:      node.addr,
 		AdvertiseAddress: node.addr,
 		NodeID:           node.nodeID,
-		Pin:              tc.pki.PinFunc(),
+		Pin:              tc.pinFunc(node),
 		Leaf:             tc.pki.LeafFunc(node.nodeID),
-		Reachable:        node.gate.reachable,
 	})
+}
+
+// pinFunc resolves fingerprints against the test PKI, minus the peers this
+// node's gate has blocked.
+func (tc *TestCluster) pinFunc(node *testNode) listener.PinFunc {
+	base := tc.pki.PinFunc()
+
+	return func(fingerprint string) listener.PinResult {
+		res := base(fingerprint)
+		if res.Found && !node.gate.reachable(res.NodeID) {
+			res.Found = false
+			res.NodeID = 0
+		}
+
+		return res
+	}
+}
+
+// WireHandlers installs fn on every running node now, and again on a node
+// after RestartNode. alpns names the protocols fn registers; StopNode
+// deregisters them, so a stopped node's still-bound cluster port stops
+// serving handlers that close over the Manager it just shut down.
+func (tc *TestCluster) WireHandlers(alpns []string, fn ClusterWiring) {
+	tc.t.Helper()
+
+	tc.wirings = append(tc.wirings, clusterWiring{alpns: alpns, install: fn})
+
+	for i, node := range tc.nodes {
+		if node.running {
+			fn(i, node.mgr, node.ln)
+		}
+	}
 }
 
 func (tc *TestCluster) startListener(node *testNode) {
@@ -269,6 +305,9 @@ func (tc *TestCluster) WaitForLeader(timeout time.Duration) *Manager {
 	return nil
 }
 
+// StopNode shuts a node's Manager down. The listener stays bound so the
+// node keeps its port across a restart, but every handler wired to the
+// shut-down Manager is deregistered along with the Manager itself.
 func (tc *TestCluster) StopNode(idx int) {
 	tc.t.Helper()
 
@@ -281,6 +320,12 @@ func (tc *TestCluster) StopNode(idx int) {
 		tc.t.Errorf("shutdown node %d: %v", node.nodeID, err)
 	}
 
+	for _, w := range tc.wirings {
+		for _, alpn := range w.alpns {
+			node.ln.Deregister(alpn)
+		}
+	}
+
 	node.running = false
 }
 
@@ -290,6 +335,10 @@ func (tc *TestCluster) RestartNode(idx int) {
 	tc.StopNode(idx)
 	tc.startNode(tc.nodes[idx])
 	tc.refresh()
+
+	for _, w := range tc.wirings {
+		w.install(idx, tc.nodes[idx].mgr, tc.nodes[idx].ln)
+	}
 }
 
 func (tc *TestCluster) Partition(far []int) {
@@ -306,11 +355,28 @@ func (tc *TestCluster) Partition(far []int) {
 				continue
 			}
 
-			a.gate.block(b.nodeID, b.addr)
+			a.gate.block(b.nodeID)
 		}
 	}
 
 	tc.dropPooledConnections()
+	tc.closeGatedConnections()
+}
+
+// closeGatedConnections tears down the mTLS sessions that span the
+// partition. A handshake that completed before the gate closed is never
+// re-verified, so those connections have to be closed the way a pin
+// removal closes them.
+func (tc *TestCluster) closeGatedConnections() {
+	for _, node := range tc.nodes {
+		for _, peer := range tc.nodes {
+			if peer.nodeID == node.nodeID || node.gate.reachable(peer.nodeID) {
+				continue
+			}
+
+			node.ln.CloseByPeerFingerprint(pki.Fingerprint(tc.pki.Nodes[peer.nodeID].Cert))
+		}
+	}
 }
 
 func (tc *TestCluster) dropPooledConnections() {

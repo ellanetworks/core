@@ -174,8 +174,8 @@ func (ft *followerTracker) stop() {
 	ft.mu.Unlock()
 }
 
-// peerStats returns the last contact duration and health for the given
-// follower. Returns (0, false) if the peer is unknown.
+// peerStats returns how long the peer has been out of contact and whether
+// it is answering heartbeats. An untracked peer reports (0, false).
 func (ft *followerTracker) peerStats(id raft.ServerID) (lastContact time.Duration, healthy bool) {
 	ft.mu.RLock()
 	defer ft.mu.RUnlock()
@@ -190,19 +190,6 @@ func (ft *followerTracker) peerStats(id raft.ServerID) (lastContact time.Duratio
 	}
 
 	return 0, true
-}
-
-// isHealthy reports whether the given peer is considered reachable.
-func (ft *followerTracker) isHealthy(id raft.ServerID) bool {
-	ft.mu.RLock()
-	defer ft.mu.RUnlock()
-
-	s, ok := ft.peers[id]
-	if !ok {
-		return false
-	}
-
-	return s.healthy
 }
 
 // followerTrackerCallback adapts followerTracker to LeaderCallback so the

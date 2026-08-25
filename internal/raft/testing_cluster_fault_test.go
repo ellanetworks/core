@@ -4,13 +4,17 @@
 package raft
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	hraft "github.com/hashicorp/raft"
 )
 
@@ -170,27 +174,42 @@ func TestCluster_IsolatedLeaderStepsDown(t *testing.T) {
 	}
 }
 
+// dialPeer opens an mTLS cluster connection from one test node to another
+// and closes it again, reporting whether the connection was established.
+func dialPeer(t *testing.T, tc *TestCluster, from, to int) error {
+	t.Helper()
+
+	target := tc.nodes[to]
+
+	conn, err := tc.nodes[from].ln.Dial(t.Context(), target.addr, target.nodeID, listener.ALPNHTTP, 2*time.Second)
+	if err != nil {
+		return err
+	}
+
+	return conn.Close()
+}
+
 func TestCluster_PartitionBlocksBothDirections(t *testing.T) {
 	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
 
 	tc.Isolate(0)
 
-	if tc.nodes[0].gate.reachable(0, tc.nodes[1].addr) {
-		t.Error("isolated node can still dial a peer")
+	if err := dialPeer(t, tc, 0, 1); err == nil {
+		t.Error("isolated node still reached a peer")
 	}
 
-	if tc.nodes[1].gate.reachable(tc.nodes[0].nodeID, "") {
-		t.Error("peer still accepts connections from the isolated node")
+	if err := dialPeer(t, tc, 1, 0); err == nil {
+		t.Error("peer still reached the isolated node")
 	}
 
-	if !tc.nodes[1].gate.reachable(0, tc.nodes[2].addr) {
-		t.Error("partition blocked two nodes on the same side")
+	if err := dialPeer(t, tc, 1, 2); err != nil {
+		t.Errorf("partition blocked two nodes on the same side: %v", err)
 	}
 
 	tc.Heal()
 
-	if !tc.nodes[0].gate.reachable(0, tc.nodes[1].addr) {
-		t.Error("heal did not clear the partition")
+	if err := dialPeer(t, tc, 0, 1); err != nil {
+		t.Errorf("heal did not clear the partition: %v", err)
 	}
 }
 
@@ -266,7 +285,29 @@ func TestCluster_RemoveStoppedNode(t *testing.T) {
 	}
 }
 
-func TestCluster_AutopilotRemovesFailedServer(t *testing.T) {
+// goroutineDump returns a full stack dump, growing the buffer until it
+// fits. A truncated dump silently loses frames, which would turn a leaked
+// goroutine into a passing count.
+func goroutineDump(t *testing.T) string {
+	t.Helper()
+
+	for size := 1 << 20; ; size *= 2 {
+		buf := make([]byte, size)
+		if n := runtime.Stack(buf, true); n < size {
+			return string(buf[:n])
+		}
+
+		if size >= 1<<27 {
+			t.Fatalf("goroutine dump exceeds %d bytes", size)
+		}
+	}
+}
+
+// TestCluster_StoppedPeerStaysInConfiguration guards the property that
+// membership changes are operator-driven: a node that stops answering is
+// reported unhealthy but keeps its place in the Raft configuration, so a
+// reboot or an upgrade never costs the cluster a member.
+func TestCluster_StoppedPeerStaysInConfiguration(t *testing.T) {
 	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
 
 	leaderIdx := tc.LeaderIndex()
@@ -276,30 +317,31 @@ func TestCluster_AutopilotRemovesFailedServer(t *testing.T) {
 
 	leader := tc.Nodes[leaderIdx]
 	followerIdx := (leaderIdx + 1) % 3
-	failedID := tc.nodes[followerIdx].nodeID
-	peerID := hraft.ServerID(strconv.Itoa(failedID))
+	stoppedID := tc.nodes[followerIdx].nodeID
+	peerID := hraft.ServerID(strconv.Itoa(stoppedID))
 
 	proposeAndIndex(t, leader, 3)
 	tc.StopNode(followerIdx)
 	waitForUnhealthyPeer(t, leader, peerID, 15*time.Second)
 
-	ids := waitForMembers(leader, 2, 30*time.Second)
-	for _, id := range ids {
-		if id == failedID {
-			t.Fatalf("autopilot did not evict failed node %d; configuration is %v", failedID, ids)
+	// Autopilot reconciles every 100 ms in this harness, so a few seconds
+	// covers many passes.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if ids := leader.MemberIDs(); len(ids) != 3 {
+			t.Fatalf("node %d left the configuration after a brief outage; configuration is %v", stoppedID, ids)
 		}
+
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
 func countGoroutines(t *testing.T, needles ...string) int {
 	t.Helper()
 
-	buf := make([]byte, 1<<20)
-	buf = buf[:runtime.Stack(buf, true)]
-
 	count := 0
 
-	for _, frame := range strings.Split(string(buf), "\n\n") {
+	for _, frame := range strings.Split(goroutineDump(t), "\n\n") {
 		for _, needle := range needles {
 			if strings.Contains(frame, needle) {
 				count++
@@ -312,6 +354,12 @@ func countGoroutines(t *testing.T, needles ...string) int {
 }
 
 func TestCluster_ShutdownStopsLeaderRoutines(t *testing.T) {
+	// The count is process-global, so the assertion is against the count
+	// taken before this cluster starts rather than against zero.
+	const autopilotRoutine, trackerRoutine = "raft-autopilot", "followerTracker).run"
+
+	baseline := countGoroutines(t, autopilotRoutine, trackerRoutine)
+
 	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
 
 	if tc.LeaderIndex() < 0 {
@@ -320,8 +368,8 @@ func TestCluster_ShutdownStopsLeaderRoutines(t *testing.T) {
 
 	proposeAndIndex(t, tc.Nodes[tc.LeaderIndex()], 3)
 
-	if countGoroutines(t, "raft-autopilot", "followerTracker).run") == 0 {
-		t.Fatal("expected autopilot and follower-tracker goroutines while leader is running")
+	if running := countGoroutines(t, autopilotRoutine, trackerRoutine); running <= baseline {
+		t.Fatalf("leader routines = %d, want more than the %d running before the cluster started", running, baseline)
 	}
 
 	for i := range tc.nodes {
@@ -330,14 +378,15 @@ func TestCluster_ShutdownStopsLeaderRoutines(t *testing.T) {
 
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		if countGoroutines(t, "raft-autopilot", "followerTracker).run") == 0 {
+		if countGoroutines(t, autopilotRoutine, trackerRoutine) <= baseline {
 			return
 		}
 
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	t.Fatalf("leader routines still running after shutdown: %d", countGoroutines(t, "raft-autopilot", "followerTracker).run"))
+	t.Fatalf("leader routines after shutdown = %d, want at most the %d running before the cluster started",
+		countGoroutines(t, autopilotRoutine, trackerRoutine), baseline)
 }
 
 func TestCluster_PartitionBlocksClusterHTTP(t *testing.T) {
@@ -368,6 +417,33 @@ func TestCluster_PartitionBlocksClusterHTTP(t *testing.T) {
 	}
 }
 
+// postProposeTo sends a propose envelope over the cluster port to one
+// specific node, so the assertion is about that node's ALPN handler rather
+// than about wherever the cluster happens to have put leadership.
+func postProposeTo(t *testing.T, tc *TestCluster, from, to int, payload []byte) (int, error) {
+	t.Helper()
+
+	envelope, err := json.Marshal(ProposeForwardRequest{Operation: "TestOp", Payload: payload})
+	if err != nil {
+		t.Fatalf("marshal envelope: %v", err)
+	}
+
+	target := tc.nodes[to]
+
+	resp, err := tc.nodes[from].mgr.clusterHTTPDo(
+		t.Context(), http.MethodPost, target.addr, target.nodeID, ProposeForwardPath, bytes.NewReader(envelope),
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return resp.StatusCode, nil
+}
+
 func TestCluster_RestartKeepsNonRaftALPNHandlers(t *testing.T) {
 	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
 	wireClusterProposeHandlers(t, tc)
@@ -377,22 +453,30 @@ func TestCluster_RestartKeepsNonRaftALPNHandlers(t *testing.T) {
 		t.Fatal("no leader")
 	}
 
-	followerIdx := (leaderIdx + 1) % 3
+	restartedIdx := (leaderIdx + 1) % 3
+	peerIdx := (leaderIdx + 2) % 3
 
-	payload, err := json.Marshal(map[string]string{"via": "follower"})
+	payload, err := json.Marshal(map[string]string{"via": "peer"})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	tc.RestartNode(followerIdx)
+	tc.RestartNode(restartedIdx)
 
 	if tc.WaitForLeader(15*time.Second) == nil {
 		t.Fatal("no leader after restart")
 	}
 
+	// A served status — 200 from a restarted node that took leadership, 421
+	// from one that did not — proves the propose handler is registered and
+	// bound to the Manager the restart created. A transport error means the
+	// listener dropped the protocol with the old Manager.
+	var status int
+
 	deadline := time.Now().Add(15 * time.Second)
+
 	for {
-		_, err = tc.Nodes[followerIdx].ForwardOperation(t.Context(), "TestOp", payload, 5*time.Second)
+		status, err = postProposeTo(t, tc, peerIdx, restartedIdx, payload)
 		if err == nil || time.Now().After(deadline) {
 			break
 		}
@@ -401,6 +485,39 @@ func TestCluster_RestartKeepsNonRaftALPNHandlers(t *testing.T) {
 	}
 
 	if err != nil {
-		t.Fatalf("cluster HTTP forwarding broken after restart: %v", err)
+		t.Fatalf("restarted node did not serve cluster HTTP: %v", err)
+	}
+
+	if status != http.StatusOK && status != http.StatusMisdirectedRequest {
+		t.Fatalf("restarted node answered propose with %d, want %d or %d",
+			status, http.StatusOK, http.StatusMisdirectedRequest)
+	}
+}
+
+func TestCluster_StopNodeDropsNonRaftALPNHandlers(t *testing.T) {
+	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
+	wireClusterProposeHandlers(t, tc)
+
+	leaderIdx := tc.LeaderIndex()
+	if leaderIdx < 0 {
+		t.Fatal("no leader")
+	}
+
+	stoppedIdx := (leaderIdx + 1) % 3
+	peerIdx := (leaderIdx + 2) % 3
+
+	payload, err := json.Marshal(map[string]string{"via": "peer"})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := postProposeTo(t, tc, peerIdx, stoppedIdx, payload); err != nil {
+		t.Fatalf("propose to running node: %v", err)
+	}
+
+	tc.StopNode(stoppedIdx)
+
+	if status, err := postProposeTo(t, tc, peerIdx, stoppedIdx, payload); err == nil {
+		t.Fatalf("stopped node answered propose with %d, want a transport error", status)
 	}
 }

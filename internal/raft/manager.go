@@ -28,6 +28,23 @@ import (
 
 var ErrBarrierTimeout = errors.New("raft barrier timed out")
 
+// AutopilotConfig overrides autopilot's timing. A zero field keeps the
+// package default.
+type AutopilotConfig struct {
+	// LastContactThreshold bounds how long a server may go without leader
+	// contact before autopilot reports it unhealthy.
+	LastContactThreshold time.Duration
+
+	// ServerStabilizationTime is how long a non-voter must stay healthy
+	// before autopilot promotes it.
+	ServerStabilizationTime time.Duration
+
+	// ReconcileInterval and UpdateInterval pace autopilot's promotion and
+	// health passes.
+	ReconcileInterval time.Duration
+	UpdateInterval    time.Duration
+}
+
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
 type ClusterConfig struct {
 	Enabled          bool
@@ -55,10 +72,7 @@ type ClusterConfig struct {
 	LeaderLeaseTimeout time.Duration
 	CommitTimeout      time.Duration
 
-	AutopilotLastContactThreshold    time.Duration
-	AutopilotServerStabilizationTime time.Duration
-	AutopilotReconcileInterval       time.Duration
-	AutopilotUpdateInterval          time.Duration
+	Autopilot AutopilotConfig
 
 	// TrailingLogs bounds the number of Raft log entries retained after a
 	// snapshot. Lower values shrink BoltDB at the cost of forcing full
