@@ -48,6 +48,10 @@ func (db *Database) WaitUntilReady(ctx context.Context) error {
 		}
 	}
 
+	if err := db.WaitForFSMCatchUp(ctx); err != nil {
+		return fmt.Errorf("wait for the state machine to catch up: %w", err)
+	}
+
 	return db.WaitForInitialization(ctx, 0)
 }
 
