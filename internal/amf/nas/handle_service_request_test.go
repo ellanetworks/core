@@ -4,8 +4,10 @@
 package nas
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -495,6 +497,87 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 
 	if ue.Conn().NASGuardForTest().Active() {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
+	}
+}
+
+type countingDBInstance struct {
+	*fakeDBInstance
+	operatorReads atomic.Int64
+}
+
+func (c *countingDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
+	c.operatorReads.Add(1)
+
+	return c.fakeDBInstance.GetOperator(ctx)
+}
+
+func TestHandleServiceRequestMTReadsOperatorOnce(t *testing.T) {
+	dbInstance := &countingDBInstance{fakeDBInstance: &fakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}}
+
+	amfInstance := amf.New(
+		dbInstance,
+		&fakeAusf{
+			AvKgAka: &ausf.AuthResult{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+			Kseaf: []byte("testkey"),
+		},
+		&fakeSmf{},
+	)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
+
+	ue.ArmPagingForTest(6*time.Minute, 5)
+
+	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
+	ue.ForceStateForTest(amf.Registered)
+	ue.SetGutiForTest(oldguti)
+	ue.Tai = ue.Conn().Tai
+	ue.SetSecuredForTest(true)
+	{
+		ng := ue.NgKsiForTest()
+		ng.Ksi = 1
+		ue.SetNgKsiForTest(ng)
+	}
+
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := nas.CipheringAES
+
+	ue.SetKnasEncForTest(key)
+	ue.SetKnasIntForTest(key)
+	ue.SetCipheringAlgForTest(algo)
+	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
+
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount(), fgs.ServiceTypeMobileTerminatedServices)
+	if err != nil {
+		t.Fatalf("could not build service request: %v", err)
+	}
+
+	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
+
+	if len(ngapSender.SentDownlinkNASTransport) < 2 {
+		t.Fatalf("expected a Service Accept and a Configuration Update Command, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	if ue.TmsiForTest() == oldguti.Tmsi {
+		t.Fatal("expected new GUTI to be allocated")
+	}
+
+	if got := dbInstance.operatorReads.Load(); got != 1 {
+		t.Fatalf("the mobile-terminated service request read the operator row %d times, want 1", got)
 	}
 }
 

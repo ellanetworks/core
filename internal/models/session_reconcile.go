@@ -29,6 +29,11 @@ type SessionReconcileRequest struct {
 	Reason       SessionReconcileReason
 }
 
+type SubscriptionDelta struct {
+	FramedRoutes bool
+	StaticIP     bool
+}
+
 // SessionPolicyDelta holds the policy fields that affect an active session.
 type SessionPolicyDelta struct {
 	SessionAmbrUplink   string // e.g. "100 Mbps"

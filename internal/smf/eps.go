@@ -255,24 +255,16 @@ func (s *SMF) dropHalf(ref string, by AccessType) bool {
 	return true
 }
 
-func (s *SMF) FramedRoutesChanged(ctx context.Context, ref string) (bool, error) {
-	return s.epsSubscriptionChanged(ctx, ref, s.framedRoutesChanged)
-}
-
-func (s *SMF) StaticIPChanged(ctx context.Context, ref string) (bool, error) {
-	return s.epsSubscriptionChanged(ctx, ref, s.staticIPChanged)
-}
-
-func (s *SMF) epsSubscriptionChanged(ctx context.Context, ref string, changed func(context.Context, *SMContext) (bool, error)) (bool, error) {
+func (s *SMF) EPSSubscriptionChanged(ctx context.Context, ref string) (models.SubscriptionDelta, error) {
 	smContext := s.GetSession(ref)
 	if smContext == nil {
-		return false, nil
+		return models.SubscriptionDelta{}, nil
 	}
 
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	return changed(ctx, smContext)
+	return s.subscriptionChanged(ctx, smContext)
 }
 
 func (s *SMF) DeactivateEPSSession(ctx context.Context, ref string) error {

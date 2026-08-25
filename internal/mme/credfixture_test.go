@@ -70,10 +70,9 @@ type fakeSessionManager struct {
 	ambrUplink      models.BitRate // records the last UpdateEPSSessionAMBR uplink value
 	ambrDownlink    models.BitRate
 	ambrErr         error // when set, UpdateEPSSessionAMBR fails with it
-	framedChanged   bool  // FramedRoutesChanged returns this
-	framedErr       error // when set, FramedRoutesChanged fails with it
-	staticIPChanged bool  // StaticIPChanged returns this
-	staticIPErr     error // when set, StaticIPChanged fails with it
+	framedChanged   bool  // EPSSubscriptionChanged reports this framed-route delta
+	staticIPChanged bool  // EPSSubscriptionChanged reports this static-IP delta
+	subscriptionErr error // when set, EPSSubscriptionChanged fails with it
 
 	suppressCalls         int // counts HandleEPSPagingFailure calls
 	clearSuppressionCalls int // counts ClearEPSPagingSuppression calls
@@ -172,12 +171,12 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, _ string) erro
 	return nil
 }
 
-func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
-	return f.framedChanged, f.framedErr
-}
+func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string) (models.SubscriptionDelta, error) {
+	if f.subscriptionErr != nil {
+		return models.SubscriptionDelta{}, f.subscriptionErr
+	}
 
-func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string) (bool, error) {
-	return f.staticIPChanged, f.staticIPErr
+	return models.SubscriptionDelta{FramedRoutes: f.framedChanged, StaticIP: f.staticIPChanged}, nil
 }
 
 // fakeBearerStore resolves a fixed default-bearer QoS (QCI 9, APN "internet",

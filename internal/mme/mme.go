@@ -38,8 +38,7 @@ type epsSessionManager interface {
 	HandleEPSPagingFailure(ctx context.Context, imsi string, ebi uint8) error
 	ClearEPSPagingSuppression(ctx context.Context, imsi string, ebi uint8) error
 	ReleaseEPSSession(ctx context.Context, ref string) error
-	FramedRoutesChanged(ctx context.Context, ref string) (bool, error)
-	StaticIPChanged(ctx context.Context, ref string) (bool, error)
+	EPSSubscriptionChanged(ctx context.Context, ref string) (models.SubscriptionDelta, error)
 }
 
 type credentialProvider interface {

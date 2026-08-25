@@ -40,10 +40,23 @@ type fakeStore struct {
 	staticIPErr     error
 	opLog           []string
 	allocSessionLog []uint8
+	dnnResolveCalls int
 }
 
 func (f *fakeStore) ResolveDNN(_ context.Context, _ string) (smf.DNNStore, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.dnnResolveCalls++
+
 	return f, nil
+}
+
+func (f *fakeStore) dnnResolves() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.dnnResolveCalls
 }
 
 // ops returns the IPv4 allocate/release calls in the order they arrived.

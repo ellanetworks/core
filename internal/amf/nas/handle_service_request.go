@@ -269,11 +269,13 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return nasreply.Handled()
 	}
 
-	operatorInfo, err := amfInstance.OperatorInfo(ctx)
+	operator, err := amfInstance.Operator(ctx)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("error getting operator info", zap.Error(err))
 		return nasreply.Silent(nasreply.ReasonUnspecified)
 	}
+
+	operatorInfo := operator.Info()
 
 	initialContextSetup := ueConn.UeContextRequest && ueConn.ClaimICS()
 
@@ -413,7 +415,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			return nasreply.Handled()
 		}
 
-		amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, true)
+		amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, true, operator)
 	} else if err := accept(nil); err != nil {
 		return nasreply.Handled()
 	}

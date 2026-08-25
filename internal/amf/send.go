@@ -462,7 +462,7 @@ func ResendRegistrationAccept(ctx context.Context, amfInstance *AMF, ue *UeConte
 	ArmRegistrationAcceptGuard(amfInstance, ue, plain)
 }
 
-func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe *UeContext, includeGUTI bool) {
+func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe *UeContext, includeGUTI bool, operator OperatorConfig) {
 	if amfUe == nil {
 		return
 	}
@@ -481,19 +481,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		return
 	}
 
-	operator, err := amfInstance.DBInstance.GetOperator(ctx)
-	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("cannot SendConfigurationUpdateCommand: failed to get operator", zap.Error(err))
-		return
-	}
-
-	operatorInfo, err := amfInstance.operatorInfoFrom(operator)
-	if err != nil {
-		logger.From(ctx, logger.AmfLog).Error("cannot SendConfigurationUpdateCommand: failed to get operator info", zap.Error(err))
-		return
-	}
-
-	guti, err := amfInstance.Guti(operatorInfo.Guami, amfUe)
+	guti, err := amfInstance.Guti(operator.Info().Guami, amfUe)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("cannot SendConfigurationUpdateCommand: failed to build 5G-GUTI", zap.Error(err))
 		return
@@ -507,7 +495,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *AMF, amfUe
 		networkTime = &built
 	}
 
-	plain, err := BuildConfigurationUpdateCommand(guti, operator.SpnFullName, operator.SpnShortName, networkTime, includeGUTI)
+	plain, err := BuildConfigurationUpdateCommand(guti, operator.op.SpnFullName, operator.op.SpnShortName, networkTime, includeGUTI)
 	if err != nil {
 		logger.From(ctx, logger.AmfLog).Error("error building ConfigurationUpdateCommand", zap.Error(err))
 

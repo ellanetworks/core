@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/eps"
 )
@@ -72,7 +73,7 @@ func TestFreshAuthenticationResetsResyncBudget(t *testing.T) {
 	// A prior authentication exchange already spent its resync.
 	ue.Conn().SetResyncTried(true)
 
-	startAuthentication(context.Background(), m, ue, ue.Conn())
+	startAuthentication(context.Background(), m, ue, ue.Conn(), models.PlmnID{Mcc: "001", Mnc: "01"})
 
 	if ue.Conn().ResyncTried() {
 		t.Fatal("startAuthentication must reset resyncTried for a fresh authentication")

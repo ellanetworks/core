@@ -78,18 +78,18 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 		return
 	}
 
-	// A framed-route change cannot be adopted in place: TS 23.501 §5.6.14 requires
-	// re-establishment. Checked before the QoS diff so a framed-only change still
-	// reactivates (framed routes are absent from the data-network fingerprint).
-	framedChanged, err := m.Session.FramedRoutesChanged(ctx, p.SessionRef)
+	delta, err := m.Session.EPSSubscriptionChanged(ctx, p.SessionRef)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check framed routes; deferring to next sweep",
+		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check the subscription; deferring to next sweep",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
 
 		return
 	}
 
-	if framedChanged {
+	// A framed-route change cannot be adopted in place: TS 23.501 §5.6.14 requires
+	// re-establishment. Checked before the QoS diff so a framed-only change still
+	// reactivates (framed routes are absent from the data-network fingerprint).
+	if delta.FramedRoutes {
 		logger.From(ctx, ueConn.Log).Info("framed routes changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
@@ -99,15 +99,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 
 	// The UE IP is fixed for the PDN connection lifetime (TS 23.401 §5.3.1.2.1);
 	// a reservation change requires reactivation, not in-place modification.
-	staticChanged, err := m.Session.StaticIPChanged(ctx, p.SessionRef)
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("reconcile: failed to check static IP; deferring to next sweep",
-			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Error(err))
-
-		return
-	}
-
-	if staticChanged {
+	if delta.StaticIP {
 		logger.From(ctx, ueConn.Log).Info("static IP changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)

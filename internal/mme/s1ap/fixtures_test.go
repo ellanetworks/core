@@ -186,12 +186,8 @@ func (f *fakeSessionManager) ReleaseEPSSession(_ context.Context, ref string) er
 	return nil
 }
 
-func (f *fakeSessionManager) FramedRoutesChanged(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-
-func (f *fakeSessionManager) StaticIPChanged(_ context.Context, _ string) (bool, error) {
-	return false, nil
+func (f *fakeSessionManager) EPSSubscriptionChanged(_ context.Context, _ string) (models.SubscriptionDelta, error) {
+	return models.SubscriptionDelta{}, nil
 }
 
 // fakeBearerStore resolves a fixed default-bearer QoS for any subscriber.

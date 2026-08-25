@@ -133,13 +133,9 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		}
 	}
 
-	// A framed-route change cannot be applied in place: TS 23.501 §5.6.14 requires
-	// the SMF to release the PDU session (framed routes are provisioned in the
-	// session's downlink PDRs) so the UE re-establishes with the new routes.
-	// Checked before the in-place QoS/AMBR path so a framed-only change releases.
-	framedChanged, err := s.framedRoutesChanged(ctx, smContext)
+	delta, err := s.subscriptionChanged(ctx, smContext)
 	if err != nil {
-		logger.SmfLog.Warn("failed to resolve framed routes during reconciliation; deferring to backstop",
+		logger.SmfLog.Warn("failed to evaluate the subscription during reconciliation; deferring to backstop",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
 			zap.Error(err),
@@ -148,7 +144,11 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		return nil
 	}
 
-	if framedChanged {
+	// A framed-route change cannot be applied in place: TS 23.501 §5.6.14 requires
+	// the SMF to release the PDU session (framed routes are provisioned in the
+	// session's downlink PDRs) so the UE re-establishes with the new routes.
+	// Checked before the in-place QoS/AMBR path so a framed-only change releases.
+	if delta.FramedRoutes {
 		logger.SmfLog.Info("framed routes changed, releasing session for re-establishment",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
@@ -159,18 +159,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 	// The UE IP is fixed for the session lifetime (TS 23.501 §5.8.2.2); a
 	// reservation change requires release, not in-place modification.
-	staticChanged, err := s.staticIPChanged(ctx, smContext)
-	if err != nil {
-		logger.SmfLog.Warn("failed to resolve static IP during reconciliation; deferring to backstop",
-			logger.SUPI(smContext.Supi.String()),
-			logger.PDUSessionID(smContext.PDUSessionID),
-			zap.Error(err),
-		)
-
-		return nil
-	}
-
-	if staticChanged {
+	if delta.StaticIP {
 		logger.SmfLog.Info("static IP changed, releasing session for re-establishment",
 			logger.SUPI(smContext.Supi.String()),
 			logger.PDUSessionID(smContext.PDUSessionID),
@@ -440,15 +429,33 @@ func (s *SMF) applySessionQERs(ctx context.Context, smContext *SMContext, policy
 	return s.applyDataPlane(ctx, smContext, next, policyID)
 }
 
+func (s *SMF) subscriptionChanged(ctx context.Context, smContext *SMContext) (models.SubscriptionDelta, error) {
+	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
+	if err != nil {
+		return models.SubscriptionDelta{}, fmt.Errorf("resolve data network: %w", err)
+	}
+
+	framed, err := framedRoutesChanged(ctx, dn, smContext)
+	if err != nil {
+		return models.SubscriptionDelta{}, fmt.Errorf("framed routes: %w", err)
+	}
+
+	if framed {
+		return models.SubscriptionDelta{FramedRoutes: true}, nil
+	}
+
+	static, err := staticIPChanged(ctx, dn, smContext)
+	if err != nil {
+		return models.SubscriptionDelta{}, fmt.Errorf("static IP: %w", err)
+	}
+
+	return models.SubscriptionDelta{StaticIP: static}, nil
+}
+
 // framedRoutesChanged reports whether the subscriber's currently provisioned
 // framed routes differ from those installed on the session at establishment.
 // Caller holds smContext.Mutex.
-func (s *SMF) framedRoutesChanged(ctx context.Context, smContext *SMContext) (bool, error) {
-	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
-	if err != nil {
-		return false, err
-	}
-
+func framedRoutesChanged(ctx context.Context, dn DNNStore, smContext *SMContext) (bool, error) {
 	current, err := dn.ListFramedRoutes(ctx, smContext.Supi.IMSI())
 	if err != nil {
 		return false, err
@@ -481,13 +488,8 @@ func framedRoutesEqual(a, b []netip.Prefix) bool {
 
 // staticIPChanged reports whether the subscriber's reserved static IP changed
 // since it was cached at establishment. Caller holds smContext.Mutex.
-func (s *SMF) staticIPChanged(ctx context.Context, smContext *SMContext) (bool, error) {
+func staticIPChanged(ctx context.Context, dn DNNStore, smContext *SMContext) (bool, error) {
 	imsi := smContext.Supi.IMSI()
-
-	dn, err := s.store.ResolveDNN(ctx, smContext.Dnn)
-	if err != nil {
-		return false, err
-	}
 
 	if smContext.PDUIPV4Address != nil {
 		changed, err := staticReservationChanged(ctx, dn, imsi, false, smContext.StaticIPv4)
