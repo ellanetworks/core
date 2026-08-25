@@ -31,6 +31,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const SubscriberPage: React.FC = () => {
@@ -243,63 +244,65 @@ const SubscriberPage: React.FC = () => {
 
   const knownCount = subscribersQuery.data?.total_count;
 
+  // Nothing to search on a network with no subscribers, where the empty state
+  // is the whole page. It stays put once a search is active so a zero-result
+  // search can still be cleared.
+  const showSearch = appliedSearch !== "" || (knownCount ?? 0) > 0;
+
   return (
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h4" component="h1">
-          {knownCount === undefined
-            ? "Subscribers"
-            : `Subscribers (${knownCount})`}
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          {descriptionText}
-        </Typography>
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setCreateModalOpen(true)}
-            sx={{ maxWidth: 200 }}
-          >
-            Create
-          </Button>
-        )}
-      </Box>
-
-      <Box sx={{ mb: 2, display: "flex", gap: 2 }}>
-        <TextField
-          label="Search"
-          type="search"
-          placeholder="IMSI"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          size="small"
-          sx={{ minWidth: 260 }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-              endAdornment: searchInput ? (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label="Clear search"
-                    size="small"
-                    edge="end"
-                    onClick={() => setSearchInput("")}
-                  >
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ) : null,
-            },
-          }}
-        />
-      </Box>
+      <ListPageHeader
+        title="Subscribers"
+        count={knownCount}
+        description={descriptionText}
+        filters={
+          showSearch && (
+            <TextField
+              label="Search"
+              type="search"
+              placeholder="IMSI"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              size="small"
+              sx={{ minWidth: 260 }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: searchInput ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="Clear search"
+                        size="small"
+                        edge="end"
+                        onClick={() => setSearchInput("")}
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : null,
+                },
+              }}
+            />
+          )
+        }
+        action={
+          canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => setCreateModalOpen(true)}
+            >
+              Create
+            </Button>
+          )
+        }
+      />
 
       <QueryState
         query={subscribersQuery}

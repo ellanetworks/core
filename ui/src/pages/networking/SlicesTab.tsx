@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { useState, useMemo, useCallback } from "react";
-import { Box, Typography, Button } from "@mui/material";
+import { Box, Button } from "@mui/material";
 import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -22,6 +22,7 @@ import EditSliceModal from "@/components/EditSliceModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
+import ListPageHeader from "@/components/ListPageHeader";
 import { useNetworkingContext } from "./types";
 
 export default function SlicesTab() {
@@ -119,26 +120,23 @@ export default function SlicesTab() {
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
-          {knownCount === undefined
-            ? "Network Slices"
-            : `Network Slices (${knownCount})`}
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          {description}
-        </Typography>
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setCreateOpen(true)}
-            sx={{ maxWidth: 200, mt: 2 }}
-          >
-            Create
-          </Button>
-        )}
-      </Box>
+      <ListPageHeader
+        title="Network Slices"
+        count={knownCount}
+        description={description}
+        variant="section"
+        action={
+          canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => setCreateOpen(true)}
+            >
+              Create
+            </Button>
+          )
+        }
+      />
 
       <QueryState
         query={slicesQuery}

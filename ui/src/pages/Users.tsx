@@ -23,6 +23,7 @@ import QueryState from "@/components/QueryState";
 import { useTheme } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "react-router-dom";
+import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const UserPage: React.FC = () => {
@@ -104,22 +105,20 @@ const UserPage: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h4" component="h1">
-          {knownCount === undefined ? "Users" : `Users (${knownCount})`}
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          {descriptionText}
-        </Typography>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleOpenCreateModal}
-          sx={{ maxWidth: 200 }}
-        >
-          Create
-        </Button>
-      </Box>
+      <ListPageHeader
+        title="Users"
+        count={knownCount}
+        description={descriptionText}
+        action={
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleOpenCreateModal}
+          >
+            Create
+          </Button>
+        }
+      />
 
       <QueryState
         query={usersQuery}

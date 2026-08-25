@@ -196,4 +196,39 @@ describe("Subscribers search", () => {
 
     expect(await screen.findByText("No subscribers yet")).toBeInTheDocument();
   });
+
+  it("offers no search box on a network with no subscribers", async () => {
+    seedApi([]);
+    await renderSubscribers();
+    await screen.findByText("No subscribers yet");
+
+    expect(screen.queryByLabelText("Search")).not.toBeInTheDocument();
+  });
+
+  it("offers the search box once there are subscribers", async () => {
+    seedApi();
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    expect(screen.getByLabelText("Search")).toBeInTheDocument();
+  });
+
+  it("keeps the search box on screen when the search matches nothing", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.type(searchBox(), "12345");
+    await screen.findByText(
+      "No subscribers match your search",
+      {},
+      { timeout: 2000 },
+    );
+
+    expect(screen.getByLabelText("Search")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear search" }),
+    ).toBeInTheDocument();
+  });
 });

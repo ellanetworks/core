@@ -54,6 +54,7 @@ import ViewBGPPeerModal from "@/components/ViewBGPPeerModal";
 import EditBGPSettingsModal from "@/components/EditBGPSettingsModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
+import ListPageHeader from "@/components/ListPageHeader";
 import { useNetworkingContext } from "./types";
 
 const NoAdvertisedRoutesOverlay = () => (
@@ -441,34 +442,23 @@ export default function BGPTab() {
       </Box>
 
       <Box sx={{ mb: 4 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{
-            alignItems: { xs: "stretch", sm: "center" },
-            justifyContent: "space-between",
-            mb: 2,
-          }}
-        >
-          <Box>
-            <Typography variant="h5" sx={{ mb: 0.5 }}>
-              {peerRowCount === undefined ? "Peers" : `Peers (${peerRowCount})`}
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              Configured BGP neighbors. Changes are applied immediately.
-            </Typography>
-          </Box>
-          {canEdit && (
-            <Button
-              variant="contained"
-              color="success"
-              onClick={() => setCreatePeerOpen(true)}
-              sx={{ maxWidth: 200 }}
-            >
-              Create
-            </Button>
-          )}
-        </Stack>
+        <ListPageHeader
+          title="Peers"
+          count={peerRowCount}
+          description="Configured BGP neighbors. Changes are applied immediately."
+          variant="section"
+          action={
+            canEdit && (
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => setCreatePeerOpen(true)}
+              >
+                Create
+              </Button>
+            )
+          }
+        />
 
         <QueryState query={peersQuery} resource="BGP peers">
           {(data) => (
