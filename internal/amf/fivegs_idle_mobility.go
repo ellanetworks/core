@@ -70,12 +70,16 @@ func (a *AMF) EPSContext(ctx context.Context, req interworking.EPSContextRequest
 		return none, fmt.Errorf("%w: %w", interworking.ErrIntegrityCheckFailed, err)
 	}
 
+	sessions := ue.AllTransferableEPSSessions()
+	if len(sessions) == 0 && ue.State() == Registered {
+		return none, fmt.Errorf("%w: no PDU session of 5G-GUTI %s can become a PDN connection",
+			interworking.ErrNoTransferableSessions, presented.String())
+	}
+
 	security, err := ue.MapSecurityContextToEPSOnIdleMobility()
 	if err != nil {
 		return none, err
 	}
-
-	sessions := ue.AllTransferableEPSSessions()
 
 	logger.From(ctx, logger.AmfLog).Info("handing the UE's context to EPS for an idle-mode change",
 		logger.SUPI(ue.Supi().String()), zap.Int("pdu-sessions", len(sessions)))

@@ -79,14 +79,20 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	}
 
 	// No context was bound. A protected TRACKING AREA UPDATE the MME cannot resolve is
-	// rejected with EMM cause #9 so the UE re-attaches at once without waiting out T3430
-	// (TS 24.301 §5.5.3.2.5); any other message is dropped. The bare connection is
+	// rejected so the UE re-attaches at once without waiting out T3430 (TS 24.301
+	// §5.5.3.2.5), carrying the cause the NAS layer recorded for the connection or #9
+	// when it recorded none; any other message is dropped. The bare connection is
 	// released either way.
 	if isTrackingAreaUpdate(nas) {
+		cause := eps.EMMCauseUEIdentityCannotBeDerived
+		if c.TauRejectCause != nil {
+			cause = *c.TauRejectCause
+		}
+
 		metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
 		logger.From(ctx, logger.MmeLog).Info("Tracking Area Update rejected; UE will re-attach",
-			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)))
-		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: eps.EMMCauseUEIdentityCannotBeDerived})
+			zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)), zap.Stringer("cause", cause))
+		c.SendDownlinkMessage(ctx, &eps.TrackingAreaUpdateReject{Cause: cause})
 
 		m.ReleaseAnsweredBareConn(ctx, c, mme.CauseNASUnspecified)
 

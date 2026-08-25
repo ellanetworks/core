@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	ErrUnknownUEContext     = errors.New("interworking: the peer holds no context for this identity")
-	ErrIntegrityCheckFailed = errors.New("interworking: the peer could not verify the enclosed NAS message")
+	ErrUnknownUEContext       = errors.New("interworking: the peer holds no context for this identity")
+	ErrIntegrityCheckFailed   = errors.New("interworking: the peer could not verify the enclosed NAS message")
+	ErrNoTransferableSessions = errors.New("interworking: the peer holds no session the target system can adopt")
 )
 
 type MMContextRequest struct {

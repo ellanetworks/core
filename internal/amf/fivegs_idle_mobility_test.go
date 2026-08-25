@@ -532,3 +532,42 @@ func TestEPSContextReadsTheAmbrUnderTheLock(t *testing.T) {
 
 	wg.Wait()
 }
+
+// TS 29.274 §7.3.6
+func TestEPSContextRefusesARegisteredUEWithNoTransferableSession(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		strip func(*UeContext)
+	}{
+		{
+			name:  "the UE holds no PDU session",
+			strip: func(ue *UeContext) { ue.DeleteSmContext(3) },
+		},
+		{
+			name:  "the UE's only PDU session has no EPS bearer identity",
+			strip: func(ue *UeContext) { ue.SetEPSBearerIdentity(3, 0) },
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := idleMobilityAMF()
+			guti := idleMobilityGUTI(t)
+			ue := leavingUE(t, a, guti)
+
+			tc.strip(ue)
+
+			count, err := ue.ulCount.Estimate(0)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = a.EPSContext(context.Background(), mappedRequest(t, ue, guti, count))
+			if !errors.Is(err, interworking.ErrNoTransferableSessions) {
+				t.Fatalf("EPSContext returned %v, want a refusal the MME can answer with EMM cause #40", err)
+			}
+
+			if ue.State() != Registered {
+				t.Errorf("the refused UE is %s, want it still Registered in 5GS", ue.State())
+			}
+		})
+	}
+}
