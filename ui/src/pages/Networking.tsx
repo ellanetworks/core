@@ -44,7 +44,7 @@ export default function NetworkingPage() {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Typography variant="h4" sx={{ mb: 1 }}>
+      <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
         Networking
       </Typography>
       <Typography variant="body1" color="textSecondary" sx={{ mb: 2 }}>

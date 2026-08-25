@@ -51,17 +51,25 @@ export async function listSubscribers(
   authToken: string,
   page: number,
   perPage: number,
+  search?: string,
 ): Promise<ListSubscribersResponse> {
+  const params = new URLSearchParams({
+    page: String(page),
+    per_page: String(perPage),
+  });
+
+  if (search) params.set("search", search);
+
   return apiFetch<ListSubscribersResponse>(
-    `/api/v1/subscribers?page=${page}&per_page=${perPage}`,
+    `/api/v1/subscribers?${params.toString()}`,
     { authToken },
   );
 }
 
 // The API caps per_page at 100 (internal/api/server/api_subscribers.go), so the
 // roster is assembled here. Fetching it whole is only reasonable because
-// MaxNumSubscribers is 1000; a materially higher cap needs a search parameter
-// instead.
+// MaxNumSubscribers is 1000; a materially higher cap wants the search parameter
+// and an async autocomplete instead.
 const ROSTER_PER_PAGE = 100;
 
 /**

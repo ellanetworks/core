@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { useState, useMemo, useCallback } from "react";
-import { Box, Typography, Button, Chip } from "@mui/material";
+import { Box, Button, Chip } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -22,6 +22,7 @@ import CreateRouteModal from "@/components/CreateRouteModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
+import ListPageHeader from "@/components/ListPageHeader";
 import { useNetworkingContext } from "./types";
 
 export default function RoutesTab() {
@@ -134,24 +135,23 @@ export default function RoutesTab() {
 
   return (
     <Box sx={{ width: "100%", mt: 2 }}>
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
-          {knownCount === undefined ? "Routes" : `Routes (${knownCount})`}
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          {description}
-        </Typography>
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setCreateOpen(true)}
-            sx={{ maxWidth: 200, mt: 2 }}
-          >
-            Create
-          </Button>
-        )}
-      </Box>
+      <ListPageHeader
+        title="Routes"
+        count={knownCount}
+        description={description}
+        variant="section"
+        action={
+          canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => setCreateOpen(true)}
+            >
+              Create
+            </Button>
+          )
+        }
+      />
 
       <QueryState
         query={routesQuery}

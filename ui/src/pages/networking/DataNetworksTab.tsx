@@ -20,6 +20,7 @@ import {
 import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
+import ListPageHeader from "@/components/ListPageHeader";
 import { useNetworkingContext } from "./types";
 
 export default function DataNetworksTab() {
@@ -139,26 +140,23 @@ export default function DataNetworksTab() {
         mt: 2,
       }}
     >
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" sx={{ mb: 0.5 }}>
-          {knownCount === undefined
-            ? "Data Networks"
-            : `Data Networks (${knownCount})`}
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          {description}
-        </Typography>
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setCreateOpen(true)}
-            sx={{ maxWidth: 200, mt: 2 }}
-          >
-            Create
-          </Button>
-        )}
-      </Box>
+      <ListPageHeader
+        title="Data Networks"
+        count={knownCount}
+        description={description}
+        variant="section"
+        action={
+          canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => setCreateOpen(true)}
+            >
+              Create
+            </Button>
+          )
+        }
+      />
 
       <QueryState
         query={dataNetworksQuery}

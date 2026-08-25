@@ -2,14 +2,20 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
-import { Box, Typography, Button, Chip } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  Chip,
+  TextField,
+  InputAdornment,
+  IconButton,
+} from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
+import ClearIcon from "@mui/icons-material/Clear";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
-import {
-  GridColDef,
-  GridRenderCellParams,
-  GridPaginationModel,
-} from "@mui/x-data-grid";
+import { GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
 import { Link } from "react-router-dom";
 import {
@@ -23,16 +29,25 @@ import QueryState from "@/components/QueryState";
 import AccessChip from "@/components/AccessChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
+
+const MAX_SEARCH_LENGTH = 254;
+
+type SubscribersPage = ListSubscribersResponse & { search: string };
 
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const theme = useTheme();
   const canEdit = role === "Admin" || role === "Network Manager";
 
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
-    page: 0,
-    pageSize: 25,
+  const [searchInput, setSearchInput] = useState("");
+  const appliedSearch = useDebouncedValue(searchInput).trim();
+
+  const [paginationModel, setPaginationModel] = useFilteredPagination({
+    search: appliedSearch,
   });
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
@@ -42,9 +57,16 @@ const SubscriberPage: React.FC = () => {
   const perPage = paginationModel.pageSize;
 
   const subscribersQuery = useQuery({
-    queryKey: ["subscribers", pageOneBased, perPage],
-    queryFn: (): Promise<ListSubscribersResponse> =>
-      listSubscribers(accessToken || "", pageOneBased, perPage),
+    queryKey: ["subscribers", pageOneBased, perPage, appliedSearch],
+    queryFn: async (): Promise<SubscribersPage> => ({
+      ...(await listSubscribers(
+        accessToken || "",
+        pageOneBased,
+        perPage,
+        appliedSearch,
+      )),
+      search: appliedSearch,
+    }),
     enabled: authReady && !!accessToken,
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
@@ -233,35 +255,91 @@ const SubscriberPage: React.FC = () => {
 
   const knownCount = subscribersQuery.data?.total_count;
 
+  const [hasSubscribers, setHasSubscribers] = useState(false);
+
+  const unfilteredHasRows =
+    subscribersQuery.data?.search === ""
+      ? (subscribersQuery.data.total_count ?? 0) > 0
+      : null;
+
+  if (unfilteredHasRows !== null && unfilteredHasRows !== hasSubscribers) {
+    setHasSubscribers(unfilteredHasRows);
+  }
+
+  const showSearch = appliedSearch !== "" || hasSubscribers;
+
   return (
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Box sx={{ mb: 3, display: "flex", flexDirection: "column", gap: 2 }}>
-        <Typography variant="h4" component="h1">
-          {knownCount === undefined
-            ? "Subscribers"
-            : `Subscribers (${knownCount})`}
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          {descriptionText}
-        </Typography>
-        {canEdit && (
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => setCreateModalOpen(true)}
-            sx={{ maxWidth: 200 }}
-          >
-            Create
-          </Button>
-        )}
-      </Box>
+      <ListPageHeader
+        title="Subscribers"
+        count={knownCount}
+        description={descriptionText}
+        filters={
+          showSearch && (
+            <TextField
+              label="Search"
+              type="search"
+              placeholder="IMSI"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              size="small"
+              sx={{
+                minWidth: 260,
+                '& input[type="search"]::-webkit-search-cancel-button': {
+                  display: "none",
+                },
+              }}
+              slotProps={{
+                htmlInput: { maxLength: MAX_SEARCH_LENGTH },
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: searchInput ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="Clear search"
+                        size="small"
+                        edge="end"
+                        onClick={() => setSearchInput("")}
+                      >
+                        <ClearIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : null,
+                },
+              }}
+            />
+          )
+        }
+        action={
+          canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => setCreateModalOpen(true)}
+            >
+              Create
+            </Button>
+          )
+        }
+      />
 
       <QueryState
         query={subscribersQuery}
         resource="subscribers"
         isEmpty={(data) => (data.total_count ?? 0) === 0}
+        filtered={appliedSearch !== ""}
+        noResults={
+          <EmptyState
+            primaryText="No subscribers match your search"
+            secondaryText="Check the IMSI, or clear the search to see every subscriber."
+          />
+        }
         empty={
           <EmptyState
             primaryText="No subscribers yet"

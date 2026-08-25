@@ -11,7 +11,7 @@ export type ApiRequest = {
   body: unknown;
 };
 
-export type Resolver = (request: ApiRequest) => unknown;
+export type Resolver = (request: ApiRequest) => unknown | Promise<unknown>;
 
 export class ApiFailure {
   constructor(
@@ -163,7 +163,7 @@ export class ApiServer {
       );
     }
 
-    return respond(route.resolver(request));
+    return respond(await route.resolver(request));
   };
 }
 
