@@ -123,7 +123,6 @@ type TestCluster struct {
 	pki     *testutil.PKI
 	t       testing.TB
 	ctx     context.Context
-	cancel  context.CancelFunc
 	cleanup sync.Once
 }
 
@@ -151,13 +150,10 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 		nodeIDs[i] = i + 1
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	tc := &TestCluster{
-		pki:    testutil.GenTestPKI(t, nodeIDs),
-		t:      t,
-		ctx:    ctx,
-		cancel: cancel,
+		pki: testutil.GenTestPKI(t, nodeIDs),
+		t:   t,
+		ctx: t.Context(),
 	}
 
 	t.Cleanup(tc.Close)
@@ -420,10 +416,6 @@ func (tc *TestCluster) Close() {
 	tc.cleanup.Do(func() {
 		for i := range tc.nodes {
 			tc.StopNode(i)
-		}
-
-		if tc.cancel != nil {
-			tc.cancel()
 		}
 	})
 }
