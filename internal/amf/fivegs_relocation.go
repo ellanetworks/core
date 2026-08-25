@@ -333,12 +333,15 @@ func (a *AMF) abandonHandoverFromEPS(ctx context.Context, ue *UeContext, targetU
 }
 
 func (a *AMF) unwindHandoverFromEPS(ctx context.Context, ue *UeContext, targetUe *UeConn, cause ngap.Cause) handoverUnwind {
-	if unwound := a.unwindHandover(ue); unwound != handoverAbandoned {
+	delivery, unwound := a.claimHandoverUnwind(ue)
+	if unwound != handoverAbandoned {
 		return unwound
 	}
 
 	a.UnbindHandoverTarget(ctx, ue)
 	a.dropRelocationFromEPS(ctx, ue)
+
+	settleRelocation(delivery, relocationOutcome{err: ErrRelocationAbandoned})
 
 	if targetUe != nil {
 		targetUe.ReleaseAction = UeContextReleaseHandover

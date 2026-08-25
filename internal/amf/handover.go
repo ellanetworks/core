@@ -53,13 +53,26 @@ type relocationOutcome struct {
 var ErrRelocationAbandoned = errors.New("amf: handover preparation abandoned")
 
 func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
-	if ho == nil || ho.relocation == nil {
+	settleRelocation(takeRelocationLocked(ho), out)
+}
+
+func takeRelocationLocked(ho *handoverContext) chan relocationOutcome {
+	if ho == nil {
+		return nil
+	}
+
+	delivery := ho.relocation
+	ho.relocation = nil
+
+	return delivery
+}
+
+func settleRelocation(delivery chan relocationOutcome, out relocationOutcome) {
+	if delivery == nil {
 		return
 	}
 
-	ho.relocation <- out
-
-	ho.relocation = nil
+	delivery <- out
 }
 
 func (a *AMF) PrepareHandover(ctx context.Context, ue *UeContext, source *UeConn, targetRan *Radio, candidates []HandoverCandidate) (target *UeConn, nh [32]uint8, ncc uint8, ok bool) {
@@ -301,8 +314,15 @@ func (a *AMF) abandonHandover(ue *UeContext) bool {
 }
 
 func (a *AMF) unwindHandover(ue *UeContext) handoverUnwind {
+	delivery, unwound := a.claimHandoverUnwind(ue)
+	settleRelocation(delivery, relocationOutcome{err: ErrRelocationAbandoned})
+
+	return unwound
+}
+
+func (a *AMF) claimHandoverUnwind(ue *UeContext) (chan relocationOutcome, handoverUnwind) {
 	if ue == nil {
-		return handoverNotInProgress
+		return nil, handoverNotInProgress
 	}
 
 	a.mu.Lock()
@@ -312,13 +332,13 @@ func (a *AMF) unwindHandover(ue *UeContext) handoverUnwind {
 	switch {
 	case ho == nil:
 		a.mu.Unlock()
-		return handoverNotInProgress
+		return nil, handoverNotInProgress
 	case ho.state == hoCommitting:
 		a.mu.Unlock()
-		return handoverCommitting
+		return nil, handoverCommitting
 	}
 
-	deliverRelocationLocked(ho, relocationOutcome{err: ErrRelocationAbandoned})
+	delivery := takeRelocationLocked(ho)
 	detachAbandonedTargetLocked(ue, ho)
 	ue.handover = nil
 
@@ -326,7 +346,7 @@ func (a *AMF) unwindHandover(ue *UeContext) handoverUnwind {
 
 	ue.EndKeyChainProc(procedure.N2Handover)
 
-	return handoverAbandoned
+	return delivery, handoverAbandoned
 }
 
 // SetHandoverForTest installs a preparing handover FSM for a source→target pair without
