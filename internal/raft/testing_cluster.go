@@ -8,27 +8,87 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
-	"github.com/ellanetworks/core/internal/osutil"
+	"github.com/ellanetworks/core/internal/pki"
 	hraft "github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
+
+// peerGate is one node's view of which peers it can reach. A blocked peer
+// is dropped from this node's pin lookup, so the mTLS handshake fails in
+// both directions — the same rejection a node gets once its pin row is
+// deleted, and the closest a test can get to a partition without touching
+// the production dial and accept paths.
+type peerGate struct {
+	mu      sync.RWMutex
+	blocked map[int]struct{}
+}
+
+func newPeerGate() *peerGate {
+	return &peerGate{blocked: make(map[int]struct{})}
+}
+
+func (g *peerGate) block(nodeID int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.blocked[nodeID] = struct{}{}
+}
+
+func (g *peerGate) reset() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.blocked = make(map[int]struct{})
+}
+
+func (g *peerGate) reachable(nodeID int) bool {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	_, blocked := g.blocked[nodeID]
+
+	return !blocked
+}
+
+type testNode struct {
+	nodeID  int
+	addr    string
+	dataDir string
+	applier Applier
+	gate    *peerGate
+	mgr     *Manager
+	ln      *listener.Listener
+	running bool
+}
+
+// ClusterWiring registers cluster-port handlers for one node. The harness
+// runs it at setup and again after RestartNode, so the listener always
+// dispatches to the node's current Manager.
+type ClusterWiring func(idx int, m *Manager, ln *listener.Listener)
+
+type clusterWiring struct {
+	alpns   []string
+	install ClusterWiring
+}
 
 // TestCluster is a multi-node mTLS Raft cluster for HA unit tests.
 type TestCluster struct {
 	Nodes     []*Manager
 	Listeners []*listener.Listener
 	Appliers  []Applier
-	t         testing.TB
-	cancel    context.CancelFunc
-	cleanup   sync.Once
+
+	nodes   []*testNode
+	wirings []clusterWiring
+	pki     *testutil.PKI
+	t       testing.TB
+	ctx     context.Context
+	cancel  context.CancelFunc
+	cleanup sync.Once
 }
 
 // SetupTestCluster starts n Raft nodes over mTLS transports and bootstraps
@@ -55,132 +115,312 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 		nodeIDs[i] = i + 1
 	}
 
-	pki := testutil.GenTestPKI(t, nodeIDs)
-
-	type nodeInfo struct {
-		mgr *Manager
-		ln  *listener.Listener
-	}
-
-	nodes := make([]nodeInfo, 0, n)
-	appliers := make([]Applier, 0, n)
-
-	ports, releasePorts := reservePorts(t, n)
-
-	for i := range n {
-		nodeID := i + 1
-		a := newApplier()
-		appliers = append(appliers, a)
-
-		m, ln := createTestNode(t, nodeID, ports[i], pki, a)
-		nodes = append(nodes, nodeInfo{mgr: m, ln: ln})
-	}
-
-	// Start all cluster listeners so nodes can communicate.
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Free the reserved ports only now, immediately before the real bind, so
-	// the OS cannot hand the same ephemeral port to two nodes of this cluster.
-	releasePorts()
-
-	for _, ni := range nodes {
-		if err := ni.ln.Start(ctx); err != nil {
-			t.Fatalf("start cluster listener: %v", err)
-		}
-	}
-
-	// Bootstrap node 0 with the full server list.
-	servers := make([]hraft.Server, 0, n)
-
-	for _, ni := range nodes {
-		servers = append(servers, hraft.Server{
-			ID:      hraft.ServerID(fmt.Sprintf("%d", ni.mgr.nodeID)),
-			Address: ni.mgr.transport.LocalAddr(),
-		})
-	}
-
-	bootCfg := hraft.Configuration{Servers: servers}
-	if err := nodes[0].mgr.raft.BootstrapCluster(bootCfg).Error(); err != nil {
-		cancel()
-
-		for _, ni := range nodes {
-			_ = ni.mgr.Shutdown()
-			ni.ln.Stop()
-		}
-
-		t.Fatalf("bootstrap: %v", err)
-	}
-
-	// Wait for node 0 to become leader.
-	if err := waitForLeaderTest(t, nodes[0].mgr); err != nil {
-		cancel()
-
-		for _, ni := range nodes {
-			_ = ni.mgr.Shutdown()
-			ni.ln.Stop()
-		}
-
-		t.Fatalf("wait for leader: %v", err)
-	}
-
-	// Ensure the leader's configuration entry is replicated to all followers
-	// before returning. Without this, followers may not yet know the cluster
-	// membership and would never start elections if the leader is partitioned.
-	if err := nodes[0].mgr.raft.Barrier(5 * time.Second).Error(); err != nil {
-		cancel()
-
-		for _, ni := range nodes {
-			_ = ni.mgr.Shutdown()
-			ni.ln.Stop()
-		}
-
-		t.Fatalf("barrier: %v", err)
-	}
-
-	managers := make([]*Manager, 0, n)
-	listeners := make([]*listener.Listener, 0, n)
-
-	for _, ni := range nodes {
-		go ni.mgr.observer.Run(ni.mgr.raft)
-
-		managers = append(managers, ni.mgr)
-		listeners = append(listeners, ni.ln)
-	}
+	t.Cleanup(cancel)
 
 	tc := &TestCluster{
-		Nodes:     managers,
-		Listeners: listeners,
-		Appliers:  appliers,
-		t:         t,
-		cancel:    cancel,
+		pki:    testutil.GenTestPKI(t, nodeIDs),
+		t:      t,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	t.Cleanup(tc.Close)
 
+	ports, releasePorts := reservePorts(t, n)
+
+	for i := range n {
+		tc.nodes = append(tc.nodes, &testNode{
+			nodeID:  i + 1,
+			addr:    fmt.Sprintf("127.0.0.1:%d", ports[i]),
+			dataDir: t.TempDir(),
+			applier: newApplier(),
+			gate:    newPeerGate(),
+		})
+	}
+
+	for _, node := range tc.nodes {
+		tc.newListener(node)
+		tc.startNode(node)
+	}
+
+	releasePorts()
+
+	for _, node := range tc.nodes {
+		tc.startListener(node)
+	}
+
+	tc.refresh()
+
+	servers := make([]hraft.Server, 0, n)
+	for _, node := range tc.nodes {
+		servers = append(servers, hraft.Server{
+			ID:      hraft.ServerID(fmt.Sprintf("%d", node.nodeID)),
+			Address: node.mgr.transport.LocalAddr(),
+		})
+	}
+
+	if err := tc.nodes[0].mgr.raft.BootstrapCluster(hraft.Configuration{Servers: servers}).Error(); err != nil {
+		t.Fatalf("bootstrap: %v", err)
+	}
+
+	if err := waitForLeaderTest(t, tc.nodes[0].mgr); err != nil {
+		t.Fatalf("wait for leader: %v", err)
+	}
+
+	if err := tc.nodes[0].mgr.raft.Barrier(5 * time.Second).Error(); err != nil {
+		t.Fatalf("barrier: %v", err)
+	}
+
 	return tc
+}
+
+func (tc *TestCluster) startNode(node *testNode) {
+	tc.t.Helper()
+
+	cfg := ClusterConfig{
+		Enabled:            true,
+		NodeID:             node.nodeID,
+		BindAddress:        node.addr,
+		AdvertiseAddress:   node.addr,
+		HeartbeatTimeout:   50 * time.Millisecond,
+		ElectionTimeout:    50 * time.Millisecond,
+		LeaderLeaseTimeout: 50 * time.Millisecond,
+		CommitTimeout:      5 * time.Millisecond,
+		SnapshotInterval:   time.Second,
+		SnapshotThreshold:  100,
+		TrailingLogs:       100,
+
+		Autopilot: AutopilotConfig{
+			LastContactThreshold:    200 * time.Millisecond,
+			ServerStabilizationTime: 100 * time.Millisecond,
+			ReconcileInterval:       100 * time.Millisecond,
+			UpdateInterval:          50 * time.Millisecond,
+		},
+	}
+
+	m, err := NewManager(tc.ctx, cfg, node.applier, node.dataDir, WithClusterListener(node.ln))
+	if err != nil {
+		tc.t.Fatalf("create node %d: %v", node.nodeID, err)
+	}
+
+	node.mgr = m
+	node.running = true
+}
+
+func (tc *TestCluster) newListener(node *testNode) {
+	node.ln = listener.New(listener.Config{
+		BindAddress:      node.addr,
+		AdvertiseAddress: node.addr,
+		NodeID:           node.nodeID,
+		Pin:              tc.pinFunc(node),
+		Leaf:             tc.pki.LeafFunc(node.nodeID),
+	})
+}
+
+// pinFunc resolves fingerprints against the test PKI, minus the peers this
+// node's gate has blocked.
+func (tc *TestCluster) pinFunc(node *testNode) listener.PinFunc {
+	base := tc.pki.PinFunc()
+
+	return func(fingerprint string) listener.PinResult {
+		res := base(fingerprint)
+		if res.Found && !node.gate.reachable(res.NodeID) {
+			res.Found = false
+			res.NodeID = 0
+		}
+
+		return res
+	}
+}
+
+// WireHandlers installs fn on every running node now, and again on a node
+// after RestartNode. alpns names the protocols fn registers; StopNode
+// deregisters them, so a stopped node's still-bound cluster port stops
+// serving handlers that close over the Manager it just shut down.
+func (tc *TestCluster) WireHandlers(alpns []string, fn ClusterWiring) {
+	tc.t.Helper()
+
+	tc.wirings = append(tc.wirings, clusterWiring{alpns: alpns, install: fn})
+
+	for i, node := range tc.nodes {
+		if node.running {
+			fn(i, node.mgr, node.ln)
+		}
+	}
+}
+
+func (tc *TestCluster) startListener(node *testNode) {
+	tc.t.Helper()
+
+	if err := node.ln.Start(tc.ctx); err != nil {
+		tc.t.Fatalf("start cluster listener for node %d: %v", node.nodeID, err)
+	}
+}
+
+func (tc *TestCluster) refresh() {
+	tc.Nodes = tc.Nodes[:0]
+	tc.Listeners = tc.Listeners[:0]
+	tc.Appliers = tc.Appliers[:0]
+
+	for _, node := range tc.nodes {
+		tc.Nodes = append(tc.Nodes, node.mgr)
+		tc.Listeners = append(tc.Listeners, node.ln)
+		tc.Appliers = append(tc.Appliers, node.applier)
+	}
 }
 
 // Leader returns the current leader node, or nil if none.
 func (tc *TestCluster) Leader() *Manager {
-	for _, m := range tc.Nodes {
-		if m.IsLeader() {
-			return m
+	for _, node := range tc.nodes {
+		if node.running && node.mgr.IsLeader() {
+			return node.mgr
 		}
 	}
 
 	return nil
 }
 
-// WaitForConvergence polls until every node's AppliedIndex reaches at least
-// minIndex. Returns an error if the timeout expires first.
+func (tc *TestCluster) LeaderIndex() int {
+	for i, node := range tc.nodes {
+		if node.running && node.mgr.IsLeader() {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func (tc *TestCluster) WaitForLeader(timeout time.Duration) *Manager {
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		if m := tc.Leader(); m != nil {
+			return m
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	return nil
+}
+
+// StopNode shuts a node's Manager down. The listener stays bound so the
+// node keeps its port across a restart, but every handler wired to the
+// shut-down Manager is deregistered along with the Manager itself.
+func (tc *TestCluster) StopNode(idx int) {
+	tc.t.Helper()
+
+	node := tc.nodes[idx]
+	if !node.running {
+		return
+	}
+
+	if err := node.mgr.Shutdown(); err != nil && !errors.Is(err, hraft.ErrRaftShutdown) {
+		tc.t.Errorf("shutdown node %d: %v", node.nodeID, err)
+	}
+
+	for _, w := range tc.wirings {
+		for _, alpn := range w.alpns {
+			node.ln.Deregister(alpn)
+		}
+	}
+
+	node.running = false
+}
+
+func (tc *TestCluster) RestartNode(idx int) {
+	tc.t.Helper()
+
+	tc.StopNode(idx)
+	tc.startNode(tc.nodes[idx])
+	tc.refresh()
+
+	for _, w := range tc.wirings {
+		w.install(idx, tc.nodes[idx].mgr, tc.nodes[idx].ln)
+	}
+}
+
+func (tc *TestCluster) Partition(far []int) {
+	tc.t.Helper()
+
+	isFar := make(map[int]bool, len(far))
+	for _, idx := range far {
+		isFar[idx] = true
+	}
+
+	for i, a := range tc.nodes {
+		for j, b := range tc.nodes {
+			if i == j || isFar[i] == isFar[j] {
+				continue
+			}
+
+			a.gate.block(b.nodeID)
+		}
+	}
+
+	tc.dropPooledConnections()
+	tc.closeGatedConnections()
+}
+
+// closeGatedConnections tears down the mTLS sessions that span the
+// partition. A handshake that completed before the gate closed is never
+// re-verified, so those connections have to be closed the way a pin
+// removal closes them.
+func (tc *TestCluster) closeGatedConnections() {
+	for _, node := range tc.nodes {
+		for _, peer := range tc.nodes {
+			if peer.nodeID == node.nodeID || node.gate.reachable(peer.nodeID) {
+				continue
+			}
+
+			node.ln.CloseByPeerFingerprint(pki.Fingerprint(tc.pki.Nodes[peer.nodeID].Cert))
+		}
+	}
+}
+
+func (tc *TestCluster) dropPooledConnections() {
+	for _, node := range tc.nodes {
+		if !node.running {
+			continue
+		}
+
+		if nt, ok := node.mgr.transport.(*hraft.NetworkTransport); ok {
+			nt.CloseStreams()
+		}
+
+		if node.mgr.leaderClient != nil {
+			node.mgr.leaderClient.close()
+		}
+	}
+}
+
+func (tc *TestCluster) Isolate(idx int) {
+	tc.t.Helper()
+
+	tc.Partition([]int{idx})
+}
+
+func (tc *TestCluster) Heal() {
+	tc.t.Helper()
+
+	for _, node := range tc.nodes {
+		node.gate.reset()
+	}
+
+	tc.dropPooledConnections()
+}
+
+// WaitForConvergence polls until every running node's AppliedIndex reaches at
+// least minIndex. Returns an error if the timeout expires first.
 func (tc *TestCluster) WaitForConvergence(minIndex uint64, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
 		converged := true
 
-		for _, m := range tc.Nodes {
-			if m.AppliedIndex() < minIndex {
+		for _, node := range tc.nodes {
+			if node.running && node.mgr.AppliedIndex() < minIndex {
 				converged = false
 				break
 			}
@@ -199,126 +439,18 @@ func (tc *TestCluster) WaitForConvergence(minIndex uint64, timeout time.Duration
 // Close shuts down all nodes and listeners in the cluster.
 func (tc *TestCluster) Close() {
 	tc.cleanup.Do(func() {
-		for _, m := range tc.Nodes {
-			if err := m.Shutdown(); err != nil && !errors.Is(err, hraft.ErrRaftShutdown) {
-				tc.t.Errorf("shutdown node %d: %v", m.nodeID, err)
+		for i := range tc.nodes {
+			tc.StopNode(i)
+		}
+
+		for _, node := range tc.nodes {
+			if node.ln != nil {
+				node.ln.Stop()
 			}
 		}
 
-		for _, ln := range tc.Listeners {
-			ln.Stop()
-		}
-
-		if tc.cancel != nil {
-			tc.cancel()
-		}
+		tc.cancel()
 	})
-}
-
-func createTestNode(t testing.TB, nodeID, port int, pki *testutil.PKI, applier Applier) (*Manager, *listener.Listener) {
-	t.Helper()
-
-	dataDir := t.TempDir()
-
-	raftDir := filepath.Join(dataDir, "raft")
-	if err := os.MkdirAll(raftDir, 0o700); err != nil {
-		t.Fatalf("create raft directory for node %d: %v", nodeID, err)
-	}
-
-	fsm := NewFSM(applier, dataDir)
-
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-
-	ln := listener.New(listener.Config{
-		BindAddress:      addr,
-		AdvertiseAddress: addr,
-		NodeID:           nodeID,
-		Pin:              pki.PinFunc(),
-		Leaf:             pki.LeafFunc(nodeID),
-	})
-
-	sl, err := newRaftStreamLayer(ln, addr)
-	if err != nil {
-		t.Fatalf("create stream layer for node %d: %v", nodeID, err)
-	}
-
-	transport := hraft.NewNetworkTransport(sl, 3, 10*time.Second, newZapIOWriter("transport"))
-
-	cfg := hraft.DefaultConfig()
-	cfg.LocalID = hraft.ServerID(fmt.Sprintf("%d", nodeID))
-	cfg.Logger = newZapRaftLogger()
-	cfg.HeartbeatTimeout = 50 * time.Millisecond
-	cfg.ElectionTimeout = 50 * time.Millisecond
-	cfg.LeaderLeaseTimeout = 50 * time.Millisecond
-	cfg.CommitTimeout = 5 * time.Millisecond
-	cfg.TrailingLogs = 100
-	cfg.SnapshotThreshold = 100
-	cfg.SnapshotInterval = time.Second
-
-	boltPath := filepath.Join(raftDir, "raft.db")
-
-	var (
-		boltStore *raftboltdb.BoltStore
-		snapshots hraft.SnapshotStore
-	)
-
-	if err := osutil.WithTightUmask(func() error {
-		var bsErr error
-
-		boltStore, bsErr = raftboltdb.NewBoltStore(boltPath)
-		if bsErr != nil {
-			return fmt.Errorf("create bolt store for node %d: %w", nodeID, bsErr)
-		}
-
-		var ssErr error
-
-		snapshots, ssErr = hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
-		if ssErr != nil {
-			_ = boltStore.Close()
-			return fmt.Errorf("create snapshot store for node %d: %w", nodeID, ssErr)
-		}
-
-		return nil
-	}); err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	logCache, err := hraft.NewLogCache(raftLogCacheSize, boltStore)
-	if err != nil {
-		_ = boltStore.Close()
-
-		t.Fatalf("create log cache for node %d: %v", nodeID, err)
-	}
-
-	r, err := hraft.NewRaft(cfg, fsm, logCache, boltStore, snapshots, transport)
-	if err != nil {
-		_ = boltStore.Close()
-
-		t.Fatalf("create raft for node %d: %v", nodeID, err)
-	}
-
-	observer := NewLeaderObserver()
-
-	m := &Manager{
-		raft:      r,
-		fsm:       fsm,
-		transport: transport,
-		logStore:  boltStore,
-		snaps:     snapshots,
-		config:    ClusterConfig{Enabled: true, BindAddress: addr, AdvertiseAddress: addr},
-		nodeID:    nodeID,
-		dataDir:   dataDir,
-		observer:  observer,
-
-		leaderBarrier: make(chan struct{}),
-		shutdownCh:    make(chan struct{}),
-	}
-
-	observer.Register(leaderBarrierCallback{m: m})
-
-	m.attachClusterListener(ln)
-
-	return m, ln
 }
 
 func freePort(t testing.TB) int {

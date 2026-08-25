@@ -1392,6 +1392,15 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 	// can't reach a leader after step-down) are both acceptable;
 	// success would mean split-brain.
 	isolatedClient := clients[leaderIdx]
+
+	if err := waitForRoleLeft(ctx, isolatedClient, "Leader", 60*time.Second); err != nil {
+		t.Fatalf("isolated former leader did not step down: %v", err)
+	}
+
+	if _, err := isolatedClient.GetProfile(ctx, &client.GetProfileOptions{Name: "default"}); err != nil {
+		t.Fatalf("isolated node stopped serving reads of pre-partition data: %v", err)
+	}
+
 	writeCtx, writeCancel := context.WithTimeout(ctx, 30*time.Second)
 
 	err = isolatedClient.CreateSubscriber(writeCtx, &client.CreateSubscriberOptions{
@@ -1406,6 +1415,10 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("isolated former leader accepted a write while partitioned; split-brain regression")
+	}
+
+	if _, aliveErr := isolatedClient.GetProfile(ctx, &client.GetProfileOptions{Name: "default"}); aliveErr != nil {
+		t.Fatalf("isolated node stopped answering after the rejected write, so the rejection proves nothing: %v", aliveErr)
 	}
 
 	HALogf(t, "write on isolated former leader correctly rejected: %v", err)
@@ -1498,4 +1511,43 @@ func healClusterPort(ctx context.Context, dc *DockerClient, container string) er
 	}
 
 	return firstErr
+}
+
+func waitForRoleLeft(ctx context.Context, c *client.Client, role string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	var (
+		lastRole string
+		lastErr  error
+	)
+
+	for time.Now().Before(deadline) {
+		status, err := c.GetStatus(ctx)
+
+		switch {
+		case err != nil:
+			lastErr = err
+		case status.Cluster == nil:
+			lastErr = fmt.Errorf("status response carries no cluster section")
+		default:
+			lastErr = nil
+			lastRole = status.Cluster.Role
+
+			if lastRole != role {
+				return nil
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for role %q to change: %w", role, ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
+
+	if lastErr != nil {
+		return fmt.Errorf("node unreachable while waiting for role %q to change after %v: %w", role, timeout, lastErr)
+	}
+
+	return fmt.Errorf("node still reports role %q after %v", lastRole, timeout)
 }

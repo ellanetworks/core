@@ -75,21 +75,18 @@ func writeMiniError(w http.ResponseWriter, status int, msg string) {
 	_ = json.NewEncoder(w).Encode(ProposeForwardErrorBody{Message: msg})
 }
 
-// wireClusterProposeHandlers registers the mini propose handler on
-// every test-cluster node's listener.
+// wireClusterProposeHandlers registers the mini propose handler on every
+// test-cluster node's listener, and re-registers it after a restart so the
+// handler always serves the node's current Manager.
 func wireClusterProposeHandlers(t *testing.T, tc *TestCluster) {
 	t.Helper()
 
-	mux := func(m *Manager) http.Handler {
+	tc.WireHandlers([]string{listener.ALPNHTTP}, func(_ int, m *Manager, ln *listener.Listener) {
 		sm := http.NewServeMux()
 		sm.Handle("POST "+ProposeForwardPath, miniProposeHandler(m))
 
-		return sm
-	}
-
-	for i, m := range tc.Nodes {
-		startTestClusterHTTP(t, tc.Listeners[i], mux(m))
-	}
+		startTestClusterHTTP(t, ln, sm)
+	})
 }
 
 // TestForwardPropose_EndToEnd proves that proposing on a follower
