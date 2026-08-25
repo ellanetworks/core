@@ -38,6 +38,32 @@ func (amf *AMF) OperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	return amf.operatorInfoFrom(operator)
 }
 
+type OperatorConfig struct {
+	op   *db.Operator
+	info *OperatorInfo
+}
+
+func (amf *AMF) Operator(ctx context.Context) (OperatorConfig, error) {
+	ctx, span := tracer.Start(ctx, "amf/get_operator")
+	defer span.End()
+
+	operator, err := amf.DBInstance.GetOperator(ctx)
+	if err != nil {
+		return OperatorConfig{}, fmt.Errorf("failed to get operator: %w", err)
+	}
+
+	info, err := amf.operatorInfoFrom(operator)
+	if err != nil {
+		return OperatorConfig{}, err
+	}
+
+	return OperatorConfig{op: operator, info: info}, nil
+}
+
+func (o OperatorConfig) Info() *OperatorInfo {
+	return o.info
+}
+
 func (amf *AMF) operatorInfoFrom(operator *db.Operator) (*OperatorInfo, error) {
 	supportedTAIs, err := getSupportedTAIs(operator)
 	if err != nil {

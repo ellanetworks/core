@@ -33,7 +33,12 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	amfInstance.CommitGUTIRealloc(ue)
 
 	// Configuration update command delivers the operator network name (TS 24.501).
-	amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, false)
+	operator, err := amfInstance.Operator(ctx)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Error("cannot SendConfigurationUpdateCommand: failed to get operator", zap.Error(err))
+	} else {
+		amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, false, operator)
+	}
 
 	forPending := conn.RegistrationRequest.FOR
 
