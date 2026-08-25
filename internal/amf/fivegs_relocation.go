@@ -338,9 +338,6 @@ func (a *AMF) unwindHandoverFromEPS(ctx context.Context, ue *UeContext, targetUe
 		return unwound
 	}
 
-	// The arriving relocation unwinds itself the moment it sees the
-	// abandonment, and its unwind empties the same SM context list, so the
-	// source access tunnel is restored and the 5GS half released first.
 	a.UnbindHandoverTarget(ctx, ue)
 	a.dropRelocationFromEPS(ctx, ue)
 

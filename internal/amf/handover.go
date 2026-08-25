@@ -56,7 +56,6 @@ func deliverRelocationLocked(ho *handoverContext, out relocationOutcome) {
 	settleRelocation(takeRelocationLocked(ho), out)
 }
 
-// The caller holds a.mu.
 func takeRelocationLocked(ho *handoverContext) chan relocationOutcome {
 	if ho == nil {
 		return nil
@@ -68,8 +67,6 @@ func takeRelocationLocked(ho *handoverContext) chan relocationOutcome {
 	return delivery
 }
 
-// settleRelocation hands the outcome to the waiting relocation. The channel is
-// buffered for the single outcome a handover can produce, so this never blocks.
 func settleRelocation(delivery chan relocationOutcome, out relocationOutcome) {
 	if delivery == nil {
 		return
@@ -323,9 +320,6 @@ func (a *AMF) unwindHandover(ue *UeContext) handoverUnwind {
 	return unwound
 }
 
-// claimHandoverUnwind ends the handover FSM and hands the pending relocation
-// delivery back to the caller, so a caller with teardown of its own can finish
-// it before the waiting relocation observes the abandonment.
 func (a *AMF) claimHandoverUnwind(ue *UeContext) (chan relocationOutcome, handoverUnwind) {
 	if ue == nil {
 		return nil, handoverNotInProgress

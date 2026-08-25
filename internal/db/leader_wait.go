@@ -48,9 +48,6 @@ func (db *Database) WaitUntilReady(ctx context.Context) error {
 		}
 	}
 
-	// A node that restored from a snapshot holds the snapshot's state until the
-	// leader barrier clears, so a read taken before it misses every log entry
-	// the snapshot does not cover.
 	if err := db.WaitForFSMCatchUp(ctx); err != nil {
 		return fmt.Errorf("wait for the state machine to catch up: %w", err)
 	}
