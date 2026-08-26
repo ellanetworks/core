@@ -250,8 +250,6 @@ func TestT3592StopsOnReleaseComplete(t *testing.T) {
 		t.Fatalf("release complete: %v", err)
 	}
 
-	// Only the N1 leg stops T3592 (TS 24.501 §6.3.3.3); the context itself waits
-	// on the N2 leg as well.
 	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
 		t.Fatalf("N2 release response: %v", err)
 	}

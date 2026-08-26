@@ -50,10 +50,6 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 			}
 
 			if smContext != nil {
-				// The SMF discards the context only once the UE's RELEASE COMPLETE
-				// has landed as well, which may be either side of this response
-				// (TS 23.502 §4.3.4.2). Drop the AMF's reference on whichever leg
-				// it reports gone; until then the session is merely inactive.
 				removed, err := amfInstance.Session.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 				if err != nil {
 					logger.WithTrace(ctx, ueConn.Log).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))

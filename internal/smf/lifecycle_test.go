@@ -701,8 +701,6 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 		t.Fatal("expected session to be retained while T3592 is running")
 	}
 
-	// The gNB confirms the N2 leg; the SM context is still owed the UE's N1
-	// answer, so it stays in the pool (TS 23.502 §4.3.4.2 step 11).
 	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
 		t.Fatalf("N2 release response: %v", err)
 	}
@@ -778,6 +776,9 @@ func TestUpdateSmContextN2InfoPduResSetupFail_NotFound(t *testing.T) {
 // UpdateSmContextN2InfoPduResRelRsp tests
 // ===========================
 
+// TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate verifies the SM context
+// survives the N2 leg and is discarded only once the N1 leg answers too
+// (TS 23.502 §4.3.4.2 step 11).
 func TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -796,9 +797,6 @@ func TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
 
-	// The N2 leg alone does not end the procedure: the UE still owes a RELEASE
-	// COMPLETE, and discarding the context here would strand it
-	// (TS 23.502 §4.3.4.2 step 11).
 	if removed {
 		t.Error("N2 release response reported removal before the N1 leg answered")
 	}
@@ -1331,7 +1329,6 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 		t.Fatal("expected session to be retained until the N1 leg answers")
 	}
 
-	// reconcile drives the release with PTI 0 (network-requested).
 	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, 0)); err != nil {
 		t.Fatalf("release complete: %v", err)
 	}
