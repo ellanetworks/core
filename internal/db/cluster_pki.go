@@ -139,7 +139,6 @@ type redeemJoinTokenPayload struct {
 	NodeID      int    `json:"node_id"`
 	Fingerprint string `json:"fingerprint"`
 	CertPEM     string `json:"cert_pem"`
-	Now         int64  `json:"now"`
 }
 
 type RedeemJoinTokenResult struct {
@@ -148,6 +147,7 @@ type RedeemJoinTokenResult struct {
 
 func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinTokenPayload) (any, error) {
 	runner := db.runner(ctx)
+	now := time.Now().Unix()
 
 	token := ClusterJoinToken{ID: p.TokenID}
 	if err := runner.Query(ctx, db.getJoinTokenStmt, token).Get(&token); err != nil {
@@ -162,7 +162,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		return nil, ErrJoinTokenNodeMismatch
 	}
 
-	if token.ExpiresAt <= p.Now {
+	if token.ExpiresAt <= now {
 		return nil, ErrJoinTokenExpired
 	}
 
@@ -183,7 +183,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		return db.pinSnapshot(ctx, runner)
 	}
 
-	token.ConsumedAt = p.Now
+	token.ConsumedAt = now
 	token.ConsumedBy = p.NodeID
 
 	var outcome sqlair.Outcome
@@ -204,7 +204,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		NodeID:      p.NodeID,
 		Fingerprint: p.Fingerprint,
 		CertPEM:     p.CertPEM,
-		AddedAt:     p.Now,
+		AddedAt:     now,
 	}
 	if err := runner.Query(ctx, db.upsertNodeCertStmt, cert).Run(); err != nil {
 		return nil, fmt.Errorf("upsert node cert: %w", err)
@@ -335,14 +335,13 @@ func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 		NodeID:      nodeID,
 		Fingerprint: fingerprint,
 		CertPEM:     certPEM,
-		Now:         time.Now().Unix(),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if res == nil {
-		return nil, nil
+	if res == nil || len(res.Pins) == 0 {
+		return nil, fmt.Errorf("redeem returned an empty pin snapshot")
 	}
 
 	return res.Pins, nil

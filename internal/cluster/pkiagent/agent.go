@@ -236,7 +236,7 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 		a.ClusterID = claims.ClusterID
 	}
 
-	certPEM, keyPEM, cert, err := a.ensureJoinCert()
+	certPEM, keyPEM, cert, err := a.ensureJoinCert(claims.ClusterID)
 	if err != nil {
 		return fmt.Errorf("prepare cert: %w", err)
 	}
@@ -261,16 +261,10 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 	return nil
 }
 
-func (a *Agent) ensureJoinCert() (certPEM, keyPEM []byte, cert *x509.Certificate, err error) {
-	certPEM, err = os.ReadFile(a.path(joinCertFile)) // #nosec G304 -- under dataDir
-	if err == nil {
-		keyPEM, err = os.ReadFile(a.path(joinKeyFile)) // #nosec G304 -- under dataDir
-		if err == nil {
-			cert, err = pki.ParseCertPEM(certPEM)
-			if err == nil {
-				return certPEM, keyPEM, cert, nil
-			}
-		}
+func (a *Agent) ensureJoinCert(clusterID string) (certPEM, keyPEM []byte, cert *x509.Certificate, err error) {
+	certPEM, keyPEM, cert = a.loadJoinCert(clusterID)
+	if cert != nil {
+		return certPEM, keyPEM, cert, nil
 	}
 
 	certPEM, keyPEM, cert, err = a.prepareNewCert()
@@ -291,6 +285,38 @@ func (a *Agent) ensureJoinCert() (certPEM, keyPEM []byte, cert *x509.Certificate
 	}
 
 	return certPEM, keyPEM, cert, nil
+}
+
+func (a *Agent) loadJoinCert(clusterID string) (certPEM, keyPEM []byte, cert *x509.Certificate) {
+	certPEM, err := os.ReadFile(a.path(joinCertFile)) // #nosec G304 -- under dataDir
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	keyPEM, err = os.ReadFile(a.path(joinKeyFile)) // #nosec G304 -- under dataDir
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	cert, err = pki.ParseCertPEM(certPEM)
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	certClusterID, certNodeID, err := pki.IdentityFromCert(cert)
+	if err != nil || certClusterID != clusterID || certNodeID != a.NodeID {
+		logger.EllaLog.Info("discarding pending join cert with a stale identity",
+			zap.String("want_cluster", clusterID), zap.Int("want_node", a.NodeID),
+			zap.String("got_cluster", certClusterID), zap.Int("got_node", certNodeID))
+
+		return nil, nil, nil
+	}
+
+	if _, err := tls.X509KeyPair(certPEM, keyPEM); err != nil {
+		return nil, nil, nil
+	}
+
+	return certPEM, keyPEM, cert
 }
 
 func (a *Agent) discardJoinCert() {

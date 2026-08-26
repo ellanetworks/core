@@ -242,3 +242,57 @@ func mintTestJoinToken(t *testing.T, nodeID int, clusterID, leaderPin string) st
 
 	return token
 }
+
+func TestAgent_JoinFlow_DiscardsIdentityFromAnotherCluster(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	leader := newAgent(t, 1, "cluster-b")
+
+	pinFn := func(fp string) listener.PinResult {
+		return listener.PinResult{Found: fp == pki.Fingerprint(leader.Leaf().Leaf), NodeID: leader.NodeID}
+	}
+
+	_, leaderAddr := startListener(ctx, t, leader, pinFn, func(ln *listener.Listener) {
+		ln.Register(listener.ALPNPKIBootstrap, alwaysFailRegisterHandler())
+	})
+
+	joiner := pkiagent.NewAgent(2, "", t.TempDir())
+	joinCert := filepath.Join(joiner.DataDir, "cluster-tls", "join.crt")
+
+	tokenA := mintTestJoinToken(t, 2, "cluster-a", pki.Fingerprint(leader.Leaf().Leaf))
+	if err := joiner.JoinFlow(ctx, leaderAddr, tokenA); err == nil {
+		t.Fatal("JoinFlow should have failed; leader returns 500")
+	}
+
+	stale, err := os.ReadFile(joinCert)
+	if err != nil {
+		t.Fatalf("read join.crt: %v", err)
+	}
+
+	joiner.ClusterID = ""
+
+	tokenB := mintTestJoinToken(t, 2, "cluster-b", pki.Fingerprint(leader.Leaf().Leaf))
+	if err := joiner.JoinFlow(ctx, leaderAddr, tokenB); err == nil {
+		t.Fatal("JoinFlow should have failed; leader returns 500")
+	}
+
+	fresh, err := os.ReadFile(joinCert)
+	if err != nil {
+		t.Fatalf("read join.crt after cluster change: %v", err)
+	}
+
+	if bytes.Equal(stale, fresh) {
+		t.Fatal("kept an identity minted for another cluster; every retry would be rejected")
+	}
+
+	cert, err := pki.ParseCertPEM(fresh)
+	if err != nil {
+		t.Fatalf("parse regenerated join.crt: %v", err)
+	}
+
+	clusterID, _, err := pki.IdentityFromCert(cert)
+	if err != nil || clusterID != "cluster-b" {
+		t.Fatalf("regenerated cert is for %q, want cluster-b (err=%v)", clusterID, err)
+	}
+}

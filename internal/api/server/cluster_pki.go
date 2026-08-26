@@ -26,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
+	hraft "github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
 
@@ -74,7 +75,7 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 
 			fp, pins, err = svc.RegisterCert(r.Context(), req.NodeID, []byte(req.CertPEM))
 			if err != nil {
-				writeError(r.Context(), w, http.StatusBadRequest, "register cert", err, logger.APILog)
+				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusBadRequest), "register cert", err, logger.APILog)
 				return
 			}
 
@@ -88,13 +89,7 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 
 			fp, pins, err = svc.RedeemJoinToken(r.Context(), req.Token, req.NodeID, []byte(req.CertPEM))
 			if err != nil {
-				status := http.StatusUnauthorized
-				if errors.Is(err, db.ErrMigrationPending) {
-					status = http.StatusServiceUnavailable
-				}
-
-				writeError(r.Context(), w, status, "redeem join token", err, logger.APILog)
-
+				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusUnauthorized), "redeem join token", err, logger.APILog)
 				return
 			}
 		}
@@ -111,6 +106,22 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 			Pins:        records,
 		})
 	})
+}
+
+func clusterPKIStatus(err error, deny int) int {
+	switch {
+	case errors.Is(err, db.ErrMigrationPending),
+		errors.Is(err, db.ErrProposeTimeout),
+		errors.Is(err, db.ErrNotFound),
+		errors.Is(err, hraft.ErrNotLeader):
+		return http.StatusServiceUnavailable
+
+	case errors.Is(err, db.ErrOutcomeUnknown):
+		return http.StatusConflict
+
+	default:
+		return deny
+	}
 }
 
 // RegisterBootstrapALPN dispatches POST /cluster/pki/register on

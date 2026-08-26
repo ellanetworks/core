@@ -117,9 +117,37 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 		writeProposeForwardError(ctx, w, http.StatusServiceUnavailable,
 			"raft busy or shutting down", err)
 
+	case errors.Is(err, db.ErrMigrationPending):
+		writeProposeForwardCodedError(ctx, w, http.StatusServiceUnavailable,
+			"schema migration pending", ellaraft.ForwardCodeMigrationPend, err)
+
 	default:
+		if code := forwardCodeForDomainErr(err); code != "" {
+			writeProposeForwardCodedError(ctx, w, http.StatusConflict,
+				err.Error(), code, err)
+
+			return
+		}
+
 		writeProposeForwardError(ctx, w, http.StatusInternalServerError,
 			"apply failed", err)
+	}
+}
+
+func forwardCodeForDomainErr(err error) string {
+	switch {
+	case errors.Is(err, db.ErrJoinTokenAlreadyConsumed):
+		return ellaraft.ForwardCodeTokenConsumed
+	case errors.Is(err, db.ErrJoinTokenExpired):
+		return ellaraft.ForwardCodeTokenExpired
+	case errors.Is(err, db.ErrJoinTokenNodeMismatch):
+		return ellaraft.ForwardCodeTokenNodeMism
+	case errors.Is(err, db.ErrAlreadyExists):
+		return ellaraft.ForwardCodeAlreadyExists
+	case errors.Is(err, db.ErrNotFound):
+		return ellaraft.ForwardCodeNotFound
+	default:
+		return ""
 	}
 }
 

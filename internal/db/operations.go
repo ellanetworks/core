@@ -464,6 +464,25 @@ func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, app
 // forwardOperation POSTs to the leader's /cluster/internal/propose
 // endpoint. Transient errors (no leader, leadership changed) become
 // ErrProposeTimeout so the API maps them to 503.
+func sentinelForForwardCode(code string) error {
+	switch code {
+	case ellaraft.ForwardCodeTokenConsumed:
+		return ErrJoinTokenAlreadyConsumed
+	case ellaraft.ForwardCodeTokenExpired:
+		return ErrJoinTokenExpired
+	case ellaraft.ForwardCodeTokenNodeMism:
+		return ErrJoinTokenNodeMismatch
+	case ellaraft.ForwardCodeMigrationPend:
+		return ErrMigrationPending
+	case ellaraft.ForwardCodeAlreadyExists:
+		return ErrAlreadyExists
+	case ellaraft.ForwardCodeNotFound:
+		return ErrNotFound
+	default:
+		return nil
+	}
+}
+
 func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, hraft.ErrNotLeader
@@ -480,6 +499,10 @@ func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*e
 
 		if isTransientRaftErr(err) {
 			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
+		}
+
+		if sentinel := sentinelForForwardCode(ellaraft.ForwardErrorCode(err)); sentinel != nil {
+			return nil, fmt.Errorf("%w: %v", sentinel, err)
 		}
 
 		return nil, err

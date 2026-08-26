@@ -99,6 +99,10 @@ why an operation with no remaining Go caller must still stay registered.
 Lowering RequireSchema lets an operation apply against a schema that
 predates the columns it writes.
 
+Adding one is safe but ordered: a node running the new binary cannot
+forward a new operation to a leader that predates it, so the leader must
+be upgraded first.
+
 Add or amend the pinned entry deliberately, in the same change.`
 
 func TestChangesetOpRegistryIsPinned(t *testing.T) {
