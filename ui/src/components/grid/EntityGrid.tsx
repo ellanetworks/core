@@ -20,6 +20,7 @@ const PREFERRED_PAGE_SIZE = 25;
 export interface EntityGridProps<R extends GridValidRowModel> extends Omit<
   DataGridProps<R>,
   | "disableColumnMenu"
+  | "disableColumnSorting"
   | "disableRowSelectionOnClick"
   | "pageSizeOptions"
   | "autoHeight"
@@ -77,6 +78,7 @@ export default function EntityGrid<R extends GridValidRowModel>({
   pageSizeOptions,
   paginationModel,
   onPaginationModelChange,
+  paginationMode,
   density,
   sx,
   ...rest
@@ -109,6 +111,7 @@ export default function EntityGrid<R extends GridValidRowModel>({
         (variant === "embedded" || variant === "log" ? "compact" : undefined)
       }
       pageSizeOptions={options}
+      paginationMode={paginationMode}
       paginationModel={isControlled ? paginationModel : fallbackModel}
       onPaginationModelChange={
         isControlled
@@ -119,6 +122,7 @@ export default function EntityGrid<R extends GridValidRowModel>({
             }
       }
       disableColumnMenu
+      disableColumnSorting={paginationMode === "server"}
       disableRowSelectionOnClick
       sx={[
         variant === "embedded" ? embeddedSx : listSx,

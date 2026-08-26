@@ -94,7 +94,6 @@ export default function SlicesTab() {
               headerName: "Actions",
               type: "actions",
               width: 120,
-              sortable: false,
               disableColumnMenu: true,
               getActions: (p: { row: APISlice }) => [
                 <GridActionsCellItem

@@ -111,7 +111,6 @@ const ProfilesPage: React.FC = () => {
         description: "Radio access technologies this profile permits (4G / 5G)",
         flex: 0.6,
         minWidth: 110,
-        sortable: false,
         renderCell: (params: GridRenderCellParams<APIProfile>) => (
           <Box
             sx={{

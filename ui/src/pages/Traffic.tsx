@@ -60,12 +60,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { listAllSubscriberImsis } from "@/queries/subscribers";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Link,
-  useLocation,
-  useNavigate,
-  useSearchParams,
-} from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import EditUsageRetentionPolicyModal from "@/components/EditUsageRetentionPolicyModal";
 import EditFlowReportsRetentionPolicyModal from "@/components/EditFlowReportsRetentionPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -85,6 +80,7 @@ import IPProtocolChip from "@/components/IPProtocolChip";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { defaultDateRange } from "@/utils/dates";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import { useSearchParamState } from "@/hooks/useSearchParamState";
 
 const renderSubscriberLink = (params: any) => {
   const imsi = params.value as string;
@@ -164,7 +160,6 @@ const Traffic: React.FC = () => {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
 
   const currentTab = TAB_PATHS.includes(
     location.pathname as (typeof TAB_PATHS)[number],
@@ -174,17 +169,16 @@ const Traffic: React.FC = () => {
 
   const handleTabChange = useCallback(
     (_: React.SyntheticEvent, newValue: string) => {
-      navigate(newValue);
+      navigate({ pathname: newValue, search: location.search });
     },
-    [navigate],
+    [navigate, location.search],
   );
 
   const [{ startDate, endDate }, setDateRange] = useState(() =>
     defaultDateRange(),
   );
-  const [selectedSubscriber, setSelectedSubscriber] = useState(
-    () => searchParams.get("subscriber_id") || "",
-  );
+  const [selectedSubscriber, setSelectedSubscriber] =
+    useSearchParamState("subscriber_id");
   const { showSnackbar } = useSnackbar();
 
   const [usagePaginationModel, setUsagePaginationModel] = useFilteredPagination(
@@ -507,7 +501,6 @@ const Traffic: React.FC = () => {
         field: "action_icon",
         headerName: "",
         width: 48,
-        sortable: false,
         filterable: false,
         renderCell: (params) => {
           const action = (params.row as FlowReport).action;
@@ -547,7 +540,6 @@ const Traffic: React.FC = () => {
         field: "direction",
         headerName: "Direction",
         width: 110,
-        sortable: false,
         renderCell: (params) => {
           const dir = params.value as string;
           if (!dir) return null;
@@ -1315,7 +1307,6 @@ const Traffic: React.FC = () => {
                   rowCount={flowRowCount}
                   paginationModel={flowPaginationModel}
                   onPaginationModelChange={setFlowPaginationModel}
-                  disableColumnSorting
                   columnVisibilityModel={{}}
                   sx={flowGridSx}
                 />

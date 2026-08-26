@@ -140,7 +140,6 @@ const UserPage: React.FC = () => {
             rowCount={data.total_count ?? 0}
             paginationModel={paginationModel}
             onPaginationModelChange={setPaginationModel}
-            sortingMode="server"
           />
         )}
       </QueryState>

@@ -13,7 +13,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import { type GridColDef } from "@mui/x-data-grid";
@@ -35,6 +35,7 @@ import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { defaultDateRange } from "@/utils/dates";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import { useSearchParamState } from "@/hooks/useSearchParamState";
 
 const DATE_ERROR_ID = "audit-logs-date-range-error";
 
@@ -51,13 +52,8 @@ const AuditLog: React.FC = () => {
   const [{ startDate, endDate }, setDateRange] = useState(() =>
     defaultDateRange(),
   );
-  const [searchParams] = useSearchParams();
-  const [selectedUser, setSelectedUser] = useState(
-    () => searchParams.get("user") ?? "",
-  );
-  const [selectedAction, setSelectedAction] = useState(
-    () => searchParams.get("action") ?? "",
-  );
+  const [selectedUser, setSelectedUser] = useSearchParamState("user");
+  const [selectedAction, setSelectedAction] = useSearchParamState("action");
 
   const handleStartChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -138,7 +134,6 @@ const AuditLog: React.FC = () => {
         headerName: "Timestamp",
         flex: 0,
         width: 180,
-        sortable: false,
         valueFormatter: (value: string) =>
           formatDateTime(value, { seconds: true }),
       },
@@ -147,7 +142,6 @@ const AuditLog: React.FC = () => {
         headerName: "User",
         flex: 1,
         minWidth: 120,
-        sortable: false,
         renderCell: (params) => {
           const user = params.value as string;
           if (!user) return null;
@@ -189,21 +183,18 @@ const AuditLog: React.FC = () => {
         headerName: "Action",
         flex: 1,
         minWidth: 120,
-        sortable: false,
       },
       {
         field: "ip",
         headerName: "IP Address",
         flex: 1,
         minWidth: 130,
-        sortable: false,
       },
       {
         field: "details",
         headerName: "Details",
         flex: 2,
         minWidth: 150,
-        sortable: false,
         renderCell: (params) => {
           const text = params.value as string;
           return (

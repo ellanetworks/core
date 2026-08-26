@@ -248,7 +248,6 @@ const DataNetworkDetail: React.FC = () => {
       field: "actions",
       headerName: "Actions",
       width: 100,
-      sortable: false,
       renderCell: (params: GridRenderCellParams<APIIPAllocation>) => {
         if (params.row.type !== "static") return null;
 
