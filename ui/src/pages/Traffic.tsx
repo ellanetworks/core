@@ -837,7 +837,9 @@ const Traffic: React.FC = () => {
             gap: 2,
           }}
         >
-          <Typography variant="h4">Traffic</Typography>
+          <Typography variant="h4" component="h1">
+            Traffic
+          </Typography>
           <Typography variant="body1" color="textSecondary">
             Monitor network traffic — view aggregated data usage and individual
             flow records collected by the user plane.

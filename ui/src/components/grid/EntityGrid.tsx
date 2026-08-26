@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { useState } from "react";
+import { Box } from "@mui/material";
+import { visuallyHidden } from "@mui/utils";
 import {
   DataGrid,
   type DataGridProps,
@@ -58,6 +60,8 @@ const embeddedSx = {
   },
 };
 
+const rowLabel = (count: number) => (count === 1 ? "1 row" : `${count} rows`);
+
 const resolvePageSize = (
   defaultPageSize: number | undefined,
   options: number[],
@@ -79,6 +83,8 @@ export default function EntityGrid<R extends GridValidRowModel>({
   paginationModel,
   onPaginationModelChange,
   paginationMode,
+  rows,
+  rowCount,
   density,
   sx,
   ...rest
@@ -103,32 +109,41 @@ export default function EntityGrid<R extends GridValidRowModel>({
     }),
   );
 
+  const announced = paginationMode === "server" ? rowCount : rows?.length;
+
   return (
-    <DataGrid<R>
-      {...rest}
-      density={
-        density ??
-        (variant === "embedded" || variant === "log" ? "compact" : undefined)
-      }
-      pageSizeOptions={options}
-      paginationMode={paginationMode}
-      paginationModel={isControlled ? paginationModel : fallbackModel}
-      onPaginationModelChange={
-        isControlled
-          ? onPaginationModelChange
-          : (model, details) => {
-              setFallbackModel(model);
-              onPaginationModelChange?.(model, details);
-            }
-      }
-      disableColumnMenu
-      disableColumnSorting={paginationMode === "server"}
-      disableRowSelectionOnClick
-      sx={[
-        variant === "embedded" ? embeddedSx : listSx,
-        height !== undefined ? { height } : false,
-        ...(Array.isArray(sx) ? sx : [sx]),
-      ]}
-    />
+    <>
+      <Box component="output" sx={visuallyHidden}>
+        {announced === undefined ? "" : rowLabel(announced)}
+      </Box>
+      <DataGrid<R>
+        {...rest}
+        density={
+          density ??
+          (variant === "embedded" || variant === "log" ? "compact" : undefined)
+        }
+        rows={rows}
+        rowCount={rowCount}
+        pageSizeOptions={options}
+        paginationMode={paginationMode}
+        paginationModel={isControlled ? paginationModel : fallbackModel}
+        onPaginationModelChange={
+          isControlled
+            ? onPaginationModelChange
+            : (model, details) => {
+                setFallbackModel(model);
+                onPaginationModelChange?.(model, details);
+              }
+        }
+        disableColumnMenu
+        disableColumnSorting={paginationMode === "server"}
+        disableRowSelectionOnClick
+        sx={[
+          variant === "embedded" ? embeddedSx : listSx,
+          height !== undefined ? { height } : false,
+          ...(Array.isArray(sx) ? sx : [sx]),
+        ]}
+      />
+    </>
   );
 }

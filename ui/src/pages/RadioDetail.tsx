@@ -277,6 +277,7 @@ const RadioDetail: React.FC = () => {
       <Box sx={{ mb: 3 }}>
         <Typography
           variant="h4"
+          component="h1"
           sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
         >
           <Typography

@@ -218,7 +218,9 @@ const AuditLog: React.FC = () => {
           gap: 2,
         }}
       >
-        <Typography variant="h4">Audit Logs</Typography>
+        <Typography variant="h4" component="h1">
+          Audit Logs
+        </Typography>
 
         <Typography variant="body1" color="textSecondary">
           {descriptionText}

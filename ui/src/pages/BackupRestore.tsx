@@ -190,7 +190,9 @@ const BackupRestore = () => {
             gap: 2,
           }}
         >
-          <Typography variant="h4">Backup & Restore</Typography>
+          <Typography variant="h4" component="h1">
+            Backup & Restore
+          </Typography>
           <Typography variant="body1" color="textSecondary">
             {pageDescription}
           </Typography>

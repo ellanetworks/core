@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from "vitest";
 import { render, screen, act } from "@testing-library/react";
+import { useEffect } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { defaultDateRange } from "@/utils/dates";
 import { useDateRangeSearchParams } from "./useDateRangeSearchParams";
@@ -15,14 +16,16 @@ const Probe = () => {
     useDateRangeSearchParams();
   const location = useLocation();
 
-  setStart = (v) =>
-    handleStartChange({
-      target: { value: v },
-    } as React.ChangeEvent<HTMLInputElement>);
-  setEnd = (v) =>
-    handleEndChange({
-      target: { value: v },
-    } as React.ChangeEvent<HTMLInputElement>);
+  useEffect(() => {
+    setStart = (v) =>
+      handleStartChange({
+        target: { value: v },
+      } as React.ChangeEvent<HTMLInputElement>);
+    setEnd = (v) =>
+      handleEndChange({
+        target: { value: v },
+      } as React.ChangeEvent<HTMLInputElement>);
+  });
 
   return (
     <>

@@ -528,7 +528,7 @@ const ClusterPage: React.FC = () => {
           px: PAGE_PADDING_X,
         }}
       >
-        <Typography variant="h4" sx={{ mb: 2 }}>
+        <Typography variant="h4" component="h1" sx={{ mb: 2 }}>
           Cluster
         </Typography>
         <Paper sx={{ p: 3 }}>
@@ -547,7 +547,9 @@ const ClusterPage: React.FC = () => {
     >
       <Grid container spacing={2} sx={{ mb: 2, alignItems: "center" }}>
         <Grid size={{ xs: 12, md: 8 }}>
-          <Typography variant="h4">Cluster</Typography>
+          <Typography variant="h4" component="h1">
+            Cluster
+          </Typography>
           <Typography variant="body1" color="textSecondary">
             High-availability cluster members and health.
           </Typography>

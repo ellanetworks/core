@@ -569,7 +569,9 @@ export default function EventsTab() {
         }}
       >
         <Box>
-          <Typography variant="h4">Network Events</Typography>
+          <Typography variant="h4" component="h1">
+            Network Events
+          </Typography>
           <Typography variant="body1" color="textSecondary">
             {subDescription}
           </Typography>

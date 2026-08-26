@@ -46,3 +46,38 @@ describe("EntityGrid sorting", () => {
     expect(names()).toEqual(["charlie", "alice", "bob"]);
   });
 });
+
+describe("EntityGrid row-count announcement", () => {
+  it("announces the number of rows it holds", () => {
+    render(<EntityGrid rows={rows} columns={columns} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("3 rows");
+  });
+
+  it("announces the server-side total, not the visible page", () => {
+    render(
+      <EntityGrid
+        rows={rows}
+        columns={columns}
+        paginationMode="server"
+        rowCount={100}
+        paginationModel={{ page: 0, pageSize: 25 }}
+        onPaginationModelChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("100 rows");
+  });
+
+  it("keeps the count singular for one row", () => {
+    render(<EntityGrid rows={rows.slice(0, 1)} columns={columns} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("1 row");
+  });
+
+  it("announces an empty grid", () => {
+    render(<EntityGrid rows={[]} columns={columns} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("0 rows");
+  });
+});

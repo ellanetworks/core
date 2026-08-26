@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from "vitest";
 import { render, screen, act } from "@testing-library/react";
+import { useEffect } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { useSearchParamState } from "./useSearchParamState";
 
@@ -14,8 +15,10 @@ const Probe = () => {
   const [action, setActionParam] = useSearchParamState("action");
   const location = useLocation();
 
-  setUser = setUserParam;
-  setAction = setActionParam;
+  useEffect(() => {
+    setUser = setUserParam;
+    setAction = setActionParam;
+  });
 
   return (
     <>
