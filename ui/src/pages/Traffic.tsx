@@ -78,9 +78,9 @@ import {
 } from "@/utils/formatters";
 import IPProtocolChip from "@/components/IPProtocolChip";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-import { defaultDateRange } from "@/utils/dates";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
 
 const renderSubscriberLink = (params: any) => {
   const imsi = params.value as string;
@@ -174,9 +174,8 @@ const Traffic: React.FC = () => {
     [navigate, location.search],
   );
 
-  const [{ startDate, endDate }, setDateRange] = useState(() =>
-    defaultDateRange(),
-  );
+  const { startDate, endDate, handleStartChange, handleEndChange } =
+    useDateRangeSearchParams();
   const [selectedSubscriber, setSelectedSubscriber] =
     useSearchParamState("subscriber_id");
   const { showSnackbar } = useSnackbar();
@@ -773,12 +772,6 @@ const Traffic: React.FC = () => {
     },
     [topDestinationsPieData, directionFilter, appliedDestination],
   );
-
-  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setDateRange((prev) => ({ ...prev, startDate: e.target.value }));
-
-  const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setDateRange((prev) => ({ ...prev, endDate: e.target.value }));
 
   const handleConfirmClearUsage = async () => {
     if (!accessToken) return;

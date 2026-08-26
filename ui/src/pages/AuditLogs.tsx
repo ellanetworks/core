@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -33,9 +33,9 @@ import EmptyState from "@/components/EmptyState";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-import { defaultDateRange } from "@/utils/dates";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
 import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
 
 const DATE_ERROR_ID = "audit-logs-date-range-error";
 
@@ -49,23 +49,10 @@ const AuditLog: React.FC = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  const [{ startDate, endDate }, setDateRange] = useState(() =>
-    defaultDateRange(),
-  );
+  const { startDate, endDate, handleStartChange, handleEndChange } =
+    useDateRangeSearchParams();
   const [selectedUser, setSelectedUser] = useSearchParamState("user");
   const [selectedAction, setSelectedAction] = useSearchParamState("action");
-
-  const handleStartChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) =>
-      setDateRange((prev) => ({ ...prev, startDate: e.target.value })),
-    [],
-  );
-
-  const handleEndChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) =>
-      setDateRange((prev) => ({ ...prev, endDate: e.target.value })),
-    [],
-  );
 
   const descriptionText =
     "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
