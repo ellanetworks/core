@@ -212,9 +212,6 @@ func TestRedeemJoinToken_ConsumesAndPinsTogether(t *testing.T) {
 	}
 }
 
-// D-H7: a retry after the first attempt's outcome was lost must not
-// find the token burnt. The joining node re-presents the identity it
-// persisted before its first attempt, so the redemption replays.
 func TestRedeemJoinToken_SameNodeSameCertReplays(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()

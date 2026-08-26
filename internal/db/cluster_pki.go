@@ -142,8 +142,6 @@ type redeemJoinTokenPayload struct {
 	Now         int64  `json:"now"`
 }
 
-// RedeemJoinTokenResult is the post-commit pin snapshot returned to a
-// joining node so it can seed its local pin map.
 type RedeemJoinTokenResult struct {
 	Pins []ClusterNodeCert `json:"pins"`
 }
@@ -331,12 +329,6 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 	return err
 }
 
-// RedeemJoinToken consumes a join token and pins the joining node's
-// cert in one replicated apply, so a leadership change between the two
-// can never burn the token without registering the cert. A repeat
-// redemption by the same node presenting the same fingerprint is a
-// no-op that returns the current pin set, making the joiner's retry
-// loop safe. Any other repeat returns ErrJoinTokenAlreadyConsumed.
 func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID int, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
 	res, err := opRedeemJoinToken.Invoke(ctx, db, &redeemJoinTokenPayload{
 		TokenID:     tokenID,

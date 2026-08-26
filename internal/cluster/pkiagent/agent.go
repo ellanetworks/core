@@ -261,12 +261,6 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 	return nil
 }
 
-// ensureJoinCert returns the node's join identity, generating and
-// persisting it on first call and reloading the same keypair on every
-// later call. The identity must survive both a retry and a restart:
-// the leader pins the fingerprint it was shown when it consumed the
-// token, and only a node presenting that same fingerprint can replay
-// the redemption idempotently.
 func (a *Agent) ensureJoinCert() (certPEM, keyPEM []byte, cert *x509.Certificate, err error) {
 	certPEM, err = os.ReadFile(a.path(joinCertFile)) // #nosec G304 -- under dataDir
 	if err == nil {
@@ -452,9 +446,7 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 
 // bootstrapHTTPClient returns an HTTP client that dials the bootstrap
 // ALPN without a client cert and pins the server cert to any
-// fingerprint in expectedFingerprints. The join token carries every
-// voter's pin, so a joiner is not tied to the node that minted it and
-// can reach whichever node is leader when it retries.
+// fingerprint in expectedFingerprints.
 func bootstrapHTTPClient(expectedFingerprints []string) (*http.Client, error) {
 	raws := make([][]byte, 0, len(expectedFingerprints))
 

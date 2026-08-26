@@ -321,7 +321,6 @@ func TestService_MintAndVerifyJoinToken_RoundTrip(t *testing.T) {
 		t.Fatalf("redeem returned fp=%q pins=%d, want non-empty fp and 2 pins", fp, len(pins))
 	}
 
-	// Replay by a different node must be rejected.
 	otherPEM := nodeCertPEM(t, 6)
 	if _, _, err := svc.RedeemJoinToken(context.Background(), token, 6, otherPEM); err == nil {
 		t.Fatal("replay for a different node should be rejected")
@@ -359,9 +358,6 @@ func TestService_NotLeader_RejectsMutations(t *testing.T) {
 	}
 }
 
-// RegisterCert no longer gates on leadership: the pin upsert is a
-// replicated op that forwards to the leader on its own, so a rotation
-// that lands on a follower is completed rather than refused.
 func TestService_RegisterCert_WorksOnNonLeader(t *testing.T) {
 	store := newFakeStore("c")
 	store.leader = false
@@ -392,9 +388,6 @@ func TestService_Redeem_ReplayWithDifferentCertRejected(t *testing.T) {
 	}
 }
 
-// A joining node that retries after a leadership change presents the
-// same cert it persisted before its first attempt, so the redemption
-// replays as a no-op instead of reporting the token burnt.
 func TestService_Redeem_SameNodeSameCertIsIdempotent(t *testing.T) {
 	store := newFakeStore("c")
 	preregisterLeader(t, store, 1)

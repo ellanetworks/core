@@ -187,13 +187,6 @@ func (s *Service) pinsForToken(ctx context.Context, leaderNodeID int) (string, [
 	return "", nil, fmt.Errorf("leader node %d has no registered pin", leaderNodeID)
 }
 
-// RedeemJoinToken authenticates tokenStr, validates certPEM, and then
-// consumes the token and pins the cert in a single replicated apply.
-// Consumption can no longer commit without the pin that it authorises,
-// so a leadership change mid-join leaves the token usable rather than
-// burnt. A repeat redemption by the same node presenting the same cert
-// succeeds and returns the current pin set, making the joiner's retry
-// loop safe; any other repeat returns db.ErrJoinTokenAlreadyConsumed.
 func (s *Service) RedeemJoinToken(ctx context.Context, tokenStr string, nodeID int, certPEM []byte) (string, []db.ClusterNodeCert, error) {
 	hmacKey, err := s.store.GetClusterJoinHMACKey(ctx)
 	if err != nil {

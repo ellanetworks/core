@@ -5,8 +5,6 @@ package db
 
 import "testing"
 
-// Editing these maps is the deliberate act that adding, retiring or
-// renaming a replicated operation requires.
 var pinnedChangesetOps = map[string]int{
 	"AdvanceSubscriberSQN":             1,
 	"AllocateIPLease":                  12,

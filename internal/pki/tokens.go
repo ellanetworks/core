@@ -30,10 +30,6 @@ type JoinClaims struct {
 	ClusterPins   []string `json:"pins,omitempty"`
 }
 
-// PinSet returns every cert fingerprint the joining node may pin its
-// bootstrap handshake against. Tokens minted before ClusterPins
-// existed carry only the minting leader's pin, so the joiner falls
-// back to LeaderCertPin.
 func (c *JoinClaims) PinSet() []string {
 	if len(c.ClusterPins) > 0 {
 		return c.ClusterPins

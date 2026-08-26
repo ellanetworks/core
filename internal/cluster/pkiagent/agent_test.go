@@ -175,10 +175,6 @@ func alwaysFailRegisterHandler() listener.ConnHandler {
 	}
 }
 
-// A joining node must present the same identity on every attempt:
-// the leader pins the fingerprint it saw when it consumed the token,
-// and only a node re-presenting that fingerprint can replay the
-// redemption instead of finding the token burnt.
 func TestAgent_JoinFlow_ReusesIdentityAcrossRetries(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
