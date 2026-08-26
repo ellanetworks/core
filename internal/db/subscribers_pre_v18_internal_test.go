@@ -55,6 +55,8 @@ func newSubscriberDatabaseAtV17(t *testing.T) *Database {
 		t.Fatalf("prepare statements: %v", err)
 	}
 
+	RegisterMetrics(d)
+
 	return d
 }
 

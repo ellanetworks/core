@@ -704,6 +704,18 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		existing, err := dbInstance.GetSubscriber(r.Context(), imsi)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve subscriber", err, logger.APILog)
+
+			return
+		}
+
 		updated := &db.Subscriber{
 			Imsi:        imsi,
 			ProfileID:   profile.ID,
@@ -722,13 +734,16 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)
 
-		// PUT is a full replace, so the audit entry records what the
-		// description became, including its removal.
+		// PUT is a full replace, so the audit entry names the description
+		// only when this request changed it, including to nothing.
 		detail := "User updated subscriber: " + imsi
-		if description != "" {
-			detail += " (description: " + description + ")"
-		} else {
+
+		switch description {
+		case existing.Description:
+		case "":
 			detail += " (description cleared)"
+		default:
+			detail += " (description: " + description + ")"
 		}
 
 		logger.LogAuditEvent(r.Context(), UpdateSubscriberAction, email, getClientIP(r), detail)

@@ -22,7 +22,7 @@ This path returns the list of network subscribers, ordered by IMSI.
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 | `radio`    | query | str  |         |         | Filter by radio name. Returns only subscribers connected to the specified radio. |
 | `data_network` | query | str |     |         | Filter by data network name. Returns only subscribers whose profile reaches it. |
-| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. The value is matched literally, so `%` and `_` are not wildcards. |
+| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. The value is matched literally, so `%` and `_` are not wildcards. Case is ignored for ASCII letters only. |
 
 ### Sample Response
 
@@ -47,6 +47,8 @@ This path returns the list of network subscribers, ordered by IMSI.
     }
 }
 ```
+
+`description` is omitted from an item when that subscriber has no note.
 
 ## Create a Subscriber
 
@@ -147,6 +149,8 @@ None
   }
 }
 ```
+
+`description` is omitted when the subscriber has no note.
 
 ## Get Subscriber Credentials
 

@@ -764,6 +764,26 @@ func (db *Database) checkOpSchema(minSchema int) error {
 	return nil
 }
 
+// appliedSchemaAtLeast reports whether the applied schema has reached
+// minVersion, seeding the cache from schema_version when it is still cold.
+// Read paths use this to pick between statement variants; a read error
+// reports false, selecting the variant that compiles against either schema.
+func (db *Database) appliedSchemaAtLeast(ctx context.Context, minVersion int) bool {
+	applied := db.cachedAppliedSchema()
+	if applied == 0 {
+		v, err := db.CurrentSchemaVersion(ctx)
+		if err != nil {
+			return false
+		}
+
+		db.appliedSchemaCache.Store(int64(v))
+
+		applied = v
+	}
+
+	return applied >= minVersion
+}
+
 // assertAppliedSchema is the apply-time counterpart. Returns a plain
 // error so the FSM panic handler halts the node (matching the contract
 // for any other apply failure).

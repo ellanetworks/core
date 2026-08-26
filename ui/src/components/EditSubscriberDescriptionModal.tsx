@@ -12,7 +12,10 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
-import type { EditSubscriberFields } from "@/components/subscriberIdentity";
+import {
+  descriptionSchema,
+  type EditSubscriberFields,
+} from "@/components/subscriberIdentity";
 
 interface EditSubscriberDescriptionModalProps {
   open: boolean;
@@ -22,13 +25,7 @@ interface EditSubscriberDescriptionModalProps {
 }
 
 const schema = yup.object({
-  description: yup
-    .string()
-    .default("")
-    .max(
-      MAX_DESCRIPTION_LENGTH,
-      `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
-    ),
+  description: descriptionSchema,
 });
 
 type FormValues = yup.InferType<typeof schema>;

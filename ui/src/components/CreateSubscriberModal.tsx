@@ -27,6 +27,7 @@ import ProfileSelectField, {
   useProfileNames,
 } from "@/components/ProfileSelectField";
 import {
+  descriptionSchema,
   getMSINBounds,
   parseIMSIorMSIN,
   randomKey,
@@ -73,13 +74,7 @@ const schema = yup.object({
     )
     .required("Sequence Number is required."),
   profileName: yup.string().required("Profile is required."),
-  description: yup
-    .string()
-    .default("")
-    .max(
-      MAX_DESCRIPTION_LENGTH,
-      `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
-    ),
+  description: descriptionSchema,
   opc: yup
     .string()
     .default("")

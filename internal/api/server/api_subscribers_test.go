@@ -1805,6 +1805,51 @@ func TestSubscriberDescription(t *testing.T) {
 		}
 	})
 
+	t.Run("the audit entry names the description only when it changed", func(t *testing.T) {
+		auditDetails := func(imsi string) []string {
+			t.Helper()
+
+			_, auditResp, err := listAuditLogs(url, client, token, 1, 100)
+			if err != nil {
+				t.Fatalf("couldn't list audit logs: %s", err)
+			}
+
+			var details []string
+
+			for _, entry := range auditResp.Result.Items {
+				if entry.Action == "update_subscriber" && strings.Contains(entry.Details, imsi) {
+					details = append(details, entry.Details)
+				}
+			}
+
+			return details
+		}
+
+		before := len(auditDetails(plainIMSI))
+
+		// A profile-only update of a subscriber that never had a description.
+		code, resp, err := updateSubscriber(url, client, token, plainIMSI, &UpdateSubscriberParams{
+			ProfileName: TestProfileName,
+		})
+		if err != nil {
+			t.Fatalf("update: %s", err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("update: expected 200, got %d (%q)", code, resp.Error)
+		}
+
+		details := auditDetails(plainIMSI)
+		if len(details) != before+1 {
+			t.Fatalf("expected one new update_subscriber entry, got %d then %d", before, len(details))
+		}
+
+		latest := details[0]
+		if want := "User updated subscriber: " + plainIMSI; latest != want {
+			t.Fatalf("audit detail = %q, want %q", latest, want)
+		}
+	})
+
 	t.Run("the length cap counts characters, not bytes", func(t *testing.T) {
 		code, resp, err := updateSubscriber(url, client, token, plainIMSI, &UpdateSubscriberParams{
 			ProfileName: TestProfileName, Description: strings.Repeat("é", server.MaxDescriptionLength),

@@ -154,7 +154,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 	filterArgs := filters.args()
 
 	stmt := db.listSubscribersStmt
-	if db.cachedAppliedSchema() < subscriberDescriptionSchema {
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.listSubscribersPreV18Stmt
 	}
 
@@ -211,7 +211,7 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	var result NumItems
 
 	stmt := db.countSubscribersFilteredStmt
-	if db.cachedAppliedSchema() < subscriberDescriptionSchema {
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.countSubscribersFilteredPreV18Stmt
 	}
 
@@ -248,7 +248,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	row := Subscriber{Imsi: imsi}
 
 	stmt := db.getSubscriberStmt
-	if db.cachedAppliedSchema() < subscriberDescriptionSchema {
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
 		stmt = db.getSubscriberPreV18Stmt
 	}
 

@@ -331,4 +331,34 @@ describe("EditSubscriberDescriptionModal", () => {
     );
     expect(button(/^Update$/)).toBeDisabled();
   });
+
+  it("counts characters the way the API does", async () => {
+    const user = userEvent.setup();
+    seed();
+    renderDescription();
+
+    // 40 emoji are 40 runes to the API and 80 UTF-16 code units to JavaScript.
+    await user.click(textbox(/Description/));
+    await user.paste("🙂".repeat(40));
+    await user.tab();
+
+    await waitFor(() => expect(button(/^Update$/)).toBeEnabled());
+    expect(
+      screen.queryByText(
+        `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores surrounding whitespace the API would trim", async () => {
+    const user = userEvent.setup();
+    seed();
+    renderDescription();
+
+    await user.click(textbox(/Description/));
+    await user.paste(`  ${"x".repeat(MAX_DESCRIPTION_LENGTH)}  `);
+    await user.tab();
+
+    await waitFor(() => expect(button(/^Update$/)).toBeEnabled());
+  });
 });
