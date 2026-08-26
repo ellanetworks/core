@@ -23,70 +23,6 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-// TestAgent_Rotate_RollbackOnPOSTFailure asserts the rotation
-// invariant: when /cluster/pki/register returns a non-2xx, the
-// agent's live cert and on-disk material remain unchanged so the
-// next handshake still presents the previously-pinned cert.
-func TestAgent_Rotate_RollbackOnPOSTFailure(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	joiner := newAgent(t, 2, "rollback-cluster")
-	leader := newAgent(t, 1, "rollback-cluster")
-
-	pins := map[string]int{
-		pki.Fingerprint(joiner.Leaf().Leaf): joiner.NodeID,
-		pki.Fingerprint(leader.Leaf().Leaf): leader.NodeID,
-	}
-
-	pinFn := func(fp string) listener.PinResult {
-		nid, ok := pins[fp]
-		return listener.PinResult{Found: ok, NodeID: nid}
-	}
-
-	joinerLn, _ := startListener(ctx, t, joiner, pinFn, nil)
-
-	// Leader rejects every register attempt with 500. Rotate must
-	// roll back rather than commit a cert no peer can verify.
-	_, leaderAddr := startListener(ctx, t, leader, pinFn, func(ln *listener.Listener) {
-		ln.Register(listener.ALPNHTTP, alwaysFailRegisterHandler())
-	})
-
-	tmpDir := joiner.DataDir
-	certPath := filepath.Join(tmpDir, "cluster-tls", "leaf.crt")
-	keyPath := filepath.Join(tmpDir, "cluster-tls", "leaf.key")
-
-	beforeFP := pki.Fingerprint(joiner.Leaf().Leaf)
-
-	beforeCert, err := os.ReadFile(certPath)
-	if err != nil {
-		t.Fatalf("read leaf.crt: %v", err)
-	}
-
-	beforeKey, err := os.ReadFile(keyPath)
-	if err != nil {
-		t.Fatalf("read leaf.key: %v", err)
-	}
-
-	if err := joiner.Rotate(ctx, joinerLn, leaderAddr, leader.NodeID); err == nil {
-		t.Fatal("Rotate should have failed; leader returns 500")
-	}
-
-	if got := pki.Fingerprint(joiner.Leaf().Leaf); got != beforeFP {
-		t.Errorf("Leaf fingerprint changed after failed rotate: was %s, now %s", beforeFP, got)
-	}
-
-	afterCert, _ := os.ReadFile(certPath)
-	if !bytes.Equal(beforeCert, afterCert) {
-		t.Error("leaf.crt was modified after a failed rotation")
-	}
-
-	afterKey, _ := os.ReadFile(keyPath)
-	if !bytes.Equal(beforeKey, afterKey) {
-		t.Error("leaf.key was modified after a failed rotation")
-	}
-}
-
 // newAgent returns an Agent with an initial self-signed cluster
 // cert generated for nodeID/clusterID.
 func newAgent(t *testing.T, nodeID int, clusterID string) *pkiagent.Agent {
@@ -104,7 +40,7 @@ func newAgent(t *testing.T, nodeID int, clusterID string) *pkiagent.Agent {
 // (e.g. Register, which must precede Start) if given, and starts it, retrying on
 // a fresh port if another test grabbed the chosen one between selection and bind
 // (the probe-then-bind window is inherently racy). Stop is registered as cleanup.
-func startListener(ctx context.Context, t *testing.T, a *pkiagent.Agent, pinFn listener.PinFunc, setup func(*listener.Listener)) (*listener.Listener, string) {
+func startListener(ctx context.Context, t *testing.T, a *pkiagent.Agent, pinFn listener.PinFunc, setup func(*listener.Listener)) string {
 	t.Helper()
 
 	for attempt := 0; attempt < 20; attempt++ {
@@ -133,7 +69,7 @@ func startListener(ctx context.Context, t *testing.T, a *pkiagent.Agent, pinFn l
 		err = ln.Start(ctx)
 		if err == nil {
 			t.Cleanup(ln.Stop)
-			return ln, addr
+			return addr
 		}
 
 		if errors.Is(err, syscall.EADDRINUSE) {
@@ -145,7 +81,7 @@ func startListener(ctx context.Context, t *testing.T, a *pkiagent.Agent, pinFn l
 
 	t.Fatal("could not bind a free ephemeral port after 20 attempts")
 
-	return nil, ""
+	return ""
 }
 
 // alwaysFailRegisterHandler reads one HTTP request and writes a
@@ -185,7 +121,7 @@ func TestAgent_JoinFlow_ReusesIdentityAcrossRetries(t *testing.T) {
 		return listener.PinResult{Found: fp == pki.Fingerprint(leader.Leaf().Leaf), NodeID: leader.NodeID}
 	}
 
-	_, leaderAddr := startListener(ctx, t, leader, pinFn, func(ln *listener.Listener) {
+	leaderAddr := startListener(ctx, t, leader, pinFn, func(ln *listener.Listener) {
 		ln.Register(listener.ALPNPKIBootstrap, alwaysFailRegisterHandler())
 	})
 
@@ -253,7 +189,7 @@ func TestAgent_JoinFlow_DiscardsIdentityFromAnotherCluster(t *testing.T) {
 		return listener.PinResult{Found: fp == pki.Fingerprint(leader.Leaf().Leaf), NodeID: leader.NodeID}
 	}
 
-	_, leaderAddr := startListener(ctx, t, leader, pinFn, func(ln *listener.Listener) {
+	leaderAddr := startListener(ctx, t, leader, pinFn, func(ln *listener.Listener) {
 		ln.Register(listener.ALPNPKIBootstrap, alwaysFailRegisterHandler())
 	})
 

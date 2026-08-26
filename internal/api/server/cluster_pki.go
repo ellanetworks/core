@@ -3,9 +3,9 @@
 
 // Handlers for /cluster/pki/register on the cluster HTTP port.
 //
-// A joining node POSTs (cert, token) on the bootstrap ALPN. A node
-// rotating its cert POSTs (cert) over the regular mTLS ALPN; the
-// presenting cert's nodeID must match the new cert's URI nodeID
+// A joining node POSTs (cert, token) on the bootstrap ALPN. An
+// already-pinned node may POST (cert) over the regular mTLS ALPN;
+// the presenting cert's nodeID must match the new cert's URI nodeID
 // so a member cannot overwrite another member's pin.
 
 package server

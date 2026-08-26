@@ -6,9 +6,6 @@
 // persists it to disk, and POSTs the certificate (plus a join
 // token, on a fresh node) to the leader's /cluster/pki/register
 // endpoint so the leader replicates the pin to every voter.
-// Optional rotation re-runs the same generate-and-register flow;
-// the pre-rotation pin remains valid until the new one commits, so
-// rotation is safe to retry.
 package pkiagent
 
 import (
@@ -21,7 +18,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -328,33 +324,6 @@ func (a *Agent) discardJoinCert() {
 	}
 }
 
-// Rotate generates a fresh self-signed cert in memory, registers
-// its fingerprint with the leader over the existing mTLS cluster
-// listener, and only then installs it as the live cert. A failed
-// register leaves the previous cert in place; the next rotation
-// tick retries cleanly.
-func (a *Agent) Rotate(ctx context.Context, ln *listener.Listener, leaderAddr string, leaderID int) error {
-	certPEM, keyPEM, cert, err := a.prepareNewCert()
-	if err != nil {
-		return fmt.Errorf("prepare cert: %w", err)
-	}
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialTLSContext: dialFuncForListener(ln, leaderID),
-		},
-		Timeout: 30 * time.Second,
-	}
-
-	defer client.CloseIdleConnections()
-
-	if err := a.postRegister(ctx, client, "https://"+leaderAddr+"/cluster/pki/register", "", certPEM); err != nil {
-		return err
-	}
-
-	return a.installCert(certPEM, keyPEM, cert)
-}
-
 func (a *Agent) postRegister(ctx context.Context, client *http.Client, url, token string, certPEM []byte) error {
 	body, err := json.Marshal(RegisterRequest{
 		CertPEM:   string(certPEM),
@@ -519,12 +488,4 @@ func bootstrapHTTPClient(expectedFingerprints []string) (*http.Client, error) {
 			ResponseHeaderTimeout: 10 * time.Second,
 		},
 	}, nil
-}
-
-// dialFuncForListener wraps the listener's mTLS dialer so an
-// http.Client can use it for cluster-internal HTTP.
-func dialFuncForListener(ln *listener.Listener, peerID int) func(ctx context.Context, network, addr string) (net.Conn, error) {
-	return func(ctx context.Context, _, addr string) (net.Conn, error) {
-		return ln.Dial(ctx, addr, peerID, listener.ALPNHTTP, 10*time.Second)
-	}
 }

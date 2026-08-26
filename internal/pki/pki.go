@@ -35,9 +35,9 @@ const (
 	SpiffeTrustDomain = "cluster.ella"
 
 	// DefaultNodeCertTTL is the validity of a freshly generated
-	// self-signed cluster cert. 10 years outlives the binary's
-	// deployment lifecycle so the rotation worker, not expiry,
-	// drives cert turnover.
+	// self-signed cluster cert. Nothing enforces NotAfter: the
+	// listener authenticates by fingerprint pin, and a cert is
+	// retired by removing its pin.
 	DefaultNodeCertTTL = 10 * 365 * 24 * time.Hour
 )
 
