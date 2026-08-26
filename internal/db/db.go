@@ -54,16 +54,20 @@ type Database struct {
 	migrationCheckCh     chan struct{}
 	migrationCheckCancel context.CancelFunc
 
-	// Subscriber statements
-	listSubscribersStmt          *sqlair.Statement
-	countSubscribersStmt         *sqlair.Statement
-	countSubscribersFilteredStmt *sqlair.Statement
-	getSubscriberStmt            *sqlair.Statement
-	createSubscriberStmt         *sqlair.Statement
-	updateSubscriberProfileStmt  *sqlair.Statement
-	updateSubscriberSqnNumStmt   *sqlair.Statement
-	casSubscriberSqnNumStmt      *sqlair.Statement
-	deleteSubscriberStmt         *sqlair.Statement
+	// Subscriber statements. The PreV18 variants omit the description
+	// column for nodes whose schema has not reached v18 yet.
+	listSubscribersStmt                *sqlair.Statement
+	listSubscribersPreV18Stmt          *sqlair.Statement
+	countSubscribersStmt               *sqlair.Statement
+	countSubscribersFilteredStmt       *sqlair.Statement
+	countSubscribersFilteredPreV18Stmt *sqlair.Statement
+	getSubscriberStmt                  *sqlair.Statement
+	getSubscriberPreV18Stmt            *sqlair.Statement
+	createSubscriberStmt               *sqlair.Statement
+	updateSubscriberProfileStmt        *sqlair.Statement
+	updateSubscriberSqnNumStmt         *sqlair.Statement
+	casSubscriberSqnNumStmt            *sqlair.Statement
+	deleteSubscriberStmt               *sqlair.Statement
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
@@ -760,6 +764,26 @@ func (db *Database) checkOpSchema(minSchema int) error {
 	return nil
 }
 
+// appliedSchemaAtLeast reports whether the applied schema has reached
+// minVersion, seeding the cache from schema_version when it is still cold.
+// Read paths use this to pick between statement variants; a read error
+// reports false, selecting the variant that compiles against either schema.
+func (db *Database) appliedSchemaAtLeast(ctx context.Context, minVersion int) bool {
+	applied := db.cachedAppliedSchema()
+	if applied == 0 {
+		v, err := db.CurrentSchemaVersion(ctx)
+		if err != nil {
+			return false
+		}
+
+		db.appliedSchemaCache.Store(int64(v))
+
+		applied = v
+	}
+
+	return applied >= minVersion
+}
+
 // assertAppliedSchema is the apply-time counterpart. Returns a plain
 // error so the FSM panic handler halts the node (matching the contract
 // for any other apply failure).
@@ -1299,9 +1323,12 @@ func (db *Database) PrepareStatements() error {
 	stmts := []stmtDef{
 		// Subscribers
 		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, subscriberFilterArgs{}}},
+		{&db.listSubscribersPreV18Stmt, fmt.Sprintf(listSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, NumItems{}, subscriberFilterArgs{}}},
 		{&db.countSubscribersStmt, fmt.Sprintf(countSubscribersStmt, SubscribersTableName), []any{NumItems{}}},
 		{&db.countSubscribersFilteredStmt, fmt.Sprintf(countSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
+		{&db.countSubscribersFilteredPreV18Stmt, fmt.Sprintf(countSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
 		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.getSubscriberPreV18Stmt, fmt.Sprintf(getSubscriberPreV18Stmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},

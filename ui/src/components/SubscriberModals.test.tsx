@@ -7,7 +7,9 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer, httpError } from "@/test/apiServer";
 import CreateSubscriberModal from "./CreateSubscriberModal";
-import EditSubscriberModal from "./EditSubscriberModal";
+import EditSubscriberProfileModal from "./EditSubscriberProfileModal";
+import EditSubscriberDescriptionModal from "./EditSubscriberDescriptionModal";
+import { MAX_DESCRIPTION_LENGTH } from "@/queries/subscribers";
 
 const api = setupApiServer();
 
@@ -18,6 +20,7 @@ const OPERATOR = "/api/v1/operator";
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
 const field = (label: RegExp) => screen.getByLabelText(label);
+const textbox = (name: RegExp) => screen.getByRole("textbox", { name });
 
 const seed = ({ mcc = "001", mnc = "01" } = {}) => {
   api.get(OPERATOR, () => ({ id: { mcc, mnc } }));
@@ -142,35 +145,220 @@ describe("CreateSubscriberModal", () => {
     expect(body.profile_name).toBe("default");
     expect(body.sequenceNumber).toBe("000000000022");
   });
-});
 
-describe("EditSubscriberModal", () => {
-  it("locks the IMSI and submits the chosen profile", async () => {
+  it("posts the description the operator typed", async () => {
     const user = userEvent.setup();
     seed();
-    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
-    const onClose = vi.fn();
+    api.post(SUBSCRIBERS, () => ({}));
+    renderCreate();
+    await screen.findByText("00101");
 
+    await user.type(field(/IMSI/), "0123456789");
+    const generates = within(dialog()).getAllByRole("button", {
+      name: "Generate",
+    });
+    await user.click(generates[1]);
+    await user.type(textbox(/Description/), "Warehouse gate reader");
+
+    await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
+    await user.click(button(/^Create$/));
+
+    await waitFor(() => {
+      const body = api.lastRequest(SUBSCRIBERS)?.body as Record<
+        string,
+        unknown
+      >;
+      expect(body.description).toBe("Warehouse gate reader");
+    });
+  });
+
+  it("rejects a description longer than the API accepts", async () => {
+    const user = userEvent.setup();
+    seed();
+    renderCreate();
+    await screen.findByText("00101");
+
+    await user.click(textbox(/Description/));
+    await user.paste("x".repeat(MAX_DESCRIPTION_LENGTH + 1));
+    await user.tab();
+
+    await screen.findByText(
+      `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
+    );
+  });
+});
+
+const IMSI = "001010123456789";
+const PUT_PATH = `${SUBSCRIBERS}/${IMSI}`;
+
+const initialData = (description = "") => ({
+  imsi: IMSI,
+  profileName: "default",
+  description,
+});
+
+describe("EditSubscriberProfileModal", () => {
+  const renderProfile = (description = "") => {
+    const onClose = vi.fn();
     renderWithProviders(
-      <EditSubscriberModal
+      <EditSubscriberProfileModal
         open
         onClose={onClose}
         onSuccess={vi.fn()}
-        initialData={{ imsi: "001010123456789", profileName: "default" }}
+        initialData={initialData(description)}
       />,
       { auth: {} },
     );
+    return { onClose };
+  };
 
-    expect(field(/IMSI/)).toHaveValue("001010123456789");
-    expect(field(/IMSI/)).toBeDisabled();
+  it("edits the profile alone", async () => {
+    seed();
+    renderProfile();
+
+    expect(
+      await screen.findByRole("combobox", { name: /Profile/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: /Description/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("submits the chosen profile", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
+    const { onClose } = renderProfile();
 
     await user.click(await screen.findByRole("combobox", { name: /Profile/ }));
     await user.click(await screen.findByRole("option", { name: "premium" }));
     await user.click(button(/^Update$/));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(`${SUBSCRIBERS}/001010123456789`)?.body).toEqual({
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "premium",
+      description: "",
     });
+  });
+
+  it("carries the description through unchanged", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
+    const { onClose } = renderProfile("Warehouse gate reader");
+
+    await user.click(await screen.findByRole("combobox", { name: /Profile/ }));
+    await user.click(await screen.findByRole("option", { name: "premium" }));
+    await user.click(button(/^Update$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
+      profile_name: "premium",
+      description: "Warehouse gate reader",
+    });
+  });
+});
+
+describe("EditSubscriberDescriptionModal", () => {
+  const renderDescription = (description = "") => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <EditSubscriberDescriptionModal
+        open
+        onClose={onClose}
+        onSuccess={vi.fn()}
+        initialData={initialData(description)}
+      />,
+      { auth: {} },
+    );
+    return { onClose };
+  };
+
+  it("edits the description alone", async () => {
+    seed();
+    renderDescription("Warehouse gate reader");
+
+    expect(textbox(/Description/)).toHaveValue("Warehouse gate reader");
+    expect(
+      screen.queryByRole("combobox", { name: /Profile/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("submits the new description and carries the profile through unchanged", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
+    const { onClose } = renderDescription("Warehouse gate reader");
+
+    await user.clear(textbox(/Description/));
+    await user.type(textbox(/Description/), "Loading dock reader");
+    await user.click(button(/^Update$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
+      profile_name: "default",
+      description: "Loading dock reader",
+    });
+  });
+
+  it("removes the description when the operator empties the field", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
+    const { onClose } = renderDescription("Warehouse gate reader");
+
+    await user.clear(textbox(/Description/));
+    await user.click(button(/^Update$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
+      profile_name: "default",
+      description: "",
+    });
+  });
+
+  it("rejects a description longer than the API accepts", async () => {
+    const user = userEvent.setup();
+    seed();
+    renderDescription();
+
+    await user.click(textbox(/Description/));
+    await user.paste("x".repeat(MAX_DESCRIPTION_LENGTH + 1));
+    await user.tab();
+
+    await screen.findByText(
+      `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
+    );
+    expect(button(/^Update$/)).toBeDisabled();
+  });
+
+  it("counts characters the way the API does", async () => {
+    const user = userEvent.setup();
+    seed();
+    renderDescription();
+
+    // 40 emoji are 40 runes to the API and 80 UTF-16 code units to JavaScript.
+    await user.click(textbox(/Description/));
+    await user.paste("🙂".repeat(40));
+    await user.tab();
+
+    await waitFor(() => expect(button(/^Update$/)).toBeEnabled());
+    expect(
+      screen.queryByText(
+        `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores surrounding whitespace the API would trim", async () => {
+    const user = userEvent.setup();
+    seed();
+    renderDescription();
+
+    await user.click(textbox(/Description/));
+    await user.paste(`  ${"x".repeat(MAX_DESCRIPTION_LENGTH)}  `);
+    await user.tab();
+
+    await waitFor(() => expect(button(/^Update$/)).toBeEnabled());
   });
 });

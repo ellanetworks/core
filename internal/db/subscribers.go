@@ -22,32 +22,68 @@ import (
 
 const SubscribersTableName = "subscribers"
 
+// subscriberDescriptionSchema is the migration that adds subscribers.description.
+// It is post-baseline, so a cluster node reaches it through Raft some time after
+// the new binary starts; until then the column is absent and every statement
+// naming it fails to compile in SQLite. Reads pick a variant on
+// cachedAppliedSchema(); writes are gated by RequireSchema at op registration.
+const subscriberDescriptionSchema = 18
+
 const (
-	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
-	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description)"
+	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description WHERE imsi==$Subscriber.imsi"
 	editSubscriberSeqNumStmt  = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
 	casSubscriberSeqNumStmt   = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
 	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	countSubscribersStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
-const subscriberFilterClause = `
-    ($subscriberFilterArgs.search IS NULL OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\')
+const subscriberColumnsPreV18 = "&Subscriber.id, &Subscriber.imsi, &Subscriber.sequenceNumber, &Subscriber.permanentKey, &Subscriber.opc, &Subscriber.profileID"
+
+const (
+	getSubscriberStmt       = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	getSubscriberPreV18Stmt = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
+)
+
+const (
+	subscriberSearchClause = `
+    ($subscriberFilterArgs.search IS NULL
+     OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\'
+     OR description LIKE $subscriberFilterArgs.search ESCAPE '\')`
+
+	subscriberSearchClausePreV18 = `
+    ($subscriberFilterArgs.search IS NULL OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\')`
+
+	subscriberDataNetworkClause = `
     AND ($subscriberFilterArgs.data_network_id IS NULL
          OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))`
+)
 
-const listSubscribersFilteredStmt = `
+const (
+	listSubscribersFilteredStmt = `
   SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count
   FROM %s
-  WHERE` + subscriberFilterClause + `
+  WHERE` + subscriberSearchClause + subscriberDataNetworkClause + `
   ORDER BY imsi
   LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 
-const countSubscribersFilteredStmt = `
+	listSubscribersFilteredPreV18Stmt = `
+  SELECT ` + subscriberColumnsPreV18 + `, COUNT(*) OVER() AS &NumItems.count
+  FROM %s
+  WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause + `
+  ORDER BY imsi
+  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+
+	countSubscribersFilteredStmt = `
   SELECT COUNT(*) AS &NumItems.count
   FROM %s
-  WHERE` + subscriberFilterClause
+  WHERE` + subscriberSearchClause + subscriberDataNetworkClause
+
+	countSubscribersFilteredPreV18Stmt = `
+  SELECT COUNT(*) AS &NumItems.count
+  FROM %s
+  WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause
+)
 
 type Subscriber struct {
 	ID             string `db:"id"` // UUIDv7
@@ -56,6 +92,7 @@ type Subscriber struct {
 	PermanentKey   string `db:"permanentKey"`
 	Opc            string `db:"opc"`
 	ProfileID      string `db:"profileID"`
+	Description    string `db:"description"`
 }
 
 type SubscriberFilters struct {
@@ -116,7 +153,12 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 
 	filterArgs := filters.args()
 
-	err := db.conn().Query(ctx, db.listSubscribersStmt, args, filterArgs).GetAll(&subs, &counts)
+	stmt := db.listSubscribersStmt
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
+		stmt = db.listSubscribersPreV18Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -168,7 +210,12 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 
 	var result NumItems
 
-	if err := db.conn().Query(ctx, db.countSubscribersFilteredStmt, filterArgs).Get(&result); err != nil {
+	stmt := db.countSubscribersFilteredStmt
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
+		stmt = db.countSubscribersFilteredPreV18Stmt
+	}
+
+	if err := db.conn().Query(ctx, stmt, filterArgs).Get(&result); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
@@ -200,7 +247,12 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 	row := Subscriber{Imsi: imsi}
 
-	err := db.conn().Query(ctx, db.getSubscriberStmt, row).Get(&row)
+	stmt := db.getSubscriberStmt
+	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
+		stmt = db.getSubscriberPreV18Stmt
+	}
+
+	err := db.conn().Query(ctx, stmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
