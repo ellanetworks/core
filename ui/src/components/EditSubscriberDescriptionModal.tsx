@@ -73,7 +73,8 @@ const EditSubscriberDescriptionModal: React.FC<
         label="Description"
         helperText={`A note to identify this subscriber, up to ${MAX_DESCRIPTION_LENGTH} characters. Leave blank to remove it.`}
         multiline
-        minRows={2}
+        minRows={1}
+        maxRows={3}
         autoFocus
       />
     </FormDialog>

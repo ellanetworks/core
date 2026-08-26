@@ -284,6 +284,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         name="description"
         label="Description (optional)"
         helperText={`A note to identify this subscriber, up to ${MAX_DESCRIPTION_LENGTH} characters`}
+        multiline
+        minRows={1}
+        maxRows={3}
       />
 
       <FormControlLabel
