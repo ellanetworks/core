@@ -275,6 +275,10 @@ func TestUpdateSmContextN1Msg_ReleaseCompleteReportsRemoval(t *testing.T) {
 		t.Fatalf("release request failed: %v", err)
 	}
 
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+		t.Fatalf("N2 release response failed: %v", err)
+	}
+
 	rsp, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, pti))
 	if err != nil {
 		t.Fatalf("release complete failed: %v", err)

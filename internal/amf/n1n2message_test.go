@@ -131,7 +131,11 @@ func (f *fakeSmf) UpdateSmContextN2InfoPduResSetupRsp(context.Context, string, [
 func (f *fakeSmf) UpdateSmContextN2InfoPduResSetupFail(context.Context, string, []byte) error {
 	return nil
 }
-func (f *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(context.Context, string) error { return nil }
+
+func (f *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, string) ([]byte, error) {
 	return nil, nil
 }
@@ -163,6 +167,7 @@ func (f *fakeSmf) UpdateSmContextXnHandoverPathSwitchReq(context.Context, string
 func (f *fakeSmf) UpdateSmContextN2ModifyIndication(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil
 }
+
 func (f *fakeSmf) UpdateSmContextXnHandoverFailed(context.Context, string, []byte) error { return nil }
 
 func (f *fakeSmf) UpdateSmContextN2HandoverFailed(context.Context, string, []byte) error { return nil }

@@ -357,8 +357,8 @@ func (s *fakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ stri
 	return s.Error
 }
 
-func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
-	return s.Error
+func (s *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) (bool, error) {
+	return false, s.Error
 }
 
 func (s *fakeSmf) PrepareSmContextFromEPS(_ context.Context, _ etsi.SUPI, _, _ uint8, _ string, _ *models.Snssai) (string, []byte, error) {

@@ -77,7 +77,15 @@ type SMContext struct {
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
 
-	releasing                bool  // guarded by Mutex
+	releasing bool // guarded by Mutex
+
+	// n1Released and n2Released record which legs of the release procedure the
+	// peers have acknowledged. TS 23.502 §4.3.4.2 leaves their order undefined
+	// ("Steps 8-10 may happen before steps 6-7") and its step 11 holds the SM
+	// context until both have replied, so whichever arrives second tears down.
+	// Guarded by Mutex.
+	n1Released               bool
+	n2Released               bool
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
@@ -86,6 +94,13 @@ type SMContext struct {
 	pending *pendingTransfer
 
 	transferGuard guard.Guard
+}
+
+// releaseLegsComplete reports whether both peers have acknowledged the release
+// command, the condition TS 23.502 §4.3.4.2 step 11 places on discarding the SM
+// context. Caller must hold Mutex.
+func (smContext *SMContext) releaseLegsComplete() bool {
+	return smContext.n1Released && smContext.n2Released
 }
 
 // stopProcedureTimer stops the retransmission guard; safe to call when none is
