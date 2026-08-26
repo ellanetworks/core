@@ -106,9 +106,9 @@ const (
 	ForwardCodeNotFound       = "not_found"
 	ForwardCodeAlreadyExists  = "already_exists"
 	ForwardCodeMigrationPend  = "migration_pending"
-	ForwardCodeTokenConsumed  = "join_token_consumed"
-	ForwardCodeTokenExpired   = "join_token_expired"
-	ForwardCodeTokenNodeMism  = "join_token_node_mismatch"
+	ForwardCodeTokenConsumed  = "join_token_consumed"      // #nosec G101 -- response code, not a credential
+	ForwardCodeTokenExpired   = "join_token_expired"       // #nosec G101 -- response code, not a credential
+	ForwardCodeTokenNodeMism  = "join_token_node_mismatch" // #nosec G101 -- response code, not a credential
 )
 
 type ForwardCodedError struct {
