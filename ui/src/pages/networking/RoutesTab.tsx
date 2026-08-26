@@ -112,7 +112,6 @@ export default function RoutesTab() {
               headerName: "Actions",
               type: "actions",
               width: 100,
-              sortable: false,
               disableColumnMenu: true,
               getActions: (p: { row: APIRoute }) =>
                 p.row.source === "bgp"

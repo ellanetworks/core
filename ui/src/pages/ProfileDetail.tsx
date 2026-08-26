@@ -200,6 +200,7 @@ const ProfileDetail: React.FC = () => {
         <Box sx={{ flex: 1 }}>
           <Typography
             variant="h4"
+            component="h1"
             sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
           >
             <Typography

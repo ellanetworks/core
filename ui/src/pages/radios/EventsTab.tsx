@@ -393,7 +393,6 @@ export default function EventsTab() {
         headerName: "Timestamp",
         flex: 1,
         minWidth: 140,
-        sortable: false,
         filterable: false,
         renderCell: (p) => {
           const ts = p.row.timestamp;
@@ -405,7 +404,6 @@ export default function EventsTab() {
         headerName: "Radio",
         flex: 1,
         minWidth: 120,
-        sortable: false,
         filterable: false,
         renderCell: (p) => {
           const radioName = p.row.radio;
@@ -456,7 +454,6 @@ export default function EventsTab() {
         field: "protocol",
         headerName: "Protocol",
         width: 110,
-        sortable: false,
         filterable: false,
         renderCell: (p) => <ProtocolChip protocol={p.row.protocol} />,
       },
@@ -465,7 +462,6 @@ export default function EventsTab() {
         headerName: "Message Type",
         flex: 1,
         minWidth: 160,
-        sortable: false,
         filterable: false,
       },
       {
@@ -474,7 +470,6 @@ export default function EventsTab() {
         width: 110,
         align: "center",
         headerAlign: "center",
-        sortable: false,
         filterable: false,
         renderCell: (p) => <DirectionCell value={p.row.direction} />,
       },
@@ -574,7 +569,9 @@ export default function EventsTab() {
         }}
       >
         <Box>
-          <Typography variant="h4">Network Events</Typography>
+          <Typography variant="h4" component="h1">
+            Network Events
+          </Typography>
           <Typography variant="body1" color="textSecondary">
             {subDescription}
           </Typography>

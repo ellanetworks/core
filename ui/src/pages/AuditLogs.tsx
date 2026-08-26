@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -13,7 +13,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import { type GridColDef } from "@mui/x-data-grid";
@@ -33,8 +33,9 @@ import EmptyState from "@/components/EmptyState";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-import { defaultDateRange } from "@/utils/dates";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
+import { useSearchParamState } from "@/hooks/useSearchParamState";
+import { useDateRangeSearchParams } from "@/hooks/useDateRangeSearchParams";
 
 const DATE_ERROR_ID = "audit-logs-date-range-error";
 
@@ -48,28 +49,10 @@ const AuditLog: React.FC = () => {
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
 
-  const [{ startDate, endDate }, setDateRange] = useState(() =>
-    defaultDateRange(),
-  );
-  const [searchParams] = useSearchParams();
-  const [selectedUser, setSelectedUser] = useState(
-    () => searchParams.get("user") ?? "",
-  );
-  const [selectedAction, setSelectedAction] = useState(
-    () => searchParams.get("action") ?? "",
-  );
-
-  const handleStartChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) =>
-      setDateRange((prev) => ({ ...prev, startDate: e.target.value })),
-    [],
-  );
-
-  const handleEndChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) =>
-      setDateRange((prev) => ({ ...prev, endDate: e.target.value })),
-    [],
-  );
+  const { startDate, endDate, handleStartChange, handleEndChange } =
+    useDateRangeSearchParams();
+  const [selectedUser, setSelectedUser] = useSearchParamState("user");
+  const [selectedAction, setSelectedAction] = useSearchParamState("action");
 
   const descriptionText =
     "Review security-relevant actions performed in Ella Core. The audit log records who did what and when.";
@@ -138,7 +121,6 @@ const AuditLog: React.FC = () => {
         headerName: "Timestamp",
         flex: 0,
         width: 180,
-        sortable: false,
         valueFormatter: (value: string) =>
           formatDateTime(value, { seconds: true }),
       },
@@ -147,7 +129,6 @@ const AuditLog: React.FC = () => {
         headerName: "User",
         flex: 1,
         minWidth: 120,
-        sortable: false,
         renderCell: (params) => {
           const user = params.value as string;
           if (!user) return null;
@@ -189,21 +170,18 @@ const AuditLog: React.FC = () => {
         headerName: "Action",
         flex: 1,
         minWidth: 120,
-        sortable: false,
       },
       {
         field: "ip",
         headerName: "IP Address",
         flex: 1,
         minWidth: 130,
-        sortable: false,
       },
       {
         field: "details",
         headerName: "Details",
         flex: 2,
         minWidth: 150,
-        sortable: false,
         renderCell: (params) => {
           const text = params.value as string;
           return (
@@ -240,7 +218,9 @@ const AuditLog: React.FC = () => {
           gap: 2,
         }}
       >
-        <Typography variant="h4">Audit Logs</Typography>
+        <Typography variant="h4" component="h1">
+          Audit Logs
+        </Typography>
 
         <Typography variant="body1" color="textSecondary">
           {descriptionText}
