@@ -909,9 +909,11 @@ paths:
             type: string
             maxLength: 254
           description: |
-            Filter subscribers whose IMSI contains this substring. Matching is
-            case-insensitive and the value is treated as literal text, not a
-            pattern. Combines with the other filters.
+            Filter subscribers whose IMSI or description contains this
+            substring. The value is treated as literal text, not a pattern.
+            Matching ignores case for ASCII letters only, so `reception`
+            finds `Reception` but `réception` does not find `Réception`.
+            Combines with the other filters.
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -3869,6 +3871,10 @@ components:
         profile_name:
           type: string
           description: Name of the assigned profile.
+        description:
+          type: string
+          maxLength: 64
+          description: Free-text operator note. Absent when unset.
         radio:
           type: string
           description: Radio name the subscriber is connected through (empty if not connected).
@@ -3944,6 +3950,10 @@ components:
           type: string
         profile_name:
           type: string
+        description:
+          type: string
+          maxLength: 64
+          description: Free-text operator note. Absent when unset.
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
         sessions:
@@ -4050,6 +4060,10 @@ components:
         profile_name:
           type: string
           description: Name of an existing profile.
+        description:
+          type: string
+          maxLength: 64
+          description: "Free-text operator note. Surrounding whitespace is trimmed; omit or send an empty string to leave it unset."
 
     UpdateSubscriberParams:
       type: object
@@ -4058,6 +4072,10 @@ components:
         profile_name:
           type: string
           description: Name of an existing profile.
+        description:
+          type: string
+          maxLength: 64
+          description: "Free-text operator note. Surrounding whitespace is trimmed; the update is a full replace, so omitting it clears the stored value."
 
     # -- Subscriber Usage ------------------------------------------------
     SubscriberUsage:

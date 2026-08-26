@@ -10,10 +10,12 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// Subscribers
+// Subscribers. subscribers.description added in v18: an INSERT changeset
+// carries every column of the new row, and the profile update writes the
+// column outright.
 var (
-	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber)
-	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, AffectsTopic(TopicSessionReconcile))
+	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber, RequireSchema(18))
+	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, RequireSchema(18), AffectsTopic(TopicSessionReconcile))
 	opEditSubscriberSeqNum    = registerChangesetOp("EditSubscriberSeqNum", (*Database).applyEditSubscriberSeqNum)
 	opAdvanceSubscriberSQN    = registerChangesetOpReturning[AdvanceSQNPayload, *AdvancedCredentials]("AdvanceSubscriberSQN", (*Database).applyAdvanceSubscriberSQN)
 	opDeleteSubscriber        = registerChangesetOp("DeleteSubscriber", (*Database).applyDeleteSubscriber)

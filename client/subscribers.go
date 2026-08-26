@@ -17,10 +17,12 @@ type CreateSubscriberOptions struct {
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profile_name"`
 	OPc            string `json:"opc,omitempty"`
+	Description    string `json:"description,omitempty"`
 }
 
 type UpdateSubscriberOptions struct {
 	ProfileName string `json:"profile_name"`
+	Description string `json:"description,omitempty"`
 }
 
 type GetSubscriberOptions struct {
@@ -43,6 +45,7 @@ type SubscriberStatus struct {
 type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
+	Description string           `json:"description,omitempty"`
 	Radio       string           `json:"radio,omitempty"`
 	Status      SubscriberStatus `json:"status"`
 }
@@ -76,6 +79,7 @@ type SubscriberDetailStatus struct {
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
+	Description string                 `json:"description,omitempty"`
 	Status      SubscriberDetailStatus `json:"status"`
 	Sessions    []Session              `json:"sessions"`
 }
@@ -119,12 +123,14 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 		SequenceNumber string `json:"sequenceNumber"`
 		ProfileName    string `json:"profile_name"`
 		OPc            string `json:"opc,omitempty"`
+		Description    string `json:"description,omitempty"`
 	}{
 		Imsi:           opts.Imsi,
 		Key:            opts.Key,
 		SequenceNumber: opts.SequenceNumber,
 		ProfileName:    opts.ProfileName,
 		OPc:            opts.OPc,
+		Description:    opts.Description,
 	}
 
 	var body bytes.Buffer
@@ -167,13 +173,14 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 	return &subscriberResponse, nil
 }
 
-// UpdateSubscriber moves a subscriber to a different profile.
-// profile_name is the only settable field.
+// UpdateSubscriber replaces a subscriber's profile and description.
 func (c *Client) UpdateSubscriber(ctx context.Context, imsi string, opts *UpdateSubscriberOptions) error {
 	payload := struct {
 		ProfileName string `json:"profile_name"`
+		Description string `json:"description,omitempty"`
 	}{
 		ProfileName: opts.ProfileName,
+		Description: opts.Description,
 	}
 
 	var body bytes.Buffer
