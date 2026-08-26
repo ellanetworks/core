@@ -22,6 +22,8 @@ var (
 	ErrOutcomeUnknown           = ellaraft.ErrOutcomeUnknown
 	ErrMigrationPending         = errors.New("schema migration pending")
 	ErrJoinTokenAlreadyConsumed = errors.New("join token already consumed")
+	ErrJoinTokenNodeMismatch    = errors.New("join token is not registered to this node")
+	ErrJoinTokenExpired         = errors.New("join token expired")
 	ErrUnknownOperation         = errors.New("unknown forwarded operation")
 )
 

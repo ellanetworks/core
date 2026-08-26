@@ -38,6 +38,8 @@ import (
 const (
 	leafCertFile = "leaf.crt"
 	leafKeyFile  = "leaf.key"
+	joinCertFile = "join.crt"
+	joinKeyFile  = "join.key"
 	peerPinsFile = "peer-pins.json"
 )
 
@@ -217,8 +219,9 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 		return fmt.Errorf("parse join token: %w", err)
 	}
 
-	if claims.LeaderCertPin == "" {
-		return fmt.Errorf("join token has no leader cert pin")
+	pins := claims.PinSet()
+	if len(pins) == 0 {
+		return fmt.Errorf("join token has no cluster cert pins")
 	}
 
 	if claims.ClusterID == "" {
@@ -233,12 +236,12 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 		a.ClusterID = claims.ClusterID
 	}
 
-	certPEM, keyPEM, cert, err := a.prepareNewCert()
+	certPEM, keyPEM, cert, err := a.ensureJoinCert()
 	if err != nil {
 		return fmt.Errorf("prepare cert: %w", err)
 	}
 
-	client, err := bootstrapHTTPClient(claims.LeaderCertPin)
+	client, err := bootstrapHTTPClient(pins)
 	if err != nil {
 		return err
 	}
@@ -249,7 +252,60 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 		return err
 	}
 
-	return a.installCert(certPEM, keyPEM, cert)
+	if err := a.installCert(certPEM, keyPEM, cert); err != nil {
+		return err
+	}
+
+	a.discardJoinCert()
+
+	return nil
+}
+
+// ensureJoinCert returns the node's join identity, generating and
+// persisting it on first call and reloading the same keypair on every
+// later call. The identity must survive both a retry and a restart:
+// the leader pins the fingerprint it was shown when it consumed the
+// token, and only a node presenting that same fingerprint can replay
+// the redemption idempotently.
+func (a *Agent) ensureJoinCert() (certPEM, keyPEM []byte, cert *x509.Certificate, err error) {
+	certPEM, err = os.ReadFile(a.path(joinCertFile)) // #nosec G304 -- under dataDir
+	if err == nil {
+		keyPEM, err = os.ReadFile(a.path(joinKeyFile)) // #nosec G304 -- under dataDir
+		if err == nil {
+			cert, err = pki.ParseCertPEM(certPEM)
+			if err == nil {
+				return certPEM, keyPEM, cert, nil
+			}
+		}
+	}
+
+	certPEM, keyPEM, cert, err = a.prepareNewCert()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(a.path(joinCertFile)), 0o700); err != nil {
+		return nil, nil, nil, fmt.Errorf("mkdir cluster-tls: %w", err)
+	}
+
+	if err := atomicWrite(a.path(joinKeyFile), keyPEM, 0o600); err != nil {
+		return nil, nil, nil, err
+	}
+
+	if err := atomicWrite(a.path(joinCertFile), certPEM, 0o644); err != nil {
+		return nil, nil, nil, err
+	}
+
+	return certPEM, keyPEM, cert, nil
+}
+
+func (a *Agent) discardJoinCert() {
+	for _, f := range []string{joinCertFile, joinKeyFile} {
+		if err := os.Remove(a.path(f)); err != nil && !os.IsNotExist(err) {
+			logger.EllaLog.Warn("failed to remove pending join cert",
+				zap.String("file", f), zap.Error(err))
+		}
+	}
 }
 
 // Rotate generates a fresh self-signed cert in memory, registers
@@ -395,12 +451,24 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 }
 
 // bootstrapHTTPClient returns an HTTP client that dials the bootstrap
-// ALPN without a client cert and pins the server cert to
-// expectedFingerprint.
-func bootstrapHTTPClient(expectedFingerprint string) (*http.Client, error) {
-	raw, err := pki.ParseFingerprint(expectedFingerprint)
-	if err != nil {
-		return nil, err
+// ALPN without a client cert and pins the server cert to any
+// fingerprint in expectedFingerprints. The join token carries every
+// voter's pin, so a joiner is not tied to the node that minted it and
+// can reach whichever node is leader when it retries.
+func bootstrapHTTPClient(expectedFingerprints []string) (*http.Client, error) {
+	raws := make([][]byte, 0, len(expectedFingerprints))
+
+	for _, fp := range expectedFingerprints {
+		raw, err := pki.ParseFingerprint(fp)
+		if err != nil {
+			return nil, err
+		}
+
+		raws = append(raws, raw)
+	}
+
+	if len(raws) == 0 {
+		return nil, fmt.Errorf("no bootstrap pins supplied")
 	}
 
 	tlsCfg := &tls.Config{
@@ -414,12 +482,14 @@ func bootstrapHTTPClient(expectedFingerprint string) (*http.Client, error) {
 
 			for _, c := range cs.PeerCertificates {
 				sum := sha256.Sum256(c.Raw)
-				if subtle.ConstantTimeCompare(sum[:], raw) == 1 {
-					return nil
+				for _, raw := range raws {
+					if subtle.ConstantTimeCompare(sum[:], raw) == 1 {
+						return nil
+					}
 				}
 			}
 
-			return fmt.Errorf("bootstrap: server cert chain does not contain pinned %s", expectedFingerprint)
+			return fmt.Errorf("bootstrap: server cert chain matches none of the %d pinned cluster certs", len(raws))
 		},
 	}
 

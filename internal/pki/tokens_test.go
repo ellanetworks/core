@@ -212,3 +212,23 @@ func TestMint_ShortKey(t *testing.T) {
 		t.Fatal("short key must be rejected")
 	}
 }
+
+func TestJoinClaims_PinSet(t *testing.T) {
+	multi := pki.JoinClaims{
+		LeaderCertPin: "sha256:aa",
+		ClusterPins:   []string{"sha256:aa", "sha256:bb"},
+	}
+	if got := multi.PinSet(); len(got) != 2 {
+		t.Fatalf("PinSet() = %v, want both cluster pins", got)
+	}
+
+	legacy := pki.JoinClaims{LeaderCertPin: "sha256:aa"}
+	if got := legacy.PinSet(); len(got) != 1 || got[0] != "sha256:aa" {
+		t.Fatalf("a token minted before ClusterPins must fall back to the leader pin, got %v", got)
+	}
+
+	var empty pki.JoinClaims
+	if got := empty.PinSet(); got != nil {
+		t.Fatalf("PinSet() = %v, want nil when the token carries no pin", got)
+	}
+}

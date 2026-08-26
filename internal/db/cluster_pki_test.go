@@ -172,3 +172,110 @@ func TestClusterJoinTokens_MintGetConsume(t *testing.T) {
 		t.Fatalf("second consume should fail with ErrJoinTokenAlreadyConsumed, got %v", err)
 	}
 }
+
+func mintTestToken(t *testing.T, database *db.Database, id string, nodeID int, ttl time.Duration) {
+	t.Helper()
+
+	err := database.MintJoinTokenRecord(context.Background(), &db.ClusterJoinToken{
+		ID:         id,
+		NodeID:     nodeID,
+		ClaimsJSON: "{}",
+		ExpiresAt:  time.Now().Add(ttl).Unix(),
+	})
+	if err != nil {
+		t.Fatalf("mint token record: %v", err)
+	}
+}
+
+func TestRedeemJoinToken_ConsumesAndPinsTogether(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-1", 7, time.Hour)
+
+	pins, err := database.RedeemJoinToken(ctx, "tok-1", 7, "sha256:aa", "PEM-7")
+	if err != nil {
+		t.Fatalf("redeem: %v", err)
+	}
+
+	if len(pins) != 1 || pins[0].NodeID != 7 || pins[0].Fingerprint != "sha256:aa" {
+		t.Fatalf("unexpected pin snapshot: %+v", pins)
+	}
+
+	row, err := database.GetJoinToken(ctx, "tok-1")
+	if err != nil {
+		t.Fatalf("get token: %v", err)
+	}
+
+	if row.ConsumedAt == 0 || row.ConsumedBy != 7 {
+		t.Fatalf("token not consumed by node 7: %+v", row)
+	}
+}
+
+// D-H7: a retry after the first attempt's outcome was lost must not
+// find the token burnt. The joining node re-presents the identity it
+// persisted before its first attempt, so the redemption replays.
+func TestRedeemJoinToken_SameNodeSameCertReplays(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-2", 7, time.Hour)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-2", 7, "sha256:aa", "PEM-7"); err != nil {
+		t.Fatalf("first redeem: %v", err)
+	}
+
+	pins, err := database.RedeemJoinToken(ctx, "tok-2", 7, "sha256:aa", "PEM-7")
+	if err != nil {
+		t.Fatalf("replay must succeed, got: %v", err)
+	}
+
+	if len(pins) != 1 || pins[0].Fingerprint != "sha256:aa" {
+		t.Fatalf("replay returned a different pin set: %+v", pins)
+	}
+}
+
+func TestRedeemJoinToken_RejectsReplayWithDifferentCert(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-3", 7, time.Hour)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-3", 7, "sha256:aa", "PEM-7"); err != nil {
+		t.Fatalf("first redeem: %v", err)
+	}
+
+	_, err := database.RedeemJoinToken(ctx, "tok-3", 7, "sha256:bb", "PEM-7b")
+	if !errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
+		t.Fatalf("got %v, want ErrJoinTokenAlreadyConsumed", err)
+	}
+}
+
+func TestRedeemJoinToken_RejectsWrongNodeAndExpiry(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-4", 7, time.Hour)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-4", 8, "sha256:aa", "PEM-8"); !errors.Is(err, db.ErrJoinTokenNodeMismatch) {
+		t.Fatalf("wrong node: got %v, want ErrJoinTokenNodeMismatch", err)
+	}
+
+	mintTestToken(t, database, "tok-5", 9, -time.Hour)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-5", 9, "sha256:aa", "PEM-9"); !errors.Is(err, db.ErrJoinTokenExpired) {
+		t.Fatalf("expired: got %v, want ErrJoinTokenExpired", err)
+	}
+
+	if _, err := database.GetClusterNodeCertByFingerprint(ctx, "sha256:aa"); !errors.Is(err, db.ErrNotFound) {
+		t.Fatal("a rejected redemption must not pin a cert")
+	}
+}
+
+func TestRedeemJoinToken_UnknownTokenIsNotFound(t *testing.T) {
+	database := setupPKIDB(t)
+
+	if _, err := database.RedeemJoinToken(context.Background(), "nope", 7, "sha256:aa", "PEM"); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("got %v, want ErrNotFound", err)
+	}
+}

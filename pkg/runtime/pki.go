@@ -61,6 +61,13 @@ func (p *pkiState) ensureIssuer(dbInstance *db.Database) {
 	}
 }
 
+func (p *pkiState) Issuer() *pkiissuer.Service {
+	p.issuerMu.Lock()
+	defer p.issuerMu.Unlock()
+
+	return p.issuer
+}
+
 func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {
 	return &pkiState{
 		agent: pkiagent.NewAgent(nodeID, clusterID, dataDir),

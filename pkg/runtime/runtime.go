@@ -243,6 +243,16 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn)
 		defer stopClusterHTTP()
 
+		// Every voter serves the join endpoint, not just the node
+		// that happens to be leader: redeeming a token is a
+		// replicated op that forwards to the leader on its own, so
+		// a joiner whose token names several peers reaches the
+		// cluster through whichever one answers.
+		if pki != nil {
+			pki.ensureIssuer(dbInstance)
+			server.RegisterBootstrapALPN(clusterLn, pki.Issuer())
+		}
+
 		if err := clusterLn.Start(ctx); err != nil {
 			return fmt.Errorf("cluster listener: %w", err)
 		}
@@ -260,7 +270,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
 
 		if pki != nil {
-			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, clusterLn, cfg.Cluster.NodeID, ver.Version, restoredFromBundle))
+			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, cfg.Cluster.NodeID, ver.Version, restoredFromBundle))
 		}
 	}
 

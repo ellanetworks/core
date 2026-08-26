@@ -22,7 +22,6 @@ const FlowReportsTableName = "flow_reports"
 
 const (
 	insertFlowReportStmt     = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES ($FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction, $FlowReport.action)"
-	getFlowReportByIDStmt    = "SELECT &FlowReport.* FROM %s WHERE id = $FlowReport.id"
 	deleteOldFlowReportsStmt = "DELETE FROM %s WHERE end_time < $cutoffArgs.cutoff"
 	deleteAllFlowReportsStmt = "DELETE FROM %s"
 )

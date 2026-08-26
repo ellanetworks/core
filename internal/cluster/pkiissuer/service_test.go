@@ -26,6 +26,8 @@ type fakeStore struct {
 	tokens  map[string]*db.ClusterJoinToken
 }
 
+const testClusterID = "c"
+
 func newFakeStore(clusterID string) *fakeStore {
 	return &fakeStore{
 		leader: true,
@@ -128,12 +130,57 @@ func (f *fakeStore) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 	return nil
 }
 
+func (f *fakeStore) RedeemJoinToken(ctx context.Context, tokenID string, nodeID int, fingerprint, certPEM string) ([]db.ClusterNodeCert, error) {
+	f.mu.Lock()
+
+	t, ok := f.tokens[tokenID]
+	if !ok {
+		f.mu.Unlock()
+		return nil, db.ErrNotFound
+	}
+
+	if t.NodeID != nodeID {
+		f.mu.Unlock()
+		return nil, db.ErrJoinTokenNodeMismatch
+	}
+
+	if t.ExpiresAt <= time.Now().Unix() {
+		f.mu.Unlock()
+		return nil, db.ErrJoinTokenExpired
+	}
+
+	if t.ConsumedAt != 0 {
+		existing, have := f.pins[nodeID]
+		if t.ConsumedBy != nodeID || !have || existing.Fingerprint != fingerprint {
+			f.mu.Unlock()
+			return nil, db.ErrJoinTokenAlreadyConsumed
+		}
+
+		f.mu.Unlock()
+
+		return f.ListClusterNodeCerts(ctx)
+	}
+
+	t.ConsumedAt = time.Now().Unix()
+	t.ConsumedBy = nodeID
+	f.pins[nodeID] = &db.ClusterNodeCert{
+		NodeID:      nodeID,
+		Fingerprint: fingerprint,
+		CertPEM:     certPEM,
+		AddedAt:     time.Now().Unix(),
+	}
+
+	f.mu.Unlock()
+
+	return f.ListClusterNodeCerts(ctx)
+}
+
 // preregisterLeader inserts the leader's pin so MintJoinToken can
 // embed it in a token's claims.
-func preregisterLeader(t *testing.T, store *fakeStore, nodeID int, clusterID string) string {
+func preregisterLeader(t *testing.T, store *fakeStore, nodeID int) string {
 	t.Helper()
 
-	cert, _, err := pki.GenerateNodeCert(nodeID, clusterID, time.Hour)
+	cert, _, err := pki.GenerateNodeCert(nodeID, testClusterID, time.Hour)
 	if err != nil {
 		t.Fatalf("generate leader cert: %v", err)
 	}
@@ -237,7 +284,7 @@ func TestService_RegisterCert_RejectsNodeIDMismatch(t *testing.T) {
 func TestService_MintAndVerifyJoinToken_RoundTrip(t *testing.T) {
 	store := newFakeStore("c")
 
-	leaderFP := preregisterLeader(t, store, 1, "c")
+	leaderFP := preregisterLeader(t, store, 1)
 
 	svc := pkiissuer.New(store)
 
@@ -263,24 +310,27 @@ func TestService_MintAndVerifyJoinToken_RoundTrip(t *testing.T) {
 		t.Fatalf("nodeID mismatch")
 	}
 
-	verified, err := svc.VerifyAndConsumeJoinToken(context.Background(), token)
+	joinerPEM := nodeCertPEM(t, 5)
+
+	fp, pins, err := svc.RedeemJoinToken(context.Background(), token, 5, joinerPEM)
 	if err != nil {
-		t.Fatalf("verify: %v", err)
+		t.Fatalf("redeem: %v", err)
 	}
 
-	if verified.TokenID != claims.TokenID {
-		t.Fatal("verify returned different token id")
+	if fp == "" || len(pins) != 2 {
+		t.Fatalf("redeem returned fp=%q pins=%d, want non-empty fp and 2 pins", fp, len(pins))
 	}
 
-	// Replay: second consume must fail.
-	if _, err := svc.VerifyAndConsumeJoinToken(context.Background(), token); err == nil {
-		t.Fatal("replay should be rejected")
+	// Replay by a different node must be rejected.
+	otherPEM := nodeCertPEM(t, 6)
+	if _, _, err := svc.RedeemJoinToken(context.Background(), token, 6, otherPEM); err == nil {
+		t.Fatal("replay for a different node should be rejected")
 	}
 }
 
 func TestService_MintJoinToken_RejectsInvalidTTL(t *testing.T) {
 	store := newFakeStore("c")
-	preregisterLeader(t, store, 1, "c")
+	preregisterLeader(t, store, 1)
 
 	svc := pkiissuer.New(store)
 	_ = svc.Bootstrap(context.Background())
@@ -307,30 +357,114 @@ func TestService_NotLeader_RejectsMutations(t *testing.T) {
 	if _, err := svc.MintJoinToken(context.Background(), 5, time.Hour, 1); err == nil {
 		t.Fatal("MintJoinToken should fail on non-leader")
 	}
+}
 
-	if _, _, err := svc.RegisterCert(context.Background(), 1, []byte("not pem")); err == nil {
-		t.Fatal("RegisterCert should fail on non-leader")
+// RegisterCert no longer gates on leadership: the pin upsert is a
+// replicated op that forwards to the leader on its own, so a rotation
+// that lands on a follower is completed rather than refused.
+func TestService_RegisterCert_WorksOnNonLeader(t *testing.T) {
+	store := newFakeStore("c")
+	store.leader = false
+
+	svc := pkiissuer.New(store)
+
+	if _, _, err := svc.RegisterCert(context.Background(), 5, nodeCertPEM(t, 5)); err != nil {
+		t.Fatalf("RegisterCert on a follower: %v", err)
 	}
 }
 
-// Smoke test that ErrJoinTokenAlreadyConsumed is preserved through
-// the wrapping VerifyAndConsumeJoinToken does.
-func TestService_DoubleConsume_PreservesErrPath(t *testing.T) {
+func TestService_Redeem_ReplayWithDifferentCertRejected(t *testing.T) {
 	store := newFakeStore("c")
-	preregisterLeader(t, store, 1, "c")
+	preregisterLeader(t, store, 1)
 
 	svc := pkiissuer.New(store)
 	_ = svc.Bootstrap(context.Background())
 
 	tok, _ := svc.MintJoinToken(context.Background(), 5, time.Minute*10, 1)
 
-	_, err := svc.VerifyAndConsumeJoinToken(context.Background(), tok)
+	if _, _, err := svc.RedeemJoinToken(context.Background(), tok, 5, nodeCertPEM(t, 5)); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := svc.RedeemJoinToken(context.Background(), tok, 5, nodeCertPEM(t, 5))
+	if !errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
+		t.Fatalf("second redeem with a fresh cert: got %v, want ErrJoinTokenAlreadyConsumed", err)
+	}
+}
+
+// A joining node that retries after a leadership change presents the
+// same cert it persisted before its first attempt, so the redemption
+// replays as a no-op instead of reporting the token burnt.
+func TestService_Redeem_SameNodeSameCertIsIdempotent(t *testing.T) {
+	store := newFakeStore("c")
+	preregisterLeader(t, store, 1)
+
+	svc := pkiissuer.New(store)
+	_ = svc.Bootstrap(context.Background())
+
+	tok, _ := svc.MintJoinToken(context.Background(), 5, time.Minute*10, 1)
+	joinerPEM := nodeCertPEM(t, 5)
+
+	fp1, pins1, err := svc.RedeemJoinToken(context.Background(), tok, 5, joinerPEM)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = svc.VerifyAndConsumeJoinToken(context.Background(), tok)
-	if err == nil || (!errors.Is(err, db.ErrJoinTokenAlreadyConsumed) && err.Error() != "token already consumed") {
-		t.Fatalf("unexpected second-consume error: %v", err)
+	fp2, pins2, err := svc.RedeemJoinToken(context.Background(), tok, 5, joinerPEM)
+	if err != nil {
+		t.Fatalf("retry after a burnt token must succeed: %v", err)
 	}
+
+	if fp1 != fp2 || len(pins1) != len(pins2) {
+		t.Fatalf("replay returned a different result: %s/%d vs %s/%d", fp1, len(pins1), fp2, len(pins2))
+	}
+}
+
+func TestService_MintJoinToken_EmbedsEveryVoterPin(t *testing.T) {
+	store := newFakeStore("c")
+	leaderFP := preregisterLeader(t, store, 1)
+	peerFP := preregisterLeader(t, store, 2)
+
+	svc := pkiissuer.New(store)
+	_ = svc.Bootstrap(context.Background())
+
+	tok, err := svc.MintJoinToken(context.Background(), 5, time.Minute*10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	claims, err := pki.ExtractClaimsUnverified(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	set := claims.PinSet()
+	if len(set) != 2 {
+		t.Fatalf("PinSet has %d entries, want 2", len(set))
+	}
+
+	for _, want := range []string{leaderFP, peerFP} {
+		found := false
+
+		for _, got := range set {
+			if got == want {
+				found = true
+			}
+		}
+
+		if !found {
+			t.Fatalf("PinSet is missing %s", want)
+		}
+	}
+}
+
+func nodeCertPEM(t *testing.T, nodeID int) []byte {
+	t.Helper()
+
+	cert, _, err := pki.GenerateNodeCert(nodeID, testClusterID, time.Hour)
+	if err != nil {
+		t.Fatalf("generate node cert: %v", err)
+	}
+
+	return pki.EncodeCertPEM(cert)
 }

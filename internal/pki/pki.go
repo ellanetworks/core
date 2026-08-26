@@ -189,30 +189,6 @@ func EncodePrivateKeyPEM(key crypto.Signer) ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
 }
 
-// ParsePrivateKeyPEM decodes a PKCS#8 PEM private key as a crypto.Signer.
-func ParsePrivateKeyPEM(keyPEM []byte) (crypto.Signer, error) {
-	if len(keyPEM) == 0 {
-		return nil, fmt.Errorf("empty private key PEM")
-	}
-
-	block, _ := pem.Decode(keyPEM)
-	if block == nil || block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("not a PRIVATE KEY PEM")
-	}
-
-	k, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse PKCS#8: %w", err)
-	}
-
-	signer, ok := k.(crypto.Signer)
-	if !ok {
-		return nil, fmt.Errorf("key is not a crypto.Signer")
-	}
-
-	return signer, nil
-}
-
 // IdentityFromCert validates the SPIFFE URI SAN of a cluster cert
 // and returns its (clusterID, nodeID).
 func IdentityFromCert(cert *x509.Certificate) (clusterID string, nodeID int, err error) {

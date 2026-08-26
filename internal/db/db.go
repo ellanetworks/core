@@ -270,7 +270,6 @@ type Database struct {
 	countFlowReportsStmt                *sqlair.Statement
 	deleteOldFlowReportsStmt            *sqlair.Statement
 	deleteAllFlowReportsStmt            *sqlair.Statement
-	getFlowReportByIDStmt               *sqlair.Statement
 	listFlowReportsByDayStmt            *sqlair.Statement
 	listFlowReportsBySubscriberStmt     *sqlair.Statement
 	flowReportProtocolCountsStmt        *sqlair.Statement
@@ -311,6 +310,7 @@ type Database struct {
 	// Cluster PKI statements
 	listNodeCertsStmt         *sqlair.Statement
 	getNodeCertByFPStmt       *sqlair.Statement
+	getNodeCertByNodeStmt     *sqlair.Statement
 	upsertNodeCertStmt        *sqlair.Statement
 	deleteNodeCertByNodeStmt  *sqlair.Statement
 	insertJoinTokenStmt       *sqlair.Statement
@@ -1512,7 +1512,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.countFlowReportsStmt, fmt.Sprintf(countFlowReportsFilteredStmt, FlowReportsTableName), []any{FlowReportFilters{}, NumItems{}}},
 		{&db.deleteOldFlowReportsStmt, fmt.Sprintf(deleteOldFlowReportsStmt, FlowReportsTableName), []any{cutoffArgs{}}},
 		{&db.deleteAllFlowReportsStmt, fmt.Sprintf(deleteAllFlowReportsStmt, FlowReportsTableName), nil},
-		{&db.getFlowReportByIDStmt, fmt.Sprintf(getFlowReportByIDStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
 		{&db.listFlowReportsByDayStmt, fmt.Sprintf(listFlowReportsFilteredByDayStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
 		{&db.listFlowReportsBySubscriberStmt, fmt.Sprintf(listFlowReportsFilteredBySubscriberStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
 		{&db.flowReportProtocolCountsStmt, fmt.Sprintf(flowReportProtocolCountsStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportProtocolCount{}}},
@@ -1553,6 +1552,7 @@ func (db *Database) PrepareStatements() error {
 		// Cluster PKI (v12 fingerprint pinning)
 		{&db.listNodeCertsStmt, fmt.Sprintf(listNodeCertsStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
 		{&db.getNodeCertByFPStmt, fmt.Sprintf(getNodeCertByFPStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
+		{&db.getNodeCertByNodeStmt, fmt.Sprintf(getNodeCertByNodeStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
 		{&db.upsertNodeCertStmt, fmt.Sprintf(upsertNodeCertStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
 		{&db.deleteNodeCertByNodeStmt, fmt.Sprintf(deleteNodeCertByNodeStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
 		{&db.insertJoinTokenStmt, fmt.Sprintf(insertJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
