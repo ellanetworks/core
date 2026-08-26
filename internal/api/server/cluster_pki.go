@@ -14,6 +14,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -22,8 +23,10 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
+	hraft "github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
 
@@ -54,6 +57,11 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 
 		peerNodeID, hasPeer := peerNodeIDFromContext(r.Context())
 
+		var (
+			fp   string
+			pins []db.ClusterNodeCert
+		)
+
 		switch {
 		case hasPeer:
 			// mTLS path: the cert's owner is the only caller who
@@ -65,6 +73,12 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 				return
 			}
 
+			fp, pins, err = svc.RegisterCert(r.Context(), req.NodeID, []byte(req.CertPEM))
+			if err != nil {
+				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusBadRequest), "register cert", err, logger.APILog)
+				return
+			}
+
 		default:
 			if req.Token == "" {
 				writeError(r.Context(), w, http.StatusUnauthorized,
@@ -73,24 +87,11 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 				return
 			}
 
-			claims, err := svc.VerifyAndConsumeJoinToken(r.Context(), req.Token)
+			fp, pins, err = svc.RedeemJoinToken(r.Context(), req.Token, req.NodeID, []byte(req.CertPEM))
 			if err != nil {
-				writeError(r.Context(), w, http.StatusUnauthorized, "verify join token", err, logger.APILog)
+				writeError(r.Context(), w, clusterPKIStatus(err, http.StatusUnauthorized), "redeem join token", err, logger.APILog)
 				return
 			}
-
-			if claims.NodeID != req.NodeID {
-				writeError(r.Context(), w, http.StatusForbidden,
-					"node-id in body does not match token claims", nil, logger.APILog)
-
-				return
-			}
-		}
-
-		fp, pins, err := svc.RegisterCert(r.Context(), req.NodeID, []byte(req.CertPEM))
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "register cert", err, logger.APILog)
-			return
 		}
 
 		records := make([]pkiagent.PinRecord, 0, len(pins))
@@ -105,6 +106,22 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 			Pins:        records,
 		})
 	})
+}
+
+func clusterPKIStatus(err error, deny int) int {
+	switch {
+	case errors.Is(err, db.ErrMigrationPending),
+		errors.Is(err, db.ErrProposeTimeout),
+		errors.Is(err, db.ErrNotFound),
+		errors.Is(err, hraft.ErrNotLeader):
+		return http.StatusServiceUnavailable
+
+	case errors.Is(err, db.ErrOutcomeUnknown):
+		return http.StatusConflict
+
+	default:
+		return deny
+	}
 }
 
 // RegisterBootstrapALPN dispatches POST /cluster/pki/register on

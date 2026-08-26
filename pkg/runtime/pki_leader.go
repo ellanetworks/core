@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ellanetworks/core/internal/api/server"
-	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
@@ -26,24 +24,20 @@ type pkiLeaderCallback struct {
 	ctx           context.Context
 	state         *pkiState
 	dbInstance    *db.Database
-	clusterLn     *listener.Listener
 	nodeID        int
 	binaryVersion string
 
 	needsDRSnapshot bool
 
-	bootstrapRegistered sync.Once
-
 	mu           sync.Mutex
 	leaderCancel context.CancelFunc
 }
 
-func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, ln *listener.Listener, nodeID int, binaryVersion string, needsDRSnapshot bool) *pkiLeaderCallback {
+func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, nodeID int, binaryVersion string, needsDRSnapshot bool) *pkiLeaderCallback {
 	return &pkiLeaderCallback{
 		ctx:             ctx,
 		state:           state,
 		dbInstance:      dbInstance,
-		clusterLn:       ln,
 		nodeID:          nodeID,
 		binaryVersion:   binaryVersion,
 		needsDRSnapshot: needsDRSnapshot,
@@ -75,8 +69,6 @@ func (c *pkiLeaderCallback) OnBecameLeader() {
 
 		return
 	}
-
-	c.onLeaderInitSuccess()
 }
 
 func (c *pkiLeaderCallback) OnLostLeadership() {
@@ -122,7 +114,6 @@ func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 		err := runLeaderInit(ctx, c.state, c.dbInstance, c.nodeID, c.binaryVersion)
 		if err == nil {
 			logger.EllaLog.Info("leader init recovered after retry")
-			c.onLeaderInitSuccess()
 
 			return
 		}
@@ -135,14 +126,6 @@ func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 		logger.EllaLog.Warn("leader init retry failed",
 			zap.Error(err),
 			zap.Duration("next_backoff", backoff))
-	}
-}
-
-func (c *pkiLeaderCallback) onLeaderInitSuccess() {
-	if c.clusterLn != nil && c.state != nil && c.state.issuer != nil {
-		c.bootstrapRegistered.Do(func() {
-			server.RegisterBootstrapALPN(c.clusterLn, c.state.issuer)
-		})
 	}
 }
 

@@ -707,8 +707,8 @@ func (m *Manager) barrierFor(term uint64) *barrierAttempt {
 }
 
 // Snapshot triggers a user-requested Raft snapshot and blocks until it
-// completes. Callers use this to force log truncation after large log
-// entries so followers don't carry large blobs in their log indefinitely.
+// completes. No production caller; reached only from db.ForceSnapshot,
+// which tests use to exercise the snapshot-restore path.
 func (m *Manager) Snapshot() error {
 	future := m.raft.Snapshot()
 	if err := future.Error(); err != nil {

@@ -13,7 +13,7 @@ package pkiissuer
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +22,15 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/pki"
 )
+
+// ErrNotReady reports that this node cannot mint join tokens yet
+// because the cluster certificate it presents is not committed in
+// cluster_node_certs. Callers should retry.
+var ErrNotReady = errors.New("cluster pki not ready")
+
+// LocalLeafFunc reports the SHA-256 pin of the cluster certificate
+// this node is currently presenting, or "" when it has none yet.
+type LocalLeafFunc func() string
 
 // Store is the narrow DB surface the issuer needs.
 type Store interface {
@@ -34,20 +43,22 @@ type Store interface {
 	ListClusterNodeCerts(ctx context.Context) ([]db.ClusterNodeCert, error)
 
 	MintJoinTokenRecord(ctx context.Context, r *db.ClusterJoinToken) error
-	GetJoinToken(ctx context.Context, id string) (*db.ClusterJoinToken, error)
-	ConsumeJoinToken(ctx context.Context, id string, nodeID int) error
+	RedeemJoinToken(ctx context.Context, tokenID string, nodeID int, fingerprint, certPEM string) ([]db.ClusterNodeCert, error)
 
 	IsLeader() bool
 }
 
-// Service runs on every voter. Bootstrap, MintJoinToken, and
-// RegisterCert require IsLeader; CurrentPins works on followers.
+// Service runs on every voter. Bootstrap and MintJoinToken require
+// IsLeader; RedeemJoinToken and RegisterCert forward to the leader.
 type Service struct {
-	store Store
+	store     Store
+	localLeaf LocalLeafFunc
 }
 
-func New(store Store) *Service {
-	return &Service{store: store}
+// New builds the issuer. localLeaf may be nil, in which case this
+// node can register certs and redeem tokens but never mint one.
+func New(store Store, localLeaf LocalLeafFunc) *Service {
+	return &Service{store: store, localLeaf: localLeaf}
 }
 
 // Bootstrap seeds the HMAC-key singleton on the leader-init path.
@@ -64,7 +75,7 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 		return fmt.Errorf("get hmac key: %w", err)
 	}
 
-	key, err := newHMACKey()
+	key, err := pki.NewHMACKey()
 	if err != nil {
 		return fmt.Errorf("generate hmac key: %w", err)
 	}
@@ -88,10 +99,10 @@ func (s *Service) Ready(ctx context.Context) bool {
 }
 
 // MintJoinToken emits a single-use HMAC token bound to nodeID with
-// the given TTL, embedding the cluster_node_certs pin owned by
-// leaderNodeID so the joining node pins the bootstrap TLS
-// handshake against the leader's certificate.
-func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Duration, leaderNodeID int) (string, error) {
+// the given TTL, embedding the pin set the joining node uses to
+// pin its bootstrap TLS handshake. Returns ErrNotReady until this
+// node's own certificate is committed cluster-wide.
+func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Duration) (string, error) {
 	if ttl < pki.DefaultJoinTokenMinTTL || ttl > pki.DefaultJoinTokenMaxTTL {
 		return "", fmt.Errorf("join-token ttl %s outside [%s, %s]", ttl, pki.DefaultJoinTokenMinTTL, pki.DefaultJoinTokenMaxTTL)
 	}
@@ -114,7 +125,7 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 		return "", fmt.Errorf("cluster id not yet populated")
 	}
 
-	leaderPin, err := s.leaderPin(ctx, leaderNodeID)
+	leaderPin, allPins, err := s.pinsForToken(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -133,6 +144,7 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 		ExpiresAt:     now.Add(ttl).Unix(),
 		LeaderCertPin: leaderPin,
 		ClusterID:     op.ClusterID,
+		ClusterPins:   allPins,
 	}
 
 	tokenStr, err := pki.MintJoinToken(hmacKey, claims)
@@ -157,63 +169,70 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 	return tokenStr, nil
 }
 
-func (s *Service) leaderPin(ctx context.Context, leaderNodeID int) (string, error) {
+// pinsForToken resolves the pin set a join token carries. The leader
+// entry is the certificate this node is presenting right now, never a
+// cluster_node_certs lookup by nodeID: after a restore the table still
+// holds the pre-restore cluster's row for this nodeID, so a lookup
+// mints a token pinning a certificate no node will ever present.
+func (s *Service) pinsForToken(ctx context.Context) (string, []string, error) {
+	var leaderPin string
+	if s.localLeaf != nil {
+		leaderPin = s.localLeaf()
+	}
+
+	if leaderPin == "" {
+		return "", nil, fmt.Errorf("%w: node has no cluster certificate", ErrNotReady)
+	}
+
 	rows, err := s.store.ListClusterNodeCerts(ctx)
 	if err != nil {
-		return "", fmt.Errorf("list pins: %w", err)
+		return "", nil, fmt.Errorf("list pins: %w", err)
 	}
 
-	if leaderNodeID == 0 {
-		// Standalone or single-node test path: with exactly one
-		// registered pin, that pin belongs to the leader.
-		if len(rows) == 1 {
-			return rows[0].Fingerprint, nil
-		}
-
-		return "", fmt.Errorf("leaderNodeID is zero and registry has %d pins", len(rows))
-	}
+	all := make([]string, 0, len(rows))
+	committed := false
 
 	for _, r := range rows {
-		if r.NodeID == leaderNodeID {
-			return r.Fingerprint, nil
+		all = append(all, r.Fingerprint)
+
+		if r.Fingerprint == leaderPin {
+			committed = true
 		}
 	}
 
-	return "", fmt.Errorf("leader node %d has no registered pin", leaderNodeID)
+	if !committed {
+		return "", nil, fmt.Errorf("%w: this node's certificate is not registered yet", ErrNotReady)
+	}
+
+	return leaderPin, all, nil
 }
 
-// VerifyAndConsumeJoinToken authenticates tokenStr, enforces
-// expiry, marks the token consumed, and returns its claims. A
-// second consumption on any voter returns an error.
-func (s *Service) VerifyAndConsumeJoinToken(ctx context.Context, tokenStr string) (*pki.JoinClaims, error) {
+func (s *Service) RedeemJoinToken(ctx context.Context, tokenStr string, nodeID int, certPEM []byte) (string, []db.ClusterNodeCert, error) {
 	hmacKey, err := s.store.GetClusterJoinHMACKey(ctx)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
 	claims, err := pki.VerifyJoinToken(hmacKey, time.Now(), tokenStr)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	row, err := s.store.GetJoinToken(ctx, claims.TokenID)
+	if claims.NodeID != nodeID {
+		return "", nil, fmt.Errorf("token is for node %d, not %d", claims.NodeID, nodeID)
+	}
+
+	cert, fp, err := s.validateNodeCert(ctx, nodeID, certPEM)
 	if err != nil {
-		return nil, fmt.Errorf("lookup join token: %w", err)
+		return "", nil, err
 	}
 
-	if row.ConsumedAt != 0 {
-		return nil, fmt.Errorf("token already consumed")
+	pins, err := s.store.RedeemJoinToken(ctx, claims.TokenID, nodeID, fp, string(pki.EncodeCertPEM(cert)))
+	if err != nil {
+		return "", nil, err
 	}
 
-	if err := s.store.ConsumeJoinToken(ctx, claims.TokenID, claims.NodeID); err != nil {
-		if errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
-			return nil, fmt.Errorf("token already consumed")
-		}
-
-		return nil, fmt.Errorf("consume join token: %w", err)
-	}
-
-	return claims, nil
+	return fp, pins, nil
 }
 
 // RegisterCert validates certPEM (SPIFFE URI matches the cluster's
@@ -222,44 +241,10 @@ func (s *Service) VerifyAndConsumeJoinToken(ctx context.Context, tokenStr string
 // Returns the pin fingerprint and the post-commit snapshot of
 // every registered pin so the caller can seed its local pin map.
 func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) (string, []db.ClusterNodeCert, error) {
-	if !s.store.IsLeader() {
-		return "", nil, fmt.Errorf("not leader")
-	}
-
-	op, err := s.store.GetOperator(ctx)
+	cert, fp, err := s.validateNodeCert(ctx, nodeID, certPEM)
 	if err != nil {
-		return "", nil, fmt.Errorf("get operator: %w", err)
+		return "", nil, err
 	}
-
-	cert, err := pki.ParseCertPEM(certPEM)
-	if err != nil {
-		return "", nil, fmt.Errorf("parse cert: %w", err)
-	}
-
-	clusterID, certNodeID, err := pki.IdentityFromCert(cert)
-	if err != nil {
-		return "", nil, fmt.Errorf("invalid cluster cert: %w", err)
-	}
-
-	if clusterID != op.ClusterID {
-		return "", nil, fmt.Errorf("cert clusterID %q != operator clusterID %q", clusterID, op.ClusterID)
-	}
-
-	if certNodeID != nodeID {
-		return "", nil, fmt.Errorf("cert URI nodeID %d != requested nodeID %d", certNodeID, nodeID)
-	}
-
-	// Issuer must equal subject; the cluster TLS contract requires
-	// every node cert to be self-signed.
-	if !bytes.Equal(cert.RawIssuer, cert.RawSubject) {
-		return "", nil, fmt.Errorf("cert is not self-signed")
-	}
-
-	if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
-		return "", nil, fmt.Errorf("self-signature verify: %w", err)
-	}
-
-	fp := pki.Fingerprint(cert)
 
 	row := &db.ClusterNodeCert{
 		NodeID:      nodeID,
@@ -280,29 +265,39 @@ func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) 
 	return fp, pins, nil
 }
 
-// CurrentPins returns the replicated pin set as a fingerprint →
-// nodeID map for caching in the listener's PinFunc.
-func (s *Service) CurrentPins(ctx context.Context) (map[string]int, error) {
-	rows, err := s.store.ListClusterNodeCerts(ctx)
+func (s *Service) validateNodeCert(ctx context.Context, nodeID int, certPEM []byte) (*x509.Certificate, string, error) {
+	op, err := s.store.GetOperator(ctx)
 	if err != nil {
-		return nil, err
+		return nil, "", fmt.Errorf("get operator: %w", err)
 	}
 
-	out := make(map[string]int, len(rows))
-	for _, r := range rows {
-		out[r.Fingerprint] = r.NodeID
+	cert, err := pki.ParseCertPEM(certPEM)
+	if err != nil {
+		return nil, "", fmt.Errorf("parse cert: %w", err)
 	}
 
-	return out, nil
-}
-
-func (s *Service) IsLeader() bool { return s.store.IsLeader() }
-
-func newHMACKey() ([]byte, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return nil, fmt.Errorf("rand: %w", err)
+	clusterID, certNodeID, err := pki.IdentityFromCert(cert)
+	if err != nil {
+		return nil, "", fmt.Errorf("invalid cluster cert: %w", err)
 	}
 
-	return b, nil
+	if clusterID != op.ClusterID {
+		return nil, "", fmt.Errorf("cert clusterID %q != operator clusterID %q", clusterID, op.ClusterID)
+	}
+
+	if certNodeID != nodeID {
+		return nil, "", fmt.Errorf("cert URI nodeID %d != requested nodeID %d", certNodeID, nodeID)
+	}
+
+	// Issuer must equal subject; the cluster TLS contract requires
+	// every node cert to be self-signed.
+	if !bytes.Equal(cert.RawIssuer, cert.RawSubject) {
+		return nil, "", fmt.Errorf("cert is not self-signed")
+	}
+
+	if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
+		return nil, "", fmt.Errorf("self-signature verify: %w", err)
+	}
+
+	return cert, pki.Fingerprint(cert), nil
 }

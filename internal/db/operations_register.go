@@ -158,6 +158,7 @@ var (
 	opDeleteNodeCert        = registerChangesetOp("DeleteClusterNodeCert", (*Database).applyDeleteNodeCert, RequireSchema(12), AffectsTopic(TopicClusterNodeCerts))
 	opMintJoinToken         = registerChangesetOp("MintJoinToken", (*Database).applyInsertJoinToken, RequireSchema(9))
 	opConsumeJoinToken      = registerChangesetOp("ConsumeJoinToken", (*Database).applyConsumeJoinToken, RequireSchema(9))
+	opRedeemJoinToken       = registerChangesetOpReturning[redeemJoinTokenPayload, *RedeemJoinTokenResult]("RedeemJoinToken", (*Database).applyRedeemJoinToken, RequireSchema(12), AffectsTopic(TopicClusterNodeCerts))
 	opDeleteStaleJoinTokens = registerChangesetOp("DeleteStaleJoinTokens", (*Database).applyDeleteJoinTokensStale, RequireSchema(9))
 	opInitJoinHMAC          = registerChangesetOp("InitClusterJoinHMACKey", (*Database).applyInitJoinHMAC, RequireSchema(12))
 )

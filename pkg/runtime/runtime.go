@@ -243,6 +243,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn)
 		defer stopClusterHTTP()
 
+		if pki != nil {
+			pki.ensureIssuer(dbInstance)
+			server.RegisterBootstrapALPN(clusterLn, pki.Issuer())
+		}
+
 		if err := clusterLn.Start(ctx); err != nil {
 			return fmt.Errorf("cluster listener: %w", err)
 		}
@@ -260,7 +265,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
 
 		if pki != nil {
-			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, clusterLn, cfg.Cluster.NodeID, ver.Version, restoredFromBundle))
+			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, cfg.Cluster.NodeID, ver.Version, restoredFromBundle))
 		}
 	}
 

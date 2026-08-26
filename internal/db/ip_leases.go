@@ -375,8 +375,8 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 	return nil
 }
 
-// DeleteAllDynamicLeases removes all dynamic leases. Called on startup to clean
-// up stale leases from a previous process lifetime. Static leases are preserved.
+// DeleteAllDynamicLeases removes all dynamic leases cluster-wide,
+// preserving static ones. No production caller.
 func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 	_, span := tracer.Start(
 		ctx,

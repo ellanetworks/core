@@ -42,6 +42,7 @@ const (
 const (
 	listNodeCertsStmtStr        = "SELECT &ClusterNodeCert.* FROM %s ORDER BY nodeID ASC"
 	getNodeCertByFPStmtStr      = "SELECT &ClusterNodeCert.* FROM %s WHERE fingerprint=$ClusterNodeCert.fingerprint"
+	getNodeCertByNodeStmtStr    = "SELECT &ClusterNodeCert.* FROM %s WHERE nodeID=$ClusterNodeCert.nodeID"
 	upsertNodeCertStmtStr       = "INSERT INTO %s (nodeID, fingerprint, certPEM, addedAt) VALUES ($ClusterNodeCert.nodeID, $ClusterNodeCert.fingerprint, $ClusterNodeCert.certPEM, $ClusterNodeCert.addedAt) ON CONFLICT(nodeID) DO UPDATE SET fingerprint=excluded.fingerprint, certPEM=excluded.certPEM, addedAt=excluded.addedAt"
 	deleteNodeCertByNodeStmtStr = "DELETE FROM %s WHERE nodeID=$ClusterNodeCert.nodeID"
 
@@ -131,6 +132,99 @@ func (db *Database) applyConsumeJoinToken(ctx context.Context, r *ClusterJoinTok
 	}
 
 	return nil, nil
+}
+
+type redeemJoinTokenPayload struct {
+	TokenID     string `json:"token_id"`
+	NodeID      int    `json:"node_id"`
+	Fingerprint string `json:"fingerprint"`
+	CertPEM     string `json:"cert_pem"`
+}
+
+type RedeemJoinTokenResult struct {
+	Pins []ClusterNodeCert `json:"pins"`
+}
+
+func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinTokenPayload) (any, error) {
+	runner := db.runner(ctx)
+	now := time.Now().Unix()
+
+	token := ClusterJoinToken{ID: p.TokenID}
+	if err := runner.Query(ctx, db.getJoinTokenStmt, token).Get(&token); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("get join token: %w", err)
+	}
+
+	if token.NodeID != p.NodeID {
+		return nil, ErrJoinTokenNodeMismatch
+	}
+
+	if token.ExpiresAt <= now {
+		return nil, ErrJoinTokenExpired
+	}
+
+	if token.ConsumedAt != 0 {
+		if token.ConsumedBy != p.NodeID {
+			return nil, ErrJoinTokenAlreadyConsumed
+		}
+
+		existing := ClusterNodeCert{NodeID: p.NodeID}
+		if err := runner.Query(ctx, db.getNodeCertByNodeStmt, existing).Get(&existing); err != nil {
+			return nil, ErrJoinTokenAlreadyConsumed
+		}
+
+		if existing.Fingerprint != p.Fingerprint {
+			return nil, ErrJoinTokenAlreadyConsumed
+		}
+
+		return db.pinSnapshot(ctx, runner)
+	}
+
+	token.ConsumedAt = now
+	token.ConsumedBy = p.NodeID
+
+	var outcome sqlair.Outcome
+	if err := runner.Query(ctx, db.consumeJoinTokenStmt, token).Get(&outcome); err != nil {
+		return nil, fmt.Errorf("consume join token: %w", err)
+	}
+
+	rows, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return nil, ErrJoinTokenAlreadyConsumed
+	}
+
+	cert := ClusterNodeCert{
+		NodeID:      p.NodeID,
+		Fingerprint: p.Fingerprint,
+		CertPEM:     p.CertPEM,
+		AddedAt:     now,
+	}
+	if err := runner.Query(ctx, db.upsertNodeCertStmt, cert).Run(); err != nil {
+		return nil, fmt.Errorf("upsert node cert: %w", err)
+	}
+
+	logger.DBLog.Info("redeemed cluster join token",
+		zap.Int("nodeID", p.NodeID),
+		zap.String("fingerprint", p.Fingerprint))
+
+	return db.pinSnapshot(ctx, runner)
+}
+
+func (db *Database) pinSnapshot(ctx context.Context, runner *sqlair.DB) (any, error) {
+	var pins []ClusterNodeCert
+
+	if err := runner.Query(ctx, db.listNodeCertsStmt).GetAll(&pins); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("list pins: %w", err)
+	}
+
+	return &RedeemJoinTokenResult{Pins: pins}, nil
 }
 
 func (db *Database) applyDeleteJoinTokensStale(ctx context.Context, cutoff *ClusterJoinToken) (any, error) {
@@ -233,6 +327,24 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 	})
 
 	return err
+}
+
+func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID int, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
+	res, err := opRedeemJoinToken.Invoke(ctx, db, &redeemJoinTokenPayload{
+		TokenID:     tokenID,
+		NodeID:      nodeID,
+		Fingerprint: fingerprint,
+		CertPEM:     certPEM,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if res == nil || len(res.Pins) == 0 {
+		return nil, fmt.Errorf("redeem returned an empty pin snapshot")
+	}
+
+	return res.Pins, nil
 }
 
 // DeleteStaleJoinTokens removes expired tokens and tokens consumed

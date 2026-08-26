@@ -101,7 +101,31 @@ type ProposeForwardErrorBody struct {
 	Code    string `json:"code,omitempty"`
 }
 
-const ForwardCodeOutcomeUnknown = "outcome_unknown"
+const (
+	ForwardCodeOutcomeUnknown = "outcome_unknown"
+	ForwardCodeNotFound       = "not_found"
+	ForwardCodeAlreadyExists  = "already_exists"
+	ForwardCodeMigrationPend  = "migration_pending"
+	ForwardCodeTokenConsumed  = "join_token_consumed"      // #nosec G101 -- response code, not a credential
+	ForwardCodeTokenExpired   = "join_token_expired"       // #nosec G101 -- response code, not a credential
+	ForwardCodeTokenNodeMism  = "join_token_node_mismatch" // #nosec G101 -- response code, not a credential
+)
+
+type ForwardCodedError struct {
+	Code    string
+	Message string
+}
+
+func (e *ForwardCodedError) Error() string { return e.Message }
+
+func ForwardErrorCode(err error) string {
+	var coded *ForwardCodedError
+	if errors.As(err, &coded) {
+		return coded.Code
+	}
+
+	return ""
+}
 
 var ErrOutcomeUnknown = errors.New("forwarded write outcome unknown")
 
@@ -227,6 +251,10 @@ func decodeForwardError(body []byte, status int) error {
 	if err := json.Unmarshal(body, &env); err == nil && env.Message != "" {
 		if env.Code == ForwardCodeOutcomeUnknown {
 			return fmt.Errorf("%w: %s", ErrOutcomeUnknown, env.Message)
+		}
+
+		if env.Code != "" {
+			return &ForwardCodedError{Code: env.Code, Message: env.Message}
 		}
 
 		return errors.New(env.Message)

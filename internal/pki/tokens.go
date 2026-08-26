@@ -21,12 +21,25 @@ import (
 // bootstrap TLS handshake), and the cluster's identity (so the
 // joiner mints a cert with the matching SPIFFE URI).
 type JoinClaims struct {
-	TokenID       string `json:"id"`
-	NodeID        int    `json:"node_id"`
-	IssuedAt      int64  `json:"iat"`
-	ExpiresAt     int64  `json:"exp"`
-	LeaderCertPin string `json:"lcp"`
-	ClusterID     string `json:"cid"`
+	TokenID       string   `json:"id"`
+	NodeID        int      `json:"node_id"`
+	IssuedAt      int64    `json:"iat"`
+	ExpiresAt     int64    `json:"exp"`
+	LeaderCertPin string   `json:"lcp"`
+	ClusterID     string   `json:"cid"`
+	ClusterPins   []string `json:"pins,omitempty"`
+}
+
+func (c *JoinClaims) PinSet() []string {
+	if len(c.ClusterPins) > 0 {
+		return c.ClusterPins
+	}
+
+	if c.LeaderCertPin == "" {
+		return nil
+	}
+
+	return []string{c.LeaderCertPin}
 }
 
 // joinTokenVersion is the first byte of every serialized token; bumped if
