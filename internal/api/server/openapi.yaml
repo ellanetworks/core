@@ -3871,7 +3871,7 @@ components:
           description: Name of the assigned profile.
         description:
           type: string
-          maxLength: 255
+          maxLength: 64
           description: Free-text operator note. Empty when unset.
         radio:
           type: string
@@ -3950,7 +3950,7 @@ components:
           type: string
         description:
           type: string
-          maxLength: 255
+          maxLength: 64
           description: Free-text operator note. Empty when unset.
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
@@ -4060,7 +4060,7 @@ components:
           description: Name of an existing profile.
         description:
           type: string
-          maxLength: 255
+          maxLength: 64
           description: "Free-text operator note. Surrounding whitespace is trimmed; omit or send an empty string to leave it unset."
 
     UpdateSubscriberParams:
@@ -4072,7 +4072,7 @@ components:
           description: Name of an existing profile.
         description:
           type: string
-          maxLength: 255
+          maxLength: 64
           description: "Free-text operator note. Surrounding whitespace is trimmed; the update is a full replace, so omitting it clears the stored value."
 
     # -- Subscriber Usage ------------------------------------------------

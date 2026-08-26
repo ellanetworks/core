@@ -52,3 +52,11 @@ export const randomKey = () =>
   [...crypto.getRandomValues(new Uint8Array(16))]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+
+// The subscriber fields the API replaces as a unit on PUT; each edit modal
+// changes one and carries the rest through unchanged.
+export interface EditSubscriberFields {
+  imsi: string;
+  profileName: string;
+  description: string;
+}

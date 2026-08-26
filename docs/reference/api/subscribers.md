@@ -63,7 +63,7 @@ This path creates a new network subscriber.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
 - `profile_name` (string): The profile name of the subscriber. Must be the name of an existing profile.
 - `opc` (optional string): The operator code of the subscriber. If not provided, it will be generated automatically using the Operator Code (OP) and the `key` parameter.
-- `description` (optional string): A free-text note about the subscriber. At most 255 characters; surrounding whitespace is trimmed.
+- `description` (optional string): A free-text note about the subscriber. At most 64 characters; surrounding whitespace is trimmed.
 
 ### Sample Response
 
@@ -86,7 +86,7 @@ This path updates an existing network subscriber.
 ### Parameters
 
 - `profile_name` (string): The profile name of the subscriber.
-- `description` (optional string): A free-text note about the subscriber. At most 255 characters; surrounding whitespace is trimmed. This path replaces the subscriber in full, so omitting the field clears the stored note.
+- `description` (optional string): A free-text note about the subscriber. At most 64 characters; surrounding whitespace is trimmed. This path replaces the subscriber in full, so omitting the field clears the stored note.
 
 ### Sample Response
 

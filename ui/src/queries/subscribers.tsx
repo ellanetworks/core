@@ -4,7 +4,7 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 // Mirrors MaxDescriptionLength in internal/api/server/api_subscribers.go.
-export const MAX_DESCRIPTION_LENGTH = 255;
+export const MAX_DESCRIPTION_LENGTH = 64;
 
 export type SubscriberListStatus = {
   registered?: boolean;

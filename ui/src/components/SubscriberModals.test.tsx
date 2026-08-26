@@ -7,7 +7,8 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer, httpError } from "@/test/apiServer";
 import CreateSubscriberModal from "./CreateSubscriberModal";
-import EditSubscriberModal from "./EditSubscriberModal";
+import EditSubscriberProfileModal from "./EditSubscriberProfileModal";
+import EditSubscriberDescriptionModal from "./EditSubscriberDescriptionModal";
 import { MAX_DESCRIPTION_LENGTH } from "@/queries/subscribers";
 
 const api = setupApiServer();
@@ -19,6 +20,7 @@ const OPERATOR = "/api/v1/operator";
 const dialog = () => screen.getByRole("dialog");
 const button = (name: RegExp) => within(dialog()).getByRole("button", { name });
 const field = (label: RegExp) => screen.getByLabelText(label);
+const textbox = (name: RegExp) => screen.getByRole("textbox", { name });
 
 const seed = ({ mcc = "001", mnc = "01" } = {}) => {
   api.get(OPERATOR, () => ({ id: { mcc, mnc } }));
@@ -156,7 +158,7 @@ describe("CreateSubscriberModal", () => {
       name: "Generate",
     });
     await user.click(generates[1]);
-    await user.type(field(/Description/), "Warehouse gate reader");
+    await user.type(textbox(/Description/), "Warehouse gate reader");
 
     await waitFor(() => expect(button(/^Create$/)).toBeEnabled());
     await user.click(button(/^Create$/));
@@ -176,7 +178,7 @@ describe("CreateSubscriberModal", () => {
     renderCreate();
     await screen.findByText("00101");
 
-    await user.click(field(/Description/));
+    await user.click(textbox(/Description/));
     await user.paste("x".repeat(MAX_DESCRIPTION_LENGTH + 1));
     await user.tab();
 
@@ -186,75 +188,130 @@ describe("CreateSubscriberModal", () => {
   });
 });
 
-describe("EditSubscriberModal", () => {
-  const renderEdit = (description = "") => {
+const IMSI = "001010123456789";
+const PUT_PATH = `${SUBSCRIBERS}/${IMSI}`;
+
+const initialData = (description = "") => ({
+  imsi: IMSI,
+  profileName: "default",
+  description,
+});
+
+describe("EditSubscriberProfileModal", () => {
+  const renderProfile = (description = "") => {
     const onClose = vi.fn();
     renderWithProviders(
-      <EditSubscriberModal
+      <EditSubscriberProfileModal
         open
         onClose={onClose}
         onSuccess={vi.fn()}
-        initialData={{
-          imsi: "001010123456789",
-          profileName: "default",
-          description,
-        }}
+        initialData={initialData(description)}
       />,
       { auth: {} },
     );
     return { onClose };
   };
 
-  it("locks the IMSI and submits the chosen profile", async () => {
+  it("edits the profile alone", async () => {
+    seed();
+    renderProfile();
+
+    expect(
+      await screen.findByRole("combobox", { name: /Profile/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: /Description/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("submits the chosen profile", async () => {
     const user = userEvent.setup();
     seed();
     api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
-    const { onClose } = renderEdit();
-
-    expect(field(/IMSI/)).toHaveValue("001010123456789");
-    expect(field(/IMSI/)).toBeDisabled();
+    const { onClose } = renderProfile();
 
     await user.click(await screen.findByRole("combobox", { name: /Profile/ }));
     await user.click(await screen.findByRole("option", { name: "premium" }));
     await user.click(button(/^Update$/));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(`${SUBSCRIBERS}/001010123456789`)?.body).toEqual({
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "premium",
       description: "",
     });
   });
 
-  it("seeds the description and resends it alongside a profile change", async () => {
+  it("carries the description through unchanged", async () => {
     const user = userEvent.setup();
     seed();
     api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
-    const { onClose } = renderEdit("Warehouse gate reader");
-
-    expect(field(/Description/)).toHaveValue("Warehouse gate reader");
+    const { onClose } = renderProfile("Warehouse gate reader");
 
     await user.click(await screen.findByRole("combobox", { name: /Profile/ }));
     await user.click(await screen.findByRole("option", { name: "premium" }));
     await user.click(button(/^Update$/));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(`${SUBSCRIBERS}/001010123456789`)?.body).toEqual({
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "premium",
       description: "Warehouse gate reader",
     });
   });
+});
 
-  it("clears the description when the operator empties the field", async () => {
+describe("EditSubscriberDescriptionModal", () => {
+  const renderDescription = (description = "") => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <EditSubscriberDescriptionModal
+        open
+        onClose={onClose}
+        onSuccess={vi.fn()}
+        initialData={initialData(description)}
+      />,
+      { auth: {} },
+    );
+    return { onClose };
+  };
+
+  it("edits the description alone", async () => {
+    seed();
+    renderDescription("Warehouse gate reader");
+
+    expect(textbox(/Description/)).toHaveValue("Warehouse gate reader");
+    expect(
+      screen.queryByRole("combobox", { name: /Profile/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("submits the new description and carries the profile through unchanged", async () => {
     const user = userEvent.setup();
     seed();
     api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
-    const { onClose } = renderEdit("Warehouse gate reader");
+    const { onClose } = renderDescription("Warehouse gate reader");
 
-    await user.clear(field(/Description/));
+    await user.clear(textbox(/Description/));
+    await user.type(textbox(/Description/), "Loading dock reader");
     await user.click(button(/^Update$/));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(api.lastRequest(`${SUBSCRIBERS}/001010123456789`)?.body).toEqual({
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
+      profile_name: "default",
+      description: "Loading dock reader",
+    });
+  });
+
+  it("removes the description when the operator empties the field", async () => {
+    const user = userEvent.setup();
+    seed();
+    api.put(`${SUBSCRIBERS}/:imsi`, () => ({}));
+    const { onClose } = renderDescription("Warehouse gate reader");
+
+    await user.clear(textbox(/Description/));
+    await user.click(button(/^Update$/));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(api.lastRequest(PUT_PATH)?.body).toEqual({
       profile_name: "default",
       description: "",
     });
@@ -263,9 +320,9 @@ describe("EditSubscriberModal", () => {
   it("rejects a description longer than the API accepts", async () => {
     const user = userEvent.setup();
     seed();
-    renderEdit();
+    renderDescription();
 
-    await user.click(field(/Description/));
+    await user.click(textbox(/Description/));
     await user.paste("x".repeat(MAX_DESCRIPTION_LENGTH + 1));
     await user.tab();
 

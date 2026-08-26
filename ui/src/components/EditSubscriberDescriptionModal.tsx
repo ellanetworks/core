@@ -12,24 +12,16 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
-import ProfileSelectField, {
-  useProfileNames,
-} from "@/components/ProfileSelectField";
+import type { EditSubscriberFields } from "@/components/subscriberIdentity";
 
-interface EditSubscriberModalProps {
+interface EditSubscriberDescriptionModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: {
-    imsi: string;
-    profileName: string;
-    description: string;
-  };
+  initialData: EditSubscriberFields;
 }
 
 const schema = yup.object({
-  imsi: yup.string().required(),
-  profileName: yup.string().required("Profile is required."),
   description: yup
     .string()
     .default("")
@@ -41,31 +33,25 @@ const schema = yup.object({
 
 type FormValues = yup.InferType<typeof schema>;
 
-const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
-  open,
-  onClose,
-  onSuccess,
-  initialData,
-}) => {
+const EditSubscriberDescriptionModal: React.FC<
+  EditSubscriberDescriptionModalProps
+> = ({ open, onClose, onSuccess, initialData }) => {
   const { accessToken } = useAuth();
-  const profilesQuery = useProfileNames(open);
 
   const form = useForm<FormValues>({
     mode: "onTouched",
     resolver: yupResolver(schema),
-    values: {
-      imsi: initialData.imsi,
-      profileName: initialData.profileName,
-      description: initialData.description,
-    },
+    values: { description: initialData.description },
   });
 
+  // The API replaces the subscriber in full, so the profile travels unchanged
+  // with the new description.
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
     await updateSubscriber(
       accessToken,
-      values.imsi,
-      values.profileName,
+      initialData.imsi,
+      initialData.profileName,
       values.description,
     );
   };
@@ -75,28 +61,23 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
-      title="Edit Subscriber"
+      title="Edit Description"
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update subscriber"
       submitLabel="Update"
       submittingLabel="Updating..."
     >
-      <TextControl<FormValues> name="imsi" label="IMSI" disabled />
-      <ProfileSelectField
-        control={form.control}
-        name="profileName"
-        profiles={profilesQuery.data ?? []}
-      />
       <TextControl<FormValues>
         name="description"
-        label="Description (optional)"
-        helperText={`A note to identify this subscriber, up to ${MAX_DESCRIPTION_LENGTH} characters`}
+        label="Description"
+        helperText={`A note to identify this subscriber, up to ${MAX_DESCRIPTION_LENGTH} characters. Leave blank to remove it.`}
         multiline
         minRows={2}
+        autoFocus
       />
     </FormDialog>
   );
 };
 
-export default EditSubscriberModal;
+export default EditSubscriberDescriptionModal;

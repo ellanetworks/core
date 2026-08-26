@@ -22,7 +22,8 @@ import { getSubscriberCredentials } from "@/queries/subscribers";
 
 interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;
-  onEdit?: () => void;
+  onEditProfile?: () => void;
+  onEditDescription?: () => void;
 }
 
 const DOTS = "••••••••••••••••••••••••••••••••";
@@ -111,9 +112,16 @@ const FieldRow: React.FC<{
   </Box>
 );
 
+const editIcon = (label: string, onClick: () => void) => (
+  <IconButton size="small" onClick={onClick} aria-label={label} color="primary">
+    <EditIcon fontSize="small" />
+  </IconButton>
+);
+
 const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   subscriber,
-  onEdit,
+  onEditProfile,
+  onEditDescription,
 }) => {
   const { showSnackbar } = useSnackbar();
   const { role, accessToken, authReady } = useAuth();
@@ -189,6 +197,24 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           />
         )}
         <FieldRow
+          label="Description"
+          value={subscriber.description ?? ""}
+          wrapProse
+          actionIcon={
+            onEditDescription
+              ? editIcon("Edit description", onEditDescription)
+              : undefined
+          }
+        />
+        <FieldRow
+          label="Profile"
+          value={subscriber.profile_name || "—"}
+          linkTo={`/profiles/${subscriber.profile_name}`}
+          actionIcon={
+            onEditProfile ? editIcon("Edit profile", onEditProfile) : undefined
+          }
+        />
+        <FieldRow
           label="Key"
           value={credentials?.key ?? ""}
           copyable={
@@ -218,28 +244,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             handleCopy(credentials?.sequenceNumber ?? "", "Sequence Number")
           }
           obfuscated={!credentialsVisible}
-        />
-        <FieldRow
-          label="Profile"
-          value={subscriber.profile_name || "—"}
-          linkTo={`/profiles/${subscriber.profile_name}`}
-          actionIcon={
-            onEdit ? (
-              <IconButton
-                size="small"
-                onClick={onEdit}
-                aria-label="Edit subscriber"
-                color="primary"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            ) : undefined
-          }
-        />
-        <FieldRow
-          label="Description"
-          value={subscriber.description ?? ""}
-          wrapProse
         />
       </CardContent>
     </Card>

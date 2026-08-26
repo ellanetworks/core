@@ -111,7 +111,7 @@ const (
 	MaxNumSubscribers    = 1000
 	MaxSessions          = 26
 	MaxSearchLength      = 254
-	MaxDescriptionLength = 255
+	MaxDescriptionLength = 64
 )
 
 // normalizeDescription trims the operator's free-text note and rejects one
