@@ -7,19 +7,29 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 )
 
 const (
 	PKIMintJoinTokenAction = "pki_mint_join_token" // #nosec G101 -- audit action name
+)
+
+// A leader that has just been promoted registers its own cluster
+// certificate as part of leader init; minting before that commit
+// lands would embed a stale pin, so the handler waits it out rather
+// than failing a request that is about to become serviceable.
+const (
+	mintReadyWait = 15 * time.Second
+	mintReadyPoll = 100 * time.Millisecond
 )
 
 // pkiAdminEndpoint resolves the pkiissuer.Service at request time and
@@ -57,10 +67,9 @@ type MintJoinTokenResponse struct {
 }
 
 // PKIMintJoinToken handles POST /api/v1/cluster/pki/join-tokens.
-// The handler runs on the leader (the public API forwards to it),
-// so dbInstance.NodeID() identifies the leader whose pin gets
-// embedded in the token's claims.
-func PKIMintJoinToken(dbInstance *db.Database, svc *pkiissuer.Service) http.Handler {
+// Minting is leader-only and is not forwarded: a request that lands
+// on a follower fails.
+func PKIMintJoinToken(svc *pkiissuer.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req MintJoinTokenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -80,9 +89,17 @@ func PKIMintJoinToken(dbInstance *db.Database, svc *pkiissuer.Service) http.Hand
 			ttl = 30 * time.Minute
 		}
 
-		token, err := svc.MintJoinToken(r.Context(), req.NodeID, ttl, dbInstance.NodeID())
+		token, err := mintWhenReady(r.Context(), svc, req.NodeID, ttl)
 		if err != nil {
+			if errors.Is(err, pkiissuer.ErrNotReady) {
+				w.Header().Set("Retry-After", "1")
+				writeError(r.Context(), w, http.StatusServiceUnavailable, "mint token", err, logger.APILog)
+
+				return
+			}
+
 			writeError(r.Context(), w, http.StatusInternalServerError, "mint token", err, logger.APILog)
+
 			return
 		}
 
@@ -101,4 +118,23 @@ func PKIMintJoinToken(dbInstance *db.Database, svc *pkiissuer.Service) http.Hand
 			ExpiresAtUnixSecs: expiresAt,
 		}, http.StatusCreated, logger.APILog)
 	})
+}
+
+// mintWhenReady retries MintJoinToken while the issuer reports
+// ErrNotReady, up to mintReadyWait.
+func mintWhenReady(ctx context.Context, svc *pkiissuer.Service, nodeID int, ttl time.Duration) (string, error) {
+	deadline := time.Now().Add(mintReadyWait)
+
+	for {
+		token, err := svc.MintJoinToken(ctx, nodeID, ttl)
+		if !errors.Is(err, pkiissuer.ErrNotReady) || time.Now().After(deadline) {
+			return token, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(mintReadyPoll):
+		}
+	}
 }

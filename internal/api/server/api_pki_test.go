@@ -71,7 +71,9 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	issuer := pkiissuer.New(env.DB)
+	var leaderFP string
+
+	issuer := pkiissuer.New(env.DB, func() string { return leaderFP })
 	if err := issuer.Bootstrap(context.Background()); err != nil {
 		t.Fatalf("Bootstrap: %v", err)
 	}
@@ -83,9 +85,11 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	leaderFP = pki.Fingerprint(leaderCert)
+
 	if err := env.DB.UpsertClusterNodeCert(context.Background(), &db.ClusterNodeCert{
 		NodeID:      1,
-		Fingerprint: pki.Fingerprint(leaderCert),
+		Fingerprint: leaderFP,
 		CertPEM:     string(pki.EncodeCertPEM(leaderCert)),
 		AddedAt:     time.Now().Unix(),
 	}); err != nil {
@@ -149,7 +153,7 @@ func TestPKIAdminEndpoints_InstalledButNotBootstrapped503(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	server.SetPKIIssuer(pkiissuer.New(env.DB))
+	server.SetPKIIssuer(pkiissuer.New(env.DB, nil))
 	t.Cleanup(func() { server.SetPKIIssuer(nil) })
 
 	admin, err := initializeAndRefresh(env.Server.URL, env.Server.Client())

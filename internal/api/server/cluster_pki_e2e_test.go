@@ -62,7 +62,7 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 		t.Fatalf("preregister leader pin: %v", err)
 	}
 
-	issuer := pkiissuer.New(leaderDB)
+	issuer := pkiissuer.New(leaderDB, func() string { return pki.Fingerprint(leaderAgent.Leaf().Leaf) })
 	if err := issuer.Bootstrap(ctx); err != nil {
 		t.Fatalf("issuer bootstrap: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestClusterPKI_JoinFlowEndToEnd(t *testing.T) {
 	t.Cleanup(leaderLn.Stop)
 
 	// Mint a token for nodeID 2 (the joiner). Leader is nodeID 1.
-	token, err := issuer.MintJoinToken(ctx, 2, 5*time.Minute, 1)
+	token, err := issuer.MintJoinToken(ctx, 2, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("mint join token: %v", err)
 	}

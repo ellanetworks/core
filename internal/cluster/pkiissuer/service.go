@@ -23,6 +23,15 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
+// ErrNotReady reports that this node cannot mint join tokens yet
+// because the cluster certificate it presents is not committed in
+// cluster_node_certs. Callers should retry.
+var ErrNotReady = errors.New("cluster pki not ready")
+
+// LocalLeafFunc reports the SHA-256 pin of the cluster certificate
+// this node is currently presenting, or "" when it has none yet.
+type LocalLeafFunc func() string
+
 // Store is the narrow DB surface the issuer needs.
 type Store interface {
 	GetOperator(ctx context.Context) (*db.Operator, error)
@@ -42,11 +51,14 @@ type Store interface {
 // Service runs on every voter. Bootstrap and MintJoinToken require
 // IsLeader; RedeemJoinToken and RegisterCert forward to the leader.
 type Service struct {
-	store Store
+	store     Store
+	localLeaf LocalLeafFunc
 }
 
-func New(store Store) *Service {
-	return &Service{store: store}
+// New builds the issuer. localLeaf may be nil, in which case this
+// node can register certs and redeem tokens but never mint one.
+func New(store Store, localLeaf LocalLeafFunc) *Service {
+	return &Service{store: store, localLeaf: localLeaf}
 }
 
 // Bootstrap seeds the HMAC-key singleton on the leader-init path.
@@ -87,10 +99,10 @@ func (s *Service) Ready(ctx context.Context) bool {
 }
 
 // MintJoinToken emits a single-use HMAC token bound to nodeID with
-// the given TTL, embedding the cluster_node_certs pin owned by
-// leaderNodeID so the joining node pins the bootstrap TLS
-// handshake against the leader's certificate.
-func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Duration, leaderNodeID int) (string, error) {
+// the given TTL, embedding the pin set the joining node uses to
+// pin its bootstrap TLS handshake. Returns ErrNotReady until this
+// node's own certificate is committed cluster-wide.
+func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Duration) (string, error) {
 	if ttl < pki.DefaultJoinTokenMinTTL || ttl > pki.DefaultJoinTokenMaxTTL {
 		return "", fmt.Errorf("join-token ttl %s outside [%s, %s]", ttl, pki.DefaultJoinTokenMinTTL, pki.DefaultJoinTokenMaxTTL)
 	}
@@ -113,7 +125,7 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 		return "", fmt.Errorf("cluster id not yet populated")
 	}
 
-	leaderPin, allPins, err := s.pinsForToken(ctx, leaderNodeID)
+	leaderPin, allPins, err := s.pinsForToken(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -157,34 +169,42 @@ func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Durati
 	return tokenStr, nil
 }
 
-func (s *Service) pinsForToken(ctx context.Context, leaderNodeID int) (string, []string, error) {
+// pinsForToken resolves the pin set a join token carries. The leader
+// entry is the certificate this node is presenting right now, never a
+// cluster_node_certs lookup by nodeID: after a restore the table still
+// holds the pre-restore cluster's row for this nodeID, so a lookup
+// mints a token pinning a certificate no node will ever present.
+func (s *Service) pinsForToken(ctx context.Context) (string, []string, error) {
+	var leaderPin string
+	if s.localLeaf != nil {
+		leaderPin = s.localLeaf()
+	}
+
+	if leaderPin == "" {
+		return "", nil, fmt.Errorf("%w: node has no cluster certificate", ErrNotReady)
+	}
+
 	rows, err := s.store.ListClusterNodeCerts(ctx)
 	if err != nil {
 		return "", nil, fmt.Errorf("list pins: %w", err)
 	}
 
 	all := make([]string, 0, len(rows))
+	committed := false
+
 	for _, r := range rows {
 		all = append(all, r.Fingerprint)
-	}
 
-	if leaderNodeID == 0 {
-		// Standalone or single-node test path: with exactly one
-		// registered pin, that pin belongs to the leader.
-		if len(rows) == 1 {
-			return rows[0].Fingerprint, all, nil
-		}
-
-		return "", nil, fmt.Errorf("leaderNodeID is zero and registry has %d pins", len(rows))
-	}
-
-	for _, r := range rows {
-		if r.NodeID == leaderNodeID {
-			return r.Fingerprint, all, nil
+		if r.Fingerprint == leaderPin {
+			committed = true
 		}
 	}
 
-	return "", nil, fmt.Errorf("leader node %d has no registered pin", leaderNodeID)
+	if !committed {
+		return "", nil, fmt.Errorf("%w: this node's certificate is not registered yet", ErrNotReady)
+	}
+
+	return leaderPin, all, nil
 }
 
 func (s *Service) RedeemJoinToken(ctx context.Context, tokenStr string, nodeID int, certPEM []byte) (string, []db.ClusterNodeCert, error) {

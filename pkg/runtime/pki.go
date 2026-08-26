@@ -56,9 +56,21 @@ func (p *pkiState) ensureIssuer(dbInstance *db.Database) {
 	defer p.issuerMu.Unlock()
 
 	if p.issuer == nil {
-		p.issuer = pkiissuer.New(dbInstance)
+		p.issuer = pkiissuer.New(dbInstance, p.leafFingerprint)
 		server.SetPKIIssuer(p.issuer)
 	}
+}
+
+// leafFingerprint is the pkiissuer.LocalLeafFunc accessor: the pin of
+// the cert this node presents on the cluster listener, "" until one
+// exists.
+func (p *pkiState) leafFingerprint() string {
+	leaf := p.agent.Leaf()
+	if leaf == nil {
+		return ""
+	}
+
+	return pki.Fingerprint(leaf.Leaf)
 }
 
 func (p *pkiState) Issuer() *pkiissuer.Service {
