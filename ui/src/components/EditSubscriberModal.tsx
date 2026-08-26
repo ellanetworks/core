@@ -3,7 +3,12 @@
 
 import React from "react";
 import { useForm } from "react-hook-form";
-import { updateSubscriber } from "@/queries/subscribers";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import {
+  updateSubscriber,
+  MAX_DESCRIPTION_LENGTH,
+} from "@/queries/subscribers";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
@@ -18,13 +23,23 @@ interface EditSubscriberModalProps {
   initialData: {
     imsi: string;
     profileName: string;
+    description: string;
   };
 }
 
-interface FormValues {
-  imsi: string;
-  profileName: string;
-}
+const schema = yup.object({
+  imsi: yup.string().required(),
+  profileName: yup.string().required("Profile is required."),
+  description: yup
+    .string()
+    .default("")
+    .max(
+      MAX_DESCRIPTION_LENGTH,
+      `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
+    ),
+});
+
+type FormValues = yup.InferType<typeof schema>;
 
 const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   open,
@@ -36,15 +51,23 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   const profilesQuery = useProfileNames(open);
 
   const form = useForm<FormValues>({
+    mode: "onTouched",
+    resolver: yupResolver(schema),
     values: {
       imsi: initialData.imsi,
       profileName: initialData.profileName,
+      description: initialData.description,
     },
   });
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    await updateSubscriber(accessToken, values.imsi, values.profileName);
+    await updateSubscriber(
+      accessToken,
+      values.imsi,
+      values.profileName,
+      values.description,
+    );
   };
 
   return (
@@ -58,13 +81,19 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       errorPrefix="Failed to update subscriber"
       submitLabel="Update"
       submittingLabel="Updating..."
-      fullWidth={false}
     >
       <TextControl<FormValues> name="imsi" label="IMSI" disabled />
       <ProfileSelectField
         control={form.control}
         name="profileName"
         profiles={profilesQuery.data ?? []}
+      />
+      <TextControl<FormValues>
+        name="description"
+        label="Description (optional)"
+        helperText={`A note to identify this subscriber, up to ${MAX_DESCRIPTION_LENGTH} characters`}
+        multiline
+        minRows={2}
       />
     </FormDialog>
   );

@@ -22,7 +22,7 @@ import { getSubscriberCredentials } from "@/queries/subscribers";
 
 interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;
-  onEditProfile?: () => void;
+  onEdit?: () => void;
 }
 
 const DOTS = "••••••••••••••••••••••••••••••••";
@@ -36,6 +36,7 @@ const FieldRow: React.FC<{
   onToggle?: () => void;
   linkTo?: string;
   actionIcon?: React.ReactNode;
+  wrapProse?: boolean;
 }> = ({
   label,
   value,
@@ -45,6 +46,7 @@ const FieldRow: React.FC<{
   onToggle,
   linkTo,
   actionIcon,
+  wrapProse,
 }) => (
   <Box
     sx={{
@@ -68,7 +70,7 @@ const FieldRow: React.FC<{
       variant="body2"
       sx={{
         flex: 1,
-        wordBreak: "break-all",
+        wordBreak: wrapProse ? "break-word" : "break-all",
         ...(linkTo
           ? {
               color: (t: Theme) => t.palette.link,
@@ -111,7 +113,7 @@ const FieldRow: React.FC<{
 
 const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   subscriber,
-  onEditProfile,
+  onEdit,
 }) => {
   const { showSnackbar } = useSnackbar();
   const { role, accessToken, authReady } = useAuth();
@@ -222,17 +224,22 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           value={subscriber.profile_name || "—"}
           linkTo={`/profiles/${subscriber.profile_name}`}
           actionIcon={
-            onEditProfile ? (
+            onEdit ? (
               <IconButton
                 size="small"
-                onClick={onEditProfile}
-                aria-label="Edit profile"
+                onClick={onEdit}
+                aria-label="Edit subscriber"
                 color="primary"
               >
                 <EditIcon fontSize="small" />
               </IconButton>
             ) : undefined
           }
+        />
+        <FieldRow
+          label="Description"
+          value={subscriber.description ?? ""}
+          wrapProse
         />
       </CardContent>
     </Card>

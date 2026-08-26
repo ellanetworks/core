@@ -22,7 +22,7 @@ This path returns the list of network subscribers, ordered by IMSI.
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
 | `radio`    | query | str  |         |         | Filter by radio name. Returns only subscribers connected to the specified radio. |
 | `data_network` | query | str |     |         | Filter by data network name. Returns only subscribers whose profile reaches it. |
-| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI substring. The value is matched literally, so `%` and `_` are not wildcards. |
+| `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI or description substring. The value is matched literally, so `%` and `_` are not wildcards. |
 
 ### Sample Response
 
@@ -33,6 +33,7 @@ This path returns the list of network subscribers, ordered by IMSI.
             {
                 "imsi": "001010100007487",
                 "profile_name": "default",
+                "description": "Warehouse gate reader",
                 "status": {
                     "registered": true,
                     "radio_access_types": ["5G"],
@@ -62,6 +63,7 @@ This path creates a new network subscriber.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
 - `profile_name` (string): The profile name of the subscriber. Must be the name of an existing profile.
 - `opc` (optional string): The operator code of the subscriber. If not provided, it will be generated automatically using the Operator Code (OP) and the `key` parameter.
+- `description` (optional string): A free-text note about the subscriber. At most 255 characters; surrounding whitespace is trimmed.
 
 ### Sample Response
 
@@ -84,6 +86,7 @@ This path updates an existing network subscriber.
 ### Parameters
 
 - `profile_name` (string): The profile name of the subscriber.
+- `description` (optional string): A free-text note about the subscriber. At most 255 characters; surrounding whitespace is trimmed. This path replaces the subscriber in full, so omitting the field clears the stored note.
 
 ### Sample Response
 
@@ -114,6 +117,7 @@ None
   "result": {
     "imsi": "001010100007487",
     "profile_name": "default",
+    "description": "Warehouse gate reader",
     "status": {
       "registered": true,
       "radio_access_types": ["5G"],

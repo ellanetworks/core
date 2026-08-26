@@ -469,3 +469,189 @@ func TestListSubscribersOrdersByImsi(t *testing.T) {
 		}
 	}
 }
+
+func TestSubscriberDescriptionRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	profileID, err := createDataNetworkAndPolicy(database)
+	if err != nil {
+		t.Fatalf("Couldn't create data network and policy: %s", err)
+	}
+
+	subscriber := &db.Subscriber{
+		Imsi:           "001010100007487",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		ProfileID:      profileID,
+		Description:    "Warehouse gate reader",
+	}
+
+	if err := database.CreateSubscriber(ctx, subscriber); err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+
+	retrieved, err := database.GetSubscriber(ctx, subscriber.Imsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+
+	if retrieved.Description != "Warehouse gate reader" {
+		t.Fatalf("description = %q, want %q", retrieved.Description, "Warehouse gate reader")
+	}
+
+	listed, _, err := database.ListSubscribersPage(ctx, nil, 1, 10)
+	if err != nil {
+		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
+	}
+
+	if len(listed) != 1 || listed[0].Description != "Warehouse gate reader" {
+		t.Fatalf("listed descriptions = %v, want one %q", listed, "Warehouse gate reader")
+	}
+
+	newProfile := &db.Profile{
+		Name:           "another-profile",
+		UeAmbrUplink:   "100 Mbps",
+		UeAmbrDownlink: "100 Mbps",
+	}
+
+	if err := database.CreateProfile(ctx, newProfile); err != nil {
+		t.Fatalf("Couldn't complete Create: %s", err)
+	}
+
+	createdProfile, err := database.GetProfile(ctx, newProfile.Name)
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+
+	subscriber.ProfileID = createdProfile.ID
+	subscriber.Description = "Loading dock reader"
+
+	if err := database.UpdateSubscriberProfile(ctx, subscriber); err != nil {
+		t.Fatalf("Couldn't complete Update: %s", err)
+	}
+
+	retrieved, err = database.GetSubscriber(ctx, subscriber.Imsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+
+	if retrieved.ProfileID != createdProfile.ID {
+		t.Fatalf("profile ID = %q, want %q", retrieved.ProfileID, createdProfile.ID)
+	}
+
+	if retrieved.Description != "Loading dock reader" {
+		t.Fatalf("description = %q, want %q", retrieved.Description, "Loading dock reader")
+	}
+
+	subscriber.Description = ""
+
+	if err := database.UpdateSubscriberProfile(ctx, subscriber); err != nil {
+		t.Fatalf("Couldn't complete Update: %s", err)
+	}
+
+	retrieved, err = database.GetSubscriber(ctx, subscriber.Imsi)
+	if err != nil {
+		t.Fatalf("Couldn't complete Retrieve: %s", err)
+	}
+
+	if retrieved.Description != "" {
+		t.Fatalf("description = %q, want %q", retrieved.Description, "")
+	}
+}
+
+func TestListSubscribersSearchMatchesDescription(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	profileID, err := createDataNetworkAndPolicy(database)
+	if err != nil {
+		t.Fatalf("Couldn't create data network and policy: %s", err)
+	}
+
+	descriptions := map[string]string{
+		"001010100007487": "Warehouse gate reader",
+		"001010100007488": "Forklift 12",
+		"001010100009999": "100% coverage_probe",
+	}
+
+	for imsi, description := range descriptions {
+		sub := &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			ProfileID:      profileID,
+			Description:    description,
+		}
+		if err := database.CreateSubscriber(ctx, sub); err != nil {
+			t.Fatalf("Couldn't complete Create: %s", err)
+		}
+	}
+
+	search := func(q string) []db.Subscriber {
+		t.Helper()
+
+		subs, total, err := database.ListSubscribersPage(ctx, &db.SubscriberFilters{Search: &q}, 1, 25)
+		if err != nil {
+			t.Fatalf("ListSubscribersPage(search=%q): %s", q, err)
+		}
+
+		if total != len(subs) {
+			t.Fatalf("ListSubscribersPage(search=%q): total %d, %d rows", q, total, len(subs))
+		}
+
+		return subs
+	}
+
+	for _, tc := range []struct {
+		query string
+		want  []string
+	}{
+		{"gate", []string{"001010100007487"}},
+		{"forklift", []string{"001010100007488"}},
+		{"0748", []string{"001010100007487", "001010100007488"}},
+		{"reader 12", nil},
+		{"%", []string{"001010100009999"}},
+		{"_", []string{"001010100009999"}},
+		{"100% coverage_probe", []string{"001010100009999"}},
+	} {
+		subs := search(tc.query)
+
+		got := make([]string, 0, len(subs))
+		for _, s := range subs {
+			got = append(got, s.Imsi)
+		}
+
+		if len(got) != len(tc.want) {
+			t.Fatalf("search(%q) = %v, want %v", tc.query, got, tc.want)
+		}
+
+		for i := range tc.want {
+			if got[i] != tc.want[i] {
+				t.Fatalf("search(%q) = %v, want %v", tc.query, got, tc.want)
+			}
+		}
+	}
+}

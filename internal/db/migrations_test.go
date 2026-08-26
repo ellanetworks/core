@@ -1067,3 +1067,49 @@ func TestMigrateV14_RewritesAlgorithmNames(t *testing.T) {
 		t.Fatalf("integrity = %q, want [\"AES\",\"NULL\"]", integrity)
 	}
 }
+
+func TestMigrateV18_AddsDescriptionColumn(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	if err := runMigrations(ctx, db, 17); err != nil {
+		t.Fatalf("runMigrations to v17: %v", err)
+	}
+
+	// The profile FK is irrelevant to this column addition; skip it the way
+	// the migration runner does.
+	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		t.Fatalf("disable foreign keys: %v", err)
+	}
+
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ('01890000-0000-7000-8000-000000000001', '001010000000001', '000000000001', '00112233445566778899aabbccddeeff', '00112233445566778899aabbccddeeff', '01890000-0000-7000-8000-0000000000ff')",
+		SubscribersTableName))
+	if err != nil {
+		t.Fatalf("insert subscriber: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
+		t.Fatalf("re-enable foreign keys: %v", err)
+	}
+
+	if err := runMigrations(ctx, db, 18); err != nil {
+		t.Fatalf("runMigrations to v18: %v", err)
+	}
+
+	if got := schemaVersion(t, db); got != 18 {
+		t.Fatalf("schema version = %d, want 18", got)
+	}
+
+	var description string
+
+	err = db.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT description FROM %s WHERE imsi = '001010000000001'", SubscribersTableName)).Scan(&description)
+	if err != nil {
+		t.Fatalf("read description of pre-v18 row: %v", err)
+	}
+
+	if description != "" {
+		t.Fatalf("description of pre-v18 row = %q, want %q", description, "")
+	}
+}

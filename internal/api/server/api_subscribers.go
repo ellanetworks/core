@@ -29,10 +29,12 @@ type CreateSubscriberParams struct {
 	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profile_name"`
+	Description    string `json:"description,omitempty"`
 }
 
 type UpdateSubscriberParams struct {
 	ProfileName string `json:"profile_name"`
+	Description string `json:"description,omitempty"`
 }
 
 type SubscriberStatus struct {
@@ -45,6 +47,7 @@ type SubscriberStatus struct {
 type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
+	Description string           `json:"description,omitempty"`
 	Radio       string           `json:"radio,omitempty"`
 	Status      SubscriberStatus `json:"status"`
 }
@@ -69,6 +72,7 @@ type SubscriberDetailStatus struct {
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
+	Description string                 `json:"description,omitempty"`
 	Status      SubscriberDetailStatus `json:"status"`
 	Sessions    []Session              `json:"sessions"`
 }
@@ -104,10 +108,22 @@ const (
 )
 
 const (
-	MaxNumSubscribers = 1000
-	MaxSessions       = 26
-	MaxSearchLength   = 254
+	MaxNumSubscribers    = 1000
+	MaxSessions          = 26
+	MaxSearchLength      = 254
+	MaxDescriptionLength = 255
 )
+
+// normalizeDescription trims the operator's free-text note and rejects one
+// longer than MaxDescriptionLength. An empty result is valid and means unset.
+func normalizeDescription(description string) (string, error) {
+	description = strings.TrimSpace(description)
+	if utf8.RuneCountInString(description) > MaxDescriptionLength {
+		return "", fmt.Errorf("description must be at most %d characters", MaxDescriptionLength)
+	}
+
+	return description, nil
+}
 
 func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
 	if _, err := etsi.NewSUPIFromIMSI(imsi); err != nil {
@@ -347,6 +363,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 			items = append(items, Subscriber{
 				Imsi:        dbSubscriber.Imsi,
 				ProfileName: profile.Name,
+				Description: dbSubscriber.Description,
 				Radio:       merged.RadioName,
 				Status:      subscriberStatus,
 			})
@@ -469,6 +486,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *m
 		subscriber := SubscriberDetail{
 			Imsi:        dbSubscriber.Imsi,
 			ProfileName: profile.Name,
+			Description: dbSubscriber.Description,
 			Status:      subscriberStatus,
 			Sessions:    sessions,
 		}
@@ -541,6 +559,12 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		description, err := normalizeDescription(params.Description)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), errors.New("validation error"), logger.APILog)
+			return
+		}
+
 		if !isImsiValid(r.Context(), params.Imsi, dbInstance) {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI format. Must be a string of 6 to 15 digits starting with `<mcc><mnc>`.", errors.New("validation error"), logger.APILog)
 			return
@@ -610,6 +634,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			PermanentKey:   params.Key,
 			Opc:            opcHex,
 			ProfileID:      profile.ID,
+			Description:    description,
 		}
 
 		if err := dbInstance.CreateSubscriber(r.Context(), newSubscriber); err != nil {
@@ -625,7 +650,12 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber created successfully"}, http.StatusCreated, logger.APILog)
 
-		logger.LogAuditEvent(r.Context(), CreateSubscriberAction, email, getClientIP(r), "User created subscriber: "+params.Imsi)
+		detail := "User created subscriber: " + params.Imsi
+		if description != "" {
+			detail += " (description: " + description + ")"
+		}
+
+		logger.LogAuditEvent(r.Context(), CreateSubscriberAction, email, getClientIP(r), detail)
 	})
 }
 
@@ -651,6 +681,12 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		description, err := normalizeDescription(params.Description)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), errors.New("validation error"), logger.APILog)
+			return
+		}
+
 		profile, err := dbInstance.GetProfile(r.Context(), params.ProfileName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
@@ -669,8 +705,9 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		updated := &db.Subscriber{
-			Imsi:      imsi,
-			ProfileID: profile.ID,
+			Imsi:        imsi,
+			ProfileID:   profile.ID,
+			Description: description,
 		}
 		if err := dbInstance.UpdateSubscriberProfile(r.Context(), updated); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
@@ -684,7 +721,17 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Subscriber updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(r.Context(), UpdateSubscriberAction, email, getClientIP(r), "User updated subscriber: "+imsi)
+
+		// PUT is a full replace, so the audit entry records what the
+		// description became, including its removal.
+		detail := "User updated subscriber: " + imsi
+		if description != "" {
+			detail += " (description: " + description + ")"
+		} else {
+			detail += " (description cleared)"
+		}
+
+		logger.LogAuditEvent(r.Context(), UpdateSubscriberAction, email, getClientIP(r), detail)
 	})
 }
 

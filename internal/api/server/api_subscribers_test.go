@@ -54,6 +54,7 @@ type ListSubscriberStatus struct {
 type ListSubscriber struct {
 	Imsi        string               `json:"imsi"`
 	ProfileName string               `json:"profile_name"`
+	Description string               `json:"description,omitempty"`
 	Radio       string               `json:"radio,omitempty"`
 	Status      ListSubscriberStatus `json:"status"`
 }
@@ -91,6 +92,7 @@ type Session struct {
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
+	Description string                 `json:"description,omitempty"`
 	Status      SubscriberDetailStatus `json:"status"`
 	Sessions    []Session              `json:"sessions"`
 }
@@ -106,6 +108,7 @@ type CreateSubscriberParams struct {
 	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
 	ProfileName    string `json:"profile_name"`
+	Description    string `json:"description,omitempty"`
 }
 
 type CreateSubscriberResponseResult struct {
@@ -243,6 +246,7 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 type UpdateSubscriberParams struct {
 	Imsi        string `json:"imsi"`
 	ProfileName string `json:"profile_name"`
+	Description string `json:"description,omitempty"`
 }
 
 type UpdateSubscriberResponse struct {
@@ -1604,6 +1608,213 @@ func TestListSubscribers_SearchFilter(t *testing.T) {
 
 		if resp.Error == "" {
 			t.Fatal("expected an error message")
+		}
+	})
+}
+
+func TestSubscriberDescription(t *testing.T) {
+	env, err := setupServer(filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+	url := env.Server.URL
+
+	token, err := initializeAndRefresh(url, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	mustCreate := func(name string, code int, callErr error) {
+		t.Helper()
+
+		if callErr != nil {
+			t.Fatalf("%s: %s", name, callErr)
+		}
+
+		if code != http.StatusCreated {
+			t.Fatalf("%s: expected 201, got %d", name, code)
+		}
+	}
+
+	sc, _, err := createDataNetwork(url, client, token, &CreateDataNetworkParams{Name: "description-dn", IPv4Pool: IPv4Pool, DNS: DNS, MTU: MTU})
+	mustCreate("createDataNetwork", sc, err)
+
+	sc, _, err = createSlice(url, client, token, &CreateSliceParams{Name: "description-slice", Sst: 1})
+	mustCreate("createSlice", sc, err)
+
+	sc, _, err = createProfile(url, client, token, &CreateProfileParams{Name: TestProfileName, UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps"})
+	mustCreate("createProfile", sc, err)
+
+	sc, _, err = createPolicy(url, client, token, &CreatePolicyParams{
+		Name: "description-policy", ProfileName: TestProfileName, SliceName: "description-slice",
+		SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkName: "description-dn",
+	})
+	mustCreate("createPolicy", sc, err)
+
+	const (
+		describedIMSI = "001010100007487"
+		plainIMSI     = "001010100007488"
+	)
+
+	sc, _, err = createSubscriber(url, client, token, &CreateSubscriberParams{
+		Imsi: describedIMSI, Key: Key, Opc: Opc, SequenceNumber: SequenceNumber,
+		ProfileName: TestProfileName, Description: "  Warehouse gate reader  ",
+	})
+	mustCreate("createSubscriber "+describedIMSI, sc, err)
+
+	sc, _, err = createSubscriber(url, client, token, &CreateSubscriberParams{
+		Imsi: plainIMSI, Key: Key, Opc: Opc, SequenceNumber: SequenceNumber, ProfileName: TestProfileName,
+	})
+	mustCreate("createSubscriber "+plainIMSI, sc, err)
+
+	get := func(t *testing.T, imsi string) *SubscriberDetail {
+		t.Helper()
+
+		code, resp, err := getSubscriber(url, client, token, imsi)
+		if err != nil {
+			t.Fatalf("get %s: %s", imsi, err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("get %s: expected 200, got %d (%q)", imsi, code, resp.Error)
+		}
+
+		return &resp.Result
+	}
+
+	t.Run("create stores a trimmed description", func(t *testing.T) {
+		if got := get(t, describedIMSI).Description; got != "Warehouse gate reader" {
+			t.Fatalf("description = %q, want %q", got, "Warehouse gate reader")
+		}
+	})
+
+	t.Run("create without a description leaves it unset", func(t *testing.T) {
+		if got := get(t, plainIMSI).Description; got != "" {
+			t.Fatalf("description = %q, want %q", got, "")
+		}
+	})
+
+	t.Run("list reports the description", func(t *testing.T) {
+		code, resp, err := listSubscribers(url, client, token, 1, 25)
+		if err != nil {
+			t.Fatalf("list: %s", err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("list: expected 200, got %d (%q)", code, resp.Error)
+		}
+
+		byIMSI := make(map[string]string, len(resp.Result.Items))
+		for _, item := range resp.Result.Items {
+			byIMSI[item.Imsi] = item.Description
+		}
+
+		if byIMSI[describedIMSI] != "Warehouse gate reader" {
+			t.Fatalf("listed description = %q, want %q", byIMSI[describedIMSI], "Warehouse gate reader")
+		}
+
+		if byIMSI[plainIMSI] != "" {
+			t.Fatalf("listed description = %q, want %q", byIMSI[plainIMSI], "")
+		}
+	})
+
+	t.Run("search matches a description-only hit", func(t *testing.T) {
+		code, resp, err := listSubscribersWithQuery(url, client, token, "search=gate")
+		if err != nil {
+			t.Fatalf("list: %s", err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("list: expected 200, got %d (%q)", code, resp.Error)
+		}
+
+		if len(resp.Result.Items) != 1 || resp.Result.TotalCount != 1 || resp.Result.Items[0].Imsi != describedIMSI {
+			t.Fatalf("expected only %s, got total=%d items=%+v", describedIMSI, resp.Result.TotalCount, resp.Result.Items)
+		}
+	})
+
+	t.Run("update keeps the description when it is resent", func(t *testing.T) {
+		code, resp, err := updateSubscriber(url, client, token, describedIMSI, &UpdateSubscriberParams{
+			ProfileName: TestProfileName, Description: "Warehouse gate reader",
+		})
+		if err != nil {
+			t.Fatalf("update: %s", err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("update: expected 200, got %d (%q)", code, resp.Error)
+		}
+
+		if got := get(t, describedIMSI).Description; got != "Warehouse gate reader" {
+			t.Fatalf("description = %q, want %q", got, "Warehouse gate reader")
+		}
+	})
+
+	t.Run("update clears the description when it is omitted", func(t *testing.T) {
+		code, resp, err := updateSubscriber(url, client, token, describedIMSI, &UpdateSubscriberParams{
+			ProfileName: TestProfileName,
+		})
+		if err != nil {
+			t.Fatalf("update: %s", err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("update: expected 200, got %d (%q)", code, resp.Error)
+		}
+
+		if got := get(t, describedIMSI).Description; got != "" {
+			t.Fatalf("description = %q, want %q", got, "")
+		}
+	})
+
+	t.Run("an over-long description is rejected", func(t *testing.T) {
+		tooLong := strings.Repeat("é", server.MaxDescriptionLength+1)
+
+		code, resp, err := createSubscriber(url, client, token, &CreateSubscriberParams{
+			Imsi: "001010100009999", Key: Key, Opc: Opc, SequenceNumber: SequenceNumber,
+			ProfileName: TestProfileName, Description: tooLong,
+		})
+		if err != nil {
+			t.Fatalf("create: %s", err)
+		}
+
+		if code != http.StatusBadRequest {
+			t.Fatalf("create with a %d-character description: expected 400, got %d", server.MaxDescriptionLength+1, code)
+		}
+
+		if resp.Error == "" {
+			t.Fatal("expected an error message")
+		}
+
+		updateCode, updateResp, err := updateSubscriber(url, client, token, plainIMSI, &UpdateSubscriberParams{
+			ProfileName: TestProfileName, Description: tooLong,
+		})
+		if err != nil {
+			t.Fatalf("update: %s", err)
+		}
+
+		if updateCode != http.StatusBadRequest {
+			t.Fatalf("update with a %d-character description: expected 400, got %d", server.MaxDescriptionLength+1, updateCode)
+		}
+
+		if updateResp.Error == "" {
+			t.Fatal("expected an error message")
+		}
+	})
+
+	t.Run("the length cap counts characters, not bytes", func(t *testing.T) {
+		code, resp, err := updateSubscriber(url, client, token, plainIMSI, &UpdateSubscriberParams{
+			ProfileName: TestProfileName, Description: strings.Repeat("é", server.MaxDescriptionLength),
+		})
+		if err != nil {
+			t.Fatalf("update: %s", err)
+		}
+
+		if code != http.StatusOK {
+			t.Fatalf("update with a %d-character description: expected 200, got %d (%q)", server.MaxDescriptionLength, code, resp.Error)
 		}
 	})
 }

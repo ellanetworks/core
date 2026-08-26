@@ -165,9 +165,7 @@ const SubscriberDetail: React.FC = () => {
               >
                 <SubscriberProvisioningCard
                   subscriber={subscriber}
-                  onEditProfile={
-                    canEdit ? () => setEditModalOpen(true) : undefined
-                  }
+                  onEdit={canEdit ? () => setEditModalOpen(true) : undefined}
                 />
               </Box>
 
@@ -236,6 +234,7 @@ const SubscriberDetail: React.FC = () => {
                 initialData={{
                   imsi: subscriber.imsi,
                   profileName: subscriber.profile_name,
+                  description: subscriber.description ?? "",
                 }}
               />
             )}

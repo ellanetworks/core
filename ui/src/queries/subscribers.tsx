@@ -3,6 +3,9 @@
 
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
+// Mirrors MaxDescriptionLength in internal/api/server/api_subscribers.go.
+export const MAX_DESCRIPTION_LENGTH = 255;
+
 export type SubscriberListStatus = {
   registered?: boolean;
   radio_access_types?: string[];
@@ -13,6 +16,7 @@ export type SubscriberListStatus = {
 export type APISubscriberSummary = {
   imsi: string;
   profile_name: string;
+  description?: string;
   radio?: string;
   status: SubscriberListStatus;
 };
@@ -37,6 +41,7 @@ export type SubscriberDetailStatus = {
 export type APISubscriber = {
   imsi: string;
   profile_name: string;
+  description?: string;
   status: SubscriberDetailStatus;
   sessions: SessionInfo[];
 };
@@ -136,11 +141,19 @@ export const createSubscriber = async (
   sequenceNumber: string,
   profileName: string,
   opc: string,
+  description: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/subscribers`, {
     method: "POST",
     authToken,
-    body: { imsi, key, sequenceNumber, profile_name: profileName, opc },
+    body: {
+      imsi,
+      key,
+      sequenceNumber,
+      profile_name: profileName,
+      opc,
+      description,
+    },
   });
 };
 
@@ -148,11 +161,12 @@ export const updateSubscriber = async (
   authToken: string,
   imsi: string,
   profileName: string,
+  description: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/subscribers/${imsi}`, {
     method: "PUT",
     authToken,
-    body: { profile_name: profileName },
+    body: { profile_name: profileName, description },
   });
 };
 

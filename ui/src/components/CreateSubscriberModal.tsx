@@ -15,7 +15,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useController, useForm, useWatch } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { createSubscriber } from "@/queries/subscribers";
+import {
+  createSubscriber,
+  MAX_DESCRIPTION_LENGTH,
+} from "@/queries/subscribers";
 import { getOperator } from "@/queries/operator";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
@@ -70,6 +73,13 @@ const schema = yup.object({
     )
     .required("Sequence Number is required."),
   profileName: yup.string().required("Profile is required."),
+  description: yup
+    .string()
+    .default("")
+    .max(
+      MAX_DESCRIPTION_LENGTH,
+      `Description must be at most ${MAX_DESCRIPTION_LENGTH} characters.`,
+    ),
   opc: yup
     .string()
     .default("")
@@ -122,6 +132,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       opc: "",
       sequenceNumber: "000000000022",
       profileName: "",
+      description: "",
     },
   });
 
@@ -158,6 +169,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
       values.sequenceNumber,
       values.profileName,
       values.opc,
+      values.description,
     );
   };
 
@@ -266,6 +278,12 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         control={form.control}
         name="profileName"
         profiles={profiles}
+      />
+
+      <TextControl<FormValues>
+        name="description"
+        label="Description (optional)"
+        helperText={`A note to identify this subscriber, up to ${MAX_DESCRIPTION_LENGTH} characters`}
       />
 
       <FormControlLabel
