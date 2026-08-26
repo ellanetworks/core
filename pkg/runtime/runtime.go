@@ -295,12 +295,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		wg.Go(func() {
 			runPinRefresher(ctx, pki, dbInstance)
 		})
-
-		if clusterLn != nil {
-			wg.Go(func() {
-				runRotator(ctx, pki, clusterLn, dbInstance)
-			})
-		}
 	}
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)

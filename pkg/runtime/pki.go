@@ -237,40 +237,6 @@ func runPinSubscriber(ctx context.Context, pki *pkiState, dbInstance *db.Databas
 	}
 }
 
-// rotateInterval is how often a node re-generates its self-signed
-// cert and re-pins it. The previous pin remains valid until the
-// new one commits, so a failed rotation is safe to retry.
-const rotateInterval = 90 * 24 * time.Hour
-
-func runRotator(ctx context.Context, p *pkiState, ln *listener.Listener, dbInstance *db.Database) {
-	t := time.NewTicker(rotateInterval)
-	defer t.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			leaderAddr, leaderID := dbInstance.LeaderAddressAndID()
-			if leaderAddr == "" || leaderID == 0 {
-				logger.EllaLog.Info("skip rotation: no leader yet")
-				continue
-			}
-
-			rotCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-
-			if err := p.agent.Rotate(rotCtx, ln, leaderAddr, leaderID); err != nil {
-				logger.EllaLog.Warn("cluster cert rotation failed; existing pin remains valid",
-					zap.Error(err))
-			} else {
-				logger.EllaLog.Info("cluster cert rotated successfully")
-			}
-
-			cancel()
-		}
-	}
-}
-
 // maybeRestoreFromBundle extracts restore.bundle under dataDir when
 // present and ella.db does not yet exist.
 func maybeRestoreFromBundle(dataDir string) (bool, error) {
