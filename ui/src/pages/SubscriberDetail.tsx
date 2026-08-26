@@ -100,6 +100,7 @@ const SubscriberDetail: React.FC = () => {
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.5 }}>
             <Typography
               variant="h4"
+              component="h1"
               sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
             >
               <Typography

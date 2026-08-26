@@ -215,7 +215,6 @@ export default function BGPTab() {
         headerName: "Import Policy",
         flex: 0.8,
         minWidth: 100,
-        sortable: false,
         renderCell: (params: GridRenderCellParams<APIBGPPeer>) =>
           getImportPolicyLabel(params.row.importPrefixes),
       },
@@ -241,7 +240,6 @@ export default function BGPTab() {
         headerName: "Actions",
         type: "actions",
         width: canEdit ? 140 : 60,
-        sortable: false,
         disableColumnMenu: true,
         getActions: (p: { row: APIBGPPeer }) => [
           <GridActionsCellItem
