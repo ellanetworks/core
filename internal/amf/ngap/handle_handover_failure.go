@@ -57,18 +57,18 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		amfInstance.FailRelocationPreparation(amfUe,
 			interworking.TargetRefusal{Cause: amf.S1APHandoverFailureCause(failureCause)})
 	case sourceUe == nil:
-		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
+		logger.WithTrace(ctx, targetUe.Log()).Error("N2 Handover between AMF has not been implemented yet")
 	default:
 		amfInstance.ClearHandover(amfUe)
 
 		if sourceUe.Radio() == nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
+			logger.WithTrace(ctx, targetUe.Log()).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
 			sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil, msg.TargettoSourceFailureTransparentContainer)
 		}
 	}
 
 	if err := amfInstance.RemoveUeConn(ctx, targetUe); err != nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("error removing target UE association", zap.Error(err))
+		logger.WithTrace(ctx, targetUe.Log()).Error("error removing target UE association", zap.Error(err))
 	}
 }

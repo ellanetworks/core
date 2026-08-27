@@ -20,7 +20,7 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 	m.StopESMGuard(p)
 
 	if cause, ok := fiveGSMCauseFromPCOs(accept.ProtocolConfigurationOptions, accept.ExtendedProtocolConfigurationOptions); ok {
-		ueConn.Log.Warn("UE discarded the mapped 5GS QoS parameters of the bearer modification",
+		ueConn.Log().Warn("UE discarded the mapped 5GS QoS parameters of the bearer modification",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn), zap.Uint8("5gsm-cause", cause))
 	}
 
@@ -28,7 +28,7 @@ func handleModifyBearerAccept(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 		return nasreply.Silent(nasreply.ReasonOutOfState)
 	}
 
-	ueConn.Log.Info("EPS bearer modified in place", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
+	ueConn.Log().Info("EPS bearer modified in place", zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 
 	return nasreply.Handled()
 }

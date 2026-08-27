@@ -128,7 +128,6 @@ func BuildServiceReject(cause fgs.GMMCause) ([]byte, error) {
 	return (&fgs.ServiceReject{Cause: cause}).MarshalBinary()
 }
 
-// T3346 timer are not supported
 func BuildRegistrationReject(t3502Value int, cause5GMM fgs.GMMCause) ([]byte, error) {
 	m := &fgs.RegistrationReject{Cause: cause5GMM}
 

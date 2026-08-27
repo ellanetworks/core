@@ -25,7 +25,7 @@ func HandleUplinkRanStatusTransfer(ctx context.Context, amfInstance *amf.AMF, ra
 
 	target := amfInstance.HandoverTarget(ueConn.UeContext())
 	if target == nil {
-		logger.WithTrace(ctx, ueConn.Log).Warn("RAN Status Transfer with no handover in progress")
+		logger.WithTrace(ctx, ueConn.Log()).Warn("RAN Status Transfer with no handover in progress")
 		return
 	}
 

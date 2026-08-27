@@ -115,7 +115,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 	)
 	defer span.End()
 
-	ctx = logger.Into(ctx, ue.Log)
+	ctx = logger.Into(ctx, ue.Log())
 
 	logger.From(ctx, logger.AmfLog).Info(
 		"Received NAS message",

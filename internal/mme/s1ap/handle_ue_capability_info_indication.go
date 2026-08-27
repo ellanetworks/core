@@ -39,7 +39,7 @@ func handleUECapabilityInfoIndication(m *mme.MME, ctx context.Context, radio *mm
 		ue.RadioCapabilityForPaging = msg.UERadioCapabilityForPaging
 	}
 
-	ueConn.Log.Info("stored UE Radio Capability",
+	ueConn.Log().Info("stored UE Radio Capability",
 		zap.Int("bytes", len(ue.RadioCapability)),
 		zap.Int("paging-bytes", len(ue.RadioCapabilityForPaging)))
 }

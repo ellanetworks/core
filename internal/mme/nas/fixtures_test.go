@@ -261,7 +261,7 @@ func (f *fakeCredStore) GetSubscriber(_ context.Context, imsi string) (*udm.Subs
 
 	s, ok := f.subs[imsi]
 	if !ok {
-		return nil, fmt.Errorf("subscriber %s not found", imsi)
+		return nil, fmt.Errorf("subscriber %s: %w", imsi, udm.ErrSubscriberUnknown)
 	}
 
 	cp := *s
@@ -405,7 +405,7 @@ func (f *fakeCredStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAut
 
 	sub, ok := f.subs[imsi]
 	if !ok {
-		return nil, fmt.Errorf("subscriber %s not found", imsi)
+		return nil, fmt.Errorf("subscriber %s: %w", imsi, udm.ErrSubscriberUnknown)
 	}
 
 	next, err := sqn.Next(sub.SequenceNumber, sub.Opc, sub.PermanentKey, resyncAuts, resyncRand)
