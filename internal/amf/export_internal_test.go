@@ -22,7 +22,8 @@ func (nopNGAPSender) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) { retur
 func TestExportUeContext_DetachedConnDoesNotPanic(t *testing.T) {
 	ue := NewUeContext()
 
-	conn := &UeConn{Log: zap.NewNop()}
+	conn := &UeConn{}
+	conn.setLog(zap.NewNop())
 	ue.active.Store(conn)
 	conn.ue.Store(nil)
 

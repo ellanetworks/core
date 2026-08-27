@@ -53,7 +53,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		c.UpdateLocation(*msg.EUTRANCGI, msg.TAI)
 	}
 
-	logger.From(ctx, c.Log).Info("Initial UE Message",
+	logger.From(ctx, c.Log()).Info("Initial UE Message",
 		zap.Uint32("enb-ue-id", uint32(msg.ENBUES1APID)),
 	)
 
@@ -65,7 +65,7 @@ func HandleInitialUEMessage(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 	if len(nas) > 0 && nas[0]>>4 != uint8(eps.SHTPlain) && msg.STMSI != nil {
 		if ue, ok := m.LookupUeByMTMSI(uint32(msg.STMSI.MTMSI)); ok && ue.EMMState() == mme.EMMRegistered && ue.Secured() {
 			if _, _, err := ue.TryUnprotectUplink(nas); err == nil {
-				logger.From(ctx, c.Log).Debug("Initial UE Message: resuming held context",
+				logger.From(ctx, c.Log()).Debug("Initial UE Message: resuming held context",
 					zap.Uint32("m-tmsi", uint32(msg.STMSI.MTMSI)))
 				m.AttachUeConn(ue, c)
 			}

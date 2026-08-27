@@ -12,10 +12,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
 )
+
+var ErrSubscriberUnknown = errors.New("subscriber unknown")
 
 // Subscriber holds the authentication material the credential authority needs.
 type Subscriber struct {

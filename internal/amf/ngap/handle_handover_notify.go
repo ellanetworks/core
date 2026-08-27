@@ -21,7 +21,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("UeContext is nil")
+		logger.WithTrace(ctx, targetUe.Log()).Error("UeContext is nil")
 		return
 	}
 
@@ -29,13 +29,13 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil && !fromEPS {
-		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
+		logger.WithTrace(ctx, targetUe.Log()).Error("N2 Handover between AMF has not been implemented yet")
 		return
 	}
 
 	admitted, ok := amfInstance.MarkHandoverCommitting(amfUe, targetUe)
 	if !ok {
-		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify with no prepared handover for this target; dropping")
+		logger.WithTrace(ctx, targetUe.Log()).Warn("Handover Notify with no prepared handover for this target; dropping")
 		return
 	}
 
@@ -59,7 +59,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	})
 
 	if !amfInstance.FinishHandoverCommit(amfUe, targetUe) {
-		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Notify: UE released during the user-plane switch")
+		logger.WithTrace(ctx, targetUe.Log()).Warn("Handover Notify: UE released during the user-plane switch")
 
 		amfInstance.ClearHandover(amfUe)
 
@@ -70,7 +70,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		targetUe.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
-	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finished")
+	logger.WithTrace(ctx, targetUe.Log()).Info("Handle Handover notification Finished")
 
 	if fromEPS {
 		amfInstance.CompleteRelocationFromEPS(ctx, amfUe)

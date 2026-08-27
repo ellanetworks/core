@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"math/bits"
@@ -332,7 +333,18 @@ func schemeIDToLetter(schemeID string) (string, error) {
 // scheme is "A" or "B". keyIdentifier is 0-255.
 type KeyResolver func(scheme string, keyIdentifier int) (string, error)
 
+var ErrSUPIUnderivable = errors.New("supi cannot be derived from suci")
+
 func ToSupi(suci string, resolveKey KeyResolver) (etsi.SUPI, error) {
+	supi, err := toSupi(suci, resolveKey)
+	if err != nil {
+		return etsi.InvalidSUPI, fmt.Errorf("%w: %w", ErrSUPIUnderivable, err)
+	}
+
+	return supi, nil
+}
+
+func toSupi(suci string, resolveKey KeyResolver) (etsi.SUPI, error) {
 	suciPart := strings.Split(suci, "-")
 	suciPrefix := suciPart[0]
 

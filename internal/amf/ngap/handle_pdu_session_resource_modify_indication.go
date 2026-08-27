@@ -25,12 +25,12 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 		ueConn.UpdateLocation(ctx, *msg.UserLocationInformation)
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("UE Context", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log()).Debug("UE Context", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 	ueConn.TouchLastSeen()
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("UeContext is nil")
+		logger.WithTrace(ctx, ueConn.Log()).Error("UeContext is nil")
 		return
 	}
 
@@ -44,7 +44,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			failedList = appendFailedToModify(ctx, ueConn, failedList, item.PDUSessionID, ngap.CauseRadioNetworkUnknownPDUSessionID)
 
 			continue
@@ -52,7 +52,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 		confirmTransfer, err := amfInstance.Session.UpdateSmContextN2ModifyIndication(ctx, smContext.Ref, []byte(item.Transfer))
 		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("UpdateSmContextN2ModifyIndication error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("UpdateSmContextN2ModifyIndication error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			failedList = appendFailedToModify(ctx, ueConn, failedList, item.PDUSessionID, ngap.CauseRadioNetworkUnspecified)
 
 			continue
@@ -83,7 +83,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 
 	pkt, err := confirm.Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("error building pdu session resource modify confirm", zap.Error(err))
+		logger.WithTrace(ctx, ueConn.Log()).Error("error building pdu session resource modify confirm", zap.Error(err))
 		return
 	}
 
@@ -100,7 +100,7 @@ func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list ngap.PDU
 
 	transfer, err := t.Marshal()
 	if err != nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("encode modify indication unsuccessful transfer", zap.Error(err))
+		logger.WithTrace(ctx, ueConn.Log()).Error("encode modify indication unsuccessful transfer", zap.Error(err))
 		return list
 	}
 

@@ -27,10 +27,10 @@ func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
 		if err := amfInstance.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("error removing ran ue context", zap.Error(err))
+			logger.WithTrace(ctx, ueConn.Log()).Error("error removing ran ue context", zap.Error(err))
 		}
 
-		logger.WithTrace(ctx, ueConn.Log).Error("No UE Context of UeConn",
+		logger.WithTrace(ctx, ueConn.Log()).Error("No UE Context of UeConn",
 			zap.Uint64("amf-ue-id", uint64(msg.AMFUENGAPID)),
 			zap.Uint32("ran-ue-id", uint32(msg.RANUENGAPID)))
 
@@ -45,7 +45,7 @@ func HandleUplinkNASTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	}
 
 	if amfInstance.NAS == nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("NAS handler not set")
+		logger.WithTrace(ctx, ueConn.Log()).Error("NAS handler not set")
 		return
 	}
 

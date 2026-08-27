@@ -63,9 +63,7 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		return nasreply.Silent(nasreply.ReasonNoContext)
 	}
 
-	if ueConn.Log != nil {
-		ctx = logger.Into(ctx, ueConn.Log)
-	}
+	ctx = logger.Into(ctx, ueConn.Log())
 
 	pd, err := eps.PeekProtocolDiscriminator(pdu)
 	if err != nil {

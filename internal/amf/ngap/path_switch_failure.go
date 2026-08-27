@@ -19,7 +19,7 @@ func pathSwitchSessions(ctx context.Context, ueConn *amf.UeConn, items ngap.PDUS
 	for _, item := range items {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("invalid PDU session ID from gNB, not switched", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, ueConn.Log()).Error("invalid PDU session ID from gNB, not switched", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
 
 			undecodable = append(undecodable, uint8(item.PDUSessionID))
 
