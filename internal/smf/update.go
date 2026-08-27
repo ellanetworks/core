@@ -128,11 +128,15 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return &UpdateResult{N1Msg: n1SmMsg}, nil
 
 	case *fgs.PDUSessionReleaseComplete:
-		// Release acknowledged; stop T3592 and tear down the user plane, held active
-		// through the release window (TS 24.501 §6.3.3.3).
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
+		smContext.n1Released = true
+
+		if !smContext.releaseLegsComplete() {
+			return nil, nil
+		}
+
 		s.teardownAndRemove(ctx, smContext)
 
 		return &UpdateResult{SessionRemoved: true}, nil
@@ -359,8 +363,8 @@ func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
 	return nil
 }
 
-// UpdateSmContextN2InfoPduResRelRsp handles the final N2 PDU Session Resource Release Response.
-func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error {
+// UpdateSmContextN2InfoPduResRelRsp handles the N2 PDU Session Resource Release Response.
+func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) (bool, error) {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_release_response",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
@@ -370,37 +374,39 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		span.RecordError(fmt.Errorf("SM Context reference is missing"))
 		span.SetStatus(codes.Error, "SM Context reference is missing")
 
-		return fmt.Errorf("SM Context reference is missing")
+		return false, fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
-		// Session already removed (e.g. by slice-mismatch release); return nil to
-		// keep the response idempotent.
 		logger.SmfLog.Info("SM context already removed, skipping",
 			zap.String("smContextRef", smContextRef))
 
-		return nil
+		return true, nil
 	}
 
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	// N2 release complete; stop T3592 (TS 24.501 §6.3.3).
-	smContext.stopProcedureTimer()
-
 	if smContext.PDUSessionReleaseDueToDupPduID {
-		// Duplicate-PDU-ID release: the tunnel was already torn down when the
-		// duplicate was detected (UpdateSmContextCauseDuplicatePDUSessionID).
+		smContext.stopProcedureTimer()
+
 		smContext.PDUSessionReleaseDueToDupPduID = false
 		s.RemoveSession(ctx, smContext.Ref)
-	} else {
-		// Network-requested release: tear down the user plane, held active through
-		// the release window (TS 23.502 §4.3.4).
-		s.teardownAndRemove(ctx, smContext)
+
+		return true, nil
 	}
 
-	return nil
+	s.releaseUserPlane(ctx, smContext)
+	smContext.n2Released = true
+
+	if !smContext.releaseLegsComplete() {
+		return false, nil
+	}
+
+	s.teardownAndRemove(ctx, smContext)
+
+	return true, nil
 }
 
 // UpdateSmContextCauseDuplicatePDUSessionID handles duplicate PDU session ID by releasing

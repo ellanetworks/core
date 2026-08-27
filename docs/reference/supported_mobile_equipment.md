@@ -39,6 +39,7 @@ This lists contains radios and UEs that were explicitely validated against Ella 
 
 ### Android Devices
 
+- **Google Pixel 10a**
 - **Samsung Galaxy A56 5G**
 - **Motorola G73 5G**
 - **Motorola Moto G 5G (2024)**

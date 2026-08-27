@@ -50,9 +50,15 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 			}
 
 			if smContext != nil {
-				err := amfInstance.Session.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
+				removed, err := amfInstance.Session.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 				if err != nil {
 					logger.WithTrace(ctx, ueConn.Log()).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+				}
+
+				if removed {
+					amfUe.DeleteSmContext(pduSessionID)
+
+					continue
 				}
 			}
 
