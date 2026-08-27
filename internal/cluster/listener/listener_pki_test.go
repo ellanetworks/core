@@ -148,9 +148,6 @@ func waitWithTimeout(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
 	}
 }
 
-// TestListener_PinRemovedDuringHandshake_ConnClosed removes the peer's
-// pin while its handshake is still in flight, so CloseByPeerFingerprint
-// scans past a connection that is not registered yet.
 func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
 	p := testutil.GenTestPKI(t, []int{1, 2})
 
@@ -173,7 +170,6 @@ func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
 			close(inHandshake)
 			<-release
 
-			// The handshake resolved the pin before it was removed.
 			return base(fingerprint)
 		}
 
