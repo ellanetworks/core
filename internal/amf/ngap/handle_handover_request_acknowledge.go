@@ -44,12 +44,12 @@ func reportFailedSessionsToSmf(ctx context.Context, amfInstance *amf.AMF, target
 	for _, item := range failed {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID in the failed-to-setup list", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, targetUe.Log()).Error("invalid PDU session ID in the failed-to-setup list", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
 			continue
 		}
 
 		if _, isAdmitted := admitted[pduSessionID]; isAdmitted {
-			logger.WithTrace(ctx, targetUe.Log).Warn("PDU session reported both admitted and failed to setup; keeping it handed over", zap.Uint8("pduSessionID", pduSessionID))
+			logger.WithTrace(ctx, targetUe.Log()).Warn("PDU session reported both admitted and failed to setup; keeping it handed over", zap.Uint8("pduSessionID", pduSessionID))
 			continue
 		}
 
@@ -59,7 +59,7 @@ func reportFailedSessionsToSmf(ctx context.Context, amfInstance *amf.AMF, target
 		}
 
 		if err := amfInstance.Session.UpdateSmContextN2HandoverFailed(ctx, smContext.Ref, item.Transfer); err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("failed to hand the target's handover refusal to the SMF",
+			logger.WithTrace(ctx, targetUe.Log()).Error("failed to hand the target's handover refusal to the SMF",
 				zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 		}
 	}
@@ -86,7 +86,7 @@ func releaseItems(ctx context.Context, targetUe *amf.UeConn, unadmitted []amf.Ha
 
 		item, err := toReleaseItemHOCmd(c.PDUSessionID, cause)
 		if err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("failed to build PDU session to-release item", zap.Error(err), zap.Int64("pduSessionID", int64(c.PDUSessionID)))
+			logger.WithTrace(ctx, targetUe.Log()).Error("failed to build PDU session to-release item", zap.Error(err), zap.Int64("pduSessionID", int64(c.PDUSessionID)))
 			continue
 		}
 
@@ -111,11 +111,11 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	targetUe.TouchLastSeen()
-	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Uint32("ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(targetUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, targetUe.Log()).Debug("Handle Handover Request Acknowledge", zap.Uint32("ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("amf-ue-id", uint64(targetUe.AmfUeNgapID)))
 
 	amfUe := targetUe.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, targetUe.Log).Error("amfUe is nil")
+		logger.WithTrace(ctx, targetUe.Log()).Error("amfUe is nil")
 		return
 	}
 
@@ -123,17 +123,17 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	sourceUe := amfInstance.HandoverSource(amfUe)
 	if sourceUe == nil && !fromEPS {
-		logger.WithTrace(ctx, targetUe.Log).Error("handover between different Ue has not been implement yet")
+		logger.WithTrace(ctx, targetUe.Log()).Error("handover between different Ue has not been implement yet")
 		return
 	}
 
 	if amfInstance.HandoverTarget(amfUe) != targetUe {
-		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge from a radio that is not the prepared target; dropping")
+		logger.WithTrace(ctx, targetUe.Log()).Warn("Handover Request Acknowledge from a radio that is not the prepared target; dropping")
 		return
 	}
 
 	if !amfInstance.HandoverPreparing(amfUe) {
-		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
+		logger.WithTrace(ctx, targetUe.Log()).Warn("Handover Request Acknowledge for a handover past the preparing stage; dropping")
 		return
 	}
 
@@ -149,7 +149,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	for _, item := range msg.PDUSessionResourceAdmittedList {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, targetUe.Log()).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
 			continue
 		}
 
@@ -160,7 +160,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 		n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, item.Transfer)
 		if err != nil {
-			logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, targetUe.Log()).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
@@ -176,7 +176,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	reportFailedSessionsToSmf(ctx, amfInstance, targetUe, amfUe, msg.PDUSessionResourceFailedToSetup, admittedPDU)
 
 	if len(admitted) == 0 {
-		logger.WithTrace(ctx, targetUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
+		logger.WithTrace(ctx, targetUe.Log()).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 
 		amfInstance.UnbindHandoverTarget(ctx, amfUe)
 
@@ -187,7 +187,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			amfInstance.ClearHandover(amfUe)
 
 			if sourceUe.Radio() == nil {
-				logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
+				logger.WithTrace(ctx, targetUe.Log()).Error("source UE radio is nil, cannot send handover preparation failure")
 			} else {
 				sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
 			}
@@ -201,19 +201,19 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	unadmitted, ok := amfInstance.MarkHandoverPrepared(amfUe, admittedPDU)
 	if !ok {
-		logger.WithTrace(ctx, targetUe.Log).Warn("Handover Request Acknowledge: handover advanced concurrently; dropping")
+		logger.WithTrace(ctx, targetUe.Log()).Warn("Handover Request Acknowledge: handover advanced concurrently; dropping")
 		return
 	}
 
 	if fromEPS {
-		logger.WithTrace(ctx, targetUe.Log).Info("Handover Request Acknowledge (EPS to 5GS)",
+		logger.WithTrace(ctx, targetUe.Log()).Info("Handover Request Acknowledge (EPS to 5GS)",
 			zap.Int("admitted", len(admitted)), zap.Int("not-handed-over", len(unadmitted)))
 		amfInstance.FinishRelocationPreparation(amfUe, msg.TargetToSourceTransparentContainer, unadmitted)
 
 		return
 	}
 
-	logger.WithTrace(ctx, targetUe.Log).Debug("handle handover request acknowledge", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)),
+	logger.WithTrace(ctx, targetUe.Log()).Debug("handle handover request acknowledge", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)),
 		zap.Uint32("target-ran-ue-id", uint32(targetUe.RanUeNgapID)), zap.Uint64("target-amf-ue-id", uint64(targetUe.AmfUeNgapID)))
 
 	sourceUe.SendHandoverCommand(ctx, admitted, releaseItems(ctx, targetUe, unadmitted, targetCauses), msg.TargetToSourceTransparentContainer)

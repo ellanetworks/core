@@ -74,7 +74,7 @@ type UeConn struct {
 	// callback, so it is atomic; mutate it only through ICS()/ClaimICS()/MarkICS*/ResetICS.
 	ics        atomic.Int32
 	inboundNAS atomic.Uint32
-	Log        *zap.Logger
+	log        atomic.Pointer[zap.Logger]
 	// releasing gates a UE Context Release Command so a second one is not sent for the
 	// same RAN UE. Guarded by AMF.mu, like the conns registry it lives in.
 	releasing bool
@@ -140,6 +140,18 @@ func (a *EPSArrival) ArrivingSessions() *interworking.ArrivingSessions {
 	}
 
 	return a.Sessions
+}
+
+func (ueConn *UeConn) Log() *zap.Logger {
+	if l := ueConn.log.Load(); l != nil {
+		return l
+	}
+
+	return logger.AmfLog
+}
+
+func (ueConn *UeConn) setLog(l *zap.Logger) {
+	ueConn.log.Store(l)
 }
 
 // Parent returns the UeContext this connection is bound to, or nil when bare.
@@ -447,7 +459,7 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log).Error(err.Error())
+			logger.From(ctx, ueConn.Log()).Error(err.Error())
 		}
 
 		return
@@ -456,7 +468,7 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	if amfUe.State() == Registered {
 		for _, sr := range amfUe.SmContextRefs() {
 			if err := a.Session.DeactivateSmContext(ctx, sr.Ref); err != nil {
-				logger.From(ctx, ueConn.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+				logger.From(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
 			}
 		}
 
@@ -466,11 +478,11 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 	switch ueConn.ReleaseAction {
 	case UeContextN2NormalRelease:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log).Error(err.Error())
+			logger.From(ctx, ueConn.Log()).Error(err.Error())
 		}
 	case UeContextReleaseUeContext:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log).Error(err.Error())
+			logger.From(ctx, ueConn.Log()).Error(err.Error())
 		}
 
 		// A UE without a valid security context (never fully registered) has its AMF UE
@@ -480,7 +492,7 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 		}
 	case UeContextReleaseDueToNwInitiatedDeregistraion:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log).Error(err.Error())
+			logger.From(ctx, ueConn.Log()).Error(err.Error())
 		}
 
 		a.DeregisterAndRemoveUeContext(ctx, amfUe)
@@ -488,7 +500,7 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 		// A mid-registration UE is never "keep-context, go idle": delete unconditionally,
 		// even if it is Secured (a post-SMC registration failure).
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log).Error(err.Error())
+			logger.From(ctx, ueConn.Log()).Error(err.Error())
 		}
 
 		a.DeregisterAndRemoveUeContext(ctx, amfUe)
@@ -496,14 +508,14 @@ func (a *AMF) ReleaseUeConn(ctx context.Context, ueConn *UeConn) {
 		a.ClearHandover(amfUe)
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log).Error(err.Error())
+			logger.From(ctx, ueConn.Log()).Error(err.Error())
 		}
 	case UeContextReleaseToEPS:
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.From(ctx, ueConn.Log).Error(err.Error())
+			logger.From(ctx, ueConn.Log()).Error(err.Error())
 		}
 	default:
-		logger.From(ctx, ueConn.Log).Error("Invalid Release Action", zap.Any("ReleaseAction", ueConn.ReleaseAction))
+		logger.From(ctx, ueConn.Log()).Error("Invalid Release Action", zap.Any("ReleaseAction", ueConn.ReleaseAction))
 	}
 }
 
@@ -533,7 +545,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 			a.dropRelocationFromEPS(ctx, ue)
 		}
 
-		logger.WithTrace(ctx, ueConn.Log).Info("aborted in-flight N2 handover: target association removed")
+		logger.WithTrace(ctx, ueConn.Log()).Info("aborted in-flight N2 handover: target association removed")
 	case source:
 		a.ClearHandover(ue)
 		a.UnbindHandoverTarget(ctx, ue)
@@ -545,7 +557,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 				ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost})
 		}
 
-		logger.WithTrace(ctx, ueConn.Log).Info("released prepared N2 handover target: source association removed")
+		logger.WithTrace(ctx, ueConn.Log()).Info("released prepared N2 handover target: source association removed")
 	}
 }
 
@@ -568,12 +580,12 @@ func (a *AMF) DropStaleUe(ctx context.Context, radio *Radio, ranUeNgapID models.
 	a.mu.Unlock()
 
 	for _, ueConn := range stale {
-		logger.WithTrace(ctx, ueConn.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
+		logger.WithTrace(ctx, ueConn.Log()).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale UeConn",
 			zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)),
 			zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
 
 		if err := a.RemoveUeConn(ctx, ueConn); err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error(err.Error())
+			logger.WithTrace(ctx, ueConn.Log()).Error(err.Error())
 		}
 	}
 }
@@ -629,8 +641,8 @@ func (a *AMF) CommitPathSwitch(ue *UeContext, ueConn *UeConn, ran *Radio, ranUeN
 
 	a.mu.Unlock()
 
-	ueConn.Log = ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID))
-	ueConn.Log.Info("ran ue switched to new Ran", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	ueConn.setLog(ran.Log.With(logger.AmfUeNgapID(ueConn.AmfUeNgapID)))
+	ueConn.Log().Info("ran ue switched to new Ran", zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
 	return true
 }
@@ -650,8 +662,8 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 		conn:        radio.Conn,
 		radioName:   radio.name,
 		amf:         radio.amf,
-		Log:         log,
 	}
+	ueConn.setLog(log)
 
 	radio.amf.mu.Lock()
 

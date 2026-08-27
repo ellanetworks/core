@@ -206,7 +206,7 @@ func (a *AMF) attachUeConnLocked(ue *UeContext, ueConn *UeConn) *UeConn {
 
 	if oldUeConn != nil && oldUeConn != ueConn {
 		if oldUeConn.ue.Load() == ue {
-			oldUeConn.Log.Info("Detached UeContext from previous UeConn")
+			oldUeConn.Log().Info("Detached UeContext from previous UeConn")
 			oldUeConn.ue.Store(nil)
 			displaced = oldUeConn
 		}

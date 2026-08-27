@@ -75,7 +75,7 @@ func releaseListedUEs(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 		}
 
 		if err := amfInstance.RemoveUe(ctx, ueConn); err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("failed to remove UE named by NG Reset", zap.Error(err))
+			logger.WithTrace(ctx, ueConn.Log()).Error("failed to remove UE named by NG Reset", zap.Error(err))
 
 			continue
 		}

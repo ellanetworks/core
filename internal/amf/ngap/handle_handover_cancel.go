@@ -20,7 +20,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	logger.WithTrace(ctx, sourceUe.Log).Debug("Handle Handover Cancel", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)))
+	logger.WithTrace(ctx, sourceUe.Log()).Debug("Handle Handover Cancel", zap.Uint32("source-ran-ue-id", uint32(sourceUe.RanUeNgapID)), zap.Uint64("source-amf-ue-id", uint64(sourceUe.AmfUeNgapID)))
 	sourceUe.TouchLastSeen()
 
 	cause := ngap.Cause{
@@ -29,7 +29,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	if msg.Cause != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Debug("Handover Cancel Cause", logger.Cause(msg.Cause.String()))
+		logger.WithTrace(ctx, sourceUe.Log()).Debug("Handover Cancel Cause", logger.Cause(msg.Cause.String()))
 
 		cause = *msg.Cause
 	}
@@ -37,7 +37,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	amfUe := sourceUe.UeContext()
 
 	if target := amfInstance.HandoverTarget(amfUe); target != nil && target == sourceUe {
-		logger.WithTrace(ctx, sourceUe.Log).Info("ignoring a Handover Cancel from the prepared target")
+		logger.WithTrace(ctx, sourceUe.Log()).Info("ignoring a Handover Cancel from the prepared target")
 		sourceUe.SendHandoverCancelAcknowledge(ctx)
 
 		return
@@ -45,13 +45,13 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	if id, toEPS := amfInstance.RelocationToEPS(amfUe); toEPS {
 		if err := amfInstance.CancelRelocationToEPS(ctx, amfUe, id); errors.Is(err, interworking.ErrRelocationTooLate) {
-			logger.WithTrace(ctx, sourceUe.Log).Info("the UE has already reached EPS; leaving the handover to complete",
+			logger.WithTrace(ctx, sourceUe.Log()).Info("the UE has already reached EPS; leaving the handover to complete",
 				zap.Error(err))
 			sourceUe.SendHandoverCancelAcknowledge(ctx)
 
 			return
 		} else if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Info("the peer had no handover to cancel; unwinding locally",
+			logger.WithTrace(ctx, sourceUe.Log()).Info("the peer had no handover to cancel; unwinding locally",
 				zap.Error(err))
 		}
 	}
