@@ -56,22 +56,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 		return result, applyErr
 
+	// Retired: audit_logs is local-only and each node prunes its own rows.
+	// Historical entries carry a cutoff another node computed; applying one
+	// would delete audit history this node owns. The type stays registered so
+	// the entry still decodes, and applies as a no-op.
 	case ellaraft.CmdDeleteOldAuditLogs:
-		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
-			return nil, err
-		}
-
-		payload, err := unmarshalPayload[stringPayload](cmd.Payload)
-		if err != nil {
-			return nil, err
-		}
-
-		applyErr := db.applyDeleteOldAuditLogs(ctx, payload)
-		if applyErr == nil {
-			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
-		}
-
-		return nil, applyErr
+		return nil, nil
 
 	case ellaraft.CmdDeleteOldDailyUsage:
 		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
@@ -760,15 +750,6 @@ func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload)
 	}
 
 	return nil, nil
-}
-
-func (db *Database) applyDeleteOldAuditLogs(ctx context.Context, p *stringPayload) error {
-	err := db.runner(ctx).Query(ctx, db.deleteOldAuditLogsStmt, cutoffArgs{Cutoff: p.Value}).Run()
-	if err != nil {
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	return nil
 }
 
 func (db *Database) applyCreateUser(ctx context.Context, u *User) (any, error) {

@@ -115,10 +115,12 @@ require (
 )
 
 // Fork of mattn/go-sqlite3 that exposes the SQLite session extension
-// (sqlite3session_* / sqlite3changeset_apply) behind the sqlite_session
-// build tag. Used by internal/raft to replicate write-set changesets
-// rather than typed commands.
-replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260414212710-333ead4fa037
+// (sqlite3session_*, sqlite3changeset_apply and its xFilter table filter).
+// Used by internal/db to replicate write-set changesets.
+//
+// LOCAL DEVELOPMENT REPLACE — repoint at a pushed pseudo-version before merge:
+//   go get github.com/ellanetworks/go-sqlite3@<sha> && go mod tidy
+replace github.com/mattn/go-sqlite3 => /home/guillaume/code/go-sqlite3
 
 replace github.com/ellanetworks/core/lppa => ./lppa
 

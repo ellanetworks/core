@@ -47,6 +47,25 @@ var (
 	_ = registerChangesetOp("InsertAuditLog", (*Database).applyInsertAuditLog)
 )
 
+// retiredChangesetOps and retiredIntentOps name operations that stay
+// registered — a follower on an older binary still forwards them by name — but
+// that a leader cannot honor: audit_logs is local-only, and a leader has no way
+// to write another node's rows.
+//
+// ApplyForwardedOperation rejects them. Capturing an InsertAuditLog on the
+// leader yields an empty changeset, since audit_logs is unattached, and the
+// propose path reads an empty changeset as a successful no-op — leaving the
+// forwarding node told that a discarded audit record was written.
+var (
+	retiredChangesetOps = map[string]struct{}{
+		"InsertAuditLog": {},
+	}
+
+	retiredIntentOps = map[string]struct{}{
+		"DeleteOldAuditLogs": {},
+	}
+)
+
 // Users
 var (
 	opCreateUser         = registerChangesetOp("CreateUser", (*Database).applyCreateUser)
