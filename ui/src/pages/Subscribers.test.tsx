@@ -274,8 +274,11 @@ describe("Subscribers search", () => {
     await waitFor(() => expect(lastParams().get("search")).toBe("gate"), {
       timeout: 2000,
     });
-    expect(await screen.findByText(IMSIS[0])).toBeInTheDocument();
-    expect(screen.queryByText(IMSIS[1])).not.toBeInTheDocument();
+    await waitFor(
+      () => expect(screen.queryByText(IMSIS[1])).not.toBeInTheDocument(),
+      { timeout: 2000 },
+    );
+    expect(screen.getByText(IMSIS[0])).toBeInTheDocument();
   });
 
   it("caps the search input at the length the API accepts", async () => {
