@@ -137,3 +137,67 @@ func TestHandleRegistrationRequest_UnknownSubscriberRejectsWithIllegalUE(t *test
 		t.Errorf("T3346 = %v, want nil on a permanent reject", reject.T3346)
 	}
 }
+
+func registeredUEWithSession(t *testing.T, ausfErr error) (*amf.UeContext, *fakeNGAPSender) {
+	t.Helper()
+
+	amfInstance := amf.New(&fakeDBInstance{
+		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"000001\"]"},
+	}, &fakeAusf{Error: ausfErr}, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
+	}
+
+	if err := ue.CreateSmContext(5, "smref-5", nil, "internet"); err != nil {
+		t.Fatalf("CreateSmContext: %v", err)
+	}
+
+	ue.TransitionTo(amf.RegistrationInitiated)
+	ue.TransitionTo(amf.Registered)
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	handleRegistrationRequest(t.Context(), amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
+
+	return ue, ngapSender
+}
+
+// TS 24.501 §5.5.1.3.5
+func TestTransientRejectRetainsRegistrationAndSessions(t *testing.T) {
+	ue, _ := registeredUEWithSession(t, fmt.Errorf("advance sqn: %w", db.ErrProposeTimeout))
+
+	if got := ue.State(); got != amf.Registered {
+		t.Errorf("state = %v, want Registered; #22 leaves the UE 5GMM-REGISTERED", got)
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(5); !ok {
+		t.Error("PDU session released on a transient reject; the UE still believes it exists")
+	}
+}
+
+// TS 24.501 §5.5.1.3.5
+func TestPermanentRejectTearsDownRegistrationAndSessions(t *testing.T) {
+	unknown := fmt.Errorf("%w: %w", udm.ErrSubscriberUnknown, db.ErrNotFound)
+
+	ue, _ := registeredUEWithSession(t, unknown)
+
+	if got := ue.State(); got != amf.Deregistered {
+		t.Errorf("state = %v, want Deregistered", got)
+	}
+
+	if _, ok := ue.SmContextFindByPDUSessionID(5); ok {
+		t.Error("PDU session retained on a permanent reject")
+	}
+}

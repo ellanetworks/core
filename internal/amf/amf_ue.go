@@ -677,6 +677,24 @@ func (ue *UeContext) PagingActive() bool {
 	return ue.pagingTimer.Active()
 }
 
+func (ue *UeContext) SuspendRegistration(ctx context.Context) {
+	if conn := ue.Conn(); conn != nil {
+		conn.Release()
+	}
+
+	ue.endKeyChainProcs()
+
+	ue.mu.Lock()
+
+	ue.stopUeMuTimersLocked()
+
+	ue.transitionToLocked(Registered)
+
+	ue.mu.Unlock()
+
+	logger.From(ctx, logger.AmfLog).Debug("registration rejected with a back-off; UE context and PDU sessions retained", logger.SUPI(ue.supi.String()))
+}
+
 func (ue *UeContext) Deregister(ctx context.Context) {
 	if conn := ue.Conn(); conn != nil {
 		conn.Release()

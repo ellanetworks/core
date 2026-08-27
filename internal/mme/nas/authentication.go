@@ -8,10 +8,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -45,13 +45,11 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 }
 
 func authRejectCause(err error) eps.EMMCause {
-	if errors.Is(err, db.ErrProposeTimeout) ||
-		errors.Is(err, db.ErrOutcomeUnknown) ||
-		errors.Is(err, db.ErrMigrationPending) {
-		return eps.EMMCauseNetworkFailure
+	if errors.Is(err, udm.ErrSubscriberUnknown) {
+		return eps.EMMCauseIMSIUnknownInHSS
 	}
 
-	return eps.EMMCauseIMSIUnknownInHSS
+	return eps.EMMCauseNetworkFailure
 }
 
 // sendAuthRequest sends an AUTHENTICATION REQUEST; a set resync pair drives an
