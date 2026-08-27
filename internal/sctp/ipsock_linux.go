@@ -164,7 +164,7 @@ func (p *ipStackCapabilities) probe() {
 			continue
 		}
 
-		sa, err := sockaddr(&(probes[i].laddr), syscall.AF_INET6)
+		sa, err := sockaddr(&probes[i].laddr, syscall.AF_INET6)
 		if err != nil {
 			continue
 		}

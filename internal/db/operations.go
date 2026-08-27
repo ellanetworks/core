@@ -519,6 +519,14 @@ func (db *Database) ApplyForwardedOperation(opName string, payload json.RawMessa
 		return nil, fmt.Errorf("cluster not enabled")
 	}
 
+	if _, ok := retiredChangesetOps[opName]; ok {
+		return nil, fmt.Errorf("%w: %s", ErrRetiredOperation, opName)
+	}
+
+	if _, ok := retiredIntentOps[opName]; ok {
+		return nil, fmt.Errorf("%w: %s", ErrRetiredOperation, opName)
+	}
+
 	if h, ok := changesetOps[opName]; ok {
 		return db.applyForwardedChangesetOp(opName, h, payload)
 	}
