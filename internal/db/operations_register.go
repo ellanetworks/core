@@ -47,6 +47,16 @@ var (
 	_ = registerChangesetOp("InsertAuditLog", (*Database).applyInsertAuditLog)
 )
 
+var (
+	retiredChangesetOps = map[string]struct{}{
+		"InsertAuditLog": {},
+	}
+
+	retiredIntentOps = map[string]struct{}{
+		"DeleteOldAuditLogs": {},
+	}
+)
+
 // Users
 var (
 	opCreateUser         = registerChangesetOp("CreateUser", (*Database).applyCreateUser)
