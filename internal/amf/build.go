@@ -128,8 +128,7 @@ func BuildServiceReject(cause fgs.GMMCause) ([]byte, error) {
 	return (&fgs.ServiceReject{Cause: cause}).MarshalBinary()
 }
 
-// T3346 timer are not supported
-func BuildRegistrationReject(t3502Value int, cause5GMM fgs.GMMCause) ([]byte, error) {
+func BuildRegistrationReject(t3502Value int, cause5GMM fgs.GMMCause, t3346Value time.Duration) ([]byte, error) {
 	m := &fgs.RegistrationReject{Cause: cause5GMM}
 
 	if t3502Value != 0 {
@@ -139,6 +138,15 @@ func BuildRegistrationReject(t3502Value int, cause5GMM fgs.GMMCause) ([]byte, er
 		}
 
 		m.T3502 = &timer
+	}
+
+	if t3346Value != 0 {
+		timer, err := nas.GPRSTimer2FromDuration(t3346Value)
+		if err != nil {
+			return nil, err
+		}
+
+		m.T3346 = &timer
 	}
 
 	return m.MarshalBinary()

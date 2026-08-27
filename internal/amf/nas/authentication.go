@@ -5,15 +5,28 @@ package nas
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
+
+const authFailureBackoff = 10 * time.Second
+
+func registrationRejectForAuthFailure(err error) (fgs.GMMCause, time.Duration) {
+	if errors.Is(err, udm.ErrSubscriberUnknown) {
+		return fgs.GMMCauseIllegalUE, 0
+	}
+
+	return fgs.GMMCauseCongestion, authFailureBackoff
+}
 
 func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, resyncInfo *ausf.ResyncInfo) (*ausf.AuthResult, error) {
 	if ue.Tai.PlmnID == nil {
@@ -22,7 +35,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *a
 
 	ueAuthenticationCtx, err := amfInstance.Ausf.Authenticate(ctx, ue.Suci, *ue.Tai.PlmnID, resyncInfo)
 	if err != nil {
-		return nil, fmt.Errorf("ausf UE amf.Authentication Authenticate Request failed: %s", err.Error())
+		return nil, fmt.Errorf("ausf UE amf.Authentication Authenticate Request failed: %w", err)
 	}
 
 	return ueAuthenticationCtx, nil
@@ -72,7 +85,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 
 	response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, nil)
 	if err != nil {
-		return false, fmt.Errorf("failed to send ue authentication request: %s", err)
+		return false, fmt.Errorf("failed to send ue authentication request: %w", err)
 	}
 
 	conn := ue.Conn()

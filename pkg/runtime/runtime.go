@@ -831,6 +831,10 @@ type ausfDBAdapter struct {
 func (a *ausfDBAdapter) AdvanceSequenceNumber(ctx context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
 	creds, err := a.db.AdvanceSubscriberSQN(ctx, imsi, resyncAuts, resyncRand)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", udm.ErrSubscriberUnknown, err)
+		}
+
 		return nil, err
 	}
 

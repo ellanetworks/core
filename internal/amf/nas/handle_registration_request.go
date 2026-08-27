@@ -297,7 +297,9 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 				return nasreply.Handled()
 			}
 
-			amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
+			cause, backoff := registrationRejectForAuthFailure(err)
+
+			amf.SendRegistrationRejectWithBackoff(ctx, ueConn, cause, backoff)
 
 			return nasreply.Handled()
 		}
