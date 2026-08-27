@@ -51,7 +51,7 @@ func runRANConfigurationUpdate(_ context.Context, env scenarios.Env, _ any) erro
 	if _, err := node.WaitForMessage(
 		gnb.Successful,
 		ngap.ProcNGSetup,
-		200*time.Millisecond,
+		scenarios.NGSetupTimeout,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)
 	}

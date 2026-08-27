@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -89,7 +88,7 @@ func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTraffic
 	if _, err := gNodeB.WaitForMessage(
 		gnb.Successful,
 		ngap.ProcNGSetup,
-		5*time.Second,
+		scenarios.NGSetupTimeout,
 	); err != nil {
 		return fmt.Errorf("NG Setup Response: %w", err)
 	}

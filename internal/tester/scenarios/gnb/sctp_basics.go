@@ -6,7 +6,6 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
@@ -50,7 +49,7 @@ func runSCTPBasic(ctx context.Context, env scenarios.Env, _ any) error {
 	fr, err := node.WaitForMessage(
 		gnb.Successful,
 		ngap.ProcNGSetup,
-		200*time.Millisecond,
+		scenarios.NGSetupTimeout,
 	)
 	if err != nil {
 		return fmt.Errorf("wait for NG Setup Response: %w", err)

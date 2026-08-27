@@ -8,7 +8,6 @@ import (
 	"crypto/ecdh"
 	"encoding/hex"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -96,7 +95,7 @@ func runRegistrationSuccessProfileA(_ context.Context, env scenarios.Env, params
 	if _, err := gNodeB.WaitForMessage(
 		gnb.Successful,
 		ngap.ProcNGSetup,
-		200*time.Millisecond,
+		scenarios.NGSetupTimeout,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)
 	}
