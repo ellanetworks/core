@@ -56,10 +56,6 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 		return result, applyErr
 
-	// Retired: audit_logs is local-only and each node prunes its own rows.
-	// Historical entries carry a cutoff another node computed; applying one
-	// would delete audit history this node owns. The type stays registered so
-	// the entry still decodes, and applies as a no-op.
 	case ellaraft.CmdDeleteOldAuditLogs:
 		return nil, nil
 

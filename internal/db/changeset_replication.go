@@ -95,21 +95,7 @@ var localOnlyTables = []string{
 	PositioningSessionsTableName,
 }
 
-// retiredReplicatedTables were once in replicatedChangesetTables. Raft logs
-// written before their retirement still carry changesets that mutate them, and
-// applyChangeset filters those rows out by consulting replicatedTableSet.
-//
-// Retirement is not reversible by editing a list. A table demoted to
-// localOnlyTables becomes per-node state that restoreLocalOnlyTables carries
-// across a snapshot restore, so replaying a historical changeset collides with
-// rows the node already owns. That applies to the table's whole history, not to
-// entries past some cutover index, so the filter derives from the current
-// classification and not from a log position.
-//
-// Add an entry here in the same change that removes a table from
-// replicatedChangesetTables, and cover it in the snapshot-restore replay test.
 var retiredReplicatedTables = []string{
-	// Demoted to localOnlyTables.
 	AuditLogsTableName,
 	RoutesTableName,
 	BGPSettingsTableName,
@@ -119,8 +105,6 @@ var retiredReplicatedTables = []string{
 	NATSettingsTableName,
 	FlowAccountingSettingsTableName,
 
-	// Dropped by migration v12. Named as literals because the constants went
-	// with them; the Raft log that mutated them outlives both.
 	"cluster_pki_roots",
 	"cluster_pki_intermediates",
 	"cluster_issued_certs",
@@ -128,9 +112,6 @@ var retiredReplicatedTables = []string{
 	"cluster_pki_state",
 }
 
-// replicatedTableSet is replicatedChangesetTables as a lookup, and is the
-// authority on what a changeset is allowed to touch. Every other table in a
-// changeset — retired, dropped, or never classified — is skipped.
 var replicatedTableSet = func() map[string]struct{} {
 	set := make(map[string]struct{}, len(replicatedChangesetTables))
 	for _, t := range replicatedChangesetTables {
@@ -140,9 +121,6 @@ var replicatedTableSet = func() map[string]struct{} {
 	return set
 }()
 
-// isReplicatedTable is the xFilter passed to ApplyChangesetFiltered. SQLite
-// calls it once per table named in a changeset, so it must stay a pure
-// function of the name.
 func isReplicatedTable(table string) bool {
 	_, ok := replicatedTableSet[table]
 
@@ -211,10 +189,6 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 
 // applyChangeset replays a captured changeset on the local SQLite and
 // advances fsm_state.lastApplied to logIndex in the same transaction.
-//
-// The apply is filtered through isReplicatedTable: a log entry is durable and
-// outlives the classification it was captured under, so only tables that are
-// replicated now may be written. See retiredReplicatedTables.
 //
 // The atomicity matters: a crash between the changeset commit and the
 // lastApplied write would let Raft replay re-apply this entry, and

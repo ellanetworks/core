@@ -13,9 +13,6 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-// captureChangesetOverTables records a changeset over an explicit table list,
-// standing in for a leader whose binary still held those tables in its
-// replicated set. The mutations are rolled back, matching captureChangeset.
 func captureChangesetOverTables(t *testing.T, database *Database, tables []string, stmts []string) []byte {
 	t.Helper()
 
@@ -93,12 +90,6 @@ func auditLogActor(t *testing.T, database *Database, id string) string {
 	return actor
 }
 
-// TestApplyChangeset_SkipsRetiredReplicatedTable replays an entry captured
-// while audit_logs was replicated against a node that already owns the same
-// row, which is what a snapshot restore leaves behind now that
-// restoreLocalOnlyTables carries audit_logs across the file swap. The retired
-// table must be filtered out, and the replicated table in the same entry must
-// still apply.
 func TestApplyChangeset_SkipsRetiredReplicatedTable(t *testing.T) {
 	database := newAtomicTestDB(t)
 	ctx := context.Background()
@@ -114,8 +105,6 @@ func TestApplyChangeset_SkipsRetiredReplicatedTable(t *testing.T) {
 			 VALUES ('01900000-0000-7000-8000-00000000aaaa', 1, '000001', 'changeset-regression')`,
 		})
 
-	// The row this node owns after restoreLocalOnlyTables carried its
-	// audit_logs across the snapshot restore.
 	if _, err := database.PlainDB().ExecContext(ctx,
 		`INSERT INTO audit_logs (id, timestamp, level, actor, action, ip, details)
 		 VALUES (?, '2026-08-27T10:00:00Z', 'INFO', 'local-node', 'login', '10.0.0.1', 'details')`,
@@ -146,9 +135,6 @@ func TestApplyChangeset_SkipsRetiredReplicatedTable(t *testing.T) {
 	}
 }
 
-// TestApplyChangeset_UnfilteredRetiredTableWouldConflict pins the reason the
-// filter exists: the same entry aborts the whole apply when every table is
-// accepted, which is what halts the FSM.
 func TestApplyChangeset_UnfilteredRetiredTableWouldConflict(t *testing.T) {
 	database := newAtomicTestDB(t)
 	ctx := context.Background()
@@ -189,12 +175,6 @@ func TestApplyChangeset_UnfilteredRetiredTableWouldConflict(t *testing.T) {
 	}
 }
 
-// TestApplyForwardedOperation_RejectsRetiredOps covers a follower on an older
-// binary forwarding an operation a leader cannot honor. Capturing
-// InsertAuditLog on the leader yields an empty changeset, since audit_logs is
-// unattached, and the propose path reads an empty changeset as a successful
-// no-op — so without an explicit rejection the follower is told its audit
-// record was written.
 func TestApplyForwardedOperation_RejectsRetiredOps(t *testing.T) {
 	database := newAtomicTestDB(t)
 
@@ -212,8 +192,6 @@ func TestApplyForwardedOperation_RejectsRetiredOps(t *testing.T) {
 	}
 }
 
-// TestApplyForwardedOperation_AcceptsLiveOps pins that the rejection is scoped
-// to retired names.
 func TestApplyForwardedOperation_AcceptsLiveOps(t *testing.T) {
 	database := newAtomicTestDB(t)
 

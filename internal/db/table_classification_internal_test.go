@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// Editing these pins is the deliberate act that reclassifying a table
-// requires.
 var (
 	pinnedReplicatedTables = []string{
 		"api_tokens",
@@ -143,9 +141,6 @@ func TestRetiredReplicatedTablesArePinned(t *testing.T) {
 	assertTableSetPinned(t, "retiredReplicatedTables", pinnedRetiredReplicatedTables, retiredReplicatedTables)
 }
 
-// A retired table must not still be replicated: isReplicatedTable is the
-// authority applyChangeset consults, and a table in both lists would keep
-// applying the very entries retirement exists to filter out.
 func TestRetiredTablesAreNotReplicated(t *testing.T) {
 	for _, table := range retiredReplicatedTables {
 		if isReplicatedTable(table) {
@@ -154,9 +149,6 @@ func TestRetiredTablesAreNotReplicated(t *testing.T) {
 	}
 }
 
-// Every demoted table must be local-only or gone. A retired table that is
-// neither is unclassified, which assertTableReplicationClassification rejects
-// at startup only if it still exists in sqlite_master.
 func TestRetiredTablesAreLocalOnlyOrDropped(t *testing.T) {
 	localOnly := make(map[string]struct{}, len(localOnlyTables))
 	for _, table := range localOnlyTables {
@@ -181,9 +173,6 @@ func TestRetiredTablesAreLocalOnlyOrDropped(t *testing.T) {
 	}
 }
 
-// isReplicatedTable must agree with replicatedChangesetTables, which is what
-// captureChangeset attaches: a table captured but not applied would be dropped
-// on every node, and a table applied but not captured cannot appear.
 func TestIsReplicatedTableMatchesCaptureSet(t *testing.T) {
 	for _, table := range replicatedChangesetTables {
 		if !isReplicatedTable(table) {
