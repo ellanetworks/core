@@ -147,3 +147,117 @@ func waitWithTimeout(t *testing.T, wg *sync.WaitGroup, d time.Duration) {
 		t.Fatal("wg did not complete in time")
 	}
 }
+
+// TestListener_PinRemovedDuringHandshake_ConnClosed removes the peer's
+// pin while its handshake is still in flight, so CloseByPeerFingerprint
+// scans past a connection that is not registered yet.
+func TestListener_PinRemovedDuringHandshake_ConnClosed(t *testing.T) {
+	p := testutil.GenTestPKI(t, []int{1, 2})
+
+	base := p.PinFunc()
+	fp := pki.Fingerprint(p.Nodes[2].Cert)
+
+	var (
+		mu       sync.Mutex
+		unpinned bool
+	)
+
+	inHandshake := make(chan struct{})
+	release := make(chan struct{})
+	firstLookup := true
+
+	pin := func(fingerprint string) listener.PinResult {
+		if fingerprint == fp && firstLookup {
+			firstLookup = false
+
+			close(inHandshake)
+			<-release
+
+			// The handshake resolved the pin before it was removed.
+			return base(fingerprint)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		if unpinned && fingerprint == fp {
+			return listener.PinResult{}
+		}
+
+		return base(fingerprint)
+	}
+
+	port := freePort(t)
+	addr1 := fmt.Sprintf("127.0.0.1:%d", port)
+
+	ln1 := listener.New(listener.Config{
+		BindAddress:      addr1,
+		AdvertiseAddress: addr1,
+		NodeID:           1,
+		Pin:              pin,
+		Leaf:             p.LeafFunc(1),
+	})
+
+	defer ln1.Stop()
+
+	handlerRan := make(chan struct{})
+
+	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
+		defer func() { _ = conn.Close() }()
+
+		close(handlerRan)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ln1.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	ln2, _ := newTestListener(t, p, 2)
+	defer ln2.Stop()
+
+	dialed := make(chan *tls.Conn, 1)
+
+	go func() {
+		conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 5*time.Second)
+		if err != nil {
+			dialed <- nil
+			return
+		}
+
+		dialed <- conn
+	}()
+
+	<-inHandshake
+
+	mu.Lock()
+	unpinned = true
+	mu.Unlock()
+
+	if closed := ln1.CloseByPeerFingerprint(fp); closed != 0 {
+		t.Fatalf("CloseByPeerFingerprint closed %d conns, want 0 for an unregistered handshake", closed)
+	}
+
+	close(release)
+
+	conn := <-dialed
+	if conn == nil {
+		return
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	if _, err := conn.Read(make([]byte, 1)); err == nil {
+		t.Fatal("peer kept the connection after its pin was removed")
+	}
+
+	select {
+	case <-handlerRan:
+		t.Fatal("handler ran for a peer whose pin was removed")
+	default:
+	}
+}
