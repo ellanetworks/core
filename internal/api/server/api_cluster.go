@@ -205,6 +205,13 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if err := dbInstance.ReadBarrier(); err != nil {
+			writeError(r.Context(), w, http.StatusServiceUnavailable,
+				"Cluster state has not settled after a leadership change; retry", err, logger.APILog)
+
+			return
+		}
+
 		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
