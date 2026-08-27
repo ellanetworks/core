@@ -42,16 +42,40 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	// Held across resolve → apply, and before opMu (filterMu is the outermost
 	// engine lock), so the slot resolved here cannot be freed and reissued under it.
 	conn.filterMu.RLock()
-	defer conn.filterMu.RUnlock()
 
 	session.opMu.Lock()
-	defer session.opMu.Unlock()
 
+	drain, err := conn.modifySessionLocked(ctx, span, req, session)
+
+	session.opMu.Unlock()
+	conn.filterMu.RUnlock()
+
+	if err != nil {
+		return err
+	}
+
+	// The drain runs after the transaction committed and outside both
+	// locks: it paces Sendto syscalls that must not stall other sessions
+	// under the engine locks, and a rolled-back modify leaves the FAR at
+	// BUFF, so the packets stay queued.
+	if drain {
+		if b := conn.downlinkBuffer(); b != nil {
+			b.Drain(req.SEID)
+		}
+	}
+
+	return nil
+}
+
+// modifySessionLocked applies the modification. The caller holds filterMu
+// (read) and session.opMu. It returns whether the FAR flipped to forward,
+// which is the trigger to drain the session's buffered downlink packets.
+func (conn *SessionEngine) modifySessionLocked(ctx context.Context, span trace.Span, req *models.ModifyRequest, session *Session) (bool, error) {
 	if session.deleted {
 		err := fmt.Errorf("session %d is being deleted", req.SEID)
 		span.RecordError(err)
 
-		return err
+		return false, err
 	}
 
 	bpfObjects := conn.BpfObjects
@@ -62,15 +86,17 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	var txn sessionTxn
 
-	fail := func(err error) error {
+	fail := func(err error) (bool, error) {
 		txn.rollback(ctx)
 		session.restore(snapPDRs, snapFARs, snapQERs)
 		span.RecordError(err)
 
-		return err
+		return false, err
 	}
 
 	touched := make(map[uint32]struct{}, len(req.UpdatePDRs))
+
+	drain := false
 
 	for _, far := range req.UpdateFARs {
 		sFarInfo := session.GetFar(far.FARID)
@@ -165,6 +191,8 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		if spdrInfo.PdrInfo.Far.Action&farForward != 0 {
 			bpfObjects.ClearNotified(req.SEID, uint16(pdrID))
+
+			drain = true
 		}
 	}
 
@@ -180,7 +208,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
 
-	return nil
+	return drain, nil
 }
 
 func modifyPolicyID(req *models.ModifyRequest, session *Session) string {

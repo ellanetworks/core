@@ -297,9 +297,18 @@ int upf_downlink_func(struct __ctx_buff *ctx)
 	context.data = ctx_data(ctx);
 	context.data_end = ctx_data_end(ctx);
 
+	/* Only the buffer responder injects on this veth, and everything it
+	 * sends is for a UE: a frame the datapath does not forward has no
+	 * legitimate consumer, and passing it to the host would only have it
+	 * routed back out N6. */
+	const bool reinject = frame_is_reinjected(ctx);
+
 	PROFILE_START(PROF_N6_TOTAL);
 	enum ctx_action ret = process_downlink(&context);
 	PROFILE_END(PROF_N6_TOTAL);
+
+	if (reinject && ret == CTX_ACT_OK)
+		ret = drop_with(&context, UPF_DROP_REINJECT_UNOWNED);
 
 	return record_action(&context, ret);
 }

@@ -12,6 +12,13 @@ func (conn *SessionEngine) SuppressDownlinkDataNotification(seid uint64) {
 	conn.eachDownlinkNotification(seid, func(d ebpf.DataNotification) {
 		conn.BpfObjects.MarkNotified(d)
 	})
+
+	// The page failed: the UE is unreachable, so the buffered packets are
+	// undeliverable now and stale by the time it returns. Drop them here
+	// rather than waiting for the TTL.
+	if b := conn.downlinkBuffer(); b != nil {
+		b.Drop(seid)
+	}
 }
 
 // ClearDownlinkDataNotification releases the suppression once the UE is reachable

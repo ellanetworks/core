@@ -8,7 +8,28 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var flowReportsDropped prometheus.Counter
+var (
+	flowReportsDropped     prometheus.Counter
+	bufferPacketsEvicted   prometheus.Counter
+	bufferReinjectFailed   prometheus.Counter
+	bufferRecordsMalformed prometheus.Counter
+)
+
+func incCounter(c prometheus.Counter) {
+	if c == nil {
+		return
+	}
+
+	c.Inc()
+}
+
+func addCounter(c prometheus.Counter, v float64) {
+	if c == nil {
+		return
+	}
+
+	c.Add(v)
+}
 
 func RegisterMetrics() {
 	flowReportsDropped = prometheus.NewCounter(prometheus.CounterOpts{
@@ -16,7 +37,23 @@ func RegisterMetrics() {
 		Help: "Total number of flow reports dropped because the reporter channel was full.",
 	})
 
-	prometheus.MustRegister(flowReportsDropped)
+	bufferPacketsEvicted = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "app_upf_dl_buffer_packets_evicted_total",
+		Help: "Buffered downlink packets discarded: per-queue cap head-drop, TTL expiry, global byte budget, or session drop.",
+	})
+
+	bufferReinjectFailed = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "app_upf_dl_buffer_reinject_failed_total",
+		Help: "Buffered downlink packets whose re-injection failed.",
+	})
+
+	bufferRecordsMalformed = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "app_upf_dl_buffer_records_malformed_total",
+		Help: "Malformed capture records read from the downlink buffer ring. Non-zero is a bug.",
+	})
+
+	prometheus.MustRegister(flowReportsDropped, bufferPacketsEvicted,
+		bufferReinjectFailed, bufferRecordsMalformed)
 
 	upfUplinkBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_uplink_bytes",

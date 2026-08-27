@@ -72,6 +72,11 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		bpfObjects.ClearNotifiedForSEID(req.SEID)
 	}
 
+	// The session is gone: nothing will ever drain its buffered packets.
+	if b := conn.downlinkBuffer(); b != nil {
+		b.Drop(req.SEID)
+	}
+
 	ueIPv4, _ := session.UEAddresses()
 	conn.purgeNATConntrack(ueIPv4)
 

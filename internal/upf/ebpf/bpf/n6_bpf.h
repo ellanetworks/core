@@ -38,6 +38,7 @@
 #include "bpf/utils/routing.h"
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/nocp.h"
+#include "bpf/utils/dl_buffer.h"
 
 #include "bpf/utils/pdr_maps.h"
 
@@ -186,9 +187,13 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		}
 	}
 
-	/* With NAT the UE address is not visible on N6 (TS 23.501
-	 * §5.8.2.2.1): untranslated downlink to a UE is unsolicited. */
-	if (masquerade && !translated) {
+	/* Under NAT the UE address is never visible on N6: every legitimate
+	 * downlink packet arrives addressed to the UPF's public address and
+	 * is translated above. One already carrying the UE address matches
+	 * no mapping, so drop it — unless it is a re-injected buffered
+	 * packet, recognised by its ingress veth. */
+	if (masquerade && !translated &&
+	    !frame_is_reinjected(ctx->ctx_buff)) {
 		upf_printk("upf: unsolicited downlink for ip:%pI4",
 			   &ip4->daddr);
 		if (fragment)
@@ -256,8 +261,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		bpf_ringbuf_output(&nocp_map, (void *)&notif,
 				   sizeof(struct nocp), 0);
 
-		/* Technically, we need to buffer the packet here, but this is not
-		 * implemented yet. */
+		dl_buffer_capture(ctx, pdr, qer, ctx->ip4, 4);
+
 		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
 	if (!(far->action & FAR_FORW)) {
@@ -450,8 +455,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		bpf_ringbuf_output(&nocp_map, (void *)&notif,
 				   sizeof(struct nocp), 0);
 
-		/* Technically, we need to buffer the packet here, but this is not
-		 * implemented yet. */
+		dl_buffer_capture(ctx, pdr, qer, ctx->ip6, 6);
+
 		return drop_with(ctx, UPF_DROP_NOCP_BUFFER);
 	}
 	if (!(far->action & FAR_FORW)) {
