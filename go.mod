@@ -118,7 +118,7 @@ require (
 // (sqlite3session_* / sqlite3changeset_apply) behind the sqlite_session
 // build tag. Used by internal/raft to replicate write-set changesets
 // rather than typed commands.
-replace github.com/mattn/go-sqlite3 => /home/guillaume/code/go-sqlite3
+replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260827160408-a9cbc9046963
 
 replace github.com/ellanetworks/core/lppa => ./lppa
 
