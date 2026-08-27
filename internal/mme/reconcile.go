@@ -90,7 +90,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	// re-establishment. Checked before the QoS diff so a framed-only change still
 	// reactivates (framed routes are absent from the data-network fingerprint).
 	if delta.FramedRoutes {
-		logger.From(ctx, ueConn.Log).Info("framed routes changed; reactivating EPS bearer",
+		logger.From(ctx, ueConn.Log()).Info("framed routes changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
@@ -100,7 +100,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	// The UE IP is fixed for the PDN connection lifetime (TS 23.401 §5.3.1.2.1);
 	// a reservation change requires reactivation, not in-place modification.
 	if delta.StaticIP {
-		logger.From(ctx, ueConn.Log).Info("static IP changed; reactivating EPS bearer",
+		logger.From(ctx, ueConn.Log()).Info("static IP changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
@@ -114,7 +114,7 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 		// §5.4.4.1), symmetric with the 5G release on an unresolvable policy. Other
 		// errors are transient (DB/infra); skip and let the backstop retry.
 		if errors.Is(err, ErrUnknownAPN) {
-			logger.From(ctx, ueConn.Log).Info("APN no longer authorized; reactivating EPS bearer",
+			logger.From(ctx, ueConn.Log()).Info("APN no longer authorized; reactivating EPS bearer",
 				zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 			m.reactivateBearer(ctx, ue, p)
 
@@ -142,14 +142,14 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, ueConn *UeConn
 	// An IP-pool or MTU change cannot be adopted in place; reactivate so the UE
 	// re-establishes (the new bearer also picks up the new QoS/Session-AMBR).
 	if dnChanged && !dnsOnlyChange(curDNConfig, newFingerprint) {
-		logger.From(ctx, ueConn.Log).Info("data-network configuration changed; reactivating EPS bearer",
+		logger.From(ctx, ueConn.Log()).Info("data-network configuration changed; reactivating EPS bearer",
 			zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn))
 		m.reactivateBearer(ctx, ue, p)
 
 		return
 	}
 
-	logger.From(ctx, ueConn.Log).Info("policy/data-network changed; modifying EPS bearer in place",
+	logger.From(ctx, ueConn.Log()).Info("policy/data-network changed; modifying EPS bearer in place",
 		zap.String("imsi", ue.IMSI()), zap.String("apn", p.Apn),
 		zap.Bool("dns", dnChanged), zap.Bool("session-ambr", ambrChanged), zap.Bool("qos", qosChanged))
 	m.modifyBearer(ctx, ue, ueConn, p, qos, dnChanged, ambrChanged, qosChanged)

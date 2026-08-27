@@ -34,8 +34,7 @@ func (m *MME) releaseSupersededConn(ctx context.Context, c *UeConn) {
 func (m *MME) guardDetachedRelease(c *UeConn) {
 	c.releaseGuard.Arm(releaseGuardTimeout, 0, nil, func() {
 		if m.ReleaseDetachedConn(c.Conn(), c.MMEUES1APID, c.ENBUES1APID) {
-			logger.MmeLog.Info("reaped detached S1 connection after release timeout",
-				zap.Uint32("mme-ue-id", uint32(c.MMEUES1APID)))
+			c.Log().Info("reaped detached S1 connection after release timeout")
 		}
 	})
 }
@@ -101,7 +100,7 @@ func (c *UeConn) SendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 		return
 	}
 
-	logger.From(ctx, c.Log).Info("UE Context Release Command")
+	logger.From(ctx, c.Log()).Info("UE Context Release Command")
 	c.SendS1AP(ctx, S1APProcedureUEContextReleaseCommand, b)
 }
 

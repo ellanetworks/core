@@ -50,7 +50,7 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 
 	ue.TransitionTo(EMMDeregistrationInitiated)
 
-	logger.From(ctx, ueConn.Log).Info("network-initiated detach (subscriber deleted)",
+	logger.From(ctx, ueConn.Log()).Info("network-initiated detach (subscriber deleted)",
 		zap.String("imsi", imsi))
 
 	plain, err := (&eps.DetachRequestNetwork{TypeOfDetach: eps.DetachTypeReattachNotRequired}).MarshalBinary()

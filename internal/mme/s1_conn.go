@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/interworking"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/eps"
@@ -37,7 +38,7 @@ type UeConn struct {
 	ENBUES1APID               s1ap.ENBUES1APID
 	MMEUES1APID               s1ap.MMEUES1APID
 	conn                      atomic.Pointer[S1APWriter]
-	Log                       *zap.Logger
+	log                       atomic.Pointer[zap.Logger]
 	ue                        *UeContext
 	ServingTAI                s1ap.TAI
 	Location                  models.UserLocation
@@ -65,6 +66,22 @@ type FiveGSArrival struct {
 	Sessions *interworking.ArrivingSessions
 
 	RemappedHeldContext bool
+}
+
+func (c *UeConn) Log() *zap.Logger {
+	if c == nil {
+		return logger.MmeLog
+	}
+
+	if l := c.log.Load(); l != nil {
+		return l
+	}
+
+	return logger.MmeLog
+}
+
+func (c *UeConn) setLog(l *zap.Logger) {
+	c.log.Store(l)
 }
 
 func (c *UeConn) ArrivedFrom5GS() bool {
