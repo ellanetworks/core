@@ -84,8 +84,8 @@ func (s *deregisterTestSmf) UpdateSmContextN2InfoPduResSetupFail(context.Context
 	return nil
 }
 
-func (s *deregisterTestSmf) UpdateSmContextN2InfoPduResRelRsp(context.Context, string) error {
-	return nil
+func (s *deregisterTestSmf) UpdateSmContextN2InfoPduResRelRsp(context.Context, string) (bool, error) {
+	return false, nil
 }
 
 func (s *deregisterTestSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, string) ([]byte, error) {

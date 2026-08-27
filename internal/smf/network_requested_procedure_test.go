@@ -250,8 +250,12 @@ func TestT3592StopsOnReleaseComplete(t *testing.T) {
 		t.Fatalf("release complete: %v", err)
 	}
 
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+		t.Fatalf("N2 release response: %v", err)
+	}
+
 	if s.GetSession(ref) != nil {
-		t.Fatal("expected session removed after Release Complete")
+		t.Fatal("expected session removed once both legs have answered")
 	}
 
 	time.Sleep(5 * procedureTimerInterval)
