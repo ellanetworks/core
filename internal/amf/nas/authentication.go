@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -18,14 +17,15 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-const authFailureBackoff = 10 * time.Second
-
-func registrationRejectForAuthFailure(err error) (fgs.GMMCause, time.Duration) {
-	if errors.Is(err, udm.ErrSubscriberUnknown) {
-		return fgs.GMMCauseIllegalUE, 0
+func registrationRejectCauseForAuthFailure(err error) (fgs.GMMCause, bool) {
+	switch {
+	case errors.Is(err, udm.ErrSUPIUnderivable):
+		return fgs.GMMCauseUEIdentityCannotBeDerived, true
+	case errors.Is(err, udm.ErrSubscriberUnknown):
+		return fgs.GMMCauseIllegalUE, true
+	default:
+		return 0, false
 	}
-
-	return fgs.GMMCauseCongestion, authFailureBackoff
 }
 
 func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, resyncInfo *ausf.ResyncInfo) (*ausf.AuthResult, error) {

@@ -5,13 +5,58 @@ package nas
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 )
+
+type transientCredStore struct{ err error }
+
+func (s transientCredStore) AdvanceSequenceNumber(_ context.Context, _, _, _ string) (*udm.AdvancedCredentials, error) {
+	return nil, s.err
+}
+
+func TestAttachTransientCredentialFailureReleasesWithoutRejecting(t *testing.T) {
+	store := transientCredStore{err: fmt.Errorf("advance sqn: %w", db.ErrProposeTimeout)}
+
+	m := mme.New(udm.New(store, noopKeyResolver), fakeBearerStore{}, &fakeSessionManager{})
+	m.NAS = &nasHandler{m: m}
+
+	cc := &captureConn{}
+	ue := newAttachUe(m, cc, 7)
+
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	attach := &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 7},
+		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(testSubscriber.IMSI)),
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
+		ESMMessageContainer: esm,
+	}
+
+	b, err := attach.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	HandleNAS(context.Background(), m, ue.Conn(), b)
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected only a UE Context Release Command, got %d S1AP messages", len(cc.sent))
+	}
+
+	parseUEContextReleaseCommand(t, cc.sent[0])
+}
 
 // TestAttachTrackingAreaNotAllowed checks an Attach from a serving cell outside the
 // served area is rejected with ATTACH REJECT #12 and the S1 context released, without
@@ -98,7 +143,7 @@ func TestAttachProtocolError(t *testing.T) {
 }
 
 // TestAttachUnknownIMSI checks that an Attach Request from an unprovisioned IMSI
-// is rejected with ATTACH REJECT #2 ("IMSI unknown in HSS") and the S1 context
+// is rejected with ATTACH REJECT #3 ("Illegal UE") and the S1 context
 // is released, without starting authentication.
 func TestAttachUnknownIMSI(t *testing.T) {
 	m := newTestMME(t)
@@ -134,8 +179,8 @@ func TestAttachUnknownIMSI(t *testing.T) {
 		t.Fatalf("not an Attach Reject: %v", err)
 	}
 
-	if rej.Cause != eps.EMMCauseIMSIUnknownInHSS {
-		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, eps.EMMCauseIMSIUnknownInHSS)
+	if rej.Cause != eps.EMMCauseIllegalUE {
+		t.Fatalf("Attach Reject cause = %d, want %d", rej.Cause, eps.EMMCauseIllegalUE)
 	}
 
 	// The reject carries the T3402 back-off (12 min), mirroring the AMF's T3502.

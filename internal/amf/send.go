@@ -191,15 +191,11 @@ func SendServiceReject(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 }
 
 func SendRegistrationReject(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause) {
-	SendRegistrationRejectWithBackoff(ctx, ue, cause5GMM, 0)
-}
-
-func SendRegistrationRejectWithBackoff(ctx context.Context, ue *UeConn, cause5GMM fgs.GMMCause, t3346Value time.Duration) {
 	sendGmm(ctx, ue, "nas/send_registration_reject",
 		[]attribute.KeyValue{attribute.Int("cause", int(cause5GMM))},
 		rejectSHT(ue),
 		func(_ *UeContext) ([]byte, error) {
-			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM, t3346Value)
+			return BuildRegistrationReject(int(ue.amf.T3502Value.Seconds()), cause5GMM)
 		})
 }
 

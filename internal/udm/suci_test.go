@@ -15,6 +15,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -436,6 +437,55 @@ func TestToSupi_MalformedSuci(t *testing.T) {
 	_, err := ToSupi("suci-0-001-01", nil)
 	if err == nil {
 		t.Fatal("expected error for malformed SUCI")
+	}
+}
+
+func TestToSupi_FailuresWrapErrSUPIUnderivable(t *testing.T) {
+	hnPriv, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	otherPriv, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	schemeOutput, err := buildProfileASchemeOutput("0000000002", hex.EncodeToString(otherPriv.PublicKey().Bytes()), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resolveHN := func(scheme string, keyID int) (string, error) {
+		return hex.EncodeToString(hnPriv.Bytes()), nil
+	}
+
+	tests := []struct {
+		name    string
+		suci    string
+		resolve KeyResolver
+	}{
+		{"unknown prefix", "msisdn-001010000000001", nil},
+		{"malformed suci", "suci-0-001-01", nil},
+		{"unparsable key identifier", "suci-0-001-01-0000-1-notanumber-0000000001", resolveHN},
+		{"unsupported protection scheme", "suci-0-001-01-0000-3-0-0000000001", resolveHN},
+		{"home network key identifier not provisioned", "suci-0-001-01-0000-1-7-0000000001", func(scheme string, keyID int) (string, error) {
+			return "", fmt.Errorf("no key for identifier %d", keyID)
+		}},
+		{"scheme output encrypted with another home network key", fmt.Sprintf("suci-0-001-01-0000-1-0-%s", schemeOutput), resolveHN},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ToSupi(tt.suci, tt.resolve)
+			if err == nil {
+				t.Fatal("ToSupi succeeded, want an error")
+			}
+
+			if !errors.Is(err, ErrSUPIUnderivable) {
+				t.Errorf("error %v does not wrap ErrSUPIUnderivable", err)
+			}
+		})
 	}
 }
 

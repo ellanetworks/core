@@ -692,7 +692,7 @@ func (ue *UeContext) SuspendRegistration(ctx context.Context) {
 
 	ue.mu.Unlock()
 
-	logger.From(ctx, logger.AmfLog).Debug("registration rejected with a back-off; UE context and PDU sessions retained", logger.SUPI(ue.supi.String()))
+	logger.From(ctx, logger.AmfLog).Debug("registration attempt abandoned on a transient failure; UE context and PDU sessions retained", logger.SUPI(ue.supi.String()))
 }
 
 func (ue *UeContext) Deregister(ctx context.Context) {

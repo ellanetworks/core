@@ -43,9 +43,9 @@ func runS1ENBAttachRejectUnknownIMSI(_ context.Context, env scenarios.Env, _ any
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	// EMM cause #2, IMSI unknown in HSS (TS 24.301 §9.9.3.9).
-	if cause != 2 {
-		return fmt.Errorf("expected Attach Reject cause #2 (IMSI unknown in HSS), got #%d", cause)
+	// EMM cause #3, Illegal UE (TS 24.301 §9.9.3.9).
+	if cause != 3 {
+		return fmt.Errorf("expected Attach Reject cause #3 (Illegal UE), got #%d", cause)
 	}
 
 	return nil
