@@ -95,6 +95,38 @@ var localOnlyTables = []string{
 	PositioningSessionsTableName,
 }
 
+var retiredReplicatedTables = []string{
+	AuditLogsTableName,
+	RoutesTableName,
+	BGPSettingsTableName,
+	BGPPeersTableName,
+	BGPImportPrefixesTableName,
+	N3SettingsTableName,
+	NATSettingsTableName,
+	FlowAccountingSettingsTableName,
+
+	"cluster_pki_roots",
+	"cluster_pki_intermediates",
+	"cluster_issued_certs",
+	"cluster_revoked_certs",
+	"cluster_pki_state",
+}
+
+var replicatedTableSet = func() map[string]struct{} {
+	set := make(map[string]struct{}, len(replicatedChangesetTables))
+	for _, t := range replicatedChangesetTables {
+		set[t] = struct{}{}
+	}
+
+	return set
+}()
+
+func isReplicatedTable(table string) bool {
+	_, ok := replicatedTableSet[table]
+
+	return ok
+}
+
 // fsmInternalTables are managed directly by the FSM layer, not through
 // changeset replication or local-only backup/restore. The fsm_state table
 // tracks the Raft index of the last applied log entry. Its value must
@@ -202,7 +234,7 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, l
 			_, _ = sqliteConn.ExecContext(context.Background(), "ROLLBACK", nil)
 		}
 
-		if err := sqliteConn.ApplyChangeset(ctx, payload.Value); err != nil {
+		if err := sqliteConn.ApplyChangesetFiltered(ctx, payload.Value, isReplicatedTable); err != nil {
 			rollback()
 			return fmt.Errorf("apply sqlite changeset: %w", err)
 		}
