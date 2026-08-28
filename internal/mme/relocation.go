@@ -34,7 +34,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 		return none, err
 	}
 
-	target, ok := m.FindRadioByGlobalENBID(globalENBID)
+	target, ok := m.FindConnectedRadioByGlobalENBID(globalENBID)
 	if !ok {
 		return none, fmt.Errorf("%w: %s", ErrUnknownTargetENB, ENBID(globalENBID))
 	}

@@ -10,6 +10,7 @@ package amf
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync/atomic"
 	"time"
@@ -36,12 +37,13 @@ type Radio struct {
 	// name and supportedTAIs are written through UpdateRadioName /
 	// UpdateRadioSupportedTAIs under amf.mu so a concurrent status read never sees a
 	// half-written value. connectedAt is set once at construction. Guarded by amf.mu.
-	name          string
-	supportedTAIs []SupportedTAI
-	connectedAt   time.Time
-	lastSeen      atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
-	amf           *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
-	Log           *zap.Logger
+	name           string
+	supportedTAIs  []SupportedTAI
+	connectedAt    time.Time
+	disconnectedAt time.Time
+	lastSeen       atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
+	amf            *AMF         // its registry lock (amf.mu) guards the conns index this radio's UEs live in
+	Log            *zap.Logger
 }
 
 // UpdateRadioName sets a radio's RAN node name under the registry lock, so a
@@ -115,7 +117,9 @@ func (a *AMF) radioFor(conn NGAPWriter) *Radio {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	return a.radios[conn]
+	radio, _ := a.reg.Radio(conn)
+
+	return radio
 }
 
 // radioNameByConn returns the node name for a connection, or "" when untracked.
@@ -123,7 +127,7 @@ func (a *AMF) radioNameByConn(conn NGAPWriter) string {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	if r := a.radios[conn]; r != nil {
+	if r, ok := a.reg.Radio(conn); ok {
 		return r.name
 	}
 
@@ -134,26 +138,46 @@ func (a *AMF) radioNameByConn(conn NGAPWriter) string {
 // the live *Radio never leaves the AMF. RanNodeType is 5G-only (the NG-RAN node may
 // be a gNB, ng-eNB, or N3IWF).
 type RadioInfo struct {
-	Name          string
-	ID            string
-	Address       string
-	RanNodeType   string
-	ConnectedAt   time.Time
-	LastSeenAt    time.Time
-	SupportedTAIs []SupportedTAI
+	Name           string
+	ID             string
+	Address        string
+	RanNodeType    string
+	Connected      bool
+	ConnectedAt    time.Time
+	LastSeenAt     time.Time
+	DisconnectedAt time.Time
+	SupportedTAIs  []SupportedTAI
+}
+
+func (r *Radio) connected() bool {
+	return r.disconnectedAt.IsZero()
+}
+
+func (r *Radio) IDKey() (string, bool) {
+	return radioIDKey(r.RanID)
+}
+
+func (r *Radio) DisconnectedAt() time.Time {
+	return r.disconnectedAt
+}
+
+func (r *Radio) SetDisconnectedAt(t time.Time) {
+	r.disconnectedAt = t
 }
 
 func (r *Radio) info() RadioInfo {
 	addr := AddrString(r.RemoteAddr())
 
 	return RadioInfo{
-		Name:          r.name,
-		ID:            r.NodeID(),
-		Address:       addr,
-		RanNodeType:   r.RanNodeTypeName(),
-		ConnectedAt:   r.connectedAt,
-		LastSeenAt:    r.LastSeenAt(),
-		SupportedTAIs: r.supportedTAIs,
+		Name:           r.name,
+		ID:             r.NodeID(),
+		Address:        addr,
+		RanNodeType:    r.RanNodeTypeName(),
+		Connected:      r.connected(),
+		ConnectedAt:    r.connectedAt,
+		LastSeenAt:     r.LastSeenAt(),
+		DisconnectedAt: r.disconnectedAt,
+		SupportedTAIs:  r.supportedTAIs,
 	}
 }
 
@@ -323,3 +347,13 @@ func (r *Radio) RanNodeTypeName() string {
 		return "Unknown"
 	}
 }
+
+var (
+	ErrRadioNotFound = errors.New("radio not found")
+	ErrRadioOnline   = errors.New("radio is online")
+)
+
+const (
+	DefaultRadioOfflineTTL  = 24 * time.Hour
+	DefaultMaxOfflineRadios = 100
+)

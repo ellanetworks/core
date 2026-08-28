@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/pki"
 )
 
 func setupPKIDB(t *testing.T) *db.Database {
@@ -274,5 +275,42 @@ func TestRedeemJoinToken_UnknownTokenIsNotFound(t *testing.T) {
 
 	if _, err := database.RedeemJoinToken(context.Background(), "nope", 7, "sha256:aa", "PEM"); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("got %v, want ErrNotFound", err)
+	}
+}
+
+func TestRedeemJoinToken_ToleratesClockSkewOnExpiry(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-skew", 11, -pki.JoinTokenClockSkew/2)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-skew", 11, "sha256:cc", "PEM-11"); err != nil {
+		t.Fatalf("token inside the clock-skew grace was rejected: %v", err)
+	}
+
+	mintTestToken(t, database, "tok-stale", 12, -2*pki.JoinTokenClockSkew)
+
+	if _, err := database.RedeemJoinToken(ctx, "tok-stale", 12, "sha256:dd", "PEM-12"); !errors.Is(err, db.ErrJoinTokenExpired) {
+		t.Fatalf("token beyond the clock-skew grace: got %v, want ErrJoinTokenExpired", err)
+	}
+}
+
+func TestDeleteStaleJoinTokens_KeepsTokensInsideClockSkew(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	mintTestToken(t, database, "tok-fresh", 13, -pki.JoinTokenClockSkew/2)
+	mintTestToken(t, database, "tok-old", 14, -2*pki.JoinTokenClockSkew)
+
+	if err := database.DeleteStaleJoinTokens(ctx, time.Now()); err != nil {
+		t.Fatalf("tidy: %v", err)
+	}
+
+	if _, err := database.GetJoinToken(ctx, "tok-fresh"); err != nil {
+		t.Fatalf("tidy deleted a token still inside the clock-skew grace: %v", err)
+	}
+
+	if _, err := database.GetJoinToken(ctx, "tok-old"); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("tidy kept a token past the clock-skew grace: %v", err)
 	}
 }

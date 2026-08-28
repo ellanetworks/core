@@ -30,7 +30,7 @@ func trackRadioAt(m *MME, w S1APWriter, address string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.radios[w] = &Radio{m: m, address: address, Log: logger.MmeLog.With(logger.RanAddr(address))}
+	m.reg.Track(w, &Radio{m: m, address: address, Log: logger.MmeLog.With(logger.RanAddr(address))})
 }
 
 func ranAddrOf(t *testing.T, e observer.LoggedEntry) string {

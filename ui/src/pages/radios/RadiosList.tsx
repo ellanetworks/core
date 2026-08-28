@@ -2,25 +2,28 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useMemo, useState } from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { type GridColDef, type GridPaginationModel } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
-import { Link } from "react-router-dom";
+import { Link, Link as RouterLink } from "react-router-dom";
 
 import {
   listRadios,
+  radioPath,
   type APIRadio,
   type ListRadiosResponse,
 } from "@/queries/radios";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
+import RadioStatusChip from "@/components/RadioStatusChip";
 import RanNodeTypeChip from "@/components/RanNodeTypeChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
-export default function RadiosListTab() {
+export default function RadiosList() {
   const { accessToken } = useAuth();
   const theme = useTheme();
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -29,7 +32,6 @@ export default function RadiosListTab() {
     page: 0,
     pageSize: 25,
   });
-
   const radiosQuery = useQuery<ListRadiosResponse>({
     queryKey: ["radios", paginationModel.page, paginationModel.pageSize],
     queryFn: async () => {
@@ -66,7 +68,7 @@ export default function RadiosListTab() {
             }}
           >
             <Link
-              to={`/radios/${encodeURIComponent(params.row.name)}`}
+              to={`/radios/${radioPath({ type: params.row.type, id: params.row.id })}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
@@ -78,7 +80,7 @@ export default function RadiosListTab() {
                   "&:hover": { textDecoration: "underline" },
                 }}
               >
-                {params.row.name}
+                {params.row.name || `${params.row.type} ${params.row.id}`}
               </Typography>
             </Link>
           </Box>
@@ -92,32 +94,45 @@ export default function RadiosListTab() {
         minWidth: 80,
         renderCell: (params) => <RanNodeTypeChip type={params.row.type} />,
       },
+      {
+        field: "status",
+        headerName: "Status",
+        flex: 0.4,
+        minWidth: 90,
+        renderCell: (params) => <RadioStatusChip status={params.row.status} />,
+      },
       { field: "address", headerName: "Address", flex: 1, minWidth: 120 },
     ],
     [theme],
   );
 
   const descriptionText =
-    "View connected radios and their network locations. Radios will automatically appear here once connected.";
+    "View radios and their network locations. Radios will automatically appear here once connected.";
 
   return (
-    <>
+    <Box
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
+    >
       <Box
         sx={{
-          width: "100%",
-          mb: 3,
           display: "flex",
-          flexDirection: "column",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: { xs: "flex-start", sm: "center" },
           gap: 2,
-          mt: 2,
+          mb: 3,
         }}
       >
-        <Typography variant="h4" component="h1">
-          {knownCount === undefined ? "Radios" : `Radios (${knownCount})`}
-        </Typography>
-        <Typography variant="body1" color="textSecondary">
-          {descriptionText}
-        </Typography>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
+            {knownCount === undefined ? "Radios" : `Radios (${knownCount})`}
+          </Typography>
+          <Typography variant="body1" color="textSecondary">
+            {descriptionText}
+          </Typography>
+        </Box>
+        <Button component={RouterLink} to="/radios/events" variant="outlined">
+          Network events
+        </Button>
       </Box>
 
       <QueryState
@@ -136,7 +151,7 @@ export default function RadiosListTab() {
             <EntityGrid<APIRadio>
               rows={data.items ?? []}
               columns={columns}
-              getRowId={(row) => row.address}
+              getRowId={(row) => `${row.type}:${row.id || row.address}`}
               paginationMode="server"
               rowCount={data.total_count ?? 0}
               paginationModel={paginationModel}
@@ -146,6 +161,6 @@ export default function RadiosListTab() {
           </Box>
         )}
       </QueryState>
-    </>
+    </Box>
   );
 }

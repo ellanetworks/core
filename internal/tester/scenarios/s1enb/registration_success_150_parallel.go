@@ -73,6 +73,10 @@ func runS1ENBScaleParallel(ctx context.Context, env scenarios.Env, _ any) error 
 				return fmt.Errorf("attach (imsi %s) completed without a GUTI", imsi)
 			}
 
+			if err := e.Detach(ue, res.MMEUES1APID, res.ENBUES1APID, releaseTimeout); err != nil {
+				return fmt.Errorf("detach (imsi %s): %w", imsi, err)
+			}
+
 			mu.Lock()
 			defer mu.Unlock()
 

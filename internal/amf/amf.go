@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
@@ -157,8 +159,7 @@ type AMF struct {
 	UEs                      map[etsi.SUPI]*UeContext
 	uesByTmsi                map[etsi.TMSI]*UeContext // 5G-TMSI (current and in-flight old) -> UE; the full GUTI is rebuilt from the constant GUAMI
 	conns                    map[int64]*UeConn        // UE-associated NGAP connections keyed by AMF-UE-NGAP-ID
-	radios                   map[NGAPWriter]*Radio
-	radiosByID               map[string]*Radio // radios that have claimed a Global RAN Node ID
+	reg                      *radioreg.Registry[NGAPWriter, string, *Radio]
 	relocatingFromEPS        map[etsi.SUPI]*fromEPSRelocation
 	RelativeCapacity         int64
 	Name                     string
@@ -383,7 +384,7 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	amf.radios[conn] = &radio
+	amf.reg.Track(conn, &radio)
 
 	return &radio, nil
 }
@@ -392,12 +393,7 @@ func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	ran, ok := amf.radios[conn]
-	if !ok {
-		return nil, false
-	}
-
-	return ran, true
+	return amf.reg.Radio(conn)
 }
 
 // radioIDKey is the radiosByID index key for a Global RAN Node ID, prefixed by
@@ -418,7 +414,7 @@ func radioIDKey(id *models.GlobalRanNodeID) (string, bool) {
 	return "", false
 }
 
-func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
+func (amf *AMF) FindConnectedRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
 	key, ok := radioIDKey(&ranNodeID)
 	if !ok {
 		return nil, false
@@ -427,9 +423,7 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	radio, ok := amf.radiosByID[key]
-
-	return radio, ok
+	return amf.reg.FindConnected(key)
 }
 
 // ClaimRanID assigns ranNodeID to radio, evicting any other radio holding the
@@ -444,26 +438,29 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) *Radio 
 	newID := util.RANNodeIDToModels(ranNodeID)
 	present := ranPresentFor(ranNodeID.Kind)
 
-	key, _ := radioIDKey(&newID)
+	key, ok := radioIDKey(&newID)
+	if !ok {
+		return nil
+	}
 
 	amf.mu.Lock()
 
-	evicted := amf.radiosByID[key]
-	if evicted == radio {
+	evicted, _ := amf.reg.ClaimedBy(key)
+	if evicted == radio || (evicted != nil && !evicted.connected()) {
 		evicted = nil
 	}
 
 	if evicted != nil {
-		delete(amf.radios, evicted.Conn)
+		delete(amf.reg.ByConn, evicted.Conn)
 	}
 
 	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey != key {
-		delete(amf.radiosByID, oldKey)
+		amf.reg.Unclaim(oldKey)
 	}
 
 	radio.RanPresent = present
 	radio.RanID = &newID
-	amf.radiosByID[key] = radio
+	amf.reg.Claim(key, radio)
 	amf.mu.Unlock()
 
 	amf.RemoveAllUeInRan(context.Background(), radio)
@@ -501,19 +498,19 @@ func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) bool {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	if holder, taken := amf.radiosByID[key]; taken && holder != radio {
+	if holder, taken := amf.reg.ClaimedBy(key); taken && holder != radio && holder.connected() {
 		return false
 	}
 
 	if oldKey, ok := radioIDKey(radio.RanID); ok && oldKey == key {
 		return true
 	} else if ok {
-		delete(amf.radiosByID, oldKey)
+		amf.reg.Unclaim(oldKey)
 	}
 
 	radio.RanPresent = ranPresentFor(ranNodeID.Kind)
 	radio.RanID = &newID
-	amf.radiosByID[key] = radio
+	amf.reg.Claim(key, radio)
 
 	return true
 }
@@ -534,32 +531,35 @@ func ranPresentFor(kind ngap.RANNodeIDKind) int {
 	return 0
 }
 
-// ListRadios returns an immutable snapshot of every connected radio for status/API,
-// so the live *Radio never leaves the AMF.
 func (amf *AMF) ListRadios() []RadioInfo {
-	amf.mu.RLock()
-	defer amf.mu.RUnlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
-	out := make([]RadioInfo, 0, len(amf.radios))
-	for _, ran := range amf.radios {
+	radios := amf.reg.All()
+
+	out := make([]RadioInfo, 0, len(radios))
+	for _, ran := range radios {
 		out = append(out, ran.info())
 	}
 
 	return out
 }
 
-// HasRadio reports whether a radio with the given RAN node name is connected.
 func (amf *AMF) HasRadio(name string) bool {
-	amf.mu.RLock()
-	defer amf.mu.RUnlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
-	for _, ran := range amf.radios {
-		if ran.name == name {
-			return true
-		}
+	return amf.reg.Has(named(name))
+}
+
+func named(name string) func(*Radio) bool {
+	return func(r *Radio) bool { return r.name == name }
+}
+
+func identified(nodeType, id string) func(*Radio) bool {
+	return func(r *Radio) bool {
+		return strings.EqualFold(r.RanNodeTypeName(), nodeType) && r.NodeID() == id
 	}
-
-	return false
 }
 
 // ConnectedRadios returns the live radios, for internal send paths (paging, drain)
@@ -568,19 +568,14 @@ func (amf *AMF) ConnectedRadios() []*Radio {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	out := make([]*Radio, 0, len(amf.radios))
-	for _, ran := range amf.radios {
-		out = append(out, ran)
-	}
-
-	return out
+	return amf.reg.Connected()
 }
 
 func (amf *AMF) CountRadios() int {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	return len(amf.radios)
+	return amf.reg.CountConnected()
 }
 
 func (amf *AMF) CountRegisteredSubscribers() int {
@@ -598,18 +593,43 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 	return count
 }
 
-// RemoveRadio removes a radio and all UEs bound to it.
-func (amf *AMF) RemoveRadio(ctx context.Context, ran *Radio) {
+func (amf *AMF) DisconnectRadio(ctx context.Context, ran *Radio) {
 	amf.RemoveAllUeInRan(ctx, ran)
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	delete(amf.radios, ran.Conn)
+	amf.reg.Disconnect(ran.Conn, ran)
+}
 
-	if key, ok := radioIDKey(ran.RanID); ok && amf.radiosByID[key] == ran {
-		delete(amf.radiosByID, key)
+func (amf *AMF) ForgetRadio(nodeType, id string) error {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	online, forgotten := amf.reg.Forget(identified(nodeType, id))
+
+	switch {
+	case online:
+		return ErrRadioOnline
+	case forgotten == 0:
+		return ErrRadioNotFound
 	}
+
+	return nil
+}
+
+func (amf *AMF) OfflineRadioCountForTest() int {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	return amf.reg.CountOffline()
+}
+
+func (amf *AMF) SetRadioRetentionForTest(ttl time.Duration, maxOffline int, now func() time.Time) {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	amf.reg.SetRetention(ttl, maxOffline, now)
 }
 
 // IndexRadioForTest registers a directly-constructed radio in both the
@@ -625,10 +645,10 @@ func (amf *AMF) IndexRadioForTest(conn *sctp.SCTPConn, radio *Radio) {
 		radio.Conn = conn
 	}
 
-	amf.radios[radio.Conn] = radio
+	amf.reg.Track(radio.Conn, radio)
 
 	if key, ok := radioIDKey(radio.RanID); ok {
-		amf.radiosByID[key] = radio
+		amf.reg.Claim(key, radio)
 	}
 }
 
@@ -655,8 +675,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		uesByTmsi:                make(map[etsi.TMSI]*UeContext),
 		conns:                    make(map[int64]*UeConn),
-		radios:                   make(map[NGAPWriter]*Radio),
-		radiosByID:               make(map[string]*Radio),
+		reg:                      radioreg.New[NGAPWriter, string, *Radio](DefaultRadioOfflineTTL, DefaultMaxOfflineRadios, time.Now),
 		relocatingFromEPS:        make(map[etsi.SUPI]*fromEPSRelocation),
 		DBInstance:               db,
 		Ausf:                     ausf,

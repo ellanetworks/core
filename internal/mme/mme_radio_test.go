@@ -31,7 +31,7 @@ func TestENBTable(t *testing.T) {
 		t.Fatalf("ListRadios = %d, want 2", got)
 	}
 
-	m.RemoveRadio(c1)
+	m.DisconnectRadio(c1)
 
 	got := m.ListRadios()
 	if len(got) != 1 || got[0].Name != "enb-b" {
@@ -39,7 +39,7 @@ func TestENBTable(t *testing.T) {
 	}
 
 	// Removing an unknown association is a no-op.
-	m.RemoveRadio(new(sctp.SCTPConn))
+	m.DisconnectRadio(new(sctp.SCTPConn))
 
 	if got := len(m.ListRadios()); got != 1 {
 		t.Fatalf("ListRadios = %d, want 1", got)
@@ -73,7 +73,7 @@ func TestENBSetupCompleteGate(t *testing.T) {
 		t.Fatal("eNB not setup-complete after claiming its Global eNB ID")
 	}
 
-	m.RemoveRadio(c)
+	m.DisconnectRadio(c)
 
 	if setupComplete(c) {
 		t.Fatal("removed eNB still setup-complete")
@@ -95,15 +95,15 @@ func TestClaimENBID_EvictsStaleReassociation(t *testing.T) {
 	m.trackRadio(c1, RadioInfo{Name: "enb-old"})
 	m.ClaimENBID(m.RadioForConn(c1), enbID)
 
-	if got := m.radiosByID[id]; got == nil || got.Conn != S1APWriter(c1) {
-		t.Fatalf("setup: radiosByID[%q] resolved to the wrong association", id)
+	if got, ok := m.reg.ClaimedBy(id); !ok || got.Conn != S1APWriter(c1) {
+		t.Fatalf("setup: the Global eNB ID %q resolved to the wrong association", id)
 	}
 
 	m.trackRadio(c2, RadioInfo{Name: "enb-new"})
 	m.ClaimENBID(m.RadioForConn(c2), enbID)
 
-	if got := m.radiosByID[id]; got == nil || got.Conn != S1APWriter(c2) {
-		t.Errorf("radiosByID[%q] did not resolve to the re-associated eNB", id)
+	if got, ok := m.reg.ClaimedBy(id); !ok || got.Conn != S1APWriter(c2) {
+		t.Errorf("the Global eNB ID %q did not resolve to the re-associated eNB", id)
 	}
 
 	if r := m.RadioForConn(c1); r != nil && r.SetupComplete() {

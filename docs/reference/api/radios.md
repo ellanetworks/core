@@ -1,12 +1,14 @@
 ---
-description: RESTful API reference for viewing connected radio information.
+description: RESTful API reference for viewing radio information.
 ---
 
 # Radios
 
 Radios are automatically added to Ella Core as they connect to the network as long as they are configured to use the same Tracking Area Code (TAC), Mobile Country Code (MCC), and Mobile Network Code (MNC) as Ella Core.
 
-The Radio API provides endpoints to view information about connected radios.
+A radio that has completed its setup procedure remains listed as `offline` after it disconnects, until it is forgotten or its retention window elapses. The inventory is held in memory and does not survive a restart.
+
+The Radio API provides endpoints to view information about radios and to forget offline ones.
 
 ## List Radios
 
@@ -23,16 +25,21 @@ This path returns the list of radios in the inventory.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+| `status`   | query | str  |         | `online`, `offline` | Filter by presence status. |
 
 ### Response Fields
 
-| Field            | Type   | Description |
-| ---------------- | ------ | ----------- |
-| `name`           | string | Radio name. |
-| `id`             | string | Radio identifier. |
-| `address`        | string | Radio address. |
-| `type`           | string | Radio type: `gNB`, `ng-eNB`, `eNB`, `N3IWF`, or `Unknown`. |
-| `supported_tais` | array  | **Deprecated.** Use [Get a Radio](#get-a-radio) for supported TAIs. This field will be removed in a future release. |
+| Field             | Type   | Description |
+| ----------------- | ------ | ----------- |
+| `name`            | string | Radio name. |
+| `id`              | string | Radio identifier. |
+| `address`         | string | Radio address. On an offline radio, the last known address. |
+| `type`            | string | Radio type: `gNB`, `ng-eNB`, `eNB`, `N3IWF`, or `Unknown`. |
+| `status`          | string | `online` if the radio is currently associated with this node, `offline` otherwise. |
+| `connected_at`    | string | When the radio associated (RFC 3339). On an offline radio, when it last associated. |
+| `last_seen_at`    | string | Timestamp of the last message received from the radio (RFC 3339). |
+| `disconnected_at` | string | When the radio's association dropped (RFC 3339). Empty while the radio is online. |
+| `supported_tais`  | array  | **Deprecated.** Use [Get a Radio](#get-a-radio) for supported TAIs. This field will be removed in a future release. |
 
 ### Sample Response
 
@@ -45,29 +52,45 @@ This path returns the list of radios in the inventory.
                 "id": "001:01:000102",
                 "address": "10.1.107.203/192.168.251.5:9487",
                 "type": "gNB",
+                "status": "online",
+                "connected_at": "2025-08-12T16:58:00Z",
+                "last_seen_at": "2025-08-12T17:02:30Z",
+                "disconnected_at": "",
+                "supported_tais": []
+            },
+            {
+                "name": "gnb2",
+                "id": "001:01:000103",
+                "address": "10.1.107.204/192.168.251.6:9487",
+                "type": "gNB",
+                "status": "offline",
+                "connected_at": "2025-08-12T09:12:00Z",
+                "last_seen_at": "2025-08-12T16:40:11Z",
+                "disconnected_at": "2025-08-12T16:41:02Z",
                 "supported_tais": []
             }
         ],
         "page": 1,
         "per_page": 10,
-        "total_count": 1
+        "total_count": 2
     }
 }
 ```
 
 ## Get a Radio
 
-This path returns the details of a specific radio, including connection timestamps, RAN node type, and supported tracking areas. To list subscribers connected to this radio, use `GET /api/v1/subscribers?radio={name}`.
+This path returns the details of a specific radio, connected or offline, including connection timestamps, RAN node type, and supported tracking areas. To list subscribers connected to this radio, use `GET /api/v1/subscribers?radio={name}`.
 
-| Method | Path                    |
-| ------ | ----------------------- |
-| GET    | `/api/v1/ran/radios/{name}` |
+| Method | Path                                       |
+| ------ | ------------------------------------------ |
+| GET    | `/api/v1/ran/radios/{ranNodeType}/{id}`    |
 
 ### Path Parameters
 
-| Name   | Type   | Description |
-| ------ | ------ | ----------- |
-| `name` | string | Radio name. |
+| Name          | Type   | Description |
+| ------------- | ------ | ----------- |
+| `ranNodeType` | string | Radio type: `gNB`, `ng-eNB`, `eNB`, or `N3IWF`. Case-insensitive. |
+| `id`          | string | Radio identifier, as returned in a radio's `id` field. |
 
 ### Sample Response
 
@@ -77,8 +100,10 @@ This path returns the details of a specific radio, including connection timestam
         "name": "gnb1",
         "id": "001:01:000102",
         "address": "10.1.107.203/192.168.251.5:9487",
+        "status": "online",
         "connected_at": "2025-08-12T16:58:00Z",
         "last_seen_at": "2025-08-12T17:02:30Z",
+        "disconnected_at": "",
         "type": "gNB",
         "supported_tais": [
             {
@@ -112,6 +137,41 @@ This path returns the details of a specific radio, including connection timestam
                 ]
             }
         ]
+    }
+}
+```
+
+## Forget a Radio
+
+This path drops an offline radio from the inventory. A forgotten radio is listed again as `online` if it reconnects.
+
+Requires the admin role.
+
+| Method | Path                                       |
+| ------ | ------------------------------------------ |
+| DELETE | `/api/v1/ran/radios/{ranNodeType}/{id}`    |
+
+### Path Parameters
+
+| Name          | Type   | Description |
+| ------------- | ------ | ----------- |
+| `ranNodeType` | string | Radio type: `gNB`, `ng-eNB`, `eNB`, or `N3IWF`. Case-insensitive. |
+| `id`          | string | Radio identifier, as returned in a radio's `id` field. |
+
+### Response Codes
+
+| Code  | Description |
+| ----- | ----------- |
+| `200` | The radio was forgotten. |
+| `404` | No offline radio carries that identifier. |
+| `409` | The radio is online. |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Radio forgotten successfully"
     }
 }
 ```

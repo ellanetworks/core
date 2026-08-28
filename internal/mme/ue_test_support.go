@@ -212,7 +212,7 @@ func (ue *UeContext) DeriveNextNHForTest() ([32]byte, error) {
 
 func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
 	m.mu.Lock()
-	m.radiosByID[ENBID(g)] = &Radio{Conn: conn, id: ENBID(g)}
+	m.reg.Claim(ENBID(g), &Radio{Conn: conn, id: ENBID(g)})
 	m.mu.Unlock()
 }
 
@@ -220,7 +220,7 @@ func (m *MME) RegisterENBByIDForTest(g s1ap.GlobalENBID, conn S1APWriter) {
 // fan-out map. For tests only.
 func (m *MME) IndexRadioForTest(conn S1APWriter, supportedTAIs []SupportedTAI) {
 	m.mu.Lock()
-	m.radios[conn] = &Radio{Conn: conn, supportedTAIs: supportedTAIs}
+	m.reg.Track(conn, &Radio{Conn: conn, supportedTAIs: supportedTAIs})
 	m.mu.Unlock()
 }
 

@@ -177,7 +177,7 @@ func TestCancelRegistrationReleasesTheNGAPConnection(t *testing.T) {
 	radio := &Radio{Conn: new(sctp.SCTPConn), name: "gNB-1", amf: a, Log: zap.NewNop()}
 
 	a.mu.Lock()
-	a.radios[radio.Conn] = radio
+	a.reg.Track(radio.Conn, radio)
 	a.mu.Unlock()
 
 	ueConn := NewUeConnForTest(radio, models.RanUeNgapID(7), models.AmfUeNgapID(7), zap.NewNop())
