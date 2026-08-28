@@ -58,7 +58,7 @@ func runEnbDeregistration(_ context.Context, env scenarios.Env, _ any) error {
 
 	defer ngeNB.Close()
 
-	_, err = ngeNB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
+	_, err = ngeNB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, scenarios.NGSetupTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

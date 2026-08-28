@@ -136,7 +136,7 @@ func runRegistrationSuccessMultipleSlices(_ context.Context, env scenarios.Env, 
 
 	defer gNodeB.Close()
 
-	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, scenarios.NGSetupTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive NG Setup Response: %v", err)
 	}

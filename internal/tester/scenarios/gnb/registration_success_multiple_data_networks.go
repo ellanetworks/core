@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -99,7 +98,7 @@ func runRegistrationSuccessMultipleDataNetworks(_ context.Context, env scenarios
 
 	defer gNodeB.Close()
 
-	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, scenarios.NGSetupTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

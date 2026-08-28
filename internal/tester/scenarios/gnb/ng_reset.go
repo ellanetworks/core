@@ -50,7 +50,7 @@ func runNGReset(_ context.Context, env scenarios.Env, _ any) error {
 	if _, err := node.WaitForMessage(
 		gnb.Successful,
 		ngaplib.ProcNGSetup,
-		200*time.Millisecond,
+		scenarios.NGSetupTimeout,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)
 	}
