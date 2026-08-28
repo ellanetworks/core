@@ -25,28 +25,16 @@ const (
 	rollingTargetImage   = "ella-core:latest"
 )
 
-// TestIntegrationHARollingUpgrade rolls a 3-node cluster from the
-// previous release image to the current build, one node at a time, and
-// asserts the cluster stays writable and converges on the target schema.
 func TestIntegrationHARollingUpgrade(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	// Migration v12 replaces the v9 chain-PKI tables with the
-	// fingerprint-pinning registry (cluster_node_certs). Pre-v12
-	// nodes hold chain-signed leaves on disk that the new verifier
-	// will not accept until those nodes' fingerprints are pinned,
-	// which only happens after a fresh JoinFlow. Operators take
-	// this version hop via backup/restore + rejoin, not a rolling
-	// upgrade.
-	t.Skip("v11 → v12 cannot be a rolling upgrade; cluster TLS schema changed (see migration_v12)")
-
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 
 	if err := ensureRollingImages(ctx, t); err != nil {
-		t.Skipf("rolling-upgrade images unavailable: %v", err)
+		t.Fatalf("rolling-upgrade images unavailable: %v", err)
 	}
 
 	dc, err := NewDockerClient()
@@ -77,17 +65,27 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		t.Fatalf("not all baseline nodes became ready: %v", err)
 	}
 
-	baselineSchema := mustReadSchemaVersion(ctx, t, clients[0])
+	baselineStatus := mustReadStatus(ctx, t, clients[0])
+	baselineSchema := baselineStatus.SchemaVersion
+	baselineRevision := baselineStatus.Revision
 
-	// Discovered after the first swap.
-	var targetSchema int
+	if baselineRevision == "" {
+		t.Fatal("baseline image reports an empty revision; the roll cannot be distinguished from a no-op")
+	}
 
-	HALogf(t, "baseline schema = %d", baselineSchema)
+	var (
+		targetSchema   int
+		targetRevision string
+	)
+
+	HALogf(t, "baseline version = %s, revision = %s, schema = %d",
+		baselineStatus.Version, baselineRevision, baselineSchema)
 
 	for i, c := range clients {
 		assertSchemaState(t, ctx, c, fmt.Sprintf("node %d (initial)", i+1), schemaState{
 			schemaVersion:    baselineSchema,
 			applied:          baselineSchema,
+			revision:         baselineRevision,
 			pendingMigration: nil,
 		})
 	}
@@ -127,26 +125,41 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		}
 
 		if step == 0 {
-			targetSchema = mustReadSchemaVersion(ctx, t, clients[nodeIdx])
+			targetStatus := mustReadStatus(ctx, t, clients[nodeIdx])
+			targetSchema = targetStatus.SchemaVersion
+			targetRevision = targetStatus.Revision
+
+			if targetRevision == "" {
+				t.Fatal("target image reports an empty revision; rebuild ella-core:latest so version.GitCommit is set")
+			}
+
+			if targetRevision == baselineRevision {
+				t.Fatalf("target revision %s equals baseline revision %s — ella-core:latest is the same build as %s; rebuild ella-core:latest from the current tree",
+					targetRevision, baselineRevision, rollingBaselineImage)
+			}
 
 			if targetSchema < baselineSchema {
 				t.Fatalf("target schema %d < baseline schema %d — current build cannot downgrade",
 					targetSchema, baselineSchema)
 			}
 
-			HALogf(t, "target schema = %d (delta from baseline = %d)",
-				targetSchema, targetSchema-baselineSchema)
+			HALogf(t, "target version = %s, revision = %s, schema = %d (delta from baseline = %d)",
+				targetStatus.Version, targetRevision, targetSchema, targetSchema-baselineSchema)
 		}
 
 		// SchemaVersion advances only after the API server is fully up.
 		if err := waitForSchemaCondition(ctx, clients[nodeIdx], func(s *client.Status) error {
+			if s.Revision != targetRevision {
+				return fmt.Errorf("revision=%q, want %q", s.Revision, targetRevision)
+			}
+
 			if s.SchemaVersion != targetSchema {
 				return fmt.Errorf("schemaVersion=%d, want %d", s.SchemaVersion, targetSchema)
 			}
 
 			return nil
 		}, 30*time.Second); err != nil {
-			t.Fatalf("node %d schemaVersion did not advance: %v", nodeNum, err)
+			t.Fatalf("node %d did not come up on the target build: %v", nodeNum, err)
 		}
 
 		if !isLast && targetSchema > baselineSchema {
@@ -204,6 +217,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 					schemaState{
 						schemaVersion:    baselineSchema,
 						applied:          baselineSchema,
+						revision:         baselineRevision,
 						pendingMigration: nil,
 					})
 			}
@@ -229,6 +243,10 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 			if s.SchemaVersion != targetSchema {
 				return fmt.Errorf("schemaVersion=%d, want %d", s.SchemaVersion, targetSchema)
+			}
+
+			if s.Revision != targetRevision {
+				return fmt.Errorf("revision=%q, want %q", s.Revision, targetRevision)
 			}
 
 			return nil
@@ -257,6 +275,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 type schemaState struct {
 	schemaVersion    int
 	applied          int
+	revision         string
 	pendingMigration *client.PendingMigration // nil = expect absent
 }
 
@@ -271,6 +290,10 @@ func assertSchemaState(t *testing.T, ctx context.Context, c *client.Client, labe
 
 	if s.SchemaVersion != want.schemaVersion {
 		t.Errorf("%s: schemaVersion=%d, want %d", label, s.SchemaVersion, want.schemaVersion)
+	}
+
+	if want.revision != "" && s.Revision != want.revision {
+		t.Errorf("%s: revision=%q, want %q", label, s.Revision, want.revision)
 	}
 
 	if s.Cluster == nil {
@@ -320,7 +343,7 @@ func waitForSchemaCondition(ctx context.Context, c *client.Client, cond func(*cl
 	return fmt.Errorf("timeout after %s: %w", timeout, lastErr)
 }
 
-func mustReadSchemaVersion(ctx context.Context, t *testing.T, c *client.Client) int {
+func mustReadStatus(ctx context.Context, t *testing.T, c *client.Client) *client.Status {
 	t.Helper()
 
 	s, err := c.GetStatus(ctx)
@@ -328,7 +351,7 @@ func mustReadSchemaVersion(ctx context.Context, t *testing.T, c *client.Client) 
 		t.Fatalf("GetStatus: %v", err)
 	}
 
-	return s.SchemaVersion
+	return s
 }
 
 func roleAt(ctx context.Context, c *client.Client) string {

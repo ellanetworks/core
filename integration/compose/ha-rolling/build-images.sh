@@ -1,21 +1,28 @@
 #!/bin/sh
-# Prepare images used by TestIntegrationHARollingUpgrade.
-#
-#   ella-core:rolling-baseline — the previous release image, pulled from
-#                                ghcr.io. Bump ROLLING_BASELINE_VERSION
-#                                with every release.
-#   ella-core:latest           — the current build (already produced by
-#                                the standard image-build step).
-#
-# The test rolls the cluster from rolling-baseline to latest and surfaces
-# any rolling-upgrade compatibility break (renamed or removed Raft op,
-# schema migration that an old node cannot tolerate, payload-shape drift)
-# as a real test failure rather than a stale committed manifest.
 set -eu
 
-# Pinned to the previous release tag. Bump this in the same PR that cuts
-# a new release.
-ROLLING_BASELINE_VERSION="${ROLLING_BASELINE_VERSION:-v1.10.2}"
+ROLLING_REPO="${ROLLING_REPO:-https://github.com/ellanetworks/core.git}"
+
+resolve_latest_release() {
+    git ls-remote --tags --refs "${ROLLING_REPO}" 'v*' \
+        | awk '{print $2}' \
+        | sed 's#refs/tags/##' \
+        | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+        | sort -V \
+        | tail -1
+}
+
+if [ -z "${ROLLING_BASELINE_VERSION:-}" ]; then
+    echo "==> Resolving latest release tag from ${ROLLING_REPO}"
+    ROLLING_BASELINE_VERSION="$(resolve_latest_release)"
+
+    if [ -z "${ROLLING_BASELINE_VERSION}" ]; then
+        echo "error: could not resolve a latest release tag from ${ROLLING_REPO}." >&2
+        echo "       Set ROLLING_BASELINE_VERSION explicitly to override." >&2
+        exit 1
+    fi
+fi
+
 ROLLING_BASELINE_IMAGE="ghcr.io/ellanetworks/ella-core:${ROLLING_BASELINE_VERSION}"
 
 if ! docker image inspect ella-core:latest >/dev/null 2>&1; then
@@ -24,6 +31,7 @@ if ! docker image inspect ella-core:latest >/dev/null 2>&1; then
     exit 1
 fi
 
+echo "==> Baseline release: ${ROLLING_BASELINE_VERSION}"
 echo "==> Pulling ${ROLLING_BASELINE_IMAGE}"
 docker pull -q "${ROLLING_BASELINE_IMAGE}"
 

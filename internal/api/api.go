@@ -110,7 +110,6 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
 		DB:     dbInstance,
 		Config: cfg,
-		Ready:  &s.ready,
 	})
 
 	s.handler.set(discoveryHandler)
