@@ -117,7 +117,7 @@ require (
 // Fork of mattn/go-sqlite3 that exposes the SQLite session extension
 // (sqlite3session_*, sqlite3changeset_apply and its xFilter table filter).
 // Used by internal/db to replicate write-set changesets.
-replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260827163036-c5b342dd0d66
+replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260828175046-2d4b4f2d4d65
 
 replace github.com/ellanetworks/core/lppa => ./lppa
 
