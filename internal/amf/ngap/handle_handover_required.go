@@ -21,7 +21,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	amfUe := sourceUe.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("Cannot find amfUE from sourceUE")
+		logger.WithTrace(ctx, sourceUe.Log()).Error("Cannot find amfUE from sourceUE")
 		return
 	}
 
@@ -29,12 +29,12 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	conn := amfUe.Conn()
 	if conn == nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("no active NAS connection")
+		logger.WithTrace(ctx, sourceUe.Log()).Error("no active NAS connection")
 		return
 	}
 
 	if !amfUe.SecurityContextIsValid() {
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Authentication Failure]")
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHandoverNoSecurity, nil, nil)
 
@@ -48,7 +48,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	}
 
 	if msg.HandoverType != ngap.HandoverTypeIntra5GS {
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [unsupported Handover Type]",
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [unsupported Handover Type]",
 			zap.Uint8("handoverType", uint8(msg.HandoverType)))
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOTargetNotAllowed, nil, nil)
@@ -57,7 +57,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	}
 
 	if msg.TargetID.TargetRANNodeID == nil {
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Target ID is not an NG-RAN node]")
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Target ID is not an NG-RAN node]")
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)
 
@@ -66,9 +66,9 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetRanNodeID := util.RANNodeIDToModels(msg.TargetID.TargetRANNodeID.GlobalRANNodeID)
 
-	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
+	targetRan, ok := amfInstance.FindConnectedRadioByRanID(targetRanNodeID)
 	if !ok {
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeUnknownTargetID, nil, nil)
 
@@ -76,7 +76,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	}
 
 	if targetRan.Conn == ran.Conn {
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [target gNB is the source]")
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [target gNB is the source]")
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOTargetNotAllowed, nil, nil)
 
@@ -97,7 +97,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	for _, item := range msg.PDUSessionResourceListHORqd {
 		pduSessionID, ok := validPDUSessionID(int64(item.PDUSessionID))
 		if !ok {
-			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, reporting it as not handed over", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("invalid PDU session ID from gNB, reporting it as not handed over", zap.Int64("pduSessionID", int64(item.PDUSessionID)))
 			notOffered(item.PDUSessionID, causeUnknownPDUSessionID)
 
 			continue
@@ -105,7 +105,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !exist {
-			logger.WithTrace(ctx, sourceUe.Log).Error("no SM context for a PDU session the gNB asked to hand over", zap.Uint8("pduSessionID", pduSessionID))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("no SM context for a PDU session the gNB asked to hand over", zap.Uint8("pduSessionID", pduSessionID))
 			notOffered(item.PDUSessionID, causeUnknownPDUSessionID)
 
 			continue
@@ -113,7 +113,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		n2Rsp, err := amfInstance.Session.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, item.Transfer)
 		if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			notOffered(item.PDUSessionID, causeHandoverCNReason)
 
 			continue
@@ -121,7 +121,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		setupItem, err := amf.PDUSessionSetupItemHOReq(pduSessionID, smContext.Snssai, n2Rsp)
 		if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("could not build the handover request item", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("could not build the handover request item", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			notOffered(item.PDUSessionID, causeHandoverCNReason)
 
 			continue
@@ -132,7 +132,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	}
 
 	if len(sessions) == 0 {
-		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
+		logger.WithTrace(ctx, sourceUe.Log()).Info("handle Handover Preparation Failure [HoFailure In Target5GC NgranNode Or TargetSystem]")
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)
 
@@ -141,13 +141,13 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	operatorInfo, err := amfInstance.OperatorInfo(ctx)
 	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("Could not get operator info", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log()).Error("Could not get operator info", zap.Error(err))
 		return
 	}
 
 	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
 	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("Could not list operator SNSSAI", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log()).Error("Could not list operator SNSSAI", zap.Error(err))
 		return
 	}
 
@@ -178,11 +178,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		ServingPLMN:          operatorInfo.Guami.PlmnID,
 	})
 	if err != nil {
-		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log()).Error("error sending handover request to target UE", zap.Error(err))
 		amfInstance.ClearHandover(amfUe)
 
 		if rerr := amfInstance.RemoveUeConn(ctx, targetUe); rerr != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error removing target ue after failed handover request", zap.Error(rerr))
+			logger.WithTrace(ctx, sourceUe.Log()).Error("error removing target ue after failed handover request", zap.Error(rerr))
 		}
 
 		sourceUe.SendHandoverPreparationFailure(ctx, causeHOFailureInTarget, nil, nil)

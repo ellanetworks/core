@@ -169,12 +169,10 @@ func (c *UeConn) retransmitNASGuard(ue *UeContext, name string, plain []byte, sh
 		return
 	}
 
-	mmeUEID := c.MMEUES1APID
-
 	m.mu.Unlock()
 
-	logger.MmeLog.Info("retransmitting NAS message",
-		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name), zap.Int("attempt", int(attempt)))
+	c.Log().Info("retransmitting NAS message",
+		zap.String("procedure", name), zap.Int("attempt", int(attempt)))
 
 	// Retransmission is timer-driven, outside the original request; start a fresh root.
 	ctx := context.Background()
@@ -199,21 +197,18 @@ func (c *UeConn) expireNASGuard(ue *UeContext, name string, onAbort func()) {
 		return
 	}
 
-	mmeUEID := c.MMEUES1APID
-
 	m.mu.Unlock()
 
 	if onAbort != nil {
-		logger.MmeLog.Info("NAS procedure timed out, aborting (UE stays connected)",
-			zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
+		c.Log().Info("NAS procedure timed out, aborting (UE stays connected)",
+			zap.String("procedure", name))
 
 		onAbort()
 
 		return
 	}
 
-	logger.MmeLog.Info("NAS procedure timed out, releasing UE",
-		zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
+	c.Log().Info("NAS procedure timed out, releasing UE", zap.String("procedure", name))
 	// The guard fires from a timer outside any request; start a fresh root.
 	m.ReleaseUEContext(context.Background(), ue, CauseNASUnspecified)
 }

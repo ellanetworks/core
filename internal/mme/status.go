@@ -46,7 +46,7 @@ func (m *MME) connectedSubscriber(ue *UeContext) ConnectedSubscriber {
 	radioName := ""
 
 	if ue.Conn() != nil {
-		if s := m.radios[ue.Conn().Conn()]; s != nil {
+		if s, ok := m.reg.Radio(ue.Conn().Conn()); ok {
 			radioName = s.name
 		}
 	}

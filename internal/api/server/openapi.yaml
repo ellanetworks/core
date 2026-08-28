@@ -909,9 +909,11 @@ paths:
             type: string
             maxLength: 254
           description: |
-            Filter subscribers whose IMSI contains this substring. Matching is
-            case-insensitive and the value is treated as literal text, not a
-            pattern. Combines with the other filters.
+            Filter subscribers whose IMSI or description contains this
+            substring. The value is treated as literal text, not a pattern.
+            Matching ignores case for ASCII letters only, so `reception`
+            finds `Reception` but `réception` does not find `Réception`.
+            Combines with the other filters.
       responses:
         "200":
           description: Paginated list of subscribers.
@@ -2423,11 +2425,22 @@ paths:
     get:
       operationId: listRadios
       tags: [Radios]
-      summary: List connected radios
-      description: Returns a paginated list of radio base stations (gNBs) currently connected to the AMF via NGAP. Includes their supported tracking areas and network slices.
+      summary: List radios
+      description: >-
+        Returns a paginated list of radio base stations known to this node: those currently
+        associated, and those that completed NG/S1 Setup and have since disconnected, which
+        remain listed as offline until they are forgotten or their retention window elapses.
+        Presence is the serving node's view; a radio associates with one cluster node.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [online, offline]
+          description: Return only radios with this presence status.
       responses:
         "200":
           description: Paginated list of radios.
@@ -2435,22 +2448,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListRadiosResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/ran/radios/{name}:
+  /api/v1/ran/radios/{ranNodeType}/{id}:
     get:
       operationId: getRadio
       tags: [Radios]
       summary: Get a radio
-      description: Returns the details of a specific connected radio base station.
+      description: >-
+        Returns the details of a specific radio base station, connected or offline. A radio
+        is addressed by the identity it claimed on setup — its node type paired with its
+        Global RAN Node ID — because node names are not unique across offline radios and a
+        radio that never reported one still has an identity.
       parameters:
-        - name: name
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Radio name.
+        - $ref: "#/components/parameters/RanNodeType"
+        - $ref: "#/components/parameters/RadioID"
       responses:
         "200":
           description: Radio details.
@@ -2462,6 +2477,34 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+
+    delete:
+      operationId: forgetRadio
+      tags: [Radios]
+      summary: Forget an offline radio
+      description: >-
+        Drops an offline radio from the list, for a decommissioned site or a stale entry
+        left behind by a radio whose identity changed. It applies only to offline radios: a
+        connected radio is removed when its association drops, not on request. A forgotten
+        radio is listed again as online if it reconnects.
+      parameters:
+        - $ref: "#/components/parameters/RanNodeType"
+        - $ref: "#/components/parameters/RadioID"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The radio is online.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # -- Radio Events --------------------------------------------------------
   /api/v1/ran/events:
@@ -3390,6 +3433,23 @@ components:
         minimum: 1
         maximum: 100
       description: Items per page.
+    RanNodeType:
+      name: ranNodeType
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [gNB, ng-eNB, N3IWF, eNB]
+      description: >-
+        RAN node type, matched case-insensitively so it may be spelled as the API renders
+        it ("gNB") or as a lowercase URL segment ("gnb").
+    RadioID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Global RAN Node ID, as reported in a radio's `id` field.
     EmailPath:
       name: email
       in: path
@@ -3869,6 +3929,10 @@ components:
         profile_name:
           type: string
           description: Name of the assigned profile.
+        description:
+          type: string
+          maxLength: 64
+          description: Free-text operator note. Absent when unset.
         radio:
           type: string
           description: Radio name the subscriber is connected through (empty if not connected).
@@ -3944,6 +4008,10 @@ components:
           type: string
         profile_name:
           type: string
+        description:
+          type: string
+          maxLength: 64
+          description: Free-text operator note. Absent when unset.
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
         sessions:
@@ -4050,6 +4118,10 @@ components:
         profile_name:
           type: string
           description: Name of an existing profile.
+        description:
+          type: string
+          maxLength: 64
+          description: "Free-text operator note. Surrounding whitespace is trimmed; omit or send an empty string to leave it unset."
 
     UpdateSubscriberParams:
       type: object
@@ -4058,6 +4130,10 @@ components:
         profile_name:
           type: string
           description: Name of an existing profile.
+        description:
+          type: string
+          maxLength: 64
+          description: "Free-text operator note. Surrounding whitespace is trimmed; the update is a full replace, so omitting it clears the stored value."
 
     # -- Subscriber Usage ------------------------------------------------
     SubscriberUsage:
@@ -5416,21 +5492,38 @@ components:
           type: string
         address:
           type: string
+          description: SCTP remote address (IP:port). On an offline radio, the last known address.
         type:
           type: string
           enum: [gNB, ng-eNB, eNB, N3IWF, Unknown]
           description: Type of the RAN node.
+        status:
+          type: string
+          enum: [online, offline]
+          description: Whether the radio is currently associated with this node.
+        connected_at:
+          type: string
+          format: date-time
+          description: When the radio associated (RFC 3339). On an offline radio, when it last associated.
+        last_seen_at:
+          type: string
+          format: date-time
+          description: Timestamp of the last message received from the radio (RFC 3339).
+        disconnected_at:
+          type: string
+          format: date-time
+          description: When the radio's association dropped (RFC 3339). Empty while the radio is online.
         supported_tais:
           type: array
           deprecated: true
-          description: "Deprecated: use GET /api/v1/ran/radios/{name} for full radio details including supported TAIs."
+          description: "Deprecated: use GET /api/v1/ran/radios/{ranNodeType}/{id} for full radio details including supported TAIs."
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, type, supported_tais]
+      required: [name, id, address, type, status, connected_at, last_seen_at, disconnected_at, supported_tais]
 
     RadioDetail:
       type: object
-      description: Detailed information about a connected radio base station.
+      description: Detailed information about a radio base station, connected or offline.
       properties:
         name:
           type: string
@@ -5439,15 +5532,23 @@ components:
           description: GnB ID value.
         address:
           type: string
-          description: SCTP remote address (IP:port).
+          description: SCTP remote address (IP:port). On an offline radio, the last known address.
+        status:
+          type: string
+          enum: [online, offline]
+          description: Whether the radio is currently associated with this node.
         connected_at:
           type: string
           format: date-time
-          description: Timestamp when the radio connected (RFC 3339).
+          description: When the radio associated (RFC 3339). On an offline radio, when it last associated.
         last_seen_at:
           type: string
           format: date-time
           description: Timestamp of the last NGAP message received from the radio (RFC 3339).
+        disconnected_at:
+          type: string
+          format: date-time
+          description: When the radio's association dropped (RFC 3339). Empty while the radio is online.
         type:
           type: string
           enum: [gNB, ng-eNB, eNB, N3IWF, Unknown]
@@ -5456,7 +5557,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SupportedTAI"
-      required: [name, id, address, connected_at, last_seen_at, type, supported_tais]
+      required: [name, id, address, status, connected_at, last_seen_at, disconnected_at, type, supported_tais]
 
     RadioResponseEnvelope:
       type: object

@@ -39,6 +39,7 @@ var migrations = []migration{
 	{15, "add positioning_sessions and cell_positions tables for LMF", migrateV15},
 	{16, "add subscriber_framed_routes table", migrateV16},
 	{17, "add local_switch_settings table", migrateV17},
+	{18, "add description column to subscribers", migrateV18},
 }
 
 // baselineVersion is the highest migration that runs locally during

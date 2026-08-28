@@ -134,7 +134,7 @@ func rebuildTableUUID(
 		args[0] = uuid.NewSHA1(idNamespace, []byte(table+":"+strconv.FormatInt(oldID, 10))).String()
 
 		for i, col := range columns {
-			val := *(values[i+1].(*any))
+			val := *values[i+1].(*any)
 
 			if fk, ok := fks[col]; ok {
 				rewritten, err := rewriteFK(fk, val)

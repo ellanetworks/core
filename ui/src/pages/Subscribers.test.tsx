@@ -14,9 +14,14 @@ const SUBSCRIBERS_PATH = "/api/v1/subscribers";
 
 const IMSIS = ["001010100007487", "001010100007488", "001010100009999"];
 
+const DESCRIPTIONS: Record<string, string> = {
+  "001010100007487": "Warehouse gate reader",
+};
+
 const subscriber = (imsi: string) => ({
   imsi,
   profile_name: "default",
+  description: DESCRIPTIONS[imsi],
   status: { registered: false, num_sessions: 0 },
 });
 
@@ -26,7 +31,10 @@ const seedApi = (imsis = IMSIS) => {
     const page = Number(params.get("page") ?? 1);
     const perPage = Number(params.get("per_page") ?? 25);
 
-    const matched = imsis.filter((imsi) => imsi.includes(search));
+    const matched = imsis.filter(
+      (imsi) =>
+        imsi.includes(search) || (DESCRIPTIONS[imsi] ?? "").includes(search),
+    );
     const start = (page - 1) * perPage;
 
     return {
@@ -255,6 +263,24 @@ describe("Subscribers search", () => {
     expect(screen.getByLabelText("Search")).toBeInTheDocument();
   });
 
+  it("searches descriptions as well as IMSIs", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+    await waitForRequests(1);
+
+    await user.type(searchBox(), "gate");
+
+    await waitFor(() => expect(lastParams().get("search")).toBe("gate"), {
+      timeout: 2000,
+    });
+    await waitFor(
+      () => expect(screen.queryByText(IMSIS[1])).not.toBeInTheDocument(),
+      { timeout: 2000 },
+    );
+    expect(screen.getByText(IMSIS[0])).toBeInTheDocument();
+  });
+
   it("caps the search input at the length the API accepts", async () => {
     seedApi();
     await renderSubscribers();
@@ -280,5 +306,30 @@ describe("Subscribers search", () => {
     expect(
       screen.getByRole("button", { name: "Clear search" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Subscribers description column", () => {
+  it("renders the description, and an em dash when there is none", async () => {
+    seedApi();
+    await renderSubscribers();
+
+    expect(await screen.findByText(DESCRIPTIONS[IMSIS[0]])).toBeInTheDocument();
+
+    const row = screen.getByText(IMSIS[1]).closest(".MuiDataGrid-row");
+    const cell = row?.querySelector('[data-field="description"]');
+    expect(cell).toHaveTextContent("—");
+  });
+
+  it("offers the full description as a tooltip", async () => {
+    seedApi();
+    const user = userEvent.setup();
+    await renderSubscribers();
+
+    await user.hover(await screen.findByText(DESCRIPTIONS[IMSIS[0]]));
+
+    expect(
+      await screen.findByRole("tooltip", {}, { timeout: 2000 }),
+    ).toHaveTextContent(DESCRIPTIONS[IMSIS[0]]);
   });
 });

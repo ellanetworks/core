@@ -25,6 +25,7 @@ var (
 	ErrJoinTokenNodeMismatch    = errors.New("join token is not registered to this node")
 	ErrJoinTokenExpired         = errors.New("join token expired")
 	ErrUnknownOperation         = errors.New("unknown forwarded operation")
+	ErrRetiredOperation         = errors.New("forwarded operation is retired")
 )
 
 func isUniqueNameError(err error) bool {

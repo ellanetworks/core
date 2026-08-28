@@ -77,7 +77,9 @@ type SMContext struct {
 	// previous configuration (§6.3.2.5). Guarded by Mutex.
 	pendingPolicy *Policy
 
-	releasing                bool  // guarded by Mutex
+	releasing                bool // guarded by Mutex
+	n1Released               bool
+	n2Released               bool
 	establishmentPTI         uint8 // PTI of the Establishment Accept, 0 until sent; guarded by Mutex
 	establishmentOutstanding bool
 
@@ -86,6 +88,10 @@ type SMContext struct {
 	pending *pendingTransfer
 
 	transferGuard guard.Guard
+}
+
+func (smContext *SMContext) releaseLegsComplete() bool {
+	return smContext.n1Released && smContext.n2Released
 }
 
 // stopProcedureTimer stops the retransmission guard; safe to call when none is

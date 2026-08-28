@@ -65,7 +65,7 @@ func handlePathSwitchRequest(m *mme.MME, ctx context.Context, radio *mme.Radio, 
 	// Nil in ECM-IDLE, and a concurrent detach can nil it at any point.
 	ueLog := logger.MmeLog
 	if c := ue.Conn(); c != nil {
-		ueLog = c.Log
+		ueLog = c.Log()
 	}
 
 	if !ue.Secured() || !ue.HasKASME() {

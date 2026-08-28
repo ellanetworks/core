@@ -41,6 +41,21 @@ func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
 	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
 }
 
+func abortRegistrationRetainingContext(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
+	ueConn := ue.Conn()
+
+	ue.SuspendRegistration(ctx)
+
+	if ueConn == nil {
+		amfInstance.StartMobileReachable(ue)
+		return
+	}
+
+	ueConn.ReleaseAction = amf.UeContextN2NormalRelease
+
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
+}
+
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {
 	ue.ClearRegistrationData(ctx)
 

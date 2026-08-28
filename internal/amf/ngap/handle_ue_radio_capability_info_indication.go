@@ -32,7 +32,7 @@ func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("amfUe is nil")
+		logger.WithTrace(ctx, ueConn.Log()).Error("amfUe is nil")
 		return
 	}
 
@@ -55,6 +55,6 @@ func HandleUERadioCapabilityInfoIndication(ctx context.Context, amfInstance *amf
 		amfUe.RadioCapabilityForPaging = stored
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Info("stored UE Radio Capability",
+	logger.WithTrace(ctx, ueConn.Log()).Info("stored UE Radio Capability",
 		zap.Int("bytes", len(amfUe.RadioCapability)))
 }

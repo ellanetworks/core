@@ -406,6 +406,14 @@ func (db *Database) writeBarrier() error {
 	return classifyBarrierErr(db.raftManager.WriteBarrier(db.proposeTimeout))
 }
 
+func (db *Database) ReadBarrier() error {
+	if db.raftManager == nil || !db.raftManager.IsLeader() {
+		return nil
+	}
+
+	return db.writeBarrier()
+}
+
 // leaderCaptureAndPropose runs the capture→propose cycle on the leader.
 // proposeMu serialises captures so concurrent writers don't observe
 // the same pre-mutation state. minSchema is stamped on bytesPayload as
@@ -517,6 +525,14 @@ func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*e
 func (db *Database) ApplyForwardedOperation(opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, fmt.Errorf("cluster not enabled")
+	}
+
+	if _, ok := retiredChangesetOps[opName]; ok {
+		return nil, fmt.Errorf("%w: %s", ErrRetiredOperation, opName)
+	}
+
+	if _, ok := retiredIntentOps[opName]; ok {
+		return nil, fmt.Errorf("%w: %s", ErrRetiredOperation, opName)
 	}
 
 	if h, ok := changesetOps[opName]; ok {

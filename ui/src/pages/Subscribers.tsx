@@ -10,6 +10,7 @@ import {
   TextField,
   InputAdornment,
   IconButton,
+  Tooltip,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -109,6 +110,41 @@ const SubscriberPage: React.FC = () => {
             </Link>
           </Box>
         ),
+      },
+      {
+        field: "description",
+        headerName: "Description",
+        flex: 1.2,
+        minWidth: 160,
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
+          const description = params.row.description;
+          return (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+                height: "100%",
+              }}
+            >
+              {description ? (
+                <Tooltip
+                  title={description}
+                  enterDelay={500}
+                  placement="top-start"
+                >
+                  <Typography variant="body2" noWrap>
+                    {description}
+                  </Typography>
+                </Tooltip>
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  —
+                </Typography>
+              )}
+            </Box>
+          );
+        },
       },
       {
         field: "profile_name",
@@ -281,7 +317,7 @@ const SubscriberPage: React.FC = () => {
             <TextField
               label="Search"
               type="search"
-              placeholder="IMSI"
+              placeholder="IMSI or description"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               size="small"

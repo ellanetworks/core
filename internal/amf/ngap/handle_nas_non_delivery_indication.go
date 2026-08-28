@@ -35,5 +35,5 @@ func HandleNASNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, r
 		fields = append(fields, logger.Cause(msg.Cause.String()))
 	}
 
-	logger.WithTrace(ctx, ueConn.Log).Debug("NAS Non Delivery Indication", fields...)
+	logger.WithTrace(ctx, ueConn.Log()).Debug("NAS Non Delivery Indication", fields...)
 }

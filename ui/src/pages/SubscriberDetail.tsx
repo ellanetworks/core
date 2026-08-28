@@ -19,7 +19,8 @@ import {
 } from "@/queries/subscribers";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import EditSubscriberModal from "@/components/EditSubscriberModal";
+import EditSubscriberProfileModal from "@/components/EditSubscriberProfileModal";
+import EditSubscriberDescriptionModal from "@/components/EditSubscriberDescriptionModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard";
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
@@ -36,7 +37,9 @@ const SubscriberDetail: React.FC = () => {
   const { showSnackbar } = useSnackbar();
   const canEdit = role === "Admin" || role === "Network Manager";
 
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
+  const [isEditProfileModalOpen, setEditProfileModalOpen] = useState(false);
+  const [isEditDescriptionModalOpen, setEditDescriptionModalOpen] =
+    useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -166,7 +169,12 @@ const SubscriberDetail: React.FC = () => {
                 <SubscriberProvisioningCard
                   subscriber={subscriber}
                   onEditProfile={
-                    canEdit ? () => setEditModalOpen(true) : undefined
+                    canEdit ? () => setEditProfileModalOpen(true) : undefined
+                  }
+                  onEditDescription={
+                    canEdit
+                      ? () => setEditDescriptionModalOpen(true)
+                      : undefined
                   }
                 />
               </Box>
@@ -225,10 +233,10 @@ const SubscriberDetail: React.FC = () => {
               </CardContent>
             </Card>
 
-            {isEditModalOpen && (
-              <EditSubscriberModal
+            {isEditProfileModalOpen && (
+              <EditSubscriberProfileModal
                 open
-                onClose={() => setEditModalOpen(false)}
+                onClose={() => setEditProfileModalOpen(false)}
                 onSuccess={() => {
                   subscriberQuery.refetch();
                   showSnackbar("Subscriber updated successfully.", "success");
@@ -236,6 +244,23 @@ const SubscriberDetail: React.FC = () => {
                 initialData={{
                   imsi: subscriber.imsi,
                   profileName: subscriber.profile_name,
+                  description: subscriber.description ?? "",
+                }}
+              />
+            )}
+
+            {isEditDescriptionModalOpen && (
+              <EditSubscriberDescriptionModal
+                open
+                onClose={() => setEditDescriptionModalOpen(false)}
+                onSuccess={() => {
+                  subscriberQuery.refetch();
+                  showSnackbar("Subscriber updated successfully.", "success");
+                }}
+                initialData={{
+                  imsi: subscriber.imsi,
+                  profileName: subscriber.profile_name,
+                  description: subscriber.description ?? "",
                 }}
               />
             )}

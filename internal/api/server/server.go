@@ -205,7 +205,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Radios (Authenticated)
 	mux.HandleFunc("GET /api/v1/ran/radios", Authenticate(jwtSecret, dbInstance, Authorize(PermListRadios, ListRadios(amfInstance, mmeInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/ran/radios/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRadio, GetRadio(amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/ran/radios/{ranNodeType}/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRadio, GetRadio(amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/ran/radios/{ranNodeType}/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermForgetRadio, ForgetRadio(amfInstance, mmeInstance))).ServeHTTP)
 
 	// Radio Events (Authenticated)
 	mux.HandleFunc("GET /api/v1/ran/events/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetRadioEventRetentionPolicy, GetRadioEventRetentionPolicy(dbInstance))).ServeHTTP)

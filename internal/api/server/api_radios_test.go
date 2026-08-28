@@ -41,11 +41,15 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name          string         `json:"name"`
-	ID            string         `json:"id"`
-	Address       string         `json:"address"`
-	RanNodeType   string         `json:"type"`
-	SupportedTAIs []SupportedTAI `json:"supported_tais"`
+	Name           string         `json:"name"`
+	ID             string         `json:"id"`
+	Address        string         `json:"address"`
+	RanNodeType    string         `json:"type"`
+	Status         string         `json:"status"`
+	ConnectedAt    string         `json:"connected_at"`
+	LastSeenAt     string         `json:"last_seen_at"`
+	DisconnectedAt string         `json:"disconnected_at"`
+	SupportedTAIs  []SupportedTAI `json:"supported_tais"`
 }
 
 type GetRadioResponse struct {

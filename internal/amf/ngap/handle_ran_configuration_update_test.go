@@ -200,7 +200,7 @@ func TestHandleRANConfigurationUpdate_RebindsGlobalRANNodeID(t *testing.T) {
 		t.Fatal("Global RAN Node ID was not associated with the radio")
 	}
 
-	if found, ok := amfInstance.FindRadioByRanID(*ran.RanID); !ok || found != ran {
+	if found, ok := amfInstance.FindConnectedRadioByRanID(*ran.RanID); !ok || found != ran {
 		t.Errorf("radio not reachable by its new Global RAN Node ID (ok=%v)", ok)
 	}
 }

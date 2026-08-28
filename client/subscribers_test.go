@@ -5,7 +5,9 @@ package client_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"testing"
 
@@ -441,4 +443,97 @@ func TestGetSubscriberCredentials_Failure(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
+}
+
+func TestSubscriberDescriptionIsMarshalled(t *testing.T) {
+	decodeBody := func(t *testing.T, fake *fakeRequester) map[string]string {
+		t.Helper()
+
+		if fake.lastOpts == nil {
+			t.Fatal("expected RequestOptions to be set, but got nil")
+		}
+
+		bodyBytes, err := io.ReadAll(fake.lastOpts.Body)
+		if err != nil {
+			t.Fatalf("failed to read body: %v", err)
+		}
+
+		var payload map[string]string
+		if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+			t.Fatalf("failed to unmarshal body: %v", err)
+		}
+
+		return payload
+	}
+
+	t.Run("create sends the description", func(t *testing.T) {
+		fake := &fakeRequester{
+			response: &client.RequestResponse{
+				StatusCode: 200,
+				Headers:    http.Header{},
+				Result:     []byte(`{"message": "Subscriber created successfully"}`),
+			},
+		}
+		clientObj := &client.Client{Requester: fake}
+
+		err := clientObj.CreateSubscriber(context.Background(), &client.CreateSubscriberOptions{
+			Imsi:           "001010100000022",
+			Key:            "5122250214c33e723a5dd523fc145fc0",
+			SequenceNumber: "000000000022",
+			ProfileName:    "default",
+			Description:    "Warehouse gate reader",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if got := decodeBody(t, fake)["description"]; got != "Warehouse gate reader" {
+			t.Fatalf("description = %q, want %q", got, "Warehouse gate reader")
+		}
+	})
+
+	t.Run("update sends the description", func(t *testing.T) {
+		fake := &fakeRequester{
+			response: &client.RequestResponse{
+				StatusCode: 200,
+				Headers:    http.Header{},
+				Result:     []byte(`{"message": "Subscriber updated successfully"}`),
+			},
+		}
+		clientObj := &client.Client{Requester: fake}
+
+		err := clientObj.UpdateSubscriber(context.Background(), "001010100000022", &client.UpdateSubscriberOptions{
+			ProfileName: "enterprise",
+			Description: "Loading dock reader",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if got := decodeBody(t, fake)["description"]; got != "Loading dock reader" {
+			t.Fatalf("description = %q, want %q", got, "Loading dock reader")
+		}
+	})
+
+	t.Run("an unset description is omitted", func(t *testing.T) {
+		fake := &fakeRequester{
+			response: &client.RequestResponse{
+				StatusCode: 200,
+				Headers:    http.Header{},
+				Result:     []byte(`{"message": "Subscriber updated successfully"}`),
+			},
+		}
+		clientObj := &client.Client{Requester: fake}
+
+		err := clientObj.UpdateSubscriber(context.Background(), "001010100000022", &client.UpdateSubscriberOptions{
+			ProfileName: "enterprise",
+		})
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		if _, ok := decodeBody(t, fake)["description"]; ok {
+			t.Fatal("expected no description key in the request body")
+		}
+	})
 }

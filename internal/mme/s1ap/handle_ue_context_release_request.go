@@ -64,10 +64,10 @@ func handleUEContextReleaseRequest(m *mme.MME, ctx context.Context, radio *mme.R
 			icsReceived = p.EnbFTEID.TEID != 0
 		}
 
-		logger.From(ctx, ueConn.Log).Warn("UE Context Release Request aborted an in-progress attach",
+		logger.From(ctx, ueConn.Log()).Warn("UE Context Release Request aborted an in-progress attach",
 			append(fields, zap.Bool("ics-response-received", icsReceived))...)
 	} else {
-		logger.From(ctx, ueConn.Log).Info("UE Context Release Request", fields...)
+		logger.From(ctx, ueConn.Log()).Info("UE Context Release Request", fields...)
 	}
 
 	m.ReleaseUEContext(ctx, ue, cause)

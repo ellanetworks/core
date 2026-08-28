@@ -8,10 +8,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -20,8 +21,7 @@ import (
 func authenticateOrReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn) {
 	plmn, err := m.OperatorPLMN(ctx)
 	if err != nil {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, ueConn, authRejectCause(err))
+		failAuthentication(ctx, m, ue, ueConn, err)
 
 		return
 	}
@@ -39,19 +39,34 @@ func startAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueC
 	ue.SetEksi(nas.KeySetIdentifier{Value: mme.NextEksi(ue.Eksi().Value)})
 
 	if err := sendAuthRequest(ctx, m, ue, ueConn, servingPLMN, "", ""); err != nil {
-		logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
-		rejectAttach(ctx, m, ue, ueConn, authRejectCause(err))
+		failAuthentication(ctx, m, ue, ueConn, err)
 	}
 }
 
-func authRejectCause(err error) eps.EMMCause {
-	if errors.Is(err, db.ErrProposeTimeout) ||
-		errors.Is(err, db.ErrOutcomeUnknown) ||
-		errors.Is(err, db.ErrMigrationPending) {
-		return eps.EMMCauseNetworkFailure
+func failAuthentication(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, err error) {
+	cause, permanent := attachRejectCauseForAuthFailure(err)
+	if !permanent {
+		logger.From(ctx, logger.MmeLog).Info("attach aborted on a transient error: cannot authenticate subscriber; releasing the NAS signalling connection so the UE retries when T3411 expires",
+			zap.String("imsi", ue.IMSI()), zap.Error(err))
+
+		metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
+		ueConn.StopNASGuard()
+
+		m.ReleaseUEContext(ctx, ue, mme.CauseNASUnspecified)
+
+		return
 	}
 
-	return eps.EMMCauseIMSIUnknownInHSS
+	logger.From(ctx, logger.MmeLog).Info("attach rejected: cannot authenticate subscriber", zap.String("imsi", ue.IMSI()), zap.Error(err))
+	rejectAttach(ctx, m, ue, ueConn, cause)
+}
+
+func attachRejectCauseForAuthFailure(err error) (eps.EMMCause, bool) {
+	if errors.Is(err, udm.ErrSubscriberUnknown) {
+		return eps.EMMCauseIllegalUE, true
+	}
+
+	return 0, false
 }
 
 // sendAuthRequest sends an AUTHENTICATION REQUEST; a set resync pair drives an

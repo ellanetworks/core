@@ -701,6 +701,14 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 		t.Fatal("expected session to be retained while T3592 is running")
 	}
 
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+		t.Fatalf("N2 release response: %v", err)
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained until the N1 leg answers")
+	}
+
 	// The UE confirms: the session is removed. The user plane was already released on
 	// the Request, so the completion is an idempotent no-op plus pool removal — no
 	// second DeleteSession.
@@ -768,20 +776,50 @@ func TestUpdateSmContextN2InfoPduResSetupFail_NotFound(t *testing.T) {
 // UpdateSmContextN2InfoPduResRelRsp tests
 // ===========================
 
+// TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate verifies the SM context
+// survives the N2 leg and is discarded only once the N1 leg answers too
+// (TS 23.502 §4.3.4.2 step 11).
 func TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	_, ref := setupSessionWithTunnel(t, s)
+	smCtx, ref := setupSessionWithTunnel(t, s)
 
-	err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref)
+	const pti = 5
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseRequest(smCtx.PDUSessionID, pti)); err != nil {
+		t.Fatalf("release request: %v", err)
+	}
+
+	removed, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref)
 	if err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
 
+	if removed {
+		t.Error("N2 release response reported removal before the N1 leg answered")
+	}
+
+	if s.GetSession(ref) == nil {
+		t.Fatal("session should be retained until the N1 leg answers")
+	}
+
+	removed, err = s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref)
+	if err != nil {
+		t.Fatalf("repeat N2 release response failed: %v", err)
+	}
+
+	if removed || s.GetSession(ref) == nil {
+		t.Error("a repeated N2 release response must not end the procedure on its own")
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, pti)); err != nil {
+		t.Fatalf("release complete: %v", err)
+	}
+
 	if s.GetSession(ref) != nil {
-		t.Fatal("session should be removed from pool after N2 release response")
+		t.Fatal("session should be removed once both legs have answered")
 	}
 }
 
@@ -793,7 +831,7 @@ func TestUpdateSmContextN2InfoPduResRelRsp_DuplicatePDU(t *testing.T) {
 	smCtx, ref := setupSessionWithTunnel(t, s)
 	smCtx.PDUSessionReleaseDueToDupPduID = true
 
-	err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref)
+	_, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref)
 	if err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
@@ -807,7 +845,7 @@ func TestUpdateSmContextN2InfoPduResRelRsp_EmptyRef(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "")
+	_, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "")
 	if err == nil {
 		t.Fatal("expected error for empty ref")
 	}
@@ -818,7 +856,7 @@ func TestUpdateSmContextN2InfoPduResRelRsp_NotFound(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	// Idempotent: returns nil when session already removed (e.g. slice-mismatch release).
-	err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "nonexistent")
+	_, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "nonexistent")
 	if err != nil {
 		t.Fatalf("expected nil for already-removed session, got error: %v", err)
 	}
@@ -1235,7 +1273,7 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	_, ref := setupSessionWithTunnel(t, s)
+	smCtx, ref := setupSessionWithTunnel(t, s)
 
 	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
 		SmContextRef: ref,
@@ -1267,7 +1305,7 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 		t.Fatal("expected session to be retained while T3592 is running")
 	}
 
-	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
 
@@ -1287,8 +1325,16 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 		t.Fatal("expected PFCP session deletion after release confirmation, got 0")
 	}
 
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained until the N1 leg answers")
+	}
+
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, 0)); err != nil {
+		t.Fatalf("release complete: %v", err)
+	}
+
 	if s.GetSession(ref) != nil {
-		t.Fatal("expected session to be removed after N2 release response")
+		t.Fatal("expected session to be removed once both legs have answered")
 	}
 }
 
@@ -1541,7 +1587,7 @@ func TestReconcileSmContext_MTUChange(t *testing.T) {
 		t.Fatal("expected the user plane (IP) released up front on the reconcile-triggered release")
 	}
 
-	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
 
@@ -1608,7 +1654,7 @@ func TestReconcileSmContext_PoolChange(t *testing.T) {
 		t.Fatal("expected the user plane (IP) released up front on the reconcile-triggered release")
 	}
 
-	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
 

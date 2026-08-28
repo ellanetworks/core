@@ -23,6 +23,7 @@ import { getSubscriberCredentials } from "@/queries/subscribers";
 interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;
   onEditProfile?: () => void;
+  onEditDescription?: () => void;
 }
 
 const DOTS = "••••••••••••••••••••••••••••••••";
@@ -36,6 +37,7 @@ const FieldRow: React.FC<{
   onToggle?: () => void;
   linkTo?: string;
   actionIcon?: React.ReactNode;
+  wrapProse?: boolean;
 }> = ({
   label,
   value,
@@ -45,6 +47,7 @@ const FieldRow: React.FC<{
   onToggle,
   linkTo,
   actionIcon,
+  wrapProse,
 }) => (
   <Box
     sx={{
@@ -68,7 +71,7 @@ const FieldRow: React.FC<{
       variant="body2"
       sx={{
         flex: 1,
-        wordBreak: "break-all",
+        wordBreak: wrapProse ? "break-word" : "break-all",
         ...(linkTo
           ? {
               color: (t: Theme) => t.palette.link,
@@ -109,9 +112,16 @@ const FieldRow: React.FC<{
   </Box>
 );
 
+const editIcon = (label: string, onClick: () => void) => (
+  <IconButton size="small" onClick={onClick} aria-label={label} color="primary">
+    <EditIcon fontSize="small" />
+  </IconButton>
+);
+
 const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   subscriber,
   onEditProfile,
+  onEditDescription,
 }) => {
   const { showSnackbar } = useSnackbar();
   const { role, accessToken, authReady } = useAuth();
@@ -187,6 +197,24 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           />
         )}
         <FieldRow
+          label="Description"
+          value={subscriber.description ?? ""}
+          wrapProse
+          actionIcon={
+            onEditDescription
+              ? editIcon("Edit description", onEditDescription)
+              : undefined
+          }
+        />
+        <FieldRow
+          label="Profile"
+          value={subscriber.profile_name || "—"}
+          linkTo={`/profiles/${subscriber.profile_name}`}
+          actionIcon={
+            onEditProfile ? editIcon("Edit profile", onEditProfile) : undefined
+          }
+        />
+        <FieldRow
           label="Key"
           value={credentials?.key ?? ""}
           copyable={
@@ -216,23 +244,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
             handleCopy(credentials?.sequenceNumber ?? "", "Sequence Number")
           }
           obfuscated={!credentialsVisible}
-        />
-        <FieldRow
-          label="Profile"
-          value={subscriber.profile_name || "—"}
-          linkTo={`/profiles/${subscriber.profile_name}`}
-          actionIcon={
-            onEditProfile ? (
-              <IconButton
-                size="small"
-                onClick={onEditProfile}
-                aria-label="Edit profile"
-                color="primary"
-              >
-                <EditIcon fontSize="small" />
-              </IconButton>
-            ) : undefined
-          }
         />
       </CardContent>
     </Card>

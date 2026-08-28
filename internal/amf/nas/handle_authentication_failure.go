@@ -6,6 +6,7 @@ package nas
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -101,7 +102,9 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		}
 
 		if fail.AUTS == nil {
-			logger.From(ctx, logger.AmfLog).Warn("missing AuthenticationFailureParameter IE for SynchFailure")
+			abortRegistration(ctx, amfInstance, ue, "synch failure without AUTS",
+				errors.New("AUTHENTICATION FAILURE with 5GMM cause #21 omitted the Authentication failure parameter IE"))
+
 			return nasreply.Handled()
 		}
 
@@ -113,7 +116,21 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, resynchronizationInfo)
 		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("send UE amf.Authentication Authenticate Request Error", zap.Error(err))
+			cause, permanent := registrationRejectCauseForAuthFailure(err)
+			if !permanent {
+				logger.From(ctx, logger.AmfLog).Warn("re-synchronised authentication vector unavailable on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
+
+				abortRegistration(ctx, amfInstance, ue, "transient authentication re-synchronisation failure", err)
+
+				return nasreply.Handled()
+			}
+
+			logger.From(ctx, logger.AmfLog).Warn("re-synchronised authentication vector unavailable, rejecting registration", zap.Error(err))
+
+			ue.Deregister(ctx)
+
+			amf.SendRegistrationReject(ctx, ueConn, cause)
+
 			return nasreply.Handled()
 		}
 

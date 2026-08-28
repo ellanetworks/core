@@ -63,7 +63,7 @@ func (r *Radio) BindAMFForTest(a *AMF) {
 	// connected gNB is registered in prod.
 	if r.Conn != nil {
 		a.mu.Lock()
-		a.radios[r.Conn] = r
+		a.reg.Track(r.Conn, r)
 		a.mu.Unlock()
 	}
 

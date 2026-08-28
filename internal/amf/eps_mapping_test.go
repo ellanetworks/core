@@ -49,7 +49,7 @@ func TestMapSecurityContextToEPS(t *testing.T) {
 		t.Fatalf("EPS NAS algorithms = %+v, want the pair the UE was given", got.Context.Algorithms)
 	}
 
-	if want := (nas.AlgorithmSet(0xe0)); got.Context.UESecurityCapability.EEA != want {
+	if want := nas.AlgorithmSet(0xe0); got.Context.UESecurityCapability.EEA != want {
 		t.Fatalf("EPS security capability EEA = %08b, want %08b", got.Context.UESecurityCapability.EEA, want)
 	}
 

@@ -288,7 +288,7 @@ func handoverGuardExpiry(a *AMF, sourceUe, targetUe *UeConn) procedure.CancelFun
 			return procedure.Release, nil
 		}
 
-		logger.WithTrace(cctx, sourceUe.Log).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
+		logger.WithTrace(cctx, sourceUe.Log()).Warn("N2 handover abandoned: target gNB did not complete it in time, releasing target")
 
 		a.UnbindHandoverTarget(cctx, amfUe)
 

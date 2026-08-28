@@ -28,7 +28,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 	reportDiagnostics(ctx, ran, ngap.ProcUEContextReleaseRequest, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle UE Context Release Request", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle UE Context Release Request", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)), zap.Uint32("ran-ue-id", uint32(ueConn.RanUeNgapID)))
 
 	// An omitted Cause is an ignore-criticality absence: the NG-RAN node has
 	// dropped the radio connection either way, so the release proceeds under a
@@ -43,13 +43,13 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 			fields = append(fields, logger.SUPI(ueConn.UeContext().Supi().String()))
 		}
 
-		logger.WithTrace(ctx, ueConn.Log).Info("UE Context Release Cause", fields...)
+		logger.WithTrace(ctx, ueConn.Log()).Info("UE Context Release Cause", fields...)
 	}
 
 	amfUe := ueConn.UeContext()
 	if amfUe != nil {
 		if amfUe.State() == amf.Registered {
-			logger.WithTrace(ctx, ueConn.Log).Info("Ue Context in GMM-Registered")
+			logger.WithTrace(ctx, ueConn.Log()).Info("Ue Context in GMM-Registered")
 
 			if msg.PDUSessionResourceList != nil {
 				for _, item := range msg.PDUSessionResourceList {
@@ -57,7 +57,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 					smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 					if !ok {
-						logger.WithTrace(ctx, ueConn.Log).Warn("no SM context for a PDU session the NG-RAN node reported as established",
+						logger.WithTrace(ctx, ueConn.Log()).Warn("no SM context for a PDU session the NG-RAN node reported as established",
 							zap.Uint8("PduSessionID", pduSessionID))
 
 						continue
@@ -65,26 +65,26 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 					err := amfInstance.Session.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
-						logger.WithTrace(ctx, ueConn.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+						logger.WithTrace(ctx, ueConn.Log()).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 					}
 				}
 			} else {
-				logger.WithTrace(ctx, ueConn.Log).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
+				logger.WithTrace(ctx, ueConn.Log()).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
 
 				for _, sr := range amfUe.SmContextRefs() {
 					if sr.Inactive {
-						logger.WithTrace(ctx, ueConn.Log).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
+						logger.WithTrace(ctx, ueConn.Log()).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(sr.PduSessionID))
 						continue
 					}
 
 					err := amfInstance.Session.DeactivateSmContext(ctx, sr.Ref)
 					if err != nil {
-						logger.WithTrace(ctx, ueConn.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+						logger.WithTrace(ctx, ueConn.Log()).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
 					}
 				}
 			}
 		} else {
-			logger.WithTrace(ctx, ueConn.Log).Info("Ue Context in Non GMM-Registered")
+			logger.WithTrace(ctx, ueConn.Log()).Info("Ue Context in Non GMM-Registered")
 			ueConn.ReleaseAction = amf.UeContextReleaseUeContext
 
 			ueConn.SendUEContextReleaseCommand(ctx, cause)
@@ -92,7 +92,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 			for _, sr := range amfUe.SmContextRefs() {
 				err := amfInstance.Session.ReleaseSmContext(ctx, sr.Ref)
 				if err != nil {
-					logger.WithTrace(ctx, ueConn.Log).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
+					logger.WithTrace(ctx, ueConn.Log()).Error("error sending release sm context request", zap.Error(err), zap.Uint8("PduSessionID", sr.PduSessionID))
 				}
 			}
 

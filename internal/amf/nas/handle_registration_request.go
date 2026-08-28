@@ -75,25 +75,23 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		contents := append([]byte(nil), req.NASMessageContainer...)
 
 		if err := ue.DecryptUplinkContents(contents); err != nil {
-			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
+			logger.From(ctx, logger.AmfLog).Warn("could not decipher the NAS message container; proceeding with the cleartext IEs and requesting retransmission of the initial NAS message (TS 24.501 5.4.2.2)", zap.Error(err))
 
-			amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
+			conn.SetRetransmissionOfInitialNASMsg(true)
+		} else {
+			inner, err := fgs.ParseRegistrationRequest(contents)
+			if !decoded(ctx, "RegistrationRequest", err) {
+				metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
 
-			return fmt.Errorf("failed to decrypt NAS message - sent registration reject: %v", err)
+				amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseInvalidMandatoryInformation)
+
+				return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
+			}
+
+			req = inner
+
+			conn.SetRetransmissionOfInitialNASMsg(!integrityVerified)
 		}
-
-		inner, err := fgs.ParseRegistrationRequest(contents)
-		if !decoded(ctx, "RegistrationRequest", err) {
-			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), metrics.ResultReject)
-
-			amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
-
-			return fmt.Errorf("failed to decode NAS message - sent registration reject: %v", err)
-		}
-
-		req = inner
-
-		conn.SetRetransmissionOfInitialNASMsg(!integrityVerified)
 	} else if req.NASMessageContainer != nil && !integrityVerified {
 		logger.From(ctx, logger.AmfLog).Info("Skipping NASMessageContainer decryption due to MAC verification failure, proceeding with cleartext IEs only")
 
@@ -280,9 +278,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		pass, err := authenticationProcedure(ctx, amfInstance, ue)
 		if err != nil {
-			logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed, rejecting registration", zap.Error(err))
-
-			defer ue.Deregister(ctx)
+			cause, permanent := registrationRejectCauseForAuthFailure(err)
 
 			var regType fgs.RegistrationType
 			if conn := ue.Conn(); conn != nil {
@@ -291,13 +287,29 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 			metrics.RegistrationAttempt(metrics.RAT5G, registrationTypeName(regType), metrics.ResultReject)
 
+			if !permanent {
+				logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
+
+				if state == amf.Registered {
+					abortRegistrationRetainingContext(ctx, amfInstance, ue)
+				} else {
+					abortRegistration(ctx, amfInstance, ue, "transient authentication failure", err)
+				}
+
+				return nasreply.Handled()
+			}
+
+			logger.From(ctx, logger.AmfLog).Warn("authentication procedure failed, rejecting registration", zap.Error(err))
+
+			defer ue.Deregister(ctx)
+
 			ueConn := ue.Conn()
 			if ueConn == nil {
 				logger.From(ctx, logger.AmfLog).Warn("ue is not connected to RAN")
 				return nasreply.Handled()
 			}
 
-			amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseUEIdentityCannotBeDerived)
+			amf.SendRegistrationReject(ctx, ueConn, cause)
 
 			return nasreply.Handled()
 		}

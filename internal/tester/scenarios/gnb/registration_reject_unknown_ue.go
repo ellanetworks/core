@@ -87,7 +87,7 @@ func runRegistrationRejectUnknownUE(_ context.Context, env scenarios.Env, _ any)
 		return fmt.Errorf("did not receive Registration Reject: %v", err)
 	}
 
-	err = validateRegistrationReject(msg, 9 /* 5GMM cause #9: UE identity cannot be derived by the network */)
+	err = validateRegistrationReject(msg, 3 /* 5GMM cause #3: Illegal UE */)
 	if err != nil {
 		return fmt.Errorf("NAS PDU validation failed: %v", err)
 	}

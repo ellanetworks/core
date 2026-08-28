@@ -6,27 +6,23 @@ import { useForm } from "react-hook-form";
 import { updateSubscriber } from "@/queries/subscribers";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
-import TextControl from "@/components/form/TextControl";
 import ProfileSelectField, {
   useProfileNames,
 } from "@/components/ProfileSelectField";
+import type { EditSubscriberFields } from "@/components/subscriberIdentity";
 
-interface EditSubscriberModalProps {
+interface EditSubscriberProfileModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  initialData: {
-    imsi: string;
-    profileName: string;
-  };
+  initialData: EditSubscriberFields;
 }
 
 interface FormValues {
-  imsi: string;
   profileName: string;
 }
 
-const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
+const EditSubscriberProfileModal: React.FC<EditSubscriberProfileModalProps> = ({
   open,
   onClose,
   onSuccess,
@@ -36,15 +32,19 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   const profilesQuery = useProfileNames(open);
 
   const form = useForm<FormValues>({
-    values: {
-      imsi: initialData.imsi,
-      profileName: initialData.profileName,
-    },
+    values: { profileName: initialData.profileName },
   });
 
+  // The API replaces the subscriber in full, so the description travels
+  // unchanged with the new profile.
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    await updateSubscriber(accessToken, values.imsi, values.profileName);
+    await updateSubscriber(
+      accessToken,
+      initialData.imsi,
+      values.profileName,
+      initialData.description,
+    );
   };
 
   return (
@@ -52,15 +52,13 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       open={open}
       onClose={onClose}
       onSuccess={onSuccess}
-      title="Edit Subscriber"
+      title="Edit Profile"
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update subscriber"
       submitLabel="Update"
       submittingLabel="Updating..."
-      fullWidth={false}
     >
-      <TextControl<FormValues> name="imsi" label="IMSI" disabled />
       <ProfileSelectField
         control={form.control}
         name="profileName"
@@ -70,4 +68,4 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   );
 };
 
-export default EditSubscriberModal;
+export default EditSubscriberProfileModal;

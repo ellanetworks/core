@@ -295,12 +295,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		wg.Go(func() {
 			runPinRefresher(ctx, pki, dbInstance)
 		})
-
-		if clusterLn != nil {
-			wg.Go(func() {
-				runRotator(ctx, pki, clusterLn, dbInstance)
-			})
-		}
 	}
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
@@ -574,7 +568,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// the read loop), so no separate Notify handler is needed.
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
-				amfInstance.RemoveRadio(context.Background(), ran)
+				amfInstance.DisconnectRadio(context.Background(), ran)
 				logger.AmfLog.Info("removed radio on connection close")
 			}
 		},
@@ -602,7 +596,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
 		},
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
-			mmeInstance.RemoveRadio(conn)
+			mmeInstance.DisconnectRadio(conn)
 		},
 	})
 
@@ -837,6 +831,10 @@ type ausfDBAdapter struct {
 func (a *ausfDBAdapter) AdvanceSequenceNumber(ctx context.Context, imsi, resyncAuts, resyncRand string) (*udm.AdvancedCredentials, error) {
 	creds, err := a.db.AdvanceSubscriberSQN(ctx, imsi, resyncAuts, resyncRand)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", udm.ErrSubscriberUnknown, err)
+		}
+
 		return nil, err
 	}
 

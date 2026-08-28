@@ -28,11 +28,11 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	reportDiagnostics(ctx, ran, ngap.ProcPDUSessionResourceNotify, ngap.TriggeringInitiatingMessage, ueAssociated(msg.AMFUENGAPID, msg.RANUENGAPID), msg.Diagnostics())
 
 	ueConn.TouchLastSeen()
-	logger.WithTrace(ctx, ueConn.Log).Debug("Handle PDUSessionResourceNotify", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
+	logger.WithTrace(ctx, ueConn.Log()).Debug("Handle PDUSessionResourceNotify", zap.Uint64("amf-ue-id", uint64(ueConn.AmfUeNgapID)))
 
 	amfUe := ueConn.UeContext()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ueConn.Log).Error("amfUe is nil")
+		logger.WithTrace(ctx, ueConn.Log()).Error("amfUe is nil")
 		return
 	}
 
@@ -41,7 +41,7 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 	}
 
 	for _, item := range msg.PDUSessionResourceNotify {
-		logger.WithTrace(ctx, ueConn.Log).Warn("QoS flow status change not forwarded to the SMF (TS 38.413 §8.2.4.2)",
+		logger.WithTrace(ctx, ueConn.Log()).Warn("QoS flow status change not forwarded to the SMF (TS 38.413 §8.2.4.2)",
 			zap.Uint8("pdu-session-id", uint8(item.PDUSessionID)))
 	}
 
@@ -50,18 +50,18 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 		if !ok {
-			logger.WithTrace(ctx, ueConn.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
 		err := amfInstance.Session.DeactivateSmContext(ctx, smContext.Ref)
 		if err != nil {
-			logger.WithTrace(ctx, ueConn.Log).Error("DeactivateSmContext failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
+			logger.WithTrace(ctx, ueConn.Log()).Error("DeactivateSmContext failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
 		amfUe.SetSmContextInactive(pduSessionID)
 
-		logger.WithTrace(ctx, ueConn.Log).Info("deactivated PDU session released by gNB", zap.Uint8("PduSessionID", pduSessionID))
+		logger.WithTrace(ctx, ueConn.Log()).Info("deactivated PDU session released by gNB", zap.Uint8("PduSessionID", pduSessionID))
 	}
 }

@@ -20,7 +20,7 @@ func handleModifyBearerReject(m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn,
 		ue.ClearPendingModify(p)
 	}
 
-	ueConn.Log.Warn("UE rejected EPS bearer modification", zap.String("imsi", ue.IMSI()))
+	ueConn.Log().Warn("UE rejected EPS bearer modification", zap.String("imsi", ue.IMSI()))
 
 	return nasreply.Handled()
 }
