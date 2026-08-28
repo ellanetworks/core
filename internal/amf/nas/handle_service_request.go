@@ -26,24 +26,14 @@ type pendingN1 struct {
 	n2Info       []byte
 }
 
-// bufferedSM is the buffered session-scoped downlink payload resolved against the UE's
-// current PDU sessions. A payload may only add its session to the PDU session setup list;
-// it never removes one, so a payload that cannot be staged leaves the Uplink data status
-// IE to drive re-establishment on its own (TS 24.501 5.6.1.4.1).
 type bufferedSM struct {
-	// stage carries N2 information and belongs in the PDU session setup list.
-	stage *pendingN1
-	// n1Only is a downlink 5GSM message with no N2 information, sent on its own.
+	stage        *pendingN1
 	n1Only       []byte
 	pduSessionID uint8
-	// stale marks a payload naming a PDU session the UE no longer holds.
-	stale bool
-	// present reports that a session-scoped payload was buffered at all.
-	present bool
+	stale        bool
+	present      bool
 }
 
-// resolveBufferedSM classifies the UE's buffered N1/N2 payload. A standalone payload is
-// not session-scoped and is left for the configuration update procedure to deliver.
 func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
 	req := ue.N1N2Message()
 	if req == nil || req.Standalone() {
@@ -334,10 +324,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 			zap.Uint8("pdu_session_id", buffered.pduSessionID))
 	}
 
-	// Only a payload that is genuinely staged into the setup list may suppress the
-	// activation the UE asked for; anything else must leave the Uplink data status IE to
-	// drive reactivation on its own (TS 24.501 5.6.1.4.1). PDU session IDs are 1-15, so
-	// the zero value matches no session.
 	if buffered.stage != nil {
 		targetPduSessionID = buffered.stage.pduSessionID
 	}
@@ -345,10 +331,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 	// Copy SmContextList under lock for safe concurrent iteration.
 	smContextSnapshot := ue.SmContextSnapshot()
 
-	// Sessions whose user plane this procedure must bring up: the ones the UE listed in
-	// the Uplink data status IE, plus the one a network-triggered request is delivering
-	// for. A buffered payload that already carries its own N2 information is staged
-	// instead, so it is not activated a second time here.
 	activate := make(map[uint8]bool, len(smContextSnapshot))
 
 	if buffered.present && !buffered.stale && buffered.stage == nil {
@@ -367,7 +349,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 				continue
 			}
 
-			if !uplinkDataPsi[pduSessionID] { // #nosec: G602 -- bounds checked above
+			if !uplinkDataPsi[pduSessionID] {
 				continue
 			}
 
@@ -451,11 +433,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
-	// TS 24.501 5.6.1.4.1: the UE asked for user-plane re-establishment, so it must learn
-	// the outcome. Reporting success while establishing nothing leaves it with no way to
-	// tell and no basis to back off, so an empty setup list is reported as a failure for
-	// every session it asked for. S1AP makes the equivalent list mandatory and non-empty
-	// (TS 36.413 9.1.4.1); NGAP leaves it optional, so the invariant is enforced here.
 	if len(requestedPsi) != 0 && buffered.stage == nil && len(ctxList) == 0 && len(suList) == 0 {
 		logger.From(ctx, logger.AmfLog).Error("no user-plane resources established for a service request that asked for them",
 			logger.SUPI(ue.Supi().String()), zap.Uint8s("pdu_session_ids", requestedPsi))
@@ -479,8 +456,6 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return err
 	}
 
-	// A network-triggered service request whose payload names a PDU session the UE no
-	// longer holds has nothing left to deliver; the paging it answered is void.
 	if buffered.stale && serviceType == fgs.ServiceTypeMobileTerminatedServices {
 		ue.ClearN1N2Message()
 
@@ -499,16 +474,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return nasreply.Handled()
 	}
 
-	// The buffered session-scoped payload is consumed by this SERVICE ACCEPT whatever the
-	// service type the UE used. Leaving it would suppress user-plane re-establishment for
-	// its PDU session on every later SERVICE REQUEST. A standalone payload is left alone:
-	// it is delivered once the UE acknowledges the configuration update.
 	if buffered.present {
 		ue.ClearN1N2Message()
 	}
 
-	// An N1-only payload carries no N2 information to stage, so it goes out as its own
-	// downlink NAS transport after the accept.
 	if buffered.n1Only != nil {
 		amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, buffered.n1Only, fgs.PDUSessionID(buffered.pduSessionID), 0)
 	}

@@ -10,9 +10,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// idleToActive drives a SERVICE REQUEST from a UE coming out of CM-IDLE, so the AMF
-// answers with an INITIAL CONTEXT SETUP REQUEST rather than a standalone PDU session
-// resource setup.
 func idleToActive(t *testing.T, f connectedModeFixture, svcType fgs.ServiceType) connectedModeFixture {
 	t.Helper()
 
@@ -21,6 +18,7 @@ func idleToActive(t *testing.T, f connectedModeFixture, svcType fgs.ServiceType)
 	return f
 }
 
+// TS 24.501 5.6.1.4.1: Uplink data status drives user-plane re-establishment.
 func TestHandleServiceRequest_IdleToActive_ReactivatesPDUSession(t *testing.T) {
 	f := idleToActive(t, connectedModeUe(t, &fakeSmf{}), fgs.ServiceTypeData)
 
@@ -33,10 +31,7 @@ func TestHandleServiceRequest_IdleToActive_ReactivatesPDUSession(t *testing.T) {
 	}
 }
 
-// A session-scoped payload buffered by an unanswered paging must not suppress the
-// user-plane re-establishment the UE asked for (TS 24.501 §5.6.1.4.1). The service type
-// a UE uses to come back is "data", not "mobile terminated services" (§5.6.1.2.1), so
-// gating reactivation on the latter strands the UE with a signalling-only connection.
+// TS 24.501 5.6.1.2.1: a UE with pending uplink data sends service type "data", not "mobile terminated services".
 func TestHandleServiceRequest_BufferedN1N2_DoesNotSuppressReactivation(t *testing.T) {
 	for _, svcType := range []fgs.ServiceType{
 		fgs.ServiceTypeData,
@@ -69,8 +64,6 @@ func TestHandleServiceRequest_BufferedN1N2_DoesNotSuppressReactivation(t *testin
 	}
 }
 
-// The buffered payload is consumed whatever the service type. Leaving it behind would
-// strand every later SERVICE REQUEST from the same UE.
 func TestHandleServiceRequest_BufferedN1N2_IsConsumed(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 
@@ -90,8 +83,6 @@ func TestHandleServiceRequest_BufferedN1N2_IsConsumed(t *testing.T) {
 	}
 }
 
-// A second SERVICE REQUEST after a buffered payload was consumed must still bring the
-// user plane up: this is the loop the Pixel was stuck in.
 func TestHandleServiceRequest_SecondRequestAfterBufferedN1N2_StillReactivates(t *testing.T) {
 	f := connectedModeUe(t, &fakeSmf{})
 

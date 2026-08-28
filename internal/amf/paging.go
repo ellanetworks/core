@@ -87,10 +87,7 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
-	// The buffered payload dies with the procedure it belonged to. A session-scoped N2
-	// payload is the SMF's to reissue: TS 23.502 4.2.3.3 step 3b lets the AMF ignore it
-	// and ask for it again once the UE is reachable, so keeping a copy across an
-	// abandoned paging only risks re-offering stale tunnel information.
+	// TS 23.502 4.2.3.3 step 3b: the SMF reissues the N2 payload once the UE is reachable.
 	if ue.Conn() == nil {
 		ue.ClearN1N2Message()
 	}
