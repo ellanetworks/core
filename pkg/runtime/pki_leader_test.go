@@ -68,11 +68,18 @@ func (f *fakeLeaderDB) LeadershipTransfer() error {
 	return f.transferErr
 }
 
-func (f *fakeLeaderDB) counts() (restores, transfers int) {
+func (f *fakeLeaderDB) restoreCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	return f.restores, f.transfers
+	return f.restores
+}
+
+func (f *fakeLeaderDB) transferCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.transfers
 }
 
 func shortBackoff(t *testing.T) {
@@ -129,7 +136,7 @@ func TestSelfRestoreFailureKeepsLeadershipAndRetries(t *testing.T) {
 
 	c.OnBecameLeader()
 
-	if _, transfers := fdb.counts(); transfers != 0 {
+	if transfers := fdb.transferCount(); transfers != 0 {
 		t.Fatalf("self-restore failure yielded leadership: %d transfers", transfers)
 	}
 
@@ -141,6 +148,10 @@ func TestSelfRestoreFailureKeepsLeadershipAndRetries(t *testing.T) {
 
 	waitFor(t, func() bool { return inits.Load() == 1 })
 
+	if restores := fdb.restoreCount(); restores < 2 {
+		t.Fatalf("expected the retry loop to re-run self-restore, got %d calls", restores)
+	}
+
 	<-c.termDoneCh()
 
 	c.mu.Lock()
@@ -151,7 +162,7 @@ func TestSelfRestoreFailureKeepsLeadershipAndRetries(t *testing.T) {
 		t.Fatal("needsDRSnapshot still set after a successful self-restore")
 	}
 
-	if _, transfers := fdb.counts(); transfers != 0 {
+	if transfers := fdb.transferCount(); transfers != 0 {
 		t.Fatalf("self-restore retry yielded leadership: %d transfers", transfers)
 	}
 }
@@ -175,7 +186,7 @@ func TestLeaderInitFailureYieldsLeadershipWithoutRetrying(t *testing.T) {
 
 	c.OnBecameLeader()
 
-	if _, transfers := fdb.counts(); transfers != 1 {
+	if transfers := fdb.transferCount(); transfers != 1 {
 		t.Fatalf("expected one leadership transfer, got %d", transfers)
 	}
 

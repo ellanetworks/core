@@ -427,7 +427,28 @@ func (a *Agent) storePeerPins(records []PinRecord) error {
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	tmp := path + ".tmp"
 
-	if err := os.WriteFile(tmp, data, mode); err != nil {
+	fh, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+
+	if _, err := fh.Write(data); err != nil {
+		_ = fh.Close()
+		_ = os.Remove(tmp)
+
+		return err
+	}
+
+	if err := fh.Sync(); err != nil {
+		_ = fh.Close()
+		_ = os.Remove(tmp)
+
+		return err
+	}
+
+	if err := fh.Close(); err != nil {
+		_ = os.Remove(tmp)
+
 		return err
 	}
 
