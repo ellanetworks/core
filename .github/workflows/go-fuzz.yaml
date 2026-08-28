@@ -2,6 +2,10 @@ name: Go Fuzz
 
 # Checked-in seed corpora are replayed by the ordinary unit-test run. This job
 # searches for new inputs, which needs wall-clock time rather than a PR gate.
+#
+# Every fuzz target in the repository must appear in the matrix below.
+# TestFuzzWorkflowCoversEveryTarget (internal/ci) fails the ordinary test run
+# when a target is added, renamed or moved without updating this file.
 
 permissions:
   contents: read
@@ -14,28 +18,68 @@ on:
 jobs:
   fuzz:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
-          - dir: nas
-            pkg: ./fgs
-            target: FuzzParse
-          - dir: nas
-            pkg: ./fgs
-            target: FuzzIdentityCodecs
-          - dir: nas
-            pkg: ./eps
-            target: FuzzParseSecurityProtectedNoPanic
+          - dir: .
+            pkg: ./internal/sctp
+            target: FuzzReassemble
+          - dir: lppa
+            pkg: .
+            target: FuzzParsePDU
           - dir: nas
             pkg: .
             target: FuzzReaderNoPanic
           - dir: nas
             pkg: .
+            target: FuzzRootCodecs
+          - dir: nas
+            pkg: .
             target: FuzzWalkOptionalIEs
+          - dir: nas
+            pkg: ./eps
+            target: FuzzBuildAttachRequest
+          - dir: nas
+            pkg: ./eps
+            target: FuzzBuildTrackingAreaUpdateRequest
+          - dir: nas
+            pkg: ./eps
+            target: FuzzIECodecs
+          - dir: nas
+            pkg: ./eps
+            target: FuzzParseMessage
+          - dir: nas
+            pkg: ./eps
+            target: FuzzParseSecurityProtectedMessage
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzBuildRegistrationRequest
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzBuildULNASTransport
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzIECodecs
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzMarshalQoS
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzParseMessage
+          - dir: nas
+            pkg: ./fgs
+            target: FuzzParseSecurityProtectedMessage
           - dir: ngap
             pkg: .
             target: FuzzDecodeNoPanic
+          - dir: nrppa
+            pkg: .
+            target: FuzzParsePDU
+          - dir: per
+            pkg: .
+            target: FuzzAlignedDecodeNoPanic
           - dir: s1ap
             pkg: .
             target: FuzzDecodeNoPanic
@@ -46,13 +90,25 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      # `go test -fuzz` treats "no fuzz tests to fuzz" as success, so a
+      # renamed or deleted target would report green while fuzzing nothing.
+      - name: Check ${{ matrix.target }} exists
+        working-directory: ${{ matrix.dir }}
+        run: |
+          if ! go test ${{ matrix.pkg }} -list '^${{ matrix.target }}$' | grep -qx '${{ matrix.target }}'; then
+            echo "::error::fuzz target ${{ matrix.target }} not found in ${{ matrix.dir }}/${{ matrix.pkg }}"
+            exit 1
+          fi
+
+      # The regex is anchored: an unanchored name that matches two targets
+      # makes `go test -fuzz` fail, and one that matches none passes silently.
       - name: Fuzz ${{ matrix.target }}
         working-directory: ${{ matrix.dir }}
-        run: go test ${{ matrix.pkg }} -run=xxx -fuzz=${{ matrix.target }} -fuzztime=5m
+        run: go test ${{ matrix.pkg }} -run=xxx -fuzz='^${{ matrix.target }}$' -fuzztime=5m
 
       - name: Upload crashers
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: fuzz-${{ matrix.target }}-corpus
+          name: fuzz-${{ matrix.dir }}-${{ matrix.target }}-corpus
           path: ${{ matrix.dir }}/**/testdata/fuzz/
