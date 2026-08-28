@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Box,
   Typography,
@@ -13,9 +13,106 @@ import {
 import { Edit as EditIcon } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { getInterfaces, type InterfacesInfo } from "@/queries/interfaces";
+import { getStatus } from "@/queries/status";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
+import NetworkTopology, {
+  type InterfaceSegment,
+} from "@/components/NetworkTopology";
 import QueryState from "@/components/QueryState";
 import { useNetworkingContext } from "./types";
+
+function AddressLines({ addresses }: { addresses?: string[] }) {
+  if (!addresses || addresses.length === 0) {
+    return (
+      <Typography variant="body2" color="textSecondary">
+        Address: <strong>—</strong>
+      </Typography>
+    );
+  }
+
+  return addresses.map((address) => (
+    <Typography key={address} variant="body2" color="textSecondary">
+      Address: <strong>{address}</strong>
+    </Typography>
+  ));
+}
+
+function VlanLine({
+  vlan,
+}: {
+  vlan?: { vlan_id?: number; master_interface?: string };
+}) {
+  if (!vlan) return null;
+
+  return (
+    <Typography variant="body2" color="textSecondary">
+      VLAN:{" "}
+      <strong>
+        {vlan.vlan_id ?? "—"}
+        {vlan.master_interface ? ` on ${vlan.master_interface}` : ""}
+      </strong>
+    </Typography>
+  );
+}
+
+type InterfaceCardProps = {
+  id: InterfaceSegment;
+  title: string;
+  chip: string;
+  active: InterfaceSegment | null;
+  onActiveChange: (segment: InterfaceSegment | null) => void;
+  action?: ReactNode;
+  children: ReactNode;
+};
+
+function InterfaceCard({
+  id,
+  title,
+  chip,
+  active,
+  onActiveChange,
+  action,
+  children,
+}: InterfaceCardProps) {
+  const highlighted = active === id;
+
+  return (
+    <Box
+      onMouseEnter={() => onActiveChange(id)}
+      onMouseLeave={() => onActiveChange(null)}
+      onFocus={() => onActiveChange(id)}
+      onBlur={() => onActiveChange(null)}
+      sx={{
+        border: 1,
+        borderColor: highlighted ? "primary.main" : "divider",
+        boxShadow: highlighted ? 3 : 0,
+        borderRadius: 2,
+        p: 2,
+        transition: (theme) =>
+          theme.transitions.create(["border-color", "box-shadow"], {
+            duration: 200,
+          }),
+      }}
+    >
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 1,
+        }}
+      >
+        <Typography variant="subtitle1">{title}</Typography>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+          <Chip label={chip} size="small" />
+          {action}
+        </Stack>
+      </Stack>
+      {children}
+    </Box>
+  );
+}
 
 export default function InterfacesTab() {
   const { accessToken, canEdit, showSnackbar } = useNetworkingContext();
@@ -26,7 +123,13 @@ export default function InterfacesTab() {
     refetchOnWindowFocus: true,
   });
 
+  const statusQuery = useQuery({
+    queryKey: ["status"],
+    queryFn: getStatus,
+  });
+
   const [isEditN3Open, setEditN3Open] = useState(false);
+  const [active, setActive] = useState<InterfaceSegment | null>(null);
 
   const description =
     "View the network interfaces used by Ella Core for control plane (N2), user plane (N3), external networks (N6), and the API endpoint. Interfaces are primarily configured in the Ella Core configuration file; this page reflects that configuration, with N3's external address as the only editable field.";
@@ -44,82 +147,43 @@ export default function InterfacesTab() {
 
       <QueryState query={interfacesQuery} resource="network interfaces">
         {(interfacesInfo) => (
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-              gap: 2,
-              mt: 1,
-            }}
-          >
-            <Box
-              sx={{
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 2,
-                p: 2,
-              }}
-            >
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 1,
-                }}
-              >
-                <Typography variant="subtitle1">N2 (NGAP / S1AP)</Typography>
-                <Chip label="Control Plane" size="small" />
-              </Stack>
-              <Typography variant="body2" color="textSecondary">
-                {interfacesInfo.n2?.addresses &&
-                interfacesInfo.n2.addresses.length > 0 ? (
-                  interfacesInfo.n2.addresses.map((addr) => (
-                    <Typography
-                      key={addr}
-                      variant="body2"
-                      color="textSecondary"
-                    >
-                      Address: <strong>{addr}</strong>
-                    </Typography>
-                  ))
-                ) : (
-                  <Typography variant="body2" color="textSecondary">
-                    Address: <strong>—</strong>
-                  </Typography>
-                )}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
-              </Typography>
-            </Box>
+          <>
+            <NetworkTopology
+              interfaces={interfacesInfo}
+              datapathAttachMode={statusQuery.data?.datapathAttachMode}
+              active={active}
+              onActiveChange={setActive}
+            />
 
             <Box
               sx={{
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 2,
-                p: 2,
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                gap: 2,
+                mt: 3,
               }}
             >
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 1,
-                }}
+              <InterfaceCard
+                id="n2"
+                title="N2 (NGAP / S1AP)"
+                chip="Control Plane"
+                active={active}
+                onActiveChange={setActive}
               >
-                <Typography variant="subtitle1">N3 (GTP-U)</Typography>
-                <Stack
-                  direction="row"
-                  spacing={0.5}
-                  sx={{ alignItems: "center" }}
-                >
-                  <Chip label="User Plane" size="small" />
-                  {canEdit && (
+                <AddressLines addresses={interfacesInfo.n2?.addresses} />
+                <Typography variant="body2" color="textSecondary">
+                  Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
+                </Typography>
+              </InterfaceCard>
+
+              <InterfaceCard
+                id="n3"
+                title="N3 (GTP-U)"
+                chip="User Plane"
+                active={active}
+                onActiveChange={setActive}
+                action={
+                  canEdit && (
                     <Tooltip title="Edit external address">
                       <IconButton
                         size="small"
@@ -129,128 +193,50 @@ export default function InterfacesTab() {
                         <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                  )}
-                </Stack>
-              </Stack>
-              <Typography variant="body2" color="textSecondary">
-                Interface name:{" "}
-                <strong>{interfacesInfo.n3?.name ?? "—"}</strong>
-              </Typography>
-              {interfacesInfo.n3?.addresses &&
-              interfacesInfo.n3.addresses.length > 0 ? (
-                interfacesInfo.n3.addresses.map((addr) => (
-                  <Typography key={addr} variant="body2" color="text.secondary">
-                    Address: <strong>{addr}</strong>
-                  </Typography>
-                ))
-              ) : (
-                <Typography variant="body2" color="textSecondary">
-                  Address: <strong>—</strong>
-                </Typography>
-              )}
-              <Typography variant="body2" color="text.secondary">
-                External address:{" "}
-                <strong>{interfacesInfo.n3?.external_address || "—"}</strong>
-              </Typography>
-              {interfacesInfo.n3?.vlan && (
-                <Typography variant="body2" color="textSecondary">
-                  VLAN:{" "}
-                  <strong>
-                    {interfacesInfo.n3.vlan.vlan_id ?? "—"}
-                    {interfacesInfo.n3.vlan.master_interface
-                      ? ` on ${interfacesInfo.n3.vlan.master_interface}`
-                      : ""}
-                  </strong>
-                </Typography>
-              )}
-            </Box>
-
-            <Box
-              sx={{
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 2,
-                p: 2,
-              }}
-            >
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 1,
-                }}
+                  )
+                }
               >
-                <Typography variant="subtitle1">N6 (External)</Typography>
-                <Chip label="External Network" size="small" />
-              </Stack>
-              <Typography variant="body2" color="textSecondary">
-                Interface name:{" "}
-                <strong>{interfacesInfo.n6?.name ?? "—"}</strong>
-              </Typography>
-              {interfacesInfo.n6?.addresses &&
-              interfacesInfo.n6.addresses.length > 0 ? (
-                interfacesInfo.n6.addresses.map((addr) => (
-                  <Typography key={addr} variant="body2" color="textSecondary">
-                    Address: <strong>{addr}</strong>
-                  </Typography>
-                ))
-              ) : (
                 <Typography variant="body2" color="textSecondary">
-                  Address: <strong>—</strong>
+                  Interface name:{" "}
+                  <strong>{interfacesInfo.n3?.name ?? "—"}</strong>
                 </Typography>
-              )}
-              {interfacesInfo.n6?.vlan && (
+                <AddressLines addresses={interfacesInfo.n3?.addresses} />
                 <Typography variant="body2" color="textSecondary">
-                  VLAN:{" "}
-                  <strong>
-                    {interfacesInfo.n6.vlan.vlan_id ?? "—"}
-                    {interfacesInfo.n6.vlan.master_interface
-                      ? ` on ${interfacesInfo.n6.vlan.master_interface}`
-                      : ""}
-                  </strong>
+                  External address:{" "}
+                  <strong>{interfacesInfo.n3?.external_address || "—"}</strong>
                 </Typography>
-              )}
-            </Box>
+                <VlanLine vlan={interfacesInfo.n3?.vlan} />
+              </InterfaceCard>
 
-            <Box
-              sx={{
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 2,
-                p: 2,
-              }}
-            >
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 1,
-                }}
+              <InterfaceCard
+                id="n6"
+                title="N6 (External)"
+                chip="External Network"
+                active={active}
+                onActiveChange={setActive}
               >
-                <Typography variant="subtitle1">API</Typography>
-                <Chip label="Management" size="small" />
-              </Stack>
-              {interfacesInfo.api?.addresses &&
-              interfacesInfo.api.addresses.length > 0 ? (
-                interfacesInfo.api.addresses.map((addr) => (
-                  <Typography key={addr} variant="body2" color="textSecondary">
-                    Address: <strong>{addr}</strong>
-                  </Typography>
-                ))
-              ) : (
                 <Typography variant="body2" color="textSecondary">
-                  Address: <strong>—</strong>
+                  Interface name:{" "}
+                  <strong>{interfacesInfo.n6?.name ?? "—"}</strong>
                 </Typography>
-              )}
-              <Typography variant="body2" color="textSecondary">
-                Port: <strong>{interfacesInfo.api?.port ?? "—"}</strong>
-              </Typography>
+                <AddressLines addresses={interfacesInfo.n6?.addresses} />
+                <VlanLine vlan={interfacesInfo.n6?.vlan} />
+              </InterfaceCard>
+
+              <InterfaceCard
+                id="api"
+                title="API"
+                chip="Management"
+                active={active}
+                onActiveChange={setActive}
+              >
+                <AddressLines addresses={interfacesInfo.api?.addresses} />
+                <Typography variant="body2" color="textSecondary">
+                  Port: <strong>{interfacesInfo.api?.port ?? "—"}</strong>
+                </Typography>
+              </InterfaceCard>
             </Box>
-          </Box>
+          </>
         )}
       </QueryState>
 

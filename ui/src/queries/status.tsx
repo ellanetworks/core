@@ -20,6 +20,7 @@ export type APIStatus = {
   revision?: string;
   ready?: boolean;
   schemaVersion?: number;
+  datapathAttachMode?: string;
   cluster?: ClusterStatus;
 };
 
