@@ -38,6 +38,7 @@ var tracer = otel.Tracer("ella-core/db")
 type Database struct {
 	dbPath         string
 	dataDir        string
+	clusterEnabled bool
 	restoreMu      sync.Mutex
 	proposeMu      sync.Mutex
 	raftManager    *ellaraft.Manager
@@ -643,11 +644,7 @@ func (db *Database) AutopilotState() *autopilot.State {
 
 // ClusterEnabled returns whether clustering is active.
 func (db *Database) ClusterEnabled() bool {
-	if db.raftManager == nil {
-		return false
-	}
-
-	return db.raftManager.ClusterEnabled()
+	return db.clusterEnabled
 }
 
 // LeadershipTransfer triggers a leadership transfer to another voter. The raft
@@ -1214,6 +1211,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.connPtr.Store(sqlair.NewDB(sqlConn))
 	db.dbPath = dbPath
 	db.dataDir = dataDir
+	db.clusterEnabled = raftCfg.Enabled
 	db.changefeed = NewChangefeed()
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {

@@ -159,7 +159,7 @@ func (db *Database) Reopen(ctx context.Context) error {
 	}
 
 	maxVersion := 0
-	if db.raftManager != nil && db.raftManager.ClusterEnabled() {
+	if db.ClusterEnabled() {
 		// In cluster mode, restore/reopen must track the snapshot baseline.
 		// Post-baseline shared migrations are proposed by the leader via Raft.
 		maxVersion = baselineVersion
