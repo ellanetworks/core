@@ -99,7 +99,7 @@ func runRoutesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		t.Fatalf("get route mismatch: got %+v, want id=%d destination=%q", got, created.ID, createOpts.Destination)
 	}
 
-	stabilizeLocal()
+	stabilizeLocal(t, ctx, h)
 
 	for i, c := range h.Clients {
 		if i == writerIdx {

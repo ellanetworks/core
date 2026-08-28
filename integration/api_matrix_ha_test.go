@@ -49,6 +49,8 @@ func TestAPIMatrixHA(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx := context.Background()
 	h := setupHAMatrixEnv(ctx, t)
 

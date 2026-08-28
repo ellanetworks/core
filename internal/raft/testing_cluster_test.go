@@ -6,9 +6,12 @@ package raft
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
+
+	hraft "github.com/hashicorp/raft"
 )
 
 func TestSetupTestCluster_ThreeNodes(t *testing.T) {
@@ -39,18 +42,77 @@ func TestSetupTestCluster_ThreeNodes(t *testing.T) {
 }
 
 func TestSetupTestCluster_LeaderPropose(t *testing.T) {
-	applier := newTestApplier(t)
+	appliers := make([]*testApplier, 0, 3)
 
-	tc := SetupTestCluster(t, 3, applier)
+	tc := SetupTestClusterWithAppliers(t, 3, func() Applier {
+		a := newTestApplier(t)
+		a.writeRows = true
+		appliers = append(appliers, a)
+
+		return a
+	})
 
 	leader := tc.Leader()
 	if leader == nil {
 		t.Fatal("no leader")
 	}
 
-	cmd := &Command{Type: 1, Payload: []byte("test")}
-	if _, err := leader.Propose(cmd, 5*time.Second); err != nil {
-		t.Fatalf("propose failed: %v", err)
+	first, err := NewCommand(CmdChangeset, map[string]string{"seq": "first"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	firstResult, err := leader.Propose(first, 5*time.Second)
+	if err != nil {
+		t.Fatalf("propose first: %v", err)
+	}
+
+	if firstResult.Index == 0 {
+		t.Fatal("propose returned index 0; a committed entry always has a non-zero log index")
+	}
+
+	second, err := NewCommand(CmdChangeset, map[string]string{"seq": "second"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	secondResult, err := leader.Propose(second, 5*time.Second)
+	if err != nil {
+		t.Fatalf("propose second: %v", err)
+	}
+
+	if secondResult.Index <= firstResult.Index {
+		t.Fatalf("log index did not advance: first=%d second=%d",
+			firstResult.Index, secondResult.Index)
+	}
+
+	waitForAppliedIndex(t, tc, secondResult.Index, 10*time.Second)
+
+	for i, a := range appliers {
+		a.mu.Lock()
+		got := len(a.commands)
+		a.mu.Unlock()
+
+		if got < 2 {
+			t.Errorf("node %d applier saw %d commands, want at least 2", i+1, got)
+		}
+	}
+}
+
+func waitForAppliedIndex(t *testing.T, tc *TestCluster, want uint64, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+
+	for _, n := range tc.Nodes {
+		for n.AppliedIndex() < want {
+			if time.Now().After(deadline) {
+				t.Fatalf("node did not reach applied index %d within %s (stuck at %d)",
+					want, timeout, n.AppliedIndex())
+			}
+
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 
@@ -326,7 +388,16 @@ func TestSetupTestCluster_TwoVoterQuorumLoss(t *testing.T) {
 		t.Fatal("Propose should fail without a quorum; got nil error")
 	}
 
-	t.Logf("Propose without quorum returned %v", err)
+	switch {
+	case errors.Is(err, hraft.ErrLeadershipLost),
+		errors.Is(err, hraft.ErrNotLeader),
+		errors.Is(err, hraft.ErrEnqueueTimeout),
+		errors.Is(err, hraft.ErrLeadershipTransferInProgress),
+		errors.Is(err, hraft.ErrRaftShutdown):
+	default:
+		t.Fatalf("Propose without quorum returned %v (%T); want a raft commit failure "+
+			"(leadership lost / not leader / enqueue timeout / shutdown)", err, err)
+	}
 }
 
 // queryAllRows returns all rows from table t ordered by id.

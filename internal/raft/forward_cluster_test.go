@@ -259,54 +259,65 @@ func TestForwardPropose_FollowerRetriesOnLeaderChange(t *testing.T) {
 	}
 }
 
-// TestForwardPropose_AppliedIndexHeader proves the leader sets
-// X-Ella-Applied-Index on the success response; the forwarder's
-// read-your-writes wait depends on it.
-func TestForwardPropose_AppliedIndexHeader(t *testing.T) {
-	tc := SetupTestClusterWithAppliers(t, 3, func() Applier { return newTestApplier(t) })
-	wireClusterProposeHandlers(t, tc)
-
-	leader := tc.Leader()
-	if leader == nil {
-		t.Fatal("no leader")
+func TestWriteProposeForwardResponse_EnvelopeAndHeader(t *testing.T) {
+	result := &ProposeResult{
+		Index: 4242,
+		Value: map[string]string{"direct": "leader"},
 	}
 
-	cmd, err := NewCommand(CmdChangeset, map[string]string{"direct": "leader"})
-	if err != nil {
-		t.Fatalf("new command: %v", err)
-	}
-
-	// Direct-apply on leader, then verify the handler-facing env is
-	// what the follower-side decodeForwardResponse parses.
-	result, err := leader.ApplyBytes(mustMarshal(t, cmd), time.Second)
-	if err != nil {
-		t.Fatalf("leader.ApplyBytes: %v", err)
-	}
-
-	// Round-trip envelope through the handler's writer to catch
-	// accidental omission of the applied-index header.
 	rec := newHeaderRecorder()
 	if err := WriteProposeForwardResponse(rec, result); err != nil {
 		t.Fatalf("write response: %v", err)
 	}
 
-	got := rec.header.Get(HeaderAppliedIndex)
-	want := strconv.FormatUint(result.Index, 10)
+	if rec.status != http.StatusOK {
+		t.Errorf("status: got %d want %d", rec.status, http.StatusOK)
+	}
 
-	if got != want {
-		t.Fatalf("applied-index header: got %q want %q", got, want)
+	gotHeader := rec.header.Get(HeaderAppliedIndex)
+
+	wantHeader := strconv.FormatUint(result.Index, 10)
+	if gotHeader != wantHeader {
+		t.Errorf("applied-index header: got %q want %q", gotHeader, wantHeader)
+	}
+
+	var env ProposeForwardResponse
+	if err := json.Unmarshal(rec.body, &env); err != nil {
+		t.Fatalf("decode envelope: %v (body=%q)", err, rec.body)
+	}
+
+	if env.Index != result.Index {
+		t.Errorf("envelope index: got %d want %d", env.Index, result.Index)
+	}
+
+	var value map[string]string
+	if err := json.Unmarshal(env.Value, &value); err != nil {
+		t.Fatalf("decode envelope value: %v (value=%q)", err, env.Value)
+	}
+
+	if value["direct"] != "leader" {
+		t.Errorf("envelope value: got %v want map[direct:leader]", value)
 	}
 }
 
-func mustMarshal(t *testing.T, cmd *Command) []byte {
-	t.Helper()
-
-	b, err := cmd.MarshalBinary()
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
+func TestWriteProposeForwardResponse_NilValue(t *testing.T) {
+	rec := newHeaderRecorder()
+	if err := WriteProposeForwardResponse(rec, &ProposeResult{Index: 7}); err != nil {
+		t.Fatalf("write response: %v", err)
 	}
 
-	return b
+	if got := rec.header.Get(HeaderAppliedIndex); got != "7" {
+		t.Errorf("applied-index header: got %q want %q", got, "7")
+	}
+
+	var env ProposeForwardResponse
+	if err := json.Unmarshal(rec.body, &env); err != nil {
+		t.Fatalf("decode envelope: %v (body=%q)", err, rec.body)
+	}
+
+	if env.Index != 7 {
+		t.Errorf("envelope index: got %d want 7", env.Index)
+	}
 }
 
 // headerRecorder captures header state set by WriteProposeForwardResponse

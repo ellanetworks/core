@@ -195,13 +195,24 @@ func TestApplyForwardedOperation_RejectsRetiredOps(t *testing.T) {
 func TestApplyForwardedOperation_AcceptsLiveOps(t *testing.T) {
 	database := newAtomicTestDB(t)
 
-	_, err := database.ApplyForwardedOperation("CreateNetworkSlice", []byte(
-		`{"id":"01900000-0000-7000-8000-00000000abcd","sst":1,"sd":"000001","name":"forwarded-live"}`))
-	if err != nil && errors.Is(err, ErrRetiredOperation) {
-		t.Fatalf("live operation rejected as retired: %v", err)
+	const sliceID = "01900000-0000-7000-8000-00000000abcd"
+
+	result, err := database.ApplyForwardedOperation("CreateNetworkSlice", []byte(
+		`{"id":"`+sliceID+`","sst":1,"sd":"000001","name":"forwarded-live"}`))
+	if err != nil {
+		t.Fatalf("live operation rejected: %v", err)
 	}
 
-	if err != nil && errors.Is(err, ErrUnknownOperation) {
-		t.Fatalf("live operation reported as unknown: %v", err)
+	if result.Index == 0 {
+		t.Error("forwarded changeset op returned index 0; a follower would report an uncommitted write as durable")
+	}
+
+	slice, err := database.GetNetworkSlice(t.Context(), "forwarded-live")
+	if err != nil {
+		t.Fatalf("network slice absent after forwarded op: %v", err)
+	}
+
+	if slice.ID != sliceID {
+		t.Errorf("network slice ID = %q, want %q", slice.ID, sliceID)
 	}
 }

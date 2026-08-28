@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,6 +51,19 @@ func TestMaybeRecoverCluster_PeersIsDirectory(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when peers.json is a directory")
 	}
+
+	if !strings.Contains(err.Error(), peersFileName) {
+		t.Errorf("error should name the offending file, got %v", err)
+	}
+
+	if !strings.Contains(err.Error(), "directory") {
+		t.Errorf("error should say the path is a directory, got %v", err)
+	}
+
+	if _, statErr := os.Stat(peersDir); statErr != nil {
+		t.Errorf("a failed recovery must leave %s in place for the operator, stat: %v",
+			peersFileName, statErr)
+	}
 }
 
 func TestMaybeRecoverCluster_InvalidJSON(t *testing.T) {
@@ -69,6 +83,14 @@ func TestMaybeRecoverCluster_InvalidJSON(t *testing.T) {
 	_, err := maybeRecoverCluster(raftDir, nil, nil, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
+	}
+
+	if !strings.Contains(err.Error(), "read peers.json") {
+		t.Errorf("error should identify the parse step, got %v", err)
+	}
+
+	if _, statErr := os.Stat(filepath.Join(raftDir, peersFileName)); statErr != nil {
+		t.Errorf("a failed recovery must leave %s in place, stat: %v", peersFileName, statErr)
 	}
 }
 
