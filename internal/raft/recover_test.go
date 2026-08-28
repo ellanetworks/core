@@ -47,8 +47,6 @@ func TestMaybeRecoverCluster_PeersIsDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// cfg/fsm/stores stay nil deliberately: this path must reject the
-	// malformed recovery file before it touches any of them.
 	_, err := maybeRecoverCluster(raftDir, nil, nil, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error when peers.json is a directory")
@@ -82,8 +80,6 @@ func TestMaybeRecoverCluster_InvalidJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// cfg/fsm/stores stay nil deliberately: parsing must fail before
-	// RecoverCluster is reached.
 	_, err := maybeRecoverCluster(raftDir, nil, nil, nil, nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
@@ -93,7 +89,6 @@ func TestMaybeRecoverCluster_InvalidJSON(t *testing.T) {
 		t.Errorf("error should identify the parse step, got %v", err)
 	}
 
-	// The operator needs the file to fix; a parse failure must not eat it.
 	if _, statErr := os.Stat(filepath.Join(raftDir, peersFileName)); statErr != nil {
 		t.Errorf("a failed recovery must leave %s in place, stat: %v", peersFileName, statErr)
 	}

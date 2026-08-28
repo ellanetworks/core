@@ -4,73 +4,77 @@
 package ci_test
 
 import (
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
-// goModules lists every Go module in the repository. The fuzz workflow runs
-// `go test` with `working-directory` set to one of these, so a target's
-// module is part of its identity.
 var goModules = []string{".", "lppa", "nas", "ngap", "nrppa", "per", "s1ap"}
 
 type fuzzTarget struct {
-	Dir    string `yaml:"dir"`
-	Pkg    string `yaml:"pkg"`
-	Target string `yaml:"target"`
+	Dir    string `json:"dir"`
+	Pkg    string `json:"pkg"`
+	Target string `json:"target"`
 }
 
 func (f fuzzTarget) String() string {
 	return f.Dir + " " + f.Pkg + " " + f.Target
 }
 
-type fuzzWorkflow struct {
-	Jobs struct {
-		Fuzz struct {
-			Strategy struct {
-				Matrix struct {
-					Include []fuzzTarget `yaml:"include"`
-				} `yaml:"matrix"`
-			} `yaml:"strategy"`
-		} `yaml:"fuzz"`
-	} `yaml:"jobs"`
-}
-
 var fuzzFuncRe = regexp.MustCompile(`(?m)^func (Fuzz[A-Za-z0-9_]*)\(`)
 
-// TestFuzzWorkflowCoversEveryTarget fails when a fuzz target exists in the
-// repository but is not scheduled by the nightly workflow, or vice versa.
-//
-// `go test -fuzz` exits 0 with "no fuzz tests to fuzz" when its regex matches
-// nothing, so an unscheduled target is invisible: the job stays green while
-// fuzzing nothing. Three of seven matrix entries were in that state — two
-// naming targets that did not exist, one matching two targets at once — which
-// is why this check exists rather than a comment asking people to remember.
-func TestFuzzWorkflowCoversEveryTarget(t *testing.T) {
+func TestFuzzDiscoveryFindsEveryTarget(t *testing.T) {
 	root := repoRoot(t)
 
-	declared := parseWorkflowTargets(t, filepath.Join(root, ".github", "workflows", "go-fuzz.yaml"))
+	discovered := runDiscoveryScript(t, root)
 	found := scanFuzzTargets(t, root)
 
-	if missing := difference(found, declared); len(missing) > 0 {
-		t.Errorf("fuzz targets exist but are never fuzzed; add them to .github/workflows/go-fuzz.yaml:\n  %s",
+	if missing := difference(found, discovered); len(missing) > 0 {
+		t.Errorf("fuzz targets exist but discovery does not emit them, so they are never fuzzed:\n  %s",
 			strings.Join(missing, "\n  "))
 	}
 
-	if stale := difference(declared, found); len(stale) > 0 {
-		t.Errorf("go-fuzz.yaml schedules targets that do not exist; the job would report green while fuzzing nothing:\n  %s",
+	if stale := difference(discovered, found); len(stale) > 0 {
+		t.Errorf("discovery emits targets that do not exist; the job would report green while fuzzing nothing:\n  %s",
 			strings.Join(stale, "\n  "))
 	}
 }
 
-// TestFuzzWorkflowRegexesAreAnchored guards the other half of the failure:
-// an unanchored name that matches two targets makes the job fail nightly,
-// and one that matches a prefix of another silently fuzzes the wrong thing.
+func runDiscoveryScript(t *testing.T, root string) []string {
+	t.Helper()
+
+	script := filepath.Join(root, ".github", "scripts", "list-fuzz-targets.sh")
+
+	cmd := exec.CommandContext(t.Context(), "bash", script)
+	cmd.Dir = root
+
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("run %s: %v", script, err)
+	}
+
+	var entries []fuzzTarget
+	if err := json.Unmarshal(out, &entries); err != nil {
+		t.Fatalf("decode discovery output: %v (output=%q)", err, out)
+	}
+
+	if len(entries) == 0 {
+		t.Fatal("discovery emitted no targets")
+	}
+
+	ids := make([]string, 0, len(entries))
+	for _, e := range entries {
+		ids = append(ids, e.String())
+	}
+
+	return ids
+}
+
 func TestFuzzWorkflowRegexesAreAnchored(t *testing.T) {
 	root := repoRoot(t)
 
@@ -85,34 +89,6 @@ func TestFuzzWorkflowRegexesAreAnchored(t *testing.T) {
 	}
 }
 
-func parseWorkflowTargets(t *testing.T, path string) []string {
-	t.Helper()
-
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read %s: %v", path, err)
-	}
-
-	var wf fuzzWorkflow
-	if err := yaml.Unmarshal(raw, &wf); err != nil {
-		t.Fatalf("parse %s: %v", path, err)
-	}
-
-	include := wf.Jobs.Fuzz.Strategy.Matrix.Include
-	if len(include) == 0 {
-		t.Fatalf("%s declares no fuzz targets", path)
-	}
-
-	out := make([]string, 0, len(include))
-	for _, e := range include {
-		out = append(out, e.String())
-	}
-
-	return out
-}
-
-// scanFuzzTargets walks each module for `func Fuzz*` in _test.go files and
-// returns them in the workflow's dir/pkg/target form.
 func scanFuzzTargets(t *testing.T, root string) []string {
 	t.Helper()
 
@@ -145,7 +121,6 @@ func scanFuzzTargets(t *testing.T, root string) []string {
 					return filepath.SkipDir
 				}
 
-				// A nested module is walked under its own entry, not the root's.
 				if mod == "." && nested[rel] {
 					return filepath.SkipDir
 				}

@@ -11,15 +11,6 @@ import (
 	hraft "github.com/hashicorp/raft"
 )
 
-// TestFiveNodeClusterToleratesTwoFailures is the P1 promise at N=5: five nodes
-// tolerate two failures. Quorum is 3, so writes must survive losing two voters
-// and must stop on the third — the boundary is what makes the promise
-// meaningful, since a cluster that kept accepting writes at 2-of-5 would be
-// acknowledging data it can lose.
-//
-// Deliberately a unit test. The properties here are decided by the Raft
-// configuration alone, so a fifth container would add CI minutes and a flake
-// surface without testing anything this does not.
 func TestFiveNodeClusterToleratesTwoFailures(t *testing.T) {
 	tc := SetupTestClusterWithAppliers(t, 5, func() Applier {
 		a := newTestApplier(t)
@@ -39,7 +30,6 @@ func TestFiveNodeClusterToleratesTwoFailures(t *testing.T) {
 
 	mustPropose(t, leader, "all-five-up")
 
-	// Stop two non-leader voters: 3 of 5 remain, exactly quorum.
 	stopped := stopFollowers(t, tc, 2)
 
 	leader = tc.WaitForLeader(10 * time.Second)
@@ -49,7 +39,6 @@ func TestFiveNodeClusterToleratesTwoFailures(t *testing.T) {
 
 	mustPropose(t, leader, "three-of-five")
 
-	// Stop a third: 2 of 5 remain, below quorum. Writes must stop.
 	stopFollowersExcluding(t, tc, stopped, 1)
 
 	cmd, err := NewCommand(CmdChangeset, map[string]string{"phase": "two-of-five"})
@@ -72,9 +61,6 @@ func TestFiveNodeClusterToleratesTwoFailures(t *testing.T) {
 	}
 }
 
-// TestFiveNodeClusterRecoversWhenVotersReturn pins the other half of P1: the
-// stall is temporary. Once a stopped voter comes back, quorum is restored and
-// writes resume without operator intervention.
 func TestFiveNodeClusterRecoversWhenVotersReturn(t *testing.T) {
 	tc := SetupTestClusterWithAppliers(t, 5, func() Applier {
 		a := newTestApplier(t)
@@ -87,10 +73,8 @@ func TestFiveNodeClusterRecoversWhenVotersReturn(t *testing.T) {
 		t.Fatal("no leader in a healthy 5-node cluster")
 	}
 
-	// Drop to 2 of 5 by stopping three followers.
 	stopped := stopFollowers(t, tc, 3)
 
-	// Bring one back: 3 of 5, quorum restored.
 	tc.RestartNode(stopped[0])
 
 	leader := tc.WaitForLeader(20 * time.Second)
@@ -101,15 +85,12 @@ func TestFiveNodeClusterRecoversWhenVotersReturn(t *testing.T) {
 	mustPropose(t, leader, "after-recovery")
 }
 
-// stopFollowers stops n non-leader nodes and returns their indices.
 func stopFollowers(t *testing.T, tc *TestCluster, n int) []int {
 	t.Helper()
 
 	return stopFollowersExcluding(t, tc, nil, n)
 }
 
-// stopFollowersExcluding stops n non-leader nodes, skipping any already in
-// skip, and returns the full set of stopped indices.
 func stopFollowersExcluding(t *testing.T, tc *TestCluster, skip []int, n int) []int {
 	t.Helper()
 

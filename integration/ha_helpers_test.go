@@ -70,9 +70,6 @@ func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, servi
 		}
 	}
 
-	// docker compose logs against the wrong project directory succeeds and
-	// returns nothing, which silently strips the diagnostics from a failing
-	// run. Surface that rather than leaving an empty artifact behind.
 	if captured == 0 && len(services) > 0 {
 		t.Errorf("captureClusterLogs: collected no logs for any of %v from compose dir %q; "+
 			"the compose directory probably does not match the cluster under test",
@@ -383,14 +380,6 @@ func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Cli
 	return -1, nil, fmt.Errorf("no leader found")
 }
 
-// waitForNewLeader polls survivors until exactly one of them reports itself as
-// leader, and returns it. Pass only the nodes expected to survive the
-// transition: a node that is being stopped or drained keeps reporting Leader
-// until leadership actually moves, and including it would return the outgoing
-// leader instead of waiting for the hand-off.
-//
-// Requiring exactly one also rides out the window where two nodes briefly
-// claim leadership, rather than returning whichever was polled first.
 func waitForNewLeader(ctx context.Context, survivors []*client.Client) (*client.Client, error) {
 	timeout := 90 * time.Second
 	deadline := time.Now().Add(timeout)

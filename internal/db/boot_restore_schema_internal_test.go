@@ -101,10 +101,6 @@ func seedRaftSnapshot(t *testing.T, dataDir string, nodeID int, payload []byte) 
 	}
 }
 
-// TestBootSnapshotRestoreRespectsBaselineInClusterMode pins the migration
-// floor across a boot-time snapshot restore in HA mode: post-baseline
-// migrations are proposed through Raft by the leader, so a restore that
-// happens while Raft is still being constructed must not run them locally.
 func TestBootSnapshotRestoreRespectsBaselineInClusterMode(t *testing.T) {
 	if SchemaVersion() <= baselineVersion {
 		t.Skipf("no post-baseline migration exists (schema %d, baseline %d)", SchemaVersion(), baselineVersion)

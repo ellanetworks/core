@@ -282,11 +282,6 @@ func TestFSM_SnapshotRestoreRoundTrip(t *testing.T) {
 	}
 }
 
-// TestFSM_Restore_AdoptsSnapshotLastApplied pins the invariant Restore
-// carries a long comment to protect: fsm_state is NOT preserved across the
-// file swap. The snapshot holds the lastApplied matching its data, and
-// keeping a higher local value would make the FSM skip post-snapshot log
-// entries it has never applied.
 func TestFSM_Restore_AdoptsSnapshotLastApplied(t *testing.T) {
 	const (
 		snapshotLastApplied uint64 = 42
@@ -310,8 +305,6 @@ func TestFSM_Restore_AdoptsSnapshotLastApplied(t *testing.T) {
 		t.Fatalf("seed destination lastApplied: %v", err)
 	}
 
-	// The marker records that the current code is running, which is what
-	// disables the one-time preserve-old-index migration below.
 	markFSMMigrated(t, dstDir)
 
 	if err := dstFSM.Restore(newReadCloser(payload)); err != nil {
@@ -329,10 +322,6 @@ func TestFSM_Restore_AdoptsSnapshotLastApplied(t *testing.T) {
 	}
 }
 
-// TestFSM_Restore_PreservesHigherIndexBeforeMigrationMarker covers the other
-// half of the same code: with no marker on disk this is the first restore
-// under the current code, so a higher pre-restore index is kept rather than
-// replaying entries captured against divergent state.
 func TestFSM_Restore_PreservesHigherIndexBeforeMigrationMarker(t *testing.T) {
 	const (
 		snapshotLastApplied uint64 = 42
@@ -370,7 +359,6 @@ func TestFSM_Restore_PreservesHigherIndexBeforeMigrationMarker(t *testing.T) {
 	}
 }
 
-// persistSnapshot takes a snapshot of fsm and returns the serialised bytes.
 func persistSnapshot(t *testing.T, fsm *FSM) []byte {
 	t.Helper()
 
@@ -966,8 +954,6 @@ func TestFSM_Restore_RawSQLite(t *testing.T) {
 		t.Fatalf("want 'raw', got %q", v)
 	}
 
-	// A headerless snapshot carries fsm_state exactly like a framed one:
-	// the source applier never advanced it, so the stale local 999 must go.
 	got, err := dstFSM.readLastApplied()
 	if err != nil {
 		t.Fatalf("read lastApplied after raw restore: %v", err)

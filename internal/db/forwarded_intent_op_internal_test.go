@@ -11,17 +11,6 @@ import (
 	"time"
 )
 
-// TestApplyForwardedOperation_IntentOpReturnsResult covers the leader half of
-// a follower's intent-op write. A follower marshals its payload, POSTs it, and
-// returns to its own caller whatever comes back — so both halves of the
-// response matter here.
-//
-// The index is what the follower waits on before answering, so a zero index
-// would let it report an uncommitted write as durable. The value is what its
-// caller receives, so losing it here reports a different outcome than the
-// leader actually produced. Intent ops reach Raft by a different route than
-// changeset ops — the payload is replicated verbatim as a typed command and
-// re-executed on every node — so the changeset tests do not cover this path.
 func TestApplyForwardedOperation_IntentOpReturnsResult(t *testing.T) {
 	database := newAtomicTestDB(t)
 	ctx := context.Background()
@@ -77,10 +66,6 @@ func TestApplyForwardedOperation_IntentOpReturnsResult(t *testing.T) {
 	}
 }
 
-// TestApplyForwardedOperation_UnknownOpIsRejected pins the leader's response
-// to an operation name it does not serve. The name arrives from a peer, so an
-// unrecognised one must be refused with an identifiable error rather than
-// silently succeeding.
 func TestApplyForwardedOperation_UnknownOpIsRejected(t *testing.T) {
 	database := newAtomicTestDB(t)
 

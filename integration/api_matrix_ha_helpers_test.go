@@ -10,19 +10,6 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// stabilizeLocal establishes a happens-before barrier for a locality
-// assertion: it returns once every node has applied everything the leader
-// has committed.
-//
-// A local-only write that had wrongly gone through Raft would have been
-// committed before this point, so it would carry a log index at or below the
-// leader's current applied index — meaning it is guaranteed visible on the
-// other nodes by the time this returns, and the caller's assertion sees it.
-// A correct local-only write never reaches the log at all, so the barrier is
-// satisfied immediately.
-//
-// This replaces a fixed sleep, which proved nothing: it could pass because
-// propagation was merely slower than the timer.
 func stabilizeLocal(t *testing.T, ctx context.Context, h *haMatrixEnv) {
 	t.Helper()
 

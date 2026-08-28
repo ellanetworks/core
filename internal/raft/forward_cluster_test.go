@@ -259,11 +259,6 @@ func TestForwardPropose_FollowerRetriesOnLeaderChange(t *testing.T) {
 	}
 }
 
-// TestWriteProposeForwardResponse_EnvelopeAndHeader pins both consumers of
-// the leader's success envelope. doForwardRequest decodes Index and Value
-// from the JSON body — that is the value the follower returns to its
-// caller — while the operator-API proxy reads X-Ella-Applied-Index from the
-// header. Both must carry the committed index.
 func TestWriteProposeForwardResponse_EnvelopeAndHeader(t *testing.T) {
 	result := &ProposeResult{
 		Index: 4242,
@@ -305,8 +300,6 @@ func TestWriteProposeForwardResponse_EnvelopeAndHeader(t *testing.T) {
 	}
 }
 
-// TestWriteProposeForwardResponse_NilValue covers the intent-op shape: no
-// result value, but the index must still reach both consumers.
 func TestWriteProposeForwardResponse_NilValue(t *testing.T) {
 	rec := newHeaderRecorder()
 	if err := WriteProposeForwardResponse(rec, &ProposeResult{Index: 7}); err != nil {

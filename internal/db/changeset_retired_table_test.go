@@ -203,9 +203,6 @@ func TestApplyForwardedOperation_AcceptsLiveOps(t *testing.T) {
 		t.Fatalf("live operation rejected: %v", err)
 	}
 
-	// Tolerating any non-retired, non-unknown error would let this pass while
-	// the write silently failed, so assert the operation actually committed
-	// and took effect.
 	if result.Index == 0 {
 		t.Error("forwarded changeset op returned index 0; a follower would report an uncommitted write as durable")
 	}

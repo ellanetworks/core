@@ -351,13 +351,8 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		}
 	}
 
-	// Start writing *before* the leader is stopped. A test that only begins
-	// writing once a new leader exists never observes the outage at all, so
-	// failover could regress by an order of magnitude and still pass.
 	writer := startSubscriberWriter(t, ctx, survivors, "001019756150000")
 
-	// Let a few writes land so the writer has a "last success" to measure
-	// the outage from.
 	time.Sleep(2 * time.Second)
 
 	leaderService := haNodeServices[leaderIdx]
@@ -377,8 +372,6 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		t.Fatalf("re-election failed: %v", err)
 	}
 
-	// Keep writing until the survivors are serving again, then measure the
-	// gap the writer actually saw.
 	time.Sleep(2 * time.Second)
 
 	writeReport, werr := writer.stopAndReport()
@@ -394,10 +387,6 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 			writeReport.success)
 	}
 
-	// A regression ceiling, not a product SLO: it is deliberately far above
-	// any healthy failover so it fires only on a large regression, which is
-	// the failure mode that would otherwise stay green. Tighten it once an
-	// availability target is agreed.
 	const failoverWriteGapCeiling = 30 * time.Second
 
 	if writeReport.maxGap > failoverWriteGapCeiling {
@@ -540,10 +529,6 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Fatalf("failed to find leader: %v", err)
 	}
 
-	// Poll only the survivors. Including the node being drained lets
-	// waitForNewLeader return on the first Leader it sees — which is the
-	// drained node itself until leadership actually moves — so the identity
-	// check below would fail instead of waiting for the hand-off.
 	survivors := make([]*client.Client, 0, len(clients)-1)
 
 	for i, c := range clients {

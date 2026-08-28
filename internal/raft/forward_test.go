@@ -254,12 +254,6 @@ func TestRunForwardRetryLoop_TimeoutBounds(t *testing.T) {
 		},
 	}
 
-	// Timeout shorter than a single backoff. The loop takes one attempt,
-	// sleeps the no-leader backoff, then finds the deadline passed and
-	// gives up — so it exits after roughly one backoff rather than
-	// running the full attempt budget. The backoff itself is not clamped
-	// to the remaining deadline, so the bound is timeout + one backoff,
-	// not the timeout alone.
 	const timeout = 50 * time.Millisecond
 
 	start := time.Now()
@@ -272,8 +266,6 @@ func TestRunForwardRetryLoop_TimeoutBounds(t *testing.T) {
 		t.Fatal("expected error after timeout")
 	}
 
-	// A 503 means the leader never applied the entry. The caller must get a
-	// retry-safe signal, never an ambiguous outcome that would forbid retry.
 	if !errors.Is(err, hraft.ErrNotLeader) {
 		t.Errorf("error: got %v, want hraft.ErrNotLeader so the caller may safely retry", err)
 	}
@@ -282,7 +274,6 @@ func TestRunForwardRetryLoop_TimeoutBounds(t *testing.T) {
 		t.Errorf("a 503 means the entry was not applied; must not surface as outcome-unknown: %v", err)
 	}
 
-	// The deadline, not the attempt budget, is what stops the loop.
 	if got := s.calls.Load(); got != 1 {
 		t.Errorf("attempts: got %d, want 1 (the deadline must stop the loop before the budget does)", got)
 	}

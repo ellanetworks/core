@@ -407,20 +407,8 @@ func waitForSnapshotFile(ctx context.Context, container, hostTmp string, timeout
 		container, timeout, lastOut, lastErr)
 }
 
-// installedRemoteSnapshotLog is the line hashicorp/raft emits after it has
-// accepted an InstallSnapshot RPC and handed the payload to the FSM
-// (raft.go, installSnapshot). It is the only unambiguous evidence that the
-// joiner was caught up by a transferred snapshot rather than by log replay.
 const installedRemoteSnapshotLog = "Installed remote snapshot"
 
-// assertSnapshotInstalled verifies the joiner was brought up to date by an
-// InstallSnapshot RPC from the leader.
-//
-// A snapshot directory on its own proves nothing: a node that caught up by
-// pure log replay and then snapshotted itself on the ordinary interval leaves
-// exactly the same artifact behind. The leader-sent snapshot is confirmed by
-// the raft log line, and the directory check stays as a corroborating signal
-// that the payload was actually persisted.
 func assertSnapshotInstalled(ctx context.Context, dc *DockerClient, composeDir, service, container, hostTmp string) error {
 	logs, err := dc.ComposeLogs(ctx, composeDir, service)
 	if err != nil {

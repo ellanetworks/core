@@ -459,11 +459,6 @@ type subscriberWriter struct {
 	attempts  atomic.Int64
 	fatalErr  atomic.Pointer[error]
 
-	// lastSuccessNanos and maxGapNanos measure write availability: the
-	// longest stretch between two consecutive successful writes. Across a
-	// leader failure that stretch is the outage the cluster actually
-	// imposed on a client, which is otherwise invisible to a test that
-	// only starts writing once a new leader exists.
 	lastSuccessNanos atomic.Int64
 	maxGapNanos      atomic.Int64
 }
@@ -473,8 +468,6 @@ type writerReport struct {
 	transient int64
 	attempts  int64
 
-	// maxGap is the longest observed interval between successful writes.
-	// Zero when fewer than two writes succeeded.
 	maxGap time.Duration
 }
 
@@ -577,9 +570,6 @@ func (w *subscriberWriter) stopAndReport() (writerReport, error) {
 	return report, nil
 }
 
-// recordSuccess updates the longest gap between consecutive successful
-// writes. Called only from the writer goroutine, so the read-modify-write of
-// maxGapNanos needs no further synchronisation.
 func (w *subscriberWriter) recordSuccess(now time.Time) {
 	prev := w.lastSuccessNanos.Swap(now.UnixNano())
 	if prev == 0 {
@@ -591,14 +581,8 @@ func (w *subscriberWriter) recordSuccess(now time.Time) {
 	}
 }
 
-// isTransientWriteError matches errors a write may legitimately hit while
-// leadership moves or a node restarts.
-//
-// Every entry must be an error the cluster recovers from on its own. A 500 is
-// deliberately absent: the server reached a decision and failed, which is the
-// class of breakage these tests exist to catch, and tolerating it would let a
-// genuinely broken cluster pass. The connection-level entries are kept because
-// a rolling upgrade tears down containers under in-flight requests.
+// isTransientWriteError matches errors expected during leadership
+// transitions; conservative — only known patterns are tolerated.
 func isTransientWriteError(err error) bool {
 	if err == nil {
 		return false

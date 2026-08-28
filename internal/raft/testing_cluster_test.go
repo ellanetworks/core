@@ -86,8 +86,6 @@ func TestSetupTestCluster_LeaderPropose(t *testing.T) {
 			firstResult.Index, secondResult.Index)
 	}
 
-	// Every node applies every committed entry, so the commands must reach
-	// all three FSMs, not just the leader's.
 	waitForAppliedIndex(t, tc, secondResult.Index, 10*time.Second)
 
 	for i, a := range appliers {
@@ -101,8 +99,6 @@ func TestSetupTestCluster_LeaderPropose(t *testing.T) {
 	}
 }
 
-// waitForAppliedIndex blocks until every node in tc reports an applied index
-// of at least want.
 func waitForAppliedIndex(t *testing.T, tc *TestCluster, want uint64, timeout time.Duration) {
 	t.Helper()
 
@@ -392,11 +388,6 @@ func TestSetupTestCluster_TwoVoterQuorumLoss(t *testing.T) {
 		t.Fatal("Propose should fail without a quorum; got nil error")
 	}
 
-	// The error must be one hraft raises when an entry cannot be committed,
-	// not an incidental failure such as a marshalling error. internal/db
-	// routes exactly these into ErrOutcomeUnknown / ErrProposeTimeout, which
-	// is what turns a quorum-loss write into a retryable API response
-	// instead of a generic 500.
 	switch {
 	case errors.Is(err, hraft.ErrLeadershipLost),
 		errors.Is(err, hraft.ErrNotLeader),
