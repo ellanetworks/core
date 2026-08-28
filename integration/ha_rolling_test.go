@@ -458,12 +458,24 @@ type subscriberWriter struct {
 	transient atomic.Int64
 	attempts  atomic.Int64
 	fatalErr  atomic.Pointer[error]
+
+	// lastSuccessNanos and maxGapNanos measure write availability: the
+	// longest stretch between two consecutive successful writes. Across a
+	// leader failure that stretch is the outage the cluster actually
+	// imposed on a client, which is otherwise invisible to a test that
+	// only starts writing once a new leader exists.
+	lastSuccessNanos atomic.Int64
+	maxGapNanos      atomic.Int64
 }
 
 type writerReport struct {
 	success   int64
 	transient int64
 	attempts  int64
+
+	// maxGap is the longest observed interval between successful writes.
+	// Zero when fewer than two writes succeeded.
+	maxGap time.Duration
 }
 
 // startSubscriberWriter creates subscribers round-robin at ~5/s.
@@ -525,6 +537,7 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 			switch {
 			case err == nil:
 				w.success.Add(1)
+				w.recordSuccess(time.Now())
 			case isTransientWriteError(err):
 				w.transient.Add(1)
 			default:
@@ -554,6 +567,7 @@ func (w *subscriberWriter) stopAndReport() (writerReport, error) {
 		success:   w.success.Load(),
 		transient: w.transient.Load(),
 		attempts:  w.attempts.Load(),
+		maxGap:    time.Duration(w.maxGapNanos.Load()),
 	}
 
 	if e := w.fatalErr.Load(); e != nil {
@@ -561,6 +575,20 @@ func (w *subscriberWriter) stopAndReport() (writerReport, error) {
 	}
 
 	return report, nil
+}
+
+// recordSuccess updates the longest gap between consecutive successful
+// writes. Called only from the writer goroutine, so the read-modify-write of
+// maxGapNanos needs no further synchronisation.
+func (w *subscriberWriter) recordSuccess(now time.Time) {
+	prev := w.lastSuccessNanos.Swap(now.UnixNano())
+	if prev == 0 {
+		return
+	}
+
+	if gap := now.UnixNano() - prev; gap > w.maxGapNanos.Load() {
+		w.maxGapNanos.Store(gap)
+	}
 }
 
 // isTransientWriteError matches errors a write may legitimately hit while

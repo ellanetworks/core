@@ -24,6 +24,9 @@ jobs:
       matrix:
         include:
           - dir: .
+            pkg: ./internal/db
+            target: FuzzApplyChangeset
+          - dir: .
             pkg: ./internal/sctp
             target: FuzzReassemble
           - dir: lppa

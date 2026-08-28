@@ -351,11 +351,21 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		}
 	}
 
+	// Start writing *before* the leader is stopped. A test that only begins
+	// writing once a new leader exists never observes the outage at all, so
+	// failover could regress by an order of magnitude and still pass.
+	writer := startSubscriberWriter(t, ctx, survivors, "001019756150000")
+
+	// Let a few writes land so the writer has a "last success" to measure
+	// the outage from.
+	time.Sleep(2 * time.Second)
+
 	leaderService := haNodeServices[leaderIdx]
 	HALogf(t, "stopping leader %s (node %d)", leaderService, stoppedNodeID)
 
 	err = dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, leaderService)
 	if err != nil {
+		writer.stop()
 		t.Fatalf("failed to stop leader: %v", err)
 	}
 
@@ -363,7 +373,36 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
+		writer.stop()
 		t.Fatalf("re-election failed: %v", err)
+	}
+
+	// Keep writing until the survivors are serving again, then measure the
+	// gap the writer actually saw.
+	time.Sleep(2 * time.Second)
+
+	writeReport, werr := writer.stopAndReport()
+	if werr != nil {
+		t.Fatalf("background writer reported a permanent failure: %v", werr)
+	}
+
+	HALogf(t, "writer: %d ok, %d transient, %d attempts, longest gap %s",
+		writeReport.success, writeReport.transient, writeReport.attempts, writeReport.maxGap)
+
+	if writeReport.success < 2 {
+		t.Fatalf("writer landed %d successful writes; too few to measure an outage window",
+			writeReport.success)
+	}
+
+	// A regression ceiling, not a product SLO: it is deliberately far above
+	// any healthy failover so it fires only on a large regression, which is
+	// the failure mode that would otherwise stay green. Tighten it once an
+	// availability target is agreed.
+	const failoverWriteGapCeiling = 30 * time.Second
+
+	if writeReport.maxGap > failoverWriteGapCeiling {
+		t.Errorf("writes were unavailable for %s across the leader failure, ceiling is %s",
+			writeReport.maxGap, failoverWriteGapCeiling)
 	}
 
 	HALog(t, "new leader elected, verifying autopilot reports stopped node unhealthy")
