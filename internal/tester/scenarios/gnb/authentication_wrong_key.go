@@ -57,7 +57,7 @@ func runAuthenticationWrongKey(_ context.Context, env scenarios.Env, _ any) erro
 
 	defer gNodeB.Close()
 
-	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, scenarios.NGSetupTimeout)
 	if err != nil {
 		return fmt.Errorf("timeout waiting for NGSetupComplete: %v", err)
 	}

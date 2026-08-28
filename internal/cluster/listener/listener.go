@@ -342,6 +342,15 @@ func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
 	l.trackConn(tlsConn)
 	defer l.untrackConn(tlsConn)
 
+	if err := verifyConnection(l.cfg.Pin)(tlsConn.ConnectionState()); err != nil {
+		logger.RaftLog.Warn("Cluster connection rejected after handshake",
+			zap.String("remote", conn.RemoteAddr().String()),
+			zap.Error(err))
+		_ = conn.Close()
+
+		return
+	}
+
 	handler(conn)
 }
 

@@ -6,7 +6,6 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -48,7 +47,7 @@ func runNGSetupFailureUnknownPLMN(_ context.Context, env scenarios.Env, _ any) e
 	frame, err := node.WaitForMessage(
 		gnb.Unsuccessful,
 		ngap.ProcNGSetup,
-		200*time.Millisecond,
+		scenarios.NGSetupTimeout,
 	)
 	if err != nil {
 		return fmt.Errorf("wait NGSetupFailure: %w", err)

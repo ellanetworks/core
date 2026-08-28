@@ -3,6 +3,8 @@
 
 package scenarios
 
+import "time"
+
 // Defaults the integration suite provisions on Core and scenarios consume
 // directly, keeping a single source of truth for both.
 const (
@@ -48,4 +50,9 @@ const (
 
 	// DefaultProbePort is the TCP/UDP echo port exposed by the on-N6 responder.
 	DefaultProbePort = 34242
+
+	// NGSetupTimeout bounds the wait for an NG Setup outcome. The AMF reads
+	// operator configuration and network slices from storage before it can
+	// answer, so the wait has to absorb database latency on a loaded runner.
+	NGSetupTimeout = 5 * time.Second
 )

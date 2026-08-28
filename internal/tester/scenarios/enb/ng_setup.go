@@ -6,7 +6,6 @@ package enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/enb"
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -50,7 +49,7 @@ func runNgSetup(_ context.Context, env scenarios.Env, _ any) error {
 	if _, err := node.WaitForMessage(
 		gnb.Successful,
 		ngap.ProcNGSetup,
-		1*time.Second,
+		scenarios.NGSetupTimeout,
 	); err != nil {
 		return fmt.Errorf("wait NGSetupResponse: %w", err)
 	}

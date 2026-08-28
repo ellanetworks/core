@@ -25,13 +25,13 @@ import (
 func TestClusterPropose_HappyPath(t *testing.T) {
 	testDB := newLeaderTestDB(t)
 
-	payload, err := json.Marshal(map[string]string{"value": "1970-01-01"})
+	payload, err := json.Marshal(map[string]int64{"value": 30})
 	if err != nil {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
 	envelope, err := json.Marshal(ellaraft.ProposeForwardRequest{
-		Operation: "DeleteOldAuditLogs",
+		Operation: "DeleteOldDailyUsage",
 		Payload:   payload,
 	})
 	if err != nil {
@@ -151,7 +151,7 @@ func TestClusterPropose_MalformedPayloadRejected(t *testing.T) {
 	// in the handler must reject malformed envelopes before dispatch
 	// so a buggy (or malicious) follower can't crash the leader.
 	// An envelope with truncated JSON fails at envelope parse time.
-	badBody := []byte(`{"operation":"DeleteOldAuditLogs","payload":`)
+	badBody := []byte(`{"operation":"DeleteOldDailyUsage","payload":`)
 
 	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader(badBody))
