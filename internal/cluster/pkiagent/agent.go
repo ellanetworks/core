@@ -479,7 +479,7 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 }
 
 func syncDir(dir string) error {
-	fh, err := os.Open(dir)
+	fh, err := os.Open(dir) // #nosec G304 -- under dataDir
 	if err != nil {
 		return err
 	}
