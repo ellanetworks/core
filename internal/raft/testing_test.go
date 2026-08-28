@@ -53,5 +53,16 @@ func TestNewTestManager_ExplicitCleanupIsIdempotent(t *testing.T) {
 	}
 
 	cleanup()
+
+	// The first call must actually shut the manager down — otherwise this
+	// test would pass against a no-op cleanup.
+	if state := m.State(); state != hraft.Shutdown {
+		t.Fatalf("manager state after cleanup = %s, want %s", state, hraft.Shutdown)
+	}
+
 	cleanup() // second call must not panic or error
+
+	if state := m.State(); state != hraft.Shutdown {
+		t.Fatalf("manager state after second cleanup = %s, want %s", state, hraft.Shutdown)
+	}
 }

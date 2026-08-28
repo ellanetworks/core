@@ -42,6 +42,8 @@ func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, servi
 		}
 	}
 
+	captured := 0
+
 	for _, svc := range services {
 		logs, err := dc.ComposeLogs(ctx, composeDir, svc)
 		if err != nil {
@@ -50,6 +52,10 @@ func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, servi
 			}
 
 			continue
+		}
+
+		if len(strings.TrimSpace(logs)) > 0 {
+			captured++
 		}
 
 		if printLogs {
@@ -62,6 +68,15 @@ func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, servi
 				t.Logf("captureClusterLogs: write %s: %v", path, err)
 			}
 		}
+	}
+
+	// docker compose logs against the wrong project directory succeeds and
+	// returns nothing, which silently strips the diagnostics from a failing
+	// run. Surface that rather than leaving an empty artifact behind.
+	if captured == 0 && len(services) > 0 {
+		t.Errorf("captureClusterLogs: collected no logs for any of %v from compose dir %q; "+
+			"the compose directory probably does not match the cluster under test",
+			services, composeDir)
 	}
 }
 
@@ -368,28 +383,45 @@ func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Cli
 	return -1, nil, fmt.Errorf("no leader found")
 }
 
-// waitForNewLeader polls the given clients until exactly one reports itself as
-// leader. It is used after stopping the old leader to wait for re-election.
-func waitForNewLeader(ctx context.Context, clients []*client.Client) (*client.Client, error) {
+// waitForNewLeader polls survivors until exactly one of them reports itself as
+// leader, and returns it. Pass only the nodes expected to survive the
+// transition: a node that is being stopped or drained keeps reporting Leader
+// until leadership actually moves, and including it would return the outgoing
+// leader instead of waiting for the hand-off.
+//
+// Requiring exactly one also rides out the window where two nodes briefly
+// claim leadership, rather than returning whichever was polled first.
+func waitForNewLeader(ctx context.Context, survivors []*client.Client) (*client.Client, error) {
 	timeout := 90 * time.Second
 	deadline := time.Now().Add(timeout)
 
+	var lastSeen int
+
 	for time.Now().Before(deadline) {
-		for _, c := range clients {
+		leaders := make([]*client.Client, 0, len(survivors))
+
+		for _, c := range survivors {
 			status, err := c.GetStatus(ctx)
 			if err != nil {
 				continue
 			}
 
 			if status.Cluster != nil && status.Cluster.Role == "Leader" {
-				return c, nil
+				leaders = append(leaders, c)
 			}
+		}
+
+		lastSeen = len(leaders)
+
+		if lastSeen == 1 {
+			return leaders[0], nil
 		}
 
 		time.Sleep(2 * time.Second)
 	}
 
-	return nil, fmt.Errorf("no new leader elected within %v", timeout)
+	return nil, fmt.Errorf("no single new leader among %d survivors within %v (last saw %d leaders)",
+		len(survivors), timeout, lastSeen)
 }
 
 // waitForNodeReady polls a single node until it is reachable and reports Ready.

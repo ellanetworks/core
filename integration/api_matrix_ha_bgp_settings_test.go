@@ -58,7 +58,7 @@ func runBGPSettingsHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 	assertLocalityBGPSettings := func(t *testing.T, phase string) {
 		t.Helper()
 
-		stabilizeLocal()
+		stabilizeLocal(t, ctx, h)
 
 		for i, c := range h.Clients {
 			if i == writerIdx {

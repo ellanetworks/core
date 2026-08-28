@@ -6,17 +6,34 @@ package integration_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/client"
 )
 
-// stabilizeLocal pauses to give any accidental cross-node propagation a
-// chance to surface before a locality assertion runs. Local-only writes
-// never traverse Raft, so under correct behavior this sleep is a no-op;
-// it exists so regressions become test failures rather than fade silently.
-func stabilizeLocal() {
-	time.Sleep(200 * time.Millisecond)
+// stabilizeLocal establishes a happens-before barrier for a locality
+// assertion: it returns once every node has applied everything the leader
+// has committed.
+//
+// A local-only write that had wrongly gone through Raft would have been
+// committed before this point, so it would carry a log index at or below the
+// leader's current applied index — meaning it is guaranteed visible on the
+// other nodes by the time this returns, and the caller's assertion sees it.
+// A correct local-only write never reaches the log at all, so the barrier is
+// satisfied immediately.
+//
+// This replaces a fixed sleep, which proved nothing: it could pass because
+// propagation was merely slower than the timer.
+func stabilizeLocal(t *testing.T, ctx context.Context, h *haMatrixEnv) {
+	t.Helper()
+
+	idx, err := leaderAppliedIndex(ctx, h.Leader)
+	if err != nil {
+		t.Fatalf("stabilizeLocal: read leader applied index: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, h.Clients, idx); err != nil {
+		t.Fatalf("stabilizeLocal: nodes did not converge on leader index %d: %v", idx, err)
+	}
 }
 
 // haMatrixEnv holds the three clients of a healthy 3-node cluster plus

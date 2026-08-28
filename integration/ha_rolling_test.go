@@ -30,6 +30,8 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 
@@ -561,8 +563,14 @@ func (w *subscriberWriter) stopAndReport() (writerReport, error) {
 	return report, nil
 }
 
-// isTransientWriteError matches errors expected during leadership
-// transitions; conservative — only known patterns are tolerated.
+// isTransientWriteError matches errors a write may legitimately hit while
+// leadership moves or a node restarts.
+//
+// Every entry must be an error the cluster recovers from on its own. A 500 is
+// deliberately absent: the server reached a decision and failed, which is the
+// class of breakage these tests exist to catch, and tolerating it would let a
+// genuinely broken cluster pass. The connection-level entries are kept because
+// a rolling upgrade tears down containers under in-flight requests.
 func isTransientWriteError(err error) bool {
 	if err == nil {
 		return false
@@ -571,7 +579,6 @@ func isTransientWriteError(err error) bool {
 	msg := err.Error()
 	for _, fragment := range []string{
 		"503",
-		"500: Failed to create subscriber",
 		"Service Unavailable",
 		"leader unreachable",
 		"no leader available",
@@ -579,8 +586,8 @@ func isTransientWriteError(err error) bool {
 		"leadership changed",
 		"context deadline exceeded",
 		"connection refused",
-		"EOF",
 		"connection reset",
+		"EOF",
 	} {
 		if strings.Contains(msg, fragment) {
 			return true

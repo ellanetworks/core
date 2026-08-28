@@ -282,6 +282,127 @@ func TestFSM_SnapshotRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+// TestFSM_Restore_AdoptsSnapshotLastApplied pins the invariant Restore
+// carries a long comment to protect: fsm_state is NOT preserved across the
+// file swap. The snapshot holds the lastApplied matching its data, and
+// keeping a higher local value would make the FSM skip post-snapshot log
+// entries it has never applied.
+func TestFSM_Restore_AdoptsSnapshotLastApplied(t *testing.T) {
+	const (
+		snapshotLastApplied uint64 = 42
+		staleLocalIndex     uint64 = 999
+	)
+
+	src := newTestApplier(t)
+	srcFSM := NewFSM(src, t.TempDir())
+
+	if err := srcFSM.writeLastApplied(snapshotLastApplied); err != nil {
+		t.Fatalf("seed source lastApplied: %v", err)
+	}
+
+	payload := persistSnapshot(t, srcFSM)
+
+	dst := newTestApplier(t)
+	dstDir := t.TempDir()
+	dstFSM := NewFSM(dst, dstDir)
+
+	if err := dstFSM.writeLastApplied(staleLocalIndex); err != nil {
+		t.Fatalf("seed destination lastApplied: %v", err)
+	}
+
+	// The marker records that the current code is running, which is what
+	// disables the one-time preserve-old-index migration below.
+	markFSMMigrated(t, dstDir)
+
+	if err := dstFSM.Restore(newReadCloser(payload)); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	got, err := dstFSM.readLastApplied()
+	if err != nil {
+		t.Fatalf("read lastApplied after restore: %v", err)
+	}
+
+	if got != snapshotLastApplied {
+		t.Fatalf("lastApplied after restore = %d, want %d (the snapshot's value); "+
+			"a higher local value would skip entries the node never applied", got, snapshotLastApplied)
+	}
+}
+
+// TestFSM_Restore_PreservesHigherIndexBeforeMigrationMarker covers the other
+// half of the same code: with no marker on disk this is the first restore
+// under the current code, so a higher pre-restore index is kept rather than
+// replaying entries captured against divergent state.
+func TestFSM_Restore_PreservesHigherIndexBeforeMigrationMarker(t *testing.T) {
+	const (
+		snapshotLastApplied uint64 = 42
+		staleLocalIndex     uint64 = 999
+	)
+
+	src := newTestApplier(t)
+	srcFSM := NewFSM(src, t.TempDir())
+
+	if err := srcFSM.writeLastApplied(snapshotLastApplied); err != nil {
+		t.Fatalf("seed source lastApplied: %v", err)
+	}
+
+	payload := persistSnapshot(t, srcFSM)
+
+	dst := newTestApplier(t)
+	dstFSM := NewFSM(dst, t.TempDir())
+
+	if err := dstFSM.writeLastApplied(staleLocalIndex); err != nil {
+		t.Fatalf("seed destination lastApplied: %v", err)
+	}
+
+	if err := dstFSM.Restore(newReadCloser(payload)); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+
+	got, err := dstFSM.readLastApplied()
+	if err != nil {
+		t.Fatalf("read lastApplied after restore: %v", err)
+	}
+
+	if got != staleLocalIndex {
+		t.Fatalf("lastApplied after markerless restore = %d, want %d (the preserved local value)",
+			got, staleLocalIndex)
+	}
+}
+
+// persistSnapshot takes a snapshot of fsm and returns the serialised bytes.
+func persistSnapshot(t *testing.T, fsm *FSM) []byte {
+	t.Helper()
+
+	snap, err := fsm.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	sink := &memSink{}
+	if err := snap.Persist(sink); err != nil {
+		snap.Release()
+
+		t.Fatalf("persist: %v", err)
+	}
+
+	snap.Release()
+
+	if sink.buf.Len() == 0 {
+		t.Fatal("snapshot bytes are empty")
+	}
+
+	return sink.buf.Bytes()
+}
+
+func markFSMMigrated(t *testing.T, dataDir string) {
+	t.Helper()
+
+	if err := os.WriteFile(filepath.Join(dataDir, ".fsm_migrated"), []byte("1"), 0o600); err != nil {
+		t.Fatalf("write fsm migration marker: %v", err)
+	}
+}
+
 // TestFSM_Snapshot_ProducesValidSQLite verifies the snapshot bytes can be
 // opened as a SQLite database independently of the applier round-trip.
 func TestFSM_Snapshot_ProducesValidSQLite(t *testing.T) {
@@ -821,7 +942,14 @@ func TestFSM_Restore_RawSQLite(t *testing.T) {
 	}
 
 	dst := newTestApplier(t)
-	dstFSM := NewFSM(dst, t.TempDir())
+	dstDir := t.TempDir()
+	dstFSM := NewFSM(dst, dstDir)
+
+	if err := dstFSM.writeLastApplied(999); err != nil {
+		t.Fatalf("seed destination lastApplied: %v", err)
+	}
+
+	markFSMMigrated(t, dstDir)
 
 	rc := newReadCloser(raw)
 	if err := dstFSM.Restore(rc); err != nil {
@@ -836,6 +964,17 @@ func TestFSM_Restore_RawSQLite(t *testing.T) {
 
 	if v != "raw" {
 		t.Fatalf("want 'raw', got %q", v)
+	}
+
+	// A headerless snapshot carries fsm_state exactly like a framed one:
+	// the source applier never advanced it, so the stale local 999 must go.
+	got, err := dstFSM.readLastApplied()
+	if err != nil {
+		t.Fatalf("read lastApplied after raw restore: %v", err)
+	}
+
+	if got != 0 {
+		t.Fatalf("lastApplied after raw restore = %d, want 0 (the snapshot's value)", got)
 	}
 }
 

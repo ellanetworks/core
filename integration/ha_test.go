@@ -496,9 +496,21 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
-	_, leader, err := findLeader(ctx, clients)
+	leaderIdx, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	// Poll only the survivors. Including the node being drained lets
+	// waitForNewLeader return on the first Leader it sees — which is the
+	// drained node itself until leadership actually moves — so the identity
+	// check below would fail instead of waiting for the hand-off.
+	survivors := make([]*client.Client, 0, len(clients)-1)
+
+	for i, c := range clients {
+		if i != leaderIdx {
+			survivors = append(survivors, c)
+		}
 	}
 
 	err = waitForAllNodesReady(ctx, clients)
@@ -525,7 +537,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 	HALog(t, "drain accepted, waiting for new leader")
 
 	// The other two nodes should elect a new leader.
-	newLeader, err := waitForNewLeader(ctx, clients)
+	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
 		t.Fatalf("no new leader after drain: %v", err)
 	}
@@ -579,6 +591,8 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	const scaleUpComposeDir = "compose/ha-scaleup/"
 
 	ipFamily := DetectIPFamily()
@@ -619,7 +633,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
+		dumpClusterDiagnostics(t, ctx, dockerClient, scaleUpComposeDir, haNodeServices, clients)
 	})
 
 	_, leader, err := findLeader(ctx, clients)

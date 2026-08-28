@@ -26,6 +26,8 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	const composeDir = "compose/ha-scaleup/"
 
 	HALogf(t, "Running HA snapshot install test in %s mode", DetectIPFamily())
@@ -161,7 +163,7 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 		t.Fatalf("resolve node 4 container: %v", err)
 	}
 
-	if err := assertSnapshotInstalled(ctx, node4Container, hostTmp); err != nil {
+	if err := assertSnapshotInstalled(ctx, dockerClient, composeDir, "ella-core-4", node4Container, hostTmp); err != nil {
 		t.Fatalf("InstallSnapshot did not fire on node 4: %v", err)
 	}
 
@@ -405,14 +407,39 @@ func waitForSnapshotFile(ctx context.Context, container, hostTmp string, timeout
 		container, timeout, lastOut, lastErr)
 }
 
-func assertSnapshotInstalled(ctx context.Context, container, hostTmp string) error {
+// installedRemoteSnapshotLog is the line hashicorp/raft emits after it has
+// accepted an InstallSnapshot RPC and handed the payload to the FSM
+// (raft.go, installSnapshot). It is the only unambiguous evidence that the
+// joiner was caught up by a transferred snapshot rather than by log replay.
+const installedRemoteSnapshotLog = "Installed remote snapshot"
+
+// assertSnapshotInstalled verifies the joiner was brought up to date by an
+// InstallSnapshot RPC from the leader.
+//
+// A snapshot directory on its own proves nothing: a node that caught up by
+// pure log replay and then snapshotted itself on the ordinary interval leaves
+// exactly the same artifact behind. The leader-sent snapshot is confirmed by
+// the raft log line, and the directory check stays as a corroborating signal
+// that the payload was actually persisted.
+func assertSnapshotInstalled(ctx context.Context, dc *DockerClient, composeDir, service, container, hostTmp string) error {
+	logs, err := dc.ComposeLogs(ctx, composeDir, service)
+	if err != nil {
+		return fmt.Errorf("read %s logs: %w", service, err)
+	}
+
+	if !strings.Contains(logs, installedRemoteSnapshotLog) {
+		return fmt.Errorf("%q absent from %s logs: the joiner caught up without receiving an InstallSnapshot RPC",
+			installedRemoteSnapshotLog, service)
+	}
+
 	out, err := listSnapshotDir(ctx, container, hostTmp)
 	if err != nil {
 		return fmt.Errorf("list /data/raft/snapshots on %s: %w (out=%q)", container, err, out)
 	}
 
 	if !hasSnapshotEntry(out) {
-		return fmt.Errorf("no snapshot entry in /data/raft/snapshots on %s; out=%q", container, out)
+		return fmt.Errorf("%s logged %q but persisted no snapshot in /data/raft/snapshots; out=%q",
+			service, installedRemoteSnapshotLog, out)
 	}
 
 	return nil

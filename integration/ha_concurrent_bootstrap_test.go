@@ -34,6 +34,8 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	composeDir := haComposeDir
 	composeFile := ComposeFile()
 

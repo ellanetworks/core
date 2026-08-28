@@ -47,7 +47,7 @@ func runFlowAccountingHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv
 		t.Fatalf("writer flow accounting Enabled: got %t, want %t", got.Enabled, target)
 	}
 
-	stabilizeLocal()
+	stabilizeLocal(t, ctx, h)
 
 	for i, c := range h.Clients {
 		if i == writerIdx {
