@@ -57,7 +57,7 @@ This path removes a node from the Raft cluster. The node must be drained first (
 
 | Name    | In    | Type | Default | Description                                     |
 | ------- | ----- | ---- | ------- | ----------------------------------------------- |
-| `force` | query | bool | `false` | Bypass the drain precondition.                  |
+| `force` | query | bool | `false` | Bypass the drain and quorum preconditions.      |
 
 ### Sample Response
 
