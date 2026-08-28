@@ -26,6 +26,44 @@ type pendingN1 struct {
 	n2Info       []byte
 }
 
+type bufferedSM struct {
+	stage        *pendingN1
+	n1Only       []byte
+	pduSessionID uint8
+	stale        bool
+	present      bool
+}
+
+func resolveBufferedSM(ue *amf.UeContext) bufferedSM {
+	req := ue.N1N2Message()
+	if req == nil || req.Standalone() {
+		return bufferedSM{}
+	}
+
+	out := bufferedSM{pduSessionID: req.PduSessionID, present: true}
+
+	if _, exist := ue.SmContextFindByPDUSessionID(req.PduSessionID); !exist {
+		out.stale = true
+
+		return out
+	}
+
+	if req.BinaryDataN2Information == nil {
+		out.n1Only = req.BinaryDataN1Message
+
+		return out
+	}
+
+	out.stage = &pendingN1{
+		pduSessionID: req.PduSessionID,
+		snssai:       req.SNssai,
+		n1Msg:        req.BinaryDataN1Message,
+		n2Info:       req.BinaryDataN2Information,
+	}
+
+	return out
+}
+
 func sendServiceAccept(
 	ctx context.Context,
 	ue *amf.UeContext,
@@ -279,58 +317,99 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 
 	initialContextSetup := ueConn.UeContextRequest && ueConn.ClaimICS()
 
-	if requestData := ue.N1N2Message(); requestData != nil {
-		if requestData.N2Class == models.N2ClassSM && requestData.BinaryDataN2Information != nil {
-			targetPduSessionID = requestData.PduSessionID
-		}
+	buffered := resolveBufferedSM(ue)
+
+	if buffered.stale {
+		logger.From(ctx, logger.AmfLog).Warn("discarding buffered downlink payload naming a PDU session the UE no longer holds",
+			zap.Uint8("pdu_session_id", buffered.pduSessionID))
+	}
+
+	if buffered.stage != nil {
+		targetPduSessionID = buffered.stage.pduSessionID
 	}
 
 	// Copy SmContextList under lock for safe concurrent iteration.
 	smContextSnapshot := ue.SmContextSnapshot()
 
+	activate := make(map[uint8]bool, len(smContextSnapshot))
+
+	if buffered.present && !buffered.stale && buffered.stage == nil {
+		activate[buffered.pduSessionID] = true
+	}
+
+	var requestedPsi []uint8
+
 	if msg.UplinkDataStatus != nil {
 		uplinkDataPsi := msg.UplinkDataStatus.PSI
 		reactivationResult = new([16]bool)
 
-		for pduSessionID, smContext := range smContextSnapshot {
+		for pduSessionID := range smContextSnapshot {
 			if int(pduSessionID) >= len(uplinkDataPsi) {
 				logger.From(ctx, logger.AmfLog).Warn("Ignoring out-of-range PDU session ID in UplinkDataStatus processing", zap.Uint8("pdu_session_id", pduSessionID))
 				continue
 			}
 
-			if pduSessionID != targetPduSessionID {
-				if uplinkDataPsi[pduSessionID] {
-					binaryDataN2SmInformation, err := amfInstance.Session.ActivateSmContext(ctx, smContext.Ref)
-					if err != nil {
-						logger.From(ctx, logger.AmfLog).Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
-						reactivationResult[pduSessionID] = true
-						errPduSessionID = append(errPduSessionID, pduSessionID)
-						cause := fgs.GMMCauseProtocolErrorUnspecified
-						errCause = append(errCause, uint8(cause))
-
-						continue
-					}
-
-					ue.SetSmContextActive(pduSessionID)
-
-					if initialContextSetup {
-						item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
-						if err != nil {
-							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
-						} else {
-							ctxList = append(ctxList, item)
-						}
-					} else {
-						item, err := amf.PDUSessionSetupItemSUReq(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
-						if err != nil {
-							logger.From(ctx, logger.AmfLog).Error("could not build PDU session setup item", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
-						} else {
-							suList = append(suList, item)
-						}
-					}
-				}
+			if !uplinkDataPsi[pduSessionID] {
+				continue
 			}
+
+			requestedPsi = append(requestedPsi, pduSessionID)
+
+			if pduSessionID == targetPduSessionID {
+				continue
+			}
+
+			activate[pduSessionID] = true
 		}
+	}
+
+	for pduSessionID := range activate {
+		smContext, ok := smContextSnapshot[pduSessionID]
+		if !ok {
+			continue
+		}
+
+		failed := func(err error) {
+			logger.From(ctx, logger.AmfLog).Error("could not re-establish user-plane resources", zap.Error(err), zap.Uint8("pdu_session_id", pduSessionID))
+
+			if reactivationResult != nil {
+				reactivationResult[pduSessionID] = true
+			}
+
+			errPduSessionID = append(errPduSessionID, pduSessionID)
+			errCause = append(errCause, uint8(fgs.GMMCauseProtocolErrorUnspecified))
+		}
+
+		binaryDataN2SmInformation, err := amfInstance.Session.ActivateSmContext(ctx, smContext.Ref)
+		if err != nil {
+			failed(err)
+
+			continue
+		}
+
+		ue.SetSmContextActive(pduSessionID)
+
+		if initialContextSetup {
+			item, err := amf.PDUSessionSetupItem(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+			if err != nil {
+				failed(err)
+
+				continue
+			}
+
+			ctxList = append(ctxList, item)
+
+			continue
+		}
+
+		item, err := amf.PDUSessionSetupItemSUReq(pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
+		if err != nil {
+			failed(err)
+
+			continue
+		}
+
+		suList = append(suList, item)
 	}
 
 	if msg.PDUSessionStatus != nil {
@@ -354,6 +433,15 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		}
 	}
 
+	if len(requestedPsi) != 0 && buffered.stage == nil && len(ctxList) == 0 && len(suList) == 0 {
+		logger.From(ctx, logger.AmfLog).Error("no user-plane resources established for a service request that asked for them",
+			logger.SUPI(ue.Supi().String()), zap.Uint8s("pdu_session_ids", requestedPsi))
+
+		for _, pduSessionID := range requestedPsi {
+			reactivationResult[pduSessionID] = true
+		}
+	}
+
 	accept := func(pending *pendingN1) error {
 		err := sendServiceAccept(ctx, ue, ueConn, initialContextSetup, ctxList, suList, acceptPduSessionPsi,
 			reactivationResult, errPduSessionID, errCause, operatorInfo.Guami, pending)
@@ -368,56 +456,41 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeC
 		return err
 	}
 
+	if buffered.stale && serviceType == fgs.ServiceTypeMobileTerminatedServices {
+		ue.ClearN1N2Message()
+
+		if initialContextSetup {
+			ueConn.ResetICS()
+		}
+
+		return nasreply.Silent(nasreply.ReasonNoContext)
+	}
+
+	if buffered.stage != nil {
+		ue.SetSmContextActive(buffered.stage.pduSessionID)
+	}
+
+	if err := accept(buffered.stage); err != nil {
+		return nasreply.Handled()
+	}
+
+	if buffered.present {
+		ue.ClearN1N2Message()
+	}
+
+	if buffered.n1Only != nil {
+		amf.SendDLNASTransport(ctx, ueConn, fgs.PayloadContainerTypeN1SMInfo, buffered.n1Only, fgs.PDUSessionID(buffered.pduSessionID), 0)
+	}
+
 	if serviceType == fgs.ServiceTypeMobileTerminatedServices {
 		// TS 24.501 requires assigning a new GUTI after a successful Service Request
 		// triggered by a paging request.
-		requestData := ue.N1N2Message()
-
-		switch {
-		case requestData == nil || requestData.Standalone():
-			if err := accept(nil); err != nil {
-				return nasreply.Handled()
-			}
-
-		default:
-			_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
-			if !exist {
-				ue.ClearN1N2Message()
-				logger.From(ctx, logger.AmfLog).Warn("service Request triggered by Network for pduSessionID that does not exist")
-
-				if initialContextSetup {
-					ueConn.ResetICS()
-				}
-
-				return nasreply.Silent(nasreply.ReasonNoContext)
-			}
-
-			ue.SetSmContextActive(requestData.PduSessionID)
-
-			pending := &pendingN1{
-				pduSessionID: requestData.PduSessionID,
-				snssai:       requestData.SNssai,
-				n1Msg:        requestData.BinaryDataN1Message,
-				n2Info:       requestData.BinaryDataN2Information,
-			}
-
-			logger.From(ctx, logger.AmfLog).Debug("sending service accept")
-
-			if err := accept(pending); err != nil {
-				return nasreply.Handled()
-			}
-
-			ue.ClearN1N2Message()
-		}
-
 		if err := amfInstance.ReallocateGUTI(ctx, ue); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("error reallocating GUTI to UE", zap.Error(err))
 			return nasreply.Handled()
 		}
 
 		amf.SendConfigurationUpdateCommand(ctx, amfInstance, ue, true, operator)
-	} else if err := accept(nil); err != nil {
-		return nasreply.Handled()
 	}
 
 	if len(errPduSessionID) != 0 {

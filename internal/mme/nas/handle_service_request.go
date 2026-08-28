@@ -90,14 +90,33 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	if ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, c, qos); ok {
-		_ = sendInitialContextSetup(ctx, c, ics, carrier, nil)
+	ics, carrier, ok := buildInitialContextSetup(ctx, m, ue, c, qos)
+	if !ok {
+		rejectService(ctx, m, ue, c, eps.EMMCauseNoEPSBearerContextActivated)
+
+		return
 	}
+
+	_ = sendInitialContextSetup(ctx, c, ics, carrier, nil)
 
 	// The SERVICE REQUEST carries no accept message to convey a fresh GUTI, so reassign
 	// one with the standalone reallocation procedure — identity confidentiality on return
 	// from idle (TS 24.301 §5.4.1).
 	m.SendGUTIReallocationCommand(ctx, ue)
+}
+
+// rejectService answers a service request the MME cannot accept (TS 24.301 §5.6.1.5).
+func rejectService(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
+	ueConn.StopNASGuard()
+
+	reject := &eps.ServiceReject{Cause: cause}
+	if ue.Secured() {
+		ueConn.SendDownlinkProtected(ctx, reject)
+	} else {
+		ueConn.SendDownlinkMessage(ctx, reject)
+	}
+
+	m.ReleaseUEContext(ctx, ue, mme.CauseNASDetach)
 }
 
 // sendServiceReject sends a SERVICE REJECT with the given EMM cause over a bare connection,
