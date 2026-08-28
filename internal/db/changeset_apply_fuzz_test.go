@@ -5,6 +5,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -38,10 +39,11 @@ func FuzzApplyChangeset(f *testing.F) {
 		select {
 		case <-done:
 		case <-time.After(applyChangesetFuzzBudget):
-			t.Fatalf("applyChangeset did not return within %s for %d bytes; "+
+			panic(fmt.Sprintf("applyChangeset did not return within %s for %d bytes (%q); "+
 				"a changeset apply that never returns blocks the FSM without panicking, "+
-				"so the node stops applying entries and never restarts",
-				applyChangesetFuzzBudget, len(changeset))
+				"so the node stops applying entries and never restarts. The spin is inside cgo "+
+				"and cannot be reclaimed, so the process is poisoned from here",
+				applyChangesetFuzzBudget, len(changeset), changeset))
 		}
 
 		if _, err := fuzzDB.conn().PlainDB().ExecContext(ctx,

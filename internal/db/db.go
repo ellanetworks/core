@@ -1006,7 +1006,10 @@ type clusterCoordinator struct {
 	cancelTick context.CancelFunc
 }
 
-const migrationGateTickInterval = 5 * time.Second
+const (
+	migrationGateTickInterval = 5 * time.Second
+	reconcileBarrierTimeout   = 10 * time.Second
+)
 
 func newClusterCoordinator(db *Database, parentCtx context.Context) *clusterCoordinator {
 	return &clusterCoordinator{db: db, parentCtx: parentCtx}
@@ -1059,6 +1062,60 @@ func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
 }
 
 func (db *Database) reconcileClusterMembers(ctx context.Context) error {
+	if !db.clusterEnabled || db.raftManager == nil || !db.raftManager.IsLeader() {
+		return nil
+	}
+
+	observed, err := db.orphanedClusterMembers(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(observed) == 0 {
+		return nil
+	}
+
+	if err := db.raftManager.Barrier(reconcileBarrierTimeout); err != nil {
+		return fmt.Errorf("barrier before cluster member reconcile: %w", err)
+	}
+
+	confirmed, err := db.orphanedClusterMembers(ctx)
+	if err != nil {
+		return err
+	}
+
+	stillAbsent := make(map[int]struct{}, len(confirmed))
+	for _, nodeID := range confirmed {
+		stillAbsent[nodeID] = struct{}{}
+	}
+
+	var errs []error
+
+	for _, nodeID := range observed {
+		if _, ok := stillAbsent[nodeID]; !ok {
+			continue
+		}
+
+		if !db.raftManager.IsLeader() {
+			break
+		}
+
+		if err := db.DeleteClusterMember(ctx, nodeID); err != nil {
+			errs = append(errs, fmt.Errorf("delete cluster member %d: %w", nodeID, err))
+			continue
+		}
+
+		logger.WithTrace(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
+			zap.Int("nodeId", nodeID),
+		)
+
+		db.purgeReconciledNodeArtifacts(ctx, nodeID)
+	}
+
+	return errors.Join(errs...)
+}
+
+func (db *Database) orphanedClusterMembers(ctx context.Context) ([]int, error) {
 	var configuration []int
 
 	if db.raftMemberIDs != nil {
@@ -1066,12 +1123,12 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 	}
 
 	if len(configuration) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
-		return fmt.Errorf("list cluster members: %w", err)
+		return nil, fmt.Errorf("list cluster members: %w", err)
 	}
 
 	inConfiguration := make(map[int]struct{}, len(configuration))
@@ -1079,21 +1136,29 @@ func (db *Database) reconcileClusterMembers(ctx context.Context) error {
 		inConfiguration[nodeID] = struct{}{}
 	}
 
+	var orphans []int
+
 	for _, m := range members {
 		if _, ok := inConfiguration[m.NodeID]; ok {
 			continue
 		}
 
-		if err := db.DeleteClusterMember(ctx, m.NodeID); err != nil {
-			return fmt.Errorf("delete cluster member %d: %w", m.NodeID, err)
-		}
-
-		logger.WithTrace(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
-			zap.Int("nodeId", m.NodeID),
-		)
+		orphans = append(orphans, m.NodeID)
 	}
 
-	return nil
+	return orphans, nil
+}
+
+func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID int) {
+	if err := db.DeleteDynamicLeasesByNode(ctx, nodeID); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to purge dynamic IP leases for a reconciled cluster member",
+			zap.Int("nodeId", nodeID), zap.Error(err))
+	}
+
+	if err := db.DeleteClusterNodeCert(ctx, nodeID); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to drop the certificate pin for a reconciled cluster member",
+			zap.Int("nodeId", nodeID), zap.Error(err))
+	}
 }
 
 // RemoveServer removes a node from the Raft cluster. Only callable on the leader.

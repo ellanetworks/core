@@ -353,6 +353,14 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	writer := startSubscriberWriter(t, ctx, survivors, "001019756150000")
 
+	writerStopped := false
+
+	t.Cleanup(func() {
+		if !writerStopped {
+			writer.stop()
+		}
+	})
+
 	time.Sleep(2 * time.Second)
 
 	leaderService := haNodeServices[leaderIdx]
@@ -360,7 +368,6 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	err = dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, leaderService)
 	if err != nil {
-		writer.stop()
 		t.Fatalf("failed to stop leader: %v", err)
 	}
 
@@ -368,13 +375,14 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
-		writer.stop()
 		t.Fatalf("re-election failed: %v", err)
 	}
 
 	time.Sleep(2 * time.Second)
 
 	writeReport, werr := writer.stopAndReport()
+	writerStopped = true
+
 	if werr != nil {
 		t.Fatalf("background writer reported a permanent failure: %v", werr)
 	}

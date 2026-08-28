@@ -5,6 +5,7 @@ package db
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -57,7 +58,26 @@ func buildBaselineSnapshotPayload(t *testing.T) []byte {
 	return payload
 }
 
-func seedRaftSnapshot(t *testing.T, dataDir string, nodeID int, payload []byte) {
+func freeLoopbackAddress(t *testing.T) string {
+	t.Helper()
+
+	var lc net.ListenConfig
+
+	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve loopback port: %v", err)
+	}
+
+	addr := ln.Addr().String()
+
+	if err := ln.Close(); err != nil {
+		t.Fatalf("release loopback port: %v", err)
+	}
+
+	return addr
+}
+
+func seedRaftSnapshot(t *testing.T, dataDir string, nodeID int, addr string, payload []byte) {
 	t.Helper()
 
 	raftDir := filepath.Join(dataDir, "raft")
@@ -76,7 +96,7 @@ func seedRaftSnapshot(t *testing.T, dataDir string, nodeID int, payload []byte) 
 		Servers: []raft.Server{{
 			Suffrage: raft.Voter,
 			ID:       raft.ServerID("1"),
-			Address:  raft.ServerAddress("127.0.0.1:17000"),
+			Address:  raft.ServerAddress(addr),
 		}},
 	}
 
@@ -109,14 +129,16 @@ func TestBootSnapshotRestoreRespectsBaselineInClusterMode(t *testing.T) {
 	dataDir := t.TempDir()
 	dbPath := filepath.Join(dataDir, "ella.db")
 
+	addr := freeLoopbackAddress(t)
+
 	payload := buildBaselineSnapshotPayload(t)
-	seedRaftSnapshot(t, dataDir, 1, payload)
+	seedRaftSnapshot(t, dataDir, 1, addr, payload)
 
 	cfg := ellaraft.FastTestConfig()
 	cfg.Enabled = true
 	cfg.NodeID = 1
-	cfg.BindAddress = "127.0.0.1:17000"
-	cfg.AdvertiseAddress = "127.0.0.1:17000"
+	cfg.BindAddress = addr
+	cfg.AdvertiseAddress = addr
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

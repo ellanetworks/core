@@ -14,7 +14,7 @@ on:
 jobs:
   discover:
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     outputs:
       targets: ${{ steps.list.outputs.targets }}
     steps:
@@ -25,7 +25,9 @@ jobs:
           go-version-file: "go.mod"
 
       - id: list
-        run: echo "targets=$(.github/scripts/list-fuzz-targets.sh)" >> "$GITHUB_OUTPUT"
+        run: |
+          targets=$(.github/scripts/list-fuzz-targets.sh)
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
 
   fuzz:
     needs: discover

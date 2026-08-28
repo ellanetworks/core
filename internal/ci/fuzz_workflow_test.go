@@ -14,8 +14,6 @@ import (
 	"testing"
 )
 
-var goModules = []string{".", "lppa", "nas", "ngap", "nrppa", "per", "s1ap"}
-
 type fuzzTarget struct {
 	Dir    string `json:"dir"`
 	Pkg    string `json:"pkg"`
@@ -26,13 +24,17 @@ func (f fuzzTarget) String() string {
 	return f.Dir + " " + f.Pkg + " " + f.Target
 }
 
-var fuzzFuncRe = regexp.MustCompile(`(?m)^func (Fuzz[A-Za-z0-9_]*)\(`)
+var fuzzFuncRe = regexp.MustCompile(`(?m)^func (Fuzz[A-Za-z0-9_]*)\(\s*[A-Za-z_][A-Za-z0-9_]*\s+\*testing\.F\s*\)`)
 
 func TestFuzzDiscoveryFindsEveryTarget(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping: the discovery script links a test binary for every package in every module")
+	}
+
 	root := repoRoot(t)
 
 	discovered := runDiscoveryScript(t, root)
-	found := scanFuzzTargets(t, root)
+	found := scanFuzzTargets(t, root, goModules(t, root))
 
 	if missing := difference(found, discovered); len(missing) > 0 {
 		t.Errorf("fuzz targets exist but discovery does not emit them, so they are never fuzzed:\n  %s",
@@ -89,12 +91,56 @@ func TestFuzzWorkflowRegexesAreAnchored(t *testing.T) {
 	}
 }
 
-func scanFuzzTargets(t *testing.T, root string) []string {
+func goModules(t *testing.T, root string) []string {
 	t.Helper()
 
-	nested := make(map[string]bool, len(goModules))
+	var mods []string
 
-	for _, m := range goModules {
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			if d.Name() == ".git" || d.Name() == "node_modules" {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if d.Name() != "go.mod" {
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(root, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
+		}
+
+		mods = append(mods, filepath.ToSlash(rel))
+
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk for go.mod: %v", err)
+	}
+
+	if len(mods) == 0 {
+		t.Fatal("found no go.mod in the repository; the module scanner is broken")
+	}
+
+	sort.Strings(mods)
+
+	return mods
+}
+
+func scanFuzzTargets(t *testing.T, root string, modules []string) []string {
+	t.Helper()
+
+	nested := make(map[string]bool, len(modules))
+
+	for _, m := range modules {
 		if m != "." {
 			nested[m] = true
 		}
@@ -102,7 +148,7 @@ func scanFuzzTargets(t *testing.T, root string) []string {
 
 	var out []string
 
-	for _, mod := range goModules {
+	for _, mod := range modules {
 		modRoot := filepath.Join(root, mod)
 
 		err := filepath.WalkDir(modRoot, func(path string, d os.DirEntry, err error) error {

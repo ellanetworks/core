@@ -60,6 +60,7 @@ func TestReconcileClusterMembers_DeletesRowAbsentFromConfiguration(t *testing.T)
 
 	seedMembers(t, database, ctx, 1, 2, 3)
 
+	database.clusterEnabled = true
 	database.raftMemberIDs = func() []int { return []int{1, 2} }
 
 	if err := database.reconcileClusterMembers(ctx); err != nil {
@@ -77,6 +78,7 @@ func TestReconcileClusterMembers_KeepsEveryConfiguredMember(t *testing.T) {
 
 	seedMembers(t, database, ctx, 1, 2, 3)
 
+	database.clusterEnabled = true
 	database.raftMemberIDs = func() []int { return []int{1, 2, 3} }
 
 	if err := database.reconcileClusterMembers(ctx); err != nil {
@@ -94,6 +96,7 @@ func TestReconcileClusterMembers_KeepsNodeInConfigurationWithoutRow(t *testing.T
 
 	seedMembers(t, database, ctx, 1)
 
+	database.clusterEnabled = true
 	database.raftMemberIDs = func() []int { return []int{1, 2} }
 
 	if err := database.reconcileClusterMembers(ctx); err != nil {
@@ -111,6 +114,7 @@ func TestReconcileClusterMembers_UnavailableConfigurationDeletesNothing(t *testi
 
 	seedMembers(t, database, ctx, 1, 2, 3)
 
+	database.clusterEnabled = true
 	database.raftMemberIDs = func() []int { return nil }
 
 	if err := database.reconcileClusterMembers(ctx); err != nil {
@@ -128,6 +132,7 @@ func TestReconcileClusterMembers_NoRaftAccessorDeletesNothing(t *testing.T) {
 
 	seedMembers(t, database, ctx, 1, 2)
 
+	database.clusterEnabled = true
 	database.raftMemberIDs = nil
 
 	if err := database.reconcileClusterMembers(ctx); err != nil {
@@ -136,5 +141,62 @@ func TestReconcileClusterMembers_NoRaftAccessorDeletesNothing(t *testing.T) {
 
 	if got := memberIDs(t, database, ctx); !equalIDs(got, []int{1, 2}) {
 		t.Fatalf("members after reconcile: want [1 2], got %v", got)
+	}
+}
+
+func TestReconcileClusterMembers_StandaloneDeletesNothing(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	seedMembers(t, database, ctx, 1, 2, 3)
+
+	if database.ClusterEnabled() {
+		t.Fatal("newStandaloneDB reported clustering enabled; the standalone gate is not under test")
+	}
+
+	database.raftMemberIDs = func() []int { return []int{1} }
+
+	if err := database.reconcileClusterMembers(ctx); err != nil {
+		t.Fatalf("reconcileClusterMembers: %v", err)
+	}
+
+	if got := memberIDs(t, database, ctx); !equalIDs(got, []int{1, 2, 3}) {
+		t.Fatalf("standalone reconcile wiped the inventory a restored HA backup carries: want [1 2 3], got %v", got)
+	}
+}
+
+func TestReconcileClusterMembers_PurgesLeasesAndCertPin(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	seedMembers(t, database, ctx, 1, 2)
+
+	if err := database.UpsertClusterNodeCert(ctx, &ClusterNodeCert{
+		NodeID:      2,
+		Fingerprint: "aa:bb:cc",
+	}); err != nil {
+		t.Fatalf("seed cert pin: %v", err)
+	}
+
+	database.clusterEnabled = true
+	database.raftMemberIDs = func() []int { return []int{1} }
+
+	if err := database.reconcileClusterMembers(ctx); err != nil {
+		t.Fatalf("reconcileClusterMembers: %v", err)
+	}
+
+	if got := memberIDs(t, database, ctx); !equalIDs(got, []int{1}) {
+		t.Fatalf("members after reconcile: want [1], got %v", got)
+	}
+
+	certs, err := database.ListClusterNodeCerts(ctx)
+	if err != nil {
+		t.Fatalf("ListClusterNodeCerts: %v", err)
+	}
+
+	for _, c := range certs {
+		if c.NodeID == 2 {
+			t.Error("reconciled node kept its certificate pin; peers would still accept its handshakes")
+		}
 	}
 }

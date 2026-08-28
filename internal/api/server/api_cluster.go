@@ -13,8 +13,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/hashicorp/raft"
-	autopilot "github.com/hashicorp/raft-autopilot"
 	"go.uber.org/zap"
 )
 
@@ -250,16 +248,6 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if !force {
-			if state := dbInstance.AutopilotState(); state != nil && !quorumSafeToRemove(state, nodeID) {
-				writeError(r.Context(), w, http.StatusConflict,
-					fmt.Sprintf("Removing node %d would leave the cluster without a healthy quorum; restore the unhealthy voters first, or pass ?force=true to skip", nodeID),
-					nil, logger.APILog)
-
-				return
-			}
-		}
-
 		if err := dbInstance.RemoveServer(nodeID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to remove server from Raft cluster", err, logger.APILog)
 			return
@@ -301,31 +289,6 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member removed"}, http.StatusOK, logger.APILog)
 	})
-}
-
-func quorumSafeToRemove(state *autopilot.State, nodeID int) bool {
-	targetID := raft.ServerID(strconv.Itoa(nodeID))
-
-	if target, ok := state.Servers[targetID]; ok && !target.Health.Healthy {
-		return true
-	}
-
-	survivors := 0
-	healthy := 0
-
-	for id, srv := range state.Servers {
-		if id == targetID || !srv.HasVotingRights() {
-			continue
-		}
-
-		survivors++
-
-		if srv.Health.Healthy {
-			healthy++
-		}
-	}
-
-	return healthy >= survivors/2+1
 }
 
 const ClusterMemberPromoteAction = "cluster_member_promote"
