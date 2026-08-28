@@ -725,9 +725,9 @@ func TestRegistrationAcceptGuardExpiryDropsTheEPSRegistration(t *testing.T) {
 	amf.ArmRegistrationAcceptGuard(amfInstance, ue, []byte{0x7e, 0x00, 0x42})
 
 	deadline := time.Now().Add(2 * time.Second)
-	for ue.State() != amf.Registered {
+	for peer.cancels.Load() == 0 {
 		if time.Now().After(deadline) {
-			t.Fatalf("T3550 never wrote the registration off; state = %s", ue.State())
+			t.Fatalf("EPS registrations cancelled = 0, want 1; UE state = %s", ue.State())
 		}
 
 		time.Sleep(time.Millisecond)
@@ -735,6 +735,10 @@ func TestRegistrationAcceptGuardExpiryDropsTheEPSRegistration(t *testing.T) {
 
 	if got := peer.cancels.Load(); got != 1 {
 		t.Errorf("EPS registrations cancelled = %d, want 1", got)
+	}
+
+	if got := ue.State(); got != amf.Registered {
+		t.Errorf("UE state = %s, want %s", got, amf.Registered)
 	}
 }
 
