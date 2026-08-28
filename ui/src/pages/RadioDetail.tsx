@@ -24,16 +24,24 @@ import {
 } from "@mui/x-data-grid";
 import EntityGrid, { EMBEDDED_GRID_HEIGHT } from "@/components/grid/EntityGrid";
 import { useQuery } from "@tanstack/react-query";
-import { getRadio, type APIRadioDetail, type Snssai } from "@/queries/radios";
+import {
+  forgetRadio,
+  getRadio,
+  type APIRadioDetail,
+  type Snssai,
+} from "@/queries/radios";
 import {
   listSubscribersByRadio,
   type APISubscriberSummary,
 } from "@/queries/subscribers";
 import { listRadioEvents, type APIRadioEvent } from "@/queries/radio_events";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import QueryState from "@/components/QueryState";
+import RadioStatusChip from "@/components/RadioStatusChip";
 import RanNodeTypeChip from "@/components/RanNodeTypeChip";
 import TacValue from "@/components/TacValue";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 import { formatDateTime } from "@/utils/formatters";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
@@ -50,23 +58,49 @@ const labelCellSx = { fontWeight: 600, width: "35%" } as const;
 const valueCellSx = { width: "65%" } as const;
 
 const RadioDetail: React.FC = () => {
-  const { name } = useParams<{ name: string }>();
+  const { ranNodeType, id } = useParams<{ ranNodeType: string; id: string }>();
+  const identity = ranNodeType && id ? { type: ranNodeType, id } : undefined;
   const navigate = useNavigate();
-  const { accessToken, authReady } = useAuth();
+  const { accessToken, authReady, role } = useAuth();
+  const { showSnackbar } = useSnackbar();
 
   const theme = useTheme();
+
+  const [isForgetConfirmOpen, setForgetConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
   const radioQuery = useQuery<APIRadioDetail>({
-    queryKey: ["radio", name],
-    queryFn: () => getRadio(accessToken!, name!),
-    enabled: authReady && !!accessToken && !!name,
+    queryKey: ["radio", ranNodeType, id],
+    queryFn: () => getRadio(accessToken!, identity!),
+    enabled: authReady && !!accessToken && !!identity,
     refetchInterval: 5000,
     retry: false,
   });
+
+  const radioName = radioQuery.data?.name;
+  const radioLabel = radioName || `${ranNodeType} ${id}`;
+
+  const canForget = radioQuery.data?.status === "offline";
+
+  const handleForgetConfirm = async () => {
+    if (!identity || !accessToken) return;
+
+    try {
+      await forgetRadio(accessToken, identity);
+      setForgetConfirmOpen(false);
+      showSnackbar(`Radio "${radioLabel}" forgotten.`, "success");
+      navigate("/radios");
+    } catch (err) {
+      setForgetConfirmOpen(false);
+      showSnackbar(
+        `Failed to forget radio: ${err instanceof Error ? err.message : "Unknown error"}`,
+        "error",
+      );
+    }
+  };
 
   const [subsPaginationModel, setSubsPaginationModel] =
     useState<GridPaginationModel>({ page: 0, pageSize: 10 });
@@ -75,21 +109,21 @@ const RadioDetail: React.FC = () => {
   const subsPerPage = subsPaginationModel.pageSize;
 
   const subscribersQuery = useQuery({
-    queryKey: ["subscribers-by-radio", name, subsPage, subsPerPage],
+    queryKey: ["subscribers-by-radio", radioName, subsPage, subsPerPage],
     queryFn: () =>
-      listSubscribersByRadio(accessToken!, name!, subsPage, subsPerPage),
-    enabled: authReady && !!accessToken && !!name,
+      listSubscribersByRadio(accessToken!, radioName!, subsPage, subsPerPage),
+    enabled: authReady && !!accessToken && !!radioName,
     refetchInterval: 5000,
     retry: false,
   });
 
   const eventsQuery = useQuery({
-    queryKey: ["radio-events", name],
+    queryKey: ["radio-events", radioName],
     queryFn: () =>
       listRadioEvents(accessToken!, 1, 12, {
-        radio: name!,
+        radio: radioName!,
       }),
-    enabled: authReady && !!accessToken && !!name,
+    enabled: authReady && !!accessToken && !!radioName,
     refetchInterval: 5000,
     retry: false,
   });
@@ -274,35 +308,65 @@ const RadioDetail: React.FC = () => {
     <Box
       sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Box sx={{ mb: 3 }}>
-        <Typography
-          variant="h4"
-          component="h1"
-          sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-        >
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ flex: 1 }}>
           <Typography
-            component={RouterLink}
-            to="/radios"
             variant="h4"
-            sx={{
-              color: "text.secondary",
-              textDecoration: "none",
-              "&:hover": { textDecoration: "underline" },
-            }}
+            component="h1"
+            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
           >
-            Radios
+            <Typography
+              component={RouterLink}
+              to="/radios"
+              variant="h4"
+              sx={{
+                color: "text.secondary",
+                textDecoration: "none",
+                "&:hover": { textDecoration: "underline" },
+              }}
+            >
+              Radios
+            </Typography>
+            <Typography
+              component="span"
+              variant="h4"
+              sx={{ color: "text.secondary", mx: 1 }}
+            >
+              /
+            </Typography>
+            <Typography component="span" variant="h4">
+              {radioLabel}
+            </Typography>
           </Typography>
-          <Typography
-            component="span"
-            variant="h4"
-            sx={{ color: "text.secondary", mx: 1 }}
-          >
-            /
-          </Typography>
-          <Typography component="span" variant="h4">
-            {name}
-          </Typography>
-        </Typography>
+        </Box>
+        {role === "Admin" && (
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Tooltip
+              title={
+                canForget ? "" : "Only a disconnected radio can be forgotten"
+              }
+            >
+              <span>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  disabled={!canForget}
+                  onClick={() => setForgetConfirmOpen(true)}
+                >
+                  Forget
+                </Button>
+              </span>
+            </Tooltip>
+          </Box>
+        )}
       </Box>
 
       <QueryState
@@ -358,6 +422,12 @@ const RadioDetail: React.FC = () => {
                           </TableCell>
                         </TableRow>
                         <TableRow>
+                          <TableCell sx={labelCellSx}>Status</TableCell>
+                          <TableCell sx={valueCellSx}>
+                            <RadioStatusChip status={radio.status} />
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
                           <TableCell sx={labelCellSx}>Connected At</TableCell>
                           <TableCell sx={valueCellSx}>
                             {radio.connected_at
@@ -370,6 +440,16 @@ const RadioDetail: React.FC = () => {
                           <TableCell sx={valueCellSx}>
                             {radio.last_seen_at
                               ? formatDateTime(radio.last_seen_at)
+                              : "—"}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell sx={labelCellSx}>
+                            Disconnected At
+                          </TableCell>
+                          <TableCell sx={valueCellSx}>
+                            {radio.disconnected_at
+                              ? formatDateTime(radio.disconnected_at)
                               : "—"}
                           </TableCell>
                         </TableRow>
@@ -565,6 +645,15 @@ const RadioDetail: React.FC = () => {
           );
         }}
       </QueryState>
+      {isForgetConfirmOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setForgetConfirmOpen(false)}
+          onConfirm={handleForgetConfirm}
+          title="Forget radio"
+          description={`Are you sure you want to forget the radio "${radioLabel}"? It will be listed again if it reconnects.`}
+        />
+      )}
     </Box>
   );
 };

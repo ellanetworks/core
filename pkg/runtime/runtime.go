@@ -568,7 +568,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// the read loop), so no separate Notify handler is needed.
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
-				amfInstance.RemoveRadio(context.Background(), ran)
+				amfInstance.DisconnectRadio(context.Background(), ran)
 				logger.AmfLog.Info("removed radio on connection close")
 			}
 		},
@@ -596,7 +596,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			mmes1ap.Dispatch(ctx, mmeInstance, conn, msg)
 		},
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
-			mmeInstance.RemoveRadio(conn)
+			mmeInstance.DisconnectRadio(conn)
 		},
 	})
 

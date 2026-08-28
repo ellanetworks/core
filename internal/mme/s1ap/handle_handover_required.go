@@ -60,7 +60,7 @@ func handleHandoverRequired(m *mme.MME, ctx context.Context, radio *mme.Radio, v
 		return
 	}
 
-	target, ok := m.FindRadioByGlobalENBID(req.TargetID.TargeteNBID.GlobalENBID)
+	target, ok := m.FindConnectedRadioByGlobalENBID(req.TargetID.TargeteNBID.GlobalENBID)
 	if !ok {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required for an unknown target eNB",
 			zap.Uint32("mme-ue-id", uint32(req.MMEUES1APID)), zap.String("target-enb", mme.ENBID(req.TargetID.TargeteNBID.GlobalENBID)))

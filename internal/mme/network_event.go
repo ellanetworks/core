@@ -23,7 +23,7 @@ func (m *MME) enbNameByConn(conn *sctp.SCTPConn) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if s := m.radios[conn]; s != nil {
+	if s, ok := m.reg.Radio(conn); ok {
 		return s.name
 	}
 

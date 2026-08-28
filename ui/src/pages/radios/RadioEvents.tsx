@@ -23,6 +23,7 @@ import {
 } from "@mui/x-data-grid";
 import EntityGrid from "@/components/grid/EntityGrid";
 import { useSearchParams, Link } from "react-router-dom";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import CloseIcon from "@mui/icons-material/Close";
@@ -140,7 +141,6 @@ const NGAP_MESSAGE_TYPES = [
   "WriteReplaceWarningResponse",
 ];
 
-// S1AP (4G) message names recorded by the MME (see internal/mme/s1ap_procedures.go).
 const S1AP_MESSAGE_TYPES = [
   "DownlinkNASTransport",
   "ErrorIndication",
@@ -220,7 +220,7 @@ const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
   ids: new Set<GridRowId>(ids),
 });
 
-export default function EventsTab() {
+export default function RadioEvents() {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
   const theme = useTheme();
@@ -281,6 +281,10 @@ export default function EventsTab() {
             id: radioFilter,
             address: "",
             type: "",
+            status: "offline" as const,
+            connected_at: "",
+            last_seen_at: "",
+            disconnected_at: "",
             supported_tais: [],
           },
           ...radios,
@@ -560,7 +564,9 @@ export default function EventsTab() {
   }, []);
 
   return (
-    <Box sx={{ pt: 3, width: "100%" }}>
+    <Box
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
+    >
       <Box
         sx={{
           display: "flex",
@@ -569,8 +575,33 @@ export default function EventsTab() {
         }}
       >
         <Box>
-          <Typography variant="h4" component="h1">
-            Network Events
+          <Typography
+            variant="h4"
+            component="h1"
+            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
+          >
+            <Typography
+              component={Link}
+              to="/radios"
+              variant="h4"
+              sx={{
+                color: "text.secondary",
+                textDecoration: "none",
+                "&:hover": { textDecoration: "underline" },
+              }}
+            >
+              Radios
+            </Typography>
+            <Typography
+              component="span"
+              variant="h4"
+              sx={{ color: "text.secondary", mx: 1 }}
+            >
+              /
+            </Typography>
+            <Typography component="span" variant="h4">
+              Network Events
+            </Typography>
           </Typography>
           <Typography variant="body1" color="textSecondary">
             {subDescription}

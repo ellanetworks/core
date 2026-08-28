@@ -82,7 +82,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 		return none, err
 	}
 
-	radio, ok := a.FindRadioByRanID(util.RANNodeIDToModels(target))
+	radio, ok := a.FindConnectedRadioByRanID(util.RANNodeIDToModels(target))
 	if !ok {
 		return none, fmt.Errorf("%w: %s", ErrUnknownTargetRAN, target.Hex())
 	}

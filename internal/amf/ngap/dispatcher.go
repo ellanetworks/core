@@ -40,7 +40,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 
 	if len(msg) == 0 {
 		logger.From(ctx, ran.Log).Info("RAN close the connection.")
-		amfInstance.RemoveRadio(ctx, ran)
+		amfInstance.DisconnectRadio(ctx, ran)
 
 		return
 	}

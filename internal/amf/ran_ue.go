@@ -236,7 +236,7 @@ func (amf *AMF) SetRadioForTest(conn NGAPWriter, r *Radio) {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	amf.radios[conn] = r
+	amf.reg.Track(conn, r)
 }
 
 // CountUeConnsForTest reports the number of UE-associated NGAP connections.
@@ -252,7 +252,7 @@ func (amf *AMF) ClearRadiosForTest() {
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
-	amf.radios = map[NGAPWriter]*Radio{}
+	clear(amf.reg.ByConn)
 }
 
 // RadioForTest returns the radio registered for conn, for tests that assert on the
@@ -261,9 +261,7 @@ func (amf *AMF) RadioForTest(conn NGAPWriter) (*Radio, bool) {
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	r, ok := amf.radios[conn]
-
-	return r, ok
+	return amf.reg.Radio(conn)
 }
 
 // ICSState tracks the AMF-side progress of the NGAP Initial Context Setup
@@ -669,7 +667,7 @@ func NewUeConnForTest(radio *Radio, ranUeNgapID models.RanUeNgapID, amfUeNgapID 
 
 	radio.amf.conns[int64(amfUeNgapID)] = ueConn
 	if radio.Conn != nil {
-		radio.amf.radios[radio.Conn] = radio
+		radio.amf.reg.Track(radio.Conn, radio)
 	}
 	radio.amf.mu.Unlock()
 
