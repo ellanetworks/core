@@ -1053,8 +1053,50 @@ func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
 			return
 		case <-ticker.C:
 			c.db.signalMigrationCheck()
+
+			if err := c.db.reconcileClusterMembers(ctx); err != nil {
+				logger.WithTrace(ctx, logger.DBLog).Warn("Failed to reconcile cluster members against the Raft configuration", zap.Error(err))
+			}
 		}
 	}
+}
+
+func (db *Database) reconcileClusterMembers(ctx context.Context) error {
+	var configuration []int
+
+	if db.raftMemberIDs != nil {
+		configuration = db.raftMemberIDs()
+	}
+
+	if len(configuration) == 0 {
+		return nil
+	}
+
+	members, err := db.ListClusterMembers(ctx)
+	if err != nil {
+		return fmt.Errorf("list cluster members: %w", err)
+	}
+
+	inConfiguration := make(map[int]struct{}, len(configuration))
+	for _, nodeID := range configuration {
+		inConfiguration[nodeID] = struct{}{}
+	}
+
+	for _, m := range members {
+		if _, ok := inConfiguration[m.NodeID]; ok {
+			continue
+		}
+
+		if err := db.DeleteClusterMember(ctx, m.NodeID); err != nil {
+			return fmt.Errorf("delete cluster member %d: %w", m.NodeID, err)
+		}
+
+		logger.WithTrace(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
+			zap.Int("nodeId", m.NodeID),
+		)
+	}
+
+	return nil
 }
 
 // RemoveServer removes a node from the Raft cluster. Only callable on the leader.
