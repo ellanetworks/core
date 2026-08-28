@@ -168,24 +168,18 @@ func (s *SMF) abortSession(ctx context.Context, sc *SMContext) {
 		}
 	}
 
+	sc.Mutex.Lock()
+
 	if sc.PDUIPV4Address != nil || sc.PDUIPV6Prefix != nil {
 		dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
 		if err != nil {
 			logger.SmfLog.Warn("failed to resolve data network to release UE addresses after aborted session", zap.String("imsi", imsi), zap.Error(err))
 		} else {
-			if sc.PDUIPV4Address != nil {
-				if _, err := dn.ReleaseIP(ctx, imsi, sc.sessionKey()); err != nil {
-					logger.SmfLog.Warn("failed to release UE IPv4 after aborted session", zap.String("imsi", imsi), zap.Error(err))
-				}
-			}
-
-			if sc.PDUIPV6Prefix != nil {
-				if _, err := dn.ReleaseIPv6(ctx, imsi, sc.sessionKey()); err != nil {
-					logger.SmfLog.Warn("failed to release UE IPv6 after aborted session", zap.String("imsi", imsi), zap.Error(err))
-				}
-			}
+			s.releaseAllocatedAddresses(ctx, dn, sc)
 		}
 	}
+
+	sc.Mutex.Unlock()
 
 	s.dropFromPool(sc)
 }
