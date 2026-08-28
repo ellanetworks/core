@@ -50,16 +50,7 @@ func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.D
 func (c *pkiLeaderCallback) OnBecameLeader() {
 	leaderCtx := c.beginLeaderTerm()
 
-	if c.needsDRSnapshot {
-		if err := c.dbInstance.SelfRestore(leaderCtx); err != nil {
-			logger.EllaLog.Warn("post-DR self-restore failed", zap.Error(err))
-			return
-		}
-
-		c.needsDRSnapshot = false
-	}
-
-	if err := runLeaderInit(leaderCtx, c.state, c.dbInstance, c.nodeID, c.binaryVersion); err != nil {
+	if err := c.runLeaderSequence(leaderCtx); err != nil {
 		logger.EllaLog.Warn("leader init failed; yielding leadership and scheduling retry",
 			zap.Error(err))
 
@@ -101,6 +92,24 @@ func (c *pkiLeaderCallback) yieldLeadership() error {
 	return c.dbInstance.LeadershipTransfer()
 }
 
+func (c *pkiLeaderCallback) runLeaderSequence(ctx context.Context) error {
+	c.mu.Lock()
+	needsRestore := c.needsDRSnapshot
+	c.mu.Unlock()
+
+	if needsRestore {
+		if err := c.dbInstance.SelfRestore(ctx); err != nil {
+			return fmt.Errorf("post-DR self-restore: %w", err)
+		}
+
+		c.mu.Lock()
+		c.needsDRSnapshot = false
+		c.mu.Unlock()
+	}
+
+	return runLeaderInit(ctx, c.state, c.dbInstance, c.nodeID, c.binaryVersion)
+}
+
 func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 	backoff := leaderInitInitialBackoff
 
@@ -117,7 +126,7 @@ func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 			return
 		}
 
-		err := runLeaderInit(ctx, c.state, c.dbInstance, c.nodeID, c.binaryVersion)
+		err := c.runLeaderSequence(ctx)
 		if err == nil {
 			logger.EllaLog.Info("leader init recovered after retry")
 
