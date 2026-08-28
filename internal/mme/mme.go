@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/radioreg"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/ellanetworks/core/nas/eps"
@@ -93,13 +94,12 @@ type MME struct {
 	Name             string
 	RelativeCapacity uint8
 
-	mu         sync.RWMutex
-	radios     map[S1APWriter]*Radio
-	radiosByID map[string]*Radio        // S1-setup-complete eNBs keyed by Global eNB ID, for S1-handover target resolution
-	conns      map[uint32]*UeConn       // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
-	UEs        map[etsi.SUPI]*UeContext // persistent UE contexts keyed by SUPI; survives the connection across ECM-IDLE
-	uesByTmsi  map[etsi.TMSI]*UeContext // keyed by M-TMSI, for S-TMSI lookup
-	connIDs    *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
+	mu        sync.RWMutex
+	reg       *radioreg.Registry[S1APWriter, string, *Radio]
+	conns     map[uint32]*UeConn       // UE-associated S1-connections keyed by MME-UE-S1AP-ID; conn.ue is nil until a UE context is bound
+	UEs       map[etsi.SUPI]*UeContext // persistent UE contexts keyed by SUPI; survives the connection across ECM-IDLE
+	uesByTmsi map[etsi.TMSI]*UeContext // keyed by M-TMSI, for S-TMSI lookup
+	connIDs   *idgenerator.IDGenerator // recycling MME-UE-S1AP-ID allocator (TS 36.413 no-immediate-reuse)
 
 	relocating map[etsi.SUPI]*relocation
 
@@ -174,8 +174,7 @@ func New(cred credentialProvider, bearer bearerStore, session epsSessionManager)
 		EPSNetworkFeatureSupport: &eps.NetworkFeatureSupport{IMSVoPS: true},
 		Name:                     "ella",
 		RelativeCapacity:         0xff,
-		radios:                   make(map[S1APWriter]*Radio),
-		radiosByID:               make(map[string]*Radio),
+		reg:                      radioreg.New[S1APWriter, string, *Radio](DefaultRadioOfflineTTL, DefaultMaxOfflineRadios, time.Now),
 		conns:                    make(map[uint32]*UeConn),
 		UEs:                      make(map[etsi.SUPI]*UeContext),
 		uesByTmsi:                make(map[etsi.TMSI]*UeContext),

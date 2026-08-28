@@ -194,9 +194,9 @@ func (m *MME) pageRadios(ctx context.Context, ue *UeContext, b []byte) {
 	area := ue.RegistrationArea()
 
 	m.mu.RLock()
-	conns := make([]S1APWriter, 0, len(m.radios))
+	conns := make([]S1APWriter, 0, m.reg.CountConnected())
 
-	for conn, radio := range m.radios {
+	for conn, radio := range m.reg.ByConn {
 		if radioServesAnyLocked(radio, area) {
 			conns = append(conns, conn)
 		}

@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -27,10 +28,11 @@ type Radio struct {
 	// id is the Global eNB ID, empty until claimed on S1 Setup accept. Empty id also
 	// gates the dispatcher's setup-first check: pre-setup UE signalling is dropped
 	// (TS 36.413). Guarded by MME.mu.
-	id          string
-	address     string
-	connectedAt time.Time
-	lastSeen    atomic.Int64
+	id             string
+	address        string
+	connectedAt    time.Time
+	disconnectedAt time.Time
+	lastSeen       atomic.Int64
 	// supportedTAIs are the TAIs the eNB broadcasts (Supported TAs IE), claimed on
 	// accept and replaced wholesale on an eNB Configuration Update (TS 36.413
 	// §8.7.3.2, §8.7.4). Guarded by MME.mu.
@@ -47,24 +49,53 @@ type SupportedTAI struct {
 	Tai models.Tai
 }
 
-// RadioInfo is a read-only view of a connected eNB, exposed for status/API.
 type RadioInfo struct {
-	Name          string
-	ID            string
-	Address       string
-	ConnectedAt   time.Time
-	LastSeenAt    time.Time
-	SupportedTAIs []SupportedTAI
+	Name           string
+	ID             string
+	Address        string
+	Connected      bool
+	ConnectedAt    time.Time
+	LastSeenAt     time.Time
+	DisconnectedAt time.Time
+	SupportedTAIs  []SupportedTAI
+}
+
+var (
+	ErrRadioNotFound = errors.New("radio not found")
+	ErrRadioOnline   = errors.New("radio is online")
+)
+
+const (
+	DefaultRadioOfflineTTL  = 24 * time.Hour
+	DefaultMaxOfflineRadios = 100
+)
+
+func (r *Radio) connected() bool {
+	return r.disconnectedAt.IsZero()
+}
+
+func (r *Radio) IDKey() (string, bool) {
+	return r.id, r.id != ""
+}
+
+func (r *Radio) DisconnectedAt() time.Time {
+	return r.disconnectedAt
+}
+
+func (r *Radio) SetDisconnectedAt(t time.Time) {
+	r.disconnectedAt = t
 }
 
 func (r *Radio) info() RadioInfo {
 	return RadioInfo{
-		Name:          r.name,
-		ID:            r.id,
-		Address:       r.address,
-		ConnectedAt:   r.connectedAt,
-		LastSeenAt:    time.Unix(0, r.lastSeen.Load()),
-		SupportedTAIs: r.supportedTAIs,
+		Name:           r.name,
+		ID:             r.id,
+		Address:        r.address,
+		Connected:      r.connected(),
+		ConnectedAt:    r.connectedAt,
+		LastSeenAt:     time.Unix(0, r.lastSeen.Load()),
+		DisconnectedAt: r.disconnectedAt,
+		SupportedTAIs:  r.supportedTAIs,
 	}
 }
 
@@ -101,7 +132,7 @@ func (m *MME) trackRadio(key *sctp.SCTPConn, info RadioInfo) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.radios[key] = s
+	m.reg.Track(key, s)
 }
 
 // addRadio records a connected eNB from its S1 Setup Request, carrying only the
@@ -146,7 +177,7 @@ func (m *MME) RadioLog(conn S1APWriter) *zap.Logger {
 	sc, _ := conn.(*sctp.SCTPConn)
 
 	m.mu.RLock()
-	s := m.radios[conn]
+	s, _ := m.reg.Radio(conn)
 	m.mu.RUnlock()
 
 	return nodeLog(s, sc)
@@ -156,7 +187,9 @@ func (m *MME) RadioLog(conn S1APWriter) *zap.Logger {
 func (m *MME) nodeLogLocked(conn S1APWriter) *zap.Logger {
 	sc, _ := conn.(*sctp.SCTPConn)
 
-	return nodeLog(m.radios[conn], sc)
+	radio, _ := m.reg.Radio(conn)
+
+	return nodeLog(radio, sc)
 }
 
 func nodeLog(s *Radio, conn *sctp.SCTPConn) *zap.Logger {
@@ -191,12 +224,12 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID) {
 
 	var stale S1APWriter
 
-	if prev, ok := m.radiosByID[id]; ok && prev.Conn != radio.Conn {
+	if prev := m.reg.Claim(id, radio); prev != nil && prev.Conn != radio.Conn && prev.connected() {
 		stale = prev.Conn
-		delete(m.radios, prev.Conn)
+
+		delete(m.reg.ByConn, prev.Conn)
 	}
 
-	m.radiosByID[id] = radio
 	m.mu.Unlock()
 
 	m.ReclaimConns(m.ConnsOnConn(radio.Conn), "S1 Setup")
@@ -212,16 +245,12 @@ func (m *MME) ClaimENBID(radio *Radio, g s1ap.GlobalENBID) {
 	}
 }
 
-// FindRadioByGlobalENBID resolves a Global eNB ID to the S1-setup-complete association
-// of that eNB (nil/false when no such eNB is connected), for routing an S1
-// handover's HANDOVER REQUEST to the target (TS 36.413 §8.4.2).
-func (m *MME) FindRadioByGlobalENBID(g s1ap.GlobalENBID) (*Radio, bool) {
+// TS 36.413 §8.4.2
+func (m *MME) FindConnectedRadioByGlobalENBID(g s1ap.GlobalENBID) (*Radio, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	radio, ok := m.radiosByID[ENBID(g)]
-
-	return radio, ok
+	return m.reg.FindConnected(ENBID(g))
 }
 
 // NodeName returns the eNB's human-readable name, empty when it has not sent
@@ -258,7 +287,9 @@ func (m *MME) RadioForConn(conn S1APWriter) *Radio {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.radios[conn]
+	radio, _ := m.reg.Radio(conn)
+
+	return radio
 }
 
 // SetupComplete reports whether the eNB has completed S1 Setup, i.e. its Global eNB ID
@@ -306,18 +337,17 @@ func (r *Radio) BindMMEForTest(m *MME) {
 	defer m.mu.Unlock()
 
 	if key, ok := r.Conn.(*sctp.SCTPConn); ok {
-		m.radios[key] = r
+		m.reg.Track(key, r)
 	}
 }
 
-// RemoveRadio drops a connected eNB when its association closes.
-func (m *MME) RemoveRadio(conn *sctp.SCTPConn) {
+func (m *MME) DisconnectRadio(conn *sctp.SCTPConn) {
 	m.mu.Lock()
-	if s := m.radios[conn]; s != nil && m.radiosByID[s.id] == s {
-		delete(m.radiosByID, s.id)
+
+	if radio, ok := m.reg.Radio(conn); ok {
+		m.reg.Disconnect(conn, radio)
 	}
 
-	delete(m.radios, conn)
 	m.mu.Unlock()
 
 	m.reclaimUEsOnConnLoss(conn)
@@ -409,30 +439,64 @@ func (m *MME) CountRadios() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return len(m.radios)
+	return m.reg.CountConnected()
 }
 
 func (m *MME) HasRadio(name string) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	for _, s := range m.radios {
-		if s.name == name {
-			return true
-		}
-	}
+	return m.reg.Has(named(name))
+}
 
-	return false
+func named(name string) func(*Radio) bool {
+	return func(r *Radio) bool { return r.name == name }
+}
+
+func identified(id string) func(*Radio) bool {
+	return func(r *Radio) bool { return r.id == id }
 }
 
 func (m *MME) ListRadios() []RadioInfo {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	out := make([]RadioInfo, 0, len(m.radios))
-	for _, s := range m.radios {
+	radios := m.reg.All()
+
+	out := make([]RadioInfo, 0, len(radios))
+	for _, s := range radios {
 		out = append(out, s.info())
 	}
 
 	return out
+}
+
+func (m *MME) ForgetRadio(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	online, forgotten := m.reg.Forget(identified(id))
+
+	switch {
+	case online:
+		return ErrRadioOnline
+	case forgotten == 0:
+		return ErrRadioNotFound
+	}
+
+	return nil
+}
+
+func (m *MME) OfflineRadioCountForTest() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.reg.CountOffline()
+}
+
+func (m *MME) SetRadioRetentionForTest(ttl time.Duration, maxOffline int, now func() time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.reg.SetRetention(ttl, maxOffline, now)
 }

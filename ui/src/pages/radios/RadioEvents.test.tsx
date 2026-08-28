@@ -8,7 +8,7 @@ import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
 import { radioEvent, radioEventPage } from "@/test/fixtures";
 import type { APIRadioEvent } from "@/queries/radio_events";
-import EventsTab from "./EventsTab";
+import RadioEvents from "./RadioEvents";
 
 const api = setupApiServer();
 
@@ -48,11 +48,11 @@ const seedApi = ({
 };
 
 const renderEvents = async (path = "/radios/events") => {
-  const result = renderWithProviders(<EventsTab />, {
+  const result = renderWithProviders(<RadioEvents />, {
     initialEntries: [path],
     auth: {},
   });
-  await screen.findByRole("heading", { name: "Network Events" });
+  await screen.findByRole("heading", { name: /Network Events/ });
   return result;
 };
 
@@ -84,7 +84,7 @@ beforeEach(() => {
   seedApi();
 });
 
-describe("EventsTab filters authorization", () => {
+describe("RadioEvents filters authorization", () => {
   it("sends the access token on every request", async () => {
     await renderEvents();
     await waitForEventRequests(1);
@@ -100,7 +100,7 @@ describe("EventsTab filters authorization", () => {
   });
 });
 
-describe("EventsTab filters", () => {
+describe("RadioEvents filters", () => {
   it("omits every filter the operator has not set", async () => {
     await renderEvents();
     await waitForEventRequests(1);
@@ -153,7 +153,7 @@ describe("EventsTab filters", () => {
   });
 });
 
-describe("EventsTab protocol and message type", () => {
+describe("RadioEvents protocol and message type", () => {
   it("sends a message type chosen under its own protocol", async () => {
     const user = userEvent.setup();
     await renderEvents();
@@ -220,7 +220,7 @@ describe("EventsTab protocol and message type", () => {
   });
 });
 
-describe("EventsTab timestamps", () => {
+describe("RadioEvents timestamps", () => {
   it("sends the From bound as an ISO instant", async () => {
     await renderEvents();
     await waitForEventRequests(1);
@@ -243,7 +243,7 @@ describe("EventsTab timestamps", () => {
     });
 
     expect(
-      await screen.findByRole("heading", { name: "Network Events" }),
+      await screen.findByRole("heading", { name: /Network Events/ }),
     ).toBeVisible();
   });
 
@@ -256,7 +256,7 @@ describe("EventsTab timestamps", () => {
     });
     await waitFor(() =>
       expect(
-        screen.getByRole("heading", { name: "Network Events" }),
+        screen.getByRole("heading", { name: /Network Events/ }),
       ).toBeVisible(),
     );
 
@@ -283,7 +283,7 @@ describe("EventsTab timestamps", () => {
   });
 });
 
-describe("EventsTab stale results", () => {
+describe("RadioEvents stale results", () => {
   const setInvalidRange = async () => {
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
@@ -331,7 +331,7 @@ describe("EventsTab stale results", () => {
   });
 });
 
-describe("EventsTab timestamp accessibility", () => {
+describe("RadioEvents timestamp accessibility", () => {
   const invert = async () => {
     fireEvent.change(screen.getByLabelText("From"), {
       target: { value: "2026-08-10T10:00" },
@@ -388,7 +388,7 @@ describe("EventsTab timestamp accessibility", () => {
   });
 });
 
-describe("EventsTab pagination", () => {
+describe("RadioEvents pagination", () => {
   const manyEvents = Array.from({ length: 25 }, (_, i) => radioEvent(i + 1));
 
   it("returns to the first page when a filter changes", async () => {
@@ -410,7 +410,7 @@ describe("EventsTab pagination", () => {
   });
 });
 
-describe("EventsTab table", () => {
+describe("RadioEvents table", () => {
   it("renders an event row", async () => {
     seedApi({ events: [radioEvent(1, { radio: "radio-7" })] });
     await renderEvents();
@@ -450,7 +450,7 @@ const panelIsOpen = async () =>
   (await screen.findByTestId("event-panel")).getAttribute("data-open") ===
   "true";
 
-describe("EventsTab event panel", () => {
+describe("RadioEvents event panel", () => {
   it("opens the panel for the event named in the URL", async () => {
     seedApi({
       events: [radioEvent(7, { message_type: "PathSwitchRequest" })],

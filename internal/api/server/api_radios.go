@@ -4,14 +4,35 @@
 package server
 
 import (
+	"cmp"
+	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 )
+
+const (
+	RadioStatusOnline  = "online"
+	RadioStatusOffline = "offline"
+)
+
+func radioStatus(connected bool) string {
+	if connected {
+		return RadioStatusOnline
+	}
+
+	return RadioStatusOffline
+}
+
+func matchesRadioStatus(filter string, connected bool) bool {
+	return filter == "" || filter == radioStatus(connected)
+}
 
 type PlmnID struct {
 	Mcc string `json:"mcc"`
@@ -34,13 +55,19 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name        string `json:"name"`
-	ID          string `json:"id"`
-	Address     string `json:"address"`
-	RanNodeType string `json:"type"`
+	Name           string `json:"name"`
+	ID             string `json:"id"`
+	Address        string `json:"address"`
+	RanNodeType    string `json:"type"`
+	Status         string `json:"status"`
+	ConnectedAt    string `json:"connected_at"`
+	LastSeenAt     string `json:"last_seen_at"`
+	DisconnectedAt string `json:"disconnected_at"`
 	// Deprecated: Use the GET /api/v1/ran/radios/{name} detail endpoint instead.
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
+
+const ForgetRadioAction = "forget_radio"
 
 type ListRadiosResponse struct {
 	Items      []Radio `json:"items"`
@@ -50,13 +77,23 @@ type ListRadiosResponse struct {
 }
 
 type RadioDetail struct {
-	Name          string         `json:"name"`
-	ID            string         `json:"id"`
-	Address       string         `json:"address"`
-	ConnectedAt   string         `json:"connected_at"`
-	LastSeenAt    string         `json:"last_seen_at"`
-	RanNodeType   string         `json:"type"`
-	SupportedTAIs []SupportedTAI `json:"supported_tais"`
+	Name           string         `json:"name"`
+	ID             string         `json:"id"`
+	Address        string         `json:"address"`
+	Status         string         `json:"status"`
+	ConnectedAt    string         `json:"connected_at"`
+	LastSeenAt     string         `json:"last_seen_at"`
+	DisconnectedAt string         `json:"disconnected_at"`
+	RanNodeType    string         `json:"type"`
+	SupportedTAIs  []SupportedTAI `json:"supported_tais"`
+}
+
+func formatRadioTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+
+	return t.UTC().Format(time.RFC3339)
 }
 
 func convertRadioTaiToReturnTai(tais []amf.SupportedTAI) []SupportedTAI {
@@ -127,32 +164,63 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			return
 		}
 
+		status := q.Get("status")
+		if status != "" && status != RadioStatusOnline && status != RadioStatusOffline {
+			writeError(r.Context(), w, http.StatusBadRequest, "status must be online or offline", nil, logger.APILog)
+
+			return
+		}
+
 		// 4G eNBs and 5G gNBs share one radio namespace, distinguished by node type.
 		// Combine both RATs' full lists and paginate the whole so pagination is
 		// consistent across them (each RAT exposes an all-radios ListRadios()).
 		items := make([]Radio, 0)
 
 		for _, radio := range amfInstance.ListRadios() {
+			if !matchesRadioStatus(status, radio.Connected) {
+				continue
+			}
+
 			items = append(items, Radio{
-				Name:          radio.Name,
-				ID:            radio.ID,
-				Address:       radio.Address,
-				RanNodeType:   radio.RanNodeType,
-				SupportedTAIs: convertRadioTaiToReturnTai(radio.SupportedTAIs),
+				Name:           radio.Name,
+				ID:             radio.ID,
+				Address:        radio.Address,
+				RanNodeType:    radio.RanNodeType,
+				Status:         radioStatus(radio.Connected),
+				ConnectedAt:    formatRadioTime(radio.ConnectedAt),
+				LastSeenAt:     formatRadioTime(radio.LastSeenAt),
+				DisconnectedAt: formatRadioTime(radio.DisconnectedAt),
+				SupportedTAIs:  convertRadioTaiToReturnTai(radio.SupportedTAIs),
 			})
 		}
 
 		if mmeInstance != nil {
 			for _, enb := range mmeInstance.ListRadios() {
+				if !matchesRadioStatus(status, enb.Connected) {
+					continue
+				}
+
 				items = append(items, Radio{
-					Name:          enb.Name,
-					ID:            enb.ID,
-					Address:       enb.Address,
-					RanNodeType:   "eNB",
-					SupportedTAIs: convertENBTaiToReturnTai(enb.SupportedTAIs),
+					Name:           enb.Name,
+					ID:             enb.ID,
+					Address:        enb.Address,
+					RanNodeType:    RanNodeTypeENB,
+					Status:         radioStatus(enb.Connected),
+					ConnectedAt:    formatRadioTime(enb.ConnectedAt),
+					LastSeenAt:     formatRadioTime(enb.LastSeenAt),
+					DisconnectedAt: formatRadioTime(enb.DisconnectedAt),
+					SupportedTAIs:  convertENBTaiToReturnTai(enb.SupportedTAIs),
 				})
 			}
 		}
+
+		slices.SortFunc(items, func(a, b Radio) int {
+			return cmp.Or(
+				cmp.Compare(a.Name, b.Name),
+				cmp.Compare(a.RanNodeType, b.RanNodeType),
+				cmp.Compare(a.ID, b.ID),
+			)
+		})
 
 		total := len(items)
 
@@ -178,27 +246,82 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	}
 }
 
+const RanNodeTypeENB = "eNB"
+
+func radioPathIdentity(r *http.Request) (nodeType, id string, err error) {
+	nodeType = r.PathValue("ranNodeType")
+	id = r.PathValue("id")
+
+	switch {
+	case nodeType == "":
+		return "", "", fmt.Errorf("ranNodeType parameter is required")
+	case id == "":
+		return "", "", fmt.Errorf("id parameter is required")
+	}
+
+	return nodeType, id, nil
+}
+
+func isENBType(nodeType string) bool {
+	return strings.EqualFold(nodeType, RanNodeTypeENB)
+}
+
 func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		radioName := r.PathValue("name")
-		if radioName == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", fmt.Errorf("name parameter is required"), logger.APILog)
+		nodeType, id, err := radioPathIdentity(r)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing radio identity", err, logger.APILog)
+			return
+		}
+
+		if isENBType(nodeType) {
+			if mmeInstance == nil {
+				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+				return
+			}
+
+			for _, enb := range mmeInstance.ListRadios() {
+				if enb.ID != id {
+					continue
+				}
+
+				result := RadioDetail{
+					Name:           enb.Name,
+					ID:             enb.ID,
+					Address:        enb.Address,
+					Status:         radioStatus(enb.Connected),
+					ConnectedAt:    formatRadioTime(enb.ConnectedAt),
+					LastSeenAt:     formatRadioTime(enb.LastSeenAt),
+					DisconnectedAt: formatRadioTime(enb.DisconnectedAt),
+					RanNodeType:    RanNodeTypeENB,
+					SupportedTAIs:  convertENBTaiToReturnTai(enb.SupportedTAIs),
+				}
+
+				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
+
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+
 			return
 		}
 
 		for _, radio := range amfInstance.ListRadios() {
-			if radio.Name != radioName {
+			if radio.ID != id || !strings.EqualFold(radio.RanNodeType, nodeType) {
 				continue
 			}
 
 			result := RadioDetail{
-				Name:          radio.Name,
-				ID:            radio.ID,
-				Address:       radio.Address,
-				ConnectedAt:   radio.ConnectedAt.UTC().Format(time.RFC3339),
-				LastSeenAt:    radio.LastSeenAt.UTC().Format(time.RFC3339),
-				RanNodeType:   radio.RanNodeType,
-				SupportedTAIs: convertRadioTaiToReturnTai(radio.SupportedTAIs),
+				Name:           radio.Name,
+				ID:             radio.ID,
+				Address:        radio.Address,
+				Status:         radioStatus(radio.Connected),
+				ConnectedAt:    formatRadioTime(radio.ConnectedAt),
+				LastSeenAt:     formatRadioTime(radio.LastSeenAt),
+				DisconnectedAt: formatRadioTime(radio.DisconnectedAt),
+				RanNodeType:    radio.RanNodeType,
+				SupportedTAIs:  convertRadioTaiToReturnTai(radio.SupportedTAIs),
 			}
 
 			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
@@ -206,30 +329,46 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 			return
 		}
 
-		// 4G eNBs connected to the MME share the radio namespace, distinguished
-		// by type.
-		if mmeInstance != nil {
-			for _, enb := range mmeInstance.ListRadios() {
-				if enb.Name != radioName {
-					continue
-				}
+		writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+	}
+}
 
-				result := RadioDetail{
-					Name:          enb.Name,
-					ID:            enb.ID,
-					Address:       enb.Address,
-					ConnectedAt:   enb.ConnectedAt.UTC().Format(time.RFC3339),
-					LastSeenAt:    enb.LastSeenAt.UTC().Format(time.RFC3339),
-					RanNodeType:   "eNB",
-					SupportedTAIs: convertENBTaiToReturnTai(enb.SupportedTAIs),
-				}
-
-				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
-
-				return
-			}
+func ForgetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			return
 		}
 
-		writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)
+		nodeType, id, err := radioPathIdentity(r)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing radio identity", err, logger.APILog)
+			return
+		}
+
+		forgetErr := amf.ErrRadioNotFound
+
+		switch {
+		case !isENBType(nodeType):
+			forgetErr = amfInstance.ForgetRadio(nodeType, id)
+		case mmeInstance != nil:
+			forgetErr = mmeInstance.ForgetRadio(id)
+		}
+
+		switch {
+		case errors.Is(forgetErr, amf.ErrRadioOnline) || errors.Is(forgetErr, mme.ErrRadioOnline):
+			writeError(r.Context(), w, http.StatusConflict, "Radio is online", nil, logger.APILog)
+
+			return
+		case forgetErr != nil:
+			writeError(r.Context(), w, http.StatusNotFound, "Radio not found", nil, logger.APILog)
+
+			return
+		}
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Radio forgotten successfully"}, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(r.Context(), ForgetRadioAction, email, getClientIP(r), "User forgot radio: "+nodeType+"/"+id)
 	}
 }

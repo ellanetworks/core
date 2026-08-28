@@ -10,10 +10,10 @@ import Initialize from "./pages/Initialize";
 import Dashboard from "./pages/Dashboard";
 import Subscribers from "./pages/Subscribers";
 import SubscriberDetail from "./pages/SubscriberDetail";
-import Radios from "./pages/Radios";
-import RadiosListTab from "./pages/radios/RadiosListTab";
-import RadiosEventsTab from "./pages/radios/EventsTab";
+import RadiosList from "./pages/radios/RadiosList";
+import RadioEvents from "./pages/radios/RadioEvents";
 import RadioDetail from "./pages/RadioDetail";
+import RadioByName from "./pages/radios/RadioByName";
 import Profiles from "./pages/Profiles";
 import ProfileDetail from "./pages/ProfileDetail";
 import PolicyDetail from "./pages/PolicyDetail";
@@ -51,14 +51,10 @@ export default function AppRouter() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="subscribers" element={<Subscribers />} />
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
-        {/* Note: a radio named "events" would match the nested route below
-            instead of radios/:name. Radio names are system-generated so this
-            collision cannot occur in practice. */}
-        <Route path="radios" element={<Radios />}>
-          <Route index element={<RadiosListTab />} />
-          <Route path="events" element={<RadiosEventsTab />} />
-        </Route>
-        <Route path="radios/:name" element={<RadioDetail />} />
+        <Route path="radios" element={<RadiosList />} />
+        <Route path="radios/events" element={<RadioEvents />} />
+        <Route path="radios/:ranNodeType/:id" element={<RadioDetail />} />
+        <Route path="radios/:name" element={<RadioByName />} />
         <Route path="profiles" element={<Profiles />} />
         <Route path="profiles/:name" element={<ProfileDetail />} />
         <Route

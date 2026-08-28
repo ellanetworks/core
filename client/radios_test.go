@@ -28,7 +28,8 @@ func TestGetRadio_Success(t *testing.T) {
 	name := "my-radio"
 
 	getRouteOpts := &client.GetRadioOptions{
-		Name: name,
+		RanNodeType: "gNB",
+		ID:          "000102",
 	}
 
 	ctx := context.Background()
@@ -72,9 +73,9 @@ func TestGetRadio_Failure(t *testing.T) {
 		Requester: fake,
 	}
 
-	name := "non-existent-radio"
 	getRadioOpts := &client.GetRadioOptions{
-		Name: name,
+		RanNodeType: "gNB",
+		ID:          "ffffff",
 	}
 
 	ctx := context.Background()
@@ -435,5 +436,50 @@ func TestGetRadioEvent_Failure(t *testing.T) {
 	_, err := clientObj.GetRadioEvent(ctx, logID)
 	if err == nil {
 		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestForgetRadio_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Radio forgotten successfully"}`),
+		},
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.ForgetRadio(context.Background(), &client.ForgetRadioOptions{RanNodeType: "gNB", ID: "000102"})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts == nil {
+		t.Fatal("expected request options to be captured")
+	}
+
+	if fake.lastOpts.Method != "DELETE" {
+		t.Errorf("expected method DELETE, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/ran/radios/gNB/000102" {
+		t.Errorf("expected path 'api/v1/ran/radios/gNB/000102', got: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestForgetRadio_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 409,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Radio is online"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{Requester: fake}
+
+	err := clientObj.ForgetRadio(context.Background(), &client.ForgetRadioOptions{RanNodeType: "gNB", ID: "000102"})
+	if err == nil {
+		t.Fatal("expected an error, got nil")
 	}
 }
