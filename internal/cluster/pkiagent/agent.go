@@ -64,13 +64,22 @@ func (a *Agent) Leaf() *tls.Certificate {
 	return a.current.Load()
 }
 
-// HaveLeafOnDisk reports whether leaf.crt and leaf.key both exist.
+// HaveLeafOnDisk reports whether leaf.crt and leaf.key both exist and pair.
 func (a *Agent) HaveLeafOnDisk() bool {
-	if _, err := os.Stat(a.path(leafCertFile)); err != nil {
+	certPEM, err := os.ReadFile(a.path(leafCertFile)) // #nosec G304 -- under dataDir
+	if err != nil {
 		return false
 	}
 
-	if _, err := os.Stat(a.path(leafKeyFile)); err != nil {
+	keyPEM, err := os.ReadFile(a.path(leafKeyFile)) // #nosec G304 -- under dataDir
+	if err != nil {
+		return false
+	}
+
+	if _, err := tls.X509KeyPair(certPEM, keyPEM); err != nil {
+		logger.EllaLog.Warn("on-disk cluster leaf and key do not pair; treating as absent",
+			zap.String("path", a.path(leafCertFile)), zap.Error(err))
+
 		return false
 	}
 
@@ -425,9 +434,39 @@ func (a *Agent) storePeerPins(records []PinRecord) error {
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
-	tmp := path + ".tmp"
+	dir := filepath.Dir(path)
 
-	if err := os.WriteFile(tmp, data, mode); err != nil {
+	fh, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return err
+	}
+
+	tmp := fh.Name()
+
+	if err := fh.Chmod(mode); err != nil {
+		_ = fh.Close()
+		_ = os.Remove(tmp)
+
+		return err
+	}
+
+	if _, err := fh.Write(data); err != nil {
+		_ = fh.Close()
+		_ = os.Remove(tmp)
+
+		return err
+	}
+
+	if err := fh.Sync(); err != nil {
+		_ = fh.Close()
+		_ = os.Remove(tmp)
+
+		return err
+	}
+
+	if err := fh.Close(); err != nil {
+		_ = os.Remove(tmp)
+
 		return err
 	}
 
@@ -436,7 +475,22 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 
-	return nil
+	return syncDir(dir)
+}
+
+func syncDir(dir string) error {
+	fh, err := os.Open(dir) // #nosec G304 -- under dataDir
+	if err != nil {
+		return err
+	}
+
+	if err := fh.Sync(); err != nil {
+		_ = fh.Close()
+
+		return err
+	}
+
+	return fh.Close()
 }
 
 // bootstrapHTTPClient returns an HTTP client that dials the bootstrap

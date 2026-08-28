@@ -20,6 +20,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
 
@@ -162,7 +163,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		return nil, ErrJoinTokenNodeMismatch
 	}
 
-	if token.ExpiresAt <= now {
+	if token.ExpiresAt < now-int64(pki.JoinTokenClockSkew.Seconds()) {
 		return nil, ErrJoinTokenExpired
 	}
 
@@ -353,7 +354,7 @@ func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) er
 	cutoffConsumed := now.Add(-time.Hour).Unix()
 
 	_, err := opDeleteStaleJoinTokens.Invoke(ctx, db, &ClusterJoinToken{
-		ExpiresAt:  now.Unix(),
+		ExpiresAt:  now.Add(-pki.JoinTokenClockSkew).Unix(),
 		ConsumedAt: cutoffConsumed,
 	})
 

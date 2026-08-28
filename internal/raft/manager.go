@@ -115,6 +115,8 @@ const (
 	leaderPollInterval = 25 * time.Millisecond
 
 	leaderBarrierRetryInterval = 1 * time.Second
+
+	leadershipTransferAttempts = 3
 )
 
 var errShuttingDown = errors.New("raft manager shutting down")
@@ -795,7 +797,27 @@ func (m *Manager) BoltNoSync() bool {
 
 // LeadershipTransfer triggers a leadership transfer to another node.
 func (m *Manager) LeadershipTransfer() error {
-	return m.raft.LeadershipTransfer().Error()
+	var lastErr error
+
+	for attempt := 1; attempt <= leadershipTransferAttempts; attempt++ {
+		err := m.raft.LeadershipTransfer().Error()
+		if err == nil {
+			return nil
+		}
+
+		if errors.Is(err, raft.ErrRaftShutdown) || errors.Is(err, raft.ErrUnsupportedProtocol) {
+			return err
+		}
+
+		lastErr = err
+
+		logger.RaftLog.Warn("Leadership transfer attempt failed",
+			zap.Int("attempt", attempt),
+			zap.Int("attempts", leadershipTransferAttempts),
+			zap.Error(err))
+	}
+
+	return fmt.Errorf("leadership transfer failed after %d attempts: %w", leadershipTransferAttempts, lastErr)
 }
 
 // MemberIDs returns the current Raft configuration, nonvoters included: they
