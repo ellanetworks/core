@@ -70,7 +70,7 @@ func startGNB(env scenarios.Env) (*gnb.GnodeB, error) {
 		return nil, fmt.Errorf("start gNB: %w", err)
 	}
 
-	if _, err := gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond); err != nil {
+	if _, err := gNodeB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, scenarios.NGSetupTimeout); err != nil {
 		gNodeB.Close()
 
 		return nil, fmt.Errorf("await NG Setup Response: %w", err)
