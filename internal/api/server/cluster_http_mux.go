@@ -75,9 +75,9 @@ const maxClusterJoinBodyBytes = 4096
 // registration at join time, the typed propose-forward endpoint that
 // in-process write callers use to commit through the current leader,
 // and a small set of leader-only or node-targeted RPCs (autopilot
-// state, drain-self, side-effect hooks). Destructive cluster-
-// membership operations (remove, promote) live on the public API
-// under /api/v1/cluster/members/*, gated by JWT + PermManageCluster.
+// state, side-effect hooks). Destructive cluster-membership operations
+// (remove, promote) live on the public API under
+// /api/v1/cluster/members/*, gated by JWT + PermManageCluster.
 func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -85,7 +85,6 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux.Handle("POST /cluster/members", selfRegistrationGuard(AddClusterMember(dbInstance)))
 	mux.Handle("POST /cluster/internal/drain-side-effects", removedNodeFence(dbInstance, DrainLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/resume-side-effects", removedNodeFence(dbInstance, ResumeLocalSideEffects()))
-	mux.Handle("POST /cluster/internal/drain-self", removedNodeFence(dbInstance, DrainSelfOnLeader(dbInstance)))
 	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, ClusterAutopilotState(dbInstance)))
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
 
@@ -187,43 +186,6 @@ func ResumeLocalSideEffects() http.Handler {
 		}
 
 		writeResponse(r.Context(), w, ResumeSideEffectsResponse{BGPStarted: bgpStarted}, http.StatusOK, logger.APILog)
-	})
-}
-
-// DrainSelfOnLeader accepts a shutdown-drain request from a peer. Runs only
-// on the leader; the calling peer's nodeID is derived from its mTLS client
-// certificate, so the caller can only mark itself drained. Used by the
-// shutdown path: a node about to exit tells the leader to flip its
-// drain_state to "drained" so operators see a clean "active → drained"
-// transition instead of the 10s "active → removed-by-autopilot" gap.
-func DrainSelfOnLeader(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !dbInstance.IsLeader() {
-			writeError(r.Context(), w, http.StatusMisdirectedRequest,
-				"not the leader; retry against the current leader", nil, logger.APILog)
-
-			return
-		}
-
-		peerID, ok := peerNodeIDFromContext(r.Context())
-		if !ok {
-			writeError(r.Context(), w, http.StatusForbidden, "peer identity unavailable", nil, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.SetDrainState(r.Context(), peerID, db.DrainStateDrained); err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				writeError(r.Context(), w, http.StatusNotFound, "cluster member not found", nil, logger.APILog)
-				return
-			}
-
-			writeError(r.Context(), w, http.StatusInternalServerError,
-				"failed to set drain state", err, logger.APILog)
-
-			return
-		}
-
-		writeResponse(r.Context(), w, SuccessResponse{Message: "drained"}, http.StatusOK, logger.APILog)
 	})
 }
 
