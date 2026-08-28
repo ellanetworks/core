@@ -6,7 +6,6 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
@@ -53,7 +52,7 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 		return fmt.Errorf("InitialRegistrationProcedure failed: %v", err)
 	}
 
-	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
@@ -70,12 +69,12 @@ func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ a
 		return fmt.Errorf("could not send Registration Request for periodic update: %v", err)
 	}
 
-	_, err = newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), 1*time.Second)
+	_, err = newUE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive Registration Accept for periodic update: %v", err)
 	}
 
-	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
