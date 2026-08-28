@@ -185,3 +185,79 @@ func TestAbortSessionReleasesAddressesWhenStillHeld(t *testing.T) {
 		t.Fatal("abort left the addresses set; a second release could fire")
 	}
 }
+
+func TestAbortSessionReleasesWhenOnlyTheOtherIdentityWasTakenOver(t *testing.T) {
+	s, dnn := newAbortTestSMF()
+
+	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		pduSessionID uint8 = 3
+		ebi          uint8 = 5
+	)
+
+	sc, err := s.NewSession(supi, Access5G, SessionIdentity{PDUSessionID: pduSessionID, EBI: ebi}, "internet", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sc.PDUIPV4Address = net.ParseIP("10.0.0.5").To4()
+	sc.PDUIPV6Prefix = net.ParseIP("2001:db8::")
+
+	other := &SMContext{Supi: supi, Ref: "other"}
+	s.byKey[canonicalName(supi, epsBearerKey(ebi))] = other
+
+	s.abortSession(context.Background(), sc)
+
+	if len(dnn.releasedV4) != 1 || dnn.releasedV4[0] != pduSessionID {
+		t.Fatalf("expected one IPv4 release for session key %d, got %v", pduSessionID, dnn.releasedV4)
+	}
+
+	if len(dnn.releasedV6) != 1 || dnn.releasedV6[0] != pduSessionID {
+		t.Fatalf("expected one IPv6 release for session key %d, got %v", pduSessionID, dnn.releasedV6)
+	}
+}
+
+func TestReleaseAllocatedAddressesClearsRecordsWhenSuperseded(t *testing.T) {
+	s, dnn := newAbortTestSMF()
+
+	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const pduSessionID uint8 = 3
+
+	sc, err := s.NewSession(supi, Access5G, SessionIdentity{PDUSessionID: pduSessionID}, "internet", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sc.PDUIPV4Address = net.ParseIP("10.0.0.5").To4()
+	sc.PDUIPV6Prefix = net.ParseIP("2001:db8::")
+
+	s.dropFromPool(sc)
+
+	if _, err := s.NewSession(supi, Access5G, SessionIdentity{PDUSessionID: pduSessionID}, "internet", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	s.releaseAllocatedAddresses(context.Background(), dnn, sc)
+
+	if len(dnn.releasedV4) != 0 || len(dnn.releasedV6) != 0 {
+		t.Fatalf("released the live session's leases: v4=%v v6=%v", dnn.releasedV4, dnn.releasedV6)
+	}
+
+	if sc.PDUIPV4Address != nil || sc.PDUIPV6Prefix != nil {
+		t.Fatal("superseded skip left the address records set; a later rollback could re-enter")
+	}
+
+	s.releaseAllocatedAddresses(context.Background(), dnn, sc)
+
+	if len(dnn.releasedV4) != 0 || len(dnn.releasedV6) != 0 {
+		t.Fatalf("second pass released the live session's leases: v4=%v v6=%v", dnn.releasedV4, dnn.releasedV6)
+	}
+}

@@ -618,7 +618,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		stepTimeout := 5 * time.Second
 
 		// 0. Transfer leadership (HA only) so the cluster can continue
-		//     serving writes while this node tears down.
+		//    serving writes while this node tears down.
 		if dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
 			logger.EllaLog.Info("Transferring Raft leadership before shutdown")
 
