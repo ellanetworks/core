@@ -51,7 +51,7 @@ const joinTokenVersion byte = 1
 // are a few hundred bytes; 64 KiB is generous).
 const joinTokenMaxPayload uint32 = 64 * 1024
 
-const joinTokenClockSkew = time.Minute
+const JoinTokenClockSkew = time.Minute
 
 // MintJoinToken returns an opaque bearer string binding claims to
 // hmacKey. The token encodes claims as JSON followed by an HMAC-SHA256,
@@ -165,11 +165,11 @@ func VerifyJoinToken(hmacKey []byte, now time.Time, token string) (*JoinClaims, 
 		return nil, fmt.Errorf("parse claims: %w", err)
 	}
 
-	if now.Add(-joinTokenClockSkew).Unix() > claims.ExpiresAt {
+	if now.Add(-JoinTokenClockSkew).Unix() > claims.ExpiresAt {
 		return nil, fmt.Errorf("token expired at %d, now %d", claims.ExpiresAt, now.Unix())
 	}
 
-	if now.Add(joinTokenClockSkew).Unix() < claims.IssuedAt {
+	if now.Add(JoinTokenClockSkew).Unix() < claims.IssuedAt {
 		return nil, fmt.Errorf("token issued in the future (iat=%d, now=%d)", claims.IssuedAt, now.Unix())
 	}
 
