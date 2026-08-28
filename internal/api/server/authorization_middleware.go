@@ -183,8 +183,9 @@ const (
 	PermUpdateN3Interface     = "network_interface:update_n3"
 
 	// Radio permissions
-	PermListRadios = "radio:list"
-	PermReadRadio  = "radio:read"
+	PermListRadios  = "radio:list"
+	PermReadRadio   = "radio:read"
+	PermForgetRadio = "radio:forget"
 
 	// Radio event permissions
 	PermGetRadioEventRetentionPolicy = "radio_events:get_retention"

@@ -235,7 +235,7 @@ func (m *MME) exportUeContext(plmn models.PlmnID, ue *UeContext) UeContextExport
 			ENBUES1APID: uint32(conn.ENBUES1APID),
 		}
 
-		if s := m.radios[conn.Conn()]; s != nil {
+		if s, ok := m.reg.Radio(conn.Conn()); ok {
 			rc.RadioName = s.name
 			export.LastActivity.RadioNode = s.name
 		}
