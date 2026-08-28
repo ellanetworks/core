@@ -296,7 +296,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 type DiscoveryHandlerConfig struct {
 	DB     *db.Database
 	Config config.Config
-	Ready  *atomic.Bool
 }
 
 // NewDiscoveryHandler returns an HTTP handler serving only the routes
@@ -309,11 +308,7 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 
 	mux := http.NewServeMux()
 
-	ready := cfg.Ready
-	if ready == nil {
-		ready = &atomic.Bool{}
-		ready.Store(true)
-	}
+	ready := &atomic.Bool{}
 
 	// The datapath is not attached during discovery, so the mode is absent.
 	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready, nil).ServeHTTP)

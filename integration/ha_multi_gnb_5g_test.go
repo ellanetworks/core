@@ -241,6 +241,9 @@ func TestIntegration5GMultiGNB(t *testing.T) {
 	// AMF state is per-node (UE context is not replicated; see
 	// spec_security_ha.md). Query each gNB's home core for its own
 	// UEs, not the leader. gnbs[i] ↔ nodeClients[i] by node-id order.
+	seenIPs := make(map[string]string)
+	allocatedIPs := 0
+
 	for i, gn := range gnbs {
 		c := nodeClients[i]
 
@@ -265,7 +268,27 @@ func TestIntegration5GMultiGNB(t *testing.T) {
 				t.Errorf("%s: subscriber %s: PDU session IP %q not in expected pool 10.45.0.0/16",
 					gn.service, imsi, ip)
 			}
+
+			owner := fmt.Sprintf("%s/%s", gn.service, imsi)
+			if prev, dup := seenIPs[ip]; dup {
+				t.Errorf("duplicate PDU session IP %q assigned to both %s and %s", ip, prev, owner)
+			} else {
+				seenIPs[ip] = owner
+			}
+
+			allocatedIPs++
 		}
+	}
+
+	HALogf(t, "PDU session IP uniqueness: %d allocated, %d distinct", allocatedIPs, len(seenIPs))
+
+	if allocatedIPs == 0 {
+		t.Error("no PDU session IPs were collected; the uniqueness check asserted nothing")
+	}
+
+	if len(seenIPs) != allocatedIPs {
+		t.Errorf("expected %d distinct PDU session IPs across the cluster, got %d",
+			allocatedIPs, len(seenIPs))
 	}
 
 	// Cluster-wide health post-load. GetAutopilotState is leader-only;

@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -105,12 +104,12 @@ func runRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ any) e
 		return fmt.Errorf("initial registration procedure failed: %v", err)
 	}
 
-	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
 
-	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, 200*time.Millisecond)
+	_, err = gNodeB.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceSetup, registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
@@ -142,7 +141,7 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 		return fmt.Errorf("could not send Registration Request NAS PDU: %v", err)
 	}
 
-	nasMsg, err := opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgIdentityRequest), 1*time.Second)
+	nasMsg, err := opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgIdentityRequest), registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive Identity Request: %v", err)
 	}
@@ -152,7 +151,7 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 		return fmt.Errorf("NAS PDU validation failed: %v", err)
 	}
 
-	nasMsg, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), 1*time.Second)
+	nasMsg, err = opts.UE.WaitForNASGMMMessage(uint8(fgs.MsgRegistrationAccept), registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive Registration Accept: %v", err)
 	}
@@ -174,7 +173,7 @@ func runInitialRegistrationWithIdentityRequest(opts *initialRegistrationWithIden
 		return fmt.Errorf("could not build PDU Session Establishment Request NAS PDU: %v", err)
 	}
 
-	msg, err := opts.UE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), 500*time.Millisecond)
+	msg, err := opts.UE.WaitForNASGSMMessage(uint8(fgs.MsgPDUSessionEstablishmentAccept), registrationTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive PDU Session Establishment Accept: %v", err)
 	}

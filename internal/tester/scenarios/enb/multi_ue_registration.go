@@ -6,7 +6,6 @@ package enb
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/enb"
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -71,7 +70,7 @@ func runEnbMultiUERegistration(_ context.Context, env scenarios.Env, _ any) erro
 
 	defer ngeNB.Close()
 
-	_, err = ngeNB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, 200*time.Millisecond)
+	_, err = ngeNB.WaitForMessage(gnb.Successful, ngap.ProcNGSetup, scenarios.NGSetupTimeout)
 	if err != nil {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}

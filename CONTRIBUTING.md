@@ -122,4 +122,9 @@ Ella Core's frontend is built with [Vite](https://vite.dev/) and static files ar
 
 ### Troubleshooting
 
-Running Docker in the same system as Ella Core can cause some issues because of IP forwarding. If your containers lose internal connectivity, you can restore Docker networking via `sudo nft delete table inet filter`.
+Restore LXD bridge connectivity when Docker is running on the same system:
+
+```shell
+sudo iptables -I DOCKER-USER -i lxdbr0 -j ACCEPT
+sudo iptables -I DOCKER-USER -o lxdbr0 -j ACCEPT
+```

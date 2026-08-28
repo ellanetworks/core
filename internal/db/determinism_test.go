@@ -26,6 +26,7 @@ import (
 //
 // Any non-deterministic value must be captured at propose time (by the
 // leader, before Command.MarshalBinary) and carried into the applyX via its
+// payload — see applyDeleteOldDailyUsage's cutoff for an example.
 func TestIntentApplyFunctions_AreDeterministic(t *testing.T) {
 	// Package-qualified identifiers banned inside applyX bodies. Each entry
 	// is matched as a selector (pkg.Name) so unrelated uses like

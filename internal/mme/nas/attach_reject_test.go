@@ -143,6 +143,7 @@ func TestAttachProtocolError(t *testing.T) {
 }
 
 // TestAttachUnknownIMSI checks that an Attach Request from an unprovisioned IMSI
+// is rejected with ATTACH REJECT #3 ("Illegal UE") and the S1 context
 // is released, without starting authentication.
 func TestAttachUnknownIMSI(t *testing.T) {
 	m := newTestMME(t)
