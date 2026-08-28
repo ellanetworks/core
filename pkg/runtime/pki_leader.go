@@ -63,7 +63,10 @@ func (c *pkiLeaderCallback) OnBecameLeader() {
 		logger.EllaLog.Warn("leader init failed; yielding leadership and scheduling retry",
 			zap.Error(err))
 
-		c.yieldLeadership()
+		if transferErr := c.yieldLeadership(); transferErr != nil {
+			logger.EllaLog.Error("leadership transfer after init failure; staying leader and retrying",
+				zap.Error(transferErr))
+		}
 
 		go c.retryLeaderInit(leaderCtx)
 
@@ -94,11 +97,8 @@ func (c *pkiLeaderCallback) beginLeaderTerm() context.Context {
 	return leaderCtx
 }
 
-func (c *pkiLeaderCallback) yieldLeadership() {
-	if err := c.dbInstance.LeadershipTransfer(); err != nil {
-		logger.EllaLog.Debug("leadership transfer after init failure",
-			zap.Error(err))
-	}
+func (c *pkiLeaderCallback) yieldLeadership() error {
+	return c.dbInstance.LeadershipTransfer()
 }
 
 func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
@@ -109,6 +109,12 @@ func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(backoff):
+		}
+
+		if !c.dbInstance.IsLeader() {
+			logger.EllaLog.Info("leader init retry stopping; no longer leader")
+
+			return
 		}
 
 		err := runLeaderInit(ctx, c.state, c.dbInstance, c.nodeID, c.binaryVersion)
