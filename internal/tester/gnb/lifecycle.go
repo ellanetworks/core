@@ -173,6 +173,8 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 
 	status[pduSessionID] = true
 
+	generation := g.sessionGeneration()
+
 	if err := u.SendServiceRequest(ranUENGAPID, status, uint8(fgs.ServiceTypeData)); err != nil {
 		return nil, fmt.Errorf("send Service Request: %w", err)
 	}
@@ -181,13 +183,7 @@ func (g *GnodeB) ServiceRequest(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
 		return nil, fmt.Errorf("await Service Accept: %w", err)
 	}
 
-	// Generation 0: accept whatever the gNB now holds. The AMF re-activates the
-	// user plane in the Initial Context Setup Request that carries the Service
-	// Accept, but it only re-sends PDU Session Resource Setup when the AN tunnel
-	// actually changes; otherwise the session keeps the endpoint it already had.
-	// Either way the store is current, because the handler stores before it hands
-	// the Service Accept to the UE.
-	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, 0, timeout)
+	session, err := g.awaitSession(u, ranUENGAPID, pduSessionID, generation, timeout)
 	if err != nil {
 		return nil, err
 	}
