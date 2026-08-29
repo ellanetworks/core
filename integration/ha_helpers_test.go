@@ -700,10 +700,6 @@ func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient,
 	}
 }
 
-// assertMembershipConsistent fails if clients return different
-// cluster_members sets. Polls 10s — callers should already be past
-// any settle wait (waitForFollowerConvergence etc.); this catches
-// persistent divergence, not apply-path race.
 func subscriberIMSIsOn(ctx context.Context, c *client.Client) (map[string]struct{}, error) {
 	const perPage = 100
 
@@ -786,6 +782,10 @@ func assertAckedWritesDurable(t *testing.T, ctx context.Context, clients []*clie
 		len(report.acked), len(clients), len(report.unknown))
 }
 
+// assertMembershipConsistent fails if clients return different
+// cluster_members sets. Polls 10s — callers should already be past
+// any settle wait (waitForFollowerConvergence etc.); this catches
+// persistent divergence, not apply-path race.
 func assertMembershipConsistent(t *testing.T, ctx context.Context, clients []*client.Client) {
 	t.Helper()
 

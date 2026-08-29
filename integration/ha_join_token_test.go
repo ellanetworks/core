@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -100,7 +101,7 @@ func TestIntegrationHAJoinTokenRejection(t *testing.T) {
 	}{
 		{
 			name:         "tampered_hmac",
-			token:        tamperJoinToken(valid.Token),
+			token:        tamperJoinToken(t, valid.Token),
 			wantFragment: "join token",
 		},
 		{
@@ -188,19 +189,26 @@ func assertJoinRejected(t *testing.T, ctx context.Context, dc *DockerClient, lea
 	}
 }
 
-func tamperJoinToken(token string) string {
-	if token == "" {
-		return token
+func tamperJoinToken(t *testing.T, token string) string {
+	t.Helper()
+
+	raw, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		t.Fatalf("decode join token: %v", err)
 	}
 
-	last := token[len(token)-1]
-
-	replacement := byte('A')
-	if last == 'A' {
-		replacement = 'B'
+	if len(raw) == 0 {
+		t.Fatal("join token decoded to zero bytes")
 	}
 
-	return token[:len(token)-1] + string(replacement)
+	raw[len(raw)-1] ^= 0x01
+
+	tampered := base64.RawURLEncoding.EncodeToString(raw)
+	if tampered == token {
+		t.Fatal("tampering did not change the join token")
+	}
+
+	return tampered
 }
 
 func composeRemoveService(ctx context.Context, composeDir, composeFile, service string) error {

@@ -426,6 +426,33 @@ func TestDoForwardRequest_PostSendFailureIsOutcomeUnknown(t *testing.T) {
 	}
 }
 
+func TestDoForwardRequest_DialTimeoutIsRetryableNotOutcomeUnknown(t *testing.T) {
+	m := newRetryLoopTestManager(t)
+	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, _ string, _ int) (net.Conn, error) {
+		<-ctx.Done()
+
+		return nil, errors.New("dial: i/o timeout")
+	})
+
+	t.Cleanup(m.leaderClient.close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_, status, err := m.doForwardRequest(ctx, "10.0.0.1:7000", 1, []byte(`{}`))
+	if err == nil {
+		t.Fatal("expected an error when the dial outlives the request deadline")
+	}
+
+	if errors.Is(err, ErrOutcomeUnknown) {
+		t.Fatalf("no connection was ever established, so the write must stay retryable rather than outcome-unknown: %v", err)
+	}
+
+	if status != http.StatusServiceUnavailable {
+		t.Fatalf("a blackholed leader should map to 503, got %d", status)
+	}
+}
+
 func TestDoForwardRequest_DialFailureIsRetryableNotOutcomeUnknown(t *testing.T) {
 	m := newRetryLoopTestManager(t)
 	m.leaderClient = newLeaderHTTPClient(func(context.Context, string, int) (net.Conn, error) {
