@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 )
 
 type ClusterMember struct {
@@ -148,15 +149,17 @@ func (c *Client) PromoteClusterMember(ctx context.Context, nodeID int) error {
 // RAN connections uncleaned until the removal itself triggers the usual
 // post-remove purge).
 func (c *Client) RemoveClusterMember(ctx context.Context, nodeID int, force bool) error {
-	path := fmt.Sprintf("api/v1/cluster/members/%d", nodeID)
+	var query url.Values
+
 	if force {
-		path += "?force=true"
+		query = url.Values{"force": {"true"}}
 	}
 
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   path,
+		Path:   fmt.Sprintf("api/v1/cluster/members/%d", nodeID),
+		Query:  query,
 	})
 	if err != nil {
 		return err
