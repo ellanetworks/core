@@ -219,11 +219,16 @@ func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leade
 		maxResponseBytes: maxForwardResponseBytes,
 	})
 	if err != nil {
-		if errors.Is(err, ErrLeaderUnreachable) {
+		switch {
+		case errors.Is(err, ErrLeaderUnreachable):
 			return nil, http.StatusServiceUnavailable, err
-		}
 
-		return nil, 0, err
+		case errors.Is(err, ErrLeaderRequestNotSent):
+			return nil, 0, err
+
+		default:
+			return nil, 0, fmt.Errorf("%w: %w", ErrOutcomeUnknown, err)
+		}
 	}
 
 	if resp.StatusCode != http.StatusOK {

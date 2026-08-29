@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -383,5 +385,65 @@ func TestDecodeForwardError_NoCodeStaysPlain(t *testing.T) {
 
 	if got := decodeForwardError(body, http.StatusMisdirectedRequest); errors.Is(got, ErrOutcomeUnknown) {
 		t.Fatalf("retryable error must not decode as outcome-unknown: %v", got)
+	}
+}
+
+func TestDoForwardRequest_PostSendFailureIsOutcomeUnknown(t *testing.T) {
+	addr := startClusterHTTPStub(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			return
+		}
+
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			return
+		}
+
+		_ = conn.Close()
+	}))
+
+	m := newRetryLoopTestManager(t)
+	m.leaderClient = newLeaderHTTPClient(func(ctx context.Context, a string, _ int) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "tcp", a)
+	})
+
+	t.Cleanup(m.leaderClient.close)
+
+	_, status, err := m.doForwardRequest(context.Background(), addr, 1, []byte(`{}`))
+	if err == nil {
+		t.Fatal("expected an error when the leader hangs up mid-request")
+	}
+
+	if status != 0 {
+		t.Fatalf("post-send failure should carry no leader status, got %d", status)
+	}
+
+	if !errors.Is(err, ErrOutcomeUnknown) {
+		t.Fatalf("a request that reached the wire may have committed and must be outcome-unknown, got %v", err)
+	}
+}
+
+func TestDoForwardRequest_DialFailureIsRetryableNotOutcomeUnknown(t *testing.T) {
+	m := newRetryLoopTestManager(t)
+	m.leaderClient = newLeaderHTTPClient(func(context.Context, string, int) (net.Conn, error) {
+		return nil, errors.New("dial refused")
+	})
+
+	t.Cleanup(m.leaderClient.close)
+
+	_, status, err := m.doForwardRequest(context.Background(), "10.0.0.1:7000", 1, []byte(`{}`))
+	if err == nil {
+		t.Fatal("expected an error when the leader cannot be dialled")
+	}
+
+	if status != http.StatusServiceUnavailable {
+		t.Fatalf("dial failure should map to 503, got %d", status)
+	}
+
+	if errors.Is(err, ErrOutcomeUnknown) {
+		t.Fatal("nothing was sent on a dial failure, so the write must stay retryable rather than outcome-unknown")
 	}
 }
