@@ -351,6 +351,18 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		}
 	}
 
+	writer := startSubscriberWriter(t, ctx, survivors, "001019756150000")
+
+	writerStopped := false
+
+	t.Cleanup(func() {
+		if !writerStopped {
+			writer.stop()
+		}
+	})
+
+	time.Sleep(2 * time.Second)
+
 	leaderService := haNodeServices[leaderIdx]
 	HALogf(t, "stopping leader %s (node %d)", leaderService, stoppedNodeID)
 
@@ -364,6 +376,30 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
 		t.Fatalf("re-election failed: %v", err)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	writeReport, werr := writer.stopAndReport()
+	writerStopped = true
+
+	if werr != nil {
+		t.Fatalf("background writer reported a permanent failure: %v", werr)
+	}
+
+	HALogf(t, "writer: %d ok, %d transient, %d attempts, longest gap %s",
+		writeReport.success, writeReport.transient, writeReport.attempts, writeReport.maxGap)
+
+	if writeReport.success < 2 {
+		t.Fatalf("writer landed %d successful writes; too few to measure an outage window",
+			writeReport.success)
+	}
+
+	const failoverWriteGapCeiling = 30 * time.Second
+
+	if writeReport.maxGap > failoverWriteGapCeiling {
+		t.Errorf("writes were unavailable for %s across the leader failure, ceiling is %s",
+			writeReport.maxGap, failoverWriteGapCeiling)
 	}
 
 	HALog(t, "new leader elected, verifying autopilot reports stopped node unhealthy")
@@ -496,9 +532,17 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
-	_, leader, err := findLeader(ctx, clients)
+	leaderIdx, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	survivors := make([]*client.Client, 0, len(clients)-1)
+
+	for i, c := range clients {
+		if i != leaderIdx {
+			survivors = append(survivors, c)
+		}
 	}
 
 	err = waitForAllNodesReady(ctx, clients)
@@ -525,7 +569,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 	HALog(t, "drain accepted, waiting for new leader")
 
 	// The other two nodes should elect a new leader.
-	newLeader, err := waitForNewLeader(ctx, clients)
+	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
 		t.Fatalf("no new leader after drain: %v", err)
 	}
@@ -579,6 +623,8 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	const scaleUpComposeDir = "compose/ha-scaleup/"
 
 	ipFamily := DetectIPFamily()
@@ -619,7 +665,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
+		dumpClusterDiagnostics(t, ctx, dockerClient, scaleUpComposeDir, haNodeServices, clients)
 	})
 
 	_, leader, err := findLeader(ctx, clients)

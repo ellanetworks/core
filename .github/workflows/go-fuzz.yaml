@@ -12,33 +12,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  fuzz:
+  discover:
     runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    outputs:
+      targets: ${{ steps.list.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - id: list
+        run: |
+          targets=$(.github/scripts/list-fuzz-targets.sh)
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+
+  fuzz:
+    needs: discover
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - dir: nas
-            pkg: ./fgs
-            target: FuzzParse
-          - dir: nas
-            pkg: ./fgs
-            target: FuzzIdentityCodecs
-          - dir: nas
-            pkg: ./eps
-            target: FuzzParseSecurityProtectedNoPanic
-          - dir: nas
-            pkg: .
-            target: FuzzReaderNoPanic
-          - dir: nas
-            pkg: .
-            target: FuzzWalkOptionalIEs
-          - dir: ngap
-            pkg: .
-            target: FuzzDecodeNoPanic
-          - dir: s1ap
-            pkg: .
-            target: FuzzDecodeNoPanic
+        include: ${{ fromJSON(needs.discover.outputs.targets) }}
     steps:
       - uses: actions/checkout@v7
 
@@ -48,11 +46,11 @@ jobs:
 
       - name: Fuzz ${{ matrix.target }}
         working-directory: ${{ matrix.dir }}
-        run: go test ${{ matrix.pkg }} -run=xxx -fuzz=${{ matrix.target }} -fuzztime=5m
+        run: go test ${{ matrix.pkg }} -run=xxx -fuzz='^${{ matrix.target }}$' -fuzztime=5m
 
       - name: Upload crashers
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: fuzz-${{ matrix.target }}-corpus
+          name: fuzz-${{ matrix.dir }}-${{ matrix.target }}-corpus
           path: ${{ matrix.dir }}/**/testdata/fuzz/

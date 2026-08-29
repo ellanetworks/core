@@ -87,9 +87,8 @@ func (amf *AMF) retransmitPaging(ue *UeContext, ngapBuf []byte, attempt int32) {
 func (amf *AMF) abandonPaging(ue *UeContext) {
 	logger.AmfLog.Info("paging unanswered, abandoning procedure", logger.SUPI(ue.Supi().String()))
 
-	// Backstop for standalone signalling whose consumer went away without cancelling. A
-	// session-scoped buffer is left alone: it stays valid if the UE returns on its own.
-	if req := ue.N1N2Message(); req != nil && req.Standalone() && ue.Conn() == nil {
+	// TS 23.502 4.2.3.3 step 3b: the SMF reissues the N2 payload once the UE is reachable.
+	if ue.Conn() == nil {
 		ue.ClearN1N2Message()
 	}
 

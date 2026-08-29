@@ -50,7 +50,7 @@ func runN3InterfaceHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		t.Fatalf("writer N3.ExternalAddress: got %q, want %q", got.N3.ExternalAddress, target)
 	}
 
-	stabilizeLocal()
+	stabilizeLocal(t, ctx, h)
 
 	for i, c := range h.Clients {
 		if i == writerIdx {

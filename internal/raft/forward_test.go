@@ -254,19 +254,32 @@ func TestRunForwardRetryLoop_TimeoutBounds(t *testing.T) {
 		},
 	}
 
-	// Timeout shorter than a single backoff — loop must exit on the
-	// deadline rather than continuing forever. The deadline gate lives
-	// outside the per-attempt context so a persistent 503 cannot pin
-	// the loop for longer than the caller-supplied timeout.
+	const timeout = 50 * time.Millisecond
+
 	start := time.Now()
 
-	_, err := m.runForwardRetryLoop(context.Background(), 50*time.Millisecond, s.fn())
+	_, err := m.runForwardRetryLoop(context.Background(), timeout, s.fn())
+
+	elapsed := time.Since(start)
+
 	if err == nil {
 		t.Fatal("expected error after timeout")
 	}
 
-	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
-		t.Fatalf("loop did not respect timeout: elapsed=%v", elapsed)
+	if !errors.Is(err, hraft.ErrNotLeader) {
+		t.Errorf("error: got %v, want hraft.ErrNotLeader so the caller may safely retry", err)
+	}
+
+	if errors.Is(err, ErrOutcomeUnknown) {
+		t.Errorf("a 503 means the entry was not applied; must not surface as outcome-unknown: %v", err)
+	}
+
+	if got := s.calls.Load(); got != 1 {
+		t.Errorf("attempts: got %d, want 1 (the deadline must stop the loop before the budget does)", got)
+	}
+
+	if upper := timeout + 2*noLeaderBackoff; elapsed > upper {
+		t.Errorf("loop ran for %v, want at most %v (timeout + one backoff plus slack)", elapsed, upper)
 	}
 }
 

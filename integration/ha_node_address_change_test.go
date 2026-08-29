@@ -22,6 +22,8 @@ func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("address rebinding helper is IPv4-only")
 	}

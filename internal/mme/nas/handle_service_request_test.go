@@ -155,6 +155,45 @@ func TestServiceRequestReactivatesAllBearers(t *testing.T) {
 // TestServiceRequestS1UTransportFamily checks the S1-U endpoint the MME signals
 // to the eNB carries the S-GW N3 address family — IPv4 (4 octets), IPv6 (16), or
 // dual-stack (20, IPv4||IPv6) — per TS 36.413, matching the configured N3.
+// TS 24.301 5.6.1.5: a service request the MME cannot accept is answered with a SERVICE REJECT.
+func TestServiceRequestWithNoActiveBearersRejected(t *testing.T) {
+	m := newTestMME(t)
+	ue, guti := idleRegisteredUE(t, m)
+
+	ue.Pdns = nil
+
+	cc := &captureConn{}
+	HandleServiceRequest(context.Background(), m, cc, &s1ap.InitialUEMessage{
+		ENBUES1APID: 9,
+		NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
+		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: s1ap.MTMSI(binary.BigEndian.Uint32(guti.GUTI.TMSI[:]))},
+	})
+
+	if len(cc.sent) == 0 {
+		t.Fatal("no S1AP message sent; the UE is left registered with no user plane and no reject")
+	}
+
+	for _, pdu := range cc.sent {
+		msg, err := s1ap.Unmarshal(pdu)
+		if err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+
+		if im, ok := msg.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcInitialContextSetup {
+			t.Fatal("Initial Context Setup sent for a UE with no active EPS bearer context")
+		}
+	}
+
+	rej, err := eps.ParseServiceReject(decodeProtectedDownlink(t, ue, cc.sent[0]))
+	if err != nil {
+		t.Fatalf("parse service reject: %v", err)
+	}
+
+	if rej.Cause != eps.EMMCauseNoEPSBearerContextActivated {
+		t.Fatalf("EMM cause = %d, want %d (no EPS bearer context activated)", rej.Cause, eps.EMMCauseNoEPSBearerContextActivated)
+	}
+}
+
 func TestServiceRequestS1UTransportFamily(t *testing.T) {
 	v4 := netip.AddrFrom4([4]byte{10, 3, 0, 2})
 	v6 := netip.MustParseAddr("2001:db8:3::10")

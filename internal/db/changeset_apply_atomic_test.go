@@ -76,7 +76,7 @@ func countSlices(t *testing.T, database *Database) int {
 	return n
 }
 
-func newAtomicTestDB(t *testing.T) *Database {
+func newAtomicTestDB(t testing.TB) *Database {
 	t.Helper()
 
 	tmp := t.TempDir()

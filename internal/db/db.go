@@ -38,6 +38,7 @@ var tracer = otel.Tracer("ella-core/db")
 type Database struct {
 	dbPath         string
 	dataDir        string
+	clusterEnabled bool
 	restoreMu      sync.Mutex
 	proposeMu      sync.Mutex
 	raftManager    *ellaraft.Manager
@@ -643,11 +644,7 @@ func (db *Database) AutopilotState() *autopilot.State {
 
 // ClusterEnabled returns whether clustering is active.
 func (db *Database) ClusterEnabled() bool {
-	if db.raftManager == nil {
-		return false
-	}
-
-	return db.raftManager.ClusterEnabled()
+	return db.clusterEnabled
 }
 
 // LeadershipTransfer triggers a leadership transfer to another voter. The raft
@@ -1009,7 +1006,10 @@ type clusterCoordinator struct {
 	cancelTick context.CancelFunc
 }
 
-const migrationGateTickInterval = 5 * time.Second
+const (
+	migrationGateTickInterval = 5 * time.Second
+	reconcileBarrierTimeout   = 10 * time.Second
+)
 
 func newClusterCoordinator(db *Database, parentCtx context.Context) *clusterCoordinator {
 	return &clusterCoordinator{db: db, parentCtx: parentCtx}
@@ -1053,7 +1053,111 @@ func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
 			return
 		case <-ticker.C:
 			c.db.signalMigrationCheck()
+
+			if err := c.db.reconcileClusterMembers(ctx); err != nil {
+				logger.WithTrace(ctx, logger.DBLog).Warn("Failed to reconcile cluster members against the Raft configuration", zap.Error(err))
+			}
 		}
+	}
+}
+
+func (db *Database) reconcileClusterMembers(ctx context.Context) error {
+	if !db.clusterEnabled || db.raftManager == nil || !db.raftManager.IsLeader() {
+		return nil
+	}
+
+	observed, err := db.orphanedClusterMembers(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(observed) == 0 {
+		return nil
+	}
+
+	if err := db.raftManager.Barrier(reconcileBarrierTimeout); err != nil {
+		return fmt.Errorf("barrier before cluster member reconcile: %w", err)
+	}
+
+	confirmed, err := db.orphanedClusterMembers(ctx)
+	if err != nil {
+		return err
+	}
+
+	stillAbsent := make(map[int]struct{}, len(confirmed))
+	for _, nodeID := range confirmed {
+		stillAbsent[nodeID] = struct{}{}
+	}
+
+	var errs []error
+
+	for _, nodeID := range observed {
+		if _, ok := stillAbsent[nodeID]; !ok {
+			continue
+		}
+
+		if !db.raftManager.IsLeader() {
+			break
+		}
+
+		if err := db.DeleteClusterMember(ctx, nodeID); err != nil {
+			errs = append(errs, fmt.Errorf("delete cluster member %d: %w", nodeID, err))
+			continue
+		}
+
+		logger.WithTrace(ctx, logger.DBLog).Info("Deleted cluster member absent from the Raft configuration",
+			zap.Int("nodeId", nodeID),
+		)
+
+		db.purgeReconciledNodeArtifacts(ctx, nodeID)
+	}
+
+	return errors.Join(errs...)
+}
+
+func (db *Database) orphanedClusterMembers(ctx context.Context) ([]int, error) {
+	var configuration []int
+
+	if db.raftMemberIDs != nil {
+		configuration = db.raftMemberIDs()
+	}
+
+	if len(configuration) == 0 {
+		return nil, nil
+	}
+
+	members, err := db.ListClusterMembers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list cluster members: %w", err)
+	}
+
+	inConfiguration := make(map[int]struct{}, len(configuration))
+	for _, nodeID := range configuration {
+		inConfiguration[nodeID] = struct{}{}
+	}
+
+	var orphans []int
+
+	for _, m := range members {
+		if _, ok := inConfiguration[m.NodeID]; ok {
+			continue
+		}
+
+		orphans = append(orphans, m.NodeID)
+	}
+
+	return orphans, nil
+}
+
+func (db *Database) purgeReconciledNodeArtifacts(ctx context.Context, nodeID int) {
+	if err := db.DeleteDynamicLeasesByNode(ctx, nodeID); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to purge dynamic IP leases for a reconciled cluster member",
+			zap.Int("nodeId", nodeID), zap.Error(err))
+	}
+
+	if err := db.DeleteClusterNodeCert(ctx, nodeID); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to drop the certificate pin for a reconciled cluster member",
+			zap.Int("nodeId", nodeID), zap.Error(err))
 	}
 }
 
@@ -1172,6 +1276,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.connPtr.Store(sqlair.NewDB(sqlConn))
 	db.dbPath = dbPath
 	db.dataDir = dataDir
+	db.clusterEnabled = raftCfg.Enabled
 	db.changefeed = NewChangefeed()
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {
