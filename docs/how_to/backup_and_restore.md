@@ -36,18 +36,37 @@ Ella Core stores all persistent data in an embedded database. You can create bac
 
 ## Disaster recovery for HA clusters
 
-1. Stop every voter in the cluster.
-2. On one node, drop the backup archive into the data directory as `restore.bundle`:
+Paths below assume the default data directory `/var/snap/ella-core/common/data` (the directory holding `db.path`).
+
+1. Stop the daemon on every node in the cluster:
 
     ```shell
-    sudo mv backup.tar.gz /var/snap/ella-core/common/restore.bundle
-    sudo chmod 600 /var/snap/ella-core/common/restore.bundle
+    sudo snap stop ella-core.cored
     ```
 
-3. Start the daemon on that node:
+2. On the node you seed from the backup, delete the old cluster state:
+
+    ```shell
+    sudo rm -rf /var/snap/ella-core/common/data/ella.db \
+                /var/snap/ella-core/common/data/ella.db-wal \
+                /var/snap/ella-core/common/data/ella.db-shm \
+                /var/snap/ella-core/common/data/raft \
+                /var/snap/ella-core/common/data/cluster-tls
+    ```
+
+3. Remove `cluster.join-token` from that node's `core.yaml` if it is set.
+
+4. Drop the backup archive into the data directory as `restore.bundle`:
+
+    ```shell
+    sudo mv backup.tar.gz /var/snap/ella-core/common/data/restore.bundle
+    sudo chmod 600 /var/snap/ella-core/common/data/restore.bundle
+    ```
+
+5. Start the daemon on that node:
 
     ```shell
     sudo snap start --enable ella-core.cored
     ```
 
-4. Add the remaining nodes via the [join-token flow](deploy_ha_cluster.md).
+6. On each remaining node, repeat step 2, then add it via the [join-token flow](deploy_ha_cluster.md).
