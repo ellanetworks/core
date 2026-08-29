@@ -271,6 +271,22 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		t.Fatal("background writer made zero successful writes; cluster was permanently unwriteable")
 	}
 
+	_, postRollLeader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("find leader after roll: %v", err)
+	}
+
+	postRollIdx, err := leaderAppliedIndex(ctx, postRollLeader)
+	if err != nil {
+		t.Fatalf("leader applied index after roll: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clients, postRollIdx); err != nil {
+		t.Fatalf("nodes did not converge after roll: %v", err)
+	}
+
+	assertAckedWritesDurable(t, ctx, clients, writeReport)
+
 	assertMembershipConsistent(t, ctx, clients)
 }
 
@@ -461,6 +477,9 @@ type subscriberWriter struct {
 
 	lastSuccessNanos atomic.Int64
 	maxGapNanos      atomic.Int64
+
+	acked   []string
+	unknown []string
 }
 
 type writerReport struct {
@@ -469,6 +488,9 @@ type writerReport struct {
 	attempts  int64
 
 	maxGap time.Duration
+
+	acked   []string
+	unknown []string
 }
 
 // startSubscriberWriter creates subscribers round-robin at ~5/s.
@@ -520,25 +542,35 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 				SequenceNumber: "000000000022",
 				ProfileName:    "default",
 			})
-
-			// stop() cancels ctx; any in-flight request then fails with
-			// "context canceled". That is shutdown, not a real error.
-			if ctx.Err() != nil {
-				return
-			}
-
-			switch {
-			case err == nil:
+			if err == nil {
 				w.success.Add(1)
+				w.acked = append(w.acked, imsi)
 				w.recordSuccess(time.Now())
-			case isTransientWriteError(err):
-				w.transient.Add(1)
-			default:
-				e := fmt.Errorf("subscriber %s: %w", imsi, err)
-				w.fatalErr.Store(&e)
+
+				if ctx.Err() != nil {
+					return
+				}
+
+				continue
+			}
+
+			if ctx.Err() != nil {
+				w.unknown = append(w.unknown, imsi)
 
 				return
 			}
+
+			if isTransientWriteError(err) {
+				w.transient.Add(1)
+				w.unknown = append(w.unknown, imsi)
+
+				continue
+			}
+
+			e := fmt.Errorf("subscriber %s: %w", imsi, err)
+			w.fatalErr.Store(&e)
+
+			return
 		}
 	}()
 
@@ -561,6 +593,8 @@ func (w *subscriberWriter) stopAndReport() (writerReport, error) {
 		transient: w.transient.Load(),
 		attempts:  w.attempts.Load(),
 		maxGap:    time.Duration(w.maxGapNanos.Load()),
+		acked:     w.acked,
+		unknown:   w.unknown,
 	}
 
 	if e := w.fatalErr.Load(); e != nil {
