@@ -560,7 +560,7 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 				return
 			}
 
-			if isTransientWriteError(err) {
+			if isTransientWriteError(err) || isOutcomeUnknownWriteError(err) {
 				w.transient.Add(1)
 				w.unknown = append(w.unknown, imsi)
 
@@ -613,6 +613,10 @@ func (w *subscriberWriter) recordSuccess(now time.Time) {
 	if gap := now.UnixNano() - prev; gap > w.maxGapNanos.Load() {
 		w.maxGapNanos.Store(gap)
 	}
+}
+
+func isOutcomeUnknownWriteError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "write outcome unknown")
 }
 
 // isTransientWriteError matches errors expected during leadership
