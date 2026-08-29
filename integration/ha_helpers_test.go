@@ -366,18 +366,49 @@ func waitForClusterReadyWithin(ctx context.Context, clients []*client.Client, ti
 
 // findLeader returns the index and client of the current leader node.
 func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Client, error) {
-	for i, c := range clients {
-		status, err := c.GetStatus(ctx)
-		if err != nil {
-			continue
+	const timeout = 30 * time.Second
+
+	deadline := time.Now().Add(timeout)
+
+	var lastState string
+
+	for {
+		leaderIdxs := make([]int, 0, len(clients))
+		claims := make([]string, 0, len(clients))
+
+		for i, c := range clients {
+			status, err := c.GetStatus(ctx)
+			if err != nil {
+				continue
+			}
+
+			if status.Cluster != nil && status.Cluster.Role == "Leader" {
+				leaderIdxs = append(leaderIdxs, i)
+				claims = append(claims, fmt.Sprintf("node %d", status.Cluster.NodeID))
+			}
 		}
 
-		if status.Cluster != nil && status.Cluster.Role == "Leader" {
-			return i, c, nil
+		if len(leaderIdxs) == 1 {
+			return leaderIdxs[0], clients[leaderIdxs[0]], nil
+		}
+
+		if len(leaderIdxs) == 0 {
+			lastState = "no node reports the Leader role"
+		} else {
+			lastState = fmt.Sprintf("%d nodes claim leadership at once (%s)",
+				len(leaderIdxs), strings.Join(claims, ", "))
+		}
+
+		if !time.Now().Before(deadline) {
+			return -1, nil, fmt.Errorf("no single leader after %v: %s", timeout, lastState)
+		}
+
+		select {
+		case <-ctx.Done():
+			return -1, nil, fmt.Errorf("waiting for a single leader: %w", ctx.Err())
+		case <-time.After(time.Second):
 		}
 	}
-
-	return -1, nil, fmt.Errorf("no leader found")
 }
 
 func waitForNewLeader(ctx context.Context, survivors []*client.Client) (*client.Client, error) {
