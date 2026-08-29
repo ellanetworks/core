@@ -40,9 +40,9 @@ When BGP is enabled, each node advertises a `/32` route for every UE session it 
 
 ## Failover and timing
 
-Leader re-election completes within a few seconds; surviving nodes continue accepting NGAP, S1AP, and API calls the whole time.
+Leader re-election completes within a few seconds.
 
-Each Ella Core node presents as a distinct AMF in the same AMF Set (5G) and a distinct MME — a distinct GUMMEI — in a single MME Pool (4G). A UE's GUTI pins it to the node that handled its registration, and new UEs distribute across the nodes by advertised capacity. When a node dies, radios detect the loss via SCTP heartbeat timeout and reselect a surviving AMF/MME. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new session.
+Each Ella Core node presents as a distinct AMF in the same AMF Set (5G) and a distinct MME — a distinct GUMMEI — in a single MME Pool (4G). A UE's GUTI pins it to the node that handled its registration. When a node dies, radios detect the loss via SCTP heartbeat timeout and reselect a surviving AMF/MME. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new session.
 
 ## Deployment scenarios
 
