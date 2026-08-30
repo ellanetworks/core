@@ -19,14 +19,14 @@ Deploy three or five nodes. A *voter* is a node that counts toward quorum, and a
 
 Two things HA does not handle automatically:
 
-- **Loss of quorum.** If more than half the voters fail at the same time, the cluster loses quorum and writes stall until enough nodes return — or the cluster is restored from backup via [Disaster recovery](#disaster-recovery).
+- **Loss of quorum.** If a majority of voters is lost, the cluster loses quorum and writes stall until enough nodes return — or the cluster is restored from backup via [Disaster recovery](#disaster-recovery).
 - **In-flight UE sessions.** Sessions on a dead node drop; those UEs re-register on a surviving node.
 
 ## What replicates, and what does not
 
 Network-wide resources — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, the operator configuration — replicate across the cluster. Every replicated record carries a globally-unique ID, so rows created on different nodes never collide. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
 
-Per-node configuration does not replicate. This covers the local data-plane and routing settings each node owns: static routes, BGP settings, BGP peers and import prefixes, NAT, the N3 external address, and flow accounting. To configure these on an HA cluster, hit each node's API directly — a change made on one node does not propagate to its peers. This lets nodes in different racks or AZs run with different upstream gateways and BGP topologies.
+Per-node configuration does not replicate. This covers the local data-plane and routing settings each node owns: static routes, BGP settings, BGP peers and import prefixes, NAT, the N3 external address, local switching, and flow accounting. To configure these on an HA cluster, hit each node's API directly — a change made on one node does not propagate to its peers. This lets nodes in different racks or AZs run with different upstream gateways and BGP topologies.
 
 Runtime state tied to a specific connection or session also does not replicate: SCTP associations with radios, UE contexts, active sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
 
@@ -36,13 +36,13 @@ Observability is per-node: each instance exposes its own Prometheus endpoint, ra
 
 A UE's user-plane traffic flows through the node that handled its registration — that node runs its User Plane and terminates its GTP-U tunnel. Each data network has one cluster-wide IP pool; the replicated lease table guarantees no two UEs receive the same address, and each lease records the node currently serving it.
 
-When BGP is enabled, each node advertises a `/32` route for every UE session it hosts (see [Advertising routes via BGP](bgp.md)). When a UE re-registers on a different node after failover, the lease's owning node is updated in place — the UE keeps its IP — and the new node's speaker begins advertising the same `/32` from its N6. The dead node's BGP session times out after the hold timer (90 s by default, configurable per peer), its routes are withdrawn, and upstream routing converges on the survivor without operator action.
+When BGP is enabled, each node advertises a `/32` (IPv4) or `/64` (IPv6) route for every UE session it hosts (see [Advertising routes via BGP](bgp.md)). When a UE re-registers on a different node after failover, the lease's owning node is updated in place — the UE keeps its IP — and the new node's speaker begins advertising the same prefix from its N6. The dead node's BGP session times out after the hold timer (90 s by default, configurable per peer), its routes are withdrawn, and upstream routing converges on the survivor without operator action.
 
 ## Failover and timing
 
-Leader re-election completes within a few seconds; surviving nodes continue accepting NGAP, S1AP, and API calls the whole time.
+Leader re-election completes within a few seconds.
 
-Each Ella Core node presents as a distinct AMF in the same AMF Set (5G) and a distinct MME — a distinct GUMMEI — in a single MME Pool (4G). A UE's GUTI pins it to the node that handled its registration, and new UEs distribute across the nodes by advertised capacity. When a node dies, radios detect the loss via SCTP heartbeat timeout and reselect a surviving AMF/MME. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new session.
+Each Ella Core node presents as a distinct AMF in the same AMF Set (5G) and a distinct MME — a distinct GUMMEI — in a single MME Pool (4G). A UE's GUTI pins it to the node that handled its registration. When a node dies, radios detect the loss via SCTP heartbeat timeout and reselect a surviving AMF/MME. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new session.
 
 ## Deployment scenarios
 
@@ -70,7 +70,7 @@ Useful for site- or tenant-partitioned deployments. Network-wide state still rep
 
 Draining prepares a node for removal without disrupting traffic on its peers. A drained node hands Raft leadership to another voter if it held it, signals connected radios that it is unavailable so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Existing flows keep running until the node is removed or shut down.
 
-Drain is triggered by an operator via the cluster API. Removal requires a drained node.
+Drain is triggered by an operator via the cluster API. Removal requires a drained node, unless it is forced.
 
 ## Scaling the cluster
 

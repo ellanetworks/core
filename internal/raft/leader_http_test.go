@@ -163,3 +163,25 @@ func TestLeaderHTTPClient_TimeoutBoundsTheRoundTrip(t *testing.T) {
 		t.Fatalf("request took %s; the timeout did not bound it", elapsed)
 	}
 }
+
+func TestLeaderHTTPClient_MalformedAddressIsNotSent(t *testing.T) {
+	c := newLeaderHTTPClient(func(context.Context, string, int) (net.Conn, error) {
+		t.Fatal("dial must not be attempted when the request cannot be built")
+		return nil, nil
+	})
+
+	defer c.close()
+
+	_, err := c.do(context.Background(), "bad\x7fhost:7000", 1, leaderHTTPRequest{
+		method:           http.MethodPost,
+		path:             ProposeForwardPath,
+		maxResponseBytes: 1024,
+	})
+	if err == nil {
+		t.Fatal("expected an error for an unparseable leader address")
+	}
+
+	if !errors.Is(err, ErrLeaderRequestNotSent) {
+		t.Fatalf("a request that was never built cannot have been sent, got %v", err)
+	}
+}

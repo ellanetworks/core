@@ -24,7 +24,7 @@ logging:
   audit:
     output: "stdout"
 db:
-  path: "/var/snap/ella-core/common/ella.db"
+  path: "/var/snap/ella-core/common/data/ella.db"
 interfaces:
   n2:
     address: "10.0.0.1"

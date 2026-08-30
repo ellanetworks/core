@@ -366,18 +366,49 @@ func waitForClusterReadyWithin(ctx context.Context, clients []*client.Client, ti
 
 // findLeader returns the index and client of the current leader node.
 func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Client, error) {
-	for i, c := range clients {
-		status, err := c.GetStatus(ctx)
-		if err != nil {
-			continue
+	const timeout = 30 * time.Second
+
+	deadline := time.Now().Add(timeout)
+
+	var lastState string
+
+	for {
+		leaderIdxs := make([]int, 0, len(clients))
+		claims := make([]string, 0, len(clients))
+
+		for i, c := range clients {
+			status, err := c.GetStatus(ctx)
+			if err != nil {
+				continue
+			}
+
+			if status.Cluster != nil && status.Cluster.Role == "Leader" {
+				leaderIdxs = append(leaderIdxs, i)
+				claims = append(claims, fmt.Sprintf("node %d", status.Cluster.NodeID))
+			}
 		}
 
-		if status.Cluster != nil && status.Cluster.Role == "Leader" {
-			return i, c, nil
+		if len(leaderIdxs) == 1 {
+			return leaderIdxs[0], clients[leaderIdxs[0]], nil
+		}
+
+		if len(leaderIdxs) == 0 {
+			lastState = "no node reports the Leader role"
+		} else {
+			lastState = fmt.Sprintf("%d nodes claim leadership at once (%s)",
+				len(leaderIdxs), strings.Join(claims, ", "))
+		}
+
+		if !time.Now().Before(deadline) {
+			return -1, nil, fmt.Errorf("no single leader after %v: %s", timeout, lastState)
+		}
+
+		select {
+		case <-ctx.Done():
+			return -1, nil, fmt.Errorf("waiting for a single leader: %w", ctx.Err())
+		case <-time.After(time.Second):
 		}
 	}
-
-	return -1, nil, fmt.Errorf("no leader found")
 }
 
 func waitForNewLeader(ctx context.Context, survivors []*client.Client) (*client.Client, error) {
@@ -667,6 +698,88 @@ func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient,
 				m.BinaryVersion, m.DrainState)
 		}
 	}
+}
+
+func subscriberIMSIsOn(ctx context.Context, c *client.Client) (map[string]struct{}, error) {
+	const perPage = 100
+
+	out := make(map[string]struct{})
+
+	for page := 1; ; page++ {
+		resp, err := c.ListSubscribers(ctx, &client.ListSubscribersParams{
+			Page:    page,
+			PerPage: perPage,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list subscribers page %d: %w", page, err)
+		}
+
+		for _, sub := range resp.Items {
+			out[sub.Imsi] = struct{}{}
+		}
+
+		if len(resp.Items) < perPage || len(out) >= resp.TotalCount {
+			return out, nil
+		}
+	}
+}
+
+func assertAckedWritesDurable(t *testing.T, ctx context.Context, clients []*client.Client, report writerReport) {
+	t.Helper()
+
+	if len(report.acked) == 0 {
+		t.Fatal("writer acknowledged no writes; the durability check would be vacuous")
+	}
+
+	sets := make([]map[string]struct{}, len(clients))
+
+	for i, c := range clients {
+		imsis, err := subscriberIMSIsOn(ctx, c)
+		if err != nil {
+			t.Fatalf("collect subscribers from node %d: %v", i+1, err)
+		}
+
+		sets[i] = imsis
+	}
+
+	for i, set := range sets {
+		missing := make([]string, 0)
+
+		for _, imsi := range report.acked {
+			if _, ok := set[imsi]; !ok {
+				missing = append(missing, imsi)
+			}
+		}
+
+		if len(missing) > 0 {
+			t.Errorf("node %d lost %d of %d acknowledged writes; first missing: %v",
+				i+1, len(missing), len(report.acked), missing[:min(len(missing), 5)])
+		}
+	}
+
+	diverged := make([]string, 0)
+
+	for _, imsi := range report.unknown {
+		present := 0
+
+		for _, set := range sets {
+			if _, ok := set[imsi]; ok {
+				present++
+			}
+		}
+
+		if present != 0 && present != len(sets) {
+			diverged = append(diverged, fmt.Sprintf("%s on %d/%d", imsi, present, len(sets)))
+		}
+	}
+
+	if len(diverged) > 0 {
+		t.Errorf("%d unknown-outcome writes are present on some replicas but not others: %v",
+			len(diverged), diverged[:min(len(diverged), 5)])
+	}
+
+	HALogf(t, "durability: %d acknowledged writes present on all %d nodes; %d unknown-outcome writes agreed across replicas",
+		len(report.acked), len(clients), len(report.unknown))
 }
 
 // assertMembershipConsistent fails if clients return different

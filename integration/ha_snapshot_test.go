@@ -216,7 +216,11 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 		t.Fatalf("node 4 returned IMSI %q, expected %q", sub.Imsi, lastIMSI)
 	}
 
-	assertMembershipConsistent(t, ctx, clients)
+	allNodes := make([]*client.Client, 0, len(clients)+1)
+	allNodes = append(allNodes, clients...)
+	allNodes = append(allNodes, node4Client)
+
+	assertMembershipConsistent(t, ctx, allNodes)
 }
 
 func snapshotIMSI(i int) string {

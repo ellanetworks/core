@@ -163,7 +163,7 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 
 	for range maxForwardAttempts {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, classifyForwardDeadline(lastErr, err)
 		}
 
 		remaining := time.Until(deadline)
@@ -194,7 +194,7 @@ func (m *Manager) runForwardRetryLoop(ctx context.Context, timeout time.Duration
 			lastErr = hraft.ErrNotLeader
 
 			if err := waitOrDone(ctx, noLeaderBackoff); err != nil {
-				return nil, err
+				return nil, classifyForwardDeadline(lastErr, err)
 			}
 
 			continue
@@ -219,11 +219,16 @@ func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leade
 		maxResponseBytes: maxForwardResponseBytes,
 	})
 	if err != nil {
-		if errors.Is(err, ErrLeaderUnreachable) {
+		switch {
+		case errors.Is(err, ErrLeaderUnreachable):
 			return nil, http.StatusServiceUnavailable, err
-		}
 
-		return nil, 0, err
+		case errors.Is(err, ErrLeaderRequestNotSent):
+			return nil, 0, err
+
+		default:
+			return nil, 0, fmt.Errorf("%w: %w", ErrOutcomeUnknown, err)
+		}
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -291,6 +296,19 @@ func (m *Manager) waitForLocalApply(ctx context.Context, target uint64) {
 		case <-time.After(appliedIndexPollInterval):
 		}
 	}
+}
+
+// classifyForwardDeadline keeps a caller-context expiry from erasing what
+// the loop already knows. Both call sites are reached only after an attempt
+// reported a retryable status, so no entry was applied and lastErr carries
+// the right classification; the context error rides along for diagnostics.
+// Cancellation is propagated untouched — the caller went away.
+func classifyForwardDeadline(lastErr, ctxErr error) error {
+	if errors.Is(ctxErr, context.DeadlineExceeded) {
+		return fmt.Errorf("%w: %w", lastErr, ctxErr)
+	}
+
+	return ctxErr
 }
 
 func waitOrDone(ctx context.Context, d time.Duration) error {
