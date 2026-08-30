@@ -5,7 +5,6 @@ package gnb
 
 import (
 	"fmt"
-	"net/netip"
 
 	"github.com/ellanetworks/core/ngap"
 )
@@ -121,10 +120,4 @@ func handoverTargetID(opts *HandoverRequiredOpts, tac ngap.TAC) (ngap.TargetID, 
 
 func buildMinimalHandoverRequiredTransfer() (ngap.TransferContainer, error) {
 	return (&ngap.HandoverRequiredTransfer{}).Marshal()
-}
-
-func BuildHandoverRequiredTransferWithDirectForwarding(_ netip.Addr) ([]byte, error) {
-	available := ngap.DirectForwardingPathAvailable
-
-	return (&ngap.HandoverRequiredTransfer{DirectForwardingPathAvailability: &available}).Marshal()
 }

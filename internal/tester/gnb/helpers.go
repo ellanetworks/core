@@ -12,15 +12,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-func GetTacInBytes(tacStr string) ([]byte, error) {
-	resu, err := hex.DecodeString(tacStr)
-	if err != nil {
-		return nil, fmt.Errorf("could not decode tac to bytes: %v", err)
-	}
-
-	return resu, nil
-}
-
 func GetSliceInBytes(sst int32, sd string) ([]byte, []byte, error) {
 	sstBytes := []byte{byte(sst)}
 

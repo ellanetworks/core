@@ -64,10 +64,6 @@ func (ue *UE) InstallMappedSecurityContext(in MappedFrom5GS) error {
 	return nil
 }
 
-func (ue *UE) EPSNASAlgorithmsInUse() (ciphering, integrity uint8) {
-	return ue.eea, ue.eia
-}
-
 func (ue *UE) MappedNASKeys() (knasEnc, knasInt [16]byte) {
 	return ue.knasEnc, ue.knasInt
 }

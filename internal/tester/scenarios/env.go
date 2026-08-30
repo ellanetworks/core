@@ -5,7 +5,6 @@ package scenarios
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"strings"
 )
@@ -53,11 +52,6 @@ type GNB struct {
 	N2Address   string
 	N3Address   string
 	N3Secondary string
-}
-
-func (g GNB) HasIPv6() bool {
-	ip := net.ParseIP(g.N3Address)
-	return ip != nil && ip.To4() == nil
 }
 
 func (e Env) FirstCore() string {

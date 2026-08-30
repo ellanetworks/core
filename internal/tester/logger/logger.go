@@ -37,9 +37,3 @@ func Init(logLevel zapcore.Level) {
 	GnbLogger = GnbLogger.With(zap.String("Component", "GNB"))
 	UeLogger = UeLogger.With(zap.String("Component", "UE"))
 }
-
-func Sync() {
-	if Logger != nil {
-		_ = Logger.Sync()
-	}
-}
