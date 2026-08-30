@@ -983,10 +983,7 @@ func assertFSMNotAheadOfRaftStore(fsm *FSM, logs raft.LogStore, snaps raft.Snaps
 	}
 
 	return fmt.Errorf(
-		"database is ahead of the raft store: fsm_state.lastApplied=%d but the raft store in %s only reaches "+
-			"index %d (log=%d, snapshot=%d). The database and the raft store have diverged, most likely because "+
-			"one was deleted or replaced without the other. Starting would silently discard every write: the FSM "+
-			"skips log entries at or below lastApplied while the API still reports success. Restore the matching "+
-			"raft store, or delete the raft store and reset fsm_state.lastApplied to 0 to re-bootstrap this node",
+		"database is ahead of the raft store: fsm_state.lastApplied=%d but %s only reaches index %d "+
+			"(log=%d, snapshot=%d)",
 		lastApplied, raftDir, durable, logLast, snapLast)
 }
