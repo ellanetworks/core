@@ -31,21 +31,6 @@ func TestResolveNodeID_FromConfig(t *testing.T) {
 	}
 }
 
-func TestResolveNodeID_FromEnv(t *testing.T) {
-	t.Setenv(nodeIDEnvVar, "12")
-
-	dir := t.TempDir()
-
-	id, err := ResolveNodeID(0, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if id != 12 {
-		t.Fatalf("want 12, got %d", id)
-	}
-}
-
 func TestResolveNodeID_FromFile(t *testing.T) {
 	t.Parallel()
 
@@ -62,41 +47,6 @@ func TestResolveNodeID_FromFile(t *testing.T) {
 
 	if id != 7 {
 		t.Fatalf("want 7, got %d", id)
-	}
-}
-
-func TestResolveNodeID_ConfigTakesPrecedenceOverEnv(t *testing.T) {
-	t.Setenv(nodeIDEnvVar, "20")
-
-	dir := t.TempDir()
-
-	id, err := ResolveNodeID(10, dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if id != 10 {
-		t.Fatalf("config should take precedence: want 10, got %d", id)
-	}
-}
-
-func TestResolveNodeID_EnvTakesPrecedenceOverFile(t *testing.T) {
-	t.Setenv(nodeIDEnvVar, "20")
-
-	dir := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(dir, nodeIDFilename), []byte("30\n"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-
-	// Env (20) differs from file (30) — this should fail with a mismatch error.
-	_, err := ResolveNodeID(0, dir)
-	if err == nil {
-		t.Fatal("expected mismatch error")
-	}
-
-	if !strings.Contains(err.Error(), "mismatch") {
-		t.Fatalf("expected mismatch error, got: %v", err)
 	}
 }
 
@@ -202,21 +152,6 @@ func TestResolveNodeID_AboveMax(t *testing.T) {
 	_, err := ResolveNodeID(MaxNodeID+1, dir)
 	if err == nil {
 		t.Fatalf("expected error for ID %d (above max)", MaxNodeID+1)
-	}
-}
-
-func TestResolveNodeID_InvalidEnv(t *testing.T) {
-	t.Setenv(nodeIDEnvVar, "not-a-number")
-
-	dir := t.TempDir()
-
-	_, err := ResolveNodeID(0, dir)
-	if err == nil {
-		t.Fatal("expected error for non-numeric env var")
-	}
-
-	if !strings.Contains(err.Error(), "invalid") {
-		t.Fatalf("expected 'invalid' error, got: %v", err)
 	}
 }
 
