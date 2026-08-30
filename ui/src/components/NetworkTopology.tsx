@@ -233,27 +233,10 @@ type GlyphProps = { cx: number; cy: number; scale: number; color: string };
 function RadioGlyph({ cx, cy, scale, color }: GlyphProps) {
   return (
     <g
-      transform={`translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`}
-      stroke={color}
-      strokeWidth={2}
-      fill="none"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      transform={`translate(${cx} ${cy}) scale(${scale}) translate(-12 -12)`}
+      fill={color}
     >
-      <path
-        d={`M${cx - 11} ${cy + 26} L${cx} ${cy - 6} L${cx + 11} ${cy + 26}`}
-      />
-      <path d={`M${cx - 6} ${cy + 12} L${cx + 6} ${cy + 12}`} />
-      <path d={`M${cx - 9} ${cy - 12} A 12 12 0 0 0 ${cx - 9} ${cy - 1}`} />
-      <path d={`M${cx + 9} ${cy - 12} A 12 12 0 0 1 ${cx + 9} ${cy - 1}`} />
-      <path
-        d={`M${cx - 16} ${cy - 18} A 21 21 0 0 0 ${cx - 16} ${cy + 3}`}
-        opacity={0.5}
-      />
-      <path
-        d={`M${cx + 16} ${cy - 18} A 21 21 0 0 1 ${cx + 16} ${cy + 3}`}
-        opacity={0.5}
-      />
+      <path d="M16 4.2c1.5 0 3 .6 4.2 1.7l.8-.8C19.6 3.7 17.8 3 16 3s-3.6.7-5 2.1l.8.8C13 4.8 14.5 4.2 16 4.2m-3.3 2.5.8.8c.7-.7 1.6-1 2.5-1s1.8.3 2.5 1l.8-.8c-.9-.9-2.1-1.4-3.3-1.4s-2.4.5-3.3 1.4M19 13h-2V9h-2v4H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2m0 6H5v-4h14zM6 16h2v2H6zm3.5 0h2v2h-2zm3.5 0h2v2h-2z" />
     </g>
   );
 }
@@ -261,16 +244,10 @@ function RadioGlyph({ cx, cy, scale, color }: GlyphProps) {
 function GlobeGlyph({ cx, cy, scale, color }: GlyphProps) {
   return (
     <g
-      transform={`translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`}
-      stroke={color}
-      strokeWidth={2}
-      fill="none"
+      transform={`translate(${cx} ${cy}) scale(${scale}) translate(-12 -12)`}
+      fill={color}
     >
-      <circle cx={cx} cy={cy} r={22} />
-      <ellipse cx={cx} cy={cy} rx={22} ry={9} />
-      <path
-        d={`M${cx} ${cy - 22} A 11 22 0 0 0 ${cx} ${cy + 22} A 11 22 0 0 0 ${cx} ${cy - 22}`}
-      />
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2M4 12c0-.61.08-1.21.21-1.78L8.99 15v1c0 1.1.9 2 2 2v1.93C7.06 19.43 4 16.07 4 12m13.89 5.4c-.26-.81-1-1.4-1.9-1.4h-1v-3c0-.55-.45-1-1-1h-6v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C17.92 5.77 20 8.65 20 12c0 2.08-.81 3.98-2.11 5.4" />
     </g>
   );
 }
@@ -278,16 +255,10 @@ function GlobeGlyph({ cx, cy, scale, color }: GlyphProps) {
 function ConsoleGlyph({ cx, cy, scale, color }: GlyphProps) {
   return (
     <g
-      transform={`translate(${cx} ${cy}) scale(${scale}) translate(${-cx} ${-cy})`}
-      stroke={color}
-      strokeWidth={2}
-      fill="none"
-      strokeLinejoin="round"
+      transform={`translate(${cx} ${cy}) scale(${scale}) translate(-12 -12)`}
+      fill={color}
     >
-      <rect x={cx - 15} y={cy - 11} width={30} height={21} rx={2} />
-      <path
-        d={`M${cx - 21} ${cy + 15} L${cx - 17} ${cy + 10} L${cx + 17} ${cy + 10} L${cx + 21} ${cy + 15} Z`}
-      />
+      <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2zM4 6h16v10H4z" />
     </g>
   );
 }
@@ -621,7 +592,7 @@ export default function NetworkTopology({
         <text x={753} y={88} {...title}>
           API
         </text>
-        <ConsoleGlyph cx={INTERNET_CX} cy={N2_Y} scale={1.41} color={ink} />
+        <ConsoleGlyph cx={INTERNET_CX} cy={N2_Y} scale={2.5} color={ink} />
       </>
     ),
   };
@@ -705,7 +676,7 @@ export default function NetworkTopology({
       </defs>
 
       <g>
-        <RadioGlyph cx={RADIOS_CX} cy={RADIOS_CY} scale={1.5} color={ink} />
+        <RadioGlyph cx={RADIOS_CX} cy={RADIOS_CY} scale={2.5} color={ink} />
         <text x={RADIOS_CX} y={208} textAnchor="middle" {...heading}>
           Radios
         </text>
@@ -715,7 +686,7 @@ export default function NetworkTopology({
         <GlobeGlyph
           cx={INTERNET_CX}
           cy={(UPLINK_Y + DOWNLINK_Y) / 2}
-          scale={1.35}
+          scale={2.5}
           color={ink}
         />
         <text x={INTERNET_CX} y={264} textAnchor="middle" {...heading}>
