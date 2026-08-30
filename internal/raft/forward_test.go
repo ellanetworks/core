@@ -474,3 +474,33 @@ func TestDoForwardRequest_DialFailureIsRetryableNotOutcomeUnknown(t *testing.T) 
 		t.Fatal("nothing was sent on a dial failure, so the write must stay retryable rather than outcome-unknown")
 	}
 }
+
+func TestRunForwardRetryLoop_CallerDeadlineStaysRetryable(t *testing.T) {
+	m := newRetryLoopTestManager(t)
+
+	s := &scriptedAttempter{
+		responses: []attemptResponse{
+			{status: http.StatusServiceUnavailable},
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	_, err := m.runForwardRetryLoop(ctx, time.Minute, s.fn())
+	if err == nil {
+		t.Fatal("expected an error once the caller's context expired")
+	}
+
+	if !errors.Is(err, hraft.ErrNotLeader) {
+		t.Errorf("a caller deadline reached after retryable attempts must stay retryable, got %v", err)
+	}
+
+	if errors.Is(err, ErrOutcomeUnknown) {
+		t.Errorf("nothing was applied on a 503, so this must not read as outcome-unknown: %v", err)
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("the underlying deadline should survive for diagnostics, got %v", err)
+	}
+}
