@@ -19,19 +19,15 @@ const (
 	// nodeIDFilename is the file within the data directory that persists
 	// the node ID across restarts.
 	nodeIDFilename = "node-id"
-
-	// nodeIDEnvVar is the environment variable that can override the node ID.
-	nodeIDEnvVar = "ELLA_CLUSTER_NODE_ID"
 )
 
 // ResolveNodeID determines the node ID using the following precedence chain:
 //  1. configNodeID (from YAML cluster.node-id)
-//  2. ELLA_CLUSTER_NODE_ID environment variable
-//  3. <dataDir>/node-id file (written on first HA boot)
-//  4. Error — operator must assign one
+//  2. <dataDir>/node-id file (written on first HA boot)
+//  3. Error — operator must assign one
 //
 // Once resolved, the ID is written to <dataDir>/node-id. On subsequent boots,
-// the persisted value is validated against config/env; mismatches fail loudly.
+// the persisted value is validated against config; mismatches fail loudly.
 func ResolveNodeID(configNodeID int, dataDir string) (int, error) {
 	return resolveNodeID(configNodeID, dataDir, 0)
 }
@@ -41,11 +37,7 @@ func ResolveNodeID(configNodeID int, dataDir string) (int, error) {
 func resolveNodeID(configNodeID int, dataDir string, fallback int) (int, error) {
 	nodeIDPath := filepath.Join(dataDir, nodeIDFilename)
 
-	// Resolve from the three sources.
-	resolved, source, err := resolveFromSources(configNodeID)
-	if err != nil {
-		return 0, err
-	}
+	resolved, source := resolveFromSources(configNodeID)
 
 	if resolved == 0 {
 		// Try the persisted file.
@@ -56,8 +48,7 @@ func resolveNodeID(configNodeID int, dataDir string, fallback int) (int, error) 
 
 		if fallback == 0 {
 			return 0, fmt.Errorf("node ID not provided: set cluster.node-id in config, "+
-				"ELLA_CLUSTER_NODE_ID environment variable, or ensure %s exists: %w",
-				nodeIDPath, err)
+				"or ensure %s exists: %w", nodeIDPath, err)
 		}
 
 		resolved, source = fallback, "standalone default"
@@ -83,21 +74,12 @@ func resolveNodeID(configNodeID int, dataDir string, fallback int) (int, error) 
 	return resolved, nil
 }
 
-func resolveFromSources(configNodeID int) (int, string, error) {
+func resolveFromSources(configNodeID int) (int, string) {
 	if configNodeID != 0 {
-		return configNodeID, "config (cluster.node-id)", nil
+		return configNodeID, "config (cluster.node-id)"
 	}
 
-	if envVal := os.Getenv(nodeIDEnvVar); envVal != "" {
-		id, err := strconv.Atoi(strings.TrimSpace(envVal))
-		if err != nil {
-			return 0, "", fmt.Errorf("invalid %s=%q: %w", nodeIDEnvVar, envVal, err)
-		}
-
-		return id, "environment (" + nodeIDEnvVar + ")", nil
-	}
-
-	return 0, "", nil
+	return 0, ""
 }
 
 func validateNodeID(id int) error {
