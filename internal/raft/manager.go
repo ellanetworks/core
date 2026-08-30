@@ -336,6 +336,14 @@ func NewManager(_ context.Context, cfg ClusterConfig, applier Applier, dataDir s
 		return nil, fmt.Errorf("check existing raft state: %w", err)
 	}
 
+	if err := assertFSMNotAheadOfRaftStore(fsm, boltStore, snapshotStore, raftDir); err != nil {
+		closeTransport(transport)
+
+		_ = boltStore.Close()
+
+		return nil, err
+	}
+
 	recovered, err := maybeRecoverCluster(raftDir, raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
 	if err != nil {
 		closeTransport(transport)
@@ -939,4 +947,43 @@ func (m *Manager) AddNonvoter(nodeID int, address string) error {
 	}
 
 	return nil
+}
+
+func assertFSMNotAheadOfRaftStore(fsm *FSM, logs raft.LogStore, snaps raft.SnapshotStore, raftDir string) error {
+	lastApplied, err := fsm.readLastApplied()
+	if err != nil {
+		return fmt.Errorf("read fsm_state.lastApplied: %w", err)
+	}
+
+	if lastApplied == 0 {
+		return nil
+	}
+
+	logLast, err := logs.LastIndex()
+	if err != nil {
+		return fmt.Errorf("read raft log last index: %w", err)
+	}
+
+	snapList, err := snaps.List()
+	if err != nil {
+		return fmt.Errorf("list raft snapshots: %w", err)
+	}
+
+	var snapLast uint64
+
+	for _, snap := range snapList {
+		if snap.Index > snapLast {
+			snapLast = snap.Index
+		}
+	}
+
+	durable := max(logLast, snapLast)
+	if lastApplied <= durable {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"database is ahead of the raft store: fsm_state.lastApplied=%d but %s only reaches index %d "+
+			"(log=%d, snapshot=%d)",
+		lastApplied, raftDir, durable, logLast, snapLast)
 }
