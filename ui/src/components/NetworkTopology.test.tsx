@@ -128,12 +128,15 @@ describe("NetworkTopology", () => {
   });
 
   it("dims the interfaces that are not revealed", async () => {
-    renderTopology();
+    const { container } = renderTopology();
 
     await userEvent.hover(segment(/^N6/));
 
-    expect(segment(/^N6/)).toHaveAttribute("opacity", "1");
-    expect(segment(/^N2/)).toHaveAttribute("opacity", "0.2");
+    const drawing = (id: string) =>
+      container.querySelector(`[data-segment="${id}"]`);
+
+    expect(drawing("n6")).toHaveAttribute("opacity", "1");
+    expect(drawing("n2")).toHaveAttribute("opacity", "0.2");
   });
 
   it("labels the user plane with the mechanism the UPF attached with", () => {
@@ -179,5 +182,80 @@ describe("NetworkTopology", () => {
     );
 
     expect(onEditN3).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the interfaces in place when one is revealed", () => {
+    renderTopology();
+
+    const order = () =>
+      screen
+        .getAllByRole("button")
+        .map((element) => element.getAttribute("aria-label"));
+    const before = order();
+
+    fireEvent.focus(segment(/^N3/));
+
+    expect(order().filter((label) => before.includes(label))).toEqual(before);
+    expect(order()).toEqual([
+      "N2, NGAP and S1AP signalling",
+      "N3, GTP-U user plane",
+      "Edit N3 external address",
+      "N6, external network",
+      "API, management",
+    ]);
+  });
+
+  it("draws the revealed panel over every interface drawing", async () => {
+    const { container } = renderTopology();
+
+    await userEvent.hover(segment(/^N2/));
+    const drawing = container.querySelector('[data-segment="n3"]')!;
+    const panelValue = screen.getByText("2001:db8::5");
+
+    expect(
+      drawing.compareDocumentPosition(panelValue) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("keeps the pencil out of the interface button so both are reachable", () => {
+    renderTopology();
+
+    fireEvent.focus(segment(/^N3/));
+    const pencil = screen.getByRole("button", {
+      name: /edit n3 external address/i,
+    });
+
+    expect(segment(/^N3/).contains(pencil)).toBe(false);
+    expect(segment(/^N3/).parentElement?.contains(pencil)).toBe(true);
+  });
+
+  it("reveals an interface on activation where there is no pointer to hover", () => {
+    renderTopology();
+
+    fireEvent.click(segment(/^N6/));
+
+    expect(screen.getByText("enp4s0")).toBeInTheDocument();
+    expect(segment(/^N6/)).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("leaves the revealed interface up when it is activated again", async () => {
+    renderTopology();
+
+    await userEvent.hover(segment(/^N6/));
+    fireEvent.keyDown(segment(/^N6/), { key: "Enter" });
+    fireEvent.click(segment(/^N6/));
+
+    expect(screen.getByText("enp4s0")).toBeInTheDocument();
+    expect(segment(/^N6/)).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("keeps the panel up while the pointer is on it", async () => {
+    renderTopology();
+
+    await userEvent.hover(segment(/^N2/));
+    await userEvent.hover(screen.getByText("2001:db8::5"));
+
+    expect(screen.getByText("2001:db8::5")).toBeInTheDocument();
   });
 });

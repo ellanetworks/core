@@ -233,10 +233,10 @@ type GlyphProps = { cx: number; cy: number; scale: number; color: string };
 function RadioGlyph({ cx, cy, scale, color }: GlyphProps) {
   return (
     <g
-      transform={`translate(${cx} ${cy}) scale(${scale}) translate(-12 -12)`}
+      transform={`translate(${cx} ${cy}) scale(${scale / 40}) translate(-480 480)`}
       fill={color}
     >
-      <path d="M16 4.2c1.5 0 3 .6 4.2 1.7l.8-.8C19.6 3.7 17.8 3 16 3s-3.6.7-5 2.1l.8.8C13 4.8 14.5 4.2 16 4.2m-3.3 2.5.8.8c.7-.7 1.6-1 2.5-1s1.8.3 2.5 1l.8-.8c-.9-.9-2.1-1.4-3.3-1.4s-2.4.5-3.3 1.4M19 13h-2V9h-2v4H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2m0 6H5v-4h14zM6 16h2v2H6zm3.5 0h2v2h-2zm3.5 0h2v2h-2z" />
+      <path d="M197.69-140q-23.53 0-40.61-17.08T140-197.69v-167.46q0-23.53 17.08-40.61t40.61-17.08h424.08v-171.77h45.38v171.77h95.16q23.53 0 40.61 17.08T820-365.15v167.46q0 23.53-17.08 40.61T762.31-140H197.69Zm0-45.39h564.62q5.38 0 8.84-3.46t3.46-8.84v-167.46q0-5.39-3.46-8.85t-8.84-3.46H197.69q-5.38 0-8.84 3.46t-3.46 8.85v167.46q0 5.38 3.46 8.84t8.84 3.46Zm110.08-69.83q10.46-10.6 10.46-26.35 0-15.74-10.6-26.2-10.61-10.46-26.35-10.46-15.74 0-26.2 10.6-10.46 10.61-10.46 26.35 0 15.74 10.6 26.2 10.6 10.46 26.35 10.46 15.74 0 26.2-10.6Zm146.08 0q10.46-10.6 10.46-26.35 0-15.74-10.57-26.2-10.57-10.46-26.54-10.46-15.97 0-26.43 10.6-10.46 10.61-10.46 26.35 0 15.74 10.56 26.2 10.57 10.46 26.54 10.46 15.97 0 26.44-10.6Zm145.69 0Q610-265.82 610-281.57q0-15.74-10.6-26.2-10.61-10.46-26.35-10.46-15.74 0-26.2 10.6-10.47 10.61-10.47 26.35 0 15.74 10.61 26.2 10.6 10.46 26.34 10.46 15.75 0 26.21-10.6Zm-39.31-398.7-31-31q24.33-24 52.87-36.85 28.53-12.84 62.36-12.84t62.15 12.84q28.31 12.85 53.08 36.85l-31 31q-15.92-15.54-37.31-25.43-21.38-9.88-46.61-9.88t-47.12 9.88q-21.88 9.89-37.42 25.43ZM471-743.15l-33.23-33.23q34.54-34.93 88.38-59.27Q580-860 644.46-860q64.46 0 118.12 24.35 53.65 24.34 88.57 59.27l-33.61 33.23q-27.92-29.77-71.96-50.62-44.04-20.84-101.12-20.84-57.08 0-101.31 20.84-44.23 20.85-72.15 50.62ZM185.39-185.39v-192.07 192.07Z" />
     </g>
   );
 }
@@ -244,10 +244,10 @@ function RadioGlyph({ cx, cy, scale, color }: GlyphProps) {
 function GlobeGlyph({ cx, cy, scale, color }: GlyphProps) {
   return (
     <g
-      transform={`translate(${cx} ${cy}) scale(${scale}) translate(-12 -12)`}
+      transform={`translate(${cx} ${cy}) scale(${scale / 40}) translate(-480 480)`}
       fill={color}
     >
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2M4 12c0-.61.08-1.21.21-1.78L8.99 15v1c0 1.1.9 2 2 2v1.93C7.06 19.43 4 16.07 4 12m13.89 5.4c-.26-.81-1-1.4-1.9-1.4h-1v-3c0-.55-.45-1-1-1h-6v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41C17.92 5.77 20 8.65 20 12c0 2.08-.81 3.98-2.11 5.4" />
+      <path d="M331.86-129.92q-69.37-29.92-120.68-81.21-51.31-51.29-81.25-120.63Q100-401.1 100-479.93q0-78.84 29.92-148.21t81.21-120.68q51.29-51.31 120.63-81.25Q401.1-860 479.93-860q78.84 0 148.21 29.92t120.68 81.21q51.31 51.29 81.25 120.63Q860-558.9 860-480.07q0 78.84-29.92 148.21t-81.21 120.68q-51.29 51.31-120.63 81.25Q558.9-100 480.07-100q-78.84 0-148.21-29.92Zm105.91-16.85v-80.85q-34.68 0-58.46-25.23-23.77-25.23-23.77-59.84v-42.85L154-557.08q-4.23 19.23-6.42 38.38-2.19 19.14-2.19 38.79 0 127.6 83.15 222.87 83.15 95.27 209.23 110.27Zm289.38-106.46q42.85-46.85 65.16-105.35 22.3-58.5 22.3-121.56 0-103.93-56.84-189.28-56.85-85.35-152.69-124.19v18.51q0 34.49-23.78 59.72-23.77 25.23-58.45 25.23h-85.08v85.07q0 17.17-12.92 28.28-12.93 11.11-29.79 11.11h-82.37V-480h253q17.17 0 28.28 12.62 11.11 12.61 11.11 29.61v125.08h42.06q28.4 0 50.24 16.57 21.84 16.58 29.77 42.89Z" />
     </g>
   );
 }
@@ -255,10 +255,10 @@ function GlobeGlyph({ cx, cy, scale, color }: GlyphProps) {
 function ConsoleGlyph({ cx, cy, scale, color }: GlyphProps) {
   return (
     <g
-      transform={`translate(${cx} ${cy}) scale(${scale}) translate(-12 -12)`}
+      transform={`translate(${cx} ${cy}) scale(${scale / 40}) translate(-480 480)`}
       fill={color}
     >
-      <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2zM4 6h16v10H4z" />
+      <path d="M55.39-150.77v-45.39h849.22v45.39H55.39Zm102.3-100q-23.53 0-40.61-17.08T100-308.46v-444.61q0-23.53 17.08-40.62 17.08-17.08 40.61-17.08h644.62q23.53 0 40.61 17.08Q860-776.6 860-753.07v444.61q0 23.53-17.08 40.61t-40.61 17.08H157.69Zm0-45.38h644.62q4.61 0 8.46-3.85 3.84-3.85 3.84-8.46v-444.61q0-4.62-3.84-8.47-3.85-3.84-8.46-3.84H157.69q-4.61 0-8.46 3.84-3.84 3.85-3.84 8.47v444.61q0 4.61 3.84 8.46 3.85 3.85 8.46 3.85Zm-12.3 0v-469.23 469.23Z" />
     </g>
   );
 }
@@ -333,12 +333,7 @@ export default function NetworkTopology({
 }: NetworkTopologyProps) {
   const theme = useTheme();
   const [active, setActive] = useState<InterfaceSegment | null>(null);
-  const [focused, setFocused] = useState<InterfaceSegment | null>(null);
 
-  /**
-   * Clearing is deferred so the pointer can cross from an interface onto its
-   * own panel — they are separate subtrees, so the move fires a leave first.
-   */
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -441,12 +436,8 @@ export default function NetworkTopology({
       anchor === "end"
         ? Math.max(PANEL_MARGIN, x - w)
         : Math.min(x, VIEWBOX_WIDTH - PANEL_MARGIN - w);
-    // Only a panel holding a control needs to be reachable; the others would
-    // just sit on top of a neighbour's hover zone and swallow it.
-    const interactive = canEdit && lines.some((detail) => detail.editable);
-
     return (
-      <g style={{ pointerEvents: interactive ? "auto" : "none" }}>
+      <g>
         <rect
           x={left}
           y={y}
@@ -597,12 +588,6 @@ export default function NetworkTopology({
     ),
   };
 
-  /** The revealed interface renders last so its panel is never overdrawn. */
-  const order = [
-    ...SEGMENTS.filter((id) => id !== active),
-    ...(active ? [active] : []),
-  ];
-
   const fades: [InterfaceSegment, number, number, string, string][] = [
     ["n3", N3_EDGE - 20, N3_EDGE + 20, "#ffffff", "#333333"],
     ["n6", N6_EDGE - 20, N6_EDGE + 20, "#333333", "#ffffff"],
@@ -737,27 +722,33 @@ export default function NetworkTopology({
         </g>
       </g>
 
-      {order.map((id) => (
+      <g style={{ pointerEvents: "none" }}>
+        {SEGMENTS.map((id) => (
+          <g
+            key={id}
+            data-segment={id}
+            opacity={active !== null && active !== id ? 0.2 : 1}
+            style={{ transition: "opacity 200ms" }}
+          >
+            {graphics[id]}
+          </g>
+        ))}
+      </g>
+
+      {SEGMENTS.filter((id) => details[id].length > 0).map((id) => (
         <g
           key={id}
-          role="button"
-          tabIndex={0}
-          aria-label={SEGMENT_LABELS[id]}
-          aria-expanded={active === id}
-          onMouseEnter={() => reveal(id)}
-          onMouseLeave={conceal}
-          onFocus={() => {
-            setFocused(id);
-            reveal(id);
+          onPointerEnter={(event) => {
+            if (event.pointerType !== "touch") reveal(id);
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType !== "touch") conceal();
           }}
           onBlur={(event) => {
             if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-              setFocused(null);
               conceal();
             }
           }}
-          opacity={active !== null && active !== id ? 0.2 : 1}
-          style={{ transition: "opacity 200ms", outline: "none" }}
         >
           <rect
             x={ZONES[id].x}
@@ -765,13 +756,20 @@ export default function NetworkTopology({
             width={ZONES[id].w}
             height={ZONES[id].h}
             fill="transparent"
-            rx={8}
-            stroke={focused === id ? control : "none"}
-            strokeWidth={1.5}
-            strokeDasharray="4 4"
-            style={{ pointerEvents: "all" }}
+            role="button"
+            tabIndex={0}
+            aria-label={SEGMENT_LABELS[id]}
+            aria-expanded={active === id}
+            onFocus={() => reveal(id)}
+            onClick={() => reveal(id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                reveal(id);
+              }
+            }}
+            style={{ cursor: "pointer", outline: "none", pointerEvents: "all" }}
           />
-          {graphics[id]}
           {active === id && panel(id)}
         </g>
       ))}
