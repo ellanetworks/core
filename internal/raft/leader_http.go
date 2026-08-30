@@ -11,8 +11,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,6 +29,11 @@ const (
 type peerDialFunc func(ctx context.Context, addr string, peerID int) (net.Conn, error)
 
 var ErrLeaderUnreachable = errors.New("leader unreachable")
+
+// ErrLeaderRequestNotSent marks a failure that happened before any
+// bytes reached the wire, so the forwarded write definitively did not
+// reach the leader.
+var ErrLeaderRequestNotSent = errors.New("leader request not sent")
 
 type leaderHTTPClient struct {
 	dial peerDialFunc
@@ -122,9 +129,15 @@ func (c *leaderHTTPClient) do(ctx context.Context, addr string, peerID int, spec
 		reqBody = bytes.NewReader(spec.body)
 	}
 
+	var connected atomic.Bool
+
+	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+		GotConn: func(httptrace.GotConnInfo) { connected.Store(true) },
+	})
+
 	req, err := http.NewRequestWithContext(ctx, spec.method, "https://"+addr+spec.path, reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("new request: %w", err)
+		return nil, fmt.Errorf("%w: new request: %w", ErrLeaderRequestNotSent, err)
 	}
 
 	if spec.contentType != "" {
@@ -137,6 +150,10 @@ func (c *leaderHTTPClient) do(ctx context.Context, addr string, peerID int, spec
 
 	resp, err := c.clientFor(addr, peerID).Do(req) // #nosec G107 -- addr comes from Raft, not user input
 	if err != nil {
+		if !connected.Load() {
+			return nil, fmt.Errorf("%w: request to leader: %w", ErrLeaderUnreachable, err)
+		}
+
 		return nil, fmt.Errorf("request to leader: %w", err)
 	}
 

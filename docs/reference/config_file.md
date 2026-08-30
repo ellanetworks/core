@@ -52,7 +52,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
     - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.
     - `peers` (list of strings): `host:port` of every node in the cluster. Host may be an IP or DNS name. Must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string.
-    - `join-token` (string, optional): Single-use token minted on an existing voter via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts. Its presence also tells the daemon that this node is a joiner, not the founder.
+    - `join-token` (string, optional): Single-use token minted on the cluster leader via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts. Its presence also tells the daemon that this node is a joiner, not the founder.
     - `initial-suffrage` (string, optional): `voter` or `nonvoter`. Defaults to `voter`.
     - `join-timeout` (duration string, optional): Wait for cluster formation after which discovery starts logging that it is slow. Discovery keeps retrying past it.
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.

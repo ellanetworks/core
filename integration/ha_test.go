@@ -498,6 +498,8 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	HALogf(t, "autopilot recovered: failureTolerance=%d voters=%v",
 		apRecovered.FailureTolerance, apRecovered.Voters)
 
+	assertAckedWritesDurable(t, ctx, clients, writeReport)
+
 	assertMembershipConsistent(t, ctx, clients)
 }
 

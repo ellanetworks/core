@@ -47,7 +47,7 @@ None
 
 ## Remove a Cluster Member
 
-This path removes a node from the Raft cluster. The node must be drained first (`drainState == "drained"`) unless `force=true` is set. The current leader cannot be removed regardless of `force`. Requires admin privileges.
+This path removes a node from the Raft cluster. The node must be drained first (`drainState == "drained"`) unless `force=true` is set. The current leader cannot be removed regardless of `force`. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                            |
 | ------ | ------------------------------- |
@@ -71,7 +71,7 @@ This path removes a node from the Raft cluster. The node must be drained first (
 
 ## Promote a Cluster Member
 
-This path promotes a nonvoter node to a voter in the Raft cluster. Autopilot promotes healthy nonvoters automatically; use this endpoint to promote immediately. Requires admin privileges.
+This path promotes a nonvoter node to a voter in the Raft cluster. Autopilot promotes healthy nonvoters automatically; use this endpoint to promote immediately. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |
@@ -138,7 +138,7 @@ None
 
 ## Drain Cluster Member
 
-This path drains a node and persists `drainState=drained`. The server runs the local drain side-effects on the target: signals connected RANs that this AMF's GUAMI is unavailable, stops the local BGP speaker, and transfers Raft leadership when the target is the current leader. A node must be drained before it can be removed. Requires admin privileges.
+This path drains a node and persists `drainState=drained`. The server runs the local drain side-effects on the target: signals connected RANs that this AMF's GUAMI is unavailable, stops the local BGP speaker, and transfers Raft leadership when the target is the current leader. A node must be drained before it can be removed. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -160,7 +160,7 @@ None.
 
 ## Resume Cluster Member
 
-This path reverses drain on a node: restarts the local BGP speaker (if BGP is enabled) and clears `drainState` back to `active`. RAN unavailability and transferred leadership are not reversed. Idempotent. Requires admin privileges.
+This path reverses drain on a node: restarts the local BGP speaker (if BGP is enabled) and clears `drainState` back to `active`. RAN unavailability and transferred leadership are not reversed. Idempotent. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -182,7 +182,7 @@ None
 
 ## Mint Join Token
 
-This path mints a single-use HMAC token authorising `nodeID` to register its self-signed cluster certificate with the leader. The leader's own pinned certificate fingerprint is embedded in the token, so the joining node pins the bootstrap TLS handshake directly to the leader's certificate. Requires admin privileges.
+This path mints a single-use HMAC token authorising `nodeID` to register its self-signed cluster certificate with the leader. The leader's own pinned certificate fingerprint is embedded in the token, so the joining node pins the bootstrap TLS handshake directly to the leader's certificate. Must be sent to the leader. Requires admin privileges.
 
 | Method | Path                               |
 | ------ | ---------------------------------- |

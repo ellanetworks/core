@@ -197,8 +197,12 @@ func TestRemoveClusterMember_Force(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if fake.lastOpts.Path != "api/v1/cluster/members/2?force=true" {
-		t.Errorf("expected force query string, got %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/cluster/members/2" {
+		t.Errorf("expected a clean path, got %s", fake.lastOpts.Path)
+	}
+
+	if got := fake.lastOpts.Query.Get("force"); got != "true" {
+		t.Errorf("expected force=true in the query, got %q", got)
 	}
 }
 

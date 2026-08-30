@@ -182,6 +182,8 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 	if err := waitForFollowerConvergence(ctx, survivors, idx); err != nil {
 		t.Fatalf("surviving follower did not converge: %v", err)
 	}
+
+	assertAckedWritesDurable(t, ctx, survivors, report)
 }
 
 func waitForMemberCount(ctx context.Context, c *client.Client, want int, timeout time.Duration) error {
