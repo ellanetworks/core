@@ -61,8 +61,7 @@ func resolveNodeID(configNodeID int, dataDir string, fallback int) (int, error) 
 	// If the file already exists, validate consistency.
 	persisted, fileErr := readNodeIDFile(nodeIDPath)
 	if fileErr == nil && persisted != resolved {
-		return 0, fmt.Errorf("node ID mismatch: %s says %d but %s contains %d; "+
-			"changing a node's ID would invalidate every GUTI it ever issued",
+		return 0, fmt.Errorf("node ID mismatch: %s says %d but %s contains %d",
 			source, resolved, nodeIDPath, persisted)
 	}
 
