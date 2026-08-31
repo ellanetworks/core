@@ -11,7 +11,6 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// TS 29.010 Table 7.2.3
 func TestS1APHandoverCause(t *testing.T) {
 	for _, tc := range []struct {
 		name string

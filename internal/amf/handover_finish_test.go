@@ -33,8 +33,6 @@ func newPreparingHandover(t *testing.T) (*amf.AMF, *amf.UeContext, *amf.UeConn, 
 	return amfInstance, ue, source, target
 }
 
-// TestHandoverPreparing checks the read-only stage predicate used to drop a
-// duplicate HANDOVER REQUEST ACKNOWLEDGE before it advances the FSM.
 func TestHandoverPreparing(t *testing.T) {
 	amfInstance, ue, _, _ := newPreparingHandover(t)
 
@@ -57,10 +55,7 @@ func TestHandoverPreparing(t *testing.T) {
 	}
 }
 
-// TestCancelHandover verifies the gated cancel: a preparing/prepared handover is
-// aborted (and a prepared target returned to release), while a committing handover
-// is left intact for HANDOVER NOTIFY to finish — the race that would otherwise
-// strand the UE on a released target (TS 38.413 §8.4.5).
+// TS 38.413 §8.4.5
 func TestCancelHandover(t *testing.T) {
 	t.Run("clears a prepared handover and returns the target to release", func(t *testing.T) {
 		a, ue, source, target := newPreparingHandover(t)
@@ -95,9 +90,6 @@ func TestCancelHandover(t *testing.T) {
 			t.Fatal("a preparing handover must be cancellable")
 		}
 
-		// TS 38.413 §8.4.5: a still-preparing target's reserved resources must be
-		// released on cancel, addressed by its AMF-UE-NGAP-ID (its RAN-UE-NGAP-ID has
-		// not yet arrived); it is not left for a crossing acknowledge that may never come.
 		if got != target {
 			t.Error("a preparing handover must return its reserved target for release")
 		}
@@ -223,9 +215,6 @@ func TestFinishHandoverCommit(t *testing.T) {
 		}
 	})
 
-	// TS 33.501 §6.9.2.3.3: the chain is advanced at preparation, so finalize must not
-	// touch it, and a handover that fails to finalize leaves it advanced. Rolling back
-	// would re-issue a pair already given to a gNB — see TestHandover_NHAdvancedAtPreparation.
 	t.Run("finalize does not touch the key chain", func(t *testing.T) {
 		a, ue, _, target := newPreparingHandover(t)
 

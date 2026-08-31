@@ -9,7 +9,6 @@ import (
 )
 
 func TestTransitionTo_AllowedTransitions(t *testing.T) {
-	// Every edge declared in validTransitions must succeed.
 	for from, targets := range validTransitions {
 		for _, to := range targets {
 			ue := NewUeContext()
@@ -77,9 +76,6 @@ func TestTransitionTo_FullRegistrationCycle(t *testing.T) {
 	}
 }
 
-// TestRegStep_TracksRegistrationSubPhase checks that the registration sub-phase
-// follows the mobility-management state: it starts at the authentication exchange
-// on entering RegistrationInitiated, advances within it, and clears on leaving.
 func TestRegStep_TracksRegistrationSubPhase(t *testing.T) {
 	ue := NewUeContext()
 
@@ -117,7 +113,6 @@ func TestTransitionTo_ConcurrentSafety(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	// Race detector test — must not panic or race.
 	for i := 0; i < 100; i++ {
 		wg.Add(2)
 

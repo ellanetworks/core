@@ -140,7 +140,6 @@ func TestEPSSecurityCapability(t *testing.T) {
 		t.Fatalf("EPS security capability = % x, want % x", got, want)
 	}
 
-	// A UE with no UMTS algorithms replays two octets only.
 	noUMTS := epsCapableUE(t, s1NetworkCapability(0xe0, 0xc0, 0x00, 0x00))
 	if got, want := mustReplayed(t, noUMTS), []byte{0xe0, 0xc0}; !bytes.Equal(got, want) {
 		t.Fatalf("EPS security capability = % x, want % x", got, want)
@@ -161,14 +160,12 @@ func TestChangedS1CapabilityForgetsTheEPSNASAlgorithms(t *testing.T) {
 
 	ue.MarkEPSNASAlgorithmsDelivered()
 
-	// Re-sending the same capability changes nothing.
 	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, s1NetworkCapability(0xe0, 0xe0, 0, 0))
 
 	if _, ok := ue.EPSNASAlgorithmsInUse(); !ok {
 		t.Fatal("an unchanged capability must not discard the delivered algorithms")
 	}
 
-	// A different one does.
 	ue.SetUECapabilities(&fgs.GMMCapability{S1Mode: true}, s1NetworkCapability(0xc0, 0xc0, 0, 0))
 
 	if _, ok := ue.EPSNASAlgorithmsInUse(); ok {

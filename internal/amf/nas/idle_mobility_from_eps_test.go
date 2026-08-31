@@ -78,7 +78,7 @@ func idleArrivalUE(t *testing.T) (*amf.UeContext, *amf.AMF, *fakeEPSPeer, *fakeS
 	return ue, amfInstance, peer, smf
 }
 
-// TS 24.501 §5.5.1.3.2 c
+// TS 24.501 §5.5.1.3.2
 func TestMovingFromEPCInIdleModeNeedsTheContainer(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -152,7 +152,7 @@ func TestRecoverContextFromEPSInstallsTheMappedContext(t *testing.T) {
 	}
 }
 
-// TS 33.501 §6.7.2 step 2a, §8.2
+// TS 33.501 §6.7.2
 func TestIdleArrivalReplaysTheUEsOwn5GSecurityCapability(t *testing.T) {
 	ue, amfInstance, _, _ := idleArrivalUE(t)
 
@@ -193,7 +193,7 @@ func TestIdleArrivalReplaysTheUEsOwn5GSecurityCapability(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.5 b
+// TS 24.501 §5.5.1.3.5
 func TestRecoverContextFromEPSFallsBackWhenTheMMEHasNoContext(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 	peer.MMContextErr = interworking.ErrUnknownUEContext
@@ -243,7 +243,7 @@ func TestRecoverContextFromEPSKeepsANativeContext(t *testing.T) {
 	}
 }
 
-// TS 33.501 §8.2, TS 24.501 §4.4.2.5
+// TS 33.501 §8.2
 func TestRecoverContextFromEPSDoesNotResumeOnAnUnverifiedRegistrationRequest(t *testing.T) {
 	ue, amfInstance, _, _ := idleArrivalUE(t)
 
@@ -273,7 +273,7 @@ func TestRecoverContextFromEPSDoesNotResumeOnAnNgKSIItDoesNotHold(t *testing.T) 
 	}
 }
 
-// TS 23.502 §4.11.1.3.3 steps 8 and 14
+// TS 23.502 §4.11.1.3.3
 func TestAdoptArrivingSessionsMovesThemAndAcksTheMME(t *testing.T) {
 	ue, amfInstance, peer, smf := idleArrivalUE(t)
 
@@ -562,7 +562,7 @@ func TestIdleArrivalOnANativeContextRunsNoSecurityModeProcedure(t *testing.T) {
 	}
 }
 
-// TS 24.501 §5.5.1.3.4, TS 23.502 §4.11.1.3.3 step 14
+// TS 24.501 §5.5.1.3.4
 func TestAnArrivalThatMovesNothingIsStillAccepted(t *testing.T) {
 	ue, amfInstance, peer, smf := idleArrivalUE(t)
 	smf.IdleTransferErr = context.DeadlineExceeded
@@ -736,7 +736,7 @@ func TestBothArrivalPathsAttestS1Mode(t *testing.T) {
 	}
 }
 
-// TS 23.501 §5.17.2.2.1, TS 24.501 §5.5.1.3.2 a) NOTE 7
+// TS 23.501 §5.17.2.2.1
 func TestRegistrationCompleteDropsAnEPSRegistrationTheContextTransferLeftBehind(t *testing.T) {
 	ue, amfInstance, peer, _ := idleArrivalUE(t)
 	peer.MMContextErr = interworking.ErrUnknownUEContext

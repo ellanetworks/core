@@ -50,6 +50,7 @@ func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
+	sender := ran.Conn.(*fakeNGAPSender)
 
 	amf.NewUeConnForTest(ran, 1, 10, logger.AmfLog)
 
@@ -60,6 +61,10 @@ func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 	}
 
 	HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("a resolvable connection with no UE context must be dropped silently, got %d error indications", len(sender.SentErrorIndications))
+	}
 }
 
 func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {

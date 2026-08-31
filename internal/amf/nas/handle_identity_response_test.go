@@ -39,7 +39,7 @@ func newTestUe(integrityVerified bool, guti, oldGuti etsi.GUTI5G, tmsi etsi.TMSI
 	ue.SetGutiForTest(guti)
 
 	if tmsi != (etsi.TMSI{}) {
-		ue.SetTmsiForTest(tmsi) // explicit 5G-S-TMSI cases
+		ue.SetTmsiForTest(tmsi)
 	}
 
 	ue.SetOldTmsiForTest(oldGuti.Tmsi)
@@ -82,8 +82,6 @@ func TestUpdateUeIdentity(t *testing.T) {
 			emptyValidation,
 		},
 		{
-			// An identity type this AMF does not model names no subscriber, so the
-			// identification procedure cannot have succeeded (TS 24.501 §5.4.3.4).
 			"Unknown type is refused",
 			amf.NewUeContext(),
 			[]uint8{0xFF},
@@ -247,8 +245,6 @@ func TestUpdateUeIdentity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			integrityVerified := !strings.Contains(tc.name, "MacFailed")
 
-			// A malformed identity is rejected by the decoder, before the handler
-			// ever sees it; the outcome under test is the same either way.
 			id, err := fgs.ParseMobileIdentity(tc.mi)
 			if err == nil {
 				err = updateUEIdentity(tc.ue, id, integrityVerified)
@@ -433,9 +429,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
-// The only IDENTITY REQUEST the AMF sends goes out from authenticationProcedure,
-// so a response at any other step is unsolicited. Acting on one re-keys K_gNB
-// from the wrong NAS COUNT and releases every SM context (TS 33.501 §6.8.1.3).
+// TS 33.501 §6.8.1.3
 func TestHandleIdentityResponse_UnsolicitedIsIgnored(t *testing.T) {
 	for _, step := range []struct {
 		name string
@@ -488,7 +482,6 @@ func TestHandleIdentityResponse_UnsolicitedIsIgnored(t *testing.T) {
 			ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 			ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
 
-			// At RegStepContextSetup this is T3550 over the REGISTRATION ACCEPT.
 			conn := ue.Conn()
 			conn.NASGuardForTest().Arm(10*time.Minute, 5, func(int32) {}, func() {})
 
@@ -560,9 +553,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 	}
 }
 
-// TestSendIdentityRequest_ArmsT3570 asserts SendIdentityRequest sends the
-// IDENTITY REQUEST and arms T3570 to supervise the identification procedure
-// (TS 24.501 §5.4.3.2), so a UE that never answers cannot leak its context.
+// TS 24.501 §5.4.3.2
 func TestSendIdentityRequest_ArmsT3570(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -585,8 +576,7 @@ func TestSendIdentityRequest_ArmsT3570(t *testing.T) {
 	ue.Conn().NASGuardForTest().Stop()
 }
 
-// TestHandleIdentityResponse_T3570Stopped asserts the identification procedure
-// is complete on receipt of the response: T3570 is stopped (TS 24.501 §5.4.3.4).
+// TS 24.501 §5.4.3.4
 func TestHandleIdentityResponse_T3570Stopped(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -605,13 +595,10 @@ func TestHandleIdentityResponse_T3570Stopped(t *testing.T) {
 	}
 }
 
-// buildTestIdentityResponseMessage builds a plain IDENTITY RESPONSE carrying a
-// SUCI mobile identity (type-6 IE, 2-octet LVE length).
 func buildTestIdentityResponseMessage() []byte {
 	return buildIdentityResponsePlain([]byte{0x01, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
 }
 
-// buildTestIdentityResponse is the same message, decoded.
 func buildTestIdentityResponse(t *testing.T) *fgs.IdentityResponse {
 	t.Helper()
 
@@ -623,7 +610,6 @@ func buildTestIdentityResponse(t *testing.T) *fgs.IdentityResponse {
 	return resp
 }
 
-// buildTestIdentityResponseEmpty is an IDENTITY RESPONSE carrying no identity.
 func buildTestIdentityResponseEmpty() *fgs.IdentityResponse {
 	return &fgs.IdentityResponse{}
 }

@@ -12,10 +12,7 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// TS 38.413 §8.10.4: "If an AMF receives an UPLINK UE ASSOCIATED NRPPA TRANSPORT
-// message with an unknown Routing ID for the UE, the AMF shall ignore the
-// message." The LMF correlates a pending measurement against the stored PDUs, so
-// an unsolicited one must not reach them.
+// TS 38.413 §8.10.4
 func TestHandleUplinkNRPPaTransport_RoutingID(t *testing.T) {
 	tests := []struct {
 		name      string

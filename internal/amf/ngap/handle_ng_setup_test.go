@@ -31,11 +31,9 @@ type NGSetupRequestOpts struct {
 	Tac    string
 	Sst    int32
 	Sd     string
-	Slices []SliceOpt // if set, overrides Sst/Sd
+	Slices []SliceOpt
 }
 
-// buildNGSetupRequest assembles the request as the library models it, which is
-// what the handler now receives from the dispatcher.
 func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngap.NGSetupRequest, error) {
 	if opts.Mcc == "" || opts.Mnc == "" {
 		return nil, fmt.Errorf("MCC and MNC are required to build NGSetupRequest")
@@ -111,9 +109,6 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 	}
 	ran.BindAMFForTest(amf.New(nil, nil, nil))
 
-	// Use a valid TAC to satisfy the decoder (missing IE → ErrorIndication
-	// at the dispatcher layer, not NGSetupFailure here), then erase the
-	// item list to exercise the "gNB advertised no supported TAs" branch.
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
 		GnbID: "ABCDE1",

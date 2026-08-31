@@ -9,9 +9,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TestPlainNasAllowed pins down the TS 24.501 whitelist used by
-// the NAS decoder for plain NAS PDUs. Any change to this list is a
-// security boundary change.
 func TestPlainNasAllowed(t *testing.T) {
 	allowed := map[uint8]bool{
 		uint8(fgs.MsgRegistrationRequest):         true,
@@ -62,16 +59,12 @@ func TestPlainNasAllowed(t *testing.T) {
 	}
 }
 
-// TestPlainNasAllowed_RejectsServiceRequest pins ServiceRequest off the
-// plain-NAS whitelist.
 func TestPlainNasAllowed_RejectsServiceRequest(t *testing.T) {
 	if plainNasAllowed(uint8(fgs.MsgServiceRequest)) {
 		t.Fatal("ServiceRequest must NOT be on the plain-NAS whitelist (TS 24.501)")
 	}
 }
 
-// TestPlainNasAllowed_RejectsULNasTransport pins ULNasTransport off the
-// plain-NAS whitelist.
 func TestPlainNasAllowed_RejectsULNasTransport(t *testing.T) {
 	if plainNasAllowed(uint8(fgs.MsgULNASTransport)) {
 		t.Fatal("ULNASTransport must NOT be on the plain-NAS whitelist (TS 24.501)")

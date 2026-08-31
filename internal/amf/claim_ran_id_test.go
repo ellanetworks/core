@@ -149,10 +149,7 @@ func TestClaimRanID_SelfClaimIsNoOp(t *testing.T) {
 	}
 }
 
-// TS 38.413 §8.7.1.1: NG Setup re-initialises the NGAP UE-related contexts unless
-// both nodes agree to retain them. Ella Core never offers UE retention, so a gNB
-// repeating NG Setup on its existing association — what an SCTP restart produces —
-// must not leave its previous UEs behind.
+// TS 38.413 §8.7.1.1
 func TestClaimRanID_RepeatOnSameAssociationReleasesUEs(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 

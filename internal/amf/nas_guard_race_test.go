@@ -11,10 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/guard"
 )
 
-// TestNASGuardNameConcurrentAccessNoRace races the NAS-guard arm/stop writers (on
-// the NAS-dispatch and network-initiated paths) against the status-export reader.
-// Its value is under `-race`: on a plain string field this fails; through the
-// atomic pointer it is clean.
 func TestNASGuardNameConcurrentAccessNoRace(t *testing.T) {
 	conn := &UeConn{}
 	cfg := guard.TimerValue{Enable: true, ExpireTime: time.Hour, MaxRetryTimes: 1}
@@ -24,7 +20,7 @@ func TestNASGuardNameConcurrentAccessNoRace(t *testing.T) {
 	for _, op := range []func(){
 		func() { conn.armNASGuardWith(cfg, "T3560 (Authentication Request)", func(int32) {}, func() {}) },
 		func() { conn.StopNASGuard() },
-		func() { _ = conn.nasGuardProcName() }, // the status-export read
+		func() { _ = conn.nasGuardProcName() },
 	} {
 		wg.Add(1)
 

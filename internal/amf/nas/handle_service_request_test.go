@@ -141,8 +141,6 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgServiceReject))
 
-	// TS 24.501: a service request failing the integrity check is
-	// rejected with cause #9 and the 5G NAS security context is kept unchanged.
 	if !ue.SecuredForTest() {
 		t.Fatalf("security context must be kept unchanged on a mac-failed service request (TS 24.501)")
 	}
@@ -311,8 +309,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	}
 }
 
-// A registered UE's service request must always be answered — accepted for a serviceable
-// type, rejected for an unsupported one — never dropped (TS 24.501 §5.6.1.5).
+// TS 24.501 §5.6.1.5
 func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -359,7 +356,7 @@ func TestHandleServiceRequest_ServiceTypeReplies(t *testing.T) {
 
 			var gotType uint8
 			if fgs.SecurityHeaderType(pdu[1]&0x0f) == fgs.SHTPlain {
-				gotType = pdu[2] // plain 5GMM: EPD, SHT, message type
+				gotType = pdu[2]
 			} else {
 				decoded, err := amf.DecodeNASMessage(ue, pdu)
 				if err != nil {
@@ -1113,11 +1110,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	}
 }
 
-// TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus verifies that a
-// ServiceRequest with UplinkDataStatus does NOT panic when SmContextList contains
-// a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
-// This is a regression test for an index-out-of-range crash (DoS vulnerability).
-func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing.T) {
+func TestHandleServiceRequest_OutOfRangePduSessionID(t *testing.T) {
 	amfInstance := amf.New(
 		&fakeDBInstance{
 			Operator: &db.Operator{
@@ -1137,7 +1130,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 		&fakeSmf{},
 	)
 
-	ue, _, err := buildUeAndRadio()
+	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
@@ -1161,10 +1154,6 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	ue.SetCipheringAlgForTest(algo)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
-	// Inject an out-of-range PDU session ID (255) directly into SmContextList,
-	// bypassing CreateSmContext validation. This simulates a malicious UE that
-	// somehow stored an invalid session ID (e.g., via a hypothetical future bug).
-	// The read-side bounds checks in handleServiceRequest must still prevent a panic.
 	ue.SmContextList[255] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount(), fgs.ServiceTypeData)
@@ -1173,69 +1162,12 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	}
 
 	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
-}
 
-// TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus verifies that a
-// ServiceRequest with PDUSessionStatus does NOT panic when SmContextList contains
-// a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
-func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing.T) {
-	amfInstance := amf.New(
-		&fakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				SupportedTACs: "[\"000001\"]",
-			},
-		},
-		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: []byte("testkey"),
-		},
-		&fakeSmf{},
-	)
-
-	ue, _, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not build UE and radio: %v", err)
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected the out-of-range session to be skipped and a Service Accept sent, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-
-	ue.ForceStateForTest(amf.Registered)
-	ue.Tai = ue.Conn().Tai
-	ue.SetSecuredForTest(true)
-	{
-		ng := ue.NgKsiForTest()
-		ng.Ksi = 1
-		ue.SetNgKsiForTest(ng)
-	}
-
-	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	algo := nas.CipheringAES
-
-	ue.SetKnasEncForTest(key)
-	ue.SetKnasIntForTest(key)
-	ue.SetCipheringAlgForTest(algo)
-	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
-
-	// Inject an out-of-range PDU session ID (200) directly into SmContextList,
-	// bypassing CreateSmContext validation to test the read-side safety net.
-	ue.SmContextList[200] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
-
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount(), fgs.ServiceTypeData)
-	if err != nil {
-		t.Fatalf("could not build service request: %v", err)
-	}
-
-	// Ensure PDUSessionStatus is set in the inner message (it is by default in
-	// buildTestServiceRequestCiphered). The panic occurs when iterating SmContextList
-	// and indexing into the [16]bool psiArray with pduSessionID >= 16.
-
-	handleServiceRequest(t.Context(), amfInstance, ue, encSR(t, m), true)
+	decipherGmm(t, ue, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgServiceAccept))
 }
 
 func buildTestServiceRequest() *fgs.ServiceRequest {
@@ -1245,8 +1177,6 @@ func buildTestServiceRequest() *fgs.ServiceRequest {
 	}
 }
 
-// encSR encodes a SERVICE REQUEST message to its plain wire bytes, the form the
-// handler receives.
 func encSR(t *testing.T, sr *fgs.ServiceRequest) []byte {
 	t.Helper()
 
@@ -1292,8 +1222,6 @@ func buildTestServiceRequestCiphered(cipherAlg nas.CipheringAlgorithm, key [16]u
 	}, nil
 }
 
-// serviceRequest5GSTMSI encodes the 5G-S-TMSI (type 4) carried in a SERVICE
-// REQUEST (AMF Set ID 0, AMF Pointer 0, 5G-TMSI 0xDEADBEEF).
 func serviceRequest5GSTMSI() fgs.MobileIdentity {
 	return fgs.STMSIIdentity(fgs.STMSI{TMSI: [4]byte{0xDE, 0xAD, 0xBE, 0xEF}})
 }

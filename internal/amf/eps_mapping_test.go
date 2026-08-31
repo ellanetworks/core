@@ -205,8 +205,6 @@ func TestInstallMappedSecurityContextFromEPS(t *testing.T) {
 		t.Fatalf("NCC = %d, want the pair the AMF stores", ue.NCCForTest())
 	}
 
-	// The AMF names no K_gNB after a handover from EPS: the target gNB derived its
-	// own from the pair it was handed (TS 33.501 §8.4.2 step 5).
 	if ue.KgnbForTest() != nil {
 		t.Fatal("the AMF must hold no K_gNB after installing a context mapped from EPS")
 	}
@@ -263,10 +261,7 @@ func TestMappedContextRoundTrip(t *testing.T) {
 	}
 }
 
-// A UE arriving from EPS holds the capability the MME sent, so it can be handed
-// back without having re-registered, and its real 5G capability survives the trip
-// out rather than being replaced by the assumed default (TS 33.501 §8.3.2 step 3,
-// §8.4.2 step 2).
+// TS 33.501 §8.3.2
 func TestMappedContextCarriesBothCapabilities(t *testing.T) {
 	ue := mappableUE(t)
 	real5G := &fgs.UESecurityCapability{EA: 0x40, IA: 0x40}
@@ -314,8 +309,7 @@ func TestMappedContextCarriesBothCapabilities(t *testing.T) {
 	}
 }
 
-// Learning the S1 capability for the first time must not discard a pair the UE
-// already holds from the MME (TS 24.501 §5.4.2.3).
+// TS 24.501 §5.4.2.3
 func TestFirstS1CapabilityKeepsTheMMEAlgorithms(t *testing.T) {
 	ue := amf.NewUeContext()
 

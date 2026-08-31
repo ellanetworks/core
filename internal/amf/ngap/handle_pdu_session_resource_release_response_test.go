@@ -18,10 +18,6 @@ func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	ran := newTestRadio(amfInstance)
 	sender := ran.Conn.(*fakeNGAPSender)
 
-	// Both UE NGAP IDs are mandatory but ignore criticality, so an absent one
-	// reaches the handler. §10.3.5 has the receiver ignore it and carry on, and
-	// §9.3.1.3 makes an ignore-criticality IE unreportable, so the message is
-	// dropped without a reply.
 	HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceReleaseResponse{})
 
 	if len(sender.SentErrorIndications) != 0 {

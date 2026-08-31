@@ -27,9 +27,6 @@ func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverFailure_SourceUeContextDetached verifies that a handover
-// failure is handled gracefully when the source UE's AMF UE context has been
-// detached (e.g. due to a concurrent deregistration).
 func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
@@ -52,7 +49,6 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	// Simulate the AMF UE being detached from the source (deregistration race).
 	amfUe.Conn().AMFForTest().ReleaseNasConnection(amfUe, nil)
 
 	msg := ngap.HandoverFailure{
@@ -66,8 +62,6 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 		t.Fatalf("expected 1 HandoverPreparationFailure on source radio, got %d", len(sourceSender.SentHandoverPreparationFailures))
 	}
 
-	// The target rejected preparation, so it holds no context: no UE Context Release
-	// Command is sent; the target association is dropped locally (TS 38.413 §8.4.2.3).
 	if len(targetSender.SentUEContextReleaseCommands) != 0 {
 		t.Fatalf("expected no UEContextReleaseCommand to the target, got %d", len(targetSender.SentUEContextReleaseCommands))
 	}
@@ -77,9 +71,7 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverFailure_DropsTargetLocally verifies that on HANDOVER FAILURE the AMF
-// fails the source, clears the handover, and drops the target locally with no UE Context
-// Release Command (the target holds no context, TS 38.413 §8.4.2.3).
+// TS 38.413 §8.4.2.3
 func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
@@ -125,9 +117,6 @@ func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverFailure_NotFromPreparedTarget verifies a HANDOVER FAILURE that
-// arrives on an association other than the prepared target (here the source) is
-// ignored and does not tear down the in-flight handover.
 func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
@@ -149,8 +138,6 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), sourceRan)
 	amfInstance.SetRadioForTest(new(sctp.SCTPConn), targetRan)
 
-	// Failure arrives on the SOURCE association (AMF UE NGAP ID 100), not the
-	// prepared target (200).
 	msg := ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(100)),
 		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
@@ -171,11 +158,7 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.3: Criticality Diagnostics report on the message its sender
-// received in that procedure. The diagnostics on a HANDOVER FAILURE describe the
-// AMF's read of the target's message in Handover Resource Allocation, so
-// relaying them to the source in a HANDOVER PREPARATION FAILURE would tell the
-// source gNB that an IE it never sent was not understood.
+// TS 38.413 §9.3.1.3
 func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
@@ -217,9 +200,7 @@ func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.
 	}
 }
 
-// TS 38.413 §8.4.1.3: "If the Target to Source Failure Transparent Container IE
-// has been received by the AMF from the handover target then the transparent
-// container shall be included in the HANDOVER PREPARATION FAILURE message."
+// TS 38.413 §8.4.1.3
 func TestHandleHandoverFailure_RelaysTargetToSourceFailureContainer(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
@@ -258,7 +239,6 @@ func TestHandleHandoverFailure_RelaysTargetToSourceFailureContainer(t *testing.T
 	}
 }
 
-// Preparation that fails before any target answers has no container to relay.
 func TestHandleHandoverFailure_NoContainerToRelay(t *testing.T) {
 	amfInstance := newTestAMF()
 	sourceRan := newTestRadio(amfInstance)
