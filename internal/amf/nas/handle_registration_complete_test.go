@@ -54,7 +54,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.UeContext, *fakeNGAPSender)
 	ue.SetIntegrityAlgForTest(nas.IntegrityNull)
 
 	ue.ForceRegStepForTest(amf.RegStepContextSetup)
-	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{FOR: true} // follow-on request pending
+	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{FOR: true}
 	ue.Conn().RegistrationType5GS = 42
 	ue.Conn().IdentityTypeUsedForRegistration = 42
 	ue.Conn().SetResyncTried(true)
@@ -126,7 +126,6 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 		t.Fatalf("NAS decode failed: %v", err)
 	}
 
-	// Registration complete sends NITZ only (no GUTI reassignment)
 	if cuc.GUTI != nil {
 		t.Fatal("expected no GUTI in ConfigurationUpdateCommand after registration complete")
 	}
@@ -305,7 +304,6 @@ func checkUERegistrationDataIsCleared(ue *amf.UeContext) error {
 	return nil
 }
 
-// mustBitmap decodes a PDU session identity bitmap that must be well-formed.
 func mustBitmap(b []byte) *fgs.PSIBitmap {
 	m, err := fgs.ParsePSIBitmap(b)
 	if err != nil {

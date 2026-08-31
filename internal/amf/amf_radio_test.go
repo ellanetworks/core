@@ -124,11 +124,6 @@ func TestRadioNodeID(t *testing.T) {
 	}
 }
 
-// TestRadioConcurrentHandoverTargetsCoexist guards against the regression where
-// concurrent N2 handover targets to one gNB evicted each other: a target has no
-// RAN UE NGAP ID until its Handover Request Acknowledge, so targets are keyed by
-// their distinct AMF UE NGAP IDs and must coexist, then each becomes reachable
-// by its assigned RAN UE NGAP ID.
 func TestRadioConcurrentHandoverTargetsCoexist(t *testing.T) {
 	radio := &amf.Radio{Log: logger.AmfLog}
 	amfInstance := amf.New(nil, nil, nil)

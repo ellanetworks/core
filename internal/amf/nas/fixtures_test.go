@@ -18,9 +18,6 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// setTestUESecurityCapability gives a UE the state a registered UE carries by the
-// time an Initial Context Setup is built: a 5G security capability (TS 33.501)
-// and a serving PLMN for the mobility restriction list.
 func setTestUESecurityCapability(ue *amf.UeContext) {
 	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0x00, IA: 0x00})
 
@@ -117,11 +114,6 @@ func (fdb *fakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([
 
 func (fdb *fakeDBInstance) NodeID() int { return 0 }
 
-// fakeNGAPSender records the NGAP messages the AMF sends, standing in for an
-// NG-RAN node. Every outbound PDU is parsed with the in-house library and filed
-// in the bucket matching its procedure, so a test asserts on the same message
-// struct the library hands a real peer. internal/amf/ngap and internal/mme/s1ap
-// do the same.
 type fakeNGAPSender struct {
 	SentDownlinkNASTransport               []*ngap.DownlinkNASTransport
 	SentPDUSessionResourceSetupRequest     []*ngap.PDUSessionResourceSetupRequest
@@ -131,9 +123,6 @@ type fakeNGAPSender struct {
 	SentDownlinkUEAssociatedNRPPaTransport []*ngap.DownlinkUEAssociatedNRPPaTransport
 }
 
-// capture parses one message body into its bucket. A parse failure means the
-// AMF encoded a PDU its own library cannot read back, which is a bug in the
-// code under test rather than in the test.
 func capture[M any](bucket *[]*M, parse func([]byte) (*M, error), value []byte, name string) {
 	m, err := parse(value)
 	if err != nil {

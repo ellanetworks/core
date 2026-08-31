@@ -11,10 +11,6 @@ import (
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TestDecodeNASMessage_PurityOnPlainWhitelist asserts the decoder does
-// not mutate any security-policy fields on the UE when processing a
-// plain NAS PDU on the whitelist. Only ULCount (protocol plumbing) may
-// change, and for plain NAS it does not.
 func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainRegistrationRequest(t)
@@ -31,10 +27,6 @@ func TestDecodeNASMessage_PurityOnPlainWhitelist(t *testing.T) {
 	}
 }
 
-// TestDecodeNASMessage_PurityOnPlainReject asserts the decoder does not
-// mutate any security-policy fields on the UE when rejecting a plain
-// NAS PDU that is off the whitelist (e.g. plain ServiceRequest). This
-// is the anti-DoS-amplification invariant.
 func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainServiceRequest(t)
@@ -51,13 +43,6 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 	}
 }
 
-// securityStateSnapshot is the set of UeContext fields the NAS decoder is
-// forbidden from mutating. New security-relevant fields should be added
-// here as they are introduced.
-//
-// Explicitly excluded: ULCount. The decoder legitimately advances the
-// uplink NAS counter as part of protocol plumbing (see decodeProtectedNAS),
-// so it is not a security-policy field and is not snapshotted.
 type securityStateSnapshot struct {
 	SecurityContextAvailable bool
 	CipheringAlg             nas.CipheringAlgorithm

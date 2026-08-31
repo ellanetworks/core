@@ -11,9 +11,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 )
 
-// Every provisioning failure the SMF distinguishes has to be listed: one left
-// out is not a missed release but an endless one, the reconciler retrying a
-// session whose policy will never resolve.
 func TestPermanentPolicyFailure(t *testing.T) {
 	for _, tc := range []struct {
 		name string

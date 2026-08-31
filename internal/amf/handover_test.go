@@ -76,15 +76,7 @@ func TestHandover_TargetRemovalAbortsHandover(t *testing.T) {
 	}
 }
 
-// TestHandover_NHAdvancedAtPreparation verifies the AS key chain advances when the
-// handover is prepared, and stays advanced however the handover ends.
-//
-// TS 33.501 §6.9.2.3.3: "Upon reception of the NGAP HANDOVER REQUIRED message ... the
-// source AMF shall increment its locally kept NCC value by one and compute a fresh NH."
-// The increment is unconditional. The pair is handed to the target gNB in the HANDOVER
-// REQUEST, so rolling it back on abandonment would let the next handover issue the same
-// {NH, NCC} to a different gNB — two gNBs each able to derive the other's KgNB, which
-// §6.9.2.1.1 NOTE 3 ("the AMF always computes a fresh {NH, NCC} pair") rules out.
+// TS 33.501 §6.9.2.3.3
 func TestHandover_NHAdvancedAtPreparation(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -129,7 +121,6 @@ func TestHandover_NHAdvancedAtPreparation(t *testing.T) {
 
 		amfInstance.ClearHandover(ue)
 
-		// Rolling back here would re-issue this pair to the next target gNB.
 		if ue.NHForTest() != staged || ue.NCCForTest() != stagedNCC {
 			t.Fatal("an abandoned handover must not roll the chain back")
 		}

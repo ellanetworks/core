@@ -14,12 +14,8 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-// goldenUplinkRANConfigTransfer is an UPLINK RAN CONFIGURATION TRANSFER whose
-// SON Configuration Transfer targets gNB 00:01:02 in PLMN 001/01.
 const goldenUplinkRANConfigTransfer = "0030402700000100634020000000f110100001020000f1100000010000f11010000a0b0000f11000000200"
 
-// uplinkTransferFixture returns the parsed message and the SON payload it
-// carries, which is what the AMF must relay untouched.
 func uplinkTransferFixture(t *testing.T) *ngap.UplinkRANConfigurationTransfer {
 	t.Helper()
 
@@ -48,34 +44,62 @@ func uplinkTransferFixture(t *testing.T) *ngap.UplinkRANConfigurationTransfer {
 
 func TestUplinkRANConfigurationTransfer_NilSONConfiguration(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
-	// An absent IE is a well-formed message; the relay simply has nothing to do.
 	HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, ran,
 		&ngap.UplinkRANConfigurationTransfer{})
+
+	assertNoRANConfigurationTransferRelayed(t, sender)
 }
 
 func TestUplinkRANConfigurationTransfer_TargetRanNotFound(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
+	sender := ran.Conn.(*fakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, ran, uplinkTransferFixture(t))
+
+	assertNoRANConfigurationTransferRelayed(t, sender)
 }
 
-// A transfer whose leading Target RAN Node ID does not decode must be dropped
-// rather than routed on a zero target.
 func TestUplinkRANConfigurationTransfer_UndecodableTargetIsDropped(t *testing.T) {
-	ran := newTestRadio(newTestAMF())
-	amfInstance := newTestAMF()
+	sourceRan := newTestRadio(newTestAMF())
+	sourceSender := sourceRan.Conn.(*fakeNGAPSender)
 
-	HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, ran,
+	target, err := uplinkTransferFixture(t).SONConfigurationTransfer.TargetRANNodeID()
+	if err != nil {
+		t.Fatalf("TargetRANNodeID: %v", err)
+	}
+
+	targetID := util.RANNodeIDToModels(target.GlobalRANNodeID)
+	targetSender := &fakeNGAPSender{}
+	targetRan := &amf.Radio{
+		RanPresent: amf.RanPresentGNbID,
+		RanID:      &targetID,
+		Conn:       targetSender,
+		Log:        sourceRan.Log,
+	}
+
+	amfInstance := newTestAMF()
+	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), targetRan)
+
+	HandleUplinkRANConfigurationTransfer(context.Background(), amfInstance, sourceRan,
 		&ngap.UplinkRANConfigurationTransfer{SONConfigurationTransfer: ngap.SONConfigurationTransfer{0x00}})
+
+	assertNoRANConfigurationTransferRelayed(t, sourceSender)
+	assertNoRANConfigurationTransferRelayed(t, targetSender)
 }
 
-// TS 38.413 §8.8.1.2: the AMF "shall transparently transfer the SON
-// Configuration Transfer IE towards the NG-RAN node indicated in the Target RAN
-// Node ID IE". The fake sender decodes what was written with the reference
-// implementation, so this also checks a third party can read what we emit.
+func assertNoRANConfigurationTransferRelayed(t *testing.T, sender *fakeNGAPSender) {
+	t.Helper()
+
+	if len(sender.SentDownlinkRanConfigTransfers) != 0 {
+		t.Fatalf("expected the transfer to be dropped, got %d relayed", len(sender.SentDownlinkRanConfigTransfers))
+	}
+}
+
+// TS 38.413 §8.8.1.2
 func TestUplinkRANConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
 	sourceRan := newTestRadio(newTestAMF())
 	msg := uplinkTransferFixture(t)
@@ -85,8 +109,6 @@ func TestUplinkRANConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
 		t.Fatalf("TargetRANNodeID: %v", err)
 	}
 
-	// Register the target the fixture actually names, so the test cannot drift
-	// from the golden vector.
 	targetID := util.RANNodeIDToModels(target.GlobalRANNodeID)
 	targetSender := &fakeNGAPSender{}
 	targetRan := &amf.Radio{

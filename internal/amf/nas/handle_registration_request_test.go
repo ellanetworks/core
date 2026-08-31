@@ -16,13 +16,11 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
-// TestRegistrationTypeName checks that the metric and log label comes from the
-// codec, which names every assigned type and marks the rest unknown. The table
-// this replaced reported a disaster roaming initial registration as "Reserved".
 func TestRegistrationTypeName(t *testing.T) {
 	cases := map[fgs.RegistrationType]string{
 		fgs.RegistrationTypeInitial:                "Initial registration",
@@ -41,8 +39,6 @@ func TestRegistrationTypeName(t *testing.T) {
 	}
 }
 
-// TestHandleRegistrationRequest_NilRanUE validates the graceful
-// handling of the degenerate case where RanUE is nil
 func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.AMF{}
@@ -54,12 +50,16 @@ func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 
 	ue := amf.NewUeContext()
 
-	handleRegistrationRequest(ctx, &amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
+	got := handleRegistrationRequest(ctx, &amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
+	if got != nasreply.Handled() {
+		t.Fatalf("disposition = %+v, want %+v", got, nasreply.Handled())
+	}
+
+	if state := ue.State(); state != amf.Deregistered {
+		t.Fatalf("a UE with no connection must stay Deregistered, got %s", state)
+	}
 }
 
-// TestHandleRegistrationRequest_ErrorMissingIdentity validates the graceful
-// handling of the case where a UE sends a Registration Request missing
-// Mobile Identity 5GS field
 func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.AMF{}
@@ -85,8 +85,6 @@ func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 	}
 }
 
-// TestHandleRegistrationRequest_ErrorMissingOperatorInfo validates the graceful
-// handling of the case where an operator is not configured.
 func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -114,8 +112,6 @@ func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 	}
 }
 
-// TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed validates that a
-// registration request for a non-allowed tracking area is rejected.
 func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -158,8 +154,6 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
-// TestHandleRegistrationRequest_RejectMissingSecurityCapability validates that a
-// registration request with missing UE Security Capability is rejected.
 func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -194,10 +188,6 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
-// TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility
-// validates that a Mobility Registration Updating without UE Security
-// Capability is rejected. Per TS 24.501 the UE shall include the
-// IE for every registration type except periodic registration updating.
 func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -232,9 +222,6 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *t
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
-// TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability
-// validates that a periodic registration updating may omit the UE Security
-// Capability IE per TS 24.501.
 func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -270,8 +257,6 @@ func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *te
 	}
 }
 
-// TestHandleRegistrationRequest_Timers_Stopped validates that the timers
-// T3513 and T3565 are stopped when receiving a registration request.
 func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -301,9 +286,6 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 	}
 }
 
-// TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI validates that
-// a registration request for a UE missing SUCI and SUPI triggers an
-// Identity Request message.
 func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -334,9 +316,6 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgIdentityRequest))
 }
 
-// TestHandleRegistrationRequest_AuthenticationRequest validates that a
-// Registration Request for a UE with proper identity but without a valid
-// security context triggers an Authentication Request message.
 func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -381,9 +360,6 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
-// TestHandleRegistrationRequest_RegistrationAccepted validates that a
-// Registration Request for a UE with valid security context is accepted
-// with a properly ciphered message.
 func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -406,8 +382,6 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	// The RAN reports the TAC as lowercase hex (hex.EncodeToString); the operator
-	// configured it uppercase. Canonicalisation makes them match.
 	ue.Tai.Tac = "cafe64"
 	ue.Conn().Tai.Tac = "cafe64"
 
@@ -451,10 +425,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	}
 }
 
-// TestHandleRegistrationRequest_ContextSetup_IdenticalIEs_ResendsAccept validates
-// that a duplicate REGISTRATION REQUEST with identical IEs while awaiting REGISTRATION
-// COMPLETE resends the REGISTRATION ACCEPT without re-authenticating or dropping the
-// UE (TS 24.501 §5.5.1.2.8 case d).
+// TS 24.501 §5.5.1.2.8
 func TestHandleRegistrationRequest_ContextSetup_IdenticalIEs_ResendsAccept(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -477,8 +448,6 @@ func TestHandleRegistrationRequest_ContextSetup_IdenticalIEs_ResendsAccept(t *te
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	// Seed the stored request with the raw plaintext of the incoming so the
-	// identical-IEs path (resend accept) is exercised.
 	conn := ue.Conn()
 	conn.RegistrationRequest = regReqFgs(t, m)
 	conn.RegistrationRequestPlain = m
@@ -495,10 +464,7 @@ func TestHandleRegistrationRequest_ContextSetup_IdenticalIEs_ResendsAccept(t *te
 	}
 }
 
-// TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses validates that
-// a REGISTRATION REQUEST with differing IEs while awaiting REGISTRATION COMPLETE
-// aborts the previous registration and progresses the new one — here re-dispatched as
-// a fresh registration that authenticates (TS 24.501 §5.5.1.2.8 case d).
+// TS 24.501 §5.5.1.2.8
 func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -534,6 +500,16 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
+
+	prior, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 1)
+	if err != nil {
+		t.Fatalf("could not build the prior registration request message: %v", err)
+	}
+
+	conn := ue.Conn()
+	conn.RegistrationRequest = regReqFgs(t, prior)
+	conn.RegistrationRequestPlain = prior
+	conn.RegistrationAcceptPlain = []byte{0x7e, 0x00, 0x42}
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
@@ -587,8 +563,6 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 	conn.RegistrationRequestPlain = m
 	conn.RegistrationAcceptPlain = []byte{0x7e, 0x00, 0x42}
 
-	// Requested mapped NSSAI (0x35): the message preserves it without modelling
-	// it, so the two differ in bytes while every field the AMF reads is equal.
 	incoming := append(append([]byte{}, m...), 0x35, 0x02, 0x01, 0x01)
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, incoming), incoming, true, false)
@@ -601,10 +575,7 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
-// TestHandleRegistrationRequest_UEStateAuthentication_Error validates that
-// a registration request for a UE in the middle of an authentication procedure
-// triggers an error.
-func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t *testing.T) {
+func TestHandleRegistrationRequest_Authenticating_DifferingIEs_Restarts(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{
@@ -640,10 +611,20 @@ func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t 
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
+	prior, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 1)
+	if err != nil {
+		t.Fatalf("could not build the prior registration request message: %v", err)
+	}
+
+	conn := ue.Conn()
+	conn.RegistrationRequest = regReqFgs(t, prior)
+	conn.RegistrationRequestPlain = prior
+	conn.RegistrationAcceptPlain = []byte{0x7e, 0x00, 0x42}
+
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
-		t.Fatalf("should have sent a Downlink NAS Transport message (AuthenticationRequest), got %d", len(ngapSender.SentDownlinkNASTransport))
+		t.Fatalf("a differing pre-accept retransmission must restart with an Authentication Request, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
 	}
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
@@ -700,8 +681,7 @@ func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testin
 	}
 }
 
-// An identical retransmission during the security mode procedure is ignored, not
-// restarted (TS 24.501 §5.5.1.2.8 case e).
+// TS 24.501 §5.5.1.2.8
 func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -767,7 +747,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
 	}, nil)
-	amfInstance.NASGuardCfg.Enable = false // Prevent timer from being re-started during re-entry.
+	amfInstance.NASGuardCfg.Enable = false
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -798,9 +778,6 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	// The prior registration is aborted: its context is deregistered and its NAS
-	// connection — carrying T3560 — is released. The new registration runs on a fresh
-	// context reusing the same radio, so the Authentication Request still goes out.
 	if ue.State() != amf.Deregistered {
 		t.Fatalf("aborted registration context should be Deregistered, got %s", ue.State())
 	}
@@ -817,9 +794,6 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
 }
 
-// TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted validates that
-// a Registration Request with ciphered NAS is properly decrypted and accepted
-// with a ciphered Registration Accept message.
 func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T) {
 	ctx := context.TODO()
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
@@ -882,8 +856,6 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	decipherGmm(t, ue, resp.NASPDU, uint8(fgs.MsgRegistrationAccept))
 }
 
-// TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey validates that
-// a ciphered registration request with a wrong key is rejected with a plain NAS message.
 func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *testing.T) {
 	ctx := context.TODO()
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
@@ -953,10 +925,6 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgRegistrationReject))
 }
 
-// TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer validates that
-// when MAC verification fails (no valid security context), the NASMessageContainer
-// decryption is skipped and the registration proceeds with cleartext IEs only,
-// triggering an authentication request; the container is never decoded.
 func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testing.T) {
 	ctx := context.TODO()
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
@@ -987,7 +955,6 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
-	// Simulate MAC verification failure (amf.AMF has no valid security context)
 	ue.SetSecuredForTest(false)
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -1012,9 +979,6 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	}
 }
 
-// TestHandleRegistrationRequest_NgKsi_Increment validates that the amf.AMF
-// allocates the next available ngKSI slot (current + 1) to avoid reusing
-// the UE's active key, per 3GPP TS 24.501 section 9.11.3.32.
 func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -1056,9 +1020,6 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 	}
 }
 
-// TestHandleRegistrationRequest_NgKsi_WrapAt6 validates that when the UE sends
-// ngKSI=6 (the maximum valid value), the amf.AMF wraps around to 0, never
-// using value 7 (which means "no key available").
 func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -1100,9 +1061,6 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 	}
 }
 
-// TestHandleRegistrationRequest_NgKsi_NoKeyAvailable validates that when the UE
-// sends ngKSI=7 ("no key available"), the amf.AMF handles it gracefully by
-// resetting to 0 with native security context type.
 func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -1271,7 +1229,6 @@ func buildUeAndRadio() (*amf.UeContext, *fakeNGAPSender, error) {
 	return ue, &ngapSender, nil
 }
 
-// newBoundUe returns a UeContext with a UeConn attached, so NasConn() is live.
 func newBoundUe(t *testing.T) *amf.UeContext {
 	t.Helper()
 
@@ -1286,9 +1243,9 @@ func newBoundUe(t *testing.T) *amf.UeContext {
 func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) {
 	ue := newBoundUe(t)
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
-	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0}) // EA1/2/3 + IA1/2/3
+	ue.SetUESecurityCapabilityForTest(&fgs.UESecurityCapability{EA: 0xE0, IA: 0xE0})
 
-	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x80, IA: 0x80}, false) // only EA1 + IA1
+	acceptRegistrationUESecurityCapability(context.Background(), ue, &fgs.UESecurityCapability{EA: 0x80, IA: 0x80}, false)
 
 	if !ue.UESecurityCapabilityForTest().Equal(fgs.UESecurityCapability{EA: 0x80, IA: 0x80}) {
 		t.Fatalf("Initial Registration must replace stored caps, got %#v", ue.UESecurityCapabilityForTest())
@@ -1319,9 +1276,6 @@ func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
 	}
 }
 
-// TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade is
-// the regression for TS 33.501 downgrade protection on Mobility
-// Registration Update.
 func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *testing.T) {
 	ue := newBoundUe(t)
 	ue.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
@@ -1358,10 +1312,7 @@ func TestAcceptRegistrationUESecurityCapability_MobilityIdenticalCapsNoop(t *tes
 	}
 }
 
-// TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistration
-// verifies an initial registration colliding with a network-initiated
-// de-registration aborts the de-registration and progresses the registration
-// (TS 24.501 §5.5.2.3.5 case d); it is not rejected with a state mismatch.
+// TS 24.501 §5.5.2.3.5
 func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistration(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -1386,13 +1337,11 @@ func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistratio
 
 	handleRegistrationRequest(ctx, amfInstance, ue, mustParseRegistrationRequest(t, m), m, true, false)
 
-	// Progressed, not rejected: the de-registration must have been aborted.
 	if ue.State() == amf.DeregistrationInitiated {
 		t.Fatal("network-initiated de-registration must be aborted on an initial registration collision")
 	}
 }
 
-// regReqFgs parses a test REGISTRATION REQUEST into the home-built form.
 func regReqFgs(t *testing.T, pdu []byte) *fgs.RegistrationRequest {
 	t.Helper()
 
@@ -1404,14 +1353,10 @@ func regReqFgs(t *testing.T, pdu []byte) *fgs.RegistrationRequest {
 	return req
 }
 
-// testMobileIdentity is the 5G-GUTI these tests present as the UE identity; the
-// value is immaterial to what they assert, only that one is present.
 func testMobileIdentity() fgs.MobileIdentity {
 	return fgs.GUTIIdentity(fgs.GUTI{PLMN: nas.PLMN{MCC: "001", MNC: "01"}, AMFRegionID: 1, AMFSetID: 1, AMFPointer: 1})
 }
 
-// mustParseRegistrationRequest decodes a wire REGISTRATION REQUEST for a test that
-// drives the handler directly.
 func mustParseRegistrationRequest(t *testing.T, plain []byte) *fgs.RegistrationRequest {
 	t.Helper()
 
@@ -1423,13 +1368,7 @@ func mustParseRegistrationRequest(t *testing.T, plain []byte) *fgs.RegistrationR
 	return req
 }
 
-// TestHandleRegistrationRequest_ContextSetup_AfterSecurityModeContainer_ResendsAccept
-// pins the oracle case d compares against once a security mode procedure has run.
-// The UE opens with cleartext IEs only and repeats the complete message in the
-// SECURITY MODE COMPLETE's NAS message container (TS 24.501 §4.4.6); from then on
-// the AMF holds the container's message. A UE that retransmits after the ACCEPT
-// now has a security context and sends that complete message, so comparing it
-// against the cleartext-only opener would re-authenticate instead of resending.
+// TS 24.501 §4.4.6
 func TestHandleRegistrationRequest_ContextSetup_AfterSecurityModeContainer_ResendsAccept(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&fakeDBInstance{
@@ -1441,15 +1380,11 @@ func TestHandleRegistrationRequest_ContextSetup_AfterSecurityModeContainer_Resen
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	// The cleartext-only opener: no UE security capability, as a UE with no
-	// security context sends it.
 	opener, err := buildRegReqBytes(uint8(fgs.RegistrationTypeInitial), testMobileIdentity(), nil, 0, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("could not build the initial registration request: %v", err)
 	}
 
-	// The complete message the SECURITY MODE COMPLETE carries, which contextSetup
-	// stores as the registration request from then on.
 	complete, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build the container registration request: %v", err)

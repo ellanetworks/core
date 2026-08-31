@@ -95,10 +95,6 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	}
 }
 
-// TestHandleNGReset_PartOfNGInterface_UnknownUE verifies that a ConnectionList
-// reset referencing a RANUENGAPID that does not match any UE context does NOT
-// panic or remove the wrong UE. This exercises the missing-continue bug where
-// ueConn is nil after the lookup but Remove() is called anyway.
 func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 	sender := &fakeNGAPSender{}
 
@@ -125,10 +121,6 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 		t.Fatalf("expected 1 NGResetAcknowledge, got %d", len(sender.SentNGResetAcknowledges))
 	}
 
-	// TS 38.413 §8.7.4.2.2: the acknowledge "shall include also unknown
-	// UE-associated logical NG-connections". The gNB cannot reuse a UE NGAP ID
-	// until the AMF confirms it, so dropping the ones this AMF never held would
-	// strand them.
 	list := sender.SentNGResetAcknowledges[0].ConnectionList
 	if list == nil || len(list) != 1 {
 		t.Fatalf("acknowledge must echo the unknown connection, got %+v", list)

@@ -136,7 +136,7 @@ func mappedRequest(t *testing.T, ue *UeContext, guti etsi.GUTI5G, count nas.Coun
 	}
 }
 
-// TS 33.501 §8.5.2 steps 4-5
+// TS 33.501 §8.5.2
 func TestEPSContextReturnsTheMappedContext(t *testing.T) {
 	a := idleMobilityAMF()
 	guti := idleMobilityGUTI(t)
@@ -222,7 +222,7 @@ func TestEPSContextCommitsTheCountItVerifiedAt(t *testing.T) {
 	}
 }
 
-// TS 24.301 §5.5.3.2.7 d), TS 33.501 §8.6.1
+// TS 24.301 §5.5.3.2.7
 func TestEPSContextRemapsARepeatedTrackingAreaUpdate(t *testing.T) {
 	a := idleMobilityAMF()
 	guti := idleMobilityGUTI(t)
@@ -352,7 +352,6 @@ func TestEPSContextRefusals(t *testing.T) {
 		}
 	})
 
-	// TS 33.501 §8.5.2 steps 3-4
 	t.Run("a container holding no TAU REQUEST", func(t *testing.T) {
 		a := idleMobilityAMF()
 		guti := idleMobilityGUTI(t)
@@ -417,7 +416,7 @@ func TestEPSContextRefusals(t *testing.T) {
 	})
 }
 
-// TS 23.401 §5.3.3.1 step 7, which TS 23.502 §4.11.1.3.2 steps 7-14 performs
+// TS 23.401 §5.3.3.1
 func TestEPSContextHandedOverButNeverAcknowledgedKeepsServingTheUE(t *testing.T) {
 	a := idleMobilityAMF()
 	guti := idleMobilityGUTI(t)

@@ -336,10 +336,7 @@ func TestSameTypeConflict(t *testing.T) {
 	}
 }
 
-// TestKeyChainMutualExclusion checks the coarse rule (TS 33.501 §6.9.5): every ordered
-// pair of the tracked key-changing procedures {SecurityMode, N2Handover, PathSwitch} is
-// mutually exclusive, since they all mutate the one {NH,NCC}/KgNB chain — at most one is
-// active at a time.
+// TS 33.501 §6.9.5
 func TestKeyChainMutualExclusion(t *testing.T) {
 	tests := []struct {
 		first  procedure.Type
@@ -424,9 +421,6 @@ func TestSuperviseTimerStoppedByEnd(t *testing.T) {
 	}
 }
 
-// TestStaleSuperviseTimerDoesNotExpireRebegun verifies the pointer-identity guard:
-// after End stops one instance, a new procedure of the same Type must not be torn down
-// by the previous instance's supervision.
 func TestStaleSuperviseTimerDoesNotExpireRebegun(t *testing.T) {
 	r := newTestRegistry()
 
@@ -587,7 +581,16 @@ func TestCancelNotActive(t *testing.T) {
 
 func TestEndIsNoopWhenInactive(t *testing.T) {
 	r := newTestRegistry()
+
 	r.End(procedure.SecurityMode)
+
+	if r.Active(procedure.SecurityMode) {
+		t.Fatal("End on an idle slot marked it active")
+	}
+
+	if err := r.Begin(procedure.SecurityMode); err != nil {
+		t.Fatalf("End on an idle slot left it unusable: %v", err)
+	}
 }
 
 func TestEndDoesNotInvokeCancel(t *testing.T) {

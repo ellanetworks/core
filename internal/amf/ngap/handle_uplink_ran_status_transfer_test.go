@@ -26,14 +26,11 @@ func validRANStatusContainer(t *testing.T) ngap.StatusTransferContainer {
 	return ngap.StatusTransferContainer(b)
 }
 
-// A UPLINK RAN STATUS TRANSFER arriving on the source during an in-progress N2 handover
-// is relayed to the target as a DOWNLINK RAN STATUS TRANSFER re-stamped with the
-// target's UE IDs, carrying the transparent container verbatim (TS 38.413 §8.4.6/7).
+// TS 38.413 §8.4.6
 func TestUplinkRanStatusTransfer_RelaysToTarget(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)
 
-	// The transfer arrives on the source association, carrying the source UE's IDs.
 	sourceRan := &amf.Radio{Conn: sourceNGAPSender, Log: logger.AmfLog}
 	msg := &ngap.UplinkRANStatusTransfer{
 		AMFUENGAPID: 100,
@@ -49,7 +46,6 @@ func TestUplinkRanStatusTransfer_RelaysToTarget(t *testing.T) {
 
 	relayed := targetSender.SentDownlinkRanStatusTransfers[0]
 
-	// Re-stamped with the target UE's IDs (target = NewUeConnForTest(ran, ran=2, amf=1)).
 	if relayed.AMFUENGAPID != 1 || relayed.RANUENGAPID != 2 {
 		t.Fatalf("relayed IDs = amf %d / ran %d, want target 1 / 2", relayed.AMFUENGAPID, relayed.RANUENGAPID)
 	}
@@ -59,7 +55,6 @@ func TestUplinkRanStatusTransfer_RelaysToTarget(t *testing.T) {
 	}
 }
 
-// With no handover in progress there is no target, so the transfer is dropped.
 func TestUplinkRanStatusTransfer_NoHandover_Dropped(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 	targetSender := targetRan.Conn.(*fakeNGAPSender)

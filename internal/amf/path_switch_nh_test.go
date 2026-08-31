@@ -12,10 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestPathSwitchNH_CommitOnlyOnConfirmedSwitch verifies the staged AS key chain
-// at path switch: AdvancePathSwitchNH derives {NH, NCC} without touching the live
-// chain, and CommitPathSwitch advances it only when the UE is still present,
-// atomically re-pointing the UE at the target radio (TS 33.501 §6.9.2.1.1).
+// TS 33.501 §6.9.2.1.1
 func TestPathSwitchNH_CommitOnlyOnConfirmedSwitch(t *testing.T) {
 	makeUE := func() (*amf.AMF, *amf.UeContext, *amf.UeConn) {
 		amfInstance := amf.New(nil, nil, nil)

@@ -42,9 +42,7 @@ func TestHandleErrorIndication_WithCause(t *testing.T) {
 	}
 }
 
-// TestHandleErrorIndication_ReleasesNamedUE verifies that an Error Indication naming
-// a known UE releases it to CM-IDLE (protocol error → clean re-establish on the next
-// Service Request), mirroring the MME. TS 38.413 §8.7 is silent on the receive action.
+// TS 38.413 §8.7
 func TestHandleErrorIndication_ReleasesNamedUE(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
@@ -70,8 +68,6 @@ func TestHandleErrorIndication_ReleasesNamedUE(t *testing.T) {
 	}
 }
 
-// TestHandleErrorIndication_UnknownUENoRelease verifies an Error Indication naming an
-// unknown UE releases nothing.
 func TestHandleErrorIndication_UnknownUENoRelease(t *testing.T) {
 	amfInstance := newTestAMF()
 	ran := newTestRadio(amfInstance)
