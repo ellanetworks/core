@@ -12,10 +12,6 @@ import (
 	"testing"
 )
 
-// TestVLANDownlinkInsertion checks that when an N3 VLAN is configured, the
-// downlink encapsulation tags the egress frame: the Ethernet protocol becomes
-// 802.1Q, the VLAN tag carries the configured ID and an IPv4 inner protocol, and
-// the GTP-U/IPv4 packet plus inner payload follow.
 func TestVLANDownlinkInsertion(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -63,8 +59,6 @@ func TestVLANDownlinkInsertion(t *testing.T) {
 	}
 }
 
-// TestVLANDownlinkInsertionInnerIPv6 checks N3 VLAN insertion when the inner
-// packet is IPv6.
 func TestVLANDownlinkInsertionInnerIPv6(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -104,8 +98,6 @@ func TestVLANDownlinkInsertionInnerIPv6(t *testing.T) {
 	}
 }
 
-// TestVLANUplinkStrip checks that a VLAN-tagged uplink GTP-U frame is parsed and
-// decapsulated to its inner packet (the ingress VLAN tag is stripped).
 func TestVLANUplinkStrip(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -130,8 +122,6 @@ func TestVLANUplinkStrip(t *testing.T) {
 	}
 }
 
-// TestVLANUplinkN6Insertion checks that when an N6 VLAN is configured, the
-// decapsulated uplink packet egresses with the N6 VLAN tag inserted.
 func TestVLANUplinkN6Insertion(t *testing.T) {
 	requireProgTestRun(t)
 

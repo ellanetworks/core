@@ -10,17 +10,14 @@ import (
 	"testing"
 )
 
-// putUplinkPDRSourceCheck installs an uplink decap PDR carrying the given
-// authorized UE source addresses. A zero netip.Addr leaves that family unset
-// (fail closed).
 func putUplinkPDRSourceCheck(t *testing.T, obj *BpfObjects, teid uint32, ueV4, ueV6Prefix netip.Addr) {
 	t.Helper()
 
 	pdr := PdrInfo{
-		OuterHeaderRemoval: 0, // OHR_GTP_U_UDP_IPv4
+		OuterHeaderRemoval: 0,
 		IMSI:               "001010000000001",
-		Far:                FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:                QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
+		Far:                FarInfo{Action: 0x02},
+		Qer:                QerInfo{GateStatusUL: 0, MaxBitrateUL: 0},
 		UEIPv4:             ueV4,
 		UEIPv6Prefix:       ueV6Prefix,
 	}
@@ -29,8 +26,6 @@ func putUplinkPDRSourceCheck(t *testing.T, obj *BpfObjects, teid uint32, ueV4, u
 	}
 }
 
-// TestUplinkSourceOwnIPv4Accepted checks that an uplink packet sourced from the
-// UE's own IPv4 address passes source validation (not spoof-dropped).
 func TestUplinkSourceOwnIPv4Accepted(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -52,8 +47,6 @@ func TestUplinkSourceOwnIPv4Accepted(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceSpoofedIPv4Dropped checks that an uplink packet whose inner
-// source is not the UE address (nor a framed prefix) is dropped and counted.
 func TestUplinkSourceSpoofedIPv4Dropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -62,7 +55,6 @@ func TestUplinkSourceSpoofedIPv4Dropped(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
-	// Source belongs to another subscriber, not this session's UE.
 	inner := ipv4Packet([4]byte{10, 0, 0, 99}, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
@@ -76,9 +68,6 @@ func TestUplinkSourceSpoofedIPv4Dropped(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceOwnIPv6DifferentIIDAccepted checks that an uplink packet from
-// any address inside the UE's /64 (a different interface identifier) is accepted
-// — the UE forms multiple SLAAC addresses in its prefix.
 func TestUplinkSourceOwnIPv6DifferentIIDAccepted(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -87,7 +76,7 @@ func TestUplinkSourceOwnIPv6DifferentIIDAccepted(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
-	src := netip.MustParseAddr("2001:db8::dead:beef").As16() // same /64, different IID
+	src := netip.MustParseAddr("2001:db8::dead:beef").As16()
 	inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
 
 	action, _ := runXDPOut(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
@@ -101,8 +90,6 @@ func TestUplinkSourceOwnIPv6DifferentIIDAccepted(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceSpoofedIPv6Dropped checks that an uplink packet from a
-// different /64 than the UE's is dropped and counted.
 func TestUplinkSourceSpoofedIPv6Dropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -111,7 +98,7 @@ func TestUplinkSourceSpoofedIPv6Dropped(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
-	src := netip.MustParseAddr("2001:dead::9").As16() // different /64
+	src := netip.MustParseAddr("2001:dead::9").As16()
 	inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
 
 	action := runXDP(t, obj.UpfEntryFunc, uplinkGPDU(teid, inner))
@@ -125,9 +112,7 @@ func TestUplinkSourceSpoofedIPv6Dropped(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceFramedAccepted checks that an uplink packet sourced from a
-// framed prefix owned by this session (not the UE address) is accepted via the
-// framed LPM table (TS 29.244 §5.16).
+// TS 29.244 §5.16
 func TestUplinkSourceFramedAccepted(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -136,7 +121,6 @@ func TestUplinkSourceFramedAccepted(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
-	// The framed route is owned by this session's UE (same value as ue_ipv4).
 	if err := obj.PutFramedDownlink(netip.MustParsePrefix("192.168.50.0/24"), canonicalUEv4); err != nil {
 		t.Fatalf("install framed route: %v", err)
 	}
@@ -154,9 +138,7 @@ func TestUplinkSourceFramedAccepted(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceFramedIPv6Accepted checks that an uplink packet sourced from
-// an IPv6 framed prefix owned by this session is accepted via the framed LPM
-// table (TS 29.244 §5.16).
+// TS 29.244 §5.16
 func TestUplinkSourceFramedIPv6Accepted(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -183,9 +165,6 @@ func TestUplinkSourceFramedIPv6Accepted(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceFramedRejectedOtherSession checks that a framed prefix owned by
-// a different session's UE is NOT authorized — the ownership compare is what
-// makes the framed lookup a security check rather than a blanket bypass.
 func TestUplinkSourceFramedRejectedOtherSession(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -194,7 +173,6 @@ func TestUplinkSourceFramedRejectedOtherSession(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
-	// The framed route belongs to a different UE, not this session.
 	otherUE := netip.AddrFrom4([4]byte{10, 0, 0, 200})
 	if err := obj.PutFramedDownlink(netip.MustParsePrefix("192.168.60.0/24"), otherUE); err != nil {
 		t.Fatalf("install framed route: %v", err)
@@ -213,8 +191,6 @@ func TestUplinkSourceFramedRejectedOtherSession(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceLinkLocalDropped checks that a non-RS uplink packet with an
-// IPv6 link-local source is dropped (RS is intercepted before this check).
 func TestUplinkSourceLinkLocalDropped(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -237,8 +213,6 @@ func TestUplinkSourceLinkLocalDropped(t *testing.T) {
 	}
 }
 
-// TestUplinkSourceFailClosedMissingFamily checks fail-closed behaviour: a session
-// with only an IPv4 address drops an IPv6-sourced uplink packet, and vice versa.
 func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -246,7 +220,7 @@ func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 		const teid = 0x5A010007
 
 		obj := loadN3N6Program(t)
-		putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, netip.Addr{}) // no IPv6
+		putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, netip.Addr{})
 
 		src := netip.MustParseAddr("2001:db8::9").As16()
 		inner := ipv6Packet(src, netip.MustParseAddr("2001:4860:4860::8888").As16(), 17, udpDatagram(4000, 53, nil))
@@ -264,7 +238,7 @@ func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 		const teid = 0x5A010008
 
 		obj := loadN3N6Program(t)
-		putUplinkPDRSourceCheck(t, obj, teid, netip.Addr{}, canonicalUEv6Prefix) // no IPv4
+		putUplinkPDRSourceCheck(t, obj, teid, netip.Addr{}, canonicalUEv6Prefix)
 
 		inner := ipv4Packet(canonicalUEv4.As4(), [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))
 
@@ -278,15 +252,12 @@ func TestUplinkSourceFailClosedMissingFamily(t *testing.T) {
 	})
 }
 
-// TestUplinkSpoofDropNoFlowEntry checks that a spoof drop does not create a
-// flow-accounting entry (decision: a random-source spoof flood must not churn
-// the LRU flow map).
 func TestUplinkSpoofDropNoFlowEntry(t *testing.T) {
 	requireProgTestRun(t)
 
 	const teid = 0x5A010009
 
-	obj := loadProgramConfig(t, true /* flowAccounting */, false, 0, 1, 0, 0)
+	obj := loadProgramConfig(t, true, false, 0, 1, 0, 0)
 	putUplinkPDRSourceCheck(t, obj, teid, canonicalUEv4, canonicalUEv6Prefix)
 
 	inner := ipv4Packet([4]byte{10, 0, 0, 99}, [4]byte{8, 8, 8, 8}, 17, udpDatagram(4000, 53, nil))

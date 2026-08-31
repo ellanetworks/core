@@ -12,10 +12,6 @@ import (
 	"time"
 )
 
-// TestDownlinkFragmentRecordsWirePorts: the downlink fragment record must key on
-// the ports the datagram carried on the wire, as it already does for addresses.
-// Port preservation normally makes the two identical, which hides a mismatch, so
-// this occupies the preferred NAT tuple first to force a different port.
 func TestDownlinkFragmentRecordsWirePorts(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -32,8 +28,6 @@ func TestDownlinkFragmentRecordsWirePorts(t *testing.T) {
 	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 	putDownlinkPDR(t, f.obj, ueIP, dlTEID, testUPFN3IP, testGNBIP, qfi)
 
-	// Occupy {natPublicIP, serverIP, ueSP, srvDP} with a foreign flow so the
-	// datapath cannot preserve ueSP and must allocate a different port.
 	squat := natFiveTuple(natPublicIP, serverIP, ueSP, srvDP, 6)
 	foreign := natFiveTuple([4]byte{10, 99, 99, 99}, serverIP, 9999, srvDP, 6)
 
@@ -53,7 +47,6 @@ func TestDownlinkFragmentRecordsWirePorts(t *testing.T) {
 		t.Fatal("uplink did not egress on N6")
 	}
 
-	// The port the world sees, which downlink replies will be addressed to.
 	wirePort := binary.BigEndian.Uint16(out[ethHdrLen+20 : ethHdrLen+22])
 	t.Logf("UE port %d -> wire port %d", ueSP, wirePort)
 
@@ -81,7 +74,6 @@ func TestDownlinkFragmentRecordsWirePorts(t *testing.T) {
 		t.Fatal("first fragment did not egress on N3")
 	}
 
-	// What got recorded: the wire port, or the post-NAT UE port?
 	key := N3N6EntrypointFragKey4{
 		Saddr: binary.NativeEndian.Uint32(serverIP[:]),
 		Daddr: binary.NativeEndian.Uint32(natPublicIP[:]),
@@ -94,8 +86,6 @@ func TestDownlinkFragmentRecordsWirePorts(t *testing.T) {
 		t.Fatalf("frag_ports_ip4 lookup: %v", err)
 	}
 
-	// frag_record4 stores ctx->l4_dport, which the parser already converted
-	// to host order, so no swap here.
 	gotDport := ports.Dport
 	if gotDport != wirePort {
 		t.Errorf("recorded dport = %d, want the wire port %d (UE port is %d): the record was taken after destination NAT rewrote it",
@@ -109,11 +99,6 @@ func TestDownlinkFragmentRecordsWirePorts(t *testing.T) {
 	}
 }
 
-// TestDownlinkFragmentSurvivesSDFAfterNAT: a later fragment whose ports were
-// recovered from the fragment map must still be filterable after destination
-// NAT. Under the skb build the apply re-parses the frame, and a later fragment
-// has no L4 header for the re-parse to read, so the recovered ports were lost
-// and every port-constrained rule returned UNFILTERABLE.
 func TestDownlinkFragmentSurvivesSDFAfterNAT(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -130,9 +115,6 @@ func TestDownlinkFragmentSurvivesSDFAfterNAT(t *testing.T) {
 	f := setupT2(t, true)
 	putForwardingUplinkPDRUE(t, f.obj, ulTEID, 0, netip.AddrFrom4(ueIP), netip.Addr{})
 
-	// A port-scoped allow for the server's port. It matches the datagram, so
-	// the fragment must be filterable against it rather than refused for
-	// being unreadable.
 	putSDFFilter(t, f.obj, filterIndex, []SdfRule{
 		sdfRuleIPv4(serverIP, 32, srvDP, srvDP, 6, SdfActionAllow),
 	})

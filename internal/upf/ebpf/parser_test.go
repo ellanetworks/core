@@ -7,9 +7,6 @@ package ebpf
 
 import "testing"
 
-// TestMalformedL3FailsClosed checks that malformed or truncated L3 headers do
-// not abort the data path: each is passed to the kernel (ActionPass) rather than
-// returning ActionAborted.
 func TestMalformedL3FailsClosed(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -33,26 +30,20 @@ func TestMalformedL3FailsClosed(t *testing.T) {
 	}
 }
 
-// ipv4OptionsTruncated builds a frame whose IPv4 header claims a 60-byte length
-// (IHL 15) but only carries the 20-byte base header.
 func ipv4OptionsTruncated() []byte {
 	ip := ipv4Packet([4]byte{10, 0, 0, 1}, [4]byte{10, 0, 0, 2}, 17, nil)
-	ip[0] = 0x4F // version 4, IHL 15
+	ip[0] = 0x4F
 
 	return ethFrame(0x0800, ip)
 }
 
-// truncatedIPv6 builds a frame with an IPv6 ethertype but fewer than the 40
-// header bytes.
 func truncatedIPv6() []byte {
 	short := make([]byte, 20)
-	short[0] = 0x60 // version 6
+	short[0] = 0x60
 
 	return ethFrame(0x86DD, short)
 }
 
-// truncatedVLAN builds a frame with an 802.1Q ethertype but no room for the
-// VLAN tag.
 func truncatedVLAN() []byte {
 	return ethFrame(0x8100, []byte{0x00, 0x64})
 }

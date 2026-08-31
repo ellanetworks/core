@@ -17,7 +17,6 @@ var (
 	localIPv6 = netip.MustParseAddr("2001:db8::1")
 )
 
-// buildFAR is a helper that constructs a models.FAR with ForwardingParameters.
 func buildFAR(ohcDesc uint16, teid uint32, ipv4Addr, ipv6Addr string) models.FAR {
 	ohc := &models.OuterHeaderCreation{
 		Description: ohcDesc,
@@ -43,12 +42,10 @@ func buildFAR(ohcDesc uint16, teid uint32, ipv4Addr, ipv6Addr string) models.FAR
 	}
 }
 
-// TestFarInfoFromModel_IPv4 verifies that an IPv4 OHC FAR is encoded correctly.
 func TestFarInfoFromModel_IPv4(t *testing.T) {
 	far := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 100, "192.168.0.10", "")
 	info := farInfoFromMerge(far, localIPv4, localIPv6, ebpf.FarInfo{})
 
-	// OHC byte: Description >> 8 = 256 >> 8 = 1
 	if info.OuterHeaderCreation != 1 {
 		t.Errorf("OuterHeaderCreation: got %d, want 1", info.OuterHeaderCreation)
 	}
@@ -68,12 +65,10 @@ func TestFarInfoFromModel_IPv4(t *testing.T) {
 	}
 }
 
-// TestFarInfoFromModel_IPv6 verifies that an IPv6 OHC FAR is encoded correctly.
 func TestFarInfoFromModel_IPv6(t *testing.T) {
 	far := buildFAR(models.OuterHeaderCreationGtpUUdpIpv6, 200, "", "2001:db8::cafe")
 	info := farInfoFromMerge(far, localIPv4, localIPv6, ebpf.FarInfo{})
 
-	// OHC byte: Description >> 8 = 512 >> 8 = 2
 	if info.OuterHeaderCreation != 2 {
 		t.Errorf("OuterHeaderCreation: got %d, want 2", info.OuterHeaderCreation)
 	}
@@ -93,9 +88,6 @@ func TestFarInfoFromModel_IPv6(t *testing.T) {
 	}
 }
 
-// TestFarInfoFromModel_NoAddress verifies that a FAR whose OHC has no address
-// yet (DL FAR before the gNB responds) defaults to the IPv4 local address and
-// leaves RemoteIP as zero.
 func TestFarInfoFromModel_NoAddress(t *testing.T) {
 	far := models.FAR{
 		FARID:       1,
@@ -120,7 +112,6 @@ func TestFarInfoFromModel_NoAddress(t *testing.T) {
 	}
 }
 
-// TestFarInfoFromModel_ApplyActionDrop verifies Drop action encoding.
 func TestFarInfoFromModel_ApplyActionDrop(t *testing.T) {
 	far := models.FAR{
 		FARID:       2,
@@ -133,14 +124,10 @@ func TestFarInfoFromModel_ApplyActionDrop(t *testing.T) {
 	}
 }
 
-// TestFarInfoFromMerge_IPv4ToIPv6 verifies that updating a FAR from IPv4 to
-// IPv6 OHC switches the local and remote addresses correctly.
 func TestFarInfoFromMerge_IPv4ToIPv6(t *testing.T) {
-	// Existing FAR uses IPv4 transport
 	existingFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 10, "10.0.0.1", "")
 	existing := farInfoFromMerge(existingFAR, localIPv4, localIPv6, ebpf.FarInfo{})
 
-	// Update FAR switches to IPv6 transport
 	updateFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv6, 20, "", "2001:db8::2")
 
 	merged := farInfoFromMerge(updateFAR, localIPv4, localIPv6, existing)
@@ -164,8 +151,6 @@ func TestFarInfoFromMerge_IPv4ToIPv6(t *testing.T) {
 	}
 }
 
-// TestFarInfoFromMerge_NoUpdate verifies that a merge with no forwarding
-// parameters preserves the existing FAR fields.
 func TestFarInfoFromMerge_NoUpdate(t *testing.T) {
 	existingFAR := buildFAR(models.OuterHeaderCreationGtpUUdpIpv4, 42, "10.0.0.5", "")
 	existing := farInfoFromMerge(existingFAR, localIPv4, localIPv6, ebpf.FarInfo{})

@@ -20,11 +20,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// TestDeleteVsFilterPropagationNoResurrection races DeleteSession against the
-// reconciler's filter propagation on the same session. The per-session op-lock
-// must make the delete win cleanly: no PDR entry may survive in the data plane,
-// and (under -race) there must be no data race on the session's deleted flag or
-// rule maps. A deadlock in the lock ordering shows up as a test timeout.
 func TestDeleteVsFilterPropagationNoResurrection(t *testing.T) {
 	if os.Geteuid() != 0 {
 		const msg = "loading eBPF maps requires root/CAP_BPF"
@@ -79,8 +74,6 @@ func TestDeleteVsFilterPropagationNoResurrection(t *testing.T) {
 			t.Fatalf("iter %d establish: %v", i, err)
 		}
 
-		// Allocate the filter slot and propagate it to the session, so the empty
-		// update below re-propagates (releasing the slot) concurrently with delete.
 		if err := conn.UpdateFilters(ctx, policyID, models.DirectionDownlink, rules); err != nil {
 			t.Fatalf("iter %d seed filters: %v", i, err)
 		}
@@ -116,8 +109,6 @@ func TestDeleteVsFilterPropagationNoResurrection(t *testing.T) {
 			t.Fatalf("iter %d: pdrs_downlink_ip4[%s] resurrected after delete: want ErrKeyNotExist, got %v", i, ueIP, lookupErr)
 		}
 
-		// Reset the slot for the next iteration (the clear above may have lost the
-		// race and left the slot allocated).
 		_ = conn.UpdateFilters(ctx, policyID, models.DirectionDownlink, nil)
 	}
 }

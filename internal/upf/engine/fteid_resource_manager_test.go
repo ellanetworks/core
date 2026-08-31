@@ -32,7 +32,6 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 		t.Fatalf("Expected resource manager, got nil")
 	}
 
-	// Allocate all resources
 	for i := range teIDRange {
 		seID := uint64(i)
 
@@ -46,18 +45,15 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 		}
 	}
 
-	// Try to allocate one more resource
 	_, err = resourceManager.AllocateTEID(uint64(teIDRange))
 	if err == nil {
 		t.Fatalf("Expected error, got nil")
 	}
 
-	// Release all resources (seID i holds teid i+1).
 	for i := range teIDRange {
 		resourceManager.ReleaseTEID(uint64(i), i+1)
 	}
 
-	// Allocate all resources again
 	for i := range teIDRange {
 		seID := uint64(i)
 
@@ -72,8 +68,6 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 	}
 }
 
-// TestResourceManagerMultipleTEIDsPerSession verifies a session can hold several
-// TEIDs and that releasing each specific TEID returns the whole pool.
 func TestResourceManagerMultipleTEIDsPerSession(t *testing.T) {
 	m, err := engine.NewFteIDResourceManager(3)
 	if err != nil {
@@ -97,14 +91,11 @@ func TestResourceManagerMultipleTEIDsPerSession(t *testing.T) {
 		t.Fatal("expected pool exhausted after 3 allocations")
 	}
 
-	// Release each specific TEID; a double release must be a no-op (not free the
-	// same TEID twice into the pool).
 	for _, teid := range teids {
 		m.ReleaseTEID(seID, teid)
 		m.ReleaseTEID(seID, teid)
 	}
 
-	// The whole pool must be available again — no leak, no double-free.
 	for range 3 {
 		if _, err := m.AllocateTEID(seID); err != nil {
 			t.Fatalf("pool not fully restored: %v", err)
@@ -116,8 +107,6 @@ func TestResourceManagerMultipleTEIDsPerSession(t *testing.T) {
 	}
 }
 
-// TestResourceManagerReleaseAllTEIDs verifies the teardown backstop frees every
-// TEID a session still holds.
 func TestResourceManagerReleaseAllTEIDs(t *testing.T) {
 	m, err := engine.NewFteIDResourceManager(3)
 	if err != nil {

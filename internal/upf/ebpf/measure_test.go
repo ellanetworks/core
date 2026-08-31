@@ -12,15 +12,11 @@ import (
 	"github.com/cilium/ebpf/asm"
 )
 
-// MAX_BPF_STACK is the kernel's limit on a BPF-to-BPF call chain; maxChainStack
-// keeps a frame of margin below it so growth fails here, not at load time.
 const (
 	maxBPFStack   = 512
 	maxChainStack = 480
 )
 
-// frameRounding is the verifier's per-frame rounding with the JIT disabled;
-// a JITed kernel rounds to 16, so this bound holds on either.
 const frameRounding = 32
 
 func roundFrame(depth int) int {
@@ -31,8 +27,6 @@ func roundFrame(depth int) int {
 	return (depth + frameRounding - 1) / frameRounding * frameRounding
 }
 
-// functionFrames returns each function's stack depth, the deepest r10-relative
-// access, as the verifier derives it.
 func functionFrames(insns asm.Instructions) map[string]int {
 	frames := make(map[string]int)
 	current := ""
@@ -40,8 +34,6 @@ func functionFrames(insns asm.Instructions) map[string]int {
 	for _, ins := range insns {
 		if sym := ins.Symbol(); sym != "" {
 			current = sym
-			// A function that touches no stack is still charged a
-			// rounded frame, so it must appear here.
 			if _, seen := frames[current]; !seen {
 				frames[current] = 0
 			}
@@ -59,9 +51,6 @@ func functionFrames(insns asm.Instructions) map[string]int {
 	return frames
 }
 
-// functionCalls returns, per function symbol, the subprograms it can enter:
-// direct calls, and callbacks passed by pointer to helpers like bpf_loop, which
-// the kernel charges a frame for just the same.
 func functionCalls(insns asm.Instructions) map[string][]string {
 	calls := make(map[string][]string)
 	current := ""
@@ -86,14 +75,11 @@ func functionCalls(insns asm.Instructions) map[string][]string {
 	return calls
 }
 
-// deepestChain returns the largest sum of rounded frames along any call chain
-// rooted at fn, which is what the kernel's check_max_stack_depth computes.
-// Siblings that can never be live together are not added to each other.
 func deepestChain(fn string, frames map[string]int, calls map[string][]string,
 	onPath map[string]bool,
 ) int {
 	if onPath[fn] {
-		return 0 // BPF forbids recursion; guard anyway
+		return 0
 	}
 
 	onPath[fn] = true
@@ -103,7 +89,7 @@ func deepestChain(fn string, frames map[string]int, calls map[string][]string,
 
 	for _, callee := range calls[fn] {
 		if _, known := frames[callee]; !known {
-			continue // helper, not a subprogram in this object
+			continue
 		}
 
 		if d := deepestChain(callee, frames, calls, onPath); d > deepest {
@@ -114,9 +100,6 @@ func deepestChain(fn string, frames map[string]int, calls map[string][]string,
 	return roundFrame(frames[fn]) + deepest
 }
 
-// TestStackDepthBudget bounds each program's deepest call chain. Summing every
-// subprogram instead would charge a program for siblings that cannot be on the
-// stack at once, and fail on a chain the kernel accepts.
 func TestStackDepthBudget(t *testing.T) {
 	spec, err := LoadN3N6Entrypoint()
 	if err != nil {
@@ -129,8 +112,6 @@ func TestStackDepthBudget(t *testing.T) {
 
 		root := name
 		if _, ok := frames[root]; !ok {
-			// The entry function carries the section's symbol, which
-			// need not match the program name.
 			for fn := range frames {
 				if len(calls[fn]) > 0 || len(frames) == 1 {
 					root = fn
@@ -152,10 +133,6 @@ func TestStackDepthBudget(t *testing.T) {
 	}
 }
 
-// TestMeasureVerifiedInstructions logs the verifier's processed-instruction
-// count per program. Numbers are kernel-specific (this box's kernel prunes
-// differently than stock 5.15/6.x); use them for the relative picture, not the
-// absolute fit-under-1M verdict. Run with EBPF_REQUIRE_PRIVILEGED=1.
 func TestMeasureVerifiedInstructions(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -180,12 +157,6 @@ func TestMeasureVerifiedInstructions(t *testing.T) {
 	}
 }
 
-// TestURRNotChargedWhenRoutingDrops: a packet that does not leave is not
-// billed. Charged before routing, every FIB failure billed one — and
-// fib_no_neigh is ordinary while a neighbour resolves.
-//
-// The ifindex mismatch forces a drop after the accounting point without
-// depending on the host's routing table.
 func TestURRNotChargedWhenRoutingDrops(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -195,7 +166,6 @@ func TestURRNotChargedWhenRoutingDrops(t *testing.T) {
 		urrID = 3
 	)
 
-	// Not a device this frame can egress on, so routing refuses.
 	obj := loadProgramConfig(t, false, false, 1, 9, 0, 0)
 
 	if err := obj.NewUrr(seid, urrID); err != nil {
@@ -206,8 +176,8 @@ func TestURRNotChargedWhenRoutingDrops(t *testing.T) {
 		SEID:         seid,
 		UrrID:        urrID,
 		IMSI:         "001010000000001",
-		Far:          FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:          QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */},
+		Far:          FarInfo{Action: 0x02},
+		Qer:          QerInfo{GateStatusUL: 0},
 		UEIPv4:       canonicalUEv4,
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}
@@ -232,8 +202,6 @@ func TestURRNotChargedWhenRoutingDrops(t *testing.T) {
 	}
 }
 
-// TestURRChargedWhenForwarded: the check above must not pass by never
-// charging.
 func TestURRChargedWhenForwarded(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -253,8 +221,8 @@ func TestURRChargedWhenForwarded(t *testing.T) {
 		SEID:         seid,
 		UrrID:        urrID,
 		IMSI:         "001010000000001",
-		Far:          FarInfo{Action: 0x02 /* FAR_FORW */},
-		Qer:          QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */},
+		Far:          FarInfo{Action: 0x02},
+		Qer:          QerInfo{GateStatusUL: 0},
 		UEIPv4:       canonicalUEv4,
 		UEIPv6Prefix: canonicalUEv6Prefix,
 	}

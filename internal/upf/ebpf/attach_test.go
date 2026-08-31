@@ -21,42 +21,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// Real-attach (T2) test fixture.
-//
-// Unlike BPF_PROG_TEST_RUN (T1), these tests attach the program to real
-// interfaces and drive it with packets injected over AF_PACKET, so the program
-// runs on the kernel RX path with a real ingress_ifindex and its egress
-// (XDP_REDIRECT) actually leaves the interface. This is what lets us observe
-// FIB routing and the NAT rewrites on the wire.
-//
-// The fixture models the UPF's two sides with two veth pairs:
-//
-//	uplink:   inject on n3Peer ─▶ n3Dev (N3, ingress) ─▶ [XDP] ─▶ redirect ─▶ n6Dev ─▶ n6Peer (capture)
-//	downlink: inject on n6Peer ─▶ n6Dev (N6, ingress) ─▶ [XDP] ─▶ redirect ─▶ n3Dev ─▶ n3Peer (capture)
-//
-// n3_ifindex and n6_ifindex are the real device indices, so the entrypoint
-// classifies a packet by the interface it arrives on. The N6 device carries the
-// source-NAT egress address and a route to the test server; the N3 device
-// carries the UPF's N3 address and a neighbor for the gNB, so bpf_fib_lookup
-// resolves deterministically in both directions.
-
 const (
 	t2N3Dev  = "ellt2n3"
 	t2N3Peer = "ellt2n3p"
 	t2N6Dev  = "ellt2n6"
 	t2N6Peer = "ellt2n6p"
 
-	t2VethMTU = "3000" // headroom for the payload sweep plus GTP encapsulation
+	t2VethMTU = "3000"
 
-	// The IPv6 counterpart of natPublicIP, and the server's prefix.
 	t2N6IPv6         = "2001:db8:6::1"
 	t2ServerV6Prefix = "2001:4860:4860::/48"
 )
 
 var (
-	ueIP        = [4]byte{10, 45, 0, 1}     // inner UE address
-	natPublicIP = [4]byte{192, 0, 2, 1}     // N6 egress address; source-NAT target
-	serverIP    = [4]byte{198, 51, 100, 50} // remote server (RFC 5737 TEST-NET-2)
+	ueIP        = [4]byte{10, 45, 0, 1}
+	natPublicIP = [4]byte{192, 0, 2, 1}
+	serverIP    = [4]byte{198, 51, 100, 50}
 )
 
 func htons(v uint16) uint16 { return v<<8 | v>>8 }
@@ -65,8 +45,6 @@ func ipCmd(args ...string) ([]byte, error) {
 	return exec.CommandContext(context.Background(), "ip", args...).CombinedOutput()
 }
 
-// t2 is a running real-attach fixture: two veth pairs with the program attached
-// to the N3 and N6 devices.
 type t2 struct {
 	obj    *BpfObjects
 	n3Dev  *net.Interface
@@ -75,8 +53,6 @@ type t2 struct {
 	n6Peer *net.Interface
 }
 
-// setupT2 builds the topology, configures routing, loads the program with the
-// given NAT setting, and attaches it to both the N3 and N6 devices.
 func setupT2(t *testing.T, masquerade bool) *t2 {
 	t.Helper()
 
@@ -90,19 +66,13 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 		t.Fatalf("enable ip_forward: %v", err)
 	}
 
-	// N3 side: the UPF's N3 address and a neighbor for the gNB, so a
-	// re-encapsulated downlink packet routes out toward the gNB.
 	addAddr(t, t2N3Dev, addrCIDR(testUPFN3IP))
 	addNeigh(t, t2N3Dev, testGNBIP, "02:00:00:00:00:aa")
 
-	// N6 side: the source-NAT egress address, a route to the server, and a
-	// neighbor, so an uplink packet routes out with src = natPublicIP.
 	addAddr(t, t2N6Dev, addrCIDR(natPublicIP))
 	addRoute(t, "198.51.100.0/24", t2N6Dev, natPublicIP)
 	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
 
-	// A self-generated ICMP error is sourced from the address the FIB picks;
-	// without these it would be whatever global address the host has.
 	if out, err := ipCmd("addr", "add", t2N6IPv6+"/64", "dev", t2N6Dev, "nodad"); err != nil {
 		t.Fatalf("add N6 IPv6 addr: %v: %s", err, out)
 	}
@@ -123,7 +93,6 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	attachXDP(t, f.obj, f.n3Dev.Index)
 	attachXDP(t, f.obj, f.n6Dev.Index)
 
-	// A test that captured nothing cannot tell a drop from a missed capture.
 	t.Cleanup(func() {
 		if t.Failed() {
 			logDropReasons(t, f.obj)
@@ -133,7 +102,6 @@ func setupT2(t *testing.T, masquerade bool) *t2 {
 	return f
 }
 
-// logDropReasons prints the non-zero counters in both directions.
 func logDropReasons(t *testing.T, obj *BpfObjects) {
 	t.Helper()
 
@@ -166,23 +134,12 @@ func logDropReasons(t *testing.T, obj *BpfObjects) {
 func (f *t2) injectUplink(t *testing.T, frame []byte)   { inject(t, f.n3Peer.Index, frame) }
 func (f *t2) injectDownlink(t *testing.T, frame []byte) { inject(t, f.n6Peer.Index, frame) }
 
-// captureN6 and captureN3 capture frames leaving the program on each side
-// (redirected, or reflected via XDP_TX). They are named by physical side, not
-// direction: an uplink packet egresses on N6, a downlink packet on N3, but a
-// downlink that triggers an ICMP error reflects back out N6.
 func (f *t2) captureN6(t *testing.T) int { return openCapture(t, f.n6Peer.Index) }
 func (f *t2) captureN3(t *testing.T) int { return openCapture(t, f.n3Peer.Index) }
 
 func addVethPair(t *testing.T, dev, peer string) {
 	t.Helper()
 
-	// Assigned rather than left random: udev's MACAddressPolicy=persistent
-	// rewrites a randomly-generated MAC a few milliseconds after the device
-	// appears, and NETDEV_CHANGEADDR flushes the device's neighbours —
-	// permanent ones included (arp_netdev_event -> neigh_changeaddr ->
-	// neigh_flush_dev with skip_perm false). Whether that lands before or
-	// after addNeigh decides whether the first packet finds a neighbour.
-	// A MAC set here is NET_ADDR_SET, which udev leaves alone.
 	if out, err := ipCmd("link", "add", dev, "address", vethMAC(dev),
 		"type", "veth", "peer", "name", peer,
 		"address", vethMAC(peer)); err != nil {
@@ -200,8 +157,6 @@ func addVethPair(t *testing.T, dev, peer string) {
 	}
 }
 
-// vethMAC derives a stable locally-administered unicast address from the device
-// name, so each end of each pair is distinct across the suite.
 func vethMAC(dev string) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(dev))
@@ -241,7 +196,6 @@ func attachXDP(t *testing.T, obj *BpfObjects, ifindex int) {
 	attachDatapath(t, obj, obj.UpfEntryFunc, ifindex)
 }
 
-// TCX ingress for the SCHED_CLS build, generic XDP for the XDP build.
 func attachDatapath(t *testing.T, obj *BpfObjects, prog *ebpf.Program, ifindex int) {
 	t.Helper()
 
@@ -308,7 +262,6 @@ func openCapture(t *testing.T, ifindex int) int {
 	return fd
 }
 
-// captureMatching reads frames until match returns true or the timeout elapses.
 func captureMatching(fd int, timeout time.Duration, match func([]byte) bool) []byte { //nolint:unparam // general helper; timeout is configurable
 	buf := make([]byte, 9000)
 	deadline := time.Now().Add(timeout)
@@ -316,7 +269,7 @@ func captureMatching(fd int, timeout time.Duration, match func([]byte) bool) []b
 	for time.Now().Before(deadline) {
 		n, _, err := unix.Recvfrom(fd, buf, 0)
 		if err != nil {
-			continue // RCVTIMEO slice elapsed; retry until the overall deadline
+			continue
 		}
 
 		frame := make([]byte, n)
@@ -349,10 +302,6 @@ func ip4String(a [4]byte) string { return net.IP(a[:]).String() }
 
 func addrCIDR(a [4]byte) string { return ip4String(a) + "/24" }
 
-// TestDownlinkStatisticsAttached checks that downlink byte accounting lands in
-// downlink_statistics on a real attach. It is the N6-side counterpart to
-// TestUplinkStatistics, which the test-run harness cannot reach because it needs
-// a distinct ingress interface.
 func TestDownlinkStatisticsAttached(t *testing.T) {
 	requireProgTestRun(t)
 
